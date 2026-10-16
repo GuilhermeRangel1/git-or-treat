@@ -53,6 +53,6 @@ Para tabelas grandes, definir paginação/ordenação de modo consistente com a 
 
 ## Integração e aceitação
 
-O frontend consome API FastAPI; não lê o banco ou arquivos Gold diretamente. Definir contratos com backend antes de codificar componentes. Verificar ao menos uma jornada real de cada área com Gold carregada e demonstrar que os números batem com a consulta fonte. A skill `vercel-react-best-practices` é referência para performance React, não substitui os critérios do PRD. Figma pode orientar interface quando houver arquivo/frame e MCP conectado, mas nenhum design foi fornecido.
+O frontend consome API FastAPI; não lê o banco ou arquivos Gold diretamente. Definir contratos com backend antes de codificar componentes. Verificar ao menos uma jornada real de cada área com Gold carregada e demonstrar que os números batem com a consulta fonte. A skill `vercel-react-best-practices` é referência para performance React, não substitui os critérios do PRD. O [protótipo próprio em Figma](../design/grid360-prototype.md) orienta a interface nos dois temas; contém dados sintéticos e não valida integração, persistência ou acessibilidade de execução.
 
 Antes de declarar WEB-01 a WEB-07 concluídos, guardar evidência de uma execução com API real, filtros exercitados, caso vazio/erro e amostra reconciliada com Gold. Os diferenciais WEB-08 a WEB-10 são independentes e continuam pendentes até seus próprios critérios serem testados.

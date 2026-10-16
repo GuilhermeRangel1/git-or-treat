@@ -13,6 +13,7 @@ Plataforma integrada para a distribuidora V-Energy, proposta no case final Visag
 5. [Integrações e hooks](docs/agents/tooling.md): skills, Context7, Figma e automações de proteção.
 6. [Acompanhamento no Trello](docs/agents/issue-tracker.md): cartões dos requisitos obrigatórios sincronizados com o PRD.
 7. [Diagnóstico da receita](docs/revenue-diagnosis.md) e [status report](docs/status-report.md): estruturas a preencher com evidências reais.
+8. [Protótipo visual](docs/design/grid360-prototype.md): arquivo Figma, temas, componentes, jornadas e limites da demonstração.
 
 ## Estrutura planejada
 
@@ -22,16 +23,16 @@ backend/           API FastAPI e acesso às tabelas Gold
 frontend/          aplicação React + TypeScript (Vite)
 ai-agent/          agente Text-to-SQL e insights integrados
 docs/              PRD, diagnóstico, dicionário e decisões
-.agents/skills/    skills externas versionadas para agentes
+.agents/           skills compartilhadas e hooks/MCP do Antigravity
 .claude/           hooks e adaptadores de skills para Claude Code
 .codex/            hooks e MCPs para Codex
-.hooks/            scripts compartilhados pelos dois clientes
+.hooks/            scripts compartilhados pelos três clientes
 ```
 
 As pastas de serviços são apenas esqueletos documentais. A solução será construída em entregas verificáveis, seguindo os IDs do PRD. O dataset mencionado no case será disponibilizado separadamente na plataforma da atividade; o repositório não o contém.
 
 ## Preparação dos agentes
 
-Codex e Claude Code compartilham os `AGENTS.md` e os scripts em `.hooks/`. Cada cliente tem sua configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e nenhum item funcional foi concluído nesta fase.
+Codex, Claude Code e Antigravity compartilham os `AGENTS.md`, as skills compatíveis em `.agents/skills/` e os scripts em `.hooks/`. Cada cliente tem configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e nenhum item funcional foi concluído nesta fase.
 
-O GitHub Actions em `.github/workflows/quality.yml` roda em pull requests, na branch `main` e manualmente. Por enquanto, valida configurações dos agentes, imports compartilhados, links locais da documentação e sintaxe dos hooks. Ele não implementa funcionalidades nem cria branches ou pull requests.
+O GitHub Actions em `.github/workflows/quality.yml` roda em pull requests, na branch `main` e manualmente. Por enquanto, valida configurações dos agentes (incluindo hooks e MCPs do Antigravity), imports compartilhados, links locais da documentação e sintaxe dos hooks. Ele não implementa funcionalidades nem cria branches ou pull requests.
