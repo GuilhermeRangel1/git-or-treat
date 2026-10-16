@@ -1,6 +1,7 @@
 # PRD — V-Energy Grid 360
 
-**Versão:** 1.1 documental · **Data:** 16/10/2026 · **Estado da implementação:** não iniciada  
+**Versão:** 1.3 documental · **Data:** 16/10/2026 · **Estado da implementação:** não iniciada
+
 **Origem:** case final Visagio, Rocket Lab 2026.2, fornecido pela pessoa usuária em dez páginas de imagem. Este documento reescreve o enunciado em texto pesquisável, organiza critérios de aceite e separa exigências do case de decisões futuras do time. As imagens não integram o repositório.  
 **Classificação do material de origem:** o enunciado traz indicação de confidencialidade. O mesmo enunciado exige repositório GitHub público na entrega. Essa tensão precisa de confirmação com a organização antes da publicação de conteúdo ou dados do case.
 
@@ -348,6 +349,17 @@ O portal é interno. O diferencial de perfis detalha controle por cargo; mesmo n
 
 As telas precisam ser legíveis para quem decide sob pressão: rótulos, unidades, período, comparação, estado vazio, erro e atualização visíveis. Busca por UC e filtros devem responder com feedback claro. Tabelas, gráficos e insights precisam de equivalente textual suficiente para interpretação; navegação por teclado e contraste devem ser verificados. A escolha do layout fica com o time e pode usar Figma; nenhum design é exigido nas páginas recebidas.
 
+#### Preparação do protótipo — solicitação da pessoa usuária em 16/10/2026
+
+Como orientação adicional de trabalho, criar o protótipo pelo **Figma MCP** em um arquivo Figma Design organizado em quatro páginas:
+
+1. Componentes e estilos — modo claro.
+2. Componentes e estilos — modo escuro.
+3. Páginas e fluxos — modo claro.
+4. Páginas e fluxos — modo escuro.
+
+As páginas de fluxos contêm as telas necessárias às jornadas; essa organização não limita o portal a quatro telas. O [protótipo editável no Figma](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K) foi criado pelo MCP com 16 frames por tema e uma biblioteca compartilhada. A direção combina estrutura técnica, atmosfera profunda no modo escuro e detalhes tecnológicos expressivos. A pessoa usuária aprovou a paleta **cacau, goiaba e pistache**; tipografia Manrope, DM Sans e IBM Plex Mono; primeira versão desktop. Backgrounds editáveis e transições nativas estão representados no Figma; efeitos contínuos e suporte a movimento reduzido pertencem à futura implementação. Veja o [registro visual, jornadas e verificações](design/grid360-prototype.md). Os diferenciais WEB-08 a WEB-10 e IA-07 não integram esta primeira versão. A [skill git-or-treat-figma](../.agents/skills/git-or-treat-figma/SKILL.md) orienta a continuidade. Skill e protótipo são preparação: não substituem a aplicação integrada nem concluem requisitos WEB/IA/ENT.
+
 ### 9.4 Desempenho e volume
 
 O banco e a API devem tratar aproximadamente 2,18 milhões de leituras e faturas sem trazer todo o histórico ao navegador. Aplicar paginação, agregação e índices conforme perfil real de consulta. Limiares de latência e carga não foram especificados no case; medir com dataset recebido e registrar metas realistas antes de marcar desempenho como aceito.
@@ -415,7 +427,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 | P-05 | Definição de DEC/FEC depende de campos e população de UCs por alimentador. | Documentar fórmula e limitar interpretação; não reivindicar cálculo regulatório oficial. |
 | P-06 | Case exige GitHub público e imprime aviso de confidencialidade. | Confirmar permissão de publicação; evitar subir dataset e informação identificável. |
 | P-07 | Não há ano explícito nas datas 04/11, 05/11 e 10/11. | Conferir calendário do programa. |
-| P-08 | Não existe URL de Figma ou design entregue. | Integração preparada, sem assumir telas prontas ou conta conectada. |
+| P-08 | Protótipo próprio criado pelo Figma MCP em 16/10/2026, com quatro páginas, dois temas e dados sintéticos (§9.3). | [Arquivo, jornadas e limites](design/grid360-prototype.md) documentados. Restam revisão manual das interações no player, implementação e validação com API/Gold reais; design não comprova requisito funcional. |
 
 ## 13. Critérios de pronto por etapa
 
@@ -437,7 +449,29 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
-**Marco atual (16/10/2026):** documentação e instruções para agentes criadas e ampliadas após conferência das dez páginas; nenhum requisito funcional DE/WEB/IA/ENT foi implementado ou validado. A instalação de skills e hooks é preparação do repositório e não atende um requisito do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
+**Marco atual (16/10/2026):** documentação, instruções e protótipo visual em Figma criados; nenhum requisito funcional DE/WEB/IA/ENT foi implementado ou validado. Skills, hooks e protótipo são preparação e não atendem, por si, requisitos funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
+
+### 2026-10-16 — preparação de WEB-01 a WEB-07 e IA-01 a IA-06 — skill de prototipação
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; skill própria criada como preparação documental.
+- Mudança observável para usuário/negócio: instrução reutilizável para planejar e revisar o protótipo, com quatro páginas Figma e temas claro/escuro compartilhando componentes e tokens; direção visual inicial híbrida registrada em §9.3, com escolhas específicas ainda abertas.
+- Arquivos/commit/PR: branch `feat/git-or-treat-figma`; [skill](../.agents/skills/git-or-treat-figma/SKILL.md), seus três guias de apoio, metadados Codex e adaptador Claude; [catálogo de ferramentas](agents/tooling.md#skill-própria-de-prototipação) e §9.3/§12 deste PRD. Sem publicação ou arquivo Figma criado nesta etapa.
+- Dados usados: PRD, guias frontend/backend/IA e dicionário ainda sem esquema real; consulta às cinco referências oficiais em 16/10/2026, com a limitação de abertura de Motion Primitives documentada no guia. Nenhum dataset ou dado pessoal utilizado.
+- Verificações: `python -X utf8 <pasta-da-skill-creator>/scripts/quick_validate.py .agents/skills/git-or-treat-figma` aprovou nome/frontmatter/estrutura; bloco Python do workflow `.github/workflows/quality.yml` executado localmente aprovou configurações, seis imports e links em 33 documentos; `python -m compileall -q .hooks` passou. Links internos da skill e correspondência do adaptador foram conferidos. `git diff --check` inicialmente detectou espaços finais no cabeçalho alterado, corrigidos antes da verificação final aprovada.
+- Reconciliação ou amostra manual: teste de comportamento por subagente antes/depois da skill, sem escrita externa. Na revisão com a skill, o plano propôs quatro páginas com uma biblioteca e dois modos; distinguiu números do enunciado de achados e limitou paralelismo à análise, mantendo futura escrita coordenada no Figma. Uma ambiguidade sobre iniciar entrevista em pedidos preparatórios foi corrigida e revalidada.
+- Critérios de aceite revisados e pendências: matriz cobre jornadas obrigatórias, estados alternativos e diferenciais selecionáveis. Essa revisão é documental; nenhuma integração, cálculo Gold, controle de acesso ou requisito funcional foi validado. Pendentes direção visual, dispositivo, diferenciais, plano/acesso e criação via Figma MCP, capturas e navegação do protótipo.
+- Responsável/revisor: Codex (autoria e verificações locais); subagente de revisão comportamental; revisão humana do resultado e critérios funcionais pendente.
+
+### 2026-10-16 — preparação de WEB-01 a WEB-07 e IA-01 a IA-06 — protótipo visual
+
+- Estado anterior → novo estado: todos os requisitos funcionais permanecem `Pendente`; protótipo visual criado como referência adicional solicitada pela pessoa usuária.
+- Mudança observável para usuário/negócio: quatro páginas Figma, 16 frames por tema, biblioteca compartilhada e jornadas conectadas para panorama, receita, UC, inspeções, ordens, operação e assistente. Paleta cacau/goiaba/pistache aprovada; backgrounds editáveis e transições nativas representados.
+- Arquivos/commit/PR: branch `feat/git-or-treat-figma`; [registro visual](design/grid360-prototype.md), §9.3/§12 deste PRD, [guia frontend](services/frontend.md), [catálogo de ferramentas](agents/tooling.md) e README. [Arquivo Figma](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K); scripts/capturas temporários em `work/` não integram a entrega versionada e foram excluídos pelo `.gitignore`.
+- Dados usados: cenários totalmente sintéticos, sem dataset ou dados pessoais. Receita demonstrativa R$ 80.000 → R$ 76.500; decomposição −8.000 + 5.000 − 500 = −3.500. Não são achados do diagnóstico real.
+- Verificações: auditoria de leitura pelo Figma MCP em 16/10/2026 encontrou, por tema, 16/16 frames alcançáveis, 250 instâncias, 764 textos e zero destinos inexistentes, fontes ausentes, textos colapsados ou transbordamentos internos detectados. Capturas dos layouts principais e overlays inspecionadas; painel FEC corrigido e recapturado. Procedimento e contrastes medidos no registro visual. O bloco Python do workflow `.github/workflows/quality.yml`, executado localmente, aprovou configurações, seis imports compartilhados e links em 34 documentos; `git diff --check` passou.
+- Reconciliação ou amostra manual: totais dos municípios e bairros demonstrativos conferidos; UC e suspeita de perdas usam identificadores distintos. Revisão corrigiu recortes sem detalhe, retorno dos filtros, fundamento por contexto, série FEC e vencimento fictício de fatura. O player carregou o panorama; sequência de cliques e alterações de variáveis no player ainda não foram validadas manualmente.
+- Critérios de aceite revisados e pendências: cobertura visual dos requisitos obrigatórios, com estados alternativos e limites explícitos. Gold, API, persistência de ordens, segurança Text-to-SQL, teclado, responsividade e números reais não foram implementados ou comprovados. Diferenciais fora desta primeira versão.
+- Responsável/revisor: Codex coordenou a escrita no Figma MCP; subagentes apoiaram componentes, jornadas e revisão documental. Revisão humana do protótipo e critérios funcionais pendente.
 
 ### Modelo de entrada
 
