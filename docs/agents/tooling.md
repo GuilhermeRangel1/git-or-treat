@@ -49,6 +49,7 @@ Ao iniciar implementação do frontend, instalar Prettier em `frontend/` antes d
 ## Limites práticos
 
 - Hooks não vigiam commits feitos fora de uma sessão dos agentes. O time deve ter revisão e scanner de segredos na futura CI, se publicar o repositório.
+- O hook de segredos não é um parser de shell: comandos como `grep CHAVE .env` ou `python -c "open('.env')"` não são bloqueados por ele. A regra `permissions.deny` em `.claude/settings.json` cobre a leitura direta de `.env` pela ferramenta Read; revisão e scanner de segredos continuam necessários.
 - Quality gate executa comandos que existirem nos manifests; a ausência de script relevante deve ser resolvida na implementação. Checagem automática não prova a correção de números de negócio.
 - Figma depende da conexão da conta e de um link/frame específico; Context7 depende de acesso à rede e à documentação da biblioteca.
 
@@ -57,3 +58,17 @@ Ao iniciar implementação do frontend, instalar Prettier em `frontend/` antes d
 O workflow `.github/workflows/quality.yml` roda em pull requests, em pushes para `main` e sob solicitação manual. Com permissões de leitura, ele valida JSON/TOML, os imports `CLAUDE.md` → `AGENTS.md`, links locais nos documentos do projeto e a sintaxe Python dos hooks compartilhados. As ações externas estão fixadas em SHAs completos.
 
 Quando os módulos receberem código e manifests de dependências, ampliar o CI com os comandos reais de lint, tipos, testes e build de cada módulo. Não declarar checks obrigatórios nas regras da branch antes de o workflow ter uma execução bem-sucedida no GitHub; a exigência de PR e os checks obrigatórios são configurações de proteção da branch, não criadas pelo arquivo do workflow. O CI não cria funcionalidades, branches nem PRs.
+
+## Roteiro de verificação no Claude Code
+
+Para quem usa Claude Code, conferir em uma sessão real (a raiz do repositório aberta) e registrar o resultado no grupo:
+
+1. **Versão e pré-requisitos.** `claude --version` deve ser 2.1.295 ou superior (necessário para `onFailure` nos hooks). O comando `python --version` precisa responder: os hooks chamam `python`, não `python3`. Em macOS e em alguns Linux só existe `python3`; como o hook de segredos usa `onFailure: "block"`, sem `python` todas as chamadas de Read, Write, Edit e Bash ficam bloqueadas. Crie um alias/symlink `python` ou ajuste o comando localmente.
+2. **Hooks.** `/hooks` deve listar `PreToolUse` (segredos), `PostToolUse` (formatação) e `Stop` (quality gate).
+3. **Instruções.** `/context` deve mostrar o `CLAUDE.md` da raiz e o `AGENTS.md`; ao pedir a leitura de um arquivo em `backend/`, o `CLAUDE.md` da pasta também deve ser carregado.
+4. **Skills.** Digitar `/` deve listar as 14 skills de `.claude/skills/`; testar `/grill-me`, que só roda quando chamada.
+5. **MCP.** `/mcp`: aprovar `context7` e `figma`; autenticar o Figma. Testar o Context7 pedindo a documentação de uma biblioteca.
+6. **Segredos.** Com um `.env` falso (ignorado pelo Git): ler `.env` deve ser bloqueado, ler `.env.example` deve funcionar e escrever uma chave falsa como `AKIAIOSFODNN7EXAMPLE` deve ser bloqueado.
+7. **Quality gate.** Marcar um requisito como `Concluído` no PRD sem entrada no Registro de progresso: o Claude deve ser impedido de encerrar o turno. Desfazer a alteração depois.
+
+O hook de formatação devolve aviso enquanto o Prettier não estiver instalado em `frontend/`; isso é esperado até o frontend existir.
