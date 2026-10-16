@@ -4,3 +4,6 @@ args = ["-y", "@upstash/context7-mcp"]
 
 [mcp_servers.figma]
 url = "https://mcp.figma.com/mcp"
+
+[mcp_servers.trello]
+url = "https://mcp.trello.com/v1"
