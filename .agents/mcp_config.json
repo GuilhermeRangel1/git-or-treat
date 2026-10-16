@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "figma": {
+      "serverUrl": "https://mcp.figma.com/mcp"
+    },
+    "trello": {
+      "serverUrl": "https://mcp.trello.com/v1"
+    }
+  }
+}
