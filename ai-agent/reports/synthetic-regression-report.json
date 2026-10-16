@@ -1,0 +1,157 @@
+{
+  "report_type": "synthetic_regression",
+  "synthetic": true,
+  "dataset_version": "1.0.0",
+  "generated_at_utc": "2026-10-16T22:16:30.506972+00:00",
+  "provider": "fixed_test_adapter; no Gemini API calls",
+  "summary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0
+  },
+  "limitations": [
+    "Todos os valores e cenários são artificiais e não representam a V-Energy.",
+    "O adaptador de linguagem é falso; a execução não mede qualidade ou disponibilidade do Gemini.",
+    "A avaliação cobre regras e contratos locais, não reconciliação com Gold."
+  ],
+  "cases": [
+    {
+      "id": "consumption_demo_answer",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "answer_grounded": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "consumption",
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "ambiguous_bill_clarification",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "unsupported_geography_no_evidence",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "no_evidence",
+      "actual_domain": "consumption",
+      "tool_calls": 1,
+      "model_calls": 0
+    },
+    {
+      "id": "write_request_refused",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "refused",
+      "actual_domain": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "injection_refused",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "refused",
+      "actual_domain": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "unrelated_topic_refused",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "refused",
+      "actual_domain": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "unsupported_number_refused",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "evidence_source": true
+      },
+      "actual_status": "refused",
+      "actual_domain": "consumption",
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "synthetic_tool_failure",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "recoverable_error",
+      "actual_domain": "consumption",
+      "tool_calls": 1,
+      "model_calls": 0
+    },
+    {
+      "id": "model_provider_failure",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "recoverable_error",
+      "actual_domain": "consumption",
+      "tool_calls": 1,
+      "model_calls": 1
+    }
+  ]
+}

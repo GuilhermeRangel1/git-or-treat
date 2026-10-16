@@ -1,14 +1,11 @@
 import asyncio
-from collections.abc import Callable
 
 import httpx
-import pytest
 
-from app.agent.orchestrator import QuestionOrchestrator
 from app.config import Settings
 from app.main import create_app
 from app.providers.protocols import GeneratedAnswer
-from app.tools.evidence import EvidenceReference, EvidenceResult
+from app.tools.evidence import EvidenceResult
 
 
 class InProcessClient:
@@ -38,21 +35,6 @@ class InProcessClient:
         return None
 
 
-class FakeEvidenceTool:
-    def __init__(
-        self,
-        result: EvidenceResult | None = None,
-        error: Exception | None = None,
-    ) -> None:
-        self.result = result
-        self.error = error
-
-    async def retrieve(self, question: str, context: list[dict[str, str]]) -> EvidenceResult | None:
-        if self.error:
-            raise self.error
-        return self.result
-
-
 class FakeModelAdapter:
     def __init__(
         self,
@@ -76,37 +58,5 @@ class FakeModelAdapter:
         return self.result
 
 
-@pytest.fixture
-def demo_evidence() -> EvidenceResult:
-    return EvidenceResult(
-        reference=EvidenceReference(
-            source="fixture_sintetica",
-            description="Dados fictícios para teste de contrato; não representam a V-Energy.",
-            is_demo=True,
-        ),
-        records=[{"metric": "consumo_demo", "value": 123.0}],
-    )
-
-
-@pytest.fixture
-def client_factory() -> Callable[..., InProcessClient]:
-    def create_client(
-        *, evidence_tool: object | None = None, model_adapter: object | None = None
-    ) -> InProcessClient:
-        orchestrator = None
-        if evidence_tool is not None or model_adapter is not None:
-            from app.providers.unavailable import UnavailableModelAdapter
-            from app.tools.evidence import NoEvidenceTool
-
-            orchestrator = QuestionOrchestrator(
-                evidence_tool=evidence_tool or NoEvidenceTool(),
-                model_adapter=model_adapter or UnavailableModelAdapter(),
-            )
-        return InProcessClient(
-            create_app(
-                settings=Settings(_env_file=None),
-                question_orchestrator=orchestrator,
-            )
-        )
-
-    return create_client
+def client_factory() -> InProcessClient:
+    return InProcessClient(create_app(settings=Settings(_env_file=None)))
