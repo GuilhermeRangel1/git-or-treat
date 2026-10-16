@@ -1,0 +1,43 @@
+{
+  "description": "Hooks compartilhados de segurança, formatação e qualidade do V-Energy Grid 360.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|exec_command|apply_patch|Read|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import pathlib,sys; p=pathlib.Path.cwd(); r=next(x for x in (p,*p.parents) if (x/'.git').exists()); sys.path.insert(0,str(r/'.hooks')); import secret_leak_prevention; raise SystemExit(secret_leak_prevention.main())\"",
+            "timeout": 10,
+            "statusMessage": "Verificando possíveis segredos"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import pathlib,sys; p=pathlib.Path.cwd(); r=next(x for x in (p,*p.parents) if (x/'.git').exists()); sys.path.insert(0,str(r/'.hooks')); import format_frontend; raise SystemExit(format_frontend.main())\"",
+            "timeout": 60,
+            "statusMessage": "Formatando arquivo de frontend alterado"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import pathlib,sys; p=pathlib.Path.cwd(); r=next(x for x in (p,*p.parents) if (x/'.git').exists()); sys.path.insert(0,str(r/'.hooks')); import quality_gate; raise SystemExit(quality_gate.main())\"",
+            "timeout": 300,
+            "statusMessage": "Executando quality gate do projeto"
+          }
+        ]
+      }
+    ]
+  }
+}

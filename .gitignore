@@ -1,0 +1,42 @@
+# Segredos e configuração local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.secret
+secrets/
+.claude/settings.local.json
+
+# Dados do case e derivados locais
+data/
+datasets/
+*.csv
+*.xlsx
+*.xls
+*.parquet
+*.delta
+*.db
+*.sqlite
+*.sqlite3
+
+# Artefatos gerados
+node_modules/
+dist/
+build/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage/
+*.pyc
+
+# Logs e sistema
+*.log
+.DS_Store
+Thumbs.db
