@@ -1,0 +1,39 @@
+{
+  "secret-leak-prevention": {
+    "PreToolUse": [
+      {
+        "matcher": "run_command|write_to_file|replace_file_content|multi_replace_file_content|view_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import os,runpy,sys; p='run_hook.py' if os.path.isfile('run_hook.py') else '.agents/run_hook.py'; sys.argv=[p,*sys.argv[1:]]; runpy.run_path(p,run_name='__main__')\" pre_tool",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "format-frontend": {
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import os,runpy,sys; p='run_hook.py' if os.path.isfile('run_hook.py') else '.agents/run_hook.py'; sys.argv=[p,*sys.argv[1:]]; runpy.run_path(p,run_name='__main__')\" post_tool",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  },
+  "quality-gate": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python -c \"import os,runpy,sys; p='run_hook.py' if os.path.isfile('run_hook.py') else '.agents/run_hook.py'; sys.argv=[p,*sys.argv[1:]]; runpy.run_path(p,run_name='__main__')\" stop",
+        "timeout": 300
+      }
+    ]
+  }
+}

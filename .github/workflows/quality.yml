@@ -42,8 +42,25 @@ jobs:
 
           root = Path.cwd()
 
-          for name in (".codex/hooks.json", ".claude/settings.json", ".mcp.json"):
+          for name in (
+              ".codex/hooks.json",
+              ".claude/settings.json",
+              ".mcp.json",
+              ".agents/hooks.json",
+              ".agents/mcp_config.json",
+          ):
               json.loads((root / name).read_text(encoding="utf-8"))
+
+          antigravity_mcp = json.loads(
+              (root / ".agents/mcp_config.json").read_text(encoding="utf-8")
+          )["mcpServers"]
+          for name, server in antigravity_mcp.items():
+              if "url" in server:
+                  raise SystemExit(
+                      f"Antigravity MCP {name} usa `url`; conexões remotas exigem `serverUrl`."
+                  )
+              if not ("command" in server or "serverUrl" in server):
+                  raise SystemExit(f"Antigravity MCP {name} sem transporte configurado.")
 
           tomllib.loads((root / ".codex/config.toml").read_text(encoding="utf-8"))
 
@@ -78,5 +95,5 @@ jobs:
           print(f"Configuracoes validas; {len(instructions)} imports Claude/Codex presentes; links locais verificados em {len(markdown_files)} documentos.")
           PY
 
-      - name: Validar sintaxe dos hooks compartilhados
-        run: python -m compileall -q .hooks
+      - name: Validar sintaxe dos hooks compartilhados e adaptador Antigravity
+        run: python -m compileall -q .hooks .agents/run_hook.py
