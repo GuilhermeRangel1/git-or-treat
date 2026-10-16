@@ -14,6 +14,12 @@ Skills externas foram copiadas para `.agents/skills/` em 16/10/2026, a partir do
 
 As instruções completas ficam em `.agents/skills/` e são descobertas pelo Codex. `.claude/skills/` contém adaptadores com nome e descrição compatíveis que direcionam Claude Code às mesmas instruções e recursos de apoio; altere o conteúdo canônico em `.agents/skills/`, não replique a skill inteira no adaptador.
 
+### Skill própria de prototipação
+
+[git-or-treat-figma](../../.agents/skills/git-or-treat-figma/SKILL.md), criada em 16/10/2026, orienta preparação, discussão visual, construção e revisão do protótipo V-Energy Grid 360. Pode ser invocada como `$git-or-treat-figma`; há adaptador em `.claude/skills/git-or-treat-figma/`. A descoberta em cada IDE depende de seu cliente carregar as skills do workspace.
+
+A skill liga as jornadas do PRD a frames e estados, preserva componentes/tokens compartilhados entre modos claro e escuro e exige construção editável pelo Figma MCP. Seus guias separam [referências visuais](../../.agents/skills/git-or-treat-figma/references/visual-references.md), [execução Figma e divisão entre agentes](../../.agents/skills/git-or-treat-figma/references/figma-workflow.md) e [cobertura/revisão](../../.agents/skills/git-or-treat-figma/references/coverage-and-review.md). A organização das quatro páginas está no [PRD §9.3](../PRD.md#93-experiência-e-acessibilidade); identidade visual e arquivo Figma ainda não foram produzidos. A criação da skill não instala as bibliotecas das referências nem comprova autenticação do Figma.
+
 ## MCP Context7 e Figma
 
 `.mcp.json` configura Claude Code; `.codex/config.toml` registra os mesmos serviços para Codex. Ambos preparam Context7 via `@upstash/context7-mcp` e Figma remoto em `https://mcp.figma.com/mcp`. Context7 consulta documentação atual de bibliotecas; use-o para APIs/configuração sem substituir as decisões do projeto. A configuração não contém chave. A primeira execução pode precisar baixar o pacote. Figma requer autenticação da pessoa usuária; a entrada versionada não significa sessão conectada ou acesso a arquivo. Nenhum URL de design foi fornecido.

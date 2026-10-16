@@ -1,6 +1,7 @@
 # PRD — V-Energy Grid 360
 
-**Versão:** 1.1 documental · **Data:** 16/10/2026 · **Estado da implementação:** não iniciada  
+**Versão:** 1.2 documental · **Data:** 16/10/2026 · **Estado da implementação:** não iniciada
+
 **Origem:** case final Visagio, Rocket Lab 2026.2, fornecido pela pessoa usuária em dez páginas de imagem. Este documento reescreve o enunciado em texto pesquisável, organiza critérios de aceite e separa exigências do case de decisões futuras do time. As imagens não integram o repositório.  
 **Classificação do material de origem:** o enunciado traz indicação de confidencialidade. O mesmo enunciado exige repositório GitHub público na entrega. Essa tensão precisa de confirmação com a organização antes da publicação de conteúdo ou dados do case.
 
@@ -348,6 +349,17 @@ O portal é interno. O diferencial de perfis detalha controle por cargo; mesmo n
 
 As telas precisam ser legíveis para quem decide sob pressão: rótulos, unidades, período, comparação, estado vazio, erro e atualização visíveis. Busca por UC e filtros devem responder com feedback claro. Tabelas, gráficos e insights precisam de equivalente textual suficiente para interpretação; navegação por teclado e contraste devem ser verificados. A escolha do layout fica com o time e pode usar Figma; nenhum design é exigido nas páginas recebidas.
 
+#### Preparação do protótipo — solicitação da pessoa usuária em 16/10/2026
+
+Como orientação adicional de trabalho, criar o protótipo pelo **Figma MCP** em um arquivo Figma Design organizado em quatro páginas:
+
+1. Componentes e estilos — modo claro.
+2. Componentes e estilos — modo escuro.
+3. Páginas e fluxos — modo claro.
+4. Páginas e fluxos — modo escuro.
+
+As páginas de fluxos conterão as telas necessárias às jornadas; essa organização não limita o portal a quatro telas. Componentes e tokens serão compartilhados entre os dois temas. A identidade visual será discutida após a criação da skill [git-or-treat-figma](../.agents/skills/git-or-treat-figma/SKILL.md), usando React Bits, Aceternity UI, Magic UI, Motion Primitives e Codrops como referências. A pessoa usuária escolheu uma direção inicial que combina estrutura técnica e atmosfera profunda no modo escuro com detalhes tecnológicos expressivos, mantendo também a versão clara. Paleta, tipografia, intensidade de movimento, dispositivos e diferenciais ainda não foram escolhidos. A skill e o protótipo são preparação: não substituem a aplicação integrada nem concluem requisitos WEB/IA/ENT.
+
 ### 9.4 Desempenho e volume
 
 O banco e a API devem tratar aproximadamente 2,18 milhões de leituras e faturas sem trazer todo o histórico ao navegador. Aplicar paginação, agregação e índices conforme perfil real de consulta. Limiares de latência e carga não foram especificados no case; medir com dataset recebido e registrar metas realistas antes de marcar desempenho como aceito.
@@ -415,7 +427,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 | P-05 | Definição de DEC/FEC depende de campos e população de UCs por alimentador. | Documentar fórmula e limitar interpretação; não reivindicar cálculo regulatório oficial. |
 | P-06 | Case exige GitHub público e imprime aviso de confidencialidade. | Confirmar permissão de publicação; evitar subir dataset e informação identificável. |
 | P-07 | Não há ano explícito nas datas 04/11, 05/11 e 10/11. | Conferir calendário do programa. |
-| P-08 | Não existe URL de Figma ou design entregue. | Integração preparada, sem assumir telas prontas ou conta conectada. |
+| P-08 | Não existe URL de Figma ou design entregue; a organização futura em quatro páginas e dois temas foi solicitada em 16/10/2026 (§9.3). | Skill de preparação criada; identidade visual, criação do arquivo pelo MCP e evidência do protótipo permanecem para a próxima etapa. Não assumir telas prontas ou conta conectada. |
 
 ## 13. Critérios de pronto por etapa
 
@@ -438,6 +450,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 ## 14. Registro de progresso
 
 **Marco atual (16/10/2026):** documentação e instruções para agentes criadas e ampliadas após conferência das dez páginas; nenhum requisito funcional DE/WEB/IA/ENT foi implementado ou validado. A instalação de skills e hooks é preparação do repositório e não atende um requisito do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
+
+### 2026-10-16 — preparação de WEB-01 a WEB-07 e IA-01 a IA-06 — skill de prototipação
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; skill própria criada como preparação documental.
+- Mudança observável para usuário/negócio: instrução reutilizável para planejar e revisar o protótipo, com quatro páginas Figma e temas claro/escuro compartilhando componentes e tokens; direção visual inicial híbrida registrada em §9.3, com escolhas específicas ainda abertas.
+- Arquivos/commit/PR: branch `feat/git-or-treat-figma`; [skill](../.agents/skills/git-or-treat-figma/SKILL.md), seus três guias de apoio, metadados Codex e adaptador Claude; [catálogo de ferramentas](agents/tooling.md#skill-própria-de-prototipação) e §9.3/§12 deste PRD. Sem publicação ou arquivo Figma criado nesta etapa.
+- Dados usados: PRD, guias frontend/backend/IA e dicionário ainda sem esquema real; consulta às cinco referências oficiais em 16/10/2026, com a limitação de abertura de Motion Primitives documentada no guia. Nenhum dataset ou dado pessoal utilizado.
+- Verificações: `python -X utf8 <pasta-da-skill-creator>/scripts/quick_validate.py .agents/skills/git-or-treat-figma` aprovou nome/frontmatter/estrutura; bloco Python do workflow `.github/workflows/quality.yml` executado localmente aprovou configurações, seis imports e links em 33 documentos; `python -m compileall -q .hooks` passou. Links internos da skill e correspondência do adaptador foram conferidos. `git diff --check` inicialmente detectou espaços finais no cabeçalho alterado, corrigidos antes da verificação final aprovada.
+- Reconciliação ou amostra manual: teste de comportamento por subagente antes/depois da skill, sem escrita externa. Na revisão com a skill, o plano propôs quatro páginas com uma biblioteca e dois modos; distinguiu números do enunciado de achados e limitou paralelismo à análise, mantendo futura escrita coordenada no Figma. Uma ambiguidade sobre iniciar entrevista em pedidos preparatórios foi corrigida e revalidada.
+- Critérios de aceite revisados e pendências: matriz cobre jornadas obrigatórias, estados alternativos e diferenciais selecionáveis. Essa revisão é documental; nenhuma integração, cálculo Gold, controle de acesso ou requisito funcional foi validado. Pendentes direção visual, dispositivo, diferenciais, plano/acesso e criação via Figma MCP, capturas e navegação do protótipo.
+- Responsável/revisor: Codex (autoria e verificações locais); subagente de revisão comportamental; revisão humana do resultado e critérios funcionais pendente.
 
 ### Modelo de entrada
 
