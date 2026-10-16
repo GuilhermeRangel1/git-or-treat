@@ -11,8 +11,9 @@ Plataforma integrada para a distribuidora V-Energy, proposta no case final Visag
 3. [Serviços](docs/services/README.md): responsabilidades e contratos de cada módulo.
 4. [Fluxo de desenvolvimento e qualidade](docs/agents/workflow.md): como concluir e comprovar requisitos.
 5. [Integrações e hooks](docs/agents/tooling.md): skills, Context7, Figma e automações de proteção.
-6. [Diagnóstico da receita](docs/revenue-diagnosis.md) e [status report](docs/status-report.md): estruturas a preencher com evidências reais.
-7. [Protótipo visual](docs/design/grid360-prototype.md): arquivo Figma, temas, componentes, jornadas e limites da demonstração.
+6. [Acompanhamento no Trello](docs/agents/issue-tracker.md): cartões dos requisitos obrigatórios sincronizados com o PRD.
+7. [Diagnóstico da receita](docs/revenue-diagnosis.md) e [status report](docs/status-report.md): estruturas a preencher com evidências reais.
+8. [Protótipo visual](docs/design/grid360-prototype.md): arquivo Figma, temas, componentes, jornadas e limites da demonstração.
 
 ## Estrutura planejada
 

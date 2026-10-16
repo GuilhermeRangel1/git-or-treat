@@ -24,9 +24,9 @@ A skill liga as jornadas do PRD a frames e estados, preserva componentes/tokens 
 
 `.mcp.json` configura Claude Code; `.codex/config.toml` registra os mesmos serviços para Codex. Ambos preparam Context7 via `@upstash/context7-mcp` e Figma remoto em `https://mcp.figma.com/mcp`. Context7 consulta documentação atual de bibliotecas; use-o para APIs/configuração sem substituir as decisões do projeto. A configuração não contém chave. A primeira execução pode precisar baixar o pacote. Figma requer autenticação da pessoa usuária; a entrada versionada não significa sessão conectada ou acesso a arquivo. O [arquivo próprio do protótipo](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K) foi criado em uma sessão autenticada do Figma MCP em 16/10/2026; cada cliente ainda precisa autenticar sua própria sessão.
 
-No **Codex**, `.codex/config.toml` é uma configuração de projeto e só é carregada quando o repositório é confiável. Confirme os servidores MCP nas configurações do Codex e autentique o Figma quando solicitado. A configuração local do Context7 chama `npx` e pode baixar o pacote na primeira execução.
+No **Codex**, `.codex/config.toml` é configuração de projeto e só é carregada quando o repositório é confiável. Confirme os servidores com `codex mcp list`; autorize Trello com `codex mcp login trello` quando o status OAuth estiver pendente. No Claude Code, confira os servidores do projeto com `/mcp` e conclua a autorização OAuth do Trello no navegador. A configuração local do Context7 chama `npx` e pode baixar o pacote na primeira execução. A autorização é independente por cliente e por usuário.
 
-Fontes: [Context7](https://github.com/upstash/context7/tree/master/packages/mcp), [boas práticas do Context7](https://context7.com/docs/tips), [configuração oficial do Figma MCP](https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/).
+Fontes: [Context7](https://github.com/upstash/context7/tree/master/packages/mcp), [boas práticas do Context7](https://context7.com/docs/tips), [configuração oficial do Figma MCP](https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/), [conexão oficial do Trello MCP](https://support.atlassian.com/trello/docs/connect-trello-to-ai-assistants-with-trello-mcp/).
 
 ## Hooks compartilhados
 
@@ -46,7 +46,7 @@ Os scripts são exceção à etapa “somente documental”, autorizada explicit
 
 ## Ativação e verificação
 
-**Verificado neste ambiente em 16/10/2026:** `codex mcp list` reconheceu `context7` e `figma` como habilitados; Python, Node.js e `npx` estão no PATH. Os JSONs de configuração e a sintaxe dos scripts foram validados; os hooks foram exercitados com eventos simulados. Isso confirma descoberta e comportamento local básico, não a execução de uma sessão completa dos dois clientes.
+**Verificado neste ambiente em 16/10/2026:** `codex mcp list` reconheceu `context7`, `figma` e `trello` como habilitados; Python, Node.js e `npx` estão no PATH. O Trello aparece com autenticação desconhecida. A tentativa de `codex mcp login trello` não concluiu porque este ambiente não conseguiu acessar o endpoint para descoberta OAuth. Os JSONs de configuração e a sintaxe dos scripts foram validados; os hooks foram exercitados com eventos simulados. Isso confirma descoberta e comportamento local básico, não a execução de uma sessão completa dos dois clientes.
 
 **Ainda depende de uma sessão real:** no Codex, confiar no projeto e revisar os hooks em `/hooks`; no Claude Code, abrir o projeto e conferir em `/context` se o `CLAUDE.md` da raiz e o da pasta acessada foram carregados, depois verificar os hooks com `/hooks`. O comando `claude` não está disponível neste ambiente, portanto os hooks, imports e MCPs do Claude Code ainda não foram testados de ponta a ponta. A sessão de Figma MCP usada na prototipação foi autenticada e realizou leitura/escrita no arquivo documentado; isso não comprova autenticação nas outras IDEs. O Context7 depende do download do pacote e de rede na primeira execução. Essas etapas pertencem ao ambiente de cada participante e não são resolvidas por arquivos versionados.
 
