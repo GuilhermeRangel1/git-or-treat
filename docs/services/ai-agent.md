@@ -1,6 +1,6 @@
 # Serviço: agente de inteligência artificial
 
-**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** especificado, sem agente implementado. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. Gemini 3.1 Flash-Lite é recomendação, OpenRouter aceita alternativas.
+**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** adaptador Gemini isolado e opcional disponível; fluxo analítico integrado e agente de produto ainda não implementados. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. Gemini 3.1 Flash-Lite é recomendação, OpenRouter aceita alternativas. A implementação atual segue a recomendação sem fechar a escolha de provedor pela equipe.
 
 ## Duas formas de IA obrigatórias
 

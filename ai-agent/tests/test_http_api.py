@@ -70,6 +70,27 @@ def test_question_returns_a_structured_answer_with_demo_evidence(
     ]
 
 
+def test_question_preserves_synthetic_catalog_reference_through_http(client_factory) -> None:
+    from conftest import FakeEvidenceTool, FakeModelAdapter
+
+    from app.scenarios import SYNTHETIC_SCENARIOS
+
+    scenario = next(
+        item for item in SYNTHETIC_SCENARIOS if item.scenario_id == "consumption_demo"
+    )
+    with client_factory(
+        evidence_tool=FakeEvidenceTool(scenario.evidence),
+        model_adapter=FakeModelAdapter(),
+    ) as client:
+        response = client.post("/api/v1/questions", json={"question": scenario.question})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "answered"
+    assert body["evidence"] == [scenario.evidence.reference.model_dump()]
+    assert body["evidence"][0]["is_demo"] is True
+
+
 def test_question_input_rejects_blank_text_and_context_over_limit(client_factory) -> None:
     with client_factory() as client:
         blank = client.post("/api/v1/questions", json={"question": "   "})

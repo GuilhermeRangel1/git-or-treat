@@ -1,6 +1,6 @@
 # Agente de IA
 
-Este diretório contém o serviço FastAPI isolado que será a base do agente Text-to-SQL e da lógica de insights. As rotas e os contratos HTTP iniciais estão disponíveis; ainda não há integração com banco Gold, provedor de IA, backend do portal ou interface. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md) e [PRD](../docs/PRD.md).
+Este diretório contém o serviço FastAPI isolado que será a base do agente Text-to-SQL e da lógica de insights. Há um adaptador Gemini isolado e opcional, desativado por padrão; ainda não há integração de evidências com Gold, backend do portal ou interface. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md) e [PRD](../docs/PRD.md).
 
 As próximas etapas dependem da integração das fontes analíticas e do provedor de IA.
 
@@ -18,6 +18,10 @@ Copy-Item .env.example .env
 ```
 
 O arquivo `.env` é local e ignorado pelo Git. Não adicione chaves ou credenciais ao `.env.example`.
+
+Para preparar o adaptador Gemini opcional, instale `python -m pip install -e ".[dev,gemini]"` e configure no `.env` `GENAI_MODEL_PROVIDER=gemini`, `GENAI_GEMINI_MODEL=gemini-3.5-flash-lite` e `GENAI_GEMINI_API_KEY`. Para tarefas que precisem de mais capacidade geral, selecione `gemini-3.6-flash` em `GENAI_GEMINI_MODEL`. O identificador `gemini-3.5-flash` foi descontinuado e é redirecionado pelo provedor para 3.6 Flash. O timeout pode ser ajustado em `GENAI_MODEL_TIMEOUT_MS` (milissegundos). O padrão do provedor continua `unavailable`; a chave não é necessária para iniciar a aplicação nem para executar os testes. Neste checkpoint, a configuração e a factory do adaptador estão preparadas, mas o `create_app` ainda usa `UnavailableModelAdapter`; conectar o provedor ao fluxo HTTP ficará para o checkpoint 2.5. O adaptador só recebe pergunta, contexto limitado e evidências fornecidas; não tem ferramentas para consultar ou alterar o banco.
+
+Gemini é uma implementação opcional baseada na recomendação do case, não uma decisão definitiva de provedor da equipe. O módulo continua com interfaces substituíveis. O teste automatizado usa cliente falso e não faz chamadas de rede ou faturáveis.
 
 ## Executar e verificar
 

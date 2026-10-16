@@ -8,7 +8,7 @@ from app.agent.orchestrator import QuestionOrchestrator
 from app.config import Settings
 from app.main import create_app
 from app.providers.protocols import GeneratedAnswer
-from app.tools.evidence import EvidenceResult, EvidenceReference
+from app.tools.evidence import EvidenceReference, EvidenceResult
 
 
 class InProcessClient:
