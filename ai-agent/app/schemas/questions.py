@@ -52,3 +52,4 @@ class QuestionResponse(BaseModel):
     answer: str | None = None
     message: str | None = None
     evidence: list[EvidenceReference] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)

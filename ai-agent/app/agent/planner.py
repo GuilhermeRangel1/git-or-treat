@@ -18,6 +18,10 @@ class ScenarioTool(Protocol):
     def execute(self, request: SyntheticScenarioRequest) -> SyntheticToolResult: ...
 
 
+class ScenarioToolUnavailable(Exception):
+    """Sinaliza indisponibilidade temporária da ferramenta analítica."""
+
+
 class AnalysisPlanStatus(StrEnum):
     READY = "ready"
     NEEDS_CLARIFICATION = "needs_clarification"

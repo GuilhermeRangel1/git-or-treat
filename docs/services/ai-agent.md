@@ -1,6 +1,6 @@
 # Serviço: agente de inteligência artificial
 
-**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** adaptador Gemini opcional, interpretação determinística inicial e ferramentas analíticas sintéticas estão preparadas; ainda não estão integrados ao endpoint, à Gold, ao backend do portal ou ao frontend. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. O código configura `gemini-3.5-flash-lite` como padrão do adaptador e permite escolher outro ID, como `gemini-3.6-flash`; a escolha definitiva do provedor continua aberta pela equipe.
+**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** o fluxo sintético de interpretação, ferramenta e geração está integrado a `POST /api/v1/questions`; o adaptador Gemini é opcional por ambiente. Gold, backend e frontend do portal ainda não estão integrados. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. O código configura `gemini-3.5-flash-lite` como padrão do adaptador e permite escolher outro ID, como `gemini-3.6-flash`; a escolha definitiva do provedor continua aberta pela equipe.
 
 ## Duas formas de IA obrigatórias
 
@@ -13,16 +13,27 @@ O mesmo dicionário Gold deve reger a conversa e o insight. A interface precisa 
 
 Cada resposta quantitativa deve conter: conclusão direta; métrica e unidade; competência/janela; filtros e geografia/classe; valor e comparação quando solicitados; fonte Gold e trilha auditável da consulta ou parâmetros; ressalvas relevantes. Se não há coluna, histórico ou granularidade para responder, dizer isso. Distinguir inferência de dado observado. Não executar ferramentas com efeito de escrita.
 
-## Preparação sintética implementada
+## Fluxo sintético implementado
 
 - O interpretador inicial é baseado em regras explícitas. Reconhece termos configurados, preserva frases de métrica/período/geografia/classe e pede esclarecimento para “conta de luz” sem detalhe, períodos ausentes ou bases de comparação ambíguas, mais de um domínio e locais desconhecidos.
 - Uma correção explícita na própria pergunta pode substituir um filtro anterior (“em Olinda, não, em Jaboatão”). Várias localidades sem marca de correção interrompem o fluxo para esclarecimento.
-- O planner de preparação só consulta a ferramenta sintética depois que a interpretação está pronta. Ele ainda não é usado por `POST /api/v1/questions`.
+- `POST /api/v1/questions` usa o planner: recusa primeiro pedidos detectados como escrita, exposição de dados pessoais, injeção explícita ou tema fora do escopo; em seguida interpreta, pede esclarecimento ou consulta a ferramenta sintética.
+- A geração recebe pergunta, contexto limitado e evidência estruturada. Respostas `answered` são identificadas como demonstração; limitações da fixture e referência `is_demo` são devolvidas no contrato HTTP.
+- A API descarta uma resposta numérica se algum número não aparecer nos registros da evidência. Isso é uma proteção sintática de demonstração; não prova correção semântica nem substitui avaliação contra Gold.
 - A busca de cenários entrega somente fixtures marcadas `is_demo`. Se classe, geografia, período ou filtros pedidos não estiverem representados, retorna ausência de evidência.
 - A ferramenta de comparação recebe dois valores artificiais tipados; só compara mesma unidade e granularidade, e não calcula percentual com base zero. A operação aritmética é demonstrativa, não fórmula oficial de receita, consumo, DEC/FEC ou outro indicador da V-Energy.
-- Esses componentes não consultam Gold, não provam o comportamento do Gemini e não concluem requisitos IA do PRD. Follow-up entre turnos, resposta gerada e fluxo HTTP integrado permanecem pendentes.
+- O provedor continua indisponível por padrão. Para usar Gemini, configure `GENAI_MODEL_PROVIDER=gemini`, `GENAI_GEMINI_API_KEY` e instale o extra `gemini`; nenhum gate local exige chamada real ou faturável.
+- Follow-up entre turnos não é resolvido pelo interpretador: o contexto chega ao adaptador, mas os filtros da pergunta anterior não são combinados com a pergunta atual.
+- Esses componentes não consultam Gold, não provam a qualidade real do Gemini e não concluem requisitos IA do PRD.
 
-## Fluxo controlado proposto
+### Segurança demonstrada e limites
+
+- `QuestionSafetyGate` aplica regras explícitas antes de qualquer ferramenta para os padrões cobertos no conjunto sintético. Um padrão lexical não reconhecido ainda pode exigir revisão; esta camada não substitui autenticação, autorização ou controles do executor real.
+- Respostas sem evidência e números ausentes na evidência não são aceitos como respostas quantitativas. A checagem atual compara tokens numéricos, não verifica se cada frase representa corretamente a métrica ou a fórmula.
+- O conjunto versionado está em `ai-agent/tests/fixtures/genai_regression.json`; execute `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` dentro de `ai-agent/` para gerar o relatório. Ele usa um adaptador de linguagem fixo, sem rede, e identifica os dados como sintéticos.
+- Para uma verificação completa, execute dentro de `ai-agent/`: `python -m pytest -q`, `python -m compileall -q app tests` e `python -m ruff check .`; execute `git diff --check` na raiz.
+
+## Fluxo controlado para a futura integração Gold
 
 1. Identificar intenção, entidades, período, filtros e ambiguidades. Reconhecer sinônimos do setor.
 2. Validar se há informação no dicionário e permissão para consultar a métrica.
