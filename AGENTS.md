@@ -24,6 +24,7 @@
 - Se uma verificação falhar, mantenha o requisito como não concluído; registre causa e próximo passo.
 - Marque um item do PRD como `Concluído` somente com evidência reproduzível: arquivos/commit, comandos e resultado, amostra ou captura quando pertinente, e revisão dos critérios de aceite. Use o modelo em `docs/agents/workflow.md`.
 - Atualize a seção `Registro de progresso` do PRD na mesma mudança que entrega a funcionalidade. Nunca marque como feito por haver apenas design, placeholder, mock ou teste isolado.
+- Quando alterar estado, critério ou evidência de um requisito do PRD, sincronize o cartão de mesmo ID no quadro Trello indicado em `docs/agents/issue-tracker.md`, se o MCP estiver conectado. O PRD continua sendo a fonte de verdade; registre no cartão o estado e o link/evidência correspondente.
 - Se houver decisão em aberto que bloqueie fidelidade dos dados ou validade do diagnóstico, registre a hipótese e sinalize o bloqueio; não invente uma resposta.
 
 ## Segurança e qualidade

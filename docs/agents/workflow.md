@@ -7,7 +7,7 @@ Este procedimento vale para humanos e agentes. O [PRD](../PRD.md) é a fonte de 
 1. Escolha um ou poucos IDs do PRD e leia o guia do serviço afetado.
 2. Confirme dados, contratos e decisões necessárias. Se faltar o dataset ou uma definição material, registre `Bloqueado` ou formule hipótese explícita; não fabrique campo/métrica.
 3. Faça fatias demonstráveis. Uma fatia de receita, por exemplo, percorre Gold → API → tela → reconciliação antes de ser dada como pronta.
-4. Se usar `to-tickets`, mantenha IDs do PRD em cada ticket e registre arestas de bloqueio reais. O rastreador inicial é local, conforme `issue-tracker.md`.
+4. Se usar `to-tickets`, mantenha IDs do PRD em cada ticket e registre arestas de bloqueio reais. O Trello acompanha os requisitos obrigatórios; use tickets locais em `.scratch/` para decomposição técnica, conforme `issue-tracker.md`.
 
 ## 2. Planejar verificação antes de implementar
 
@@ -28,6 +28,8 @@ O hook `quality-gate` pode verificar automaticamente comandos existentes, mas n�
 Atualize a célula `Estado` na tabela do ID e adicione uma entrada no `Registro de progresso` do PRD com: mudança observável, arquivos/commit/PR, dados e versão, comandos/resultados, reconciliação/amostra, pendências e revisor. Use `Em validação` quando há implementação sem prova suficiente. Use `Bloqueado` com causa e desbloqueio necessário. `Concluído` exige todos os critérios do ID.
 
 Quando a decisão altera arquitetura ou métrica, crie ADR em `docs/decisions/` com contexto, opções, escolha, consequência e data; atualize PRD, dicionário e guias afetados. A decisão não deve ficar apenas em chat.
+
+Sincronize o cartão Trello de cada ID alterado, conforme `issue-tracker.md`. Atualize estado e evidência depois do PRD; marque como concluído apenas quando o estado canônico for `Concluído`.
 
 ## 5. Revisão de entrega
 
