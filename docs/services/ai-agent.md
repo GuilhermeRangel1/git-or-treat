@@ -1,6 +1,6 @@
 # Serviço: agente de inteligência artificial
 
-**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** adaptador Gemini isolado e opcional disponível; fluxo analítico integrado e agente de produto ainda não implementados. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. Gemini 3.1 Flash-Lite é recomendação, OpenRouter aceita alternativas. A implementação atual segue a recomendação sem fechar a escolha de provedor pela equipe.
+**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** adaptador Gemini opcional, interpretação determinística inicial e ferramentas analíticas sintéticas estão preparadas; ainda não estão integrados ao endpoint, à Gold, ao backend do portal ou ao frontend. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. O código configura `gemini-3.5-flash-lite` como padrão do adaptador e permite escolher outro ID, como `gemini-3.6-flash`; a escolha definitiva do provedor continua aberta pela equipe.
 
 ## Duas formas de IA obrigatórias
 
@@ -12,6 +12,15 @@ O mesmo dicionário Gold deve reger a conversa e o insight. A interface precisa 
 ## Contrato de uma resposta confiável
 
 Cada resposta quantitativa deve conter: conclusão direta; métrica e unidade; competência/janela; filtros e geografia/classe; valor e comparação quando solicitados; fonte Gold e trilha auditável da consulta ou parâmetros; ressalvas relevantes. Se não há coluna, histórico ou granularidade para responder, dizer isso. Distinguir inferência de dado observado. Não executar ferramentas com efeito de escrita.
+
+## Preparação sintética implementada
+
+- O interpretador inicial é baseado em regras explícitas. Reconhece termos configurados, preserva frases de métrica/período/geografia/classe e pede esclarecimento para “conta de luz” sem detalhe, períodos ausentes ou bases de comparação ambíguas, mais de um domínio e locais desconhecidos.
+- Uma correção explícita na própria pergunta pode substituir um filtro anterior (“em Olinda, não, em Jaboatão”). Várias localidades sem marca de correção interrompem o fluxo para esclarecimento.
+- O planner de preparação só consulta a ferramenta sintética depois que a interpretação está pronta. Ele ainda não é usado por `POST /api/v1/questions`.
+- A busca de cenários entrega somente fixtures marcadas `is_demo`. Se classe, geografia, período ou filtros pedidos não estiverem representados, retorna ausência de evidência.
+- A ferramenta de comparação recebe dois valores artificiais tipados; só compara mesma unidade e granularidade, e não calcula percentual com base zero. A operação aritmética é demonstrativa, não fórmula oficial de receita, consumo, DEC/FEC ou outro indicador da V-Energy.
+- Esses componentes não consultam Gold, não provam o comportamento do Gemini e não concluem requisitos IA do PRD. Follow-up entre turnos, resposta gerada e fluxo HTTP integrado permanecem pendentes.
 
 ## Fluxo controlado proposto
 
