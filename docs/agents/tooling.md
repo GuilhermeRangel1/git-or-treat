@@ -51,3 +51,9 @@ Ao iniciar implementação do frontend, instalar Prettier em `frontend/` antes d
 - Hooks não vigiam commits feitos fora de uma sessão dos agentes. O time deve ter revisão e scanner de segredos na futura CI, se publicar o repositório.
 - Quality gate executa comandos que existirem nos manifests; a ausência de script relevante deve ser resolvida na implementação. Checagem automática não prova a correção de números de negócio.
 - Figma depende da conexão da conta e de um link/frame específico; Context7 depende de acesso à rede e à documentação da biblioteca.
+
+## GitHub Actions
+
+O workflow `.github/workflows/quality.yml` roda em pull requests, em pushes para `main` e sob solicitação manual. Com permissões de leitura, ele valida JSON/TOML, os imports `CLAUDE.md` → `AGENTS.md`, links locais nos documentos do projeto e a sintaxe Python dos hooks compartilhados. As ações externas estão fixadas em SHAs completos.
+
+Quando os módulos receberem código e manifests de dependências, ampliar o CI com os comandos reais de lint, tipos, testes e build de cada módulo. Não declarar checks obrigatórios nas regras da branch antes de o workflow ter uma execução bem-sucedida no GitHub; a exigência de PR e os checks obrigatórios são configurações de proteção da branch, não criadas pelo arquivo do workflow. O CI não cria funcionalidades, branches nem PRs.

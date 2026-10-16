@@ -1,0 +1,82 @@
+name: Qualidade do repositório
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validar-documentacao-e-configuracao:
+    name: Validar documentação e configuração
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Baixar o repositório
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configurar Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Validar documentação e configurações dos agentes
+        run: |
+          python - <<'PY'
+          import json
+          import re
+          import tomllib
+          from pathlib import Path
+          from urllib.parse import unquote
+
+          root = Path.cwd()
+
+          for name in (".codex/hooks.json", ".claude/settings.json", ".mcp.json"):
+              json.loads((root / name).read_text(encoding="utf-8"))
+
+          tomllib.loads((root / ".codex/config.toml").read_text(encoding="utf-8"))
+
+          instructions = [root / "CLAUDE.md"]
+          instructions.extend(root / area / "CLAUDE.md" for area in (
+              "frontend", "backend", "data-engineering", "ai-agent", "docs"
+          ))
+          for instruction in instructions:
+              if "@AGENTS.md" not in instruction.read_text(encoding="utf-8"):
+                  raise SystemExit(f"Import @AGENTS.md ausente: {instruction.relative_to(root)}")
+              if not (instruction.parent / "AGENTS.md").is_file():
+                  raise SystemExit(f"AGENTS.md importado nao encontrado: {instruction.relative_to(root)}")
+
+          markdown_files = [
+              path for path in root.rglob("*.md")
+              if not any(part in {".git", ".agents", ".claude"} for part in path.relative_to(root).parts)
+          ]
+          broken_links = []
+          link_pattern = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)")
+          for document in markdown_files:
+              content = document.read_text(encoding="utf-8")
+              for target in link_pattern.findall(content):
+                  if target.startswith(("http://", "https://", "mailto:", "#")):
+                      continue
+                  local_path = unquote(target.split("#", 1)[0])
+                  if local_path and not (document.parent / local_path).exists():
+                      broken_links.append(f"{document.relative_to(root)} -> {target}")
+
+          if broken_links:
+              raise SystemExit("Links locais quebrados:\n- " + "\n- ".join(broken_links))
+
+          print(f"Configuracoes validas; {len(instructions)} imports Claude/Codex presentes; links locais verificados em {len(markdown_files)} documentos.")
+          PY
+
+      - name: Validar sintaxe dos hooks compartilhados
+        run: python -m compileall -q .hooks

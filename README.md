@@ -32,3 +32,5 @@ As pastas de serviços são apenas esqueletos documentais. A solução será con
 ## Preparação dos agentes
 
 Codex e Claude Code compartilham os `AGENTS.md` e os scripts em `.hooks/`. Cada cliente tem sua configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e nenhum item funcional foi concluído nesta fase.
+
+O GitHub Actions em `.github/workflows/quality.yml` roda em pull requests, na branch `main` e manualmente. Por enquanto, valida configurações dos agentes, imports compartilhados, links locais da documentação e sintaxe dos hooks. Ele não implementa funcionalidades nem cria branches ou pull requests.
