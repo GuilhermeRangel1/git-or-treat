@@ -14,6 +14,6 @@ def test_settings_load_prefixed_values_from_environment(monkeypatch) -> None:
 def test_settings_ignore_unrecognized_environment_values(monkeypatch) -> None:
     monkeypatch.setenv("UNRELATED_SECRET", "must-not-become-a-setting")
 
-    settings = Settings(_env_file=None)
+    Settings(_env_file=None)
 
     assert "unrelated_secret" not in Settings.model_fields

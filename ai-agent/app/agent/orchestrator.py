@@ -4,7 +4,6 @@ from app.providers.protocols import ModelAdapter, ModelProviderUnavailable
 from app.schemas.questions import QuestionRequest, QuestionResponse, QuestionStatus
 from app.tools.evidence import EvidenceTool, EvidenceToolUnavailable
 
-
 NO_EVIDENCE_MESSAGE = (
     "Ainda não há uma fonte analítica configurada para responder com evidências."
 )
