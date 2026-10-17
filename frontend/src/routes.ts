@@ -1,16 +1,27 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  Activity,
+  Bot,
+  Building2,
+  ChartNoAxesCombined,
+  ClipboardCheck,
+  ClipboardList,
+  LayoutGrid,
+} from "lucide-react";
+
+// Fonte única das telas: a sidebar e as rotas leem daqui.
 export type NavItem = {
   path: string;
   label: string;
-  description?: string;
-  requirementId?: string;
+  icon: LucideIcon;
 };
 
 export const ITEMS: NavItem[] = [
-  { path: "/panorama", label: "Panorama", description: "Visão executiva e KPIs gerais", requirementId: "WEB-01" },
-  { path: "/receita", label: "Receita", description: "Decomposição preço x volume", requirementId: "WEB-02" },
-  { path: "/uc-360", label: "UC 360", description: "Visão 360 da unidade consumidora", requirementId: "WEB-03" },
-  { path: "/inspecoes", label: "Inspeções", description: "Fila de perdas e priorização", requirementId: "WEB-04" },
-  { path: "/ordens", label: "Ordens", description: "Ciclo de vida de ordens de serviço", requirementId: "WEB-05" },
-  { path: "/operacao", label: "Operação", description: "Continuidade DEC/FEC por alimentador", requirementId: "WEB-06" },
-  { path: "/assistente", label: "Assistente", description: "Assistente inteligente em linguagem natural", requirementId: "IA-04" },
+  { path: "/panorama", label: "Panorama", icon: LayoutGrid },
+  { path: "/receita", label: "Receita", icon: ChartNoAxesCombined },
+  { path: "/uc-360", label: "UC 360", icon: Building2 },
+  { path: "/inspecoes", label: "Inspeções", icon: ClipboardCheck },
+  { path: "/ordens", label: "Ordens", icon: ClipboardList },
+  { path: "/operacao", label: "Operação", icon: Activity },
+  { path: "/assistente", label: "Assistente", icon: Bot },
 ];
