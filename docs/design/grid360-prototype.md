@@ -34,16 +34,6 @@ Tipografia: **Manrope** para títulos e métricas, **DM Sans** para interface e 
 
 As cinco referências informaram a exploração: [React Bits](https://www.reactbits.dev/c/backgrounds), [Aceternity UI](https://ui.aceternity.com/), [Magic UI](https://magicui.design/docs/components), [Motion Primitives](https://motion-primitives.com/docs) e [Codrops](https://tympanus.net/codrops/hub/). Nenhuma biblioteca foi instalada no frontend nesta etapa.
 
-### Referências de usabilidade e acessibilidade — esclarecimento em 16/10/2026
-
-| Referência | Uso efetivo nesta versão |
-| --- | --- |
-| [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/) | Não foi consultada explicitamente durante a criação; não há revisão documentada contra suas recomendações. |
-| [Material Design 3](https://m3.material.io/) | Não foi consultado explicitamente durante a criação; a biblioteca própria não foi derivada nem auditada como um sistema Material 3. |
-| [WCAG 2.2](https://www.w3.org/TR/WCAG22/) | O nível AA foi proposto na [skill, seção de revisão](../../.agents/skills/git-or-treat-figma/references/coverage-and-review.md#revisão-de-aceitação-do-design). Houve verificações parciais de contraste e representação de foco, rótulos e alternativas textuais. Não houve auditoria completa dos critérios nem declaração de conformidade AA. |
-
-Os valores de contraste e os limites das verificações estão registrados abaixo. Teclado, leitor de tela, redimensionamento/reflow, tamanho dos alvos e comportamento do foco ainda precisam de avaliação específica. A consulta aos links nesta conferência não altera retroativamente as fontes usadas para construir o protótipo. Adotar HIG e Material 3 na próxima revisão, ou formalizar WCAG 2.2 AA como alvo, permanece uma proposta.
-
 ## Biblioteca compartilhada
 
 Os dois temas usam os mesmos componentes, com variáveis semânticas em modos Claro/Escuro. Os masters ficam na primeira página; a página escura demonstra instâncias da mesma biblioteca.

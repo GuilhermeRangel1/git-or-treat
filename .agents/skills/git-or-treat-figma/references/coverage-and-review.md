@@ -39,7 +39,7 @@ Respostas de IA quantitativas mostram unidade, período, filtros, fonte/trilha e
 - Percorrer início → decisão → detalhe/ação → retorno de cada jornada; revisar filtros, cancelamento e recuperação de erro. Verificar destinos de navegação e overlays, além de setas desenhadas.
 - Inspecionar componentes reutilizados, variantes/propriedades, auto-layout, modos e vínculos semânticos. Os valores dos temas precisam estar definidos e aplicados aos frames corretos.
 - Conferir textos, unidades, legenda, escalas, períodos e atualização; para dados sintéticos, verificar rótulo ilustrativo e coerência visual das séries.
-- Revisar contraste com valores medidos, foco visível especificado, alternativa textual de gráficos e uso de sinais além de cor. Como referência de revisão, propor WCAG 2.2 AA; registrar esse alvo como proposta até acordado. Teclado, leitor de tela e comportamento responsivo real exigem validação na aplicação.
+- Revisar contraste com valores medidos, foco visível especificado, alternativa textual de gráficos e uso de sinais além de cor. Aplicar as [referências Apple HIG, Material Design 3 e WCAG 2.2 AA](visual-references.md#referências-de-usabilidade-e-acessibilidade) à revisão solicitada; registrar critério, elemento, evidência e pendência. Teclado, leitor de tela e comportamento responsivo real exigem validação na aplicação; revisão parcial não comprova conformidade AA.
 - Inspecionar capturas em zoom legível dos frames de cada tema e dos estados críticos. Corrigir cortes, sobreposição, hierarquia confusa e diferenças sem justificativa. Revalidar somente o que a correção afetou.
 
 ## Evidência e limite de conclusão
