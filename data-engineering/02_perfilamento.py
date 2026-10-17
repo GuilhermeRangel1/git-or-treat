@@ -6,7 +6,7 @@
 # MAGIC Este notebook não altera nada — ele só **investiga** e monta um relatório de problemas.
 # MAGIC
 # MAGIC **Como ler o resultado:** cada seção abaixo procura um tipo de problema e imprime números.
-# MAGIC O produto final é a tabela da última célula (`relatorio_problemas`): ela vira o **plano de limpeza da Silver**
+# MAGIC O produto final é a tabela Delta **`quality.perfil_bronze`** (seção 10.1): ela vira o **plano de limpeza da Silver**
 # MAGIC e a seção de limpeza do **dicionário de dados**.
 # MAGIC
 # MAGIC **As 5 famílias de problemas que vamos medir:**
@@ -26,10 +26,13 @@
 # COMMAND ----------
 
 from pyspark.sql import functions as F
+from pyspark.sql.types import IntegerType, StringType, StructField, StructType
+from datetime import datetime, timezone
 import pandas as pd
 
 CATALOG = "workspace"
 SCHEMA = "bronze"
+SCHEMA_QUALIDADE = f"{CATALOG}.quality"
 ALVO = f"{CATALOG}.{SCHEMA}"
 VOLUME_RELATORIOS = "/Volumes/workspace/default/venergy/relatorios"
 
@@ -39,28 +42,69 @@ TABELAS = [
 ]
 # Colunas que NÓS criamos na Bronze: ignoradas nas checagens. `_lote_id` é constante por execução
 # e `_id_registro` é único por linha — nenhum dos dois é atributo do dado, então não entram em
-# regra de qualidade (nulos, duplicatas, categorias, etc.).
-AUDITORIA = ["_arquivo_origem", "_lote_id", "_id_registro", "_data_carga"]
+# regra de qualidade (nulos, duplicatas, categorias, etc.). `_aba_origem` é a mesma coisa nas
+# inspeções: registra de qual aba da planilha a linha veio, não é dado de negócio.
+AUDITORIA = ["_arquivo_origem", "_aba_origem", "_lote_id", "_id_registro", "_data_carga"]
 
 PROBLEMAS = []  # acumula o relatório final
 
 def df(t):
     return spark.table(f"{ALVO}.{t}")
 
+_COLS_BRUTAS = {}   # cache: as colunas de uma tabela não mudam durante a execução
+
+def colunas_brutas(t):
+    if t not in _COLS_BRUTAS:
+        _COLS_BRUTAS[t] = df(t).columns
+    return _COLS_BRUTAS[t]
+
 def colunas(t):
-    return [c for c in df(t).columns if c not in AUDITORIA]
+    return [c for c in colunas_brutas(t) if c not in AUDITORIA]
+
+def existe(t, c):
+    """Guarda contra mudança de esquema: avisa e a regra é ignorada quando a coluna não existir."""
+    if c in colunas_brutas(t):
+        return True
+    print(f"  AVISO: coluna {t}.{c} não existe nesta Bronze — regra ignorada.")
+    return False
 
 def vazio(c):
     """Considera nulo OU string vazia/espaços como 'faltante'."""
     return F.col(c).isNull() | (F.trim(F.col(c).cast("string")) == "")
 
-def try_num(c):
-    """Converte para número SEM estourar erro: valor inválido vira nulo (modo ANSI do Databricks)."""
-    return F.expr(f"try_cast(`{c}` as double)")
+def num_br(c):
+    """Número como ele vem nos arquivos: 'R$ 1.234,56' -> 1234.56 ; '217 min' -> 217 ; '6.31' -> 6.31.
+    O que não vira número devolve nulo — é a mesma regra que a Silver aplica, então o perfil mede
+    exatamente o que ela vai tratar."""
+    s = F.regexp_replace(F.trim(F.col(c).cast("string")), r"[^0-9,.\-]", "")   # tira R$, 'min', letras
+    br = F.regexp_replace(F.regexp_replace(s, r"\.", ""), ",", ".")           # 1.234,56 -> 1234.56
+    limpo = F.when(F.instr(s, ",") > 0, br).otherwise(s)
+    return F.when(limpo.rlike(r"^-?\d+(\.\d+)?$"), limpo).cast("double")
 
-def try_dt(c):
-    """Converte para data SEM estourar erro: valor inválido vira nulo (modo ANSI do Databricks)."""
-    return F.expr(f"try_cast(`{c}` as date)")
+def data_br(c):
+    """Lê as datas dos arquivos. O conteúdo mistura ISO com dia/mês primeiro e três separadores
+    (- / .), e a ordem dia/mês NÃO é confiável: '10-19-2024' só pode ser mês primeiro, enquanto
+    '27/07/2024' só pode ser dia primeiro. Depois de normalizar o separador, tentamos as três ordens.
+
+    Devolve uma tupla:
+      data    — primeiro formato que casa; nulo se nenhum casar;
+      ambigua — casa nos DOIS sentidos e eles dão datas diferentes (ex.: '11-05-2022' pode ser
+                11 de maio ou 5 de novembro). É uma decisão de negócio, não um valor inválido:
+                o perfil registra, não esconde.
+
+    O primeiro ramo usa `try_cast` de propósito: `ocorrencias_rede` e `atendimentos` guardam
+    **timestamp** (`2025-07-21 14:07:00`), e o `cast` para data derruba a hora sem reclamar.
+    Os outros dois ramos precisam de formato explícito, senão `11-05-2022` nunca casaria.
+    """
+    base = f"regexp_replace(trim(`{c}`), '[/.]', '-')"
+
+    def parse(fmt):
+        return F.expr(f"try_to_date({base}, '{fmt}')")
+
+    iso  = F.expr(f"try_cast({base} as date)")
+    dia1, mes1 = parse("dd-MM-yyyy"), parse("MM-dd-yyyy")
+    ambigua = dia1.isNotNull() & mes1.isNotNull() & (dia1 != mes1)
+    return F.coalesce(iso, dia1, mes1), ambigua
 
 def registra(tabela, verificacao, qtd, gravidade, comentario):
     """Guarda um problema encontrado no relatório final."""
@@ -69,6 +113,16 @@ def registra(tabela, verificacao, qtd, gravidade, comentario):
         "gravidade": gravidade, "observacao": comentario,
     })
     print(f"[{gravidade:^8}] {tabela:<24} {verificacao:<45} {int(qtd):>10,}")
+
+def regra(tabela, verificacao, necessarias, gravidade_base, comentario, conta):
+    """Roda a checagem só se as colunas necessárias existirem (guarda de esquema) e registra o resultado.
+    `conta` é uma função sem argumento: a consulta não roda nem é montada quando falta coluna."""
+    faltando = [c for c in necessarias if c not in colunas_brutas(tabela)]
+    if faltando:
+        print(f"  AVISO: '{verificacao}' ignorada — {tabela} sem: {', '.join(faltando)}")
+        return
+    q = conta()
+    registra(tabela, verificacao, q, gravidade_base if q else "ok", comentario)
 
 def mostra(pdf, titulo):
     """Exibe um resultado em pandas. Se estiver vazio, avisa em vez de tentar exibir (evita erro de schema vazio)."""
@@ -118,6 +172,9 @@ for t in TABELAS:
     # `_id_registro` é único por linha e faria a conta dar 0 duplicatas sempre (falso negativo).
     dup = total - d.dropDuplicates(colunas(t)).count()
     linhas.append({"tabela": t, "linhas": total, "colunas": len(colunas(t)), "duplicatas_exatas": dup})
+    # C1: entra no relatório consolidado (antes só aparecia nesta tabela de tela).
+    registra(t, "linhas duplicadas (idênticas em todos os campos)", dup, "MEDIA" if dup else "ok",
+             "A Silver mantém uma e manda as cópias para a quarentena")
 
 mostra(pd.DataFrame(linhas), "Visão geral")
 
@@ -138,7 +195,12 @@ for t in TABELAS:
     for c in colunas(t):
         n = d.where(vazio(c)).count()
         if n > 0:
-            nulos.append({"tabela": t, "coluna": c, "nulos": n, "percentual": round(100 * n / total, 2)})
+            pct = round(100 * n / total, 2)
+            nulos.append({"tabela": t, "coluna": c, "nulos": n, "percentual": pct})
+            # C1: entra no relatório consolidado. Gravidade MEDIA porque nulo pode ser "não se aplica"
+            # (ex.: data_retirada de medidor ativo) — quem decide se é campo obrigatório é o negócio.
+            registra(t, f"nulos em {c}", n, "MEDIA",
+                     f"{pct}% da tabela — conferir se o campo é obrigatório")
 
 if nulos:
     tabela_nulos = pd.DataFrame(nulos).sort_values(["tabela", "percentual"], ascending=[True, False])
@@ -163,9 +225,12 @@ CHAVES = {
     "ocorrencias_rede": ["id_ocorrencia"],
     "geracao_distribuida": ["id_uc"],
     "atendimentos": ["protocolo"],
+    "inspecoes": ["id_inspecao"],
 }
 
 for t, ch in CHAVES.items():
+    if not all(existe(t, c) for c in ch):
+        continue
     qtd = df(t).groupBy(*ch).count().where(F.col("count") > 1).count()
     registra(t, f"chave duplicada {ch}", qtd, "ALTA" if qtd else "ok",
              "Chave deveria ser única")
@@ -182,29 +247,42 @@ for t, ch in CHAVES.items():
 
 ucs = df("unidades_consumidoras").select("id_uc").distinct()
 
+def orfaos(tabela, chave, referencia, rotulo, gravidade="ALTA"):
+    """C2: conta as DUAS coisas — entidades distintas e linhas afetadas.
+    O rótulo antigo dizia 'registros órfãos' mas contava chaves distintas, o que engana quem lê
+    (31 mil faturas órfãs podem ser 3 mil UCs distintas, ou o contrário)."""
+    d = df(tabela)
+    distintas = d.select(chave).distinct().join(referencia, chave, "left_anti").count()
+    linhas_afetadas = d.join(referencia, chave, "left_anti").count()
+    registra(tabela, rotulo, linhas_afetadas, gravidade if linhas_afetadas else "ok",
+             f"{distintas:,} {chave}(s) distinta(s) em {linhas_afetadas:,} linha(s) afetada(s)")
+
 for t in ["leituras", "faturas", "medidores", "ocorrencias_rede", "geracao_distribuida"]:
-    qtd = df(t).select("id_uc").distinct().join(ucs, "id_uc", "left_anti").count()
-    registra(t, "UC inexistente no cadastro (órfão)", qtd, "ALTA" if qtd else "ok",
-             "Registro aponta para UC que não existe em unidades_consumidoras")
+    if existe(t, "id_uc"):
+        orfaos(t, "id_uc", ucs, "UC inexistente no cadastro (órfão)")
 
 # id_medidor das leituras x cadastro de medidores
 meds = df("medidores").select("id_medidor").distinct()
-qtd = df("leituras").select("id_medidor").distinct().join(meds, "id_medidor", "left_anti").count()
-registra("leituras", "medidor inexistente no cadastro (órfão)", qtd, "ALTA" if qtd else "ok",
-         "id_medidor não encontrado em medidores")
+if existe("leituras", "id_medidor"):
+    orfaos("leituras", "id_medidor", meds, "medidor inexistente no cadastro (órfão)")
 
 # UCs de geração distribuída e de ocorrências que existem, mas o inverso também interessa:
-qtd = df("unidades_consumidoras").select("id_uc").distinct() \
-        .join(df("leituras").select("id_uc").distinct(), "id_uc", "left_anti").count()
-registra("unidades_consumidoras", "UC sem nenhuma leitura", qtd, "MEDIA" if qtd else "ok",
-         "UC cadastrada que nunca teve medição")
+if existe("unidades_consumidoras", "id_uc") and existe("leituras", "id_uc"):
+    orfaos("unidades_consumidoras", "id_uc", df("leituras").select("id_uc").distinct(),
+           "UC sem nenhuma leitura", gravidade="MEDIA")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 6. Validade — datas
-# MAGIC Para cada coluna de data: minimo, maximo, quantas **não são parseáveis** e quantas estão **no futuro**.
-# MAGIC Data no futuro em competência passada é sinal de erro de digitação ou de regra de negócio mal aplicada.
+# MAGIC Para cada coluna de data: mínimo, máximo e três contagens:
+# MAGIC 1. **inválida** — não casa com nenhum dos formatos do arquivo;
+# MAGIC 2. **ambígua** — casa nos dois sentidos (dia primeiro e mês primeiro) e dá datas diferentes,
+# MAGIC    como `11-05-2022`; não é dado podre, é decisão de negócio pendente;
+# MAGIC 3. **no futuro** — sinal a investigar, não defeito provado.
+# MAGIC
+# MAGIC O arquivo **não usa um formato só**: mistura ISO com dia/mês primeiro e três separadores (`- / .`).
+# MAGIC Ler tudo como ISO — o que este notebook fazia — inflava "inválida" com data perfeitamente válida.
 
 # COMMAND ----------
 
@@ -215,20 +293,34 @@ DATAS = {
     "medidores": ["data_instalacao", "data_retirada", "data_ultima_manutencao"],
     "ocorrencias_rede": ["data_abertura", "data_encerramento"],
     "geracao_distribuida": ["data_conexao"],
+    "atendimentos": ["data_abertura", "data_fechamento"],
+    "inspecoes": ["data"],
 }
 
 datas = []
 for t, cols in DATAS.items():
     d = df(t)
     for c in cols:
-        d2 = d.withColumn("_p", try_dt(c))
+        if not existe(t, c):
+            continue
+        p, amb = data_br(c)
+        d2 = d.withColumn("_p", p).withColumn("_amb", amb)
         invalidas = d2.where(~vazio(c) & F.col("_p").isNull()).count()
+        ambiguas = d2.where(F.col("_amb")).count()
         futuras = d2.where(F.col("_p") > F.current_date()).count()
         r = d2.where(F.col("_p").isNotNull()).agg(F.min("_p"), F.max("_p")).first()
         datas.append({"tabela": t, "coluna": c, "min": r[0], "max": r[1],
-                      "nao_parseaveis": invalidas, "no_futuro": futuras})
-        registra(t, f"data inválida/impossível: {c}", invalidas + futuras,
-                 "ALTA" if (invalidas + futuras) else "ok", "Formato ou data no futuro")
+                      "invalidas": invalidas, "ambiguas": ambiguas, "no_futuro": futuras})
+        registra(t, f"data inválida/impossível: {c}", invalidas,
+                 "ALTA" if invalidas else "ok", "Não casa com nenhum formato conhecido")
+        # Ambígua não é erro do dado: o arquivo simplesmente não diz a ordem dia/mês. Vai para o negócio.
+        registra(t, f"data ambígua (dia/mês indefinido): {c}", ambiguas,
+                 "MEDIA" if ambiguas else "ok",
+                 "Casa nos dois sentidos; exige regra decidida, não chute")
+        # C5: data no futuro é sinal a INVESTIGAR, não defeito provado — a competência corrente
+        # pode legitimamente cair à frente da data da execução. Gravidade rebaixada.
+        registra(t, f"data no futuro: {c} (investigar)", futuras,
+                 "BAIXA" if futuras else "ok", "Pode ser competência corrente; conferir antes de tratar")
         if invalidas:
             print(f"  Exemplos de valores inválidos em {t}.{c}:")
             (d2.where(~vazio(c) & F.col("_p").isNull())
@@ -254,17 +346,31 @@ NUMERICAS = {
     "ocorrencias_rede": ["duracao_min"],
     "geracao_distribuida": ["potencia_kwp", "energia_injetada_kwh_media_mensal"],
     "unidades_consumidoras": ["latitude", "longitude"],
+    "inspecoes": ["kwh_recuperado"],
+    "atendimentos": ["nota_satisfacao"],
 }
+
+# C3: negativo vale para TODOS os campos numéricos, com duas exceções de julgamento:
+#  - latitude/longitude: negativo é valor legítimo (hemisfério sul/oeste) — não é problema;
+#  - valor_* de fatura: negativo pode ser estorno/ajuste — fica MEDIA, para conferir.
+NEGATIVO_LEGITIMO = {"latitude", "longitude"}
+NEGATIVO_IMPOSSIVEL = {"leitura_anterior", "leitura_atual", "consumo_kwh", "duracao_min",
+                       "potencia_kwp", "energia_injetada_kwh_media_mensal",
+                       "kwh_recuperado", "nota_satisfacao"}
 
 numeros = []
 for t, cols in NUMERICAS.items():
     d = df(t)
     for c in cols:
-        d2 = d.withColumn("_n", try_num(c))
+        if not existe(t, c):
+            continue
+        # C6: normaliza moeda/vírgula/sufixo antes de converter ('R$ 127,09' e '217 min' viram número).
+        d2 = d.withColumn("_n", num_br(c))
         nao_num = d2.where(~vazio(c) & F.col("_n").isNull()).count()
         r = d2.where(F.col("_n").isNotNull()).agg(F.min("_n"), F.max("_n"), F.sum(F.when(F.col("_n") < 0, 1).otherwise(0))).first()
+        negativos = int(r[2] or 0)
         numeros.append({"tabela": t, "coluna": c, "min": r[0], "max": r[1],
-                        "negativos": int(r[2] or 0), "nao_numericos": nao_num})
+                        "negativos": negativos, "nao_numericos": nao_num})
         if nao_num:
             registra(t, f"valor não numérico: {c}", nao_num, "MEDIA", "Não converte para número")
             print(f"  Exemplos de valores não numéricos em {t}.{c}:")
@@ -273,6 +379,11 @@ for t, cols in NUMERICAS.items():
                .groupBy("valor_bruto").count()
                .orderBy(F.desc("count")).limit(10)
                .show(truncate=False))
+        if negativos and c not in NEGATIVO_LEGITIMO:
+            impossivel = c in NEGATIVO_IMPOSSIVEL
+            registra(t, f"valor negativo: {c}", negativos, "ALTA" if impossivel else "MEDIA",
+                     "Negativo fisicamente impossível" if impossivel
+                     else "Verificar se é estorno/ajuste legítimo antes de tratar")
 
 mostra(pd.DataFrame(numeros), "Números")
 
@@ -293,12 +404,13 @@ CATEGORICAS = {
     "medidores": ["modelo", "tipo", "status"],
     "ocorrencias_rede": ["tipo", "causa"],
     "geracao_distribuida": ["modalidade"],
-    "inspecoes": ["_aba_origem"],
+    "atendimentos": ["assunto", "canal", "subassunto"],
+    "inspecoes": ["resultado", "tipo_irregularidade", "inspetor"],
 }
 
 for t, cols in CATEGORICAS.items():
     for c in cols:
-        if c not in df(t).columns:
+        if not existe(t, c):
             continue
         mostra_spark(df(t).where(~vazio(c)).groupBy(c).count().orderBy(F.desc("count")).limit(30),
                      f"{t}.{c}")
@@ -307,7 +419,12 @@ for t, cols in CATEGORICAS.items():
 
 # MAGIC %md
 # MAGIC ### 8.1. Mesmo valor, grafias diferentes
-# MAGIC Agrupa pelo texto normalizado (minúsculo, sem espaço extra). Se um grupo tem mais de uma grafia, é problema de padronização.
+# MAGIC Agrupa pelo texto normalizado (**minúsculo, sem espaço extra**) e mostra os grupos com mais de uma
+# MAGIC grafia. Roda em **todas** as colunas categóricas — não só em município e bairro.
+# MAGIC
+# MAGIC Limite conhecido: a normalização **não** remove acento nem hífen, então `eletrônico` não colapsa
+# MAGIC com `eletronico`. O que aparece aqui é o mínimo de padronização que os dados exigem, não o
+# MAGIC inventário completo.
 
 # COMMAND ----------
 
@@ -324,10 +441,21 @@ def variantes(tabela, coluna):
            .orderBy(F.desc("linhas")))
     return g
 
-for t, c in [("unidades_consumidoras", "municipio"), ("unidades_consumidoras", "bairro")]:
-    qtd = variantes(t, c).count()
-    registra(t, f"grafias diferentes em {c}", qtd, "MEDIA" if qtd else "ok", "Mesmo valor escrito de formas diferentes")
-    mostra_spark(variantes(t, c), f"Variantes de {t}.{c}")
+# Roda em TODAS as colunas categóricas. Antes eram só municipio e bairro — e o primeiro run real
+# mostrou `classe`, `medidores.tipo` e `medidores.modelo` com variantes que nunca chegavam ao relatório.
+for t, cols in CATEGORICAS.items():
+    for c in cols:
+        if not existe(t, c):
+            continue
+        v = variantes(t, c)
+        qtd = v.count()
+        registra(t, f"grafias diferentes em {c}", qtd, "MEDIA" if qtd else "ok",
+                 "Mesmo valor escrito de formas diferentes")
+        if qtd:
+            # Já sabemos que não está vazio: evita o `limit(1).count()` extra do mostra_spark
+            # (são 20 colunas categóricas × uma execução a mais em cada uma).
+            print(f"\n--- Variantes de {t}.{c} ---")
+            display(v)
 
 # COMMAND ----------
 
@@ -338,58 +466,67 @@ for t, c in [("unidades_consumidoras", "municipio"), ("unidades_consumidoras", "
 # COMMAND ----------
 
 # --- Leituras ---
-# consumo negativo
-q = df("leituras").where(try_num("consumo_kwh") < 0).count()
-registra("leituras", "consumo_kwh negativo", q, "ALTA" if q else "ok", "Fisicamente impossível")
+# Negativos não têm regra aqui: a seção 7 cobre TODOS os campos numéricos (item C3), com gravidade
+# por coluna. Duplicar a regra aqui só encheria o relatório com a mesma linha duas vezes.
 
 # leitura atual menor que a anterior (medidor pode virar/zerar — mas precisa de critério)
-q = df("leituras").where(try_num("leitura_atual") < try_num("leitura_anterior")).count()
-registra("leituras", "leitura_atual < leitura_anterior", q, "MEDIA" if q else "ok", "Pode ser troca de medidor ou erro de leitura")
+regra("leituras", "leitura_atual < leitura_anterior", ["leitura_atual", "leitura_anterior"], "MEDIA",
+      "Pode ser troca de medidor ou erro de leitura",
+      lambda: df("leituras").where(num_br("leitura_atual") < num_br("leitura_anterior")).count())
+
+regra("leituras", "mes_referencia fora do formato AAAA-MM", ["mes_referencia"], "MEDIA",
+      "Padrão de competência",
+      lambda: df("leituras").where(~F.col("mes_referencia").rlike(r"^\d{4}-\d{2}$")).count())
 
 # --- Faturas ---
-q = df("faturas").where(F.abs(try_num("valor_total") - (try_num("valor_energia") + try_num("tributos"))) > 0.01).count()
-registra("faturas", "valor_total != valor_energia + tributos", q, "ALTA" if q else "ok", "Inconsistência de composição do valor")
+regra("faturas", "valor_total != valor_energia + tributos", ["valor_total", "valor_energia", "tributos"], "ALTA",
+      "Inconsistência de composição do valor",
+      lambda: df("faturas").where(F.abs(num_br("valor_total") - (num_br("valor_energia") + num_br("tributos"))) > 0.01).count())
 
-q = df("faturas").where(F.col("data_pagamento").isNotNull() & (try_dt("data_pagamento") < try_dt("data_emissao"))).count()
-registra("faturas", "pagamento antes da emissão", q, "ALTA" if q else "ok", "Data de pagamento anterior à emissão da fatura")
+regra("faturas", "pagamento antes da emissão", ["data_pagamento", "data_emissao"], "ALTA",
+      "Data de pagamento anterior à emissão da fatura",
+      lambda: df("faturas").where(F.col("data_pagamento").isNotNull()
+                                  & (data_br("data_pagamento")[0] < data_br("data_emissao")[0])).count())
 
-q = df("faturas").where((F.upper(F.col("status")) == "PAGA") & vazio("data_pagamento")).count()
-registra("faturas", "status PAGA sem data_pagamento", q, "MEDIA" if q else "ok", "Status diz paga, mas não há data")
+regra("faturas", "status PAGA sem data_pagamento", ["status", "data_pagamento"], "MEDIA",
+      "Status diz paga, mas não há data",
+      lambda: df("faturas").where((F.upper(F.col("status")) == "PAGA") & vazio("data_pagamento")).count())
 
-q = df("faturas").where((F.upper(F.col("status")) != "PAGA") & F.col("data_pagamento").isNotNull()).count()
-registra("faturas", "não paga com data_pagamento", q, "MEDIA" if q else "ok", "Data de pagamento preenchida mas status diferente")
+regra("faturas", "não paga com data_pagamento", ["status", "data_pagamento"], "MEDIA",
+      "Data de pagamento preenchida mas status diferente",
+      lambda: df("faturas").where((F.upper(F.col("status")) != "PAGA") & F.col("data_pagamento").isNotNull()).count())
 
-q = df("faturas").where(~F.col("mes_referencia").rlike(r"^\d{4}-\d{2}$")).count()
-registra("faturas", "mes_referencia fora do formato AAAA-MM", q, "MEDIA" if q else "ok", "Padrão de competência")
-
-q = df("leituras").where(~F.col("mes_referencia").rlike(r"^\d{4}-\d{2}$")).count()
-registra("leituras", "mes_referencia fora do formato AAAA-MM", q, "MEDIA" if q else "ok", "Padrão de competência")
+regra("faturas", "mes_referencia fora do formato AAAA-MM", ["mes_referencia"], "MEDIA",
+      "Padrão de competência",
+      lambda: df("faturas").where(~F.col("mes_referencia").rlike(r"^\d{4}-\d{2}$")).count())
 
 # --- Ocorrências ---
-q = df("ocorrencias_rede").where(try_num("duracao_min") < 0).count()
-registra("ocorrencias_rede", "duracao_min negativa", q, "ALTA" if q else "ok", "Duração não pode ser negativa")
+regra("ocorrencias_rede", "ocorrência sem data de encerramento", ["data_encerramento"], "MEDIA",
+      "Interrupção em aberto",
+      lambda: df("ocorrencias_rede").where(vazio("data_encerramento")).count())
 
-q = df("ocorrencias_rede").where(vazio("data_encerramento")).count()
-registra("ocorrencias_rede", "ocorrência sem data de encerramento", q, "MEDIA" if q else "ok", "Interrupção em aberto")
-
-q = df("ocorrencias_rede").where(vazio("duracao_min") & ~vazio("data_encerramento")).count()
-registra("ocorrencias_rede", "encerrada mas sem duração", q, "MEDIA" if q else "ok", "Afeta o cálculo de DEC")
+regra("ocorrencias_rede", "encerrada mas sem duração", ["duracao_min", "data_encerramento"], "MEDIA",
+      "Afeta o cálculo de DEC",
+      lambda: df("ocorrencias_rede").where(vazio("duracao_min") & ~vazio("data_encerramento")).count())
 
 # --- Cadastro ---
-q = df("unidades_consumidoras").where(vazio("cpf_cnpj")).count()
-registra("unidades_consumidoras", "cpf_cnpj vazio", q, "MEDIA" if q else "ok", "Campo sensível (LGPD) e possivelmente obrigatório")
+regra("unidades_consumidoras", "cpf_cnpj vazio", ["cpf_cnpj"], "MEDIA",
+      "Campo sensível (LGPD) e possivelmente obrigatório",
+      lambda: df("unidades_consumidoras").where(vazio("cpf_cnpj")).count())
 
-q = df("unidades_consumidoras").where(~F.upper(F.col("status")).isin("ATIVA", "DESATIVADA", "SUSPENSA", "CORTADA")).count()
-registra("unidades_consumidoras", "status fora do domínio esperado", q, "MEDIA" if q else "ok", "Ver valores distintos na seção 8")
+regra("unidades_consumidoras", "status fora do domínio esperado", ["status"], "MEDIA",
+      "Ver valores distintos na seção 8",
+      lambda: df("unidades_consumidoras").where(~F.upper(F.col("status")).isin("ATIVA", "DESATIVADA", "SUSPENSA", "CORTADA")).count())
 
-q = df("unidades_consumidoras").select("id_uc").count() - df("unidades_consumidoras").select("id_uc").distinct().count()
-registra("unidades_consumidoras", "id_uc duplicado no cadastro", q, "ALTA" if q else "ok", "Duas linhas para a mesma UC")
+regra("unidades_consumidoras", "id_uc duplicado no cadastro", ["id_uc"], "ALTA",
+      "Duas linhas para a mesma UC",
+      lambda: df("unidades_consumidoras").select("id_uc").count() - df("unidades_consumidoras").select("id_uc").distinct().count())
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 10. Relatório consolidado de problemas
-# MAGIC Esta é a saída principal do perfilamento. Ela será **exportada** e vira:
+# MAGIC Esta é a saída principal do perfilamento. Ela vira:
 # MAGIC - o **plano de limpeza** da camada Silver;
 # MAGIC - a seção "decisões de limpeza" do **dicionário de dados**;
 # MAGIC - o material para você justificar cada tratamento na apresentação.
@@ -404,14 +541,46 @@ if len(relatorio) > 0:
 else:
     print("Nenhum problema registrado — dado surpreendentemente limpo. Revise as células anteriores.")
 
-# Exporta para CSV no volume (para baixar e guardar em docs/)
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 10.1. Persistência do relatório
+# MAGIC O relatório é **insumo da Silver**, então precisa existir fora da tela: vai para a tabela Delta
+# MAGIC `quality.perfil_bronze`, que passa a ser a **fonte da verdade** do plano de limpeza.
+# MAGIC
+# MAGIC A gravação **não** fica dentro de `try/except`. Antes, uma falha de escrita era engolida com um
+# MAGIC "o resultado está na tela" — e a Silver ficava sem insumo sem ninguém perceber. Se falhar agora,
+# MAGIC a execução falha à vista.
+
+# COMMAND ----------
+
+TABELA_RELATORIO = f"{SCHEMA_QUALIDADE}.perfil_bronze"
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA_QUALIDADE}")
+
+ESQUEMA_RELATORIO = StructType([
+    StructField("tabela", StringType(), False),
+    StructField("verificacao", StringType(), False),
+    StructField("ocorrencias", IntegerType(), False),
+    StructField("gravidade", StringType(), False),
+    StructField("observacao", StringType(), True),
+])
+
+relatorio_spark = spark.createDataFrame(relatorio, schema=ESQUEMA_RELATORIO)
+
+(relatorio_spark
+   .withColumn("_data_perfilamento", F.lit(datetime.now(timezone.utc)).cast("timestamp"))
+   .write.format("delta").mode("overwrite").option("overwriteSchema", "true")
+   .saveAsTable(TABELA_RELATORIO))
+print(f"OK  {TABELA_RELATORIO}  {relatorio_spark.count():,} linhas")
+
+# Cópia em CSV no volume, só para baixar e anexar na documentação. A persistência garantida é a tabela
+# Delta acima; se o volume não existir, o aviso diz isso — em vez de fingir que salvou.
 try:
-    r = spark.createDataFrame(relatorio)
-    (r.coalesce(1).write.mode("overwrite").option("header", True)
+    (relatorio_spark.coalesce(1).write.mode("overwrite").option("header", True)
        .csv(f"{VOLUME_RELATORIOS}/perfilamento_bronze"))
-    print(f"Relatório salvo em {VOLUME_RELATORIOS}/perfilamento_bronze")
+    print(f"CSV em {VOLUME_RELATORIOS}/perfilamento_bronze")
 except Exception as e:
-    print("Não foi possível salvar o CSV (sem problema, o resultado está na tela):", e)
+    print(f"CSV não gerado ({e}). O relatório está em {TABELA_RELATORIO}.")
 
 # COMMAND ----------
 
@@ -426,6 +595,8 @@ except Exception as e:
 # MAGIC | Nulo em campo opcional | Manter como nulo | — |
 # MAGIC | Nulo em campo obrigatório | Investigar com o negócio antes de imputar | Imputar média sem justificar |
 # MAGIC | Data inválida | Quarentena ou corrigir com regra clara | Corrigir "no chute" |
+# MAGIC | Data no futuro | **Investigar** (pode ser competência corrente) | Tratar como erro sem evidência |
+# MAGIC | Data ambígua (`11-05-2022`) | **Decidir a regra com o negócio**; até lá, quarentena | Assumir dia ou mês "porque sempre foi assim" |
 # MAGIC | Grafia divergente | Padronizar (ex.: Title Case) | — |
 # MAGIC | Consumo negativo | Verificar se é troca de medidor antes de tratar | Tratar como furto sem evidência |
 # MAGIC
