@@ -495,6 +495,18 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Critérios de aceite revisados e pendências: cobertura visual dos requisitos obrigatórios, com estados alternativos e limites explícitos. Gold, API, persistência de ordens, segurança Text-to-SQL, teclado, responsividade e números reais não foram implementados ou comprovados. Diferenciais fora desta primeira versão.
 - Responsável/revisor: Codex coordenou a escrita no Figma MCP; subagentes apoiaram componentes, jornadas e revisão documental. Revisão humana do protótipo e critérios funcionais pendente.
 
+### 2026-10-17 — preparação visual de WEB-03, WEB-05 e WEB-07 — revisão de usabilidade e acessibilidade
+
+- Estado anterior → novo estado: estados dos requisitos funcionais preservados; revisão delimitada do protótipo, sem nova conclusão funcional.
+- Mudança observável: Apple HIG, Material Design 3 e WCAG 2.2 foram consultados e incorporados às referências da skill. No Figma, campos ganharam alinhamento inicial e altura de entrada de 48 unidades; foco ganhou contorno contrastante; carregamento ganhou texto próprio; navegação ganhou marcador de seleção e correção do item Operação; cancelamento passou a identificar a ordem e oferecer “Manter ordem”.
+- Arquivos/commit: referências registradas no commit `213a5e7`, na branch `docs/prototype-reference-audit`; [fontes, elementos, evidências e limites](../.agents/skills/git-or-treat-figma/references/visual-references.md#aplicação-no-protótipo). O esclarecimento anterior em `docs/design/grid360-prototype.md` foi removido conforme solicitado; o registro desta revisão fica na skill. [Arquivo Figma](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K). Consulta e ajustes iniciados em 16/10, registro final em 17/10.
+- Dados usados: conteúdo sintético já presente no protótipo; nenhum dado real, dataset ou credencial.
+- Verificações: auditoria via Figma MCP encontrou 16/16 frames alcançáveis por tema, 251 instâncias, 765 textos e zero destinos inexistentes, fontes ausentes, textos colapsados ou transbordamentos internos. Os 150 alvos ON_CLICK por tema têm altura mínima 44 e largura mínima 109 unidades no canvas. Capturas dos componentes afetados e overlays dos dois temas inspecionadas; “Manter ordem” fecha sem alterar variável e “Cancelar ordem” mantém a simulação existente. Contraste do foco/superfície: 15,53:1 claro e 13,24:1 escuro.
+- Reconciliação/revisão: teste documental da skill antes/depois demonstrou cobertura das fontes específicas, unidades e registro por critério. Comparação de propriedades e textos renderizados não encontrou divergências nos botões dos fluxos.
+- Verificações documentais: `quick_validate.py .agents/skills/git-or-treat-figma` aprovou a skill; bloco Python do workflow de qualidade aprovou configurações, seis imports compartilhados e links em 34 documentos; `git diff --check` passou.
+- Pendências: CSS px, teclado, Escape, leitor de tela, reflow, foco executável e navegação completa no player exigem testes específicos. A revisão parcial não comprova conformidade WCAG AA nem critérios funcionais do portal.
+- Responsável/revisor: Codex coordenou consulta, alterações e verificações; subagente realizou o teste documental da skill. Revisão humana do comportamento executável pendente.
+
 ### Modelo de entrada
 
 ```markdown

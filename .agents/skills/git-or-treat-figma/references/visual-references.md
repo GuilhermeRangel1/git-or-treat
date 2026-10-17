@@ -34,6 +34,24 @@ Material 3 e Apple dependem de JavaScript; as páginas de campos e alertas foram
 
 Uma revisão visual delimitada não comprova conformidade WCAG 2.2 AA. Teclado, leitor de tela, foco não encoberto, reflow, semântica dos estados e movimento reduzido precisam de validação na aplicação. Registre resultados somente dos elementos e critérios efetivamente avaliados.
 
+### Aplicação no protótipo
+
+Revisão realizada em **16–17/10/2026**; fontes consultadas em 16/10 e registro final em 17/10.
+
+As três referências foram usadas para revisar a [biblioteca e os fluxos existentes](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K), com as seguintes alterações verificadas pelo Figma MCP:
+
+| Fonte / critério | Problema observado → alteração | Elementos e evidência |
+| --- | --- | --- |
+| M3 Text fields; WCAG 3.3.1 e 3.3.2 | Rótulos centralizados e erro genérico → rótulos alinhados ao início, contêiner de entrada com 48 unidades de altura no canvas e mensagem de erro personalizável. | Família Field `8:57`; variantes `8:53`–`8:56`; capturas clara/escura inspecionadas. A correspondência a CSS px depende da implementação. |
+| Apple Accessibility; WCAG 2.4.7 e 1.4.11 | Contorno de foco do botão principal se confundia com o preenchimento → anel externo de 3 unidades e token contrastante por tema. | Button `8:22`, NavItem `8:46`, Field Focus `8:54`; contraste anel/superfície: 15,53:1 claro e 13,24:1 escuro; contra o fundo da página: 14,01:1 e 15,05:1. |
+| Apple Buttons | Carregamento mantinha o mesmo texto do estado normal → propriedade `LoadingLabel` com texto “Processando…” e largura ajustada nos exemplos. | Quatro variantes Loading; estados normais preservam `Label`. Capturas e comparação entre propriedade/rótulo renderizado conferidas. |
+| Apple Accessibility; WCAG 1.4.1 e 2.5.8 | Seleção só cromática e item Operação estreito → marcador de seleção, navegação com alinhamento/largura consistentes e acesso à Operação preservado. | Sidebar `8:175`; NavItem `8:46`; 150 alvos ON_CLICK por tema, nenhum menor que 24 × 24 unidades no canvas; menor altura 44 e menor largura 109. Medição visual não comprova área acionável ou zoom no navegador. |
+| Apple Alerts e Buttons | Confirmação genérica, sem saída segura próxima → ordem e consequência explícitas; ações “Manter ordem” e “Cancelar ordem”. | ConfirmDialog `8:219`; overlays `16:710` e `16:1964`. “Manter ordem” usa CLOSE sem SET_VARIABLE; “Cancelar ordem” mantém a simulação e retorna à lista. Capturas dos dois temas inspecionadas. |
+
+Após a revisão, cada tema mantém 16 frames alcançáveis, com 251 instâncias e 765 textos. A auditoria estrutural não encontrou destinos inexistentes, fontes ausentes, textos colapsados ou transbordamentos internos. O teste documental antes/depois da skill confirmou que as fontes, unidades, evidências e limites agora orientam a revisão. Capturas e respostas brutas permanecem locais em `work/`.
+
+As interações foram conferidas estruturalmente. Navegação completa no player, teclado, Escape, foco ao abrir/fechar confirmação, leitor de tela, reflow e resposta a movimento reduzido continuam pendentes de validação executável. A revisão não conclui requisitos funcionais nem declara conformidade AA.
+
 ## Como transformar referência em decisão
 
 Para cada proposta selecionada, registre:
