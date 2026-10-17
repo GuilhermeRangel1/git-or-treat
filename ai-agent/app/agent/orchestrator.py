@@ -26,11 +26,15 @@ class QuestionOrchestrator:
 
     async def answer(self, request: QuestionRequest) -> QuestionResponse:
         refusal = self._safety_gate.refusal_reason(request.question)
+        for turn in request.context:
+            if refusal is not None:
+                break
+            refusal = self._safety_gate.refusal_reason(turn.content)
         if refusal is not None:
             return QuestionResponse(status=QuestionStatus.REFUSED, answer=refusal)
 
         try:
-            plan = self._analysis_planner.prepare(request.question)
+            plan = self._analysis_planner.prepare(request.question, request.context)
         except ScenarioToolUnavailable:
             return self._recoverable_error()
         if plan.status is AnalysisPlanStatus.NEEDS_CLARIFICATION:

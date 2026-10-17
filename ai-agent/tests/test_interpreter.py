@@ -1,5 +1,6 @@
 from app.agent.interpreter import QuestionInterpreter
 from app.schemas.interpretation import InterpretationStatus
+from app.schemas.questions import ConversationTurn
 
 
 def test_interprets_business_synonyms_and_preserves_filter_phrases() -> None:
@@ -104,3 +105,55 @@ def test_preserves_direction_and_percentage_threshold_without_calculating_them()
         "direction_phrase": "queda",
         "threshold_phrase": "acima de 30%",
     }
+
+
+def test_follow_up_inherits_intent_and_applies_explicit_geography_correction() -> None:
+    result = QuestionInterpreter().interpret(
+        "E em Olinda, não, em Jaboatão?",
+        [
+            ConversationTurn(
+                role="user",
+                content="Qual foi o consumo no período de demonstração em Olinda?",
+            ),
+            ConversationTurn(role="assistant", content="A consulta não tem fixture local."),
+        ],
+    )
+
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.domain == "consumption"
+    assert result.intent.metric_phrase == "consumo"
+    assert result.intent.period_phrase == "período de demonstração"
+    assert result.intent.geography_phrase == "Jaboatão"
+
+
+def test_follow_up_does_not_reuse_an_older_intent_after_ambiguous_latest_user_turn() -> None:
+    result = QuestionInterpreter().interpret(
+        "E em Jaboatão?",
+        [
+            ConversationTurn(
+                role="user",
+                content="Qual foi o consumo no período de demonstração?",
+            ),
+            ConversationTurn(role="assistant", content="Resposta anterior."),
+            ConversationTurn(role="user", content="Minha conta de luz subiu?"),
+        ],
+    )
+
+    assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
+    assert result.intent is None
+
+
+def test_unrelated_question_does_not_inherit_previous_filters() -> None:
+    result = QuestionInterpreter().interpret(
+        "Quais bairros tiveram maior variação?",
+        [
+            ConversationTurn(
+                role="user",
+                content="Qual foi o consumo no período de demonstração em Olinda?",
+            )
+        ],
+    )
+
+    assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
+    assert result.intent is None

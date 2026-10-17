@@ -4,6 +4,7 @@ import re
 import unicodedata
 
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
+from app.schemas.questions import ConversationTurn
 from app.schemas.scenarios import AnalysisDomain, AnalysisIntent
 
 METRIC_ALIASES: tuple[tuple[AnalysisDomain, tuple[str, ...]], ...] = (
@@ -61,7 +62,75 @@ def _find_phrases(text: str, phrases: tuple[str, ...]) -> list[tuple[int, int, s
 class QuestionInterpreter:
     """Mapeia vocabulário explícito sem inventar filtros ou normalizações de negócio."""
 
-    def interpret(self, question: str) -> IntentInterpretation:
+    def interpret(
+        self,
+        question: str,
+        context: list[ConversationTurn] | None = None,
+    ) -> IntentInterpretation:
+        previous_intent = self._previous_intent(context or [])
+        if previous_intent is not None and not self._is_follow_up(question, previous_intent):
+            previous_intent = None
+        return self._interpret(question, previous_intent)
+
+    @staticmethod
+    def _is_follow_up(question: str, previous_intent: AnalysisIntent) -> bool:
+        normalized = _normalize(question).strip()
+        if re.match(r"^(?:e\b|tambem\b|nesse\b|neste\b|entao\b|agora\b)", normalized):
+            return True
+
+        geography = _find_phrases(question, GEOGRAPHIES)
+        class_phrase = _find_phrases(question, CLASSES)
+        metric_aliases = tuple(alias for _, phrases in METRIC_ALIASES for alias in phrases)
+        metric_hits = _find_phrases(question, metric_aliases)
+        explicit_domains = {
+            domain
+            for domain, phrases in METRIC_ALIASES
+            if any(
+                _normalize(alias) == _normalize(surface)
+                for alias in phrases
+                for _, _, surface in metric_hits
+            )
+        }
+        periods = _find_phrases(question, PERIOD_PHRASES)
+        has_comparison = bool(
+            re.search(
+                r"\b(?:compare|comparar|comparacao|cresceu|caiu|variacao|aumentou|reduziu)\b",
+                normalized,
+            )
+        )
+
+        # A filter-only continuation can inherit the last complete user intent.
+        if (
+            (geography or class_phrase)
+            and not explicit_domains
+            and not periods
+            and not has_comparison
+        ):
+            return True
+        # An explicit metric of the same domain plus a new filter is also a clear continuation.
+        return bool(
+            (geography or class_phrase)
+            and explicit_domains == {previous_intent.domain}
+            and not periods
+            and not has_comparison
+        )
+
+    def _previous_intent(self, context: list[ConversationTurn]) -> AnalysisIntent | None:
+        for turn in reversed(context):
+            if turn.role != "user":
+                continue
+            previous = self._interpret(turn.content, None)
+            if previous.status is InterpretationStatus.READY:
+                return previous.intent
+            # Do not jump over a more recent ambiguous user message to older context.
+            return None
+        return None
+
+    def _interpret(
+        self,
+        question: str,
+        base_intent: AnalysisIntent | None,
+    ) -> IntentInterpretation:
         aliases = [
             (domain, alias)
             for domain, phrases in METRIC_ALIASES
@@ -85,12 +154,12 @@ class QuestionInterpreter:
                 "Você quer consultar qual assunto primeiro: consumo, faturamento, "
                 "interrupções ou atendimento?"
             )
-        if not matched_domains:
+        if not matched_domains and base_intent is None:
             return self._clarify(
                 "Qual indicador ou assunto você quer consultar?"
             )
 
-        domain = next(iter(matched_domains))
+        domain = next(iter(matched_domains)) if matched_domains else base_intent.domain
         geography = _find_phrases(question, GEOGRAPHIES)
         if self._has_unrecognized_capitalized_location(question, geography):
             return self._clarify(
@@ -102,19 +171,19 @@ class QuestionInterpreter:
             return self._clarify("Qual local você quer consultar?")
         if self._has_unresolved_multiple_values(question, class_phrase):
             return self._clarify("Qual classe de consumo você quer consultar?")
-        selected_metric = next(
-            surface
-            for _, _, surface in metric_hits
-            if any(
-                candidate_domain is domain and _normalize(candidate) == _normalize(surface)
-                for candidate_domain, candidate in aliases
+        selected_metric = (
+            next(
+                surface
+                for _, _, surface in metric_hits
+                if any(
+                    candidate_domain is domain and _normalize(candidate) == _normalize(surface)
+                    for candidate_domain, candidate in aliases
+                )
             )
+            if metric_hits
+            else base_intent.metric_phrase
         )
         periods = _find_phrases(question, PERIOD_PHRASES)
-        if not periods:
-            return self._clarify(
-                "Qual período você quer consultar ou comparar?"
-            )
         normalized_question = _normalize(question)
         comparison_requested = len(periods) > 1 and " entre " in f" {normalized_question} "
         comparison_requested = comparison_requested or bool(
@@ -123,6 +192,14 @@ class QuestionInterpreter:
                 normalized_question,
             )
         )
+        if not periods and base_intent is None:
+            return self._clarify(
+                "Qual período você quer consultar ou comparar?"
+            )
+        if not periods and comparison_requested:
+            return self._clarify(
+                "Qual período deve servir de base para essa comparação?"
+            )
         if comparison_requested and len(periods) < 2:
             return self._clarify(
                 "Qual período deve servir de base para essa comparação?"
@@ -131,10 +208,13 @@ class QuestionInterpreter:
             return self._clarify("Você mencionou mais de um período; quer compará-los?")
         if len(periods) > 1:
             period_phrase = question[periods[0][0] : periods[-1][1]]
-        else:
+        elif periods:
             period_phrase = periods[0][2]
+        else:
+            assert base_intent is not None
+            period_phrase = base_intent.period_phrase
 
-        filters: dict[str, str] = {}
+        filters: dict[str, str] = dict(base_intent.filters) if base_intent else {}
         directions = _find_phrases(
             question,
             ("queda", "redução", "aumento", "subida", "crescimento"),
@@ -151,8 +231,16 @@ class QuestionInterpreter:
             domain=domain,
             metric_phrase=selected_metric,
             period_phrase=period_phrase,
-            geography_phrase=geography[-1][2] if geography else None,
-            class_phrase=class_phrase[-1][2] if class_phrase else None,
+            geography_phrase=(
+                geography[-1][2]
+                if geography
+                else (base_intent.geography_phrase if base_intent else None)
+            ),
+            class_phrase=(
+                class_phrase[-1][2]
+                if class_phrase
+                else (base_intent.class_phrase if base_intent else None)
+            ),
             filters=filters,
         )
         return IntentInterpretation(status=InterpretationStatus.READY, intent=intent)

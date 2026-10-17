@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.agent.interpreter import QuestionInterpreter
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
+from app.schemas.questions import ConversationTurn
 from app.tools.synthetic_analytics import (
     SyntheticScenarioRequest,
     SyntheticToolResult,
@@ -70,8 +71,12 @@ class QuestionAnalysisPlanner:
         self._interpreter = interpreter
         self._scenario_tool = scenario_tool
 
-    def prepare(self, question: str) -> AnalysisPlan:
-        interpretation = self._interpreter.interpret(question)
+    def prepare(
+        self,
+        question: str,
+        context: list[ConversationTurn] | None = None,
+    ) -> AnalysisPlan:
+        interpretation = self._interpreter.interpret(question, context)
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
             return AnalysisPlan(
                 status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
