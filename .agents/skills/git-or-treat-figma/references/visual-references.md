@@ -12,6 +12,46 @@ Consulta inicial: **16/10/2026**. As cinco fontes foram escolhidas pela pessoa u
 
 **Limite da consulta:** React Bits, Aceternity, Magic UI e Codrops abriram no navegador de pesquisa. Motion Primitives retornou erro na abertura direta; as páginas acima foram localizadas no índice de pesquisa do domínio oficial. Inspecione sua demonstração antes de selecionar movimento ou afirmar fidelidade visual. A consulta inicial não valida licenças individuais nem versões instaladas.
 
+## Referências de usabilidade e acessibilidade
+
+**Acrescentadas por solicitação da pessoa usuária e consultadas na revisão de 16/10/2026:** Apple Human Interface Guidelines, Material Design 3 e WCAG 2.2. Elas complementam as cinco referências visuais e orientam a revisão dos componentes existentes, preservando a identidade cacau/goiaba/pistache aprovada no PRD.
+
+| Fonte oficial consultada | Aplicação na revisão do Grid 360 |
+| --- | --- |
+| [Apple HIG — Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility), [Buttons](https://developer.apple.com/design/human-interface-guidelines/buttons) e [Alerts](https://developer.apple.com/design/human-interface-guidelines/alerts) | Legibilidade nos dois temas; ações com nomes claros; feedback de processamento; confirmação contextual de ações destrutivas e saída segura. Adaptar padrões nativos ao portal web. |
+| [Material Design 3 — Text fields](https://m3.material.io/components/text-fields/guidelines) | Rótulos persistentes alinhados à borda inicial do campo; distinção entre valor, apoio e erro; campos somente leitura identificados; dimensões confortáveis para interação. |
+| [WCAG 2.2](https://www.w3.org/TR/WCAG22/) — [contraste de texto](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html), [contraste não textual](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html), [foco visível](https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html), [alvos](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html), [identificação de erro](https://www.w3.org/WAI/WCAG22/Understanding/error-identification.html) e [rótulos/instruções](https://www.w3.org/WAI/WCAG22/Understanding/labels-or-instructions.html) | Usar o nível AA como referência da revisão solicitada, registrando evidência por critério e pendências de execução. Avaliar contraste, identificação além de cor, foco, dimensões dos alvos e mensagens compreensíveis. |
+
+Material 3 e Apple dependem de JavaScript; as páginas de campos e alertas foram lidas no navegador com renderização. As recomendações de botões e acessibilidade da Apple também foram conferidas no conteúdo indexado do domínio oficial.
+
+### Como aplicar e comprovar
+
+- **Field:** manter rótulo visível e alinhado ao início do campo; reservar espaço para apoio/erro; explicar o problema e a correção em texto. Personalizar a mensagem conforme o campo, sem depender apenas do vermelho.
+- **Button e navegação:** diferenciar foco de hover e seleção. Medir o indicador contra o fundo adjacente; contorno de 3 px é uma escolha deste protótipo, não uma exigência numérica do critério 2.4.7. Identificar carregamento por texto/indicador e seleção por mais de uma pista visual.
+- **Alvos:** WCAG 2.2, critério 2.5.8 AA, usa 24 × 24 CSS px ou as alternativas/exceções previstas. A recomendação de 48 × 48 CSS px na página de campos do Material 3 é mais confortável e não deve ser confundida com esse mínimo. Pontos das plataformas Apple e dp do Android não são conversões automáticas para CSS px. Medir a área acionável inteira, incluindo padding, sem sobreposição.
+- **Confirmação:** informar a ação, o objeto afetado e a consequência; oferecer uma saída segura próxima da ação. No portal, distinguir “Manter ordem” de “Cancelar ordem”. Na aplicação, conferir entrada/percurso/retorno do foco e Escape; não tratar essas propriedades como comprovadas pelo desenho.
+- **Evidência:** registrar fonte/critério → problema observado → alteração → frame/componente → medição ou captura → pendência. Identificar a data da revisão para distinguir consulta e aplicação posteriores da criação inicial.
+
+Uma revisão visual delimitada não comprova conformidade WCAG 2.2 AA. Teclado, leitor de tela, foco não encoberto, reflow, semântica dos estados e movimento reduzido precisam de validação na aplicação. Registre resultados somente dos elementos e critérios efetivamente avaliados.
+
+### Aplicação no protótipo
+
+Revisão realizada em **16–17/10/2026**; fontes consultadas em 16/10 e registro final em 17/10.
+
+As três referências foram usadas para revisar a [biblioteca e os fluxos existentes](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K), com as seguintes alterações verificadas pelo Figma MCP:
+
+| Fonte / critério | Problema observado → alteração | Elementos e evidência |
+| --- | --- | --- |
+| M3 Text fields; WCAG 3.3.1 e 3.3.2 | Rótulos centralizados e erro genérico → rótulos alinhados ao início, contêiner de entrada com 48 unidades de altura no canvas e mensagem de erro personalizável. | Família Field `8:57`; variantes `8:53`–`8:56`; capturas clara/escura inspecionadas. A correspondência a CSS px depende da implementação. |
+| Apple Accessibility; WCAG 2.4.7 e 1.4.11 | Contorno de foco do botão principal se confundia com o preenchimento → anel externo de 3 unidades e token contrastante por tema. | Button `8:22`, NavItem `8:46`, Field Focus `8:54`; contraste anel/superfície: 15,53:1 claro e 13,24:1 escuro; contra o fundo da página: 14,01:1 e 15,05:1. |
+| Apple Buttons | Carregamento mantinha o mesmo texto do estado normal → propriedade `LoadingLabel` com texto “Processando…” e largura ajustada nos exemplos. | Quatro variantes Loading; estados normais preservam `Label`. Capturas e comparação entre propriedade/rótulo renderizado conferidas. |
+| Apple Accessibility; WCAG 1.4.1 e 2.5.8 | Seleção só cromática e item Operação estreito → marcador de seleção, navegação com alinhamento/largura consistentes e acesso à Operação preservado. | Sidebar `8:175`; NavItem `8:46`; 150 alvos ON_CLICK por tema, nenhum menor que 24 × 24 unidades no canvas; menor altura 44 e menor largura 109. Medição visual não comprova área acionável ou zoom no navegador. |
+| Apple Alerts e Buttons | Confirmação genérica, sem saída segura próxima → ordem e consequência explícitas; ações “Manter ordem” e “Cancelar ordem”. | ConfirmDialog `8:219`; overlays `16:710` e `16:1964`. “Manter ordem” usa CLOSE sem SET_VARIABLE; “Cancelar ordem” mantém a simulação e retorna à lista. Capturas dos dois temas inspecionadas. |
+
+Após a revisão, cada tema mantém 16 frames alcançáveis, com 251 instâncias e 765 textos. A auditoria estrutural não encontrou destinos inexistentes, fontes ausentes, textos colapsados ou transbordamentos internos. O teste documental antes/depois da skill confirmou que as fontes, unidades, evidências e limites agora orientam a revisão. Capturas e respostas brutas permanecem locais em `work/`.
+
+As interações foram conferidas estruturalmente. Navegação completa no player, teclado, Escape, foco ao abrir/fechar confirmação, leitor de tela, reflow e resposta a movimento reduzido continuam pendentes de validação executável. A revisão não conclui requisitos funcionais nem declara conformidade AA.
+
 ## Como transformar referência em decisão
 
 Para cada proposta selecionada, registre:

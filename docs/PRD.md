@@ -449,7 +449,29 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
-**Marco atual (16/10/2026):** documentação, instruções e protótipo visual em Figma criados; nenhum requisito funcional DE/WEB/IA/ENT foi implementado ou validado. Skills, hooks e protótipo são preparação e não atendem, por si, requisitos funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
+**Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
+
+### 2026-10-16 — IA-07 — protótipo de follow-up contextual
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; o protótipo local cobre parte do comportamento, mas não conclui o diferencial no produto integrado.
+- Mudança observável para usuário/negócio: a API pode receber até três turnos anteriores em cada pergunta. Uma continuação reconhecida herda a intenção completa mais recente da pessoa usuária e substitui geografia/classe quando explicitadas. Uma mensagem histórica ambígua pede esclarecimento sem reaproveitar uma intenção mais antiga. O histórico é transitório e não é armazenado; o safety gate examina todos os turnos enviados antes de ferramenta/modelo.
+- Arquivos/commit/PR: implementação local ainda não commitada em `ai-agent/app/agent/interpreter.py`, `ai-agent/app/agent/planner.py`, `ai-agent/app/agent/orchestrator.py`; testes em `ai-agent/tests/test_interpreter.py`, `ai-agent/tests/test_question_flow.py` e adaptação do harness em `ai-agent/tests/test_genai_regression.py`; contratos descritos em `ai-agent/README.md` e `docs/services/ai-agent.md`.
+- Dados usados: cenários sintéticos existentes, sem dataset, Gold ou dados pessoais; adaptadores falsos nos testes, sem chamada ao Gemini.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (80 passaram), `python -m compileall -q app tests` e `python -m ruff check .` passaram. Na raiz, `git diff --check` passou em 16/10/2026.
+- Reconciliação ou amostra manual: teste HTTP confirma herança de consumo/período, correção de Olinda para Jaboatão, ausência de evidência quando a fixture não cobre o filtro, esclarecimento quando a última fala anterior é ambígua, bloqueio de instrução em turnos user/assistant e ausência de herança em chamada sem contexto.
+- Critérios de aceite revisados e pendências: o comportamento sintético e os limites do parser lexical estão cobertos. IA-07 permanece `Pendente` até validar continuidade e isolamento na integração com backend/portal e os critérios de sessão definidos pela equipe; o contexto recebido pela API ainda não tem autenticação/autorização própria.
+- Responsável/revisor: Codex (implementação e verificações locais); revisão humana dos critérios de sessão e do comportamento integrado pendente.
+
+### 2026-10-16 — IA-08 — regressão sintética de perguntas e insights
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; a avaliação local é evidência técnica parcial e não mede resultados reconciliados com Gold.
+- Mudança observável para usuário/negócio: conjunto versionado passa a avaliar, além das perguntas conversacionais existentes, quatro resultados do endpoint de insight: hipótese fundamentada nos valores fornecidos, esclarecimento, recusa e insuficiência de série histórica.
+- Arquivos/commit/PR: `ai-agent/tests/fixtures/genai_regression.json` (versão 2.0.0), `ai-agent/tests/test_genai_regression.py`, `ai-agent/reports/synthetic-regression-report.json`, README e guia do serviço. Implementação local ainda não commitada.
+- Dados usados: fixtures artificiais marcadas como demonstração; adaptador fixo em todos os casos. Nenhum dataset real, chamada ao Gemini ou chave foi usado.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (86 passaram), `python -m compileall -q app tests`, `python -m ruff check .` e `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos aprovados, 0 falhas); na raiz, `git diff --check` passou em 16/10/2026. Teste de repetibilidade confirmou que o relatório gerado com o mesmo código e fixtures tem conteúdo idêntico.
+- Reconciliação ou amostra manual: os quatro casos de insight verificam estado HTTP, número de chamadas ao modelo, trecho esperado, referência e, quando aplicável, valor observado. O caso de insuficiência usa um total sintético sem série mensal e espera esclarecimento, não uma tendência inventada.
+- Critérios de aceite revisados e pendências: cobertura sintética e relatório reproduzível atendem ao checkpoint técnico. IA-08 continua `Pendente` até um conjunto aprovado medir fundamentação e correção contra Gold; o adaptador fixo não avalia a qualidade real do Gemini.
+- Responsável/revisor: Codex (implementação e verificações locais); revisão humana dos casos esperados e avaliação contra Gold pendentes.
 
 ### 2026-10-16 — preparação de WEB-01 a WEB-07 e IA-01 a IA-06 — skill de prototipação
 
@@ -472,6 +494,18 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Reconciliação ou amostra manual: totais dos municípios e bairros demonstrativos conferidos; UC e suspeita de perdas usam identificadores distintos. Revisão corrigiu recortes sem detalhe, retorno dos filtros, fundamento por contexto, série FEC e vencimento fictício de fatura. O player carregou o panorama; sequência de cliques e alterações de variáveis no player ainda não foram validadas manualmente.
 - Critérios de aceite revisados e pendências: cobertura visual dos requisitos obrigatórios, com estados alternativos e limites explícitos. Gold, API, persistência de ordens, segurança Text-to-SQL, teclado, responsividade e números reais não foram implementados ou comprovados. Diferenciais fora desta primeira versão.
 - Responsável/revisor: Codex coordenou a escrita no Figma MCP; subagentes apoiaram componentes, jornadas e revisão documental. Revisão humana do protótipo e critérios funcionais pendente.
+
+### 2026-10-17 — preparação visual de WEB-03, WEB-05 e WEB-07 — revisão de usabilidade e acessibilidade
+
+- Estado anterior → novo estado: estados dos requisitos funcionais preservados; revisão delimitada do protótipo, sem nova conclusão funcional.
+- Mudança observável: Apple HIG, Material Design 3 e WCAG 2.2 foram consultados e incorporados às referências da skill. No Figma, campos ganharam alinhamento inicial e altura de entrada de 48 unidades; foco ganhou contorno contrastante; carregamento ganhou texto próprio; navegação ganhou marcador de seleção e correção do item Operação; cancelamento passou a identificar a ordem e oferecer “Manter ordem”.
+- Arquivos/commit: referências registradas no commit `213a5e7`, na branch `docs/prototype-reference-audit`; [fontes, elementos, evidências e limites](../.agents/skills/git-or-treat-figma/references/visual-references.md#aplicação-no-protótipo). O esclarecimento anterior em `docs/design/grid360-prototype.md` foi removido conforme solicitado; o registro desta revisão fica na skill. [Arquivo Figma](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K). Consulta e ajustes iniciados em 16/10, registro final em 17/10.
+- Dados usados: conteúdo sintético já presente no protótipo; nenhum dado real, dataset ou credencial.
+- Verificações: auditoria via Figma MCP encontrou 16/16 frames alcançáveis por tema, 251 instâncias, 765 textos e zero destinos inexistentes, fontes ausentes, textos colapsados ou transbordamentos internos. Os 150 alvos ON_CLICK por tema têm altura mínima 44 e largura mínima 109 unidades no canvas. Capturas dos componentes afetados e overlays dos dois temas inspecionadas; “Manter ordem” fecha sem alterar variável e “Cancelar ordem” mantém a simulação existente. Contraste do foco/superfície: 15,53:1 claro e 13,24:1 escuro.
+- Reconciliação/revisão: teste documental da skill antes/depois demonstrou cobertura das fontes específicas, unidades e registro por critério. Comparação de propriedades e textos renderizados não encontrou divergências nos botões dos fluxos.
+- Verificações documentais: `quick_validate.py .agents/skills/git-or-treat-figma` aprovou a skill; bloco Python do workflow de qualidade aprovou configurações, seis imports compartilhados e links em 34 documentos; `git diff --check` passou.
+- Pendências: CSS px, teclado, Escape, leitor de tela, reflow, foco executável e navegação completa no player exigem testes específicos. A revisão parcial não comprova conformidade WCAG AA nem critérios funcionais do portal.
+- Responsável/revisor: Codex coordenou consulta, alterações e verificações; subagente realizou o teste documental da skill. Revisão humana do comportamento executável pendente.
 
 ### Modelo de entrada
 

@@ -1,6 +1,6 @@
 # Serviço: agente de inteligência artificial
 
-**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** especificado, sem agente implementado. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. Gemini 3.1 Flash-Lite é recomendação, OpenRouter aceita alternativas.
+**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** fluxo sintético de perguntas e contrato de insight contextual estão preparados nos endpoints `POST /api/v1/questions` e `POST /api/v1/insights`; o adaptador Gemini é opcional por ambiente. Gold, backend e frontend do portal ainda não estão integrados. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. O código configura `gemini-3.5-flash-lite` como padrão do adaptador e permite escolher outro ID, como `gemini-3.6-flash`; a escolha definitiva do provedor continua aberta pela equipe.
 
 ## Duas formas de IA obrigatórias
 
@@ -9,11 +9,50 @@
 
 O mesmo dicionário Gold deve reger a conversa e o insight. A interface precisa mostrar qual parte é dado observado e qual parte é interpretação gerada. Uma sugestão de investigação não deve ser apresentada como causa comprovada.
 
+### Contrato sintético de insight de tela
+
+`POST /api/v1/insights` recebe `screen` com métrica, unidade, intervalo (`start`, `end`, `granularity`), pelo menos um filtro, observações numéricas, referência e limitações. O validador rejeita campos ausentes, período invertido, rótulos de observação repetidos, valores não finitos e referência que não esteja marcada como demonstração nesta etapa. Campos inesperados também são rejeitados, inclusive um campo de pergunta livre; a solicitação ao modelo é uma instrução fixa do serviço, enquanto filtros e observações entram como dados não confiáveis.
+
+A resposta separa `observation.values` (cópia do resultado enviado pelo consumidor) de `hypothesis` (texto gerado pelo modelo), e repete métrica, unidade, período, filtros, referência e limitações. Uma hipótese numérica com valor ausente do contexto é recusada. Isso é só uma checagem lexical; não prova que a interpretação é verdadeira nem que o contexto foi autorizado pelo backend. Durante a Etapa 3, a referência sintética impede apresentar o fluxo como resultado real da V-Energy.
+
+O contrato também é resumido no [README do serviço](../../ai-agent/README.md), com payload demonstrativo. O contexto estruturado ainda não vem do portal; o endpoint não autentica nem autoriza o consumidor.
+
+### Contratos para revisão com backend e frontend
+
+| Endpoint | Entrada do consumidor | Campos principais da resposta |
+| --- | --- | --- |
+| `POST /api/v1/questions` | `question` (1–1.000 caracteres) e `context` opcional com até três turnos ordenados (`role`: `user` ou `assistant`; `content`: até 1.000 caracteres). Cada chamada deve reenviar o contexto necessário. | `status`, `answer`, `message`, `evidence` e `limitations`. Estados possíveis no contrato: `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. |
+| `POST /api/v1/insights` | `screen` com `metric`, `unit`, `period`, `filters`, `observations`, `reference` e `limitations`. A referência deve ter `is_demo: true` durante o protótipo. | `status`, contexto utilizado, `observation.values`, `hypothesis`, `message`, `evidence` e `limitations`. Observação recebida e hipótese gerada ficam em campos separados. |
+
+No chat, o contexto é transitório: o serviço não mantém sessão nem histórico entre chamadas. A continuação usa a última pergunta completa da pessoa usuária apenas quando a nova mensagem é reconhecida como continuação; campos explícitos atuais substituem os valores herdados. Mensagem anterior ambígua leva a esclarecimento. Os turnos são conteúdo fornecido pelo consumidor, não prova de identidade: o serviço os trata como não confiáveis e aplica o safety gate antes de chamar ferramenta ou modelo. O backend precisa enviar somente o histórico autorizado para aquela pessoa/sessão e lidar com autenticação, autorização e retenção.
+
+Este contrato ainda é local e sintético; não há autenticação nesta API nem acordo de integração aprovado pelo backend/frontend. Veja também os exemplos JSON do [README](../../ai-agent/README.md).
+
 ## Contrato de uma resposta confiável
 
 Cada resposta quantitativa deve conter: conclusão direta; métrica e unidade; competência/janela; filtros e geografia/classe; valor e comparação quando solicitados; fonte Gold e trilha auditável da consulta ou parâmetros; ressalvas relevantes. Se não há coluna, histórico ou granularidade para responder, dizer isso. Distinguir inferência de dado observado. Não executar ferramentas com efeito de escrita.
 
-## Fluxo controlado proposto
+## Fluxo sintético implementado
+
+- O interpretador inicial é baseado em regras explícitas. Reconhece termos configurados, preserva frases de métrica/período/geografia/classe e pede esclarecimento para “conta de luz” sem detalhe, períodos ausentes ou bases de comparação ambíguas, mais de um domínio e locais desconhecidos.
+- Uma correção explícita na própria pergunta pode substituir um filtro anterior (“em Olinda, não, em Jaboatão”). Várias localidades sem marca de correção interrompem o fluxo para esclarecimento.
+- `POST /api/v1/questions` usa o planner: recusa primeiro pedidos detectados como escrita, exposição de dados pessoais, injeção explícita ou tema fora do escopo; em seguida interpreta, pede esclarecimento ou consulta a ferramenta sintética.
+- A geração recebe pergunta, contexto limitado e evidência estruturada. Respostas `answered` são identificadas como demonstração; limitações da fixture e referência `is_demo` são devolvidas no contrato HTTP.
+- A API descarta uma resposta numérica se algum número não aparecer nos registros da evidência. Isso é uma proteção sintática de demonstração; não prova correção semântica nem substitui avaliação contra Gold.
+- A busca de cenários entrega somente fixtures marcadas `is_demo`. Se classe, geografia, período ou filtros pedidos não estiverem representados, retorna ausência de evidência.
+- A ferramenta de comparação recebe dois valores artificiais tipados; só compara mesma unidade e granularidade, e não calcula percentual com base zero. A operação aritmética é demonstrativa, não fórmula oficial de receita, consumo, DEC/FEC ou outro indicador da V-Energy.
+- O provedor continua indisponível por padrão. Para usar Gemini, configure `GENAI_MODEL_PROVIDER=gemini`, `GENAI_GEMINI_API_KEY` e instale o extra `gemini`; nenhum gate local exige chamada real ou faturável.
+- Para follow-up, o consumidor reenvia até três turnos no próprio `POST /api/v1/questions`; o serviço não persiste histórico entre chamadas. O interpretador herda a intenção da pergunta completa mais recente da pessoa usuária somente quando identifica uma continuação por conectivo ou filtro compatível. Campos explicitados na pergunta atual substituem os herdados. Se a mensagem mais recente da pessoa usuária for ambígua, o serviço pede esclarecimento em vez de buscar uma pergunta anterior. A regra é lexical e limitada ao vocabulário configurado; não é memória geral de conversa. Como todos os turnos do contexto são fornecidos pelo consumidor e não autenticados pelo serviço, o safety gate examina mensagens `user` e `assistant` antes de chamar ferramenta ou modelo.
+- Esses componentes não consultam Gold, não provam a qualidade real do Gemini e não concluem requisitos IA do PRD.
+
+### Segurança demonstrada e limites
+
+- `QuestionSafetyGate` aplica regras explícitas antes de qualquer ferramenta para os padrões cobertos no conjunto sintético. Um padrão lexical não reconhecido ainda pode exigir revisão; esta camada não substitui autenticação, autorização ou controles do executor real.
+- Respostas sem evidência e números ausentes na evidência não são aceitos como respostas quantitativas. A checagem atual compara tokens numéricos, não verifica se cada frase representa corretamente a métrica ou a fórmula.
+- O conjunto versionado está em `ai-agent/tests/fixtures/genai_regression.json`; execute `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` dentro de `ai-agent/` para gerar o relatório. Ele usa um adaptador de linguagem fixo, sem rede, inclui os endpoints de perguntas e insights e identifica versão, escopo e limitações. O relatório não contém horário variável para que duas execuções com o mesmo código e fixtures produzam o mesmo conteúdo.
+- Para uma verificação completa, execute dentro de `ai-agent/`: `python -m pytest -q`, `python -m compileall -q app tests` e `python -m ruff check .`; execute `git diff --check` na raiz.
+
+## Fluxo controlado para a futura integração Gold
 
 1. Identificar intenção, entidades, período, filtros e ambiguidades. Reconhecer sinônimos do setor.
 2. Validar se há informação no dicionário e permissão para consultar a métrica.
