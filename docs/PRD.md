@@ -205,7 +205,7 @@ Cada time deve responder à pergunta sobre queda de receita residencial. A expli
 
 | ID | Prioridade | Estado | Requisito e critérios de aceite |
 | --- | --- | --- | --- |
-| DE-01 | Obrigatório | Pendente | **Ingerir tudo em Bronze.** Os oito conjuntos, incluindo cinco arquivos de leitura e três abas de inspeção, estão em Delta; linhas, colunas, valores e arquivos de origem são rastreáveis. Diferenças de parse e rejeições são contadas e explicadas. |
+| DE-01 | Obrigatório | Em validação | **Ingerir tudo em Bronze.** Os oito conjuntos, incluindo cinco arquivos de leitura e três abas de inspeção, estão em Delta; linhas, colunas, valores e arquivos de origem são rastreáveis. Diferenças de parse e rejeições são contadas e explicadas. |
 | DE-02 | Obrigatório | Pendente | **Silver confiável.** Perfil de qualidade por fonte, regras de limpeza/padronização, contagens antes/depois e exceções documentadas; datas, classes, identificadores e medidas podem ser usados com significado consistente. |
 | DE-03 | Obrigatório | Pendente | **Integridade referencial.** Medição, faturamento e cadastro possuem vínculos válidos ou exceções explicitamente segregadas; verificações detectam órfãos e multiplicação indevida de fatos. |
 | DE-04 | Obrigatório | Pendente | **Gold para perguntas de negócio.** Tabelas consolidadas suportam indicadores, receita, visão UC, inspeção, rede e IA; granularidade, fórmulas e escolhas de modelagem estão documentadas. |
@@ -506,6 +506,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Verificações documentais: `quick_validate.py .agents/skills/git-or-treat-figma` aprovou a skill; bloco Python do workflow de qualidade aprovou configurações, seis imports compartilhados e links em 34 documentos; `git diff --check` passou.
 - Pendências: CSS px, teclado, Escape, leitor de tela, reflow, foco executável e navegação completa no player exigem testes específicos. A revisão parcial não comprova conformidade WCAG AA nem critérios funcionais do portal.
 - Responsável/revisor: Codex coordenou consulta, alterações e verificações; subagente realizou o teste documental da skill. Revisão humana do comportamento executável pendente.
+
+### 2026-10-17 — DE-01 — Bronze com reconciliação e captura de registros malformados
+
+- Estado anterior → novo estado: `Pendente` → `Em validação`; a ingestão roda e a conta fecha, mas o PR #8 ainda não foi revisado e a reconciliação não registra o hash do arquivo de origem (§4.3).
+- Mudança observável para usuário/negócio: a Bronze passa a devolver, por fonte, quantas linhas físicas de origem foram lidas, quantas viraram linha da tabela e quantas foram rejeitadas. Registro malformado deixa de ser descartado em silêncio: vai para `bronze.rejeitados` com o conteúdo bruto, e `bronze.reconciliacao` fecha a conta com `delta = 0`.
+- Arquivos/commit/PR: `data-engineering/01_bronze.py` (reescrito), `data-engineering/02_perfilamento.py` (colunas de auditoria no perfilamento e deduplicação restrita às colunas de negócio), [ADR-0001](decisions/0001-reconciliacao-e-captura-de-registros-malformados.md), `docs/services/data-engineering.md` e este PRD; branch `feat/bronze`, PR #8 (ainda sem revisão).
+- Dados usados (versão/fonte; sem anexar dados sensíveis): extração do case com as 8 fontes, no Volume `/Volumes/workspace/default/venergy`; dados brutos não versionados (`.gitignore`).
+- Verificações: execução completa do notebook na Databricks Free Edition em 17/10/2026, sem erro. Contagens: unidades_consumidoras 46.461, medidores 51.812, ocorrencias_rede 180.000, geracao_distribuida 3.510, faturas 2.184.623, leituras 2.182.468, atendimentos 318.871, inspecoes 1.389 (abas 511 + 383 + 495). `bronze.reconciliacao` com `delta = 0` em todas as linhas; `atendimentos` sai como `SEM_BASE` e `inspecoes` com `linhas_arquivo = null` (esperado). Autoteste de registros malformados `OK` nos dois leitores (CSV 1 válida/2 rejeitadas; JSON 1 válida/1 rejeitada). `bronze.rejeitados` sem linhas. `python -m py_compile` local nos dois notebooks.
+- Reconciliação ou amostra manual: `bronze.leituras` conferida contra a contagem física do Volume — 2.182.473 linhas menos 5 cabeçalhos = 2.182.468, igual à tabela. As demais fontes fecham por aritmética dentro do próprio notebook (§4.3).
+- Critérios de aceite revisados e pendências: as 8 fontes estão em Delta com origem rastreável e os rejeitados são contados e isolados. Falta para `Concluído`: revisão do PR #8, hash/versão do arquivo na reconciliação (§4.3), decisão da Silver sobre a quarentena dos rejeitados e conferência de encoding/separador (hoje documentada, não automatizada).
+- Responsável/revisor: juliatenoriocalado (implementação e execução na Databricks); revisão de pares pendente no PR #8.
 
 ### Modelo de entrada
 
