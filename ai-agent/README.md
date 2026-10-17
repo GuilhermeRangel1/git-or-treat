@@ -1,8 +1,8 @@
 # Agente de IA
 
-Este diretório contém o serviço FastAPI isolado que será a base do agente Text-to-SQL e da lógica de insights. Há um adaptador Gemini isolado e opcional, desativado por padrão; ainda não há integração de evidências com Gold, backend do portal ou interface. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md) e [PRD](../docs/PRD.md).
+Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; o adaptador Gemini é opcional e fica desativado por padrão. As evidências ainda são sintéticas: não há integração com Gold, backend do portal ou interface. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md) e [PRD](../docs/PRD.md).
 
-As próximas etapas dependem da integração das fontes analíticas e do provedor de IA.
+Os endpoints podem ser exercitados localmente com adaptadores simulados. Resultados sintéticos demonstram fluxo e contrato, não números reais nem requisitos concluídos no PRD.
 
 ## Preparar o ambiente local
 
@@ -45,6 +45,7 @@ O serviço expõe a documentação OpenAPI em `http://127.0.0.1:8001/docs`. Nest
 - `GET /health` informa somente que o processo está ativo.
 - `GET /api/v1/capabilities` descreve a versão e a disponibilidade do contrato de perguntas, sem expor configuração interna.
 - `POST /api/v1/questions` recebe `question` e até três mensagens de contexto (`role` `user` ou `assistant`), cada uma limitada a 1.000 caracteres.
+- `POST /api/v1/insights` recebe um objeto `screen` com métrica, unidade, período, filtros, observações numéricas, referência e limitações. Nesta etapa, `reference.is_demo` precisa ser `true`.
 
 Exemplo de pergunta no PowerShell:
 
@@ -55,4 +56,30 @@ Invoke-RestMethod -Method Post `
   -Body '{"question":"Qual foi o consumo?"}'
 ```
 
-A resposta inclui `status`, `answer`, `message` e `evidence`. Os estados são `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. Sem adaptador de evidências configurado, a API responde `no_evidence`; não consulta um provedor externo nem inventa números. As fixtures de teste são sintéticas e vêm marcadas como demonstração.
+A resposta inclui `status`, `answer`, `message` e `evidence`. Os estados são `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador de modelo configurado para gerar a resposta, retorna indisponibilidade controlada. As fixtures vêm marcadas como demonstração.
+
+O endpoint de insights devolve `observation` com os valores recebidos e `hypothesis` em campo separado. A hipótese é gerada pelo adaptador de modelo configurado; números que não aparecem no contexto são recusados. O serviço não persiste o contexto nem confirma que o backend está autorizado a enviar aqueles filtros. Um consumidor futuro deverá transmitir contexto já validado e autorizado pela sua própria camada.
+
+Exemplo de payload exclusivamente demonstrativo:
+
+```json
+{
+  "screen": {
+    "metric": "consumo demonstrativo",
+    "unit": "kWh fictícios",
+    "period": {
+      "start": "2025-01-01",
+      "end": "2025-03-31",
+      "granularity": "month"
+    },
+    "filters": {"classe": "residencial", "municipio": "Exemplo"},
+    "observations": [{"label": "consumo total", "value": 420}],
+    "reference": {
+      "source": "synthetic_screen:consumption",
+      "description": "Resultado artificial para teste local.",
+      "is_demo": true
+    },
+    "limitations": ["Valor fictício, sem vínculo com a V-Energy."]
+  }
+}
+```

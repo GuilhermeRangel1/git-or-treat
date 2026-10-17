@@ -1,6 +1,6 @@
 # Serviço: agente de inteligência artificial
 
-**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** o fluxo sintético de interpretação, ferramenta e geração está integrado a `POST /api/v1/questions`; o adaptador Gemini é opcional por ambiente. Gold, backend e frontend do portal ainda não estão integrados. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. O código configura `gemini-3.5-flash-lite` como padrão do adaptador e permite escolher outro ID, como `gemini-3.6-flash`; a escolha definitiva do provedor continua aberta pela equipe.
+**Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** fluxo sintético de perguntas e contrato de insight contextual estão preparados nos endpoints `POST /api/v1/questions` e `POST /api/v1/insights`; o adaptador Gemini é opcional por ambiente. Gold, backend e frontend do portal ainda não estão integrados. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. O código configura `gemini-3.5-flash-lite` como padrão do adaptador e permite escolher outro ID, como `gemini-3.6-flash`; a escolha definitiva do provedor continua aberta pela equipe.
 
 ## Duas formas de IA obrigatórias
 
@@ -8,6 +8,14 @@
 2. **Insight embutido em uma tela:** interpreta o dado que o usuário vê e sugere o que investigar, mantendo vínculo explícito com filtros e período da tela.
 
 O mesmo dicionário Gold deve reger a conversa e o insight. A interface precisa mostrar qual parte é dado observado e qual parte é interpretação gerada. Uma sugestão de investigação não deve ser apresentada como causa comprovada.
+
+### Contrato sintético de insight de tela
+
+`POST /api/v1/insights` recebe `screen` com métrica, unidade, intervalo (`start`, `end`, `granularity`), pelo menos um filtro, observações numéricas, referência e limitações. O validador rejeita campos ausentes, período invertido, rótulos de observação repetidos, valores não finitos e referência que não esteja marcada como demonstração nesta etapa. Campos inesperados também são rejeitados, inclusive um campo de pergunta livre; a solicitação ao modelo é uma instrução fixa do serviço, enquanto filtros e observações entram como dados não confiáveis.
+
+A resposta separa `observation.values` (cópia do resultado enviado pelo consumidor) de `hypothesis` (texto gerado pelo modelo), e repete métrica, unidade, período, filtros, referência e limitações. Uma hipótese numérica com valor ausente do contexto é recusada. Isso é só uma checagem lexical; não prova que a interpretação é verdadeira nem que o contexto foi autorizado pelo backend. Durante a Etapa 3, a referência sintética impede apresentar o fluxo como resultado real da V-Energy.
+
+O contrato também é resumido no [README do serviço](../../ai-agent/README.md), com payload demonstrativo. O contexto estruturado ainda não vem do portal; o endpoint não autentica nem autoriza o consumidor.
 
 ## Contrato de uma resposta confiável
 
@@ -23,7 +31,7 @@ Cada resposta quantitativa deve conter: conclusão direta; métrica e unidade; c
 - A busca de cenários entrega somente fixtures marcadas `is_demo`. Se classe, geografia, período ou filtros pedidos não estiverem representados, retorna ausência de evidência.
 - A ferramenta de comparação recebe dois valores artificiais tipados; só compara mesma unidade e granularidade, e não calcula percentual com base zero. A operação aritmética é demonstrativa, não fórmula oficial de receita, consumo, DEC/FEC ou outro indicador da V-Energy.
 - O provedor continua indisponível por padrão. Para usar Gemini, configure `GENAI_MODEL_PROVIDER=gemini`, `GENAI_GEMINI_API_KEY` e instale o extra `gemini`; nenhum gate local exige chamada real ou faturável.
-- Follow-up entre turnos não é resolvido pelo interpretador: o contexto chega ao adaptador, mas os filtros da pergunta anterior não são combinados com a pergunta atual.
+- Follow-up entre turnos ainda não é resolvido pelo interpretador: o contexto pode chegar ao adaptador, mas os filtros da pergunta anterior não são combinados com a pergunta atual.
 - Esses componentes não consultam Gold, não provam a qualidade real do Gemini e não concluem requisitos IA do PRD.
 
 ### Segurança demonstrada e limites

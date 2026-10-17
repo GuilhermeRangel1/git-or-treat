@@ -8,5 +8,6 @@ class CapabilitiesResponse(BaseModel):
 
     api_version: str
     question_endpoint: str
+    insight_endpoint: str
     requires_gold: bool
     requires_model: bool

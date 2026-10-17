@@ -1,0 +1,149 @@
+"""Contratos HTTP para insights de uma tela durante a etapa sintética."""
+
+from datetime import date
+from enum import StrEnum
+from math import isfinite
+from typing import Annotated
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
+
+from app.schemas.questions import EvidenceReference, QuestionStatus
+
+FilterValue = StrictStr | StrictInt | StrictFloat | StrictBool
+
+
+class PeriodGranularity(StrEnum):
+    DAY = "day"
+    MONTH = "month"
+    QUARTER = "quarter"
+    YEAR = "year"
+
+
+class ScreenPeriod(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: date
+    end: date
+    granularity: PeriodGranularity
+
+    @model_validator(mode="after")
+    def require_ordered_period(self) -> "ScreenPeriod":
+        if self.start > self.end:
+            raise ValueError("o início do período deve ser anterior ou igual ao fim")
+        return self
+
+
+class ScreenObservationValue(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: Annotated[str, Field(min_length=1, max_length=120)]
+    value: StrictInt | StrictFloat = Field(allow_inf_nan=False)
+
+    @field_validator("label")
+    @classmethod
+    def require_non_blank_label(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("o rótulo da observação não pode ficar vazio")
+        return value.strip()
+
+
+class ScreenContext(BaseModel):
+    """Recorte estruturado enviado pelo consumidor; valores são dados não confiáveis."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    metric: Annotated[str, Field(min_length=1, max_length=160)]
+    unit: Annotated[str, Field(min_length=1, max_length=60)]
+    period: ScreenPeriod
+    filters: dict[Annotated[str, Field(min_length=1, max_length=80)], FilterValue] = Field(
+        min_length=1,
+        max_length=20,
+    )
+    observations: list[ScreenObservationValue] = Field(min_length=1, max_length=20)
+    reference: EvidenceReference
+    limitations: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(
+        min_length=1,
+        max_length=20,
+    )
+
+    @field_validator("metric", "unit")
+    @classmethod
+    def require_non_blank_context_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("métrica e unidade não podem ficar vazias")
+        return value.strip()
+
+    @field_validator("filters")
+    @classmethod
+    def require_non_blank_filter_values(
+        cls,
+        value: dict[str, FilterValue],
+    ) -> dict[str, FilterValue]:
+        if len({key.casefold() for key in value}) != len(value):
+            raise ValueError("nomes de filtros não podem se repetir com capitalização diferente")
+        for key, item in value.items():
+            if not key.strip() or (isinstance(item, str) and (not item.strip() or len(item) > 120)):
+                raise ValueError("filtros devem ter nomes e valores curtos não vazios")
+            if isinstance(item, float) and not isfinite(item):
+                raise ValueError("valores numéricos dos filtros devem ser finitos")
+        return value
+
+    @model_validator(mode="after")
+    def require_synthetic_context(self) -> "ScreenContext":
+        if not self.reference.is_demo:
+            raise ValueError("a etapa de insight sintético exige referência marcada como demo")
+        labels = [item.label.casefold() for item in self.observations]
+        if len(labels) != len(set(labels)):
+            raise ValueError("os rótulos das observações devem ser únicos")
+        return self
+
+
+class ScreenInsightRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    screen: ScreenContext
+
+
+class InsightContextSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    metric: str
+    unit: str
+    period: ScreenPeriod
+    filters: dict[str, FilterValue]
+
+
+class InsightObservation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[ScreenObservationValue]
+
+
+class ScreenInsightResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: QuestionStatus
+    context: InsightContextSummary
+    observation: InsightObservation
+    hypothesis: str | None = None
+    message: str | None = None
+    evidence: list[EvidenceReference] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_generated_content(self) -> "ScreenInsightResponse":
+        if self.status is QuestionStatus.ANSWERED and not self.hypothesis:
+            raise ValueError("insight respondido exige uma hipótese gerada")
+        if self.status is not QuestionStatus.ANSWERED and self.hypothesis is not None:
+            raise ValueError("resposta não concluída não pode incluir hipótese")
+        return self
