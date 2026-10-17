@@ -1,11 +1,59 @@
 {
-  "dataset_version": "1.0.0",
+  "dataset_version": "2.0.0",
   "synthetic": true,
+  "scenario_scope": "POST /api/v1/questions e POST /api/v1/insights com fixtures e adaptadores fixos.",
   "limitations": [
     "Todos os valores e cenários são artificiais e não representam a V-Energy.",
     "O adaptador de linguagem é falso; a execução não mede qualidade ou disponibilidade do Gemini.",
-    "A avaliação cobre regras e contratos locais, não reconciliação com Gold."
+    "A avaliação cobre regras e contratos locais, não reconciliação com Gold.",
+    "Os casos de insight verificam estado, separação de observação/hipótese e presença de números; não avaliam qualidade semântica da hipótese."
   ],
+  "screen_contexts": {
+    "quarterly_consumption": {
+      "metric": "consumo demonstrativo",
+      "unit": "kWh fictícios",
+      "period": {
+        "start": "2025-01-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      },
+      "filters": {
+        "classe": "residencial",
+        "municipio": "Exemplo"
+      },
+      "observations": [
+        {"label": "consumo total", "value": 420}
+      ],
+      "reference": {
+        "source": "synthetic_screen:consumption",
+        "description": "Total artificial para avaliação local.",
+        "is_demo": true
+      },
+      "limitations": ["Valor artificial sem série mensal detalhada."]
+    },
+    "single_value_without_series": {
+      "metric": "consumo demonstrativo",
+      "unit": "kWh fictícios",
+      "period": {
+        "start": "2025-01-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      },
+      "filters": {
+        "classe": "residencial",
+        "municipio": "Exemplo"
+      },
+      "observations": [
+        {"label": "consumo total", "value": 420}
+      ],
+      "reference": {
+        "source": "synthetic_screen:single_value",
+        "description": "Um único total artificial, sem série temporal.",
+        "is_demo": true
+      },
+      "limitations": ["Não há valores separados por mês para avaliar tendência."]
+    }
+  },
   "cases": [
     {
       "id": "consumption_demo_answer",
@@ -87,6 +135,64 @@
       "expected_tool_calls": 1,
       "expected_model_calls": 1,
       "model_failure": true
+    },
+    {
+      "id": "screen_insight_grounded_answer",
+      "endpoint": "insights",
+      "category": "grounded_answer",
+      "screen_context_id": "quarterly_consumption",
+      "expected_domain": null,
+      "expected_status": "answered",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 1,
+      "model_status": "answered",
+      "model_answer": "O consumo observado foi 420 kWh fictícios; investigue a distribuição no recorte.",
+      "expected_answer_fragment": "420 kWh fictícios",
+      "expected_evidence_source": "synthetic_screen:consumption",
+      "expected_observation_value": 420
+    },
+    {
+      "id": "screen_insight_clarification",
+      "endpoint": "insights",
+      "category": "clarification",
+      "screen_context_id": "quarterly_consumption",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 1,
+      "model_status": "needs_clarification",
+      "model_answer": "Qual recorte você quer priorizar para investigar a observação?",
+      "expected_answer_fragment": "Qual recorte",
+      "expected_evidence_source": "synthetic_screen:consumption"
+    },
+    {
+      "id": "screen_insight_refusal",
+      "endpoint": "insights",
+      "category": "refusal",
+      "screen_context_id": "quarterly_consumption",
+      "expected_domain": null,
+      "expected_status": "refused",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 1,
+      "model_status": "refused",
+      "model_answer": "Não posso atribuir uma causa com esta evidência sintética.",
+      "expected_answer_fragment": "Não posso atribuir uma causa",
+      "expected_evidence_source": "synthetic_screen:consumption"
+    },
+    {
+      "id": "screen_insight_insufficient_evidence",
+      "endpoint": "insights",
+      "category": "insufficient_evidence",
+      "screen_context_id": "single_value_without_series",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 1,
+      "model_status": "needs_clarification",
+      "model_answer": "A tela traz um único total; falta série histórica para avaliar tendência.",
+      "expected_answer_fragment": "falta série histórica",
+      "expected_evidence_source": "synthetic_screen:single_value",
+      "expected_observation_value": 420
     }
   ]
 }

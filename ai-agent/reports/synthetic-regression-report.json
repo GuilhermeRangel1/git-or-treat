@@ -1,22 +1,25 @@
 {
   "report_type": "synthetic_regression",
   "synthetic": true,
-  "dataset_version": "1.0.0",
-  "generated_at_utc": "2026-10-16T22:16:30.506972+00:00",
+  "dataset_version": "2.0.0",
+  "scenario_scope": "POST /api/v1/questions e POST /api/v1/insights com fixtures e adaptadores fixos.",
   "provider": "fixed_test_adapter; no Gemini API calls",
   "summary": {
-    "total": 9,
-    "passed": 9,
+    "total": 13,
+    "passed": 13,
     "failed": 0
   },
   "limitations": [
     "Todos os valores e cenários são artificiais e não representam a V-Energy.",
     "O adaptador de linguagem é falso; a execução não mede qualidade ou disponibilidade do Gemini.",
-    "A avaliação cobre regras e contratos locais, não reconciliação com Gold."
+    "A avaliação cobre regras e contratos locais, não reconciliação com Gold.",
+    "Os casos de insight verificam estado, separação de observação/hipótese e presença de números; não avaliam qualidade semântica da hipótese."
   ],
   "cases": [
     {
       "id": "consumption_demo_answer",
+      "endpoint": "questions",
+      "category": "question_flow",
       "passed": true,
       "checks": {
         "http_ok": true,
@@ -24,7 +27,7 @@
         "tool_calls": true,
         "model_calls": true,
         "domain": true,
-        "answer_grounded": true,
+        "expected_content": true,
         "evidence_source": true
       },
       "actual_status": "answered",
@@ -34,6 +37,8 @@
     },
     {
       "id": "ambiguous_bill_clarification",
+      "endpoint": "questions",
+      "category": "question_flow",
       "passed": true,
       "checks": {
         "http_ok": true,
@@ -49,6 +54,8 @@
     },
     {
       "id": "unsupported_geography_no_evidence",
+      "endpoint": "questions",
+      "category": "question_flow",
       "passed": true,
       "checks": {
         "http_ok": true,
@@ -64,6 +71,8 @@
     },
     {
       "id": "write_request_refused",
+      "endpoint": "questions",
+      "category": "question_flow",
       "passed": true,
       "checks": {
         "http_ok": true,
@@ -79,6 +88,8 @@
     },
     {
       "id": "injection_refused",
+      "endpoint": "questions",
+      "category": "question_flow",
       "passed": true,
       "checks": {
         "http_ok": true,
@@ -94,6 +105,8 @@
     },
     {
       "id": "unrelated_topic_refused",
+      "endpoint": "questions",
+      "category": "question_flow",
       "passed": true,
       "checks": {
         "http_ok": true,
@@ -109,6 +122,8 @@
     },
     {
       "id": "unsupported_number_refused",
+      "endpoint": "questions",
+      "category": "question_flow",
       "passed": true,
       "checks": {
         "http_ok": true,
@@ -125,6 +140,8 @@
     },
     {
       "id": "synthetic_tool_failure",
+      "endpoint": "questions",
+      "category": "question_flow",
       "passed": true,
       "checks": {
         "http_ok": true,
@@ -140,6 +157,8 @@
     },
     {
       "id": "model_provider_failure",
+      "endpoint": "questions",
+      "category": "question_flow",
       "passed": true,
       "checks": {
         "http_ok": true,
@@ -151,6 +170,84 @@
       "actual_status": "recoverable_error",
       "actual_domain": "consumption",
       "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "screen_insight_grounded_answer",
+      "endpoint": "insights",
+      "category": "grounded_answer",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true,
+        "evidence_source": true,
+        "observation_value": true
+      },
+      "actual_status": "answered",
+      "actual_domain": null,
+      "tool_calls": 0,
+      "model_calls": 1
+    },
+    {
+      "id": "screen_insight_clarification",
+      "endpoint": "insights",
+      "category": "clarification",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "tool_calls": 0,
+      "model_calls": 1
+    },
+    {
+      "id": "screen_insight_refusal",
+      "endpoint": "insights",
+      "category": "refusal",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "refused",
+      "actual_domain": null,
+      "tool_calls": 0,
+      "model_calls": 1
+    },
+    {
+      "id": "screen_insight_insufficient_evidence",
+      "endpoint": "insights",
+      "category": "insufficient_evidence",
+      "passed": true,
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true,
+        "evidence_source": true,
+        "observation_value": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "tool_calls": 0,
       "model_calls": 1
     }
   ]

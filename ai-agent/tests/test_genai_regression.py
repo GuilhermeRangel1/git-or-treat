@@ -2,11 +2,11 @@
 
 import argparse
 import json
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
+from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner, ScenarioToolUnavailable
@@ -27,8 +27,8 @@ class CountingInterpreter:
         self.delegate = QuestionInterpreter()
         self.results = []
 
-    def interpret(self, question):
-        result = self.delegate.interpret(question)
+    def interpret(self, question, context=None):
+        result = self.delegate.interpret(question, context)
         self.results.append(result)
         return result
 
@@ -73,9 +73,17 @@ def evaluate_case(case: dict) -> dict:
     application = create_app(
         settings=Settings(_env_file=None),
         question_orchestrator=orchestrator,
+        insight_orchestrator=ScreenInsightOrchestrator(model),
     )
     with InProcessClient(application) as client:
-        response = client.post("/api/v1/questions", json={"question": case["question"]})
+        if case.get("endpoint") == "insights":
+            screen = DATASET["screen_contexts"][case["screen_context_id"]]
+            response = client.post("/api/v1/insights", json={"screen": screen})
+        else:
+            response = client.post(
+                "/api/v1/questions",
+                json={"question": case["question"], "context": case.get("context", [])},
+            )
     body = response.json()
 
     actual_domain = None
@@ -83,22 +91,35 @@ def evaluate_case(case: dict) -> dict:
         actual_domain = interpreter.results[-1].intent.domain.value
     checks = {
         "http_ok": response.status_code == 200,
-        "status": body["status"] == case["expected_status"],
+        "status": body.get("status") == case["expected_status"],
         "tool_calls": len(tool.calls) == case["expected_tool_calls"],
         "model_calls": len(model.calls) == case["expected_model_calls"],
         "domain": actual_domain == case["expected_domain"],
     }
     if "expected_answer_fragment" in case:
-        checks["answer_grounded"] = case["expected_answer_fragment"] in (body.get("answer") or "")
+        generated_text = " ".join(
+            value
+            for value in (body.get("answer"), body.get("hypothesis"), body.get("message"))
+            if value
+        )
+        checks["expected_content"] = case["expected_answer_fragment"] in generated_text
     if "expected_evidence_source" in case:
         checks["evidence_source"] = any(
             item["source"] == case["expected_evidence_source"] for item in body.get("evidence", [])
         )
+    if "expected_observation_value" in case:
+        observed_values = body.get("observation", {}).get("values", [])
+        checks["observation_value"] = any(
+            item.get("value") == case["expected_observation_value"]
+            for item in observed_values
+        )
     return {
         "id": case["id"],
+        "endpoint": case.get("endpoint", "questions"),
+        "category": case.get("category", "question_flow"),
         "passed": all(checks.values()),
         "checks": checks,
-        "actual_status": body["status"],
+        "actual_status": body.get("status", f"http_{response.status_code}"),
         "actual_domain": actual_domain,
         "tool_calls": len(tool.calls),
         "model_calls": len(model.calls),
@@ -112,6 +133,32 @@ def test_versioned_synthetic_regression_case_passes(case: dict) -> None:
     assert result["passed"], result
 
 
+def test_insight_fixtures_cover_required_synthetic_outcomes() -> None:
+    insight_categories = {
+        case.get("category")
+        for case in DATASET["cases"]
+        if case.get("endpoint") == "insights"
+    }
+
+    assert insight_categories == {
+        "grounded_answer",
+        "clarification",
+        "refusal",
+        "insufficient_evidence",
+    }
+
+
+def test_report_is_repeatable_and_declares_version_scope_and_limitations() -> None:
+    first = build_report()
+    second = build_report()
+
+    assert first == second
+    assert first["synthetic"] is True
+    assert first["dataset_version"] == DATASET["dataset_version"]
+    assert first["scenario_scope"] == DATASET["scenario_scope"]
+    assert first["limitations"] == DATASET["limitations"]
+
+
 def build_report() -> dict:
     results = [evaluate_case(case) for case in DATASET["cases"]]
     passed = sum(result["passed"] for result in results)
@@ -119,7 +166,7 @@ def build_report() -> dict:
         "report_type": "synthetic_regression",
         "synthetic": True,
         "dataset_version": DATASET["dataset_version"],
-        "generated_at_utc": datetime.now(UTC).isoformat(),
+        "scenario_scope": DATASET["scenario_scope"],
         "provider": "fixed_test_adapter; no Gemini API calls",
         "summary": {"total": len(results), "passed": passed, "failed": len(results) - passed},
         "limitations": DATASET["limitations"],
