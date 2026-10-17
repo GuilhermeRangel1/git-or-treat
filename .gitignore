@@ -28,6 +28,7 @@ node_modules/
 dist/
 build/
 .venv/
+venv/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
