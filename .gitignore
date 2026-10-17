@@ -45,3 +45,7 @@ Thumbs.db
 # Exploração e capturas locais de prototipação
 /work/
 /.playwright-mcp/
+
+# Docker env
+.env.db
+.dockerignore.local
