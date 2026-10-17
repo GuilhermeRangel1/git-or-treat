@@ -19,6 +19,7 @@ def test_capabilities_describe_the_contract_without_internal_configuration() -> 
     body = response.json()
     assert body["api_version"] == "v1"
     assert body["question_endpoint"] == "/api/v1/questions"
+    assert body["insight_endpoint"] == "/api/v1/insights"
     assert body["requires_gold"] is False
     assert "secret" not in str(body).lower()
     assert "key" not in str(body).lower()

@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request
 
 from app.schemas.capabilities import CapabilitiesResponse
+from app.schemas.insights import ScreenInsightRequest, ScreenInsightResponse
 from app.schemas.questions import QuestionRequest, QuestionResponse
 
 router = APIRouter()
@@ -22,6 +23,7 @@ async def capabilities() -> CapabilitiesResponse:
     return CapabilitiesResponse(
         api_version="v1",
         question_endpoint="/api/v1/questions",
+        insight_endpoint="/api/v1/insights",
         requires_gold=False,
         requires_model=False,
     )
@@ -32,3 +34,13 @@ async def ask_question(payload: QuestionRequest, request: Request) -> QuestionRe
     """Recebe pergunta com contexto limitado e delega ao orquestrador injetado."""
 
     return await request.app.state.question_orchestrator.answer(payload)
+
+
+@router.post("/api/v1/insights", response_model=ScreenInsightResponse)
+async def generate_screen_insight(
+    payload: ScreenInsightRequest,
+    request: Request,
+) -> ScreenInsightResponse:
+    """Gera hipótese exploratória a partir do recorte estruturado enviado pelo portal."""
+
+    return await request.app.state.insight_orchestrator.generate(payload.screen)
