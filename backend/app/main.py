@@ -18,9 +18,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url=f"{settings.API_V1_STR}/docs",
-    redoc_url=f"{settings.API_V1_STR}/redoc",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
     lifespan=lifespan,
 )
 
@@ -42,6 +42,6 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 def root():
     return {
         "message": f"Bem-vindo à {settings.PROJECT_NAME}",
-        "docs": f"{settings.API_V1_STR}/docs",
+        "docs": "/docs",
         "health": f"{settings.API_V1_STR}/health",
     }
