@@ -37,7 +37,10 @@ TABELAS = [
     "unidades_consumidoras", "faturas", "leituras", "medidores",
     "ocorrencias_rede", "geracao_distribuida", "atendimentos", "inspecoes",
 ]
-AUDITORIA = ["_arquivo_origem", "_data_carga"]   # colunas que nós criamos, ignoradas nas checagens
+# Colunas que NÓS criamos na Bronze: ignoradas nas checagens. `_lote_id` é constante por execução
+# e `_id_registro` é único por linha — nenhum dos dois é atributo do dado, então não entram em
+# regra de qualidade (nulos, duplicatas, categorias, etc.).
+AUDITORIA = ["_arquivo_origem", "_lote_id", "_id_registro", "_data_carga"]
 
 PROBLEMAS = []  # acumula o relatório final
 
@@ -111,7 +114,9 @@ linhas = []
 for t in TABELAS:
     d = df(t)
     total = d.count()
-    dup = total - d.dropDuplicates().count()
+    # Duplicata EXATA = linhas iguais nos campos de DADO. Não usar dropDuplicates() sem argumento:
+    # `_id_registro` é único por linha e faria a conta dar 0 duplicatas sempre (falso negativo).
+    dup = total - d.dropDuplicates(colunas(t)).count()
     linhas.append({"tabela": t, "linhas": total, "colunas": len(colunas(t)), "duplicatas_exatas": dup})
 
 mostra(pd.DataFrame(linhas), "Visão geral")
