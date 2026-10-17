@@ -449,7 +449,29 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
-**Marco atual (16/10/2026):** documentação, instruções e protótipo visual em Figma criados; nenhum requisito funcional DE/WEB/IA/ENT foi implementado ou validado. Skills, hooks e protótipo são preparação e não atendem, por si, requisitos funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
+**Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
+
+### 2026-10-16 — IA-07 — protótipo de follow-up contextual
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; o protótipo local cobre parte do comportamento, mas não conclui o diferencial no produto integrado.
+- Mudança observável para usuário/negócio: a API pode receber até três turnos anteriores em cada pergunta. Uma continuação reconhecida herda a intenção completa mais recente da pessoa usuária e substitui geografia/classe quando explicitadas. Uma mensagem histórica ambígua pede esclarecimento sem reaproveitar uma intenção mais antiga. O histórico é transitório e não é armazenado; o safety gate examina todos os turnos enviados antes de ferramenta/modelo.
+- Arquivos/commit/PR: implementação local ainda não commitada em `ai-agent/app/agent/interpreter.py`, `ai-agent/app/agent/planner.py`, `ai-agent/app/agent/orchestrator.py`; testes em `ai-agent/tests/test_interpreter.py`, `ai-agent/tests/test_question_flow.py` e adaptação do harness em `ai-agent/tests/test_genai_regression.py`; contratos descritos em `ai-agent/README.md` e `docs/services/ai-agent.md`.
+- Dados usados: cenários sintéticos existentes, sem dataset, Gold ou dados pessoais; adaptadores falsos nos testes, sem chamada ao Gemini.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (80 passaram), `python -m compileall -q app tests` e `python -m ruff check .` passaram. Na raiz, `git diff --check` passou em 16/10/2026.
+- Reconciliação ou amostra manual: teste HTTP confirma herança de consumo/período, correção de Olinda para Jaboatão, ausência de evidência quando a fixture não cobre o filtro, esclarecimento quando a última fala anterior é ambígua, bloqueio de instrução em turnos user/assistant e ausência de herança em chamada sem contexto.
+- Critérios de aceite revisados e pendências: o comportamento sintético e os limites do parser lexical estão cobertos. IA-07 permanece `Pendente` até validar continuidade e isolamento na integração com backend/portal e os critérios de sessão definidos pela equipe; o contexto recebido pela API ainda não tem autenticação/autorização própria.
+- Responsável/revisor: Codex (implementação e verificações locais); revisão humana dos critérios de sessão e do comportamento integrado pendente.
+
+### 2026-10-16 — IA-08 — regressão sintética de perguntas e insights
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; a avaliação local é evidência técnica parcial e não mede resultados reconciliados com Gold.
+- Mudança observável para usuário/negócio: conjunto versionado passa a avaliar, além das perguntas conversacionais existentes, quatro resultados do endpoint de insight: hipótese fundamentada nos valores fornecidos, esclarecimento, recusa e insuficiência de série histórica.
+- Arquivos/commit/PR: `ai-agent/tests/fixtures/genai_regression.json` (versão 2.0.0), `ai-agent/tests/test_genai_regression.py`, `ai-agent/reports/synthetic-regression-report.json`, README e guia do serviço. Implementação local ainda não commitada.
+- Dados usados: fixtures artificiais marcadas como demonstração; adaptador fixo em todos os casos. Nenhum dataset real, chamada ao Gemini ou chave foi usado.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (86 passaram), `python -m compileall -q app tests`, `python -m ruff check .` e `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos aprovados, 0 falhas); na raiz, `git diff --check` passou em 16/10/2026. Teste de repetibilidade confirmou que o relatório gerado com o mesmo código e fixtures tem conteúdo idêntico.
+- Reconciliação ou amostra manual: os quatro casos de insight verificam estado HTTP, número de chamadas ao modelo, trecho esperado, referência e, quando aplicável, valor observado. O caso de insuficiência usa um total sintético sem série mensal e espera esclarecimento, não uma tendência inventada.
+- Critérios de aceite revisados e pendências: cobertura sintética e relatório reproduzível atendem ao checkpoint técnico. IA-08 continua `Pendente` até um conjunto aprovado medir fundamentação e correção contra Gold; o adaptador fixo não avalia a qualidade real do Gemini.
+- Responsável/revisor: Codex (implementação e verificações locais); revisão humana dos casos esperados e avaliação contra Gold pendentes.
 
 ### 2026-10-16 — preparação de WEB-01 a WEB-07 e IA-01 a IA-06 — skill de prototipação
 
