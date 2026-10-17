@@ -11,13 +11,13 @@ Produza um protótipo editável do portal interno V-Energy Grid 360, rastreável
 
 Leia [AGENTS.md](../../../AGENTS.md), [PRD](../../../docs/PRD.md) (§3, §6–9, §12 e §14), [guia frontend](../../../docs/services/frontend.md) e [dicionário](../../../docs/data-dictionary.md). Para ordens ou IA, consulte também os respectivos guias [backend](../../../docs/services/backend.md) e [IA](../../../docs/services/ai-agent.md). Leia as regras da área antes de editar sua documentação. Resolva divergências antes de construir.
 
-O PRD governa requisitos; as cinco referências visuais orientam alternativas. Campos, fórmulas, transições de ordens e contratos ausentes permanecem hipóteses identificadas. Use conteúdo sintético marcado como **ilustrativo**, sem dados reais ou imagens do enunciado. Separe faturado/pago, consumido/faturado, competência/pagamento, suspeita/irregularidade e DEC/FEC simplificados/conformidade regulatória.
+O PRD governa requisitos; as cinco referências visuais orientam alternativas. Apple HIG, Material Design 3 e WCAG 2.2 orientam usabilidade e acessibilidade na revisão solicitada. Campos, fórmulas, transições de ordens e contratos ausentes permanecem hipóteses identificadas. Use conteúdo sintético marcado como **ilustrativo**, sem dados reais ou imagens do enunciado. Separe faturado/pago, consumido/faturado, competência/pagamento, suspeita/irregularidade e DEC/FEC simplificados/conformidade regulatória.
 
 ## Preparar e decidir
 
 1. Verifique branch e alterações existentes. Use a branch dedicada ao trabalho; preserve mudanças alheias.
 2. Monte a matriz requisito → jornada → frame → estado → interação → evidência usando [cobertura e revisão](references/coverage-and-review.md). Diferenciais entram somente quando selecionados.
-3. Consulte [referências visuais](references/visual-references.md) antes de propor direções. Registre exemplos e fontes; escolha efeitos pela utilidade para o portal.
+3. Consulte [referências visuais e de usabilidade/acessibilidade](references/visual-references.md) antes de propor direções ou revisar componentes. Registre exemplos, critérios e fontes; adapte os padrões ao portal web e escolha efeitos pela utilidade.
 4. Quando a etapa solicitada incluir decisões visuais e a identidade estiver em aberto, apresente alternativas e use **grill-me**; use **grill-with-docs** para decisões de domínio/arquitetura a registrar. Investigue fatos antes de perguntar. Consolide direção, dispositivos, densidade, tipografia, cores, movimento e diferenciais acordados. Em pedidos apenas preparatórios, incluindo criação desta skill, registre as decisões adiadas e entregue a preparação; entrevista e construção ficam para a etapa seguinte.
 
 ## Construir pelo Figma MCP
