@@ -28,7 +28,6 @@ export default function AppLayout({ navigation }: { navigation: NavItem[] }) {
       >
         <Header
           title={current?.section ?? current?.label ?? "grid360"}
-          conversationLayout={conversationLayout}
           onOpenMenu={() => menuRef.current?.showModal()}
         />
         <main
