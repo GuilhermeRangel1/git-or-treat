@@ -1,8 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.scenarios import SYNTHETIC_SCENARIOS
-from app.schemas.analysis import AnalysisDomain, AnalysisIntent
+from app.schemas.analysis import AnalysisIntent
 from app.schemas.scenarios import SyntheticScenario
 
 
@@ -15,7 +16,9 @@ def test_synthetic_catalog_covers_prd_domains_and_marks_every_result_as_demo() -
         "network_interruptions_demo",
         "service_attendance_demo",
     }
-    assert {scenario.intent.domain for scenario in scenarios.values()} == set(AnalysisDomain)
+    assert {scenario.intent.domain for scenario in scenarios.values()} == {
+        domain.id for domain in GRID360_DEMO_PROFILE.domains
+    }
     assert all(scenario.evidence.reference.is_demo for scenario in scenarios.values())
     assert all(scenario.limitations for scenario in scenarios.values())
 

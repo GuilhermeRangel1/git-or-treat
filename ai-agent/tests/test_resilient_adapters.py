@@ -7,6 +7,7 @@ from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.caching import CachingModelAdapter
 from app.providers.factory import build_model_adapter
 from app.providers.fallback import FallbackModelAdapter
@@ -314,7 +315,9 @@ def test_cancelled_caller_does_not_cancel_shared_call() -> None:
 def test_cached_ungrounded_answer_is_still_refused_by_orchestrator() -> None:
     inner = ScriptedAdapter(_answer("O consumo demonstrativo foi 999 unidades fictícias."))
     orchestrator = QuestionOrchestrator(
-        analysis_planner=QuestionAnalysisPlanner(QuestionInterpreter(), SyntheticScenarioTool()),
+        analysis_planner=QuestionAnalysisPlanner(
+            QuestionInterpreter(GRID360_DEMO_PROFILE), SyntheticScenarioTool()
+        ),
         model_adapter=_cached(inner),
     )
     request = QuestionRequest(question=QUESTION)

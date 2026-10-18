@@ -5,6 +5,7 @@ import pytest
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.ports.evidence import EvidenceToolUnavailable
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.tools.synthetic_analytics import SyntheticScenarioTool
@@ -36,7 +37,7 @@ def _prepare(planner: QuestionAnalysisPlanner, question: str):
 
 def test_ambiguous_question_is_clarified_before_any_tool_is_called() -> None:
     tool = CountingScenarioTool()
-    planner = QuestionAnalysisPlanner(QuestionInterpreter(), tool)
+    planner = QuestionAnalysisPlanner(QuestionInterpreter(GRID360_DEMO_PROFILE), tool)
 
     plan = _prepare(planner, "Minha conta de luz subiu?")
 
@@ -47,11 +48,10 @@ def test_ambiguous_question_is_clarified_before_any_tool_is_called() -> None:
 
 def test_corrected_filter_is_the_only_filter_sent_to_the_tool() -> None:
     tool = CountingScenarioTool()
-    planner = QuestionAnalysisPlanner(QuestionInterpreter(), tool)
+    planner = QuestionAnalysisPlanner(QuestionInterpreter(GRID360_DEMO_PROFILE), tool)
 
     plan = _prepare(
-        planner,
-        "Qual foi a receita em Olinda, não, em Jaboatão entre o ano passado e este ano?"
+        planner, "Qual foi a receita em Olinda, não, em Jaboatão entre o ano passado e este ano?"
     )
 
     assert plan.status is AnalysisPlanStatus.NO_EVIDENCE
@@ -62,7 +62,9 @@ def test_corrected_filter_is_the_only_filter_sent_to_the_tool() -> None:
 
 
 def test_planner_accepts_an_evidence_source_without_synthetic_request_types() -> None:
-    planner = QuestionAnalysisPlanner(QuestionInterpreter(), SyntheticScenarioTool())
+    planner = QuestionAnalysisPlanner(
+        QuestionInterpreter(GRID360_DEMO_PROFILE), SyntheticScenarioTool()
+    )
 
     plan = _prepare(planner, "Qual foi o consumo no período de demonstração?")
 
@@ -73,21 +75,23 @@ def test_planner_accepts_an_evidence_source_without_synthetic_request_types() ->
 
 
 def test_explicit_demo_question_reaches_synthetic_tool_and_returns_evidence() -> None:
-    planner = QuestionAnalysisPlanner(QuestionInterpreter(), SyntheticScenarioTool())
+    planner = QuestionAnalysisPlanner(
+        QuestionInterpreter(GRID360_DEMO_PROFILE), SyntheticScenarioTool()
+    )
 
     plan = _prepare(planner, "Qual foi o consumo no período de demonstração?")
 
     assert plan.status is AnalysisPlanStatus.READY
     assert plan.evidence_result is not None
     assert plan.evidence_result.evidence is not None
-    assert plan.evidence_result.evidence.records == [
-        {"value": 420, "unit": "unidades fictícias"}
-    ]
+    assert plan.evidence_result.evidence.records == [{"value": 420, "unit": "unidades fictícias"}]
 
 
 @pytest.mark.parametrize("invalid_result", [None, object(), {"status": "unknown"}])
 def test_planner_rejects_invalid_source_return_as_controlled_failure(invalid_result) -> None:
-    planner = QuestionAnalysisPlanner(QuestionInterpreter(), InvalidSource(invalid_result))
+    planner = QuestionAnalysisPlanner(
+        QuestionInterpreter(GRID360_DEMO_PROFILE), InvalidSource(invalid_result)
+    )
 
     with pytest.raises(EvidenceToolUnavailable):
         _prepare(planner, "Qual foi o consumo no período de demonstração?")
@@ -98,7 +102,9 @@ def test_planner_revalidates_constructed_source_result_before_using_it() -> None
         status=EvidenceLookupStatus.AVAILABLE,
         evidence=None,
     )
-    planner = QuestionAnalysisPlanner(QuestionInterpreter(), InvalidSource(invalid))
+    planner = QuestionAnalysisPlanner(
+        QuestionInterpreter(GRID360_DEMO_PROFILE), InvalidSource(invalid)
+    )
 
     with pytest.raises(EvidenceToolUnavailable):
         _prepare(planner, "Qual foi o consumo no período de demonstração?")
@@ -112,7 +118,7 @@ def test_unknown_filter_is_a_clarification_not_an_empty_result() -> None:
                 message="O filtro solicitado não está disponível neste catálogo.",
             )
 
-    planner = QuestionAnalysisPlanner(QuestionInterpreter(), ClarifyingSource())
+    planner = QuestionAnalysisPlanner(QuestionInterpreter(GRID360_DEMO_PROFILE), ClarifyingSource())
     plan = _prepare(planner, "Qual foi o consumo no período de demonstração?")
 
     assert plan.status is AnalysisPlanStatus.NEEDS_CLARIFICATION
@@ -147,7 +153,7 @@ def test_async_source_can_process_concurrent_lookups() -> None:
 
     async def run() -> list:
         source = ConcurrentSource()
-        planner = QuestionAnalysisPlanner(QuestionInterpreter(), source)
+        planner = QuestionAnalysisPlanner(QuestionInterpreter(GRID360_DEMO_PROFILE), source)
         first = asyncio.create_task(
             planner.prepare("Qual foi o consumo no período de demonstração?")
         )
@@ -178,7 +184,7 @@ def test_cancelling_planner_cancels_async_source_lookup() -> None:
 
     async def run() -> bool:
         source = CancellableSource()
-        planner = QuestionAnalysisPlanner(QuestionInterpreter(), source)
+        planner = QuestionAnalysisPlanner(QuestionInterpreter(GRID360_DEMO_PROFILE), source)
         task = asyncio.create_task(
             planner.prepare("Qual foi o consumo no período de demonstração?")
         )

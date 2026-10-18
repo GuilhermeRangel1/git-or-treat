@@ -1,10 +1,11 @@
 from app.agent.interpreter import QuestionInterpreter
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.schemas.interpretation import InterpretationStatus
 from app.schemas.questions import ConversationTurn
 
 
 def test_interprets_business_synonyms_and_preserves_filter_phrases() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Quanto cresceu a receita comercial em Jaboatão entre o ano passado e este ano?"
     )
 
@@ -18,7 +19,9 @@ def test_interprets_business_synonyms_and_preserves_filter_phrases() -> None:
 
 
 def test_maps_everyday_power_outage_phrase_to_network_interruptions() -> None:
-    result = QuestionInterpreter().interpret("Houve falta de luz em Olinda no último ano?")
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Houve falta de luz em Olinda no último ano?"
+    )
 
     assert result.status is InterpretationStatus.READY
     assert result.intent is not None
@@ -28,7 +31,7 @@ def test_maps_everyday_power_outage_phrase_to_network_interruptions() -> None:
 
 
 def test_plural_service_synonym_maps_to_attendance_domain() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Quantos atendimentos ocorreram no período de demonstração?"
     )
 
@@ -39,7 +42,9 @@ def test_plural_service_synonym_maps_to_attendance_domain() -> None:
 
 
 def test_asks_what_account_of_light_means_instead_of_guessing() -> None:
-    result = QuestionInterpreter().interpret("Minha conta de luz subiu?")
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Minha conta de luz subiu?"
+    )
 
     assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
     assert result.intent is None
@@ -48,7 +53,9 @@ def test_asks_what_account_of_light_means_instead_of_guessing() -> None:
 
 
 def test_requests_a_period_when_a_quantitative_question_omits_it() -> None:
-    result = QuestionInterpreter().interpret("Compare a receita comercial em Jaboatão.")
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Compare a receita comercial em Jaboatão."
+    )
 
     assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
     assert result.intent is None
@@ -56,7 +63,9 @@ def test_requests_a_period_when_a_quantitative_question_omits_it() -> None:
 
 
 def test_requests_a_comparison_baseline_instead_of_assuming_one() -> None:
-    result = QuestionInterpreter().interpret("Quanto cresceu a receita no último ano?")
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Quanto cresceu a receita no último ano?"
+    )
 
     assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
     assert result.intent is None
@@ -64,7 +73,7 @@ def test_requests_a_comparison_baseline_instead_of_assuming_one() -> None:
 
 
 def test_correction_replaces_the_previous_geography_phrase() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Qual foi a receita em Olinda, não, em Jaboatão no último ano?"
     )
 
@@ -74,7 +83,7 @@ def test_correction_replaces_the_previous_geography_phrase() -> None:
 
 
 def test_asks_when_multiple_geographies_are_not_marked_as_a_correction() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Compare a receita em Olinda e Jaboatão no último ano."
     )
 
@@ -84,7 +93,7 @@ def test_asks_when_multiple_geographies_are_not_marked_as_a_correction() -> None
 
 
 def test_unknown_capitalized_location_is_not_silently_dropped() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Qual foi o consumo em Recife no último ano?"
     )
 
@@ -94,7 +103,7 @@ def test_unknown_capitalized_location_is_not_silently_dropped() -> None:
 
 
 def test_preserves_direction_and_percentage_threshold_without_calculating_them() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Quais UCs tiveram queda de consumo acima de 30% em Olinda entre o ano passado e este ano?"
     )
 
@@ -108,7 +117,7 @@ def test_preserves_direction_and_percentage_threshold_without_calculating_them()
 
 
 def test_follow_up_inherits_intent_and_applies_explicit_geography_correction() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "E em Olinda, não, em Jaboatão?",
         [
             ConversationTurn(
@@ -128,7 +137,7 @@ def test_follow_up_inherits_intent_and_applies_explicit_geography_correction() -
 
 
 def test_follow_up_does_not_reuse_an_older_intent_after_ambiguous_latest_user_turn() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "E em Jaboatão?",
         [
             ConversationTurn(
@@ -145,7 +154,7 @@ def test_follow_up_does_not_reuse_an_older_intent_after_ambiguous_latest_user_tu
 
 
 def test_unrelated_question_does_not_inherit_previous_filters() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Quais bairros tiveram maior variação?",
         [
             ConversationTurn(

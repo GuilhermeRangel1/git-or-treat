@@ -13,6 +13,7 @@ from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
 from app.ports.evidence import EvidenceToolUnavailable
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
 from app.schemas.analysis import AnalysisIntent
 from app.tools.synthetic_analytics import SyntheticScenarioTool
@@ -26,7 +27,7 @@ DATASET = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
 
 class CountingInterpreter:
     def __init__(self) -> None:
-        self.delegate = QuestionInterpreter()
+        self.delegate = QuestionInterpreter(profile=GRID360_DEMO_PROFILE)
         self.results = []
 
     def interpret(self, question, context=None):
@@ -90,7 +91,7 @@ def evaluate_case(case: dict) -> dict:
 
     actual_domain = None
     if interpreter.results and interpreter.results[-1].intent is not None:
-        actual_domain = interpreter.results[-1].intent.domain.value
+        actual_domain = interpreter.results[-1].intent.domain
     checks = {
         "http_ok": response.status_code == 200,
         "status": body.get("status") == case["expected_status"],
@@ -112,8 +113,7 @@ def evaluate_case(case: dict) -> dict:
     if "expected_observation_value" in case:
         observed_values = body.get("observation", {}).get("values", [])
         checks["observation_value"] = any(
-            item.get("value") == case["expected_observation_value"]
-            for item in observed_values
+            item.get("value") == case["expected_observation_value"] for item in observed_values
         )
     return {
         "id": case["id"],
@@ -137,9 +137,7 @@ def test_versioned_synthetic_regression_case_passes(case: dict) -> None:
 
 def test_insight_fixtures_cover_required_synthetic_outcomes() -> None:
     insight_categories = {
-        case.get("category")
-        for case in DATASET["cases"]
-        if case.get("endpoint") == "insights"
+        case.get("category") for case in DATASET["cases"] if case.get("endpoint") == "insights"
     }
 
     assert insight_categories == {

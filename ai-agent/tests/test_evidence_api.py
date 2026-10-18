@@ -6,6 +6,7 @@ from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.protocols import GeneratedAnswer
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import (
@@ -39,7 +40,7 @@ class FixedModelAdapter:
 async def test_questions_api_uses_an_alternate_evidence_source() -> None:
     orchestrator = QuestionOrchestrator(
         analysis_planner=QuestionAnalysisPlanner(
-            QuestionInterpreter(), AlternateEvidenceSource()
+            QuestionInterpreter(GRID360_DEMO_PROFILE), AlternateEvidenceSource()
         ),
         model_adapter=FixedModelAdapter(),
     )

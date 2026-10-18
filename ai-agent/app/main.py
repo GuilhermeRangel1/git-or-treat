@@ -12,8 +12,10 @@ from app.agent.planner import QuestionAnalysisPlanner
 from app.api.errors import invalid_request_response, unexpected_error_response
 from app.api.routes import router
 from app.config import Settings, get_settings
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.factory import build_model_adapter
 from app.scenarios import SYNTHETIC_SCENARIOS
+from app.schemas.domain_profile import DomainProfile
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 
@@ -21,10 +23,12 @@ def create_app(
     settings: Settings | None = None,
     question_orchestrator: QuestionOrchestrator | None = None,
     insight_orchestrator: ScreenInsightOrchestrator | None = None,
+    domain_profile: DomainProfile | None = None,
 ) -> FastAPI:
     """Cria a API isolada; adaptadores reais podem ser injetados quando estiverem disponíveis."""
 
     active_settings = settings or get_settings()
+    active_domain_profile = domain_profile or GRID360_DEMO_PROFILE
     application = FastAPI(
         title=active_settings.service_name,
         version="0.1.0",
@@ -49,7 +53,7 @@ def create_app(
     )
     application.state.question_orchestrator = question_orchestrator or QuestionOrchestrator(
         analysis_planner=QuestionAnalysisPlanner(
-            interpreter=QuestionInterpreter(),
+            interpreter=QuestionInterpreter(profile=active_domain_profile),
             evidence_source=SyntheticScenarioTool(SYNTHETIC_SCENARIOS),
         ),
         model_adapter=model_adapter,

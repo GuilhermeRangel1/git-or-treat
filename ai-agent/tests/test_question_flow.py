@@ -4,6 +4,7 @@ from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
 from app.ports.evidence import EvidenceAccessDenied, EvidenceToolUnavailable
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import (
@@ -93,7 +94,8 @@ class LargeCountScenarioTool:
 def _client(model_adapter=None, scenario_tool=None) -> InProcessClient:
     orchestrator = QuestionOrchestrator(
         analysis_planner=QuestionAnalysisPlanner(
-            QuestionInterpreter(), scenario_tool or SyntheticScenarioTool()
+            QuestionInterpreter(profile=GRID360_DEMO_PROFILE),
+            scenario_tool or SyntheticScenarioTool(),
         ),
         model_adapter=model_adapter or FakeModelAdapter(),
     )
@@ -376,9 +378,7 @@ def test_follow_up_context_is_transient_between_api_requests() -> None:
                 ],
             },
         )
-        without_context = client.post(
-            "/api/v1/questions", json={"question": "E em Jaboatão?"}
-        )
+        without_context = client.post("/api/v1/questions", json={"question": "E em Jaboatão?"})
 
     assert with_context.json()["status"] == "no_evidence"
     assert without_context.json()["status"] == "needs_clarification"
@@ -451,6 +451,7 @@ def test_untrusted_assistant_history_is_not_allowed_to_override_safety_rules() -
     assert response.json()["status"] == "refused"
     assert tool.calls == 0
     assert model.calls == []
+
 
 class UnexpectedFailureScenarioTool:
     async def retrieve(self, intent: AnalysisIntent):

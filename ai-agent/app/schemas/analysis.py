@@ -1,6 +1,5 @@
 """Tipos de intenção analítica independentes das fixtures de demonstração."""
 
-from enum import StrEnum
 from typing import Annotated
 
 from pydantic import (
@@ -28,22 +27,13 @@ LogicalIdentifier = Annotated[
 AnalysisFilterKey = LogicalIdentifier
 
 
-class AnalysisDomain(StrEnum):
-    """Áreas de negócio usadas pelo interpretador, sem presumir o esquema Gold."""
-
-    REVENUE = "revenue"
-    CONSUMPTION = "consumption"
-    NETWORK = "network"
-    SERVICE = "service"
-
-
 class AnalysisIntent(BaseModel):
     """Interpretação inicial da pergunta em termos de linguagem do usuário."""
 
     model_config = ConfigDict(extra="forbid")
 
     contract_version: InternalContractVersion = INTERNAL_CONTRACT_VERSION
-    domain: AnalysisDomain
+    domain: LogicalIdentifier
     metric_id: LogicalIdentifier | None = None
     dimension_ids: list[LogicalIdentifier] = Field(default_factory=list, max_length=10)
     metric_phrase: str | None = Field(default=None, min_length=1, max_length=160)
@@ -67,7 +57,5 @@ class AnalysisIntent(BaseModel):
                 name for name in nullable_fields if name in values and values[name] is None
             ]
             if explicit_nulls:
-                raise ValueError(
-                    "campos não informados devem ser omitidos, não enviados como null"
-                )
+                raise ValueError("campos não informados devem ser omitidos, não enviados como null")
         return values

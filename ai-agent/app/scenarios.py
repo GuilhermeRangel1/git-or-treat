@@ -1,6 +1,6 @@
 """Cenários artificiais para desenvolver e demonstrar contratos do agente."""
 
-from app.schemas.analysis import AnalysisDomain, AnalysisIntent
+from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import EvidenceReference, EvidenceResult
 from app.schemas.scenarios import SyntheticScenario
 
@@ -9,7 +9,7 @@ SYNTHETIC_SCENARIOS = (
         scenario_id="revenue_comparison_demo",
         question="Compare o indicador fictício de receita entre dois períodos de demonstração.",
         intent=AnalysisIntent(
-            domain=AnalysisDomain.REVENUE,
+            domain="revenue",
             metric_phrase="receita",
             period_phrase="dois períodos de demonstração",
         ),
@@ -33,7 +33,7 @@ SYNTHETIC_SCENARIOS = (
         scenario_id="consumption_demo",
         question="Qual é o indicador sintético de consumo no cenário de demonstração?",
         intent=AnalysisIntent(
-            domain=AnalysisDomain.CONSUMPTION,
+            domain="consumption",
             metric_phrase="consumo",
         ),
         evidence=EvidenceResult(
@@ -52,7 +52,7 @@ SYNTHETIC_SCENARIOS = (
         scenario_id="network_interruptions_demo",
         question="Quantas interrupções existem no cenário de demonstração?",
         intent=AnalysisIntent(
-            domain=AnalysisDomain.NETWORK,
+            domain="network",
             metric_phrase="interrupções",
         ),
         evidence=EvidenceResult(
@@ -71,7 +71,7 @@ SYNTHETIC_SCENARIOS = (
         scenario_id="service_attendance_demo",
         question="Quantos atendimentos aparecem no cenário sintético?",
         intent=AnalysisIntent(
-            domain=AnalysisDomain.SERVICE,
+            domain="service",
             metric_phrase="atendimentos",
         ),
         evidence=EvidenceResult(

@@ -1,41 +1,22 @@
-"""Interpretação determinística e conservadora de perguntas em português."""
+"""Interpretação determinística por vocabulário e catálogo injetados."""
 
 import re
 import unicodedata
 
-from app.schemas.analysis import AnalysisDomain, AnalysisIntent
+from app.schemas.analysis import AnalysisIntent
+from app.schemas.domain_profile import (
+    DimensionDefinition,
+    DimensionRole,
+    DomainProfile,
+    MetricDefinition,
+)
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
 
-METRIC_ALIASES: tuple[tuple[AnalysisDomain, tuple[str, ...]], ...] = (
-    (
-        AnalysisDomain.NETWORK,
-        (
-            "falta de luz",
-            "falta de energia",
-            "interrupção de fornecimento",
-            "interrupção",
-            "interrupções",
-        ),
-    ),
-    (AnalysisDomain.CONSUMPTION, ("queda de consumo", "consumo", "leitura", "leituras")),
-    (AnalysisDomain.REVENUE, ("faturamento", "receita")),
-    (AnalysisDomain.SERVICE, ("atendimentos", "atendimento", "chamados", "chamado")),
+_PERCENTAGE_THRESHOLD = re.compile(
+    r"(?<!\w)(?:acima de|abaixo de|mais de|menos de)\s+\d+(?:[.,]\d+)?\s*%",
+    re.IGNORECASE,
 )
-PERIOD_PHRASES = (
-    "período de demonstração",
-    "últimos 12 meses",
-    "último ano",
-    "ano passado",
-    "último trimestre",
-    "últimos três meses",
-    "últimos 3 meses",
-    "mês passado",
-    "este ano",
-    "neste mês",
-)
-GEOGRAPHIES = ("Jaboatão dos Guararapes", "Jaboatão", "Olinda")
-CLASSES = ("poder público", "residencial", "comercial", "industrial")
 
 
 def _normalize(value: str) -> str:
@@ -60,7 +41,23 @@ def _find_phrases(text: str, phrases: tuple[str, ...]) -> list[tuple[int, int, s
 
 
 class QuestionInterpreter:
-    """Mapeia vocabulário explícito sem inventar filtros ou normalizações de negócio."""
+    """Mapeia frases usando um perfil explícito, sem normalizar regras de negócio."""
+
+    def __init__(self, profile: DomainProfile) -> None:
+        self._profile = profile
+        self._metric_aliases = tuple(
+            (metric, alias) for metric in profile.metrics for alias in metric.aliases
+        )
+        self._geography_dimensions = tuple(
+            dimension
+            for dimension in profile.dimensions
+            if dimension.role is DimensionRole.GEOGRAPHY
+        )
+        self._classification_dimensions = tuple(
+            dimension
+            for dimension in profile.dimensions
+            if dimension.role is DimensionRole.CLASSIFICATION
+        )
 
     def interpret(
         self,
@@ -72,34 +69,25 @@ class QuestionInterpreter:
             previous_intent = None
         return self._interpret(question, previous_intent)
 
-    @staticmethod
-    def _is_follow_up(question: str, previous_intent: AnalysisIntent) -> bool:
+    def _is_follow_up(self, question: str, previous_intent: AnalysisIntent) -> bool:
         normalized = _normalize(question).strip()
-        if re.match(r"^(?:e\b|tambem\b|nesse\b|neste\b|entao\b|agora\b)", normalized):
+        starters = "|".join(
+            re.escape(_normalize(item)) for item in self._profile.follow_up_starters
+        )
+        if starters and re.match(rf"^(?:{starters})\b", normalized):
             return True
 
-        geography = _find_phrases(question, GEOGRAPHIES)
-        class_phrase = _find_phrases(question, CLASSES)
-        metric_aliases = tuple(alias for _, phrases in METRIC_ALIASES for alias in phrases)
-        metric_hits = _find_phrases(question, metric_aliases)
+        geography = self._dimension_value_matches(question, self._geography_dimensions)
+        class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
+        metric_hits = _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
         explicit_domains = {
-            domain
-            for domain, phrases in METRIC_ALIASES
-            if any(
-                _normalize(alias) == _normalize(surface)
-                for alias in phrases
-                for _, _, surface in metric_hits
-            )
+            metric.domain_id
+            for metric, alias in self._metric_aliases
+            if any(_normalize(alias) == _normalize(surface) for _, _, surface in metric_hits)
         }
-        periods = _find_phrases(question, PERIOD_PHRASES)
-        has_comparison = bool(
-            re.search(
-                r"\b(?:compare|comparar|comparacao|cresceu|caiu|variacao|aumentou|reduziu)\b",
-                normalized,
-            )
-        )
+        periods = _find_phrases(question, self._profile.period_phrases)
+        has_comparison = self._has_comparison(normalized)
 
-        # A filter-only continuation can inherit the last complete user intent.
         if (
             (geography or class_phrase)
             and not explicit_domains
@@ -107,7 +95,6 @@ class QuestionInterpreter:
             and not has_comparison
         ):
             return True
-        # An explicit metric of the same domain plus a new filter is also a clear continuation.
         return bool(
             (geography or class_phrase)
             and explicit_domains == {previous_intent.domain}
@@ -122,7 +109,6 @@ class QuestionInterpreter:
             previous = self._interpret(turn.content, None)
             if previous.status is InterpretationStatus.READY:
                 return previous.intent
-            # Do not jump over a more recent ambiguous user message to older context.
             return None
         return None
 
@@ -131,81 +117,63 @@ class QuestionInterpreter:
         question: str,
         base_intent: AnalysisIntent | None,
     ) -> IntentInterpretation:
-        aliases = [
-            (domain, alias)
-            for domain, phrases in METRIC_ALIASES
-            for alias in phrases
-        ]
-        metric_hits = _find_phrases(question, tuple(alias for _, alias in aliases))
-        matched_domains = {
-            domain
-            for domain, alias in aliases
-            if any(_normalize(surface) == _normalize(alias) for _, _, surface in metric_hits)
+        ambiguity = next(
+            (rule for rule in self._profile.ambiguities if _find_phrases(question, rule.phrases)),
+            None,
+        )
+        if ambiguity is not None:
+            return self._clarify(ambiguity.clarification)
+
+        metric_hits = _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
+        matched_metrics = {
+            metric.id: metric
+            for metric, alias in self._metric_aliases
+            if any(_normalize(alias) == _normalize(surface) for _, _, surface in metric_hits)
         }
-
-        account_phrase = _find_phrases(question, ("conta de luz",))
-        if account_phrase and not metric_hits:
-            return self._clarify(
-                "Quando você diz ‘conta de luz’, quer saber de consumo, valor faturado, "
-                "valor pago ou outro dado da fatura?"
-            )
+        matched_domains = {metric.domain_id for metric in matched_metrics.values()}
         if len(matched_domains) > 1:
-            return self._clarify(
-                "Você quer consultar qual assunto primeiro: consumo, faturamento, "
-                "interrupções ou atendimento?"
-            )
+            return self._clarify(self._profile.clarifications.multiple_domains)
+        if len(matched_metrics) > 1:
+            return self._clarify(self._profile.clarifications.multiple_metrics)
         if not matched_domains and base_intent is None:
-            return self._clarify(
-                "Qual indicador ou assunto você quer consultar?"
-            )
+            return self._clarify(self._profile.clarifications.missing_metric)
 
+        selected_metric = self._select_metric(matched_metrics, base_intent)
         domain = next(iter(matched_domains)) if matched_domains else base_intent.domain
-        geography = _find_phrases(question, GEOGRAPHIES)
+
+        geography = self._dimension_value_matches(question, self._geography_dimensions)
         if self._has_unrecognized_capitalized_location(question, geography):
-            return self._clarify(
-                "Não reconheci esse local nas referências disponíveis; confirme "
-                "a geografia desejada."
-            )
-        class_phrase = _find_phrases(question, CLASSES)
+            return self._clarify(self._profile.clarifications.unknown_geography)
+        class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
         if self._has_unresolved_multiple_values(question, geography):
-            return self._clarify("Qual local você quer consultar?")
+            return self._clarify(self._profile.clarifications.multiple_geographies)
         if self._has_unresolved_multiple_values(question, class_phrase):
-            return self._clarify("Qual classe de consumo você quer consultar?")
-        selected_metric = (
-            next(
+            return self._clarify(self._profile.clarifications.multiple_classes)
+
+        selected_alias = next(
+            (
                 surface
                 for _, _, surface in metric_hits
-                if any(
-                    candidate_domain is domain and _normalize(candidate) == _normalize(surface)
-                    for candidate_domain, candidate in aliases
+                if selected_metric is not None
+                and any(
+                    metric.id == selected_metric.id and _normalize(alias) == _normalize(surface)
+                    for metric, alias in self._metric_aliases
                 )
-            )
-            if metric_hits
-            else base_intent.metric_phrase
+            ),
+            base_intent.metric_phrase if base_intent else None,
         )
-        periods = _find_phrases(question, PERIOD_PHRASES)
+        periods = _find_phrases(question, self._profile.period_phrases)
         normalized_question = _normalize(question)
         comparison_requested = len(periods) > 1 and " entre " in f" {normalized_question} "
-        comparison_requested = comparison_requested or bool(
-            re.search(
-                r"\b(?:compare|comparar|comparacao|cresceu|caiu|variacao|aumentou|reduziu)\b",
-                normalized_question,
-            )
-        )
+        comparison_requested = comparison_requested or self._has_comparison(normalized_question)
         if not periods and base_intent is None:
-            return self._clarify(
-                "Qual período você quer consultar ou comparar?"
-            )
+            return self._clarify(self._profile.clarifications.missing_period)
         if not periods and comparison_requested:
-            return self._clarify(
-                "Qual período deve servir de base para essa comparação?"
-            )
+            return self._clarify(self._profile.clarifications.comparison_baseline)
         if comparison_requested and len(periods) < 2:
-            return self._clarify(
-                "Qual período deve servir de base para essa comparação?"
-            )
+            return self._clarify(self._profile.clarifications.comparison_baseline)
         if len(periods) > 1 and not comparison_requested:
-            return self._clarify("Você mencionou mais de um período; quer compará-los?")
+            return self._clarify(self._profile.clarifications.multiple_periods)
         if len(periods) > 1:
             period_phrase = question[periods[0][0] : periods[-1][1]]
         elif periods:
@@ -215,21 +183,18 @@ class QuestionInterpreter:
             period_phrase = base_intent.period_phrase
 
         filters: dict[str, str] = dict(base_intent.filters) if base_intent else {}
-        directions = _find_phrases(
-            question,
-            ("queda", "redução", "aumento", "subida", "crescimento"),
-        )
+        directions = _find_phrases(question, self._profile.direction_terms)
         if directions:
             filters["direction_phrase"] = directions[0][2]
-        threshold = re.search(
-            r"(?<!\w)(?:acima de|abaixo de|mais de|menos de)\s+\d+(?:[.,]\d+)?\s*%",
-            _normalize(question),
-        )
+        threshold = _PERCENTAGE_THRESHOLD.search(question)
         if threshold:
             filters["threshold_phrase"] = question[threshold.start() : threshold.end()]
+
+        selected_dimension_ids = self._matched_dimension_ids(geography, class_phrase)
         intent_values = {
             "domain": domain,
-            "metric_phrase": selected_metric,
+            "metric_id": selected_metric.id if selected_metric else None,
+            "metric_phrase": selected_alias,
             "period_phrase": period_phrase,
             "geography_phrase": (
                 geography[-1][2]
@@ -241,6 +206,8 @@ class QuestionInterpreter:
                 if class_phrase
                 else (base_intent.class_phrase if base_intent else None)
             ),
+            "dimension_ids": selected_dimension_ids
+            or (base_intent.dimension_ids if base_intent else []),
             "filters": filters,
         }
         intent = AnalysisIntent(
@@ -248,15 +215,60 @@ class QuestionInterpreter:
         )
         return IntentInterpretation(status=InterpretationStatus.READY, intent=intent)
 
-    @staticmethod
-    def _clarify(question: str) -> IntentInterpretation:
-        return IntentInterpretation(
-            status=InterpretationStatus.NEEDS_CLARIFICATION,
-            clarification_question=question,
+    def _select_metric(
+        self,
+        matched: dict[str, MetricDefinition],
+        base_intent: AnalysisIntent | None,
+    ) -> MetricDefinition | None:
+        if matched:
+            return next(iter(matched.values()))
+        if base_intent is None:
+            return None
+        return next(
+            (
+                metric
+                for metric in self._profile.metrics
+                if metric.id == base_intent.metric_id
+                or (
+                    metric.domain_id == base_intent.domain
+                    and _normalize(base_intent.metric_phrase or "")
+                    in {_normalize(alias) for alias in metric.aliases}
+                )
+            ),
+            None,
         )
 
+    def _matched_dimension_ids(
+        self,
+        geography: list[tuple[int, int, str]],
+        classification: list[tuple[int, int, str]],
+    ) -> list[str]:
+        matched_surfaces = {_normalize(item[2]) for item in (*geography, *classification)}
+        ids: list[str] = []
+        for dimension in (*self._geography_dimensions, *self._classification_dimensions):
+            aliases = {_normalize(alias) for value in dimension.values for alias in value.aliases}
+            if aliases & matched_surfaces:
+                ids.append(dimension.id)
+        return ids
+
     @staticmethod
+    def _dimension_value_matches(
+        question: str,
+        dimensions: tuple[DimensionDefinition, ...],
+    ) -> list[tuple[int, int, str]]:
+        phrases = tuple(
+            alias
+            for dimension in dimensions
+            for value in dimension.values
+            for alias in value.aliases
+        )
+        return _find_phrases(question, phrases)
+
+    def _has_comparison(self, normalized_question: str) -> bool:
+        return bool(_find_phrases(normalized_question, self._profile.comparison_terms))
+
     def _has_unresolved_multiple_values(
+        self,
         question: str,
         matches: list[tuple[int, int, str]],
     ) -> bool:
@@ -268,14 +280,17 @@ class QuestionInterpreter:
             return False
 
         normalized_question = _normalize(question)
+        correction_pattern = "|".join(
+            re.escape(_normalize(term)) for term in self._profile.correction_terms
+        )
         for previous, current in zip(distinct, distinct[1:], strict=False):
             between = normalized_question[previous[1] : current[0]]
-            if not re.search(r"\b(?:nao|na verdade|corrigindo)\b", between):
+            if not re.search(rf"\b(?:{correction_pattern})\b", between):
                 return True
         return False
 
-    @staticmethod
     def _has_unrecognized_capitalized_location(
+        self,
         question: str,
         recognized: list[tuple[int, int, str]],
     ) -> bool:
@@ -289,3 +304,10 @@ class QuestionInterpreter:
             ):
                 return True
         return False
+
+    @staticmethod
+    def _clarify(question: str) -> IntentInterpretation:
+        return IntentInterpretation(
+            status=InterpretationStatus.NEEDS_CLARIFICATION,
+            clarification_question=question,
+        )

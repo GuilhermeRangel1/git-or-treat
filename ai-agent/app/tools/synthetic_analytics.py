@@ -100,7 +100,7 @@ class SyntheticScenarioTool:
                     message="A fixture não representa o período solicitado.",
                 )
             scenario = next(
-                (item for item in self._catalog if item.intent.domain is intent.domain),
+                (item for item in self._catalog if item.intent.domain == intent.domain),
                 None,
             )
 
