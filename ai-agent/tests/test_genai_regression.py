@@ -13,7 +13,7 @@ from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
-from app.schemas.scenarios import AnalysisIntent
+from app.schemas.analysis import AnalysisIntent
 from app.tools.evidence import EvidenceToolUnavailable
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 

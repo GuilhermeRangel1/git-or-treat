@@ -3,9 +3,9 @@
 import re
 import unicodedata
 
+from app.schemas.analysis import AnalysisDomain, AnalysisIntent
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
-from app.schemas.scenarios import AnalysisDomain, AnalysisIntent
 
 METRIC_ALIASES: tuple[tuple[AnalysisDomain, tuple[str, ...]], ...] = (
     (
@@ -227,21 +227,24 @@ class QuestionInterpreter:
         )
         if threshold:
             filters["threshold_phrase"] = question[threshold.start() : threshold.end()]
-        intent = AnalysisIntent(
-            domain=domain,
-            metric_phrase=selected_metric,
-            period_phrase=period_phrase,
-            geography_phrase=(
+        intent_values = {
+            "domain": domain,
+            "metric_phrase": selected_metric,
+            "period_phrase": period_phrase,
+            "geography_phrase": (
                 geography[-1][2]
                 if geography
                 else (base_intent.geography_phrase if base_intent else None)
             ),
-            class_phrase=(
+            "class_phrase": (
                 class_phrase[-1][2]
                 if class_phrase
                 else (base_intent.class_phrase if base_intent else None)
             ),
-            filters=filters,
+            "filters": filters,
+        }
+        intent = AnalysisIntent(
+            **{name: value for name, value in intent_values.items() if value is not None}
         )
         return IntentInterpretation(status=InterpretationStatus.READY, intent=intent)
 

@@ -2,7 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.questions import EvidenceReference
-from app.schemas.scenarios import AnalysisDomain, AnalysisIntent, SyntheticScenario
+from app.schemas.analysis import AnalysisDomain, AnalysisIntent
+from app.schemas.scenarios import SyntheticScenario
 from app.tools.evidence import EvidenceResult
 from app.tools.synthetic_analytics import (
     SyntheticComparisonRequest,

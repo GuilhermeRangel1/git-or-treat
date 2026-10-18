@@ -8,7 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.questions import EvidenceReference
-from app.schemas.scenarios import AnalysisIntent, SyntheticScenario
+from app.schemas.analysis import AnalysisIntent
+from app.schemas.scenarios import SyntheticScenario
 from app.tools.evidence import (
     EvidenceLookupResult,
     EvidenceLookupStatus,

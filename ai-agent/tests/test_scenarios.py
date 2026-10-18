@@ -2,7 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.scenarios import SYNTHETIC_SCENARIOS
-from app.schemas.scenarios import AnalysisDomain, AnalysisIntent, SyntheticScenario
+from app.schemas.analysis import AnalysisDomain, AnalysisIntent
+from app.schemas.scenarios import SyntheticScenario
 
 
 def test_synthetic_catalog_covers_prd_domains_and_marks_every_result_as_demo() -> None:

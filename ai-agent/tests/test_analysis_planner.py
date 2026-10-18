@@ -1,6 +1,6 @@
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
-from app.schemas.scenarios import AnalysisIntent
+from app.schemas.analysis import AnalysisIntent
 from app.tools.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
