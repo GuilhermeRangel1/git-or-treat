@@ -14,6 +14,7 @@ from app.schemas.evidence import (
     EvidenceReference,
     EvidenceResult,
 )
+from app.schemas.read_plan import LogicalReadPlan, WindowKind
 from app.schemas.scenarios import SyntheticScenario
 
 
@@ -48,11 +49,14 @@ class SyntheticScenarioRequest(BaseModel):
 
     scenario_id: str | None = None
     intent: AnalysisIntent | None = None
+    plan: LogicalReadPlan | None = None
 
     @model_validator(mode="after")
     def require_one_selector(self) -> Self:
-        if (self.scenario_id is None) == (self.intent is None):
-            raise ValueError("informe scenario_id ou intent, mas não ambos")
+        if sum(
+            item is not None for item in (self.scenario_id, self.intent, self.plan)
+        ) != 1:
+            raise ValueError("informe exatamente um seletor de cenário")
         return self
 
 
@@ -65,9 +69,9 @@ class SyntheticScenarioTool:
     ) -> None:
         self._catalog = catalog
 
-    async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
-        """Adapta a intenção genérica ao catálogo de demonstração atual."""
-        result = self.execute(SyntheticScenarioRequest(intent=intent))
+    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
+        """Recebe somente o plano aprovado pelo núcleo."""
+        result = self.execute(SyntheticScenarioRequest(plan=plan))
         status = {
             ToolStatus.SUCCESS: EvidenceLookupStatus.AVAILABLE,
             ToolStatus.NO_EVIDENCE: EvidenceLookupStatus.NO_EVIDENCE,
@@ -84,6 +88,25 @@ class SyntheticScenarioTool:
         if request.scenario_id is not None:
             scenario = next(
                 (item for item in self._catalog if item.scenario_id == request.scenario_id),
+                None,
+            )
+        elif request.plan is not None:
+            plan = request.plan
+            if plan.filters:
+                return SyntheticToolResult(
+                    status=ToolStatus.NO_EVIDENCE,
+                    message="A fixture sintética não contém os filtros solicitados.",
+                )
+            if (
+                plan.window.kind is not WindowKind.CATALOG_PHRASE
+                or "demonstração" not in (plan.window.phrase or "").casefold()
+            ):
+                return SyntheticToolResult(
+                    status=ToolStatus.NO_EVIDENCE,
+                    message="A fixture não representa o período solicitado.",
+                )
+            scenario = next(
+                (item for item in self._catalog if item.intent.domain == plan.domain_id),
                 None,
             )
         else:

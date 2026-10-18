@@ -451,6 +451,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-18 — IA-06 — plano lógico de leitura no protótipo GenAI
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; o plano sintético é um controle anterior à fonte, sem comprovar consulta Gold segura.
+- Mudança observável para usuário/negócio: a fonte recebe um plano aprovado com métrica e filtros lógicos, unidade, período e limite. Filtro ou comparação sem representação no catálogo gera esclarecimento antes de consultar dados; a entrada não é simplificada silenciosamente.
+- Arquivos/commit/PR: `ai-agent/app/schemas/read_plan.py`, `app/agent/read_plan.py`, planner, porta de evidência, adaptador sintético, testes em `ai-agent/tests/` e [guia do serviço](services/ai-agent.md); alterações locais em revisão, sem commit/PR deste recorte.
+- Dados usados: catálogos artificiais de energia e clima e fixtures sintéticas; nenhum dataset, dado pessoal ou esquema Gold oficial.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (189 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram em 18/10/2026; `git diff --check` passou na raiz. Testes confirmam plano aprovado idêntico ao recebido pela fonte, dois catálogos, bloqueio de escrita, IDs/operadores/valores/grão/limite inválidos e escopo restrito.
+- Reconciliação ou amostra manual: a fixture de consumo continua retornando 420 unidades fictícias e a regressão sintética preserva os 13 resultados; não houve reconciliação com Gold.
+- Critérios de aceite revisados e pendências: IA-06 continua sem autenticação real, resolução de período e grão Gold, AST/dialeto para eventual SQL textual, execução com credencial somente leitura e prova no banco. O plano lógico aprovado não torna SQL arbitrário seguro.
+- Responsável/revisor: Codex (implementação e verificação sintética); revisão dos contratos e limites reais por Backend e Engenharia de Dados pendente.
+
 ### 2026-10-18 — IA-06 — política de acesso sintética na GenAI
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; a proteção demonstrativa é evidência técnica parcial, sem autorização Gold.

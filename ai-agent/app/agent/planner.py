@@ -7,6 +7,11 @@ from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
+from app.agent.read_plan import (
+    PlanCapabilityUnavailable,
+    ReadPlanBuilder,
+    ReadPlanValidator,
+)
 from app.ports.evidence import (
     EvidenceAccessDenied,
     EvidenceContractInvalid,
@@ -17,6 +22,7 @@ from app.schemas.access import AccessContext
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
+from app.schemas.read_plan import LogicalReadPlan
 
 
 class AnalysisPlanStatus(StrEnum):
@@ -31,6 +37,7 @@ class AnalysisPlan(BaseModel):
     status: AnalysisPlanStatus
     interpretation: IntentInterpretation
     evidence_result: EvidenceLookupResult | None = None
+    read_plan: LogicalReadPlan | None = None
 
     @model_validator(mode="after")
     def validate_source_was_called_only_for_ready_intent(self) -> Self:
@@ -38,6 +45,7 @@ class AnalysisPlan(BaseModel):
             if (
                 self.status is not AnalysisPlanStatus.NEEDS_CLARIFICATION
                 or self.evidence_result is not None
+                or self.read_plan is not None
             ):
                 raise ValueError("pergunta ambígua deve parar antes da fonte de evidências")
         elif self.evidence_result is None:
@@ -57,6 +65,11 @@ class AnalysisPlan(BaseModel):
             and self.evidence_result.status is not EvidenceLookupStatus.NO_EVIDENCE
         ):
             raise ValueError("plano sem evidência exige resultado correspondente da fonte")
+        if (
+            self.status in (AnalysisPlanStatus.READY, AnalysisPlanStatus.NO_EVIDENCE)
+            and self.read_plan is None
+        ):
+            raise ValueError("consulta à fonte exige plano de leitura aprovado")
         return self
 
 
@@ -71,7 +84,10 @@ class QuestionAnalysisPlanner:
     ) -> None:
         self._interpreter = interpreter
         self._evidence_source = evidence_source
-        self._access_policy = access_policy
+        self._plan_builder = ReadPlanBuilder(access_policy.profile, access_policy.source_id)
+        self._plan_validator = ReadPlanValidator(
+            access_policy.profile, access_policy.source_id, access_policy
+        )
 
     async def prepare(
         self,
@@ -87,9 +103,45 @@ class QuestionAnalysisPlanner:
             )
 
         assert interpretation.intent is not None
-        self._access_policy.authorize(interpretation.intent, access_context)
         try:
-            evidence_result = await self._evidence_source.retrieve(interpretation.intent)
+            proposed = self._plan_builder.build(interpretation.intent)
+        except PlanCapabilityUnavailable as exc:
+            result = EvidenceLookupResult(
+                status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
+                message=str(exc),
+            )
+            return AnalysisPlan(
+                status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
+                interpretation=interpretation,
+                evidence_result=result,
+            )
+        try:
+            approved, evidence_result = await self.execute_plan(proposed, access_context)
+        except PlanCapabilityUnavailable as exc:
+            result = EvidenceLookupResult(
+                status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
+                message=str(exc),
+            )
+            return AnalysisPlan(
+                status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
+                interpretation=interpretation,
+                evidence_result=result,
+            )
+        return AnalysisPlan(
+            status=self._status_for(evidence_result),
+            interpretation=interpretation,
+            evidence_result=evidence_result,
+            read_plan=approved,
+        )
+
+    async def execute_plan(
+        self, proposed: LogicalReadPlan | dict[str, object], access_context: AccessContext | None
+    ) -> tuple[LogicalReadPlan, EvidenceLookupResult]:
+        """Ponto único de validação, inclusive para planos propostos futuramente por LLM."""
+
+        approved = self._plan_validator.approve(proposed, access_context)
+        try:
+            evidence_result = await self._evidence_source.retrieve(approved)
             if not isinstance(evidence_result, EvidenceLookupResult):
                 raise TypeError("Evidence source returned an unsupported result type.")
             evidence_result = EvidenceLookupResult.model_validate(evidence_result.model_dump())
@@ -101,14 +153,12 @@ class QuestionAnalysisPlanner:
             raise EvidenceContractInvalid("Evidence source returned an invalid result.") from exc
         except Exception as exc:
             raise EvidenceToolUnavailable("Evidence source failed.") from exc
-        if evidence_result.status is EvidenceLookupStatus.AVAILABLE:
-            status = AnalysisPlanStatus.READY
-        elif evidence_result.status is EvidenceLookupStatus.NEEDS_CLARIFICATION:
-            status = AnalysisPlanStatus.NEEDS_CLARIFICATION
-        else:
-            status = AnalysisPlanStatus.NO_EVIDENCE
-        return AnalysisPlan(
-            status=status,
-            interpretation=interpretation,
-            evidence_result=evidence_result,
-        )
+        return approved, evidence_result
+
+    @staticmethod
+    def _status_for(result: EvidenceLookupResult) -> AnalysisPlanStatus:
+        if result.status is EvidenceLookupStatus.AVAILABLE:
+            return AnalysisPlanStatus.READY
+        if result.status is EvidenceLookupStatus.NEEDS_CLARIFICATION:
+            return AnalysisPlanStatus.NEEDS_CLARIFICATION
+        return AnalysisPlanStatus.NO_EVIDENCE

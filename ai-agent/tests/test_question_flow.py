@@ -361,10 +361,10 @@ def test_follow_up_inherits_previous_intent_and_replaces_corrected_geography() -
     assert len(tool.requests) == 1
     intent = tool.requests[0]
     assert intent is not None
-    assert intent.domain == "consumption"
-    assert intent.metric_phrase == "consumo"
-    assert intent.period_phrase == "período de demonstração"
-    assert intent.geography_phrase == "Jaboatão"
+    assert intent.domain_id == "consumption"
+    assert intent.metric_id == "energy.consumption"
+    assert intent.window.phrase == "período de demonstração"
+    assert intent.filters[0].values == ("Jaboatão dos Guararapes",)
 
 
 def test_follow_up_context_is_transient_between_api_requests() -> None:

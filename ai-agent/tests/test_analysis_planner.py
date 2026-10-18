@@ -62,14 +62,15 @@ def test_corrected_filter_is_the_only_filter_sent_to_the_tool() -> None:
     planner = QuestionAnalysisPlanner(QuestionInterpreter(GRID360_DEMO_PROFILE), tool, _policy())
 
     plan = _prepare(
-        planner, "Qual foi a receita em Olinda, não, em Jaboatão entre o ano passado e este ano?"
+        planner, "Qual foi a receita em Olinda, não, em Jaboatão no período de demonstração?"
     )
 
     assert plan.status is AnalysisPlanStatus.NO_EVIDENCE
     assert plan.interpretation.intent is not None
     assert plan.interpretation.intent.geography_phrase == "Jaboatão"
     assert len(tool.calls) == 1
-    assert tool.calls[0].geography_phrase == "Jaboatão"
+    assert tool.calls[0].filters[0].dimension_id == "geography.municipality"
+    assert tool.calls[0].filters[0].values == ("Jaboatão dos Guararapes",)
 
 
 def test_planner_accepts_an_evidence_source_without_synthetic_request_types() -> None:

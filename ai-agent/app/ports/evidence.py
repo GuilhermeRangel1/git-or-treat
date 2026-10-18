@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Protocol
 from app.schemas.evidence import EvidenceLookupResult
 
 if TYPE_CHECKING:
-    from app.schemas.analysis import AnalysisIntent
+    from app.schemas.read_plan import LogicalReadPlan
 
 
 class EvidenceToolUnavailable(Exception):
@@ -25,4 +25,4 @@ class EvidenceAccessDenied(Exception):
 class EvidenceSource(Protocol):
     """Fonte async: use I/O assíncrono ou delegue operações bloqueantes."""
 
-    async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult: ...
+    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult: ...
