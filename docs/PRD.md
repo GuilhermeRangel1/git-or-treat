@@ -1,6 +1,6 @@
 # PRD — V-Energy Grid 360
 
-**Versão:** 1.3 documental · **Data:** 16/10/2026 · **Estado da implementação:** não iniciada
+**Versão:** 1.3 documental · **Data:** 16/10/2026 · **Estado da implementação:** parcial — fundação e primeira fatia visual concluídas; requisitos funcionais pendentes
 
 **Origem:** case final Visagio, Rocket Lab 2026.2, fornecido pela pessoa usuária em dez páginas de imagem. Este documento reescreve o enunciado em texto pesquisável, organiza critérios de aceite e separa exigências do case de decisões futuras do time. As imagens não integram o repositório.  
 **Classificação do material de origem:** o enunciado traz indicação de confidencialidade. O mesmo enunciado exige repositório GitHub público na entrega. Essa tensão precisa de confirmação com a organização antes da publicação de conteúdo ou dados do case.
