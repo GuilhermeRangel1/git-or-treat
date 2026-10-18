@@ -1,7 +1,9 @@
 """Coordena a geração de hipóteses a partir de contexto de tela estruturado."""
 
+from pydantic import ValidationError
+
 from app.agent.grounding import contains_only_evidence_numbers
-from app.providers.protocols import ModelAdapter, ModelProviderUnavailable
+from app.providers.protocols import GeneratedAnswer, ModelAdapter, ModelProviderUnavailable
 from app.schemas.evidence import EvidenceResult
 from app.schemas.insights import (
     InsightContextSummary,
@@ -46,15 +48,35 @@ class ScreenInsightOrchestrator:
         ]
         evidence = EvidenceResult(reference=screen.reference, records=records)
         try:
-            generated = await self._model_adapter.generate(INSIGHT_PROMPT, [], evidence)
+            generated_result = await self._model_adapter.generate(INSIGHT_PROMPT, [], evidence)
+            generated = GeneratedAnswer.model_validate(
+                generated_result.model_dump()
+                if isinstance(generated_result, GeneratedAnswer)
+                else generated_result
+            )
         except ModelProviderUnavailable:
             return self._response(
                 screen,
                 status=QuestionStatus.RECOVERABLE_ERROR,
                 message="O serviço de insight está temporariamente indisponível. Tente novamente.",
             )
+        except (ValidationError, TypeError, ValueError):
+            return self._response(
+                screen,
+                status=QuestionStatus.RECOVERABLE_ERROR,
+                message="O serviço de insight está temporariamente indisponível. Tente novamente.",
+            )
+        except Exception:
+            return self._response(
+                screen,
+                status=QuestionStatus.RECOVERABLE_ERROR,
+                message="O serviço de insight está temporariamente indisponível. Tente novamente.",
+            )
 
-        if not contains_only_evidence_numbers(generated.answer, records):
+        if generated.status == "answered" and not contains_only_evidence_numbers(
+            generated.answer,
+            records,
+        ):
             return self._response(
                 screen,
                 status=QuestionStatus.REFUSED,

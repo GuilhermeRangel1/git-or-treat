@@ -47,6 +47,11 @@ class RecordingInsightModel:
         return GeneratedAnswer(status="answered", answer=self.answer)
 
 
+class InvalidInsightModel:
+    async def generate(self, question, context, evidence):
+        return None
+
+
 def _client(model=None) -> InProcessClient:
     application = create_app(
         settings=Settings(_env_file=None),
@@ -154,3 +159,13 @@ def test_insight_provider_failure_returns_controlled_error() -> None:
     assert response.json()["status"] == "recoverable_error"
     assert response.json()["hypothesis"] is None
     assert "detalhe privado" not in response.text
+
+
+def test_insight_invalid_model_output_returns_a_controlled_error() -> None:
+    with _client(InvalidInsightModel()) as client:
+        response = client.post("/api/v1/insights", json={"screen": _screen_context()})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "recoverable_error"
+    assert response.json()["hypothesis"] is None
+    assert response.json()["message"]

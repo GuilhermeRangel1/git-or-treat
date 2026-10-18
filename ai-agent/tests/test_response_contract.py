@@ -3,6 +3,13 @@ from pydantic import ValidationError
 
 from app.providers.protocols import GeneratedAnswer
 from app.schemas.evidence import EvidenceReference
+from app.schemas.insights import (
+    InsightContextSummary,
+    InsightObservation,
+    ScreenInsightResponse,
+    ScreenObservationValue,
+    ScreenPeriod,
+)
 from app.schemas.questions import QuestionResponse, QuestionStatus
 
 
@@ -49,3 +56,39 @@ def test_question_response_accepts_only_compatible_success_and_error_shapes() ->
     assert success.message is None
     assert error.answer is None
     assert error.message == "Tente novamente."
+
+
+def test_insight_response_requires_a_message_for_non_success_states() -> None:
+    context = InsightContextSummary(
+        metric="consumo demonstrativo",
+        unit="kWh fictícios",
+        period=ScreenPeriod(
+            start="2025-01-01",
+            end="2025-01-31",
+            granularity="month",
+        ),
+        filters={"municipio": "Exemplo"},
+    )
+    observation = InsightObservation(
+        values=[ScreenObservationValue(label="consumo", value=42)]
+    )
+    reference = EvidenceReference(
+        source="synthetic:test",
+        description="Contexto artificial de contrato.",
+        is_demo=True,
+    )
+
+    with pytest.raises(ValidationError):
+        ScreenInsightResponse(
+            status=QuestionStatus.RECOVERABLE_ERROR,
+            context=context,
+            observation=observation,
+            evidence=[reference],
+        )
+    with pytest.raises(ValidationError):
+        ScreenInsightResponse(
+            status=QuestionStatus.ANSWERED,
+            context=context,
+            observation=observation,
+            hypothesis="Hipótese de demonstração.",
+        )

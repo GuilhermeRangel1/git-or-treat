@@ -3,7 +3,7 @@
 from datetime import date
 from enum import StrEnum
 from math import isfinite
-from typing import Annotated
+from typing import Annotated, Self
 
 from pydantic import (
     BaseModel,
@@ -13,6 +13,7 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
+    StringConstraints,
     field_validator,
     model_validator,
 )
@@ -21,6 +22,10 @@ from app.schemas.evidence import EvidenceReference
 from app.schemas.questions import QuestionStatus
 
 FilterValue = StrictStr | StrictInt | StrictFloat | StrictBool
+InsightText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=4000),
+]
 
 
 class PeriodGranularity(StrEnum):
@@ -136,15 +141,18 @@ class ScreenInsightResponse(BaseModel):
     status: QuestionStatus
     context: InsightContextSummary
     observation: InsightObservation
-    hypothesis: str | None = None
-    message: str | None = None
+    hypothesis: InsightText | None = None
+    message: InsightText | None = None
     evidence: list[EvidenceReference] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_generated_content(self) -> "ScreenInsightResponse":
-        if self.status is QuestionStatus.ANSWERED and not self.hypothesis:
-            raise ValueError("insight respondido exige uma hipótese gerada")
-        if self.status is not QuestionStatus.ANSWERED and self.hypothesis is not None:
-            raise ValueError("resposta não concluída não pode incluir hipótese")
+    def validate_generated_content(self) -> Self:
+        if self.status is QuestionStatus.ANSWERED:
+            if self.hypothesis is None or self.message is not None:
+                raise ValueError("insight respondido exige hipótese e não permite mensagem")
+            if not self.evidence:
+                raise ValueError("insight respondido exige referência de evidência")
+        elif self.message is None or self.hypothesis is not None:
+            raise ValueError("insight não concluído exige mensagem e não permite hipótese")
         return self

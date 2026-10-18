@@ -484,6 +484,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Critérios de aceite revisados e pendências: limite de payload e tratamento de contrato inválido estão cobertos; timeout, autorização por identidade confiável, allowlist do executor e auditoria/correlação da consulta Gold continuam pendentes de decisão e integração com Backend/Dados. Nenhum requisito IA/DE mudou de estado.
 - Responsável/revisor: Codex; revisão da política de acesso e auditoria por Backend e Engenharia de Dados pendente.
 
+### 2026-10-18 — contratos e tratamento de falhas do protótipo GenAI
+
+- Estado anterior → novo estado: requisitos IA permanecem Pendente; os contratos internos e a fronteira de evidências do protótipo foram reforçados, sem integração com Gold.
+- Mudança observável para usuário/negócio: o fluxo demonstrativo distingue recusa, ausência de evidência e indisponibilidade; saídas inválidas da fonte ou do modelo resultam em erro controlado, sem resposta quantitativa infundada.
+- Arquivos/commits: contratos em ai-agent/app/schemas/, porta em ai-agent/app/ports/evidence.py, adaptador sintético, planner, orquestradores e testes em ai-agent/tests/; limites e dependências descritos em docs/services/ai-agent.md.
+- Dados usados: fixtures sintéticas identificadas como demonstração e fontes falsas; nenhum dado Gold, pessoal ou bruto foi usado.
+- Verificações: em ai-agent/, python -m pytest -q (148 passaram), python -m compileall -q app tests e python -m ruff check .; na raiz, git diff --check. Os testes incluem contratos, endpoints, falhas da fonte, recusa, concorrência e cancelamento com fontes falsas.
+- Reconciliação ou amostra manual: as expectativas dos testes sintéticos são fixadas separadamente do código testado; não houve reconciliação numérica com Gold.
+- Critérios de aceite revisados e pendências: nenhum requisito IA foi concluído. Permanecem necessários catálogo e métricas Gold aprovados, autorização efetiva, consulta somente leitura na fonte real, reconciliação e integração com backend e portal.
+- Responsável/revisor: Codex (implementação e verificação local); revisão de Backend e Engenharia de Dados pendente para o contrato real.
+
 ### 2026-10-16 — IA-07 — protótipo de follow-up contextual
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; o protótipo local cobre parte do comportamento, mas não conclui o diferencial no produto integrado.
