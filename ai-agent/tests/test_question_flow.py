@@ -3,14 +3,14 @@ from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
+from app.ports.evidence import EvidenceToolUnavailable
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
-from app.schemas.questions import EvidenceReference
 from app.schemas.analysis import AnalysisIntent
-from app.tools.evidence import (
+from app.schemas.evidence import (
     EvidenceLookupResult,
     EvidenceLookupStatus,
+    EvidenceReference,
     EvidenceResult,
-    EvidenceToolUnavailable,
 )
 from app.tools.synthetic_analytics import (
     SyntheticScenarioTool,
@@ -30,12 +30,12 @@ class RecordingModelAdapter(FakeModelAdapter):
 
 
 class FailingScenarioTool:
-    def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent):
         raise EvidenceToolUnavailable("internal source detail")
 
 
 class InvalidEvidenceScenarioTool:
-    def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent):
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
@@ -50,9 +50,9 @@ class CountingScenarioTool:
         self.calls = 0
         self.delegate = SyntheticScenarioTool()
 
-    def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent):
         self.calls += 1
-        return self.delegate.retrieve(intent)
+        return await self.delegate.retrieve(intent)
 
 
 class RecordingScenarioTool:
@@ -60,13 +60,13 @@ class RecordingScenarioTool:
         self.requests = []
         self.delegate = SyntheticScenarioTool()
 
-    def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent):
         self.requests.append(intent)
-        return self.delegate.retrieve(intent)
+        return await self.delegate.retrieve(intent)
 
 
 class LargeCountScenarioTool:
-    def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent):
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
@@ -371,7 +371,7 @@ def test_untrusted_assistant_history_is_not_allowed_to_override_safety_rules() -
     assert model.calls == []
 
 class UnexpectedFailureScenarioTool:
-    def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent):
         raise RuntimeError("source-secret-marker-42")
 
 

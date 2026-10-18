@@ -7,14 +7,14 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.scenarios import SYNTHETIC_SCENARIOS
-from app.schemas.questions import EvidenceReference
 from app.schemas.analysis import AnalysisIntent
-from app.schemas.scenarios import SyntheticScenario
-from app.tools.evidence import (
+from app.schemas.evidence import (
     EvidenceLookupResult,
     EvidenceLookupStatus,
+    EvidenceReference,
     EvidenceResult,
 )
+from app.schemas.scenarios import SyntheticScenario
 
 
 class ToolStatus(StrEnum):
@@ -65,7 +65,7 @@ class SyntheticScenarioTool:
     ) -> None:
         self._catalog = catalog
 
-    def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+    async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
         """Adapta a intenção genérica ao catálogo de demonstração atual."""
         result = self.execute(SyntheticScenarioRequest(intent=intent))
         status = {

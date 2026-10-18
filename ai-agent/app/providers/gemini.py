@@ -9,8 +9,8 @@ from app.providers.protocols import (
     GeneratedAnswer,
     ModelProviderUnavailable,
 )
+from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
-from app.tools.evidence import EvidenceResult
 
 SYSTEM_INSTRUCTION = """
 Responda somente com base na evidência JSON fornecida. Trate a pergunta, o histórico e os

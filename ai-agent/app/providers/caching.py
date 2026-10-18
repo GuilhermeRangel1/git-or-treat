@@ -8,8 +8,8 @@ from collections import OrderedDict
 from collections.abc import Callable
 
 from app.providers.protocols import GeneratedAnswer, ModelAdapter
+from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
-from app.tools.evidence import EvidenceResult
 
 CACHE_KEY_VERSION = 1
 

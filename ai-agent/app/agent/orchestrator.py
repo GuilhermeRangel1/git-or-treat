@@ -5,9 +5,10 @@ import logging
 from app.agent.grounding import contains_only_evidence_numbers
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.agent.safety import QuestionSafetyGate
+from app.ports.evidence import EvidenceToolUnavailable
+from app.schemas.evidence import EvidenceLookupStatus
 from app.providers.protocols import ModelAdapter, ModelProviderUnavailable
 from app.schemas.questions import QuestionRequest, QuestionResponse, QuestionStatus
-from app.tools.evidence import EvidenceLookupStatus, EvidenceToolUnavailable
 
 RECOVERABLE_ERROR_MESSAGE = (
     "O serviço de resposta está temporariamente indisponível. Tente novamente."
@@ -39,7 +40,7 @@ class QuestionOrchestrator:
             return QuestionResponse(status=QuestionStatus.REFUSED, answer=refusal)
 
         try:
-            plan = self._analysis_planner.prepare(request.question, request.context)
+            plan = await self._analysis_planner.prepare(request.question, request.context)
         except EvidenceToolUnavailable:
             logger.warning("Falha ao consultar a fonte de evidências.")
             return self._recoverable_error()

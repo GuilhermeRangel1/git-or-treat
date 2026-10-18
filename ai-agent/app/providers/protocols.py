@@ -4,8 +4,8 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
-from app.tools.evidence import EvidenceResult
 
 
 class GeneratedAnswer(BaseModel):

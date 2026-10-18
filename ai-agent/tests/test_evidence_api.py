@@ -7,17 +7,17 @@ from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
 from app.providers.protocols import GeneratedAnswer
-from app.schemas.questions import EvidenceReference
 from app.schemas.analysis import AnalysisIntent
-from app.tools.evidence import (
+from app.schemas.evidence import (
     EvidenceLookupResult,
     EvidenceLookupStatus,
+    EvidenceReference,
     EvidenceResult,
 )
 
 
 class AlternateEvidenceSource:
-    def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+    async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(

@@ -9,8 +9,8 @@ from app.providers.protocols import (
     ModelAdapter,
     ModelProviderUnavailable,
 )
+from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
-from app.tools.evidence import EvidenceResult
 
 logger = logging.getLogger(__name__)
 

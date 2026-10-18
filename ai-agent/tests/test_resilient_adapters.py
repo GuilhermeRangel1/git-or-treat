@@ -12,13 +12,13 @@ from app.providers.factory import build_model_adapter
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.gemini import GeminiModelAdapter
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
+from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import (
     ConversationTurn,
     EvidenceReference,
     QuestionRequest,
     QuestionStatus,
 )
-from app.tools.evidence import EvidenceResult
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 QUESTION = "Qual foi o consumo no período de demonstração?"
@@ -327,7 +327,7 @@ def test_cached_ungrounded_answer_is_still_refused_by_orchestrator() -> None:
     assert inner.calls == 1
     for response in responses:
         assert response.status is QuestionStatus.REFUSED
-        assert "999" not in response.answer
+        assert "999" not in response.message
 
 
 # Configuração e factory

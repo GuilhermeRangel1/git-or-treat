@@ -5,7 +5,8 @@ import httpx
 from app.config import Settings
 from app.main import create_app
 from app.providers.protocols import GeneratedAnswer
-from app.tools.evidence import EvidenceResult
+from app.schemas.evidence import EvidenceResult
+from app.schemas.questions import ConversationTurn
 
 
 class InProcessClient:
@@ -50,7 +51,7 @@ class FakeModelAdapter:
     async def generate(
         self,
         question: str,
-        context: list[dict[str, str]],
+        context: list[ConversationTurn],
         evidence: EvidenceResult,
     ) -> GeneratedAnswer:
         if self.error:

@@ -5,6 +5,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from app.schemas.evidence import EvidenceReference
+
 QuestionText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=1000),
@@ -35,14 +37,6 @@ class QuestionRequest(BaseModel):
 
     question: QuestionText
     context: list[ConversationTurn] = Field(default_factory=list, max_length=3)
-
-
-class EvidenceReference(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    source: str = Field(min_length=1, max_length=120)
-    description: str = Field(min_length=1, max_length=500)
-    is_demo: bool = False
 
 
 class QuestionResponse(BaseModel):

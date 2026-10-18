@@ -9,8 +9,8 @@ from app.config import Settings
 from app.providers.factory import ModelConfigurationError, build_model_adapter
 from app.providers.gemini import GeminiModelAdapter
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
+from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn, EvidenceReference
-from app.tools.evidence import EvidenceResult
 
 
 class FakeModelEndpoint:

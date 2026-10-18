@@ -12,9 +12,9 @@ from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
+from app.ports.evidence import EvidenceToolUnavailable
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
 from app.schemas.analysis import AnalysisIntent
-from app.tools.evidence import EvidenceToolUnavailable
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 from .conftest import InProcessClient
@@ -41,11 +41,11 @@ class CountingScenarioTool:
         self.calls = []
         self.fail = fail
 
-    def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent):
         self.calls.append(intent)
         if self.fail:
             raise EvidenceToolUnavailable("private source detail")
-        return self.delegate.retrieve(intent)
+        return await self.delegate.retrieve(intent)
 
 
 class CaseModelAdapter:

@@ -6,14 +6,10 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from app.agent.interpreter import QuestionInterpreter
+from app.ports.evidence import EvidenceSource, EvidenceToolUnavailable
+from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
-from app.tools.evidence import (
-    EvidenceLookupResult,
-    EvidenceLookupStatus,
-    EvidenceSource,
-    EvidenceToolUnavailable,
-)
 
 
 class AnalysisPlanStatus(StrEnum):
@@ -64,7 +60,7 @@ class QuestionAnalysisPlanner:
         self._interpreter = interpreter
         self._evidence_source = evidence_source
 
-    def prepare(
+    async def prepare(
         self,
         question: str,
         context: list[ConversationTurn] | None = None,
@@ -78,7 +74,7 @@ class QuestionAnalysisPlanner:
 
         assert interpretation.intent is not None
         try:
-            evidence_result = self._evidence_source.retrieve(interpretation.intent)
+            evidence_result = await self._evidence_source.retrieve(interpretation.intent)
         except EvidenceToolUnavailable:
             raise
         except ValidationError as exc:

@@ -2,6 +2,7 @@
 
 from app.agent.grounding import contains_only_evidence_numbers
 from app.providers.protocols import ModelAdapter, ModelProviderUnavailable
+from app.schemas.evidence import EvidenceResult
 from app.schemas.insights import (
     InsightContextSummary,
     InsightObservation,
@@ -9,7 +10,6 @@ from app.schemas.insights import (
     ScreenInsightResponse,
 )
 from app.schemas.questions import QuestionStatus
-from app.tools.evidence import EvidenceResult
 
 INSIGHT_PROMPT = (
     "Com base exclusivamente nos dados estruturados fornecidos, escreva uma hipótese breve "

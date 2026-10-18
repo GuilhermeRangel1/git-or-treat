@@ -1,7 +1,11 @@
+import asyncio
+
+import pytest
+
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.schemas.analysis import AnalysisIntent
-from app.tools.evidence import EvidenceLookupResult, EvidenceLookupStatus
+from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 
@@ -9,7 +13,7 @@ class CountingScenarioTool:
     def __init__(self) -> None:
         self.calls: list[AnalysisIntent] = []
 
-    def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+    async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
         self.calls.append(intent)
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.NO_EVIDENCE,
@@ -17,11 +21,15 @@ class CountingScenarioTool:
         )
 
 
+def _prepare(planner: QuestionAnalysisPlanner, question: str):
+    return asyncio.run(planner.prepare(question))
+
+
 def test_ambiguous_question_is_clarified_before_any_tool_is_called() -> None:
     tool = CountingScenarioTool()
     planner = QuestionAnalysisPlanner(QuestionInterpreter(), tool)
 
-    plan = planner.prepare("Minha conta de luz subiu?")
+    plan = _prepare(planner, "Minha conta de luz subiu?")
 
     assert plan.status is AnalysisPlanStatus.NEEDS_CLARIFICATION
     assert plan.evidence_result is None
@@ -32,7 +40,8 @@ def test_corrected_filter_is_the_only_filter_sent_to_the_tool() -> None:
     tool = CountingScenarioTool()
     planner = QuestionAnalysisPlanner(QuestionInterpreter(), tool)
 
-    plan = planner.prepare(
+    plan = _prepare(
+        planner,
         "Qual foi a receita em Olinda, não, em Jaboatão entre o ano passado e este ano?"
     )
 
@@ -46,7 +55,7 @@ def test_corrected_filter_is_the_only_filter_sent_to_the_tool() -> None:
 def test_planner_accepts_an_evidence_source_without_synthetic_request_types() -> None:
     planner = QuestionAnalysisPlanner(QuestionInterpreter(), SyntheticScenarioTool())
 
-    plan = planner.prepare("Qual foi o consumo no período de demonstração?")
+    plan = _prepare(planner, "Qual foi o consumo no período de demonstração?")
 
     assert plan.status is AnalysisPlanStatus.READY
     assert plan.evidence_result is not None
@@ -57,7 +66,7 @@ def test_planner_accepts_an_evidence_source_without_synthetic_request_types() ->
 def test_explicit_demo_question_reaches_synthetic_tool_and_returns_evidence() -> None:
     planner = QuestionAnalysisPlanner(QuestionInterpreter(), SyntheticScenarioTool())
 
-    plan = planner.prepare("Qual foi o consumo no período de demonstração?")
+    plan = _prepare(planner, "Qual foi o consumo no período de demonstração?")
 
     assert plan.status is AnalysisPlanStatus.READY
     assert plan.evidence_result is not None
@@ -65,3 +74,90 @@ def test_explicit_demo_question_reaches_synthetic_tool_and_returns_evidence() ->
     assert plan.evidence_result.evidence.records == [
         {"value": 420, "unit": "unidades fictícias"}
     ]
+
+
+def test_unknown_filter_is_a_clarification_not_an_empty_result() -> None:
+    class ClarifyingSource:
+        async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+            return EvidenceLookupResult(
+                status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
+                message="O filtro solicitado não está disponível neste catálogo.",
+            )
+
+    planner = QuestionAnalysisPlanner(QuestionInterpreter(), ClarifyingSource())
+    plan = _prepare(planner, "Qual foi o consumo no período de demonstração?")
+
+    assert plan.status is AnalysisPlanStatus.NEEDS_CLARIFICATION
+    assert plan.evidence_result is not None
+    assert plan.evidence_result.status is EvidenceLookupStatus.NEEDS_CLARIFICATION
+    assert plan.evidence_result.evidence is None
+
+
+def test_async_source_can_process_concurrent_lookups() -> None:
+    class ConcurrentSource:
+        def __init__(self) -> None:
+            self.started = 0
+            self.active = 0
+            self.max_active = 0
+            self.both_started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+            self.started += 1
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            if self.started == 2:
+                self.both_started.set()
+            try:
+                await self.release.wait()
+                return EvidenceLookupResult(
+                    status=EvidenceLookupStatus.NO_EVIDENCE,
+                    message="Sem registros no cenário de concorrência.",
+                )
+            finally:
+                self.active -= 1
+
+    async def run() -> list:
+        source = ConcurrentSource()
+        planner = QuestionAnalysisPlanner(QuestionInterpreter(), source)
+        first = asyncio.create_task(
+            planner.prepare("Qual foi o consumo no período de demonstração?")
+        )
+        second = asyncio.create_task(
+            planner.prepare("Qual foi a receita no período de demonstração?")
+        )
+        await asyncio.wait_for(source.both_started.wait(), timeout=1)
+        source.release.set()
+        plans = await asyncio.gather(first, second)
+        assert source.max_active == 2
+        return plans
+
+    assert len(asyncio.run(run())) == 2
+
+
+def test_cancelling_planner_cancels_async_source_lookup() -> None:
+    class CancellableSource:
+        def __init__(self) -> None:
+            self.started = asyncio.Event()
+            self.cancelled = False
+
+        async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+            self.started.set()
+            try:
+                await asyncio.Future()
+            finally:
+                self.cancelled = True
+
+    async def run() -> bool:
+        source = CancellableSource()
+        planner = QuestionAnalysisPlanner(QuestionInterpreter(), source)
+        task = asyncio.create_task(
+            planner.prepare("Qual foi o consumo no período de demonstração?")
+        )
+        await source.started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return source.cancelled
+
+    assert asyncio.run(run()) is True

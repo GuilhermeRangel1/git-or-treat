@@ -17,7 +17,8 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas.questions import EvidenceReference, QuestionStatus
+from app.schemas.evidence import EvidenceReference
+from app.schemas.questions import QuestionStatus
 
 FilterValue = StrictStr | StrictInt | StrictFloat | StrictBool
 

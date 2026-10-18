@@ -5,7 +5,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.analysis import AnalysisIntent
-from app.tools.evidence import EvidenceResult
+from app.schemas.evidence import EvidenceResult
 
 
 class SyntheticScenario(BaseModel):

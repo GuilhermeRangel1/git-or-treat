@@ -1,9 +1,8 @@
 """Cenários artificiais para desenvolver e demonstrar contratos do agente."""
 
-from app.schemas.questions import EvidenceReference
 from app.schemas.analysis import AnalysisDomain, AnalysisIntent
+from app.schemas.evidence import EvidenceReference, EvidenceResult
 from app.schemas.scenarios import SyntheticScenario
-from app.tools.evidence import EvidenceResult
 
 SYNTHETIC_SCENARIOS = (
     SyntheticScenario(
