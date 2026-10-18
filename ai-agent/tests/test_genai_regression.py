@@ -9,11 +9,13 @@ import pytest
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
-from app.agent.planner import QuestionAnalysisPlanner, ScenarioToolUnavailable
+from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
-from app.tools.synthetic_analytics import SyntheticScenarioRequest, SyntheticScenarioTool
+from app.schemas.scenarios import AnalysisIntent
+from app.tools.evidence import EvidenceToolUnavailable
+from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 from .conftest import InProcessClient
 
@@ -39,11 +41,11 @@ class CountingScenarioTool:
         self.calls = []
         self.fail = fail
 
-    def execute(self, request: SyntheticScenarioRequest):
-        self.calls.append(request)
+    def retrieve(self, intent: AnalysisIntent):
+        self.calls.append(intent)
         if self.fail:
-            raise ScenarioToolUnavailable("private synthetic tool detail")
-        return self.delegate.execute(request)
+            raise EvidenceToolUnavailable("private source detail")
+        return self.delegate.retrieve(intent)
 
 
 class CaseModelAdapter:

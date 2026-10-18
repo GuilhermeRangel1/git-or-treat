@@ -1,16 +1,19 @@
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
-from app.agent.planner import QuestionAnalysisPlanner, ScenarioToolUnavailable
+from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
 from app.schemas.questions import EvidenceReference
-from app.tools.evidence import EvidenceResult
+from app.schemas.scenarios import AnalysisIntent
+from app.tools.evidence import (
+    EvidenceLookupResult,
+    EvidenceLookupStatus,
+    EvidenceResult,
+    EvidenceToolUnavailable,
+)
 from app.tools.synthetic_analytics import (
-    SyntheticScenarioRequest,
     SyntheticScenarioTool,
-    SyntheticToolResult,
-    ToolStatus,
 )
 
 from .conftest import FakeModelAdapter, InProcessClient
@@ -27,8 +30,8 @@ class RecordingModelAdapter(FakeModelAdapter):
 
 
 class FailingScenarioTool:
-    def execute(self, request: SyntheticScenarioRequest):
-        raise ScenarioToolUnavailable("internal tool detail")
+    def retrieve(self, intent: AnalysisIntent):
+        raise EvidenceToolUnavailable("internal source detail")
 
 
 class CountingScenarioTool:
@@ -36,9 +39,9 @@ class CountingScenarioTool:
         self.calls = 0
         self.delegate = SyntheticScenarioTool()
 
-    def execute(self, request: SyntheticScenarioRequest):
+    def retrieve(self, intent: AnalysisIntent):
         self.calls += 1
-        return self.delegate.execute(request)
+        return self.delegate.retrieve(intent)
 
 
 class RecordingScenarioTool:
@@ -46,15 +49,15 @@ class RecordingScenarioTool:
         self.requests = []
         self.delegate = SyntheticScenarioTool()
 
-    def execute(self, request: SyntheticScenarioRequest):
-        self.requests.append(request)
-        return self.delegate.execute(request)
+    def retrieve(self, intent: AnalysisIntent):
+        self.requests.append(intent)
+        return self.delegate.retrieve(intent)
 
 
 class LargeCountScenarioTool:
-    def execute(self, request: SyntheticScenarioRequest):
-        return SyntheticToolResult(
-            status=ToolStatus.SUCCESS,
+    def retrieve(self, intent: AnalysisIntent):
+        return EvidenceLookupResult(
+            status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
                 reference=EvidenceReference(
                     source="synthetic_fixture:large_count",
@@ -247,7 +250,7 @@ def test_follow_up_inherits_previous_intent_and_replaces_corrected_geography() -
     assert response.status_code == 200
     assert response.json()["status"] == "no_evidence"
     assert len(tool.requests) == 1
-    intent = tool.requests[0].intent
+    intent = tool.requests[0]
     assert intent is not None
     assert intent.domain == "consumption"
     assert intent.metric_phrase == "consumo"

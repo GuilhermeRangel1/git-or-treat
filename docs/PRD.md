@@ -462,6 +462,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Critérios de aceite revisados e pendências: proposta aguarda revisão de Backend e Engenharia de Dados. P-04, esquema/carga Gold e contrato entre serviços continuam abertos; nenhum requisito IA ou DE mudou de estado.
 - Responsável/revisor: Codex (proposta); confirmação pelos responsáveis de Backend e Engenharia de Dados pendente.
 
+### 2026-10-18 — fronteira interna de evidências da GenAI
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; o fluxo interno do agente passa a depender de uma porta de evidências implementada atualmente pelo adaptador sintético.
+- Mudança observável para usuário/negócio: nenhuma mudança no contrato HTTP; a troca da implementação de evidências não altera a resposta pública.
+- Arquivos/commit: `ai-agent/app/tools/evidence.py`, `ai-agent/app/tools/synthetic_analytics.py`, `ai-agent/app/agent/planner.py`, `ai-agent/app/agent/orchestrator.py`, `ai-agent/tests/` e [guia do serviço GenAI](services/ai-agent.md).
+- Dados usados: somente cenários sintéticos versionados; nenhuma consulta Gold ou dado real/pessoal.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (118 passaram), `python -m ruff check app tests`, `python -m compileall -q app tests` e `git diff --check` passaram fora do sandbox. Dentro do sandbox Windows, o event loop trava ao criar o `socketpair` local em `socket.accept`, antes de executar a aplicação.
+- Reconciliação ou amostra manual: `tests/test_evidence_api.py` envia pergunta a `POST /api/v1/questions` com uma fonte alternativa à fixture e confirma que resposta e referência vêm desse adaptador. O planner mantém esclarecimento antes da consulta, filtros corrigidos e proveniência.
+- Critérios de aceite revisados e pendências: a porta é interna e provisória; não define schema, métricas, fórmulas nem contrato HTTP entre serviços e não executa SQL. A proposta 4.1 aguarda revisão de Backend e Engenharia de Dados; integração Gold e todos os requisitos funcionais de IA continuam pendentes.
+- Responsável/revisor: Codex (implementação); revisão do contrato pelos responsáveis de Backend e Engenharia de Dados pendente.
+
 ### 2026-10-16 — IA-07 — protótipo de follow-up contextual
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; o protótipo local cobre parte do comportamento, mas não conclui o diferencial no produto integrado.

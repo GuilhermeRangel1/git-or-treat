@@ -9,7 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.questions import EvidenceReference
 from app.schemas.scenarios import AnalysisIntent, SyntheticScenario
-from app.tools.evidence import EvidenceResult
+from app.tools.evidence import (
+    EvidenceLookupResult,
+    EvidenceLookupStatus,
+    EvidenceResult,
+)
 
 
 class ToolStatus(StrEnum):
@@ -59,6 +63,21 @@ class SyntheticScenarioTool:
         catalog: tuple[SyntheticScenario, ...] = SYNTHETIC_SCENARIOS,
     ) -> None:
         self._catalog = catalog
+
+    def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+        """Adapta a intenção genérica ao catálogo de demonstração atual."""
+        result = self.execute(SyntheticScenarioRequest(intent=intent))
+        status = {
+            ToolStatus.SUCCESS: EvidenceLookupStatus.AVAILABLE,
+            ToolStatus.NO_EVIDENCE: EvidenceLookupStatus.NO_EVIDENCE,
+            ToolStatus.NEEDS_CLARIFICATION: EvidenceLookupStatus.NEEDS_CLARIFICATION,
+        }[result.status]
+        return EvidenceLookupResult(
+            status=status,
+            evidence=result.evidence,
+            message=result.message,
+            limitations=result.limitations,
+        )
 
     def execute(self, request: SyntheticScenarioRequest) -> SyntheticToolResult:
         if request.scenario_id is not None:

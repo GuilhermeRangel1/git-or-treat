@@ -34,7 +34,7 @@ def create_app(
     application.state.question_orchestrator = question_orchestrator or QuestionOrchestrator(
         analysis_planner=QuestionAnalysisPlanner(
             interpreter=QuestionInterpreter(),
-            scenario_tool=SyntheticScenarioTool(SYNTHETIC_SCENARIOS),
+            evidence_source=SyntheticScenarioTool(SYNTHETIC_SCENARIOS),
         ),
         model_adapter=model_adapter,
     )
