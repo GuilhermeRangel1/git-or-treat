@@ -34,6 +34,17 @@ class FailingScenarioTool:
         raise EvidenceToolUnavailable("internal source detail")
 
 
+class InvalidEvidenceScenarioTool:
+    def retrieve(self, intent: AnalysisIntent):
+        return EvidenceLookupResult(
+            status=EvidenceLookupStatus.AVAILABLE,
+            evidence=EvidenceResult(
+                reference=EvidenceReference(source="test", description="bounded response"),
+                records=[{"value": index} for index in range(101)],
+            ),
+        )
+
+
 class CountingScenarioTool:
     def __init__(self) -> None:
         self.calls = 0
@@ -215,6 +226,17 @@ def test_tool_failure_returns_generic_recoverable_error() -> None:
 
     assert response.json()["status"] == "recoverable_error"
     assert "internal tool detail" not in response.text
+
+
+def test_invalid_source_result_returns_generic_recoverable_error() -> None:
+    with _client(scenario_tool=InvalidEvidenceScenarioTool()) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Qual foi o consumo no período de demonstração?"},
+        )
+
+    assert response.json()["status"] == "recoverable_error"
+    assert "101" not in response.text
 
 
 def test_provider_failure_returns_generic_recoverable_error() -> None:

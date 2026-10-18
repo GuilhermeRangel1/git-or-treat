@@ -473,6 +473,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Critérios de aceite revisados e pendências: a porta é interna e provisória; não define schema, métricas, fórmulas nem contrato HTTP entre serviços e não executa SQL. A proposta 4.1 aguarda revisão de Backend e Engenharia de Dados; integração Gold e todos os requisitos funcionais de IA continuam pendentes.
 - Responsável/revisor: Codex (implementação); revisão do contrato pelos responsáveis de Backend e Engenharia de Dados pendente.
 
+### 2026-10-18 — limite de payload no contrato interno de evidências
+
+- Estado anterior → novo estado: requisitos funcionais continuam `Pendente`; o contrato interno valida o tamanho e a estrutura da evidência antes de repassá-la ao modelo.
+- Mudança observável para usuário/negócio: fonte que retorna mais de 100 registros ou uma resposta inválida recebe erro recuperável genérico antes da geração.
+- Arquivos/commit: `ai-agent/app/tools/evidence.py`, `ai-agent/app/agent/planner.py`, testes de contrato/fluxo e guia do serviço GenAI.
+- Dados usados: fixtures sintéticas e resultados artificiais, sem dataset, Gold ou dados pessoais.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (121 passaram), `python -m compileall -q app tests` e `python -m ruff check .` passaram; na raiz, `git diff --check` passou fora do sandbox Windows.
+- Reconciliação ou amostra manual: teste cobre resultado com mais de 100 registros, metadado de referência ausente e erro público genérico; cenários existentes cobrem filtro não suportado e ausência de evidência.
+- Critérios de aceite revisados e pendências: limite de payload e tratamento de contrato inválido estão cobertos; timeout, autorização por identidade confiável, allowlist do executor e auditoria/correlação da consulta Gold continuam pendentes de decisão e integração com Backend/Dados. Nenhum requisito IA/DE mudou de estado.
+- Responsável/revisor: Codex; revisão da política de acesso e auditoria por Backend e Engenharia de Dados pendente.
+
 ### 2026-10-16 — IA-07 — protótipo de follow-up contextual
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; o protótipo local cobre parte do comportamento, mas não conclui o diferencial no produto integrado.

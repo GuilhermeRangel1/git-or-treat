@@ -3,7 +3,7 @@
 from enum import StrEnum
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from app.agent.interpreter import QuestionInterpreter
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
@@ -12,6 +12,7 @@ from app.tools.evidence import (
     EvidenceLookupResult,
     EvidenceLookupStatus,
     EvidenceSource,
+    EvidenceToolUnavailable,
 )
 
 
@@ -76,7 +77,10 @@ class QuestionAnalysisPlanner:
             )
 
         assert interpretation.intent is not None
-        evidence_result = self._evidence_source.retrieve(interpretation.intent)
+        try:
+            evidence_result = self._evidence_source.retrieve(interpretation.intent)
+        except ValidationError as exc:
+            raise EvidenceToolUnavailable("Evidence source returned an invalid result.") from exc
         if evidence_result.status is EvidenceLookupStatus.AVAILABLE:
             status = AnalysisPlanStatus.READY
         elif evidence_result.status is EvidenceLookupStatus.NEEDS_CLARIFICATION:

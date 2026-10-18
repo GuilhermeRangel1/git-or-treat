@@ -17,7 +17,7 @@ class EvidenceResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reference: EvidenceReference
-    records: list[dict[str, object]] = Field(default_factory=list)
+    records: list[dict[str, object]] = Field(default_factory=list, max_length=100)
 
 
 class EvidenceLookupStatus(StrEnum):
@@ -49,11 +49,11 @@ class EvidenceLookupResult(BaseModel):
 
 
 class EvidenceToolUnavailable(Exception):
-    """Sinaliza que a fonte analítica não pode ser consultada no momento."""
+    """Sinaliza fonte indisponível ou resposta que viola o contrato de evidências."""
 
 
 class EvidenceSource(Protocol):
-    """Porta interna entre o núcleo de análise e uma fonte de evidências."""
+    """Porta interna; implementações devem autorizar, limitar e sanitizar a consulta."""
 
     def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult: ...
 
