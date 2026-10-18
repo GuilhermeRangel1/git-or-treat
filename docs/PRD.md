@@ -451,6 +451,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-18 — proposta de propriedade da consulta Gold pela GenAI
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; registrada uma proposta para revisão conjunta sobre a propriedade da consulta Gold.
+- Mudança observável para usuário/negócio: nenhuma. O endpoint atual de IA no Backend continua sendo placeholder e não consulta dados Gold.
+- Arquivos/commit: proposta em [ADR-0001](decisions/0001-genai-gold-query-owner.md); estado atual da rota descrito no guia do Backend.
+- Dados usados: código e contratos atuais do Backend/GenAI, PRD e dicionário Gold; nenhum dado real ou pessoal.
+- Verificações: inspeção do endpoint `/api/v1/ai/query` confirmou que valida nomes contra uma lista fixa e devolve `records: []`; o modelo `GoldIndicador` é o único modelo analítico encontrado. A comparação não demonstra consulta, autorização somente leitura ou catálogo Gold funcional.
+- Reconciliação ou amostra manual: a proposta recomenda Backend como dono da execução para centralizar autorização e consulta para portal e agente; não fixa tabelas, métricas ou fórmulas ainda não aprovadas.
+- Critérios de aceite revisados e pendências: proposta aguarda revisão de Backend e Engenharia de Dados. P-04, esquema/carga Gold e contrato entre serviços continuam abertos; nenhum requisito IA ou DE mudou de estado.
+- Responsável/revisor: Codex (proposta); confirmação pelos responsáveis de Backend e Engenharia de Dados pendente.
+
 ### 2026-10-16 — IA-07 — protótipo de follow-up contextual
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; o protótipo local cobre parte do comportamento, mas não conclui o diferencial no produto integrado.

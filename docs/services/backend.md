@@ -1,6 +1,6 @@
 # Serviço: backend e banco local
 
-**Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** especificado, sem API ou banco criados. **Stack do case:** FastAPI em Python; SQLite, PostgreSQL ou alternativa justificada.
+**Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** scaffold FastAPI, modelos SQLAlchemy, migração Alembic e rotas iniciais criados. A carga Gold não importa registros; os endpoints analíticos consultados ainda retornam placeholders, sem reconciliação ou controle de leitura demonstrado no banco. **Stack do case:** FastAPI em Python; SQLite, PostgreSQL ou alternativa justificada. O scaffold atual configura PostgreSQL, mas P-04 permanece em aberto.
 
 ## Responsabilidade
 
@@ -18,6 +18,8 @@ Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter
 | IA | Consulta controlada às Gold e trilha da resposta | Credencial somente leitura, allowlist de tabelas, limite/timeout de consultas |
 
 Os endpoints e contratos JSON são **a definir** junto do frontend e agente; não há nomes de rota prescritos no case. Versionar contrato, paginação, erro, tipos, nulidade e exemplos sem dados pessoais no momento da implementação.
+
+Para a fronteira com a GenAI, há uma proposta pendente de revisão para o Backend controlar as consultas Gold por um contrato estruturado, sem SQL livre do agente ([ADR-0001](../decisions/0001-genai-gold-query-owner.md)). A rota `/api/v1/ai/query` existente é apenas scaffold e ainda não consulta dados.
 
 ### Envelope conceitual de uma resposta analítica
 

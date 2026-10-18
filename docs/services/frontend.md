@@ -1,6 +1,6 @@
 # Serviço: portal web
 
-**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** especificado; nenhuma tela implementada. **Stack do case:** React + TypeScript com Vite.
+**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** aplicação React/Vite, layout, navegação e rotas principais criados; as páginas consultadas são placeholders de `PageLayout`, sem jornadas de dados, chat ou insight integrados. **Stack do case:** React + TypeScript com Vite.
 
 ## Público e jornadas
 
