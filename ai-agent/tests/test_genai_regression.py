@@ -56,6 +56,7 @@ class CaseModelAdapter:
         self.answer = GeneratedAnswer(
             status=case.get("model_status", "answered"),
             answer=case.get("model_answer", "Resposta sintética sem números."),
+            observation_ids=tuple(case.get("model_observation_ids", ())),
         )
         self.calls = []
         self.fail = case.get("model_failure", False)

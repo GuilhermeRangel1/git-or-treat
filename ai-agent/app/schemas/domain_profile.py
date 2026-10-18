@@ -44,6 +44,24 @@ class CatalogSensitivity(StrEnum):
     PERSONAL = "personal"
 
 
+class EvidenceFieldRole(StrEnum):
+    MEASURE = "measure"
+    UNIT = "unit"
+    PERIOD = "period"
+    DIMENSION = "dimension"
+
+
+class EvidenceFieldDefinition(BaseModel):
+    """Campo que pode atravessar a fronteira de evidências para esta métrica."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,79}$")]
+    role: EvidenceFieldRole
+    value_type: FilterValueType
+    sensitivity: CatalogSensitivity
+
+
 class DimensionRole(StrEnum):
     GEOGRAPHY = "geography"
     CLASSIFICATION = "classification"
@@ -143,6 +161,11 @@ class MetricDefinition(BaseModel):
     granularities: tuple[CatalogGranularity, ...] = Field(min_length=1)
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=30)
     sensitivity: CatalogSensitivity
+    evidence_fields: tuple[EvidenceFieldDefinition, ...] = Field(default=(), max_length=30)
+    limitation_texts: tuple[
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)],
+        ...,
+    ] = Field(default=(), max_length=20)
 
     @model_validator(mode="after")
     def validate_metric_aliases(self) -> Self:
@@ -151,6 +174,10 @@ class MetricDefinition(BaseModel):
             raise ValueError("alias de métrica duplicado")
         if len(self.dimension_ids) != len(set(self.dimension_ids)):
             raise ValueError("dimensão permitida duplicada na métrica")
+        if len({field.name for field in self.evidence_fields}) != len(self.evidence_fields):
+            raise ValueError("campo de evidência duplicado na métrica")
+        if sum(field.role is EvidenceFieldRole.MEASURE for field in self.evidence_fields) > 1:
+            raise ValueError("métrica aceita somente um campo de medida")
         return self
 
 

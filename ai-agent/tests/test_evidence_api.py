@@ -10,32 +10,52 @@ from app.config import Settings
 from app.main import create_app
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.protocols import GeneratedAnswer
-from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import (
     EvidenceLookupResult,
     EvidenceLookupStatus,
+    EvidenceProvenance,
     EvidenceReference,
     EvidenceResult,
 )
+from app.schemas.read_plan import LogicalReadPlan
 
 
 class AlternateEvidenceSource:
-    async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
                 reference=EvidenceReference(
-                    source="controlled_adapter:test",
+                    source="synthetic_fixture:alternate_test",
                     description="Evidence returned by an alternate adapter.",
+                    is_demo=True,
                 ),
-                records=[{"value": 5, "unit": "kWh"}],
+                records=[{"value": 5, "unit": "unidades fictícias"}],
+                provenance=EvidenceProvenance(
+                    source_id=plan.source_id,
+                    reference_source="synthetic_fixture:alternate_test",
+                    plan_fingerprint=plan.fingerprint(),
+                    catalog_version=plan.catalog_version,
+                    metric_id=plan.metric_id,
+                    unit=plan.unit,
+                    window=plan.window,
+                    filters=plan.filters,
+                    dimension_ids=plan.dimension_ids,
+                ),
             ),
+            limitations=[
+                "Valor inventado; não representa leitura, consumo ou unidade consumidora "
+                "da V-Energy."
+            ],
         )
 
 
 class FixedModelAdapter:
     async def generate(self, question, context, evidence) -> GeneratedAnswer:
-        return GeneratedAnswer(status="answered", answer="O consumo foi 5 kWh.")
+        return GeneratedAnswer(
+            status="answered", answer="O consumo foi 5 unidades fictícias.",
+            observation_ids=("row_1",),
+        )
 
 
 @pytest.mark.anyio
@@ -62,11 +82,11 @@ async def test_questions_api_uses_an_alternate_evidence_source() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "answered"
-    assert response.json()["answer"] == "O consumo foi 5 kWh."
+    assert "5 unidades fictícias" in response.json()["answer"]
     assert response.json()["evidence"] == [
         {
-            "source": "controlled_adapter:test",
-            "description": "Evidence returned by an alternate adapter.",
-            "is_demo": False,
+            "source": "synthetic_fixture:alternate_test",
+            "description": "Evidência agregada validada pelo serviço.",
+            "is_demo": True,
         }
     ]

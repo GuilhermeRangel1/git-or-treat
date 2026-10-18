@@ -1,5 +1,6 @@
 """Contratos HTTP para insights de uma tela durante a etapa sintética."""
 
+import re
 from datetime import date
 from enum import StrEnum
 from math import isfinite
@@ -31,6 +32,11 @@ InsightLimitation = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=300),
 ]
+_UNSAFE_DEMO_TEXT = re.compile(
+    r"(?:[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b\d{3}[. ]?\d{3}[. ]?\d{3}[- ]?\d{2}\b|"
+    r"\b(?:sk[-_]|api[_ -]?key|token|senha|ignore (?:as )?instru\w*|revele|execute)\b)",
+    re.IGNORECASE,
+)
 
 
 class PeriodGranularity(StrEnum):
@@ -116,6 +122,18 @@ class ScreenContext(BaseModel):
         labels = [item.label.casefold() for item in self.observations]
         if len(labels) != len(set(labels)):
             raise ValueError("os rótulos das observações devem ser únicos")
+        texts = [
+            self.metric,
+            self.unit,
+            self.reference.source,
+            self.reference.description,
+            *self.limitations,
+            *(item.label for item in self.observations),
+            *self.filters.keys(),
+            *(value for value in self.filters.values() if isinstance(value, str)),
+        ]
+        if any(_UNSAFE_DEMO_TEXT.search(value) for value in texts):
+            raise ValueError("contexto demonstrativo contém texto não permitido")
         return self
 
 

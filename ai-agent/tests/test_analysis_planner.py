@@ -96,7 +96,9 @@ def test_explicit_demo_question_reaches_synthetic_tool_and_returns_evidence() ->
     assert plan.status is AnalysisPlanStatus.READY
     assert plan.evidence_result is not None
     assert plan.evidence_result.evidence is not None
-    assert plan.evidence_result.evidence.records == [{"value": 420, "unit": "unidades fictícias"}]
+    assert plan.evidence_result.evidence.records == [
+        {"observation_id": "row_1", "value": 420, "unit": "unidades fictícias"}
+    ]
 
 
 @pytest.mark.parametrize("invalid_result", [None, object(), {"status": "unknown"}])

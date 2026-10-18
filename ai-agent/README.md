@@ -57,9 +57,9 @@ Invoke-RestMethod -Method Post `
   -Body '{"contract_version":"v1","question":"Qual foi o consumo?"}'
 ```
 
-A resposta dos endpoints de perguntas e insights segue o envelope público `v1`: `contract_version`, `status`, `answer` ou `message`, `evidence`, `limitations`, `error`, `correlation_id` e `audit_reference`. `answered` usa `answer` em perguntas ou `hypothesis` em insights; os outros estados usam `message`, sem misturar os campos. A resposta também envia o `correlation_id` no cabeçalho `X-Correlation-ID`. O identificador é gerado pelo serviço e serve para localizar a requisição; não representa uma trilha de auditoria. `audit_reference` permanece `null` até existir auditoria durável. O contexto normalizado de uma pergunta (`analysis_context`) também fica `null` enquanto a fonte não informar período, unidade e filtros efetivamente aplicados. Em insights, o contexto recebido fica separado das observações e da hipótese, mas ainda não é autenticado nem autorizado pelo serviço.
+A resposta dos endpoints de perguntas e insights segue o envelope público `v1`: `contract_version`, `status`, `answer` ou `message`, `evidence`, `limitations`, `error`, `correlation_id` e `audit_reference`. `answered` usa `answer` em perguntas ou `hypothesis` em insights; os outros estados usam `message`, sem misturar os campos. A resposta também envia o `correlation_id` no cabeçalho `X-Correlation-ID`. O identificador é gerado pelo serviço e serve para localizar a requisição; não representa uma trilha de auditoria. `audit_reference` permanece `null` até existir auditoria durável. Em perguntas respondidas, `analysis_context` mostra o recorte lógico que a fonte declarou ter aplicado; a janela ainda pode ser uma frase do catálogo demonstrativo. Em insights, o contexto recebido fica separado das observações e da hipótese, mas ainda não é autenticado nem autorizado pelo serviço.
 
-Recusas e falhas incluem `error.code` e `error.retryable`. Os erros de entrada HTTP usam status 422 e o mesmo envelope v1, com mensagem estável sem ecoar valores inválidos. Falhas inesperadas usam status 500 e mensagem genérica. A API não devolve linhas tabulares nem oferece paginação; perguntas retornam texto e referências. O contexto de insight aceita até 20 filtros, 20 observações e 20 limitações; limites excedidos são rejeitados, nunca truncados silenciosamente. Evidências internas aceitam até 100 registros, mas esse conjunto não é serializado na resposta pública. Cada campo de texto e lista tem limite no schema; não existe ainda um limite agregado de bytes no serviço.
+Recusas e falhas incluem `error.code` e `error.retryable`. Os erros de entrada HTTP usam status 422 e o mesmo envelope v1, com mensagem estável sem ecoar valores inválidos. Falhas inesperadas usam status 500 e mensagem genérica. A API não devolve linhas tabulares nem oferece paginação; perguntas retornam texto e referências. O contexto de insight aceita até 20 filtros, 20 observações e 20 limitações; limites excedidos são rejeitados, nunca truncados silenciosamente. Evidências internas aceitam até 100 registros e até 16 KiB após serialização; esse conjunto não é serializado na resposta pública. O ingresso HTTP ainda não tem um teto agregado em bytes.
 
 O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador de modelo configurado para gerar a resposta, retorna indisponibilidade controlada. As referências sintéticas vêm com `is_demo: true`.
 
@@ -84,26 +84,26 @@ Exemplo de resposta sintética a uma pergunta:
 {
   "contract_version": "v1",
   "status": "answered",
-  "answer": "Demonstração sintética: Resposta de demonstração.",
+  "answer": "Demonstração sintética: energy.consumption — período de demonstração: 420 unidades fictícias.",
   "message": null,
   "evidence": [
     {
       "source": "synthetic_fixture:consumption_demo",
-      "description": "Medida artificial sem vínculo com uma unidade consumidora real.",
+      "description": "Evidência agregada validada pelo serviço.",
       "is_demo": true
     }
   ],
-  "limitations": ["Valor inventado; não representa leitura ou consumo da V-Energy."],
-  "analysis_context": null,
+  "limitations": ["Valor inventado; não representa leitura, consumo ou unidade consumidora da V-Energy."],
+  "analysis_context": {"metric": "energy.consumption", "unit": "unidades fictícias", "period": "período de demonstração", "filters": {}},
   "error": null,
   "correlation_id": "0123456789abcdef0123456789abcdef",
   "audit_reference": null
 }
 ```
 
-O endpoint de insights devolve `observation` com os valores recebidos e `hypothesis` em campo separado. A hipótese é gerada pelo adaptador de modelo configurado; números que não aparecem no contexto são recusados. O serviço não persiste o contexto nem confirma que o backend está autorizado a enviar aqueles filtros. Um consumidor futuro deverá transmitir contexto já validado e autorizado pela sua própria camada.
+O endpoint de insights devolve `observation` com os valores recebidos e `hypothesis` em campo separado. O modelo seleciona IDs de observações; o serviço monta a hipótese pública a partir dos valores escolhidos, sem publicar o texto livre do modelo. O protótipo local rejeita padrões evidentes de dado pessoal ou instrução nos campos da tela. Sem identidade verificada no modo real, a resposta omite filtros, observações e referência do cliente. O serviço não persiste o contexto nem confirma que o backend está autorizado a enviar aqueles filtros. Um consumidor futuro deverá transmitir contexto já validado e autorizado pela sua própria camada.
 
-O relatório versionado de regressão sintética cobre os fluxos de perguntas e insights. A versão atual do conjunto é `2.0.0`; a saída contém status por caso, resumo, escopo e limitações e é determinística para o mesmo código e fixtures. O adaptador usado é fixo e não chama o Gemini.
+O relatório versionado de regressão sintética cobre os fluxos de perguntas e insights. A versão atual do conjunto é `3.0.0`; a saída contém status por caso, resumo, escopo e limitações e é determinística para o mesmo código e fixtures. O adaptador usado é fixo e não chama o Gemini.
 
 No endpoint de perguntas, o consumidor pode reenviar até três turnos anteriores no campo `context`; o serviço não guarda histórico entre chamadas. Para uma continuação reconhecida, o interpretador herda a intenção da pergunta completa mais recente da pessoa usuária e substitui filtros informados na pergunta atual. Se a mensagem mais recente da pessoa usuária for ambígua, o serviço pede esclarecimento em vez de recuperar uma intenção mais antiga. A interpretação é lexical e limitada ao vocabulário configurado; não equivale a memória de conversa nem a resolução geral de linguagem. Como o serviço não autentica a origem dos turnos, o safety gate verifica tanto mensagens `user` quanto `assistant` do contexto antes de chamar ferramenta ou modelo.
 

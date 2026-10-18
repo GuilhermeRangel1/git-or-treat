@@ -45,6 +45,7 @@ class FakeModelAdapter:
         self.result = result or GeneratedAnswer(
             status="answered",
             answer="Resposta de demonstração.",
+            observation_ids=("row_1",),
         )
         self.error = error
 

@@ -5,6 +5,8 @@ from typing import Annotated, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from app.schemas.analysis import LogicalIdentifier
+from app.schemas.read_plan import ReadFilter, ReadWindow
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
 
 EvidenceSourceId = Annotated[
@@ -24,6 +26,22 @@ class EvidenceReference(BaseModel):
     is_demo: bool = False
 
 
+class EvidenceProvenance(BaseModel):
+    """Recorte aplicado pela fonte, conferido contra o plano antes da geração."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source_id: LogicalIdentifier
+    reference_source: EvidenceSourceId
+    plan_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    catalog_version: InternalContractVersion
+    metric_id: LogicalIdentifier
+    unit: str = Field(min_length=1, max_length=200)
+    window: ReadWindow
+    filters: tuple[ReadFilter, ...] = Field(default=(), max_length=20)
+    dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
+
+
 class EvidenceResult(BaseModel):
     """Registros agregados com proveniência controlada para fundamentar uma resposta."""
 
@@ -32,6 +50,7 @@ class EvidenceResult(BaseModel):
     contract_version: InternalContractVersion = INTERNAL_CONTRACT_VERSION
     reference: EvidenceReference
     records: list[dict[str, object]] = Field(default_factory=list, max_length=100)
+    provenance: EvidenceProvenance | None = None
 
 
 class EvidenceLookupStatus(StrEnum):

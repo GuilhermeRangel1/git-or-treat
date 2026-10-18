@@ -1,5 +1,7 @@
 """Plano de leitura lógico; nenhum campo contém SQL ou nome físico de tabela."""
 
+import hashlib
+import json
 from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal, Self
@@ -111,6 +113,14 @@ class LogicalReadPlan(BaseModel):
     filters: tuple[ReadFilter, ...] = Field(default=(), max_length=20)
     order: ReadOrder | None = None
     limit: int = Field(ge=1, le=100, strict=True)
+
+    def fingerprint(self) -> str:
+        """Identificador estável do plano aprovado, sem pergunta ou identidade."""
+
+        canonical = json.dumps(
+            self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @model_validator(mode="after")
     def require_consistent_dimensions(self) -> Self:

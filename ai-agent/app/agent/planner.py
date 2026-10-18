@@ -6,6 +6,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from app.agent.access import ReadAccessPolicy
+from app.agent.evidence_guard import EvidenceGuard
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.read_plan import (
     PlanCapabilityUnavailable,
@@ -88,6 +89,7 @@ class QuestionAnalysisPlanner:
         self._plan_validator = ReadPlanValidator(
             access_policy.profile, access_policy.source_id, access_policy
         )
+        self._evidence_guard = EvidenceGuard(access_policy.profile)
 
     async def prepare(
         self,
@@ -145,9 +147,12 @@ class QuestionAnalysisPlanner:
             if not isinstance(evidence_result, EvidenceLookupResult):
                 raise TypeError("Evidence source returned an unsupported result type.")
             evidence_result = EvidenceLookupResult.model_validate(evidence_result.model_dump())
+            evidence_result = self._evidence_guard.validate(approved, evidence_result)
         except EvidenceToolUnavailable:
             raise
         except EvidenceAccessDenied:
+            raise
+        except EvidenceContractInvalid:
             raise
         except (TypeError, ValidationError) as exc:
             raise EvidenceContractInvalid("Evidence source returned an invalid result.") from exc

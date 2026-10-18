@@ -11,6 +11,8 @@ from app.schemas.domain_profile import (
     DimensionValue,
     DomainDefinition,
     DomainProfile,
+    EvidenceFieldDefinition,
+    EvidenceFieldRole,
     FilterOperator,
     FilterValueType,
     MetricDefinition,
@@ -50,6 +52,20 @@ _CUSTOMER_CLASS = DimensionDefinition(
 
 _ALL_DIMENSIONS = (_GEOGRAPHY.id, _CUSTOMER_CLASS.id)
 _MONTH_YEAR = (CatalogGranularity.MONTH, CatalogGranularity.YEAR)
+_EVIDENCE_FIELDS = (
+    EvidenceFieldDefinition(
+        name="value",
+        role=EvidenceFieldRole.MEASURE,
+        value_type=FilterValueType.NUMBER,
+        sensitivity=CatalogSensitivity.INTERNAL,
+    ),
+    EvidenceFieldDefinition(
+        name="unit",
+        role=EvidenceFieldRole.UNIT,
+        value_type=FilterValueType.STRING,
+        sensitivity=CatalogSensitivity.INTERNAL,
+    ),
+)
 
 GRID360_DEMO_PROFILE = DomainProfile(
     profile_id="v-energy-grid-360-demo",
@@ -84,6 +100,11 @@ GRID360_DEMO_PROFILE = DomainProfile(
             granularities=_MONTH_YEAR,
             dimension_ids=_ALL_DIMENSIONS,
             sensitivity=CatalogSensitivity.INTERNAL,
+            evidence_fields=_EVIDENCE_FIELDS,
+            limitation_texts=(
+                "Valores inventados; não representam faturamento, receita ou fórmula oficial "
+                "da V-Energy.",
+            ),
         ),
         MetricDefinition(
             id="energy.consumption",
@@ -93,6 +114,11 @@ GRID360_DEMO_PROFILE = DomainProfile(
             granularities=_MONTH_YEAR,
             dimension_ids=_ALL_DIMENSIONS,
             sensitivity=CatalogSensitivity.INTERNAL,
+            evidence_fields=_EVIDENCE_FIELDS,
+            limitation_texts=(
+                "Valor inventado; não representa leitura, consumo ou unidade consumidora "
+                "da V-Energy.",
+            ),
         ),
         MetricDefinition(
             id="network.interruptions",
@@ -108,6 +134,10 @@ GRID360_DEMO_PROFILE = DomainProfile(
             granularities=_MONTH_YEAR,
             dimension_ids=_ALL_DIMENSIONS,
             sensitivity=CatalogSensitivity.INTERNAL,
+            evidence_fields=_EVIDENCE_FIELDS,
+            limitation_texts=(
+                "Contagem inventada; não descreve ocorrências de rede nem indicador DEC/FEC real.",
+            ),
         ),
         MetricDefinition(
             id="service.attendance",
@@ -117,6 +147,11 @@ GRID360_DEMO_PROFILE = DomainProfile(
             granularities=_MONTH_YEAR,
             dimension_ids=_ALL_DIMENSIONS,
             sensitivity=CatalogSensitivity.INTERNAL,
+            evidence_fields=_EVIDENCE_FIELDS,
+            limitation_texts=(
+                "Contagem inventada; não representa atendimento, satisfação ou chamado "
+                "da V-Energy.",
+            ),
         ),
     ),
     dimensions=(_GEOGRAPHY, _CUSTOMER_CLASS),

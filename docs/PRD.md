@@ -451,11 +451,22 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-18 — IA-03, IA-04 e IA-06 — proteção de evidência e saída no protótipo GenAI
+
+- Estado anterior → novo estado: `Pendente` → `Pendente` para os três requisitos; esta entrega protege o caminho sintético, sem validar dados Gold ou integração com o portal.
+- Mudança observável para usuário/negócio: a resposta de pergunta usa apenas observações aprovadas da fonte e apresenta métrica, valor, unidade, período e referência. O texto quantitativo livre do modelo não é publicado. Insights locais usam IDs de observação válidos; em modo real sem identidade confiável, o contexto enviado pelo navegador não é tratado como evidência autorizada.
+- Arquivos/commit/PR: `ai-agent/app/agent/evidence_guard.py`, orquestradores de pergunta e insight, perfil e contratos de evidência, adaptadores e testes de `ai-agent/tests/`; alterações locais em revisão, sem commit/PR deste recorte.
+- Dados usados: catálogos e fixtures artificiais de energia e clima, incluindo valores pessoais e instruções maliciosas fictícias nos testes; nenhum dado identificável real ou esquema Gold oficial.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (209 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram em 18/10/2026. `tests/test_evidence_guard.py` cobre 17 casos; `git diff --check` passou na raiz.
+- Reconciliação ou amostra manual: a proveniência vincula o resultado ao plano lógico e ao catálogo local; isso detecta incompatibilidades, mas não comprova que uma fonte externa executou fielmente o plano. Valores, fórmulas, qualidade e permissões Gold ainda exigem verificação independente.
+- Critérios de aceite revisados e pendências: a fonte deve fornecer origem, referência, versão, recorte e unidade compatíveis; campos não classificados são descartados antes do modelo. IA-03 ainda exige amostra reproduzível da Gold; IA-04 exige insight na tela real; IA-06 exige autorização e leitura somente leitura na execução concreta. Limites de tempo, cache, fallback e observabilidade pertencem aos próximos checkpoints.
+- Responsável/revisor: Codex (implementação sintética); revisão por Backend, Dados e Segurança pendente para integração real.
+
 ### 2026-10-18 — IA-06 — plano lógico de leitura no protótipo GenAI
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; o plano sintético é um controle anterior à fonte, sem comprovar consulta Gold segura.
 - Mudança observável para usuário/negócio: a fonte recebe um plano aprovado com métrica e filtros lógicos, unidade, período e limite. Filtro ou comparação sem representação no catálogo gera esclarecimento antes de consultar dados; a entrada não é simplificada silenciosamente.
-- Arquivos/commit/PR: `ai-agent/app/schemas/read_plan.py`, `app/agent/read_plan.py`, planner, porta de evidência, adaptador sintético, testes em `ai-agent/tests/` e [guia do serviço](services/ai-agent.md); alterações locais em revisão, sem commit/PR deste recorte.
+- Arquivos/commit/PR: `ai-agent/app/schemas/read_plan.py`, `app/agent/read_plan.py`, planner, porta de evidência, adaptador sintético, testes em `ai-agent/tests/` e [guia do serviço](services/ai-agent.md); commit `17254ce` na branch de fundação GenAI.
 - Dados usados: catálogos artificiais de energia e clima e fixtures sintéticas; nenhum dataset, dado pessoal ou esquema Gold oficial.
 - Verificações: em `ai-agent/`, `python -m pytest -q` (189 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram em 18/10/2026; `git diff --check` passou na raiz. Testes confirmam plano aprovado idêntico ao recebido pela fonte, dois catálogos, bloqueio de escrita, IDs/operadores/valores/grão/limite inválidos e escopo restrito.
 - Reconciliação ou amostra manual: a fixture de consumo continua retornando 420 unidades fictícias e a regressão sintética preserva os 13 resultados; não houve reconciliação com Gold.

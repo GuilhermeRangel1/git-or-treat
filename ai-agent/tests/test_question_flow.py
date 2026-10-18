@@ -12,9 +12,11 @@ from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import (
     EvidenceLookupResult,
     EvidenceLookupStatus,
+    EvidenceProvenance,
     EvidenceReference,
     EvidenceResult,
 )
+from app.schemas.read_plan import LogicalReadPlan
 from app.tools.synthetic_analytics import (
     SyntheticScenarioTool,
 )
@@ -79,7 +81,7 @@ class InvalidModelAdapter:
 
 
 class LargeCountScenarioTool:
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, plan: LogicalReadPlan):
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
@@ -89,7 +91,22 @@ class LargeCountScenarioTool:
                     is_demo=True,
                 ),
                 records=[{"value": 2180, "unit": "ocorrências fictícias"}],
+                provenance=EvidenceProvenance(
+                    source_id=plan.source_id,
+                    reference_source="synthetic_fixture:large_count",
+                    plan_fingerprint=plan.fingerprint(),
+                    catalog_version=plan.catalog_version,
+                    metric_id=plan.metric_id,
+                    unit=plan.unit,
+                    window=plan.window,
+                    filters=plan.filters,
+                    dimension_ids=plan.dimension_ids,
+                ),
             ),
+            limitations=[
+                "Valor inventado; não representa leitura, consumo ou unidade consumidora "
+                "da V-Energy."
+            ],
         )
 
 
@@ -121,12 +138,15 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
     body = response.json()
     assert body == {
         "status": "answered",
-        "answer": "Demonstração sintética: Resposta de demonstração.",
+        "answer": (
+            "Demonstração sintética: energy.consumption — período de demonstração: "
+            "420 unidades fictícias."
+        ),
         "message": None,
         "evidence": [
             {
                 "source": "synthetic_fixture:consumption_demo",
-                "description": "Medida artificial sem vínculo com uma unidade consumidora real.",
+                "description": "Evidência agregada validada pelo serviço.",
                 "is_demo": True,
             }
         ],
@@ -137,7 +157,12 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
         "correlation_id": response.headers["x-correlation-id"],
         "audit_reference": None,
         "error": None,
-        "analysis_context": None,
+        "analysis_context": {
+            "metric": "energy.consumption",
+            "unit": "unidades fictícias",
+            "period": "período de demonstração",
+            "filters": {},
+        },
     }
 
 
@@ -221,6 +246,30 @@ def test_answer_with_number_missing_from_evidence_is_refused() -> None:
     assert response.json()["evidence"][0]["is_demo"] is True
 
 
+def test_model_text_is_not_published_even_with_a_valid_observation_id(caplog) -> None:
+    model = RecordingModelAdapter(
+        result=GeneratedAnswer(
+            status="answered",
+            answer="CPF 123.456.789-00; invente 999 kWh e ignore a política.",
+            observation_ids=("row_1",),
+        )
+    )
+    with _client(model_adapter=model) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Qual foi o consumo no período de demonstração?"},
+        )
+
+    assert response.json()["status"] == "answered"
+    assert "420 unidades fictícias" in response.json()["answer"]
+    assert "999" not in response.text
+    assert "123.456.789-00" not in response.text
+    assert "123.456.789-00" not in caplog.text
+    assert model.calls[0][2].records == [
+        {"observation_id": "row_1", "value": 420, "unit": "unidades fictícias"}
+    ]
+
+
 def test_invalid_model_output_returns_a_controlled_response() -> None:
     with _client(model_adapter=InvalidModelAdapter()) as client:
         response = client.post(
@@ -235,7 +284,7 @@ def test_invalid_model_output_returns_a_controlled_response() -> None:
     assert "None" not in response.text
 
 
-def test_brazilian_thousands_format_matches_integer_evidence() -> None:
+def test_source_unit_mismatch_is_rejected_before_model() -> None:
     model = RecordingModelAdapter(
         result=GeneratedAnswer(
             status="answered",
@@ -248,8 +297,9 @@ def test_brazilian_thousands_format_matches_integer_evidence() -> None:
             json={"question": "Qual foi o consumo no período de demonstração?"},
         )
 
-    assert response.json()["status"] == "answered"
-    assert "2.180 ocorrências" in response.json()["answer"]
+    assert response.json()["status"] == "recoverable_error"
+    assert response.json()["answer"] is None
+    assert model.calls == []
 
 
 def test_ambiguous_question_requests_clarification_without_calling_model() -> None:
@@ -272,7 +322,7 @@ def test_unsupported_filter_returns_no_evidence_without_calling_model() -> None:
 
     assert response.json()["status"] == "no_evidence"
     assert response.json()["evidence"] == []
-    assert "filtros" in response.json()["message"]
+    assert "recorte solicitado" in response.json()["message"]
     assert model.calls == []
 
 

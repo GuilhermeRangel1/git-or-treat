@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
@@ -18,6 +18,9 @@ class GeneratedAnswer(BaseModel):
 
     status: Literal["answered", "needs_clarification", "refused"]
     answer: GeneratedText
+    observation_ids: tuple[
+        Annotated[str, StringConstraints(pattern=r"^row_[1-9][0-9]{0,2}$")], ...
+    ] = Field(default=(), max_length=10)
 
 
 class ModelProviderUnavailable(Exception):

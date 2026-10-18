@@ -11,6 +11,7 @@ from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import (
     EvidenceLookupResult,
     EvidenceLookupStatus,
+    EvidenceProvenance,
     EvidenceReference,
     EvidenceResult,
 )
@@ -72,6 +73,22 @@ class SyntheticScenarioTool:
     async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
         """Recebe somente o plano aprovado pelo núcleo."""
         result = self.execute(SyntheticScenarioRequest(plan=plan))
+        if result.evidence is not None:
+            result.evidence = result.evidence.model_copy(
+                update={
+                    "provenance": EvidenceProvenance(
+                        source_id=plan.source_id,
+                        reference_source=result.evidence.reference.source,
+                        plan_fingerprint=plan.fingerprint(),
+                        catalog_version=plan.catalog_version,
+                        metric_id=plan.metric_id,
+                        unit=plan.unit,
+                        window=plan.window,
+                        filters=plan.filters,
+                        dimension_ids=plan.dimension_ids,
+                    )
+                }
+            )
         status = {
             ToolStatus.SUCCESS: EvidenceLookupStatus.AVAILABLE,
             ToolStatus.NO_EVIDENCE: EvidenceLookupStatus.NO_EVIDENCE,
