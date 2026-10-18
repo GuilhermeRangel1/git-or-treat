@@ -1,32 +1,34 @@
-# React + TypeScript + Vite
+# Frontend — Grid360
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+SPA React + TypeScript + Vite, com Tailwind CSS e ícones Lucide. A fundação arquitetural está preparada; as sete páginas permanecem vazias e sem integração de dados.
 
-Currently, two official plugins are available:
+A [arquitetura](../docs/architecture/frontend.md) define responsabilidades, dependências, tema, transporte HTTP e política de estado. A escolha está registrada na [ADR-0001](../docs/decisions/0001-arquitetura-frontend.md). O [PRD](../docs/PRD.md) governa os critérios funcionais.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Executar
 
-## React Compiler
+A partir de `frontend/`:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm ci
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+O ambiente de CI usa Node.js 22; use uma versão compatível com os requisitos declarados pelo Vite instalado. O Docker de desenvolvimento está disponível em `Dockerfile.dev`.
+
+Abrir as páginas vazias não exige API. Para futuras requisições, copie `.env.example` para `.env.local` e configure `VITE_API_URL`. Essa URL é pública; credenciais não pertencem a variáveis `VITE_*`. Em desenvolvimento há fallback para `http://localhost:8000`. Fora dele, uma requisição sem configuração falha explicitamente.
+
+## Verificar
+
+```sh
+npm run check:boundaries
+npm run format:check
+npm run lint
+npm test
+npm run build
+```
+
+`npm run format` aplica formatação e `npm run test:watch` acompanha os testes durante o desenvolvimento. As verificações também são executadas na CI.
+
+## Próxima etapa
+
+Após encerrar a arquitetura, os elementos puramente visuais poderão ser alinhados ao Figma em uma etapa separada. A construção de KPIs, gráficos, consultas, filtros funcionais, ordens e IA depende de autorização e contratos próprios.

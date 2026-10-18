@@ -191,6 +191,8 @@ Toda a transformação deve ocorrer no Databricks com PySpark. A camada Bronze i
 
 O portal interno recebe os dados tratados no banco local. Stack indicada: React + TypeScript com Vite, FastAPI em Python, banco SQLite ou PostgreSQL. Deve oferecer indicadores e comparação temporal, decomposição da receita, visão 360 por UC, fila de inspeção, gestão das ordens, continuidade do serviço, filtros/exportações onde pedidos, acesso ao agente e insights de IA contextualizados. A quantidade de telas, navegação e visualizações é decisão de produto desde que cada história seja atendida.
 
+Como decisão da equipe em 18/10/2026, o frontend adota também Tailwind CSS para estilização e Lucide para ícones. A fundação modular, layout persistente e responsabilidade dos provedores estão descritos na [arquitetura do frontend](architecture/frontend.md) e na [ADR-0001](decisions/0001-arquitetura-frontend.md). A primeira etapa prepara a arquitetura; implementação visual das páginas e integração de dados são etapas posteriores.
+
 ### 5.3 Inteligência artificial
 
 O agente conversacional recebe perguntas em português, traduz para consultas somente leitura ao banco Gold e responde de forma clara e fundamentada. Deve explicar números, unidades, filtros, período, fonte e limites. Precisa compreender termos cotidianos como “conta de luz” e “falta de luz”. A IA também gera insight contextual em pelo menos uma tela do portal. O agente deve reconhecer falta de informação, não inventar dado e não executar ações de escrita. Deve haver forma de auditar como cada resposta foi produzida.
@@ -529,6 +531,16 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Critérios de aceite revisados e pendências: a ordem cancelada deve permanecer terminal na simulação e o fluxo precisa ser repetido após correção. Filtros, busca e estados são exemplos estáticos; nada nesta passada comprova API, Gold, persistência, autorização ou cálculo real. Mobile não está no arquivo testado. Leitor de tela aparece desativado no player; acessibilidade executável e responsividade continuam pendentes.
 - Responsável/revisor: Codex; correção e revisão humana do protótipo pendentes.
 
+### 2026-10-18 — preparação de WEB-01 a WEB-07 e IA-01 a IA-06 — arquitetura do frontend
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; fundação arquitetural preparada na branch `refactor/arquitetura-frontend`.
+- Mudança observável: as sete áreas mantêm navegação e cabeçalho, agora com layout persistente e registro único de rotas. A indicação fixa e não verificada de API online foi retirada. As páginas continuam vazias; não foram construídos KPIs, gráficos ou integrações.
+- Arquivos: `frontend/src/app`, `layouts`, `features`, `shared`, `styles`; configuração Tailwind/Vite, TypeScript estrito, testes e verificações na CI. Decisão e limites em [ADR-0001](decisions/0001-arquitetura-frontend.md) e [guia arquitetural](architecture/frontend.md).
+- Dados usados: nenhum dataset ou dado de negócio; testes de infraestrutura usam respostas HTTP artificiais e rotas vazias. O provedor de consultas não dispara solicitações.
+- Verificações: instalação reproduzível com `npm ci`; limites de importação, formatação, lint, dez testes de transporte/composição e tipos/build. O resultado final e a revisão de navegação ficam no [plano de execução](plans/2026-10-18-arquitetura-frontend.md).
+- Pendências: alinhamento visual ao Figma, componentes visuais, contratos por domínio, filtros, dados reais, operações e IA. A arquitetura não comprova critérios de aceite funcionais, reconciliação com Gold ou conformidade WCAG AA.
+- Responsável/revisor: Codex executou a fundação; revisão humana da branch pendente.
+
 ### Modelo de entrada
 
 ```markdown
@@ -544,6 +556,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 ```
 
 Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em validação` ou `Bloqueado` e descreva o impedimento. Uma evidência não substitui outras exigências do mesmo ID.
+
 
 ## 15. Conferência de cobertura do enunciado por página
 
