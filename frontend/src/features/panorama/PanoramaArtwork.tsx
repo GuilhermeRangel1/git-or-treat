@@ -110,19 +110,19 @@ export default function PanoramaArtwork() {
   return (
     <div
       aria-hidden="true"
-      className="energy-flow relative hidden h-[110px] w-[254px] shrink-0 lg:-translate-y-5 lg:block"
+      className="energy-flow absolute top-0 left-[calc(50%_+_72px)] hidden aspect-[127/60] w-[clamp(180px,20vw,320px)] lg:block"
       onPointerEnter={replay}
     >
       <svg
         key={cycle}
         ref={svgRef}
-        width={254}
-        height={120}
+        width="100%"
+        height="100%"
         viewBox="0 0 254 120"
         fill="none"
         focusable="false"
         data-phase={cycle === 0 ? "intro" : "replay"}
-        className="energy-flow__drawing"
+        className="energy-flow__drawing block"
       >
         <g className="energy-flow__grid">
           {dots.map(({ point: [cx, cy] }, index) => (

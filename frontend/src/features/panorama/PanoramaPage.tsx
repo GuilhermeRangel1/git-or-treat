@@ -2,8 +2,8 @@ import PanoramaArtwork from "./PanoramaArtwork";
 
 export default function PanoramaPage() {
   return (
-    <div className="relative flex items-start gap-6">
-      <div className="relative z-10 min-w-0 flex-1">
+    <div className="relative">
+      <div className="relative z-10 w-full lg:w-[calc(100%_-_278px)]">
         <h1 className="font-heading text-[26px] leading-[34px] font-semibold lg:w-fit lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
           Sua rede, em perspectiva.
         </h1>
