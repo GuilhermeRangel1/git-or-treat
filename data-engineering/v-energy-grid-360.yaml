@@ -1,0 +1,54 @@
+# V-Energy Grid 360 — Workflow do pipeline (Módulo 1: Engenharia de Dados).
+#
+# Este arquivo é a definição do job `v-energy-grid-360`, como o Databricks a exporta
+# da aba YAML do job, mais os comentários de porquê. Ele não é um bundle instalável
+# (isso exigiria a CLI do Databricks e um `databricks.yml` na raiz); é o registro
+# versionado do Workflow, no lugar que o documento de entrega pede
+# (`data-engineering/`: notebooks `.ipynb` + o yaml do Workflow).
+#
+# Encadeamento: Landing_to_Bronze -> Bronze_perfilamento.
+# A ordem não é decorativa: o perfilador lê as tabelas que a ingestão acabou de
+# gravar, então ele só pode rodar depois. As tarefas de Silver e Gold entram aqui
+# como novos elos quando os notebooks existirem.
+#
+# Estratégia de agendamento: mensal, dia 5, às 03:00 (America/Recife).
+#   - o insumo é mensal por natureza: leituras e faturas são por competência,
+#     então rodar mais de uma vez no mês não traria dado novo, só custo;
+#   - o dia 5 dá folga para o fechamento da competência anterior chegar íntegro;
+#   - reexecutar é seguro: a Bronze é carregada por sobrescrita e reconciliada em
+#     `bronze.reconciliacao` com `delta = 0`, então um rerun reconstrói o mesmo
+#     resultado em vez de duplicar linhas. Essa idempotência é exatamente o
+#     motivo de carregar com overwrite e não com append;
+#   - alternativa considerada e descartada: gatilho de chegada de arquivo no
+#     Volume (`On file arrival`). É fiel ao "chegou dado, roda", mas no Dataset os
+#     arquivos entram em lote — cada chegada dispararia uma execução. O
+#     agendamento dispara uma vez, no dia combinado, e a carga idempotente faz o
+#     resto. (Se a origem passar a depositar arquivo solto, este é o caminho.)
+resources:
+  jobs:
+    v_energy_grid_360:
+      name: v-energy-grid-360
+      schedule:
+        # Os `29` segundos são o deslocamento que a UI do Databricks aplica dentro do
+        # minuto; o que importa na agenda é o dia 5 às 03:00.
+        quartz_cron_expression: "29 0 3 5 * ?"
+        timezone_id: America/Recife
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: Landing_to_Bronze
+          notebook_task:
+            notebook_path: /Workspace/Users/jtc@cesar.school/Landing_to_Bronze
+            source: WORKSPACE
+        - task_key: Bronze_perfilamento
+          depends_on:
+            - task_key: Landing_to_Bronze
+          # A UI mostra como "Run if dependencies = All succeeded". O export do
+          # Databricks não repete esta linha porque é o comportamento padrão —
+          # escrita aqui para a garantia não depender da memória de quem lê.
+          run_if: ALL_SUCCESS
+          notebook_task:
+            notebook_path: /Workspace/Users/jtc@cesar.school/Bronze_perfilamento
+            source: WORKSPACE
+      queue:
+        enabled: true
+      performance_target: PERFORMANCE_OPTIMIZED
