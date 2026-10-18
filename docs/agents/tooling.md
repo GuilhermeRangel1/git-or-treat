@@ -61,9 +61,14 @@ Ao iniciar implementação do frontend, instalar Prettier em `frontend/` antes d
 
 ## GitHub Actions
 
-O workflow `.github/workflows/quality.yml` roda em pull requests, em pushes para `main` e sob solicitação manual. Com permissões de leitura, ele valida JSON/TOML, os imports `CLAUDE.md` → `AGENTS.md`, links locais nos documentos do projeto e a sintaxe Python dos hooks compartilhados. As ações externas estão fixadas em SHAs completos.
+O workflow `.github/workflows/quality.yml` roda em pull requests, em pushes para `main` e sob solicitação manual. Com permissões de leitura, ele valida documentação/configurações dos agentes e executa os gates disponíveis nos módulos atuais:
 
-Quando os módulos receberem código e manifests de dependências, ampliar o CI com os comandos reais de lint, tipos, testes e build de cada módulo. Não declarar checks obrigatórios nas regras da branch antes de o workflow ter uma execução bem-sucedida no GitHub; a exigência de PR e os checks obrigatórios são configurações de proteção da branch, não criadas pelo arquivo do workflow. O CI não cria funcionalidades, branches nem PRs.
+- **GenAI:** instala `.[dev]`, roda `pytest`, `compileall`, Ruff e gera o relatório sintético de regressão. Os testes não exigem chave Gemini nem chamadas faturáveis.
+- **Backend:** instala `requirements.txt`, roda `pytest` e `compileall`. Os testes usam SQLite em memória e não dependem de um serviço PostgreSQL.
+- **Frontend:** instala pelo `package-lock.json` com `npm ci`, roda `oxlint` e `npm run build` para validar TypeScript e gerar o bundle.
+- **Documentação e harness:** valida JSON/TOML, imports `CLAUDE.md` → `AGENTS.md`, links locais e sintaxe dos hooks compartilhados.
+
+As ações externas estão fixadas em SHAs completos. O workflow é CI de qualidade; ainda não há CD/deploy porque ambiente de publicação, credenciais e processo de release não foram definidos. Não declarar checks obrigatórios nas regras da branch antes de uma execução bem-sucedida no GitHub; exigência de PR e checks obrigatórios são configurações de proteção da branch, não criadas pelo arquivo do workflow. O CI não cria funcionalidades, branches nem PRs.
 
 ## Roteiro de verificação no Claude Code
 
