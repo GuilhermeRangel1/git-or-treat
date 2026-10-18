@@ -4,6 +4,7 @@ import pytest
 
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
+from app.ports.evidence import EvidenceToolUnavailable
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.tools.synthetic_analytics import SyntheticScenarioTool
@@ -19,6 +20,14 @@ class CountingScenarioTool:
             status=EvidenceLookupStatus.NO_EVIDENCE,
             message="Fixture sem correspondência para este teste.",
         )
+
+
+class InvalidSource:
+    def __init__(self, result) -> None:
+        self.result = result
+
+    async def retrieve(self, intent: AnalysisIntent):
+        return self.result
 
 
 def _prepare(planner: QuestionAnalysisPlanner, question: str):
@@ -74,6 +83,25 @@ def test_explicit_demo_question_reaches_synthetic_tool_and_returns_evidence() ->
     assert plan.evidence_result.evidence.records == [
         {"value": 420, "unit": "unidades fictícias"}
     ]
+
+
+@pytest.mark.parametrize("invalid_result", [None, object(), {"status": "unknown"}])
+def test_planner_rejects_invalid_source_return_as_controlled_failure(invalid_result) -> None:
+    planner = QuestionAnalysisPlanner(QuestionInterpreter(), InvalidSource(invalid_result))
+
+    with pytest.raises(EvidenceToolUnavailable):
+        _prepare(planner, "Qual foi o consumo no período de demonstração?")
+
+
+def test_planner_revalidates_constructed_source_result_before_using_it() -> None:
+    invalid = EvidenceLookupResult.model_construct(
+        status=EvidenceLookupStatus.AVAILABLE,
+        evidence=None,
+    )
+    planner = QuestionAnalysisPlanner(QuestionInterpreter(), InvalidSource(invalid))
+
+    with pytest.raises(EvidenceToolUnavailable):
+        _prepare(planner, "Qual foi o consumo no período de demonstração?")
 
 
 def test_unknown_filter_is_a_clarification_not_an_empty_result() -> None:

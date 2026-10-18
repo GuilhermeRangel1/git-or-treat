@@ -3,7 +3,7 @@ from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
 from app.config import Settings
 from app.main import create_app
-from app.ports.evidence import EvidenceToolUnavailable
+from app.ports.evidence import EvidenceAccessDenied, EvidenceToolUnavailable
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import (
@@ -32,6 +32,11 @@ class RecordingModelAdapter(FakeModelAdapter):
 class FailingScenarioTool:
     async def retrieve(self, intent: AnalysisIntent):
         raise EvidenceToolUnavailable("internal source detail")
+
+
+class DeniedScenarioTool:
+    async def retrieve(self, intent: AnalysisIntent):
+        raise EvidenceAccessDenied("private authorization policy detail")
 
 
 class InvalidEvidenceScenarioTool:
@@ -217,8 +222,9 @@ def test_unsupported_filter_returns_no_evidence_without_calling_model() -> None:
     assert model.calls == []
 
 
-def test_tool_failure_returns_generic_recoverable_error() -> None:
-    with _client(scenario_tool=FailingScenarioTool()) as client:
+def test_tool_failure_returns_generic_recoverable_error(caplog) -> None:
+    model = RecordingModelAdapter()
+    with _client(model_adapter=model, scenario_tool=FailingScenarioTool()) as client:
         response = client.post(
             "/api/v1/questions",
             json={"question": "Qual foi o consumo no período de demonstração?"},
@@ -226,10 +232,15 @@ def test_tool_failure_returns_generic_recoverable_error() -> None:
 
     assert response.json()["status"] == "recoverable_error"
     assert "internal tool detail" not in response.text
+    assert model.calls == []
+    assert "Falha ao consultar a fonte de evidências." in caplog.text
+    assert "internal tool detail" not in caplog.text
+    assert "Qual foi o consumo" not in caplog.text
 
 
-def test_invalid_source_result_returns_generic_recoverable_error() -> None:
-    with _client(scenario_tool=InvalidEvidenceScenarioTool()) as client:
+def test_invalid_source_result_returns_generic_recoverable_error(caplog) -> None:
+    model = RecordingModelAdapter()
+    with _client(model_adapter=model, scenario_tool=InvalidEvidenceScenarioTool()) as client:
         response = client.post(
             "/api/v1/questions",
             json={"question": "Qual foi o consumo no período de demonstração?"},
@@ -237,6 +248,24 @@ def test_invalid_source_result_returns_generic_recoverable_error() -> None:
 
     assert response.json()["status"] == "recoverable_error"
     assert "101" not in response.text
+    assert model.calls == []
+    assert "Falha ao consultar a fonte de evidências." in caplog.text
+    assert "101" not in caplog.text
+    assert "Qual foi o consumo" not in caplog.text
+
+
+def test_access_denied_is_refused_without_calling_model() -> None:
+    model = RecordingModelAdapter()
+    with _client(model_adapter=model, scenario_tool=DeniedScenarioTool()) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Qual foi o consumo no período de demonstração?"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "refused"
+    assert "private authorization policy detail" not in response.text
+    assert model.calls == []
 
 
 def test_provider_failure_returns_generic_recoverable_error() -> None:

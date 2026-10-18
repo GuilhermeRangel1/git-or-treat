@@ -6,7 +6,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from app.agent.interpreter import QuestionInterpreter
-from app.ports.evidence import EvidenceSource, EvidenceToolUnavailable
+from app.ports.evidence import EvidenceAccessDenied, EvidenceSource, EvidenceToolUnavailable
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
@@ -75,9 +75,14 @@ class QuestionAnalysisPlanner:
         assert interpretation.intent is not None
         try:
             evidence_result = await self._evidence_source.retrieve(interpretation.intent)
+            if not isinstance(evidence_result, EvidenceLookupResult):
+                raise TypeError("Evidence source returned an unsupported result type.")
+            evidence_result = EvidenceLookupResult.model_validate(evidence_result.model_dump())
         except EvidenceToolUnavailable:
             raise
-        except ValidationError as exc:
+        except EvidenceAccessDenied:
+            raise
+        except (TypeError, ValidationError) as exc:
             raise EvidenceToolUnavailable("Evidence source returned an invalid result.") from exc
         except Exception as exc:
             raise EvidenceToolUnavailable("Evidence source failed.") from exc

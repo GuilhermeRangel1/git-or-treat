@@ -5,9 +5,9 @@ import logging
 from app.agent.grounding import contains_only_evidence_numbers
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.agent.safety import QuestionSafetyGate
-from app.ports.evidence import EvidenceToolUnavailable
-from app.schemas.evidence import EvidenceLookupStatus
+from app.ports.evidence import EvidenceAccessDenied, EvidenceToolUnavailable
 from app.providers.protocols import ModelAdapter, ModelProviderUnavailable
+from app.schemas.evidence import EvidenceLookupStatus
 from app.schemas.questions import QuestionRequest, QuestionResponse, QuestionStatus
 
 RECOVERABLE_ERROR_MESSAGE = (
@@ -41,6 +41,11 @@ class QuestionOrchestrator:
 
         try:
             plan = await self._analysis_planner.prepare(request.question, request.context)
+        except EvidenceAccessDenied:
+            return QuestionResponse(
+                status=QuestionStatus.REFUSED,
+                answer="Essa consulta não está autorizada para o escopo disponível.",
+            )
         except EvidenceToolUnavailable:
             logger.warning("Falha ao consultar a fonte de evidências.")
             return self._recoverable_error()
