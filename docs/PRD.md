@@ -451,6 +451,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-18 — IA-06 — política de acesso sintética na GenAI
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; a proteção demonstrativa é evidência técnica parcial, sem autorização Gold.
+- Mudança observável para usuário/negócio: perguntas e insights em modo real sem identidade verificada são recusados antes de acessar fonte ou modelo. No modo local, um principal fictício permite somente leitura de métricas e dimensões autorizadas no catálogo sintético. O corpo da requisição não concede permissão.
+- Arquivos/commit/PR: `ai-agent/app/schemas/access.py`, `app/agent/access.py`, `app/api/access.py`, planner, orquestradores, rotas, `ai-agent/tests/test_access_policy.py` e [guia do serviço](services/ai-agent.md); alteração local em revisão, sem commit/PR deste recorte.
+- Dados usados: perfil e fontes sintéticas; nenhum dataset, dado pessoal ou consulta Gold.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (171 passaram em 18/10/2026), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram; `git diff --check` passou na raiz. Testes com spies cobrem falta/adulteração de escopo, a mesma pergunta sob duas permissões, escrita, dados pessoais, limite HTTP, histórico que alega permissão e ausência de nova consulta causada por texto de evidência.
+- Reconciliação ou amostra manual: o teste HTTP confirma recusa sem identidade no modo real e rejeição de campo `trusted` no payload. Não houve comparação quantitativa com Gold.
+- Critérios de aceite revisados e pendências: a política checa fonte, operação, métrica, dimensão e sensibilidade antes da porta de evidência; autenticação do portal, derivação de permissões oficiais, validação de consulta concreta, credencial somente leitura, proteção completa da saída e reconciliação com Gold continuam pendentes. IA-06 não está concluído.
+- Responsável/revisor: Codex (implementação e verificação local); revisão de Backend, Segurança e Engenharia de Dados pendente para integração real.
+
 ### 2026-10-18 — proposta de propriedade da consulta Gold pela GenAI
 
 - Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; registrada uma proposta para revisão conjunta sobre a propriedade da consulta Gold.

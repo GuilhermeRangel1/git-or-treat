@@ -5,6 +5,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
+from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.ports.evidence import (
     EvidenceAccessDenied,
@@ -12,6 +13,7 @@ from app.ports.evidence import (
     EvidenceSource,
     EvidenceToolUnavailable,
 )
+from app.schemas.access import AccessContext
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
@@ -61,14 +63,21 @@ class AnalysisPlan(BaseModel):
 class QuestionAnalysisPlanner:
     """Prepara a interpretação e consulta a fonte só após resolver ambiguidades."""
 
-    def __init__(self, interpreter: QuestionInterpreter, evidence_source: EvidenceSource) -> None:
+    def __init__(
+        self,
+        interpreter: QuestionInterpreter,
+        evidence_source: EvidenceSource,
+        access_policy: ReadAccessPolicy,
+    ) -> None:
         self._interpreter = interpreter
         self._evidence_source = evidence_source
+        self._access_policy = access_policy
 
     async def prepare(
         self,
         question: str,
         context: list[ConversationTurn] | None = None,
+        access_context: AccessContext | None = None,
     ) -> AnalysisPlan:
         interpretation = self._interpreter.interpret(question, context)
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
@@ -78,6 +87,7 @@ class QuestionAnalysisPlanner:
             )
 
         assert interpretation.intent is not None
+        self._access_policy.authorize(interpretation.intent, access_context)
         try:
             evidence_result = await self._evidence_source.retrieve(interpretation.intent)
             if not isinstance(evidence_result, EvidenceLookupResult):

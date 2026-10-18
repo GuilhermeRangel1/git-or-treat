@@ -4,6 +4,7 @@ from pydantic import ValidationError
 
 from app.agent.grounding import contains_only_evidence_numbers
 from app.providers.protocols import GeneratedAnswer, ModelAdapter, ModelProviderUnavailable
+from app.schemas.access import AccessContext
 from app.schemas.evidence import EvidenceResult
 from app.schemas.insights import (
     InsightContextSummary,
@@ -34,7 +35,17 @@ class ScreenInsightOrchestrator:
     def __init__(self, model_adapter: ModelAdapter) -> None:
         self._model_adapter = model_adapter
 
-    async def generate(self, screen: ScreenContext) -> ScreenInsightResponse:
+    async def generate(
+        self, screen: ScreenContext, access_context: AccessContext | None = None
+    ) -> ScreenInsightResponse:
+        if access_context is None:
+            failure = map_failure(FailureCode.ACCESS_DENIED)
+            return self._response(
+                screen,
+                status=QuestionStatus.REFUSED,
+                message=failure.message,
+                error=failure.error,
+            )
         records: list[dict[str, object]] = [
             {
                 "metric": screen.metric,

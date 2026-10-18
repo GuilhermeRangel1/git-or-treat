@@ -60,6 +60,21 @@ def _client(model=None) -> InProcessClient:
     return InProcessClient(application)
 
 
+def test_insight_real_mode_without_verified_identity_never_calls_model() -> None:
+    model = RecordingInsightModel()
+    application = create_app(
+        settings=Settings(environment="production", _env_file=None),
+        insight_orchestrator=ScreenInsightOrchestrator(model),
+    )
+    with InProcessClient(application) as client:
+        response = client.post("/api/v1/insights", json={"screen": _screen_context()})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "refused"
+    assert response.json()["error"]["code"] == "access_denied"
+    assert model.calls == []
+
+
 def test_insight_separates_supplied_observation_from_generated_hypothesis() -> None:
     model = RecordingInsightModel("Pode ser útil investigar a distribuição do consumo por mês.")
     with _client(model) as client:

@@ -13,6 +13,7 @@ from app.ports.evidence import (
     EvidenceToolUnavailable,
 )
 from app.providers.protocols import GeneratedAnswer, ModelAdapter, ModelProviderUnavailable
+from app.schemas.access import AccessContext
 from app.schemas.evidence import EvidenceLookupStatus
 from app.schemas.questions import QuestionRequest, QuestionResponse, QuestionStatus
 from app.schemas.responses import FailureCode, map_failure
@@ -25,12 +26,19 @@ class QuestionOrchestrator:
         self,
         analysis_planner: QuestionAnalysisPlanner,
         model_adapter: ModelAdapter,
+        safety_gate: QuestionSafetyGate | None = None,
     ) -> None:
         self._analysis_planner = analysis_planner
         self._model_adapter = model_adapter
-        self._safety_gate = QuestionSafetyGate()
+        self._safety_gate = safety_gate or QuestionSafetyGate()
 
-    async def answer(self, request: QuestionRequest) -> QuestionResponse:
+    async def answer(
+        self,
+        request: QuestionRequest,
+        access_context: AccessContext | None = None,
+    ) -> QuestionResponse:
+        if access_context is None:
+            return self._refused(FailureCode.ACCESS_DENIED)
         refusal = self._safety_gate.refusal_code(request.question)
         for turn in request.context:
             if refusal is not None:
@@ -45,7 +53,9 @@ class QuestionOrchestrator:
             return self._refused(code)
 
         try:
-            plan = await self._analysis_planner.prepare(request.question, request.context)
+            plan = await self._analysis_planner.prepare(
+                request.question, request.context, access_context
+            )
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)
         except EvidenceContractInvalid:

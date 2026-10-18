@@ -3,9 +3,11 @@ import logging
 
 import pytest
 
+from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.api.access import SYNTHETIC_SOURCE_ID, demo_access_context
 from app.config import Settings
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.caching import CachingModelAdapter
@@ -316,14 +318,21 @@ def test_cached_ungrounded_answer_is_still_refused_by_orchestrator() -> None:
     inner = ScriptedAdapter(_answer("O consumo demonstrativo foi 999 unidades fictícias."))
     orchestrator = QuestionOrchestrator(
         analysis_planner=QuestionAnalysisPlanner(
-            QuestionInterpreter(GRID360_DEMO_PROFILE), SyntheticScenarioTool()
+            QuestionInterpreter(GRID360_DEMO_PROFILE),
+            SyntheticScenarioTool(),
+            ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
         ),
         model_adapter=_cached(inner),
     )
     request = QuestionRequest(question=QUESTION)
 
     async def run():
-        return [await orchestrator.answer(request) for _ in range(2)]
+        return [
+            await orchestrator.answer(
+                request, demo_access_context(GRID360_DEMO_PROFILE, "0" * 32)
+            )
+            for _ in range(2)
+        ]
 
     responses = asyncio.run(run())
 

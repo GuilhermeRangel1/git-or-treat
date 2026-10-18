@@ -1,6 +1,8 @@
+from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.api.access import SYNTHETIC_SOURCE_ID
 from app.config import Settings
 from app.main import create_app
 from app.ports.evidence import EvidenceAccessDenied, EvidenceToolUnavailable
@@ -96,6 +98,7 @@ def _client(model_adapter=None, scenario_tool=None) -> InProcessClient:
         analysis_planner=QuestionAnalysisPlanner(
             QuestionInterpreter(profile=GRID360_DEMO_PROFILE),
             scenario_tool or SyntheticScenarioTool(),
+            ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
         ),
         model_adapter=model_adapter or FakeModelAdapter(),
     )

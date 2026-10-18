@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from app.agent.access import ReadAccessPolicy
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.api.access import SYNTHETIC_SOURCE_ID
 from app.config import Settings
 from app.main import create_app
 from app.ports.evidence import EvidenceToolUnavailable
@@ -70,7 +72,9 @@ def evaluate_case(case: dict) -> dict:
     tool = CountingScenarioTool(fail=case.get("tool_failure", False))
     model = CaseModelAdapter(case)
     orchestrator = QuestionOrchestrator(
-        analysis_planner=QuestionAnalysisPlanner(interpreter, tool),
+        analysis_planner=QuestionAnalysisPlanner(
+            interpreter, tool, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
+        ),
         model_adapter=model,
     )
     application = create_app(

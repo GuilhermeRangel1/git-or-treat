@@ -1,9 +1,11 @@
 import httpx
 import pytest
 
+from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.api.access import SYNTHETIC_SOURCE_ID
 from app.config import Settings
 from app.main import create_app
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
@@ -40,7 +42,9 @@ class FixedModelAdapter:
 async def test_questions_api_uses_an_alternate_evidence_source() -> None:
     orchestrator = QuestionOrchestrator(
         analysis_planner=QuestionAnalysisPlanner(
-            QuestionInterpreter(GRID360_DEMO_PROFILE), AlternateEvidenceSource()
+            QuestionInterpreter(GRID360_DEMO_PROFILE),
+            AlternateEvidenceSource(),
+            ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
         ),
         model_adapter=FixedModelAdapter(),
     )

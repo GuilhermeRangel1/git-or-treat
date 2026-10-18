@@ -5,10 +5,12 @@ from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 
+from app.agent.access import ReadAccessPolicy
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.api.access import SYNTHETIC_SOURCE_ID
 from app.api.errors import invalid_request_response, unexpected_error_response
 from app.api.routes import router
 from app.config import Settings, get_settings
@@ -45,6 +47,8 @@ def create_app(
 
     application.add_exception_handler(RequestValidationError, invalid_request_response)
     application.add_exception_handler(Exception, unexpected_error_response)
+    application.state.environment = active_settings.environment
+    application.state.domain_profile = active_domain_profile
 
     model_adapter = (
         build_model_adapter(active_settings)
@@ -55,6 +59,7 @@ def create_app(
         analysis_planner=QuestionAnalysisPlanner(
             interpreter=QuestionInterpreter(profile=active_domain_profile),
             evidence_source=SyntheticScenarioTool(SYNTHETIC_SCENARIOS),
+            access_policy=ReadAccessPolicy(active_domain_profile, SYNTHETIC_SOURCE_ID),
         ),
         model_adapter=model_adapter,
     )
