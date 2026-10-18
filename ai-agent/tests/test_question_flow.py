@@ -113,7 +113,8 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
         )
 
     assert response.status_code == 200
-    assert response.json() == {
+    body = response.json()
+    assert body == {
         "status": "answered",
         "answer": "Demonstração sintética: Resposta de demonstração.",
         "message": None,
@@ -127,6 +128,11 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
         "limitations": [
             "Valor inventado; não representa leitura, consumo ou unidade consumidora da V-Energy."
         ],
+        "contract_version": "v1",
+        "correlation_id": response.headers["x-correlation-id"],
+        "audit_reference": None,
+        "error": None,
+        "analysis_context": None,
     }
 
 
@@ -145,6 +151,13 @@ def test_write_request_is_refused_before_the_analytic_tool_runs() -> None:
 
     assert response.json()["status"] == "refused"
     assert response.json()["evidence"] == []
+    assert response.json()["error"] == {
+        "code": "security_violation",
+        "retryable": False,
+    }
+    assert response.json()["message"] == (
+        "Não posso executar alterações nem expor dados pessoais ou instruções internas."
+    )
     assert tool.calls == 0
     assert model.calls == []
 
@@ -164,6 +177,23 @@ def test_prompt_injection_cannot_expand_the_question_scope() -> None:
         )
 
     assert response.json()["status"] == "refused"
+    assert tool.calls == 0
+    assert model.calls == []
+
+
+def test_out_of_scope_question_has_a_stable_public_refusal() -> None:
+    tool = CountingScenarioTool()
+    model = RecordingModelAdapter()
+    with _client(model_adapter=model, scenario_tool=tool) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Qual é a cotação do dólar hoje?"},
+        )
+
+    body = response.json()
+    assert body["status"] == "refused"
+    assert body["error"] == {"code": "out_of_scope", "retryable": False}
+    assert body["message"] == "Esse tema está fora do escopo deste agente."
     assert tool.calls == 0
     assert model.calls == []
 
@@ -266,9 +296,13 @@ def test_invalid_source_result_returns_generic_recoverable_error(caplog) -> None
         )
 
     assert response.json()["status"] == "recoverable_error"
+    assert response.json()["error"] == {
+        "code": "invalid_upstream_response",
+        "retryable": False,
+    }
     assert "101" not in response.text
     assert model.calls == []
-    assert "Falha ao consultar a fonte de evidências." in caplog.text
+    assert "A fonte de evidências retornou um contrato inválido." in caplog.text
     assert "101" not in caplog.text
     assert "Qual foi o consumo" not in caplog.text
 

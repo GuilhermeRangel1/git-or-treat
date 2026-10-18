@@ -1,11 +1,15 @@
 """Fábrica da aplicação FastAPI do serviço GenAI."""
 
+from uuid import uuid4
+
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.api.errors import invalid_request_response, unexpected_error_response
 from app.api.routes import router
 from app.config import Settings, get_settings
 from app.providers.factory import build_model_adapter
@@ -26,6 +30,18 @@ def create_app(
         version="0.1.0",
         description="API independente do agente GenAI do V-Energy Grid 360.",
     )
+
+    @application.middleware("http")
+    async def add_correlation_id(request, call_next):
+        correlation_id = uuid4().hex
+        request.state.correlation_id = correlation_id
+        response = await call_next(request)
+        response.headers["X-Correlation-ID"] = correlation_id
+        return response
+
+    application.add_exception_handler(RequestValidationError, invalid_request_response)
+    application.add_exception_handler(Exception, unexpected_error_response)
+
     model_adapter = (
         build_model_adapter(active_settings)
         if question_orchestrator is None or insight_orchestrator is None

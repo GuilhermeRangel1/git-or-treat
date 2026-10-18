@@ -68,6 +68,10 @@ def test_insight_separates_supplied_observation_from_generated_hypothesis() -> N
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "answered"
+    assert body["contract_version"] == "v1"
+    assert body["correlation_id"] == response.headers["x-correlation-id"]
+    assert body["audit_reference"] is None
+    assert body["error"] is None
     assert body["observation"]["values"] == [{"label": "consumo total", "value": 420}]
     assert body["hypothesis"] == model.answer
     assert body["context"]["metric"] == "consumo demonstrativo"
@@ -157,6 +161,7 @@ def test_insight_provider_failure_returns_controlled_error() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "recoverable_error"
+    assert response.json()["error"] == {"code": "service_unavailable", "retryable": True}
     assert response.json()["hypothesis"] is None
     assert "detalhe privado" not in response.text
 
@@ -167,5 +172,9 @@ def test_insight_invalid_model_output_returns_a_controlled_error() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "recoverable_error"
+    assert response.json()["error"] == {
+        "code": "invalid_upstream_response",
+        "retryable": False,
+    }
     assert response.json()["hypothesis"] is None
     assert response.json()["message"]

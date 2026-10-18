@@ -57,7 +57,47 @@ Invoke-RestMethod -Method Post `
   -Body '{"contract_version":"v1","question":"Qual foi o consumo?"}'
 ```
 
-A resposta inclui `status`, `answer`, `message` e `evidence`. `answered` usa `answer`; os outros estados usam `message`, e os dois campos não aparecem juntos. Os estados são `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador de modelo configurado para gerar a resposta, retorna indisponibilidade controlada. As fixtures vêm marcadas como demonstração.
+A resposta dos endpoints de perguntas e insights segue o envelope público `v1`: `contract_version`, `status`, `answer` ou `message`, `evidence`, `limitations`, `error`, `correlation_id` e `audit_reference`. `answered` usa `answer` em perguntas ou `hypothesis` em insights; os outros estados usam `message`, sem misturar os campos. A resposta também envia o `correlation_id` no cabeçalho `X-Correlation-ID`. O identificador é gerado pelo serviço e serve para localizar a requisição; não representa uma trilha de auditoria. `audit_reference` permanece `null` até existir auditoria durável. O contexto normalizado de uma pergunta (`analysis_context`) também fica `null` enquanto a fonte não informar período, unidade e filtros efetivamente aplicados. Em insights, o contexto recebido fica separado das observações e da hipótese, mas ainda não é autenticado nem autorizado pelo serviço.
+
+Recusas e falhas incluem `error.code` e `error.retryable`. Os erros de entrada HTTP usam status 422 e o mesmo envelope v1, com mensagem estável sem ecoar valores inválidos. Falhas inesperadas usam status 500 e mensagem genérica. A API não devolve linhas tabulares nem oferece paginação; perguntas retornam texto e referências. O contexto de insight aceita até 20 filtros, 20 observações e 20 limitações; limites excedidos são rejeitados, nunca truncados silenciosamente. Evidências internas aceitam até 100 registros, mas esse conjunto não é serializado na resposta pública. Cada campo de texto e lista tem limite no schema; não existe ainda um limite agregado de bytes no serviço.
+
+O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador de modelo configurado para gerar a resposta, retorna indisponibilidade controlada. As referências sintéticas vêm com `is_demo: true`.
+
+Exemplo de erro de contrato:
+
+```json
+{
+  "contract_version": "v1",
+  "status": "error",
+  "message": "A solicitação não segue o contrato esperado.",
+  "error": {"code": "invalid_request", "retryable": false},
+  "correlation_id": "0123456789abcdef0123456789abcdef",
+  "audit_reference": null
+}
+```
+
+Exemplo de resposta sintética a uma pergunta:
+
+```json
+{
+  "contract_version": "v1",
+  "status": "answered",
+  "answer": "Demonstração sintética: Resposta de demonstração.",
+  "message": null,
+  "evidence": [
+    {
+      "source": "synthetic_fixture:consumption_demo",
+      "description": "Medida artificial sem vínculo com uma unidade consumidora real.",
+      "is_demo": true
+    }
+  ],
+  "limitations": ["Valor inventado; não representa leitura ou consumo da V-Energy."],
+  "analysis_context": null,
+  "error": null,
+  "correlation_id": "0123456789abcdef0123456789abcdef",
+  "audit_reference": null
+}
+```
 
 O endpoint de insights devolve `observation` com os valores recebidos e `hypothesis` em campo separado. A hipótese é gerada pelo adaptador de modelo configurado; números que não aparecem no contexto são recusados. O serviço não persiste o contexto nem confirma que o backend está autorizado a enviar aqueles filtros. Um consumidor futuro deverá transmitir contexto já validado e autorizado pela sua própria camada.
 

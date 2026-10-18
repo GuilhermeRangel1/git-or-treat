@@ -21,8 +21,33 @@ O contrato também é resumido no [README do serviço](../../ai-agent/README.md)
 
 | Endpoint | Entrada do consumidor | Campos principais da resposta |
 | --- | --- | --- |
-| `POST /api/v1/questions` | `contract_version` opcional (padrão `v1`; versão nula ou não suportada é rejeitada), `question` (1–1.000 caracteres) e `context` opcional com até três turnos ordenados (`role`: `user` ou `assistant`; `content`: até 1.000 caracteres). Cada chamada deve reenviar o contexto necessário. | `status`, `answer`, `message`, `evidence` e `limitations`. Estados possíveis no contrato: `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. |
-| `POST /api/v1/insights` | `screen` com `metric`, `unit`, `period`, `filters`, `observations`, `reference` e `limitations`. A referência deve ter `is_demo: true` durante o protótipo. | `status`, contexto utilizado, `observation.values`, `hypothesis`, `message`, `evidence` e `limitations`. Observação recebida e hipótese gerada ficam em campos separados. |
+| `POST /api/v1/questions` | `contract_version` opcional (padrão `v1`; versão nula ou não suportada é rejeitada), `question` (1–1.000 caracteres) e `context` opcional com até três turnos ordenados (`role`: `user` ou `assistant`; `content`: até 1.000 caracteres). Cada chamada deve reenviar o contexto necessário. | Envelope `v1`: `status`, `answer` ou `message`, `evidence`, `limitations`, `analysis_context`, `error`, `correlation_id` e `audit_reference`. `analysis_context` é nulo até a fonte retornar período, unidade e filtros efetivamente aplicados. |
+| `POST /api/v1/insights` | `screen` com `metric`, `unit`, `period`, `filters`, `observations`, `reference` e `limitations`. A referência deve ter `is_demo: true` durante o protótipo. | Envelope `v1`: `status`, `context`, `observation.values`, `hypothesis` ou `message`, `evidence`, `limitations`, `error`, `correlation_id` e `audit_reference`. Observações recebidas e hipótese gerada ficam em campos separados. |
+
+### Envelope público v1 e erros
+
+As respostas de negócio carregam `contract_version: "v1"`. O serviço gera um identificador hexadecimal de 32 caracteres por requisição, retorna-o em `correlation_id` e no cabeçalho `X-Correlation-ID`; ele não é aceito do cliente como prova de identidade. `audit_reference` é `null`: correlação não equivale a auditoria persistida. Uma referência em `evidence` indica a origem e inclui `is_demo`; nenhum resultado desta etapa é dado real da V-Energy.
+
+Erros de validação de entrada usam HTTP 422 com `status: "error"`, mensagem fixa, código `invalid_request`, `retryable: false` e correlação. Falhas inesperadas usam HTTP 500 com `internal_error`, mensagem genérica e sem detalhe da exceção. Falhas de fonte/provedor durante o fluxo preservam o status de negócio `recoverable_error` e um erro público estruturado. Recusa de segurança ou de escopo preserva `status: "refused"`; esclarecimento e ausência legítima usam `needs_clarification`/`no_evidence` sem objeto de erro. `retryable` é uma indicação para o consumidor: somente indisponibilidades temporárias de fonte/modelo são marcadas como repetíveis; a API não faz retry automático.
+
+| Categoria interna | Código/mensagem públicos | Retry |
+| --- | --- | --- |
+| Solicitação inválida | `invalid_request` — solicitação fora do contrato | Não |
+| Tema não suportado | `out_of_scope` — tema fora do escopo | Não |
+| Tentativa de escrita, injeção ou dado sensível | `security_violation` — ação/dado não permitido | Não |
+| Acesso negado pela fonte | `access_denied` — escopo não autorizado | Não |
+| Fonte ou provedor indisponível | `service_unavailable` — serviço temporariamente indisponível | Sim |
+| Limite excedido | `limit_exceeded` — solicitação excede os limites | Não |
+| Resposta inválida da fonte/modelo | `invalid_upstream_response` — resultado upstream inválido | Não |
+| Resposta sem sustentação | `ungrounded_response` — não foi possível confirmar | Não |
+| Contexto de sessão inválido (reservado) | `invalid_context` — contexto não validado | Não |
+| Falha interna não classificada | `internal_error` — não foi possível concluir | Não |
+
+Os códigos internos detalham interpretação, fonte, autorização, limite, modelo, fundamentação e sessão, mas não são serializados. O consumidor recebe apenas o código público, a mensagem segura e a indicação de retry. O estado `refused` continua sendo a representação de recusa no contrato atual.
+
+Esta é uma versão local do contrato. Compatibilidade com o Backend e o Frontend continua pendente de revisão em 4.1/6.1. O placeholder consultado em `backend/app/api/v1/endpoints/ai.py` não deve ser tratado como contrato aprovado: o 403 enumera nomes de tabelas permitidas e o caminho de sucesso devolve `status: "success"` com `records: []`, sem executar consulta. Nenhum desses comportamentos foi copiado para a API GenAI.
+
+A API de perguntas não devolve linhas tabulares nem oferece paginação/cursor; expõe texto e referências de evidência. `analysis_context` só será preenchido quando a fonte declarar o recorte efetivamente aplicado. O endpoint de insights recebe no máximo 20 filtros, 20 observações e 20 limitações, além dos limites individuais de texto; entradas acima dos limites são rejeitadas com HTTP 422, sem truncamento silencioso. Evidência interna aceita no máximo 100 registros, que não são serializados na resposta pública. Os campos de resposta também limitam texto, referências e limitações. O serviço ainda não impõe um teto agregado em bytes; deploy futuro deve definir o limite no ingresso HTTP.
 
 Estados de sucesso e de falha têm campos de texto mutuamente exclusivos: perguntas respondidas usam `answer`; perguntas em esclarecimento, recusa, sem evidência ou erro usam `message`. Insights respondidos usam `hypothesis`; os outros estados usam `message`. Essa normalização do contrato local deve ser comunicada aos consumidores que porventura tenham lido texto de recusa em `answer`.
 

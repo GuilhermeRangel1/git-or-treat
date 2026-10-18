@@ -12,6 +12,7 @@ from app.schemas.insights import (
     ScreenInsightResponse,
 )
 from app.schemas.questions import QuestionStatus
+from app.schemas.responses import FailureCode, PublicError, map_failure
 
 INSIGHT_PROMPT = (
     "Com base exclusivamente nos dados estruturados fornecidos, escreva uma hipótese breve "
@@ -25,9 +26,6 @@ SYNTHETIC_INSIGHT_LIMITATIONS = [
     "O contexto e os valores são sintéticos; não representam dados reais da V-Energy.",
     "A hipótese é uma sugestão de investigação, não uma causa comprovada.",
 ]
-UNGROUNDED_INSIGHT_MESSAGE = (
-    "Não consigo apresentar esse insight porque ele contém números ausentes do contexto recebido."
-)
 
 
 class ScreenInsightOrchestrator:
@@ -55,32 +53,40 @@ class ScreenInsightOrchestrator:
                 else generated_result
             )
         except ModelProviderUnavailable:
+            failure = map_failure(FailureCode.MODEL_UNAVAILABLE)
             return self._response(
                 screen,
                 status=QuestionStatus.RECOVERABLE_ERROR,
-                message="O serviço de insight está temporariamente indisponível. Tente novamente.",
+                message=failure.message,
+                error=failure.error,
             )
         except (ValidationError, TypeError, ValueError):
+            failure = map_failure(FailureCode.INVALID_MODEL_OUTPUT)
             return self._response(
                 screen,
                 status=QuestionStatus.RECOVERABLE_ERROR,
-                message="O serviço de insight está temporariamente indisponível. Tente novamente.",
+                message=failure.message,
+                error=failure.error,
             )
         except Exception:
+            failure = map_failure(FailureCode.UNEXPECTED)
             return self._response(
                 screen,
                 status=QuestionStatus.RECOVERABLE_ERROR,
-                message="O serviço de insight está temporariamente indisponível. Tente novamente.",
+                message=failure.message,
+                error=failure.error,
             )
 
         if generated.status == "answered" and not contains_only_evidence_numbers(
             generated.answer,
             records,
         ):
+            failure = map_failure(FailureCode.UNGROUNDED_INSIGHT)
             return self._response(
                 screen,
                 status=QuestionStatus.REFUSED,
-                message=UNGROUNDED_INSIGHT_MESSAGE,
+                message=failure.message,
+                error=failure.error,
             )
         if generated.status == "answered":
             return self._response(
@@ -97,7 +103,8 @@ class ScreenInsightOrchestrator:
         return self._response(
             screen,
             status=QuestionStatus.REFUSED,
-            message=generated.answer,
+            message=map_failure(FailureCode.INSIGHT_REFUSAL).message,
+            error=map_failure(FailureCode.INSIGHT_REFUSAL).error,
         )
 
     @staticmethod
@@ -107,6 +114,7 @@ class ScreenInsightOrchestrator:
         status: QuestionStatus,
         hypothesis: str | None = None,
         message: str | None = None,
+        error: PublicError | None = None,
     ) -> ScreenInsightResponse:
         return ScreenInsightResponse(
             status=status,
@@ -119,6 +127,7 @@ class ScreenInsightOrchestrator:
             observation=InsightObservation(values=screen.observations),
             hypothesis=hypothesis,
             message=message,
+            error=error,
             evidence=[screen.reference],
             limitations=[*screen.limitations, *SYNTHETIC_INSIGHT_LIMITATIONS],
         )

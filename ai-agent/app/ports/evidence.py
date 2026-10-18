@@ -14,6 +14,10 @@ class EvidenceToolUnavailable(Exception):
     """Fonte indisponível ou resposta que viola o contrato de evidências."""
 
 
+class EvidenceContractInvalid(EvidenceToolUnavailable):
+    """A fonte respondeu, mas o retorno não respeitou o contrato tipado."""
+
+
 class EvidenceAccessDenied(Exception):
     """A política da fonte não autoriza a consulta solicitada."""
 
