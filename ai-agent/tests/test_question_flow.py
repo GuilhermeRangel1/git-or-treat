@@ -70,6 +70,11 @@ class RecordingScenarioTool:
         return await self.delegate.retrieve(intent)
 
 
+class InvalidModelAdapter:
+    async def generate(self, question, context, evidence):
+        return None
+
+
 class LargeCountScenarioTool:
     async def retrieve(self, intent: AnalysisIntent):
         return EvidenceLookupResult(
@@ -177,8 +182,22 @@ def test_answer_with_number_missing_from_evidence_is_refused() -> None:
         )
 
     assert response.json()["status"] == "refused"
-    assert "999" not in response.json()["answer"]
+    assert "999" not in response.json()["message"]
     assert response.json()["evidence"][0]["is_demo"] is True
+
+
+def test_invalid_model_output_returns_a_controlled_response() -> None:
+    with _client(model_adapter=InvalidModelAdapter()) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Qual foi o consumo no período de demonstração?"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "recoverable_error"
+    assert response.json()["answer"] is None
+    assert response.json()["message"]
+    assert "None" not in response.text
 
 
 def test_brazilian_thousands_format_matches_integer_evidence() -> None:

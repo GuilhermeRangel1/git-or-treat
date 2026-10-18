@@ -21,8 +21,10 @@ O contrato também é resumido no [README do serviço](../../ai-agent/README.md)
 
 | Endpoint | Entrada do consumidor | Campos principais da resposta |
 | --- | --- | --- |
-| `POST /api/v1/questions` | `question` (1–1.000 caracteres) e `context` opcional com até três turnos ordenados (`role`: `user` ou `assistant`; `content`: até 1.000 caracteres). Cada chamada deve reenviar o contexto necessário. | `status`, `answer`, `message`, `evidence` e `limitations`. Estados possíveis no contrato: `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. |
+| `POST /api/v1/questions` | `contract_version` opcional (padrão `v1`; versão nula ou não suportada é rejeitada), `question` (1–1.000 caracteres) e `context` opcional com até três turnos ordenados (`role`: `user` ou `assistant`; `content`: até 1.000 caracteres). Cada chamada deve reenviar o contexto necessário. | `status`, `answer`, `message`, `evidence` e `limitations`. Estados possíveis no contrato: `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. |
 | `POST /api/v1/insights` | `screen` com `metric`, `unit`, `period`, `filters`, `observations`, `reference` e `limitations`. A referência deve ter `is_demo: true` durante o protótipo. | `status`, contexto utilizado, `observation.values`, `hypothesis`, `message`, `evidence` e `limitations`. Observação recebida e hipótese gerada ficam em campos separados. |
+
+Em perguntas respondidas, `answered` exige texto em `answer` e evidência. Esclarecimento, recusa, ausência de evidência e erro usam `message`; `answer` e `message` são mutuamente exclusivos.
 
 No chat, o contexto é transitório: o serviço não mantém sessão nem histórico entre chamadas. A continuação usa a última pergunta completa da pessoa usuária apenas quando a nova mensagem é reconhecida como continuação; campos explícitos atuais substituem os valores herdados. Mensagem anterior ambígua leva a esclarecimento. Os turnos são conteúdo fornecido pelo consumidor, não prova de identidade: o serviço os trata como não confiáveis e aplica o safety gate antes de chamar ferramenta ou modelo. O backend precisa enviar somente o histórico autorizado para aquela pessoa/sessão e lidar com autenticação, autorização e retenção.
 

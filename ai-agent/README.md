@@ -45,7 +45,7 @@ O serviço expõe a documentação OpenAPI em `http://127.0.0.1:8001/docs`. A ap
 
 - `GET /health` informa somente que o processo está ativo.
 - `GET /api/v1/capabilities` descreve a versão e a disponibilidade do contrato de perguntas, sem expor configuração interna.
-- `POST /api/v1/questions` recebe `question` e até três mensagens de contexto (`role` `user` ou `assistant`), cada uma limitada a 1.000 caracteres.
+- `POST /api/v1/questions` recebe `contract_version` (opcional; padrão `v1`), `question` e até três mensagens de contexto (`role` `user` ou `assistant`), cada uma limitada a 1.000 caracteres. Versão nula ou não suportada é rejeitada.
 - `POST /api/v1/insights` recebe um objeto `screen` com métrica, unidade, período, filtros, observações numéricas, referência e limitações. Nesta etapa, `reference.is_demo` precisa ser `true`.
 
 Exemplo de pergunta no PowerShell:
@@ -54,10 +54,10 @@ Exemplo de pergunta no PowerShell:
 Invoke-RestMethod -Method Post `
   -Uri http://127.0.0.1:8001/api/v1/questions `
   -ContentType 'application/json' `
-  -Body '{"question":"Qual foi o consumo?"}'
+  -Body '{"contract_version":"v1","question":"Qual foi o consumo?"}'
 ```
 
-A resposta inclui `status`, `answer`, `message` e `evidence`. Os estados são `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador de modelo configurado para gerar a resposta, retorna indisponibilidade controlada. As fixtures vêm marcadas como demonstração.
+A resposta inclui `status`, `answer`, `message` e `evidence`. `answered` usa `answer`; os outros estados usam `message`, e os dois campos não aparecem juntos. Os estados são `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador de modelo configurado para gerar a resposta, retorna indisponibilidade controlada. As fixtures vêm marcadas como demonstração.
 
 O endpoint de insights devolve `observation` com os valores recebidos e `hypothesis` em campo separado. A hipótese é gerada pelo adaptador de modelo configurado; números que não aparecem no contexto são recusados. O serviço não persiste o contexto nem confirma que o backend está autorizado a enviar aqueles filtros. Um consumidor futuro deverá transmitir contexto já validado e autorizado pela sua própria camada.
 

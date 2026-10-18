@@ -2,11 +2,13 @@
 
 import logging
 
+from pydantic import ValidationError
+
 from app.agent.grounding import contains_only_evidence_numbers
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.agent.safety import QuestionSafetyGate
 from app.ports.evidence import EvidenceAccessDenied, EvidenceToolUnavailable
-from app.providers.protocols import ModelAdapter, ModelProviderUnavailable
+from app.providers.protocols import GeneratedAnswer, ModelAdapter, ModelProviderUnavailable
 from app.schemas.evidence import EvidenceLookupStatus
 from app.schemas.questions import QuestionRequest, QuestionResponse, QuestionStatus
 
@@ -37,14 +39,14 @@ class QuestionOrchestrator:
                 break
             refusal = self._safety_gate.refusal_reason(turn.content)
         if refusal is not None:
-            return QuestionResponse(status=QuestionStatus.REFUSED, answer=refusal)
+            return QuestionResponse(status=QuestionStatus.REFUSED, message=refusal)
 
         try:
             plan = await self._analysis_planner.prepare(request.question, request.context)
         except EvidenceAccessDenied:
             return QuestionResponse(
                 status=QuestionStatus.REFUSED,
-                answer="Essa consulta não está autorizada para o escopo disponível.",
+                message="Essa consulta não está autorizada para o escopo disponível.",
             )
         except EvidenceToolUnavailable:
             logger.warning("Falha ao consultar a fonte de evidências.")
@@ -72,12 +74,23 @@ class QuestionOrchestrator:
             return self._recoverable_error()
         evidence = plan.evidence_result.evidence
         try:
-            generated = await self._model_adapter.generate(
+            generated_result = await self._model_adapter.generate(
                 request.question,
                 request.context,
                 evidence,
             )
+            generated = GeneratedAnswer.model_validate(
+                generated_result.model_dump()
+                if isinstance(generated_result, GeneratedAnswer)
+                else generated_result
+            )
         except ModelProviderUnavailable:
+            return self._recoverable_error()
+        except (ValidationError, TypeError, ValueError):
+            logger.warning("O adaptador de modelo retornou uma resposta inválida.")
+            return self._recoverable_error()
+        except Exception:
+            logger.warning("Falha ao gerar resposta pelo adaptador de modelo.")
             return self._recoverable_error()
 
         if generated.status == "answered" and not contains_only_evidence_numbers(
@@ -86,18 +99,20 @@ class QuestionOrchestrator:
         ):
             return QuestionResponse(
                 status=QuestionStatus.REFUSED,
-                answer=UNGROUNDED_ANSWER_MESSAGE,
+                message=UNGROUNDED_ANSWER_MESSAGE,
                 evidence=[evidence.reference],
                 limitations=plan.evidence_result.limitations,
             )
 
-        answer = generated.answer
-        if generated.status == "answered" and evidence.reference.is_demo:
+        answer = generated.answer if generated.status == "answered" else None
+        message = generated.answer if generated.status != "answered" else None
+        if answer is not None and evidence.reference.is_demo:
             answer = f"Demonstração sintética: {answer}"
 
         return QuestionResponse(
             status=QuestionStatus(generated.status),
             answer=answer,
+            message=message,
             evidence=[evidence.reference],
             limitations=plan.evidence_result.limitations,
         )
