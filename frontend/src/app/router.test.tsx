@@ -32,20 +32,20 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar 
   await user.click(
     screen.getByRole("button", { name: "Alternar para tema escuro" }),
   );
-  for (const name of [
-    "Receita",
-    "UC 360",
-    "Inspeções",
-    "Ordens",
-    "Operação",
-    "Assistente",
-    "Panorama",
+  for (const [name, title] of [
+    ["Receita", "Entenda a receita."],
+    ["UC 360", "Cada unidade tem uma história."],
+    ["Inspeções", "Priorize a próxima inspeção."],
+    ["Ordens", "Acompanhe o trabalho de campo."],
+    ["Operação", "Continuidade, onde importa."],
+    ["Assistente", "O que você quer investigar?"],
+    ["Panorama", "Sua rede, em perspectiva."],
   ]) {
     await user.click(screen.getByRole("link", { name }));
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: name === "Panorama" ? "Sua rede, em perspectiva." : name,
+        name: title,
       }),
     ).toBeVisible();
     expect(screen.getByLabelText("Menu lateral principal")).toBe(sidebar);

@@ -1,53 +1,173 @@
-import { useTheme } from "@/shared/theme/useTheme";
-import energyLight from "./assets/energy-light.svg";
-import energyDark from "./assets/energy-dark.svg";
-import dots0Light from "./assets/dots-0-light.svg";
-import dots1Light from "./assets/dots-1-light.svg";
-import dots2Light from "./assets/dots-2-light.svg";
-import dots3Light from "./assets/dots-3-light.svg";
-import dots0Dark from "./assets/dots-0-dark.svg";
-import dots1Dark from "./assets/dots-1-dark.svg";
-import dots2Dark from "./assets/dots-2-dark.svg";
-import dots3Dark from "./assets/dots-3-dark.svg";
+import { useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import "./panorama-artwork.css";
 
-const artwork = {
-  light: {
-    energy: energyLight,
-    dots: [dots0Light, dots1Light, dots2Light, dots3Light, dots0Light],
-  },
-  dark: {
-    energy: energyDark,
-    dots: [dots0Dark, dots1Dark, dots2Dark, dots3Dark, dots0Dark],
-  },
+type Point = readonly [number, number];
+type FlowStyle = CSSProperties & {
+  "--route"?: number;
+  "--arrival"?: number;
+  "--segment"?: number;
 };
 
+// The two paths retain the original Figma artwork's coordinates (220 × 110).
+const routePoints: Point[][] = [
+  [
+    [0, 88],
+    [40, 88],
+    [66, 30],
+    [98, 90],
+    [124, 50],
+    [150, 74],
+    [220, 16],
+  ],
+  [
+    [0, 104],
+    [40, 104],
+    [66, 46],
+    [98, 106],
+    [124, 66],
+    [150, 90],
+    [220, 32],
+  ],
+];
+
+const routes = routePoints.map((points) => ({
+  points,
+  path: points
+    .map(([x, y], index) => `${index === 0 ? "M" : "L"}${x} ${y}`)
+    .join(""),
+}));
+
+function nearestRoutePoint([x, y]: Point, points: Point[]) {
+  const lengths = points
+    .slice(1)
+    .map(([endX, endY], index) =>
+      Math.hypot(endX - points[index][0], endY - points[index][1]),
+    );
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  let travelled = 0;
+  let nearest = { distance: Infinity, arrival: 0 };
+
+  for (let index = 0; index < lengths.length; index++) {
+    const [startX, startY] = points[index];
+    const dx = points[index + 1][0] - startX;
+    const dy = points[index + 1][1] - startY;
+    const fraction = Math.max(
+      0,
+      Math.min(
+        1,
+        ((x - startX) * dx + (y - startY) * dy) / lengths[index] ** 2,
+      ),
+    );
+    const distance = Math.hypot(
+      x - startX - fraction * dx,
+      y - startY - fraction * dy,
+    );
+    if (distance < nearest.distance) {
+      nearest = {
+        distance,
+        arrival: (travelled + fraction * lengths[index]) / total,
+      };
+    }
+    travelled += lengths[index];
+  }
+  return nearest;
+}
+
+const dots = Array.from({ length: 50 }, (_, index) => {
+  const point: Point = [
+    38 + (index % 10) * 23,
+    10 + Math.floor(index / 10) * 19,
+  ];
+  const nearby = routes.map(({ points }, route) => ({
+    ...nearestRoutePoint(point, points),
+    route,
+  }));
+  const nearest = nearby.reduce((first, next) =>
+    first.distance < next.distance ? first : next,
+  );
+  return { point, spark: nearest.distance < 10 ? nearest : null };
+});
+
 export default function PanoramaArtwork() {
-  const { theme } = useTheme();
-  const { energy, dots } = artwork[theme];
+  const [cycle, setCycle] = useState(0);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  function replay(event: PointerEvent<HTMLDivElement>) {
+    if (
+      event.pointerType !== "mouse" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    if (
+      svgRef.current
+        ?.getAnimations({ subtree: true })
+        .some(({ playState }) => playState === "running")
+    )
+      return;
+    setCycle((previous) => previous + 1);
+  }
+
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none relative hidden h-[110px] w-[254px] shrink-0 lg:block"
+      className="energy-flow relative hidden h-[110px] w-[254px] shrink-0 lg:-translate-y-5 lg:block"
+      onPointerEnter={replay}
     >
-      <div className="absolute top-0 right-0 flex h-[120px] w-56 flex-col gap-4 p-2 opacity-35">
-        {dots.map((src, index) => (
-          <img
-            key={index}
-            src={src}
-            alt=""
-            width={208}
-            height={3}
-            className="h-[3px] w-52 shrink-0"
-          />
+      <svg
+        key={cycle}
+        ref={svgRef}
+        width={254}
+        height={120}
+        viewBox="0 0 254 120"
+        fill="none"
+        focusable="false"
+        data-phase={cycle === 0 ? "intro" : "replay"}
+        className="energy-flow__drawing"
+      >
+        <g className="energy-flow__grid">
+          {dots.map(({ point: [cx, cy] }, index) => (
+            <circle key={index} cx={cx} cy={cy} r={1.4} />
+          ))}
+        </g>
+        {routes.map(({ path }, route) => (
+          <g key={path} style={{ "--route": route } as FlowStyle}>
+            <path d={path} pathLength={1} className="energy-flow__line" />
+            {[0.14, 0.065, 0.014].map((segment, index) => (
+              <path
+                key={segment}
+                d={path}
+                pathLength={1}
+                style={{ "--segment": segment } as FlowStyle}
+                className={`energy-flow__pulse energy-flow__pulse--${index}`}
+              />
+            ))}
+          </g>
         ))}
-      </div>
-      <img
-        src={energy}
-        alt=""
-        width={220}
-        height={110}
-        className="relative h-[110px] w-[220px]"
-      />
+        <g className="energy-flow__nodes">
+          <circle cx={66} cy={30} r={2.8} />
+          <circle cx={124} cy={66} r={2.8} />
+          <circle cx={150} cy={74} r={2.8} />
+          <circle cx={220} cy={16} r={3} className="energy-flow__terminal" />
+        </g>
+        {dots.map(
+          ({ point: [cx, cy], spark }, index) =>
+            spark && (
+              <circle
+                key={index}
+                cx={cx}
+                cy={cy}
+                r={2.2}
+                className="energy-flow__spark"
+                style={
+                  {
+                    "--route": spark.route,
+                    "--arrival": spark.arrival,
+                  } as FlowStyle
+                }
+              />
+            ),
+        )}
+      </svg>
     </div>
   );
 }

@@ -6,13 +6,19 @@ import ThemeToggle from "@/shared/ui/ThemeToggle";
 export default function Header({
   title,
   onOpenMenu,
+  conversationLayout = false,
 }: {
   title: string;
   onOpenMenu: () => void;
+  conversationLayout?: boolean;
 }) {
   return (
-    <header className="w-full bg-surface px-4 py-2.5 lg:max-w-[1184px] lg:bg-transparent lg:px-12 lg:pt-12 lg:pb-0">
-      <div className="flex h-11 items-center justify-between gap-4">
+    <header
+      className={`w-full shrink-0 bg-surface px-4 py-2.5 lg:bg-transparent lg:pb-0 ${conversationLayout ? "lg:px-8 lg:pt-8" : "lg:max-w-[1184px] lg:px-12 lg:pt-12"}`}
+    >
+      <div
+        className={`flex items-center justify-between gap-4 ${conversationLayout ? "h-11 lg:h-12" : "h-11"}`}
+      >
         <div className="lg:hidden">
           <Brand />
         </div>

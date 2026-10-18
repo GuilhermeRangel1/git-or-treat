@@ -550,6 +550,29 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Verificações: limites de importação, formatação, lint, dez testes e tipos/build; revisão visual e de navegação no Chrome headless com temas claro/escuro, desktop 1440 × 1024 e mobile 390 × 844, incluindo Escape, retorno de foco e ausência de consultas de negócio. Evidências locais ficam em `work/visual-frontend/`, ignorado pelo Git.
 - Reconciliação e pendências: não aplicável a números nesta fatia. WEB-01/WEB-07 ainda exigem dados reais, filtros e evidência integrada; demais jornadas não foram implementadas. Revisão humana da aparência pendente.
 
+### 2026-10-18 — preparação visual de WEB-02 a WEB-06 e IA-05 — textos superiores
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; títulos, subtítulos e contexto superior das outras seis áreas alinhados aos frames originais do Figma, nos dois temas.
+- Mudança observável: textos de Receita, UC 360, Inspeções, Ordens, Operação e Assistente reproduzem o protótipo. UC 360 mostra Atendimento no topo; Inspeções mostra Perdas. Sidebar e Panorama preservados. O Assistente recebe a abertura textual em um painel central com superfície, borda e cantos do protótipo, sem exemplos, campo de envio ou funcionalidades de chat.
+- Arquivos: `frontend/src/app/routes.ts`, `frontend/src/layouts/navigation.ts`, `frontend/src/layouts/AppLayout.tsx`, `frontend/src/features/assistente/AssistentePage.tsx` e teste de navegação existente. Frames claros consultados via Figma MCP: `15:331`, `15:582`, `15:773`, `16:640`, `16:735`, `16:991`, além do painel mobile `195:8810`; correspondentes escuros: `16:1296`, `16:1547`, `16:1738`, `16:1894`, `16:1989`, `16:2245`.
+- Dados usados: nenhum dataset, mock de produto ou consulta. Não foram adicionados filtros, indicadores, tabelas, formulários ou respostas de IA.
+- Verificações: formatação, fronteiras, lint, dez testes existentes e tipos/build; seis rotas conferidas no navegador em claro/escuro, desktop/mobile, sem conteúdo de negócio. Após correção do layout do Assistente, suas caixas foram comparadas com os metadados do Figma e coincidiram nos dois temas: painel desktop 960 × 800 px em x=352/y=104, mobile 358 × 752 px em x=16/y=76, além das posições do título e texto de apoio. A altura do painel foi adaptada à janela: 800 px é máximo no desktop e apenas o histórico pode rolar; janelas menores não exigem rolar a página até o futuro compositor. A revisão posterior fixou o bloco textual padrão em 810 px no desktop e comparou posições e quebras ao Figma em 24 casos via Playwright MCP. O zoom nativo de 80% a 400% cobre sete rotas nos dois temas; em altura de até 480 px, o Assistente compacta o cabeçalho interno para manter área de histórico. Capturas e medições locais em `work/visual-frontend/`. Reconciliação de dados não se aplica a esta alteração visual.
+- Pendências e revisor: critérios funcionais e integrações continuam pendentes; revisão humana dos textos e interface pendente.
+
+### 2026-10-18 — preparação visual de WEB-01 — fluxo de energia no Panorama
+
+- Estado anterior → novo estado: requisito funcional permanece `Pendente`; decoração estática substituída por movimento SVG aprovado na conversa.
+- Mudança observável: as duas linhas originais aparecem progressivamente; pulsos goiaba percorrem as trilhas e pontos próximos acendem em pistache. A entrada termina em cerca de 3,7 s, sem loop; passar o mouse após o repouso repete apenas os pulsos. Movimento reduzido mantém a composição estática. A área e a posição do ornamento foram preservadas nos dois temas; o mobile continua sem o ornamento.
+- Arquivos: `frontend/src/features/panorama/PanoramaArtwork.tsx`, `panorama-artwork.css`; remoção dos dez SVGs decorativos substituídos. Referências e comportamento na [arquitetura do frontend](architecture/frontend.md#movimento-decorativo-do-panorama--18102026).
+- Dados usados: nenhum dataset, mock de produto ou API. O efeito é apenas decorativo.
+- Verificações: limites de importação, formatação, lint, dez testes existentes e tipos/build; Playwright MCP para duração finita, repouso, replay, movimento reduzido e comportamento nos dois temas/mobile; captura visual e deslocamento do pulso conferidos no navegador. Evidências locais em `work/visual-frontend/`.
+- Pendências e revisor: revisão humana da animação pendente; requisitos funcionais de indicadores, filtros e IA não são concluídos por este efeito.
+
+### 2026-10-18 — preparação visual do portal — favicon Grid360
+
+- Requisitos funcionais permanecem `Pendente`. O ícone padrão do Vite foi substituído pelo símbolo da marca usado na sidebar, em `frontend/public/favicon.svg`, referenciado por `frontend/index.html`.
+- O SVG adapta as cores à preferência clara/escura do navegador; não usa dados de negócio. Verificação: carregamento e renderização pelo Playwright MCP, formatação, lint, fronteiras, testes existentes e build. Revisão humana da identidade visual pendente.
+
 ### Modelo de entrada
 
 ```markdown

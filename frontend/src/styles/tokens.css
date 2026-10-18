@@ -1,5 +1,7 @@
 /* Design Tokens - Grid 360 (V-Energy) */
 :root {
+  color-scheme: light;
+
   /* Modo Claro (Default) */
   --bg-page: #f5f0e7;
   --bg-surface: #fffcf6;
@@ -38,6 +40,8 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
+
   /* Modo Escuro */
   --bg-page: #211a1c;
   --bg-surface: #2e2427;

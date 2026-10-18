@@ -32,7 +32,9 @@ export const routes = [
   {
     path: "/receita",
     label: "Receita",
-    subtitle: "Decomposição preço x volume",
+    title: "Entenda a receita.",
+    subtitle:
+      "Compare períodos, investigue territórios e separe preço efetivo de volume faturado.",
     requirementId: "WEB-02",
     icon: ChartNoAxesCombined,
     Component: ReceitaPage,
@@ -40,7 +42,9 @@ export const routes = [
   {
     path: "/uc-360",
     label: "UC 360",
-    subtitle: "Visão 360 da unidade consumidora",
+    title: "Cada unidade tem uma história.",
+    section: "Atendimento",
+    subtitle: "Localize a UC pelo número informado no atendimento.",
     requirementId: "WEB-03",
     icon: Building2,
     Component: UC360Page,
@@ -48,7 +52,10 @@ export const routes = [
   {
     path: "/inspecoes",
     label: "Inspeções",
-    subtitle: "Fila de perdas e priorização",
+    title: "Priorize a próxima inspeção.",
+    section: "Perdas",
+    subtitle:
+      "Uma fila explicável para orientar a investigação de perdas. Suspeita não é fraude comprovada.",
     requirementId: "WEB-04",
     icon: ClipboardCheck,
     Component: InspecoesPage,
@@ -56,7 +63,9 @@ export const routes = [
   {
     path: "/ordens",
     label: "Ordens",
-    subtitle: "Ciclo de vida de ordens de serviço",
+    title: "Acompanhe o trabalho de campo.",
+    subtitle:
+      "Criação, atualização, resultado e cancelamento no mesmo contexto operacional.",
     requirementId: "WEB-05",
     icon: ClipboardList,
     Component: OrdensPage,
@@ -64,7 +73,9 @@ export const routes = [
   {
     path: "/operacao",
     label: "Operação",
-    subtitle: "Continuidade DEC/FEC por alimentador",
+    title: "Continuidade, onde importa.",
+    subtitle:
+      "Compare alimentadores e investigue os registros que sustentam os indicadores internos.",
     requirementId: "WEB-06",
     icon: Activity,
     Component: OperacaoPage,
@@ -72,7 +83,8 @@ export const routes = [
   {
     path: "/assistente",
     label: "Assistente",
-    subtitle: "Assistente inteligente em linguagem natural",
+    contentHeading: true,
+    layout: "conversation",
     requirementId: "IA-05",
     icon: Bot,
     Component: AssistentePage,
