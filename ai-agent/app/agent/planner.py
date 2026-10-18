@@ -79,8 +79,12 @@ class QuestionAnalysisPlanner:
         assert interpretation.intent is not None
         try:
             evidence_result = self._evidence_source.retrieve(interpretation.intent)
+        except EvidenceToolUnavailable:
+            raise
         except ValidationError as exc:
             raise EvidenceToolUnavailable("Evidence source returned an invalid result.") from exc
+        except Exception as exc:
+            raise EvidenceToolUnavailable("Evidence source failed.") from exc
         if evidence_result.status is EvidenceLookupStatus.AVAILABLE:
             status = AnalysisPlanStatus.READY
         elif evidence_result.status is EvidenceLookupStatus.NEEDS_CLARIFICATION:

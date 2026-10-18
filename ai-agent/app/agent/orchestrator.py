@@ -1,5 +1,7 @@
 """Coordena evidência e geração sem acoplar o serviço a um fornecedor."""
 
+import logging
+
 from app.agent.grounding import contains_only_evidence_numbers
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.agent.safety import QuestionSafetyGate
@@ -10,6 +12,8 @@ from app.tools.evidence import EvidenceLookupStatus, EvidenceToolUnavailable
 RECOVERABLE_ERROR_MESSAGE = (
     "O serviço de resposta está temporariamente indisponível. Tente novamente."
 )
+logger = logging.getLogger(__name__)
+
 UNGROUNDED_ANSWER_MESSAGE = (
     "Não consigo confirmar essa resposta com os dados sintéticos disponíveis."
 )
@@ -37,6 +41,7 @@ class QuestionOrchestrator:
         try:
             plan = self._analysis_planner.prepare(request.question, request.context)
         except EvidenceToolUnavailable:
+            logger.warning("Falha ao consultar a fonte de evidências.")
             return self._recoverable_error()
         if plan.status is AnalysisPlanStatus.NEEDS_CLARIFICATION:
             question = plan.interpretation.clarification_question

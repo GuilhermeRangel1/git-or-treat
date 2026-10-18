@@ -369,3 +369,22 @@ def test_untrusted_assistant_history_is_not_allowed_to_override_safety_rules() -
     assert response.json()["status"] == "refused"
     assert tool.calls == 0
     assert model.calls == []
+
+class UnexpectedFailureScenarioTool:
+    def retrieve(self, intent: AnalysisIntent):
+        raise RuntimeError("source-secret-marker-42")
+
+
+def test_unexpected_source_failure_is_controlled_and_redacted(caplog) -> None:
+    question = (
+        "Qual foi o consumo no per\u00edodo de demonstra\u00e7\u00e3o? pergunta-secreta-marker"
+    )
+    with _client(scenario_tool=UnexpectedFailureScenarioTool()) as client:
+        response = client.post("/api/v1/questions", json={"question": question})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "recoverable_error"
+    assert "source-secret-marker-42" not in response.text
+    assert question not in caplog.text
+    assert "source-secret-marker-42" not in caplog.text
+    assert "Falha ao consultar a fonte de evidências" in caplog.text
