@@ -110,7 +110,7 @@ export default function PanoramaArtwork() {
   return (
     <div
       aria-hidden="true"
-      className="energy-flow absolute -bottom-3 left-[calc(50%_+_72px)] z-20 hidden aspect-[127/60] w-[clamp(180px,21vw,290px)] lg:block xl:-bottom-4"
+      className="energy-flow absolute -bottom-3 left-[calc(50%_+_72px)] z-20 hidden aspect-[127/60] w-[clamp(180px,21vw,290px)] lg:block 2xl:-bottom-4 2xl:left-auto 2xl:right-[180px] 2xl:w-[330px]"
       onPointerEnter={replay}
     >
       <svg
