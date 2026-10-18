@@ -191,7 +191,7 @@ Toda a transformação deve ocorrer no Databricks com PySpark. A camada Bronze i
 
 O portal interno recebe os dados tratados no banco local. Stack indicada: React + TypeScript com Vite, FastAPI em Python, banco SQLite ou PostgreSQL. Deve oferecer indicadores e comparação temporal, decomposição da receita, visão 360 por UC, fila de inspeção, gestão das ordens, continuidade do serviço, filtros/exportações onde pedidos, acesso ao agente e insights de IA contextualizados. A quantidade de telas, navegação e visualizações é decisão de produto desde que cada história seja atendida.
 
-Como decisão da equipe em 18/10/2026, o frontend adota também Tailwind CSS para estilização e Lucide para ícones. A fundação modular, layout persistente e responsabilidade dos provedores estão descritos na [arquitetura do frontend](architecture/frontend.md) e na [ADR-0001](decisions/0001-arquitetura-frontend.md). A primeira etapa prepara a arquitetura; implementação visual das páginas e integração de dados são etapas posteriores.
+Como decisão da equipe em 18/10/2026, o frontend adota também Tailwind CSS para estilização e Lucide para ícones. A fundação modular, layout persistente e responsabilidade dos provedores estão descritos na [arquitetura do frontend](architecture/frontend.md) e na [ADR-0001](decisions/0001-arquitetura-frontend.md). A primeira etapa prepara a arquitetura. A etapa visual começou pela sidebar e pelo topo estático do Panorama, sem filtros nem dados; integração e critérios funcionais continuam pendentes.
 
 ### 5.3 Inteligência artificial
 
@@ -540,6 +540,15 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Verificações: instalação reproduzível com `npm ci`; limites de importação, formatação, lint, dez testes de transporte/composição e tipos/build. O resultado final e a revisão de navegação ficam no [plano de execução](plans/2026-10-18-arquitetura-frontend.md).
 - Pendências: alinhamento visual ao Figma, componentes visuais, contratos por domínio, filtros, dados reais, operações e IA. A arquitetura não comprova critérios de aceite funcionais, reconciliação com Gold ou conformidade WCAG AA.
 - Responsável/revisor: Codex executou a fundação; revisão humana da branch pendente.
+
+### 2026-10-18 — preparação visual de WEB-01 e navegação do portal — sidebar e topo do Panorama
+
+- Estado anterior → novo estado: requisitos funcionais continuam `Pendente`; primeira fatia visual implementada na branch `feat/visual-frontend`, renomeada de `refactor/arquitetura-frontend`.
+- Mudança observável: sidebar com marca e ícones Lucide do protótipo; topo do Panorama com título, subtítulo, decoração e alternância de tema. Menu mobile reproduz a navegação. O rodapé demonstrativo e a linha de atualização ilustrativa foram retirados conforme solicitação; filtros e todo o conteúdo de dados ficaram fora.
+- Arquivos: `frontend/src/layouts/`, `frontend/src/shared/ui/`, `frontend/src/features/panorama/` e `frontend/src/styles/`; medidas, frames Figma e limites na [arquitetura do frontend](architecture/frontend.md).
+- Dados usados: nenhum dataset, dado de negócio ou mock de produto. As imagens decorativas não representam métricas.
+- Verificações: limites de importação, formatação, lint, dez testes e tipos/build; revisão visual e de navegação no Chrome headless com temas claro/escuro, desktop 1440 × 1024 e mobile 390 × 844, incluindo Escape, retorno de foco e ausência de consultas de negócio. Evidências locais ficam em `work/visual-frontend/`, ignorado pelo Git.
+- Reconciliação e pendências: não aplicável a números nesta fatia. WEB-01/WEB-07 ainda exigem dados reais, filtros e evidência integrada; demais jornadas não foram implementadas. Revisão humana da aparência pendente.
 
 ### Modelo de entrada
 

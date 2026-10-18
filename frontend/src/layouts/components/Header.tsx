@@ -1,39 +1,36 @@
-import { useTheme } from "@/shared/theme/useTheme";
-
-type HeaderProps = {
-  title: string;
-  subtitle?: string;
-  requirementId?: string;
-};
+import { Menu } from "lucide-react";
+import Brand from "@/shared/ui/Brand";
+import IconButton from "@/shared/ui/IconButton";
+import ThemeToggle from "@/shared/ui/ThemeToggle";
 
 export default function Header({
   title,
-  subtitle,
-  requirementId,
-}: HeaderProps) {
-  const { theme, toggleTheme } = useTheme();
-
+  onOpenMenu,
+}: {
+  title: string;
+  onOpenMenu: () => void;
+}) {
   return (
-    <header className="page-header">
-      <div className="page-header__info">
-        <div className="page-header__meta">
-          {requirementId && <span className="req-tag">{requirementId}</span>}
-          {subtitle && (
-            <span className="page-header__subtitle">{subtitle}</span>
-          )}
+    <header className="w-full bg-surface px-4 py-2.5 lg:max-w-[1184px] lg:bg-transparent lg:px-12 lg:pt-12 lg:pb-0">
+      <div className="flex h-11 items-center justify-between gap-4">
+        <div className="lg:hidden">
+          <Brand />
         </div>
-        <h1 className="page-header__title">{title}</h1>
-      </div>
-
-      <div className="page-header__actions">
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="header-theme-toggle"
-          aria-label={`Alternar para tema ${theme === "light" ? "escuro" : "claro"}`}
-        >
-          {theme === "light" ? "🌙 Escuro" : "☀️ Claro"}
-        </button>
+        <p className="hidden font-mono text-xs leading-[18px] text-muted lg:block">
+          V—ENERGY / {title.toLocaleUpperCase("pt-BR")}
+        </p>
+        <div className="flex gap-2">
+          <ThemeToggle />
+          <IconButton
+            className="lg:hidden"
+            onClick={onOpenMenu}
+            aria-label="Abrir menu"
+            aria-haspopup="dialog"
+            aria-controls="mobile-navigation"
+          >
+            <Menu size={24} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+        </div>
       </div>
     </header>
   );

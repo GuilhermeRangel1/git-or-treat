@@ -1,87 +1,19 @@
-import { NavLink } from "react-router-dom";
+import Brand from "@/shared/ui/Brand";
 import type { NavItem } from "../navigation";
-import { useTheme } from "@/shared/theme/useTheme";
+import Navigation from "./Navigation";
 
-type SidebarProps = {
-  items: NavItem[];
-};
-
-/* Marca do grid360: anel + raio + ponto. As cores vêm dos tokens do tema. */
-function LogoMark() {
+export default function Sidebar({ items }: { items: NavItem[] }) {
   return (
-    <svg
-      className="sidebar__logo-mark"
-      viewBox="0 0 40 40"
-      fill="none"
-      aria-hidden="true"
+    <aside
+      className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-3 overflow-y-auto bg-surface p-4 lg:flex"
+      aria-label="Menu lateral principal"
     >
-      <path
-        d="M33 12.5A15 15 0 1 1 25.1 5.9"
-        stroke="var(--accent-goiaba)"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      <path
-        d="M22.5 10 14 21.5h5.5L17.5 30 26 18.5h-5.5z"
-        fill="var(--accent-pistache)"
-        stroke="var(--accent-pistache)"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <circle cx="30" cy="8.4" r="2.6" fill="var(--accent-pistache)" />
-    </svg>
-  );
-}
-
-export default function Sidebar({ items }: SidebarProps) {
-  const { theme, toggleTheme } = useTheme();
-
-  return (
-    <aside className="sidebar" aria-label="Menu lateral principal">
-      <header className="sidebar__brand">
-        <div className="sidebar__logo-row">
-          <LogoMark />
-          <h2 className="sidebar__logo">grid360</h2>
-        </div>
-        <p className="sidebar__tagline">V—ENERGY / INTELIGÊNCIA</p>
-      </header>
-
-      <nav className="sidebar__nav" aria-label="Navegação principal">
-        <ul>
-          {items.map(({ path, label, icon: Icon }) => (
-            <li key={path}>
-              <NavLink
-                to={path}
-                className={({ isActive }: { isActive: boolean }) =>
-                  `nav-item${isActive ? " nav-item--active" : ""}`
-                }
-              >
-                <Icon
-                  className="nav-item__icon"
-                  size={22}
-                  strokeWidth={1.75}
-                  aria-hidden="true"
-                />
-                <span className="nav-item__label">{label}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
-      <div className="sidebar__footer">
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="theme-toggle-btn"
-          title={`Alternar para tema ${theme === "light" ? "escuro" : "claro"}`}
-        >
-          <span className="theme-toggle-icon">
-            {theme === "light" ? "🌙" : "☀️"}
-          </span>
-          <span>Tema {theme === "light" ? "Escuro" : "Claro"}</span>
-        </button>
-      </div>
+      <Brand />
+      <p className="font-mono text-xs leading-[18px] text-muted">
+        V—ENERGY / INTELIGÊNCIA
+      </p>
+      <div className="h-px shrink-0 bg-divider" />
+      <Navigation items={items} />
     </aside>
   );
 }

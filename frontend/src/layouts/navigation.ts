@@ -6,4 +6,5 @@ export type NavItem = {
   subtitle?: string;
   requirementId?: string;
   icon: LucideIcon;
+  contentHeading?: boolean;
 };

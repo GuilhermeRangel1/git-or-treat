@@ -10,7 +10,7 @@
 
 ## Limites
 
-- Branch `refactor/arquitetura-frontend`; execução restrita à primeira etapa.
+- Branch original `refactor/arquitetura-frontend`; execução deste plano restrita à primeira etapa. Após sua conclusão e novo pedido, a branch foi renomeada para `feat/visual-frontend`.
 - Preservar as sete áreas e o conteúdo vazio das páginas; nenhuma consulta, KPI, gráfico ou fluxo operacional.
 - A aparência existente é transitória. O alinhamento ao Figma pertence à etapa seguinte.
 - Contratos de domínio e filtros serão definidos com backend/dicionário; não criar DTOs ou endpoints fictícios.
@@ -41,4 +41,4 @@
 - Antes das correções, seis dos sete testes HTTP e o teste de armazenamento indisponível falharam pelos motivos previstos. Depois das correções, os dez testes passaram.
 - Verificações aprovadas: fronteiras em 23 arquivos; teste negativo rejeitando import de `shared` para `features`; formatação; Oxlint; dez testes Vitest; TypeScript estrito e build Vite; links locais Markdown e whitespace do diff.
 - Verificação em Chrome headless: sete áreas navegadas, sidebar preservada por identidade DOM, tema escuro mantido, páginas vazias, zero erros de execução e zero requisições ao backend. O roteiro e a captura ficam em `work/architecture/`, ignorado pelo Git.
-- Revisão de escopo: nenhuma implementação de KPI, gráfico, consulta de negócio ou componente do protótipo foi acrescentada. A etapa seguinte permanece não iniciada; revisão humana da branch pendente.
+- Revisão de escopo: nenhuma implementação de KPI, gráfico, consulta de negócio ou componente do protótipo foi acrescentada. Na conclusão deste plano, a etapa visual permanecia não iniciada. O pedido posterior iniciou somente a sidebar e o topo estático do Panorama, registrados no [guia arquitetural](../architecture/frontend.md); revisão humana da branch pendente.

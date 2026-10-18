@@ -6,7 +6,7 @@ import {
   ChartNoAxesCombined,
   ClipboardCheck,
   ClipboardList,
-  LayoutGrid,
+  LayoutDashboard,
 } from "lucide-react";
 import type { NavItem } from "@/layouts/navigation";
 import PanoramaPage from "@/features/panorama/PanoramaPage";
@@ -25,7 +25,8 @@ export const routes = [
     label: "Panorama",
     subtitle: "Visão executiva e KPIs gerais",
     requirementId: "WEB-01",
-    icon: LayoutGrid,
+    icon: LayoutDashboard,
+    contentHeading: true,
     Component: PanoramaPage,
   },
   {

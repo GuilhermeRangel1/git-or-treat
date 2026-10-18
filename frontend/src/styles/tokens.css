@@ -26,7 +26,7 @@
 
   --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
   --font-title: "Manrope", var(--font-sans);
-  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -67,15 +67,19 @@
 }
 :root {
   --nav-hover-bg: rgba(41, 32, 31, 0.05);
-  --nav-active-bg: #ece3d6;
+  --nav-active-bg: #ede4d6;
+  --border-divider: #d7c8be;
+  --border-control: #938077;
 }
 
 [data-theme="dark"] {
   --nav-hover-bg: rgba(255, 255, 255, 0.05);
-  --nav-active-bg: #3b3231;
+  --nav-active-bg: #3b3432;
+  --border-divider: #59464c;
+  --border-control: #977f87;
 }
 
-/* Ponte para utilitários Tailwind; valores visuais serão revisados na etapa 2. */
+/* Tokens semânticos compartilhados pelos dois temas. */
 @theme inline {
   --color-canvas: var(--bg-page);
   --color-surface: var(--bg-surface);
@@ -83,6 +87,11 @@
   --color-muted: var(--text-secondary);
   --color-brand: var(--accent-goiaba);
   --color-border: var(--line);
+  --color-divider: var(--border-divider);
+  --color-control: var(--border-control);
+  --color-selected: var(--nav-active-bg);
+  --color-nav-hover: var(--nav-hover-bg);
+  --color-surface-hover: var(--bg-surface-hover);
   --color-danger: var(--status-danger);
   --color-success: var(--status-success);
   --font-heading: var(--font-title);

@@ -7,7 +7,14 @@ import { AppRoutes } from "./router";
 
 beforeEach(() => {
   localStorage.clear();
-  vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }));
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  );
 });
 
 it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar dados", async () => {
@@ -38,7 +45,7 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar 
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name,
+        name: name === "Panorama" ? "Sua rede, em perspectiva." : name,
       }),
     ).toBeVisible();
     expect(screen.getByLabelText("Menu lateral principal")).toBe(sidebar);
@@ -83,7 +90,7 @@ it("mantém o redirecionamento inicial e trata caminhos desconhecidos", () => {
   expect(
     screen.getByRole("heading", {
       level: 1,
-      name: "Panorama",
+      name: "Sua rede, em perspectiva.",
     }),
   ).toBeVisible();
 });
