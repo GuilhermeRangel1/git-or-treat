@@ -142,7 +142,7 @@ class QuestionInterpreter:
         domain = next(iter(matched_domains)) if matched_domains else base_intent.domain
 
         geography = self._dimension_value_matches(question, self._geography_dimensions)
-        if self._has_unrecognized_capitalized_location(question, geography):
+        if self._has_unrecognized_location_phrase(question, geography):
             return self._clarify(self._profile.clarifications.unknown_geography)
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
         if self._has_unresolved_multiple_values(question, geography):
@@ -289,13 +289,31 @@ class QuestionInterpreter:
                 return True
         return False
 
-    def _has_unrecognized_capitalized_location(
+    def _has_unrecognized_location_phrase(
         self,
         question: str,
         recognized: list[tuple[int, int, str]],
     ) -> bool:
-        recognized_spans = [(start, end) for start, end, _ in recognized]
-        pattern = re.compile(r"\b(?:em|no|na)\s+([A-ZÀ-ÖØ-Þ][\wÀ-ÿ-]*)")
+        protected = [
+            *recognized,
+            *self._dimension_value_matches(question, self._classification_dimensions),
+            *_find_phrases(
+                question,
+                (
+                    *self._profile.period_phrases,
+                    *self._profile.comparison_terms,
+                    *self._profile.direction_terms,
+                    *(alias for _, alias in self._metric_aliases),
+                    *(
+                        alias
+                        for dimension in self._profile.dimensions
+                        for alias in dimension.aliases
+                    ),
+                ),
+            ),
+        ]
+        recognized_spans = [(start, end) for start, end, _ in protected]
+        pattern = re.compile(r"\b(?:em|no|na)\s+([\wÀ-ÿ-]+)", re.IGNORECASE)
         for match in pattern.finditer(question):
             start, end = match.span(1)
             if not any(

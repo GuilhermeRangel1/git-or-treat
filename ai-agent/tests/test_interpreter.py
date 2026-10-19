@@ -1,3 +1,5 @@
+import pytest
+
 from app.agent.interpreter import QuestionInterpreter
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.schemas.interpretation import InterpretationStatus
@@ -100,6 +102,24 @@ def test_unknown_capitalized_location_is_not_silently_dropped() -> None:
     assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
     assert result.intent is None
     assert "local" in result.clarification_question
+
+
+@pytest.mark.parametrize(
+    ("question", "geography", "classification"),
+    [
+        ("Qual foi o consumo na classe residencial no último ano?", None, "residencial"),
+        ("Qual foi o consumo no município de Olinda no último ano?", "Olinda", None),
+    ],
+)
+def test_known_business_and_dimension_phrases_are_not_unknown_places(
+    question: str, geography: str | None, classification: str | None
+) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.geography_phrase == geography
+    assert result.intent.class_phrase == classification
 
 
 def test_preserves_direction_and_percentage_threshold_without_calculating_them() -> None:

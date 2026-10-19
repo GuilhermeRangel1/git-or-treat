@@ -6,6 +6,7 @@ from app.agent.interpreter import QuestionInterpreter
 from app.config import Settings
 from app.schemas.domain_profile import DomainProfile
 from app.schemas.interpretation import InterpretationStatus
+from app.schemas.questions import AppliedQueryContext
 
 from .conftest import InProcessClient
 
@@ -162,3 +163,19 @@ def test_profile_rejects_filter_operators_incompatible_with_the_value_type() -> 
 
     with pytest.raises(ValidationError, match="operador incompatível"):
         DomainProfile.model_validate(data)
+
+
+def test_profile_rejects_canonical_filter_value_longer_than_read_plan_allows() -> None:
+    data = profile_data()
+    data["dimensions"][0]["values"][0]["value"] = "a" * 121
+
+    with pytest.raises(ValidationError):
+        DomainProfile.model_validate(data)
+
+
+def test_public_query_context_accepts_catalog_identifier_and_full_in_filter() -> None:
+    dimension_id = "g" + "a" * 100
+    AppliedQueryContext(
+        metric="weather.rainfall",
+        filters={dimension_id: ", ".join(["a" * 120] * 20)},
+    )

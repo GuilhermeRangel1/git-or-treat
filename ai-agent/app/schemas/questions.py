@@ -15,6 +15,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.schemas.analysis import LogicalIdentifier
 from app.schemas.evidence import EvidenceReference
 from app.schemas.responses import PublicResponseMetadata
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
@@ -33,15 +34,12 @@ ResponseText = Annotated[
 ]
 QueryContextText = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=1, max_length=160),
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=200),
 ]
-ResponseFilterKey = Annotated[
-    str,
-    StringConstraints(pattern=r"^[a-z][a-z0-9._:-]{0,79}$"),
-]
+ResponseFilterKey = LogicalIdentifier
 ResponseFilterText = Annotated[
     StrictStr,
-    StringConstraints(strip_whitespace=True, min_length=1, max_length=120),
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=2438),
 ]
 ResponseLimitation = Annotated[
     str,

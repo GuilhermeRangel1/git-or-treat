@@ -10,6 +10,9 @@ from app.schemas.analysis import LogicalIdentifier
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
 
 CatalogText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+CatalogValue = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)
+]
 CatalogPhrase = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)
 ]
@@ -86,7 +89,7 @@ class DomainDefinition(BaseModel):
 class DimensionValue(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    value: CatalogText
+    value: CatalogValue
     aliases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=20)
 
 

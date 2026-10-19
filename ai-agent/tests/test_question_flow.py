@@ -131,6 +131,22 @@ def _client(model_adapter=None, scenario_tool=None) -> InProcessClient:
     )
 
 
+def test_unknown_lowercase_municipality_never_widens_the_query() -> None:
+    source = RecordingScenarioTool()
+    model = RecordingModelAdapter()
+
+    with _client(model, source) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Qual foi o consumo em lisboa no período de demonstração?"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "needs_clarification"
+    assert source.requests == []
+    assert model.calls == []
+
+
 def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> None:
     with _client() as client:
         response = client.post(
