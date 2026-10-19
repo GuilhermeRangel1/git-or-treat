@@ -7,7 +7,13 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 
-from app.providers.protocols import GeneratedAnswer, ModelAdapter
+from pydantic import ValidationError
+
+from app.providers.protocols import (
+    GeneratedAnswer,
+    ModelAdapter,
+    ModelProviderInvalidResponse,
+)
 from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
 
@@ -18,12 +24,15 @@ def cache_key(
     question: str,
     context: list[ConversationTurn],
     evidence: EvidenceResult,
+    namespace: str,
 ) -> str:
     """Hash estável das entradas; qualquer mudança na evidência gera outra chave."""
 
     payload = json.dumps(
         {
             "v": CACHE_KEY_VERSION,
+            "namespace": namespace,
+            "scope": evidence.cache_scope,
             "question": question,
             "context": [turn.model_dump(mode="json") for turn in context],
             "evidence": evidence.model_dump(mode="json"),
@@ -38,8 +47,8 @@ def cache_key(
 class CachingModelAdapter:
     """Reaproveita respostas bem-sucedidas; falhas nunca são guardadas.
 
-    Chamadas iguais e simultâneas compartilham uma única chamada ao modelo. A checagem de
-    números continua nos orquestradores, que também recebem as respostas vindas do cache.
+    Sem escopo autorizado e proveniência, a chamada passa diretamente ao modelo.
+    Chamadas compartilhadas são canceladas quando nenhum solicitante permanece.
     """
 
     def __init__(
@@ -48,6 +57,7 @@ class CachingModelAdapter:
         *,
         ttl_seconds: float,
         max_entries: int,
+        namespace: str = "local-model-v1",
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if ttl_seconds <= 0 or max_entries < 1:
@@ -55,9 +65,11 @@ class CachingModelAdapter:
         self._inner = inner
         self._ttl_seconds = ttl_seconds
         self._max_entries = max_entries
+        self._namespace = namespace
         self._clock = clock
         self._entries: OrderedDict[str, tuple[float, GeneratedAnswer]] = OrderedDict()
         self._in_flight: dict[str, asyncio.Task[GeneratedAnswer]] = {}
+        self._waiters: dict[str, int] = {}
 
     async def generate(
         self,
@@ -65,7 +77,9 @@ class CachingModelAdapter:
         context: list[ConversationTurn],
         evidence: EvidenceResult,
     ) -> GeneratedAnswer:
-        key = cache_key(question, context, evidence)
+        if evidence.cache_scope is None or evidence.provenance is None:
+            return await self._inner.generate(question, context, evidence)
+        key = cache_key(question, context, evidence, self._namespace)
         cached = self._lookup(key)
         if cached is not None:
             return cached.model_copy()
@@ -75,9 +89,21 @@ class CachingModelAdapter:
             task = asyncio.ensure_future(self._fill(key, question, context, evidence))
             self._in_flight[key] = task
             task.add_done_callback(lambda done: self._forget(key, done))
-        # shield: cancelar quem espera não cancela a chamada compartilhada com os demais.
-        answer = await asyncio.shield(task)
-        return answer.model_copy()
+        self._waiters[key] = self._waiters.get(key, 0) + 1
+        try:
+            # A primeira desistência não interrompe outra solicitação ainda aguardando.
+            answer = await asyncio.shield(task)
+            return answer.model_copy()
+        finally:
+            remaining = self._waiters[key] - 1
+            if remaining:
+                self._waiters[key] = remaining
+            else:
+                del self._waiters[key]
+                if not task.done():
+                    if self._in_flight.get(key) is task:
+                        del self._in_flight[key]
+                    task.cancel()
 
     async def _fill(
         self,
@@ -87,7 +113,14 @@ class CachingModelAdapter:
         evidence: EvidenceResult,
     ) -> GeneratedAnswer:
         answer = await self._inner.generate(question, context, evidence)
-        self._store(key, answer)
+        try:
+            answer = GeneratedAnswer.model_validate(
+                answer.model_dump() if isinstance(answer, GeneratedAnswer) else answer
+            )
+        except (ValidationError, TypeError, ValueError, AttributeError):
+            raise ModelProviderInvalidResponse("Saída do modelo inválida.") from None
+        if answer.status == "answered":
+            self._store(key, answer)
         return answer
 
     def _lookup(self, key: str) -> GeneratedAnswer | None:

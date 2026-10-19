@@ -41,6 +41,7 @@ class FailureCode(StrEnum):
     INVALID_SOURCE_RESPONSE = "invalid_source_response"
     EXECUTION_LIMIT = "execution_limit"
     MODEL_UNAVAILABLE = "model_unavailable"
+    MODEL_REJECTED = "model_rejected"
     INVALID_MODEL_OUTPUT = "invalid_model_output"
     UNGROUNDED_OUTPUT = "ungrounded_output"
     UNGROUNDED_INSIGHT = "ungrounded_insight"
@@ -138,6 +139,10 @@ _FAILURE_MAP: dict[FailureCode, MappedFailure] = {
     FailureCode.MODEL_UNAVAILABLE: MappedFailure(
         error=PublicError(code=PublicErrorCode.SERVICE_UNAVAILABLE, retryable=True),
         message="O serviço de resposta está temporariamente indisponível. Tente novamente.",
+    ),
+    FailureCode.MODEL_REJECTED: MappedFailure(
+        error=PublicError(code=PublicErrorCode.SERVICE_UNAVAILABLE, retryable=False),
+        message="O serviço de resposta não aceitou a solicitação.",
     ),
     FailureCode.INVALID_MODEL_OUTPUT: MappedFailure(
         error=PublicError(code=PublicErrorCode.INVALID_UPSTREAM_RESPONSE, retryable=False),

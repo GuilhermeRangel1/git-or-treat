@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 
 from app.agent.access import ReadAccessPolicy
+from app.agent.execution import ExecutionController, ExecutionLimits
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
@@ -50,6 +51,19 @@ def create_app(
     application.state.environment = active_settings.environment
     application.state.domain_profile = active_domain_profile
 
+    execution_controller = ExecutionController(
+        ExecutionLimits(
+            request_seconds=active_settings.request_timeout_ms / 1000,
+            source_seconds=active_settings.source_timeout_ms / 1000,
+            model_seconds=active_settings.model_timeout_ms / 1000,
+            max_source_calls=active_settings.source_max_calls,
+            max_model_calls=active_settings.model_max_calls,
+            concurrent_requests=active_settings.concurrent_requests,
+            concurrent_sources=active_settings.concurrent_sources,
+            concurrent_models=active_settings.concurrent_models,
+        )
+    )
+
     model_adapter = (
         build_model_adapter(active_settings)
         if question_orchestrator is None or insight_orchestrator is None
@@ -60,11 +74,14 @@ def create_app(
             interpreter=QuestionInterpreter(profile=active_domain_profile),
             evidence_source=SyntheticScenarioTool(SYNTHETIC_SCENARIOS),
             access_policy=ReadAccessPolicy(active_domain_profile, SYNTHETIC_SOURCE_ID),
+            max_rows=active_settings.evidence_max_rows,
+            max_evidence_bytes=active_settings.evidence_max_bytes,
         ),
         model_adapter=model_adapter,
+        execution_controller=execution_controller,
     )
     application.state.insight_orchestrator = insight_orchestrator or ScreenInsightOrchestrator(
-        model_adapter
+        model_adapter, execution_controller=execution_controller
     )
     application.include_router(router)
     return application

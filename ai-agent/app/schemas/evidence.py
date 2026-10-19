@@ -51,6 +51,10 @@ class EvidenceResult(BaseModel):
     reference: EvidenceReference
     records: list[dict[str, object]] = Field(default_factory=list, max_length=100)
     provenance: EvidenceProvenance | None = None
+    # Preenchido somente pelo orquestrador após autorização; nunca enviado ao provedor.
+    cache_scope: str | None = Field(
+        default=None, pattern=r"^[a-f0-9]{64}$", exclude=True, repr=False
+    )
 
 
 class EvidenceLookupStatus(StrEnum):

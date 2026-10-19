@@ -2,7 +2,14 @@
 
 from pydantic import ValidationError
 
-from app.providers.protocols import GeneratedAnswer, ModelAdapter, ModelProviderUnavailable
+from app.agent.execution import ExecutionController, ExecutionLimitExceeded, RequestBudget
+from app.providers.protocols import (
+    GeneratedAnswer,
+    ModelAdapter,
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
+    ModelProviderUnavailable,
+)
 from app.schemas.access import AccessContext
 from app.schemas.evidence import EvidenceReference, EvidenceResult
 from app.schemas.insights import (
@@ -28,11 +35,36 @@ SYNTHETIC_INSIGHT_LIMITATIONS = [
 class ScreenInsightOrchestrator:
     """Mantém observações do cliente separadas da hipótese gerada pelo modelo."""
 
-    def __init__(self, model_adapter: ModelAdapter) -> None:
+    def __init__(
+        self,
+        model_adapter: ModelAdapter,
+        execution_controller: ExecutionController | None = None,
+    ) -> None:
         self._model_adapter = model_adapter
+        self._execution = execution_controller or ExecutionController()
 
     async def generate(
         self, screen: ScreenContext, access_context: AccessContext | None = None
+    ) -> ScreenInsightResponse:
+        try:
+            return await self._execution.run(
+                lambda budget: self._generate_with_budget(screen, access_context, budget)
+            )
+        except ExecutionLimitExceeded:
+            failure = map_failure(FailureCode.EXECUTION_LIMIT)
+            return self._response(
+                screen,
+                status=QuestionStatus.RECOVERABLE_ERROR,
+                message=failure.message,
+                error=failure.error,
+                expose_context=access_context is not None,
+            )
+
+    async def _generate_with_budget(
+        self,
+        screen: ScreenContext,
+        access_context: AccessContext | None,
+        budget: RequestBudget,
     ) -> ScreenInsightResponse:
         if access_context is None:
             failure = map_failure(FailureCode.ACCESS_DENIED)
@@ -62,7 +94,9 @@ class ScreenInsightOrchestrator:
             records=records,
         )
         try:
-            generated_result = await self._model_adapter.generate(INSIGHT_PROMPT, [], evidence)
+            generated_result = await budget.model(
+                lambda: self._model_adapter.generate(INSIGHT_PROMPT, [], evidence)
+            )
             generated = GeneratedAnswer.model_validate(
                 generated_result.model_dump()
                 if isinstance(generated_result, GeneratedAnswer)
@@ -76,6 +110,21 @@ class ScreenInsightOrchestrator:
                 message=failure.message,
                 error=failure.error,
             )
+        except (ModelProviderRejected, ModelProviderInvalidResponse) as exc:
+            code = (
+                FailureCode.MODEL_REJECTED
+                if isinstance(exc, ModelProviderRejected)
+                else FailureCode.INVALID_MODEL_OUTPUT
+            )
+            failure = map_failure(code)
+            return self._response(
+                screen,
+                status=QuestionStatus.RECOVERABLE_ERROR,
+                message=failure.message,
+                error=failure.error,
+            )
+        except ExecutionLimitExceeded:
+            raise
         except (ValidationError, TypeError, ValueError):
             failure = map_failure(FailureCode.INVALID_MODEL_OUTPUT)
             return self._response(

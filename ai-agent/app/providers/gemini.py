@@ -7,6 +7,8 @@ from pydantic import ValidationError
 
 from app.providers.protocols import (
     GeneratedAnswer,
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
     ModelProviderUnavailable,
 )
 from app.schemas.evidence import EvidenceResult
@@ -80,7 +82,20 @@ class GeminiModelAdapter:
                     "response_json_schema": GeneratedAnswer.model_json_schema(),
                 },
             )
-        except Exception:
+        except Exception as exc:
+            status = getattr(exc, "status_code", None)
+            if isinstance(status, str) and status.isdecimal():
+                status = int(status)
+            if not isinstance(status, int):
+                status = getattr(exc, "code", None)
+                if isinstance(status, str) and status.isdecimal():
+                    status = int(status)
+            if isinstance(status, int) and 400 <= status < 500 and status != 429:
+                raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
+            if not isinstance(exc, (ConnectionError, TimeoutError, OSError)) and not (
+                status == 429 or isinstance(status, int) and status >= 500
+            ):
+                raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
             raise ModelProviderUnavailable(
                 "O provedor de modelo está temporariamente indisponível."
             ) from None
@@ -91,6 +106,6 @@ class GeminiModelAdapter:
                 raise ValueError("resposta vazia")
             return GeneratedAnswer.model_validate_json(response_text)
         except (AttributeError, TypeError, ValueError, ValidationError):
-            raise ModelProviderUnavailable(
+            raise ModelProviderInvalidResponse(
                 "O provedor retornou uma resposta inválida."
             ) from None

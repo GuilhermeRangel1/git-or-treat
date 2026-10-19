@@ -4,6 +4,12 @@ import logging
 
 from pydantic import ValidationError
 
+from app.agent.execution import (
+    ExecutionController,
+    ExecutionLimitExceeded,
+    RequestBudget,
+    authorized_cache_scope,
+)
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.agent.safety import QuestionSafetyGate, SafetyRefusalCode
 from app.ports.evidence import (
@@ -11,7 +17,13 @@ from app.ports.evidence import (
     EvidenceContractInvalid,
     EvidenceToolUnavailable,
 )
-from app.providers.protocols import GeneratedAnswer, ModelAdapter, ModelProviderUnavailable
+from app.providers.protocols import (
+    GeneratedAnswer,
+    ModelAdapter,
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
+    ModelProviderUnavailable,
+)
 from app.schemas.access import AccessContext
 from app.schemas.evidence import EvidenceLookupStatus
 from app.schemas.questions import (
@@ -31,15 +43,30 @@ class QuestionOrchestrator:
         analysis_planner: QuestionAnalysisPlanner,
         model_adapter: ModelAdapter,
         safety_gate: QuestionSafetyGate | None = None,
+        execution_controller: ExecutionController | None = None,
     ) -> None:
         self._analysis_planner = analysis_planner
         self._model_adapter = model_adapter
         self._safety_gate = safety_gate or QuestionSafetyGate()
+        self._execution = execution_controller or ExecutionController()
 
     async def answer(
         self,
         request: QuestionRequest,
         access_context: AccessContext | None = None,
+    ) -> QuestionResponse:
+        try:
+            return await self._execution.run(
+                lambda budget: self._answer_with_budget(request, access_context, budget)
+            )
+        except ExecutionLimitExceeded:
+            return self._recoverable_error(FailureCode.EXECUTION_LIMIT)
+
+    async def _answer_with_budget(
+        self,
+        request: QuestionRequest,
+        access_context: AccessContext | None,
+        budget: RequestBudget,
     ) -> QuestionResponse:
         if access_context is None:
             return self._refused(FailureCode.ACCESS_DENIED)
@@ -58,7 +85,7 @@ class QuestionOrchestrator:
 
         try:
             plan = await self._analysis_planner.prepare(
-                request.question, request.context, access_context
+                request.question, request.context, access_context, budget
             )
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)
@@ -90,11 +117,19 @@ class QuestionOrchestrator:
         ):
             return self._recoverable_error(FailureCode.INVALID_SOURCE_RESPONSE)
         evidence = plan.evidence_result.evidence
+        read_plan = plan.read_plan
+        assert read_plan is not None
+        assert access_context is not None
+        evidence = evidence.model_copy(
+            update={"cache_scope": authorized_cache_scope(access_context, read_plan)}
+        )
         try:
-            generated_result = await self._model_adapter.generate(
-                request.question,
-                request.context,
-                evidence,
+            generated_result = await budget.model(
+                lambda: self._model_adapter.generate(
+                    request.question,
+                    request.context,
+                    evidence,
+                )
             )
             generated = GeneratedAnswer.model_validate(
                 generated_result.model_dump()
@@ -103,6 +138,12 @@ class QuestionOrchestrator:
             )
         except ModelProviderUnavailable:
             return self._recoverable_error(FailureCode.MODEL_UNAVAILABLE)
+        except ModelProviderRejected:
+            return self._recoverable_error(FailureCode.MODEL_REJECTED)
+        except ModelProviderInvalidResponse:
+            return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
+        except ExecutionLimitExceeded:
+            raise
         except (ValidationError, TypeError, ValueError):
             logger.warning("O adaptador de modelo retornou uma resposta inválida.")
             return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
@@ -124,8 +165,6 @@ class QuestionOrchestrator:
                 error=map_failure(FailureCode.UNGROUNDED_OUTPUT).error,
             )
 
-        read_plan = plan.read_plan
-        assert read_plan is not None
         period = (
             read_plan.window.phrase
             if read_plan.window.phrase is not None

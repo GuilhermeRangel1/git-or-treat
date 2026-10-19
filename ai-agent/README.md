@@ -23,6 +23,8 @@ Para preparar o adaptador Gemini opcional, instale `python -m pip install -e ".[
 
 Gemini é uma implementação opcional baseada na recomendação do case, não uma decisão definitiva de provedor da equipe. O módulo continua com interfaces substituíveis. O teste automatizado usa cliente falso e não faz chamadas de rede ou faturáveis.
 
+O serviço aplica orçamento total por solicitação e prazos próprios para fonte e modelo, inclusive ao esperar uma vaga de concorrência. Os valores e limites de chamadas podem ser ajustados pelas variáveis comentadas no `.env.example`. Prazo ou limite esgotado produz `limit_exceeded`, sem nova tentativa automática. O fallback só avança após indisponibilidade transitória; erro definitivo ou resposta inválida encerra a cadeia. O cache opcional usa identidade, permissões, plano, catálogo, evidência, prompt e modelos na chave; sem escopo autorizado ele é ignorado. Insights demonstrativos com observações enviadas pelo navegador não entram no cache.
+
 ## Executar e verificar
 
 Execute os comandos dentro de `ai-agent/`:
@@ -59,7 +61,7 @@ Invoke-RestMethod -Method Post `
 
 A resposta dos endpoints de perguntas e insights segue o envelope público `v1`: `contract_version`, `status`, `answer` ou `message`, `evidence`, `limitations`, `error`, `correlation_id` e `audit_reference`. `answered` usa `answer` em perguntas ou `hypothesis` em insights; os outros estados usam `message`, sem misturar os campos. A resposta também envia o `correlation_id` no cabeçalho `X-Correlation-ID`. O identificador é gerado pelo serviço e serve para localizar a requisição; não representa uma trilha de auditoria. `audit_reference` permanece `null` até existir auditoria durável. Em perguntas respondidas, `analysis_context` mostra o recorte lógico que a fonte declarou ter aplicado; a janela ainda pode ser uma frase do catálogo demonstrativo. Em insights, o contexto recebido fica separado das observações e da hipótese, mas ainda não é autenticado nem autorizado pelo serviço.
 
-Recusas e falhas incluem `error.code` e `error.retryable`. Os erros de entrada HTTP usam status 422 e o mesmo envelope v1, com mensagem estável sem ecoar valores inválidos. Falhas inesperadas usam status 500 e mensagem genérica. A API não devolve linhas tabulares nem oferece paginação; perguntas retornam texto e referências. O contexto de insight aceita até 20 filtros, 20 observações e 20 limitações; limites excedidos são rejeitados, nunca truncados silenciosamente. Evidências internas aceitam até 100 registros e até 16 KiB após serialização; esse conjunto não é serializado na resposta pública. O ingresso HTTP ainda não tem um teto agregado em bytes.
+Recusas e falhas incluem `error.code` e `error.retryable`. Os erros de entrada HTTP usam status 422 e o mesmo envelope v1, com mensagem estável sem ecoar valores inválidos. Falhas inesperadas usam status 500 e mensagem genérica. A API não devolve linhas tabulares nem oferece paginação; perguntas retornam texto e referências. O contexto de insight aceita até 20 filtros, 20 observações e 20 limitações; limites excedidos são rejeitados, nunca truncados silenciosamente. Evidências internas aceitam por padrão até 100 registros e 16 KiB após serialização, com limites configuráveis; esse conjunto não é serializado na resposta pública. O ingresso HTTP ainda não tem um teto agregado em bytes.
 
 O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador de modelo configurado para gerar a resposta, retorna indisponibilidade controlada. As referências sintéticas vêm com `is_demo: true`.
 

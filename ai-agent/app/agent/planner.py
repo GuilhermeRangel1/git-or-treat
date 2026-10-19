@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.evidence_guard import EvidenceGuard
+from app.agent.execution import ExecutionLimitExceeded, RequestBudget
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.read_plan import (
     PlanCapabilityUnavailable,
@@ -82,20 +83,28 @@ class QuestionAnalysisPlanner:
         interpreter: QuestionInterpreter,
         evidence_source: EvidenceSource,
         access_policy: ReadAccessPolicy,
+        *,
+        max_rows: int = 100,
+        max_evidence_bytes: int = 16_384,
     ) -> None:
         self._interpreter = interpreter
         self._evidence_source = evidence_source
-        self._plan_builder = ReadPlanBuilder(access_policy.profile, access_policy.source_id)
-        self._plan_validator = ReadPlanValidator(
-            access_policy.profile, access_policy.source_id, access_policy
+        self._plan_builder = ReadPlanBuilder(
+            access_policy.profile, access_policy.source_id, default_limit=max_rows
         )
-        self._evidence_guard = EvidenceGuard(access_policy.profile)
+        self._plan_validator = ReadPlanValidator(
+            access_policy.profile, access_policy.source_id, access_policy, max_rows=max_rows
+        )
+        self._evidence_guard = EvidenceGuard(
+            access_policy.profile, max_bytes=max_evidence_bytes
+        )
 
     async def prepare(
         self,
         question: str,
         context: list[ConversationTurn] | None = None,
         access_context: AccessContext | None = None,
+        budget: RequestBudget | None = None,
     ) -> AnalysisPlan:
         interpretation = self._interpreter.interpret(question, context)
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
@@ -118,7 +127,7 @@ class QuestionAnalysisPlanner:
                 evidence_result=result,
             )
         try:
-            approved, evidence_result = await self.execute_plan(proposed, access_context)
+            approved, evidence_result = await self.execute_plan(proposed, access_context, budget)
         except PlanCapabilityUnavailable as exc:
             result = EvidenceLookupResult(
                 status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
@@ -137,13 +146,20 @@ class QuestionAnalysisPlanner:
         )
 
     async def execute_plan(
-        self, proposed: LogicalReadPlan | dict[str, object], access_context: AccessContext | None
+        self,
+        proposed: LogicalReadPlan | dict[str, object],
+        access_context: AccessContext | None,
+        budget: RequestBudget | None = None,
     ) -> tuple[LogicalReadPlan, EvidenceLookupResult]:
         """Ponto único de validação, inclusive para planos propostos futuramente por LLM."""
 
         approved = self._plan_validator.approve(proposed, access_context)
         try:
-            evidence_result = await self._evidence_source.retrieve(approved)
+            evidence_result = (
+                await budget.source(lambda: self._evidence_source.retrieve(approved))
+                if budget is not None
+                else await self._evidence_source.retrieve(approved)
+            )
             if not isinstance(evidence_result, EvidenceLookupResult):
                 raise TypeError("Evidence source returned an unsupported result type.")
             evidence_result = EvidenceLookupResult.model_validate(evidence_result.model_dump())
@@ -153,6 +169,8 @@ class QuestionAnalysisPlanner:
         except EvidenceAccessDenied:
             raise
         except EvidenceContractInvalid:
+            raise
+        except ExecutionLimitExceeded:
             raise
         except (TypeError, ValidationError) as exc:
             raise EvidenceContractInvalid("Evidence source returned an invalid result.") from exc

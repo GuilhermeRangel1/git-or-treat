@@ -27,6 +27,14 @@ class ModelProviderUnavailable(Exception):
     """Sinaliza indisponibilidade temporária do provedor de linguagem."""
 
 
+class ModelProviderRejected(Exception):
+    """Erro definitivo do provedor; não aciona fallback ou nova tentativa."""
+
+
+class ModelProviderInvalidResponse(Exception):
+    """Saída incompatível com o contrato; não aciona fallback."""
+
+
 class ModelAdapter(Protocol):
     async def generate(
         self,

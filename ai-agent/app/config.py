@@ -21,6 +21,16 @@ class Settings(BaseSettings):
     model_total_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
     model_cache_ttl_seconds: int = Field(default=0, ge=0, le=86_400)
     model_cache_max_entries: int = Field(default=256, ge=1, le=10_000)
+    request_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
+    source_timeout_ms: int = Field(default=10_000, ge=100, le=120_000)
+    source_max_calls: int = Field(default=1, ge=1, le=10)
+    evidence_max_rows: int = Field(default=100, ge=1, le=100)
+    evidence_max_bytes: int = Field(default=16_384, ge=1_024, le=1_048_576)
+    model_max_calls: int = Field(default=3, ge=1, le=10)
+    concurrent_requests: int = Field(default=16, ge=1, le=1_000)
+    concurrent_sources: int = Field(default=8, ge=1, le=1_000)
+    concurrent_models: int = Field(default=8, ge=1, le=1_000)
+    fallback_backoff_ms: int = Field(default=0, ge=0, le=5_000)
 
     model_config = SettingsConfigDict(
         env_file=".env",

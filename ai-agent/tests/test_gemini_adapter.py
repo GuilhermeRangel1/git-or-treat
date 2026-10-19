@@ -8,7 +8,12 @@ import pytest
 from app.config import Settings
 from app.providers.factory import ModelConfigurationError, build_model_adapter
 from app.providers.gemini import GeminiModelAdapter
-from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
+from app.providers.protocols import (
+    GeneratedAnswer,
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
+    ModelProviderUnavailable,
+)
 from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn, EvidenceReference
 
@@ -164,7 +169,7 @@ def test_gemini_adapter_rejects_invalid_provider_responses(response_text: str | 
     endpoint = FakeModelEndpoint(response=FakeResponse(response_text))
     adapter = GeminiModelAdapter(model_name="gemini-test-model", client=FakeClient(endpoint))
 
-    with pytest.raises(ModelProviderUnavailable, match="resposta inválida"):
+    with pytest.raises(ModelProviderInvalidResponse, match="resposta inválida"):
         asyncio.run(
             adapter.generate(
                 "Pergunta sintética",
@@ -192,8 +197,30 @@ def test_gemini_adapter_sanitizes_timeout_and_provider_failures(
     endpoint = FakeModelEndpoint(error=failure)
     adapter = GeminiModelAdapter(model_name="gemini-test-model", client=FakeClient(endpoint))
 
-    with pytest.raises(ModelProviderUnavailable) as error:
+    expected = (
+        ModelProviderUnavailable if isinstance(failure, TimeoutError) else ModelProviderRejected
+    )
+    with pytest.raises(expected) as error:
         asyncio.run(adapter.generate("Pergunta sintética", [], demo_evidence))
 
     assert "private" not in str(error.value)
     assert "API key" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("429", ModelProviderUnavailable),
+        (503, ModelProviderUnavailable),
+        (403, ModelProviderRejected),
+    ],
+)
+def test_gemini_classifies_provider_status_for_fallback(status, expected, demo_evidence) -> None:
+    class ProviderError(Exception):
+        status_code = status
+
+    endpoint = FakeModelEndpoint(error=ProviderError("private provider detail"))
+    adapter = GeminiModelAdapter(model_name="gemini-test-model", client=FakeClient(endpoint))
+    with pytest.raises(expected) as error:
+        asyncio.run(adapter.generate("Pergunta sintética", [], demo_evidence))
+    assert "private" not in str(error.value)

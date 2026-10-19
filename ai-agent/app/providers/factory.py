@@ -1,5 +1,7 @@
 """Cria adaptadores de modelo a partir da configuração local do serviço."""
 
+import hashlib
+
 from app.config import Settings
 from app.providers.caching import CachingModelAdapter
 from app.providers.fallback import FallbackModelAdapter
@@ -23,7 +25,7 @@ def build_model_adapter(settings: Settings, *, client=None) -> ModelAdapter:
         )
 
     try:
-        from app.providers.gemini import GeminiModelAdapter
+        from app.providers.gemini import SYSTEM_INSTRUCTION, GeminiModelAdapter
 
         adapters: list[ModelAdapter] = [
             GeminiModelAdapter(
@@ -40,14 +42,21 @@ def build_model_adapter(settings: Settings, *, client=None) -> ModelAdapter:
         ) from None
 
     adapter = adapters[0]
+    if len(adapters) > settings.model_max_calls:
+        raise ModelConfigurationError("A cadeia excede GENAI_MODEL_MAX_CALLS.")
     if len(adapters) > 1:
         adapter = FallbackModelAdapter(
-            adapters, total_timeout_seconds=settings.model_total_timeout_ms / 1000
+            adapters,
+            total_timeout_seconds=settings.model_total_timeout_ms / 1000,
+            backoff_seconds=settings.fallback_backoff_ms / 1000,
         )
     if settings.model_cache_ttl_seconds > 0:
+        model_names = ",".join([settings.gemini_model, *settings.gemini_fallback_models])
+        prompt_digest = hashlib.sha256(SYSTEM_INSTRUCTION.encode("utf-8")).hexdigest()
         adapter = CachingModelAdapter(
             adapter,
             ttl_seconds=settings.model_cache_ttl_seconds,
             max_entries=settings.model_cache_max_entries,
+            namespace=f"gemini:{model_names}:{prompt_digest}",
         )
     return adapter

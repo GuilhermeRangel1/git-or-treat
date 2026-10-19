@@ -3,6 +3,7 @@
 from app.agent.insights import ScreenInsightOrchestrator
 from app.config import Settings
 from app.main import create_app
+from app.providers.caching import CachingModelAdapter
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
 
 from .conftest import InProcessClient
@@ -81,6 +82,17 @@ def test_insight_real_mode_without_verified_identity_never_calls_model() -> None
     assert response.json()["observation"]["values"] == []
     assert response.json()["evidence"] == []
     assert model.calls == []
+
+
+def test_client_supplied_insight_context_never_uses_model_cache() -> None:
+    model = RecordingInsightModel()
+    wrapped = CachingModelAdapter(model, ttl_seconds=300, max_entries=10)
+    with _client(wrapped) as client:
+        first = client.post("/api/v1/insights", json={"screen": _screen_context()})
+        second = client.post("/api/v1/insights", json={"screen": _screen_context()})
+
+    assert first.json()["status"] == second.json()["status"] == "answered"
+    assert len(model.calls) == 2
 
 
 def test_insight_separates_supplied_observation_from_generated_hypothesis() -> None:
