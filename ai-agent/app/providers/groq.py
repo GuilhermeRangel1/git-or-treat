@@ -1,0 +1,100 @@
+"""Adaptador opcional para o Groq pela API compatível com OpenAI, via httpx."""
+
+from __future__ import annotations
+
+import json
+from typing import TYPE_CHECKING
+
+import httpx
+from pydantic import SecretStr, ValidationError
+
+from app.providers.gemini import SYSTEM_INSTRUCTION
+from app.providers.protocols import (
+    GeneratedAnswer,
+    ModelProviderUnavailable,
+)
+from app.schemas.questions import ConversationTurn
+
+if TYPE_CHECKING:
+    from app.tools.evidence import EvidenceResult
+
+GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# O JSON mode do Groq não recebe esquema; ele segue no prompt de sistema.
+SYSTEM_PROMPT = (
+    f"{SYSTEM_INSTRUCTION}\n"
+    "Responda com um único objeto JSON, sem texto fora dele, que siga este esquema JSON:\n"
+    f"{json.dumps(GeneratedAnswer.model_json_schema(), ensure_ascii=False)}"
+)
+
+
+class GroqModelAdapter:
+    """Gera respostas estruturadas sem executar ferramentas ou consultas ao banco."""
+
+    def __init__(
+        self,
+        *,
+        model_name: str,
+        api_key: SecretStr,
+        timeout_ms: int = 20_000,
+        client: httpx.AsyncClient | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        if not api_key.get_secret_value().strip():
+            raise ValueError("Uma chave Groq é necessária para chamar o provedor.")
+        self._model_name = model_name
+        self._api_key = api_key
+        self._timeout = httpx.Timeout(timeout_ms / 1000)
+        self._client = client
+        self._transport = transport
+
+    async def generate(
+        self,
+        question: str,
+        context: list[ConversationTurn],
+        evidence: EvidenceResult,
+    ) -> GeneratedAnswer:
+        contents = json.dumps(
+            {
+                "question": question,
+                "context": [turn.model_dump(mode="json") for turn in context],
+                "evidence": evidence.model_dump(mode="json"),
+            },
+            ensure_ascii=False,
+        )
+        payload = {
+            "model": self._model_name,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": contents},
+            ],
+        }
+        try:
+            response = await self._post(payload)
+            response.raise_for_status()
+        except httpx.HTTPError:
+            raise ModelProviderUnavailable(
+                "O provedor de modelo está temporariamente indisponível."
+            ) from None
+
+        try:
+            response_text = response.json()["choices"][0]["message"]["content"]
+            if not isinstance(response_text, str) or not response_text.strip():
+                raise ValueError("resposta vazia")
+            return GeneratedAnswer.model_validate_json(response_text)
+        except (KeyError, IndexError, TypeError, ValueError, ValidationError):
+            raise ModelProviderUnavailable("O provedor retornou uma resposta inválida.") from None
+
+    async def _post(self, payload: dict[str, object]) -> httpx.Response:
+        headers = {"Authorization": f"Bearer {self._api_key.get_secret_value()}"}
+        if self._client is not None:
+            return await self._client.post(
+                GROQ_CHAT_COMPLETIONS_URL,
+                json=payload,
+                headers=headers,
+                timeout=self._timeout,
+            )
+        async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
+            return await client.post(GROQ_CHAT_COMPLETIONS_URL, json=payload, headers=headers)
