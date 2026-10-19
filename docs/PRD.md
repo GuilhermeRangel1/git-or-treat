@@ -451,11 +451,22 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-18 — IA-01, IA-03, IA-04 e IA-06 — composição do núcleo GenAI sintético
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; os testes comprovam composição e substituição de dependências, sem números reconciliados com Gold ou integração ao portal.
+- Mudança observável para usuário/negócio: perguntas e insights passam por casos de uso compostos com perfil, política, fonte, modelo, limites e destino opcional de eventos injetados. A resposta sintética mantém fundamentação por IDs de observação e falhas controladas. A API preserva o contrato público `v1`.
+- Arquivos/commit/PR: `ai-agent/app/agent/composition.py`, `app/generation/prompts.py`, `app/ports/events.py`, `app/main.py`, orquestradores, adaptadores, `ai-agent/tests/test_core_composition.py`, [README do serviço](../ai-agent/README.md) e [guia do serviço](services/ai-agent.md); alterações locais em revisão, sem commit/PR deste recorte.
+- Dados usados: perfil e fixtures sintéticas do Grid 360, fonte/modelos falsos e cliente falso do Gemini; nenhum dataset ou banco Gold.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (251 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), Ruff, compilação e `git diff --check` passaram em 18/10/2026. Testes exercitam chamada direta e HTTP, substituição entre modelo falso/Gemini/fallback, recusa antes da fonte, insight injetado, falha do destino de eventos e importação do núcleo sem FastAPI, fixture ou SDK.
+- Reconciliação ou amostra manual: resposta demonstrativa de consumo `420 unidades fictícias` resulta do mesmo plano e evidência aprovada com adaptadores de modelo distintos; não representa consumo real.
+- Critérios de aceite revisados e pendências: IA-01 e IA-03 exigem catálogo Gold oficial e reconciliação; IA-04 exige insight com contexto autorizado no portal; IA-06 exige identidade verificada, executor somente leitura, controles do banco e prova integrada. O evento mínimo não é auditoria durável; detalhamento e política de falha pertencem a 4.12.
+- Responsável/revisor: Codex (implementação e testes sintéticos); validação de integração com Backend/Dados e revisão do produto pendentes.
+
 ### 2026-10-18 — IA-06 — limites de execução e isolamento do cache no protótipo GenAI
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; os controles assíncronos foram exercitados com fonte e modelo falsos, sem consulta Gold real.
 - Mudança observável para usuário/negócio: o fluxo limita duração, chamadas e concorrência de fonte/modelo e retorna falha controlada quando o orçamento acaba. O cache opcional só reutiliza uma resposta após autorização e com identidade, permissões, plano, catálogo e evidência compatíveis. O fallback avança apenas após falha transitória.
-- Arquivos/commit/PR: `ai-agent/app/agent/execution.py`, orquestradores, planner, adaptadores de cache/fallback/Gemini, configuração, testes em `ai-agent/tests/`, [README do serviço](../ai-agent/README.md) e [guia do serviço](services/ai-agent.md); alterações locais em revisão, sem commit/PR deste recorte.
+- Arquivos/commit/PR: commit `9ae3326`, `ai-agent/app/agent/execution.py`, orquestradores, planner, adaptadores de cache/fallback/Gemini, configuração, testes em `ai-agent/tests/`, [README do serviço](../ai-agent/README.md) e [guia do serviço](services/ai-agent.md).
 - Dados usados: fixtures e identidades sintéticas; nenhum dataset, credencial, pessoa real ou esquema Gold oficial.
 - Verificações: em `ai-agent/`, `python -m pytest -q` (240 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram em 18/10/2026; `git diff --check` passou na raiz. Testes controlados verificam fonte/modelo lentos, cancelamento, liberação de vagas, concorrência, isolamento por chamador, recusa antes de cache, limite de chamadas e parada do fallback em erro definitivo.
 - Reconciliação ou amostra manual: duas identidades fictícias com a mesma pergunta/evidência causam gerações separadas; escopo negado não alcança o cache. Nenhuma medida de latência ou cancelamento foi feita contra o banco ou SDK real.

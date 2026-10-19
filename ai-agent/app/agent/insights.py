@@ -3,6 +3,8 @@
 from pydantic import ValidationError
 
 from app.agent.execution import ExecutionController, ExecutionLimitExceeded, RequestBudget
+from app.generation.prompts import INSIGHT_TASK
+from app.ports.events import CoreEvent, EventSink, NoopEventSink, record_safely
 from app.providers.protocols import (
     GeneratedAnswer,
     ModelAdapter,
@@ -21,11 +23,6 @@ from app.schemas.insights import (
 from app.schemas.questions import QuestionStatus
 from app.schemas.responses import FailureCode, PublicError, map_failure
 
-INSIGHT_PROMPT = (
-    "Selecione em observation_ids as observações que merecem investigação. "
-    "Use somente os IDs fornecidos. Não invente números, filtros ou causas; "
-    "o serviço montará a hipótese pública a partir das observações selecionadas."
-)
 SYNTHETIC_INSIGHT_LIMITATIONS = [
     "O contexto e os valores são sintéticos; não representam dados reais da V-Energy.",
     "A hipótese é uma sugestão de investigação, não uma causa comprovada.",
@@ -39,26 +36,37 @@ class ScreenInsightOrchestrator:
         self,
         model_adapter: ModelAdapter,
         execution_controller: ExecutionController | None = None,
+        event_sink: EventSink | None = None,
     ) -> None:
         self._model_adapter = model_adapter
         self._execution = execution_controller or ExecutionController()
+        self._events = event_sink or NoopEventSink()
 
     async def generate(
         self, screen: ScreenContext, access_context: AccessContext | None = None
     ) -> ScreenInsightResponse:
         try:
-            return await self._execution.run(
+            response = await self._execution.run(
                 lambda budget: self._generate_with_budget(screen, access_context, budget)
             )
         except ExecutionLimitExceeded:
             failure = map_failure(FailureCode.EXECUTION_LIMIT)
-            return self._response(
+            response = self._response(
                 screen,
                 status=QuestionStatus.RECOVERABLE_ERROR,
                 message=failure.message,
                 error=failure.error,
                 expose_context=access_context is not None,
             )
+        record_safely(
+            self._events,
+            CoreEvent(
+                flow="insight",
+                outcome=response.status.value,
+                correlation_id=(access_context.correlation_id if access_context else None),
+            ),
+        )
+        return response
 
     async def _generate_with_budget(
         self,
@@ -95,7 +103,7 @@ class ScreenInsightOrchestrator:
         )
         try:
             generated_result = await budget.model(
-                lambda: self._model_adapter.generate(INSIGHT_PROMPT, [], evidence)
+                lambda: self._model_adapter.generate(INSIGHT_TASK, [], evidence)
             )
             generated = GeneratedAnswer.model_validate(
                 generated_result.model_dump()

@@ -7,6 +7,8 @@ from app.config import Settings
 from app.schemas.domain_profile import DomainProfile
 from app.schemas.interpretation import InterpretationStatus
 
+from .conftest import InProcessClient
+
 
 def profile_data() -> dict:
     return {
@@ -94,18 +96,16 @@ def test_interpreter_asks_when_question_matches_multiple_metrics_in_one_domain()
     assert result.clarification_question == "Você quer consultar chuva ou temperatura?"
 
 
-def test_application_composition_passes_the_supplied_profile(monkeypatch) -> None:
+def test_application_composition_passes_the_supplied_profile() -> None:
     profile = DomainProfile.model_validate(profile_data())
-    received_profiles = []
+    application = app.main.create_app(settings=Settings(_env_file=None), domain_profile=profile)
 
-    class ProfileRecordingInterpreter:
-        def __init__(self, profile):
-            received_profiles.append(profile)
+    with InProcessClient(application) as client:
+        response = client.post("/api/v1/questions", json={"question": "Qual foi a chuva?"})
 
-    monkeypatch.setattr(app.main, "QuestionInterpreter", ProfileRecordingInterpreter)
-    app.main.create_app(settings=Settings(_env_file=None), domain_profile=profile)
-
-    assert received_profiles == [profile]
+    assert application.state.domain_profile == profile
+    assert response.json()["status"] == "needs_clarification"
+    assert response.json()["message"] == "Qual período?"
 
 
 def test_profile_rejects_duplicate_ids_and_ambiguous_metric_aliases() -> None:

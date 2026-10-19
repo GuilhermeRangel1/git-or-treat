@@ -67,6 +67,8 @@ O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador
 
 O interpretador recebe um `DomainProfile` pela raiz de composição (`create_app(domain_profile=...)`). A configuração atual, `GRID360_DEMO_PROFILE`, mantém o vocabulário, métricas, dimensões e períodos de demonstração fora do mecanismo genérico. Os IDs são lógicos; unidades, granularidades, aliases, operadores e sensibilidades do catálogo são demonstrativos e não correspondem a uma definição Gold aprovada.
 
+`app/agent/composition.py` monta os fluxos de pergunta e insight com o mesmo perfil, política, fonte, modelo, controlador de execução e destino opcional de eventos. `create_app` injeta as implementações locais; testes e futuros integradores podem fornecer `evidence_source`, `source_id`, `model_adapter`, `access_policy` e `event_sink` sem alterar os orquestradores. A fonte e sua política devem usar o mesmo ID lógico. As instruções genéricas de geração ficam em `app/generation/prompts.py`; vocabulário e exemplos de negócio continuam no perfil. O modelo apenas seleciona IDs de observações da evidência aprovada, e o serviço valida a seleção e monta a resposta pública. O destino padrão de eventos é vazio; correlação detalhada e auditoria durável ainda não estão disponíveis.
+
 Exemplo de erro de contrato:
 
 ```json

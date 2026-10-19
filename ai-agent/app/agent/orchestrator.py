@@ -12,6 +12,7 @@ from app.agent.execution import (
 )
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.agent.safety import QuestionSafetyGate, SafetyRefusalCode
+from app.ports.events import CoreEvent, EventSink, NoopEventSink, record_safely
 from app.ports.evidence import (
     EvidenceAccessDenied,
     EvidenceContractInvalid,
@@ -44,11 +45,13 @@ class QuestionOrchestrator:
         model_adapter: ModelAdapter,
         safety_gate: QuestionSafetyGate | None = None,
         execution_controller: ExecutionController | None = None,
+        event_sink: EventSink | None = None,
     ) -> None:
         self._analysis_planner = analysis_planner
         self._model_adapter = model_adapter
         self._safety_gate = safety_gate or QuestionSafetyGate()
         self._execution = execution_controller or ExecutionController()
+        self._events = event_sink or NoopEventSink()
 
     async def answer(
         self,
@@ -56,11 +59,20 @@ class QuestionOrchestrator:
         access_context: AccessContext | None = None,
     ) -> QuestionResponse:
         try:
-            return await self._execution.run(
+            response = await self._execution.run(
                 lambda budget: self._answer_with_budget(request, access_context, budget)
             )
         except ExecutionLimitExceeded:
-            return self._recoverable_error(FailureCode.EXECUTION_LIMIT)
+            response = self._recoverable_error(FailureCode.EXECUTION_LIMIT)
+        record_safely(
+            self._events,
+            CoreEvent(
+                flow="question",
+                outcome=response.status.value,
+                correlation_id=(access_context.correlation_id if access_context else None),
+            ),
+        )
+        return response
 
     async def _answer_with_budget(
         self,

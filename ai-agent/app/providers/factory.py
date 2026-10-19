@@ -3,6 +3,7 @@
 import hashlib
 
 from app.config import Settings
+from app.generation.prompts import SYSTEM_INSTRUCTION
 from app.providers.caching import CachingModelAdapter
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.protocols import ModelAdapter
@@ -25,7 +26,7 @@ def build_model_adapter(settings: Settings, *, client=None) -> ModelAdapter:
         )
 
     try:
-        from app.providers.gemini import SYSTEM_INSTRUCTION, GeminiModelAdapter
+        from app.providers.gemini import GeminiModelAdapter
 
         adapters: list[ModelAdapter] = [
             GeminiModelAdapter(

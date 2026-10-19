@@ -16,7 +16,12 @@ def _imported_modules(path: Path) -> set[str]:
 
 
 def test_core_contract_modules_do_not_import_concrete_adapters_or_composition() -> None:
-    core_roots = [APP_ROOT / "agent", APP_ROOT / "ports", APP_ROOT / "schemas"]
+    core_roots = [
+        APP_ROOT / "agent",
+        APP_ROOT / "generation",
+        APP_ROOT / "ports",
+        APP_ROOT / "schemas",
+    ]
     forbidden_prefixes = (
         "app.main",
         "app.tools",
@@ -25,6 +30,9 @@ def test_core_contract_modules_do_not_import_concrete_adapters_or_composition() 
         "app.providers.caching",
         "app.providers.factory",
         "app.providers.unavailable",
+        "app.profiles.grid360_demo",
+        "fastapi",
+        "google.genai",
         "sqlalchemy",
         "psycopg",
         "sqlite3",

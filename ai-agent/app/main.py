@@ -6,17 +6,19 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 
 from app.agent.access import ReadAccessPolicy
+from app.agent.composition import compose_core
 from app.agent.execution import ExecutionController, ExecutionLimits
 from app.agent.insights import ScreenInsightOrchestrator
-from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
-from app.agent.planner import QuestionAnalysisPlanner
 from app.api.access import SYNTHETIC_SOURCE_ID
 from app.api.errors import invalid_request_response, unexpected_error_response
 from app.api.routes import router
 from app.config import Settings, get_settings
+from app.ports.events import EventSink
+from app.ports.evidence import EvidenceSource
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.factory import build_model_adapter
+from app.providers.protocols import ModelAdapter
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.domain_profile import DomainProfile
 from app.tools.synthetic_analytics import SyntheticScenarioTool
@@ -27,6 +29,11 @@ def create_app(
     question_orchestrator: QuestionOrchestrator | None = None,
     insight_orchestrator: ScreenInsightOrchestrator | None = None,
     domain_profile: DomainProfile | None = None,
+    evidence_source: EvidenceSource | None = None,
+    model_adapter: ModelAdapter | None = None,
+    access_policy: ReadAccessPolicy | None = None,
+    event_sink: EventSink | None = None,
+    source_id: str = SYNTHETIC_SOURCE_ID,
 ) -> FastAPI:
     """Cria a API isolada; adaptadores reais podem ser injetados quando estiverem disponíveis."""
 
@@ -50,6 +57,7 @@ def create_app(
     application.add_exception_handler(Exception, unexpected_error_response)
     application.state.environment = active_settings.environment
     application.state.domain_profile = active_domain_profile
+    application.state.source_id = source_id
 
     execution_controller = ExecutionController(
         ExecutionLimits(
@@ -64,24 +72,30 @@ def create_app(
         )
     )
 
-    model_adapter = (
-        build_model_adapter(active_settings)
-        if question_orchestrator is None or insight_orchestrator is None
-        else None
-    )
-    application.state.question_orchestrator = question_orchestrator or QuestionOrchestrator(
-        analysis_planner=QuestionAnalysisPlanner(
-            interpreter=QuestionInterpreter(profile=active_domain_profile),
-            evidence_source=SyntheticScenarioTool(SYNTHETIC_SCENARIOS),
-            access_policy=ReadAccessPolicy(active_domain_profile, SYNTHETIC_SOURCE_ID),
+    core = None
+    if question_orchestrator is None or insight_orchestrator is None:
+        core = compose_core(
+            profile=active_domain_profile,
+            source_id=source_id,
+            evidence_source=(
+                evidence_source
+                if evidence_source is not None
+                else SyntheticScenarioTool(SYNTHETIC_SCENARIOS)
+            ),
+            model_adapter=(
+                model_adapter if model_adapter is not None else build_model_adapter(active_settings)
+            ),
+            execution_controller=execution_controller,
+            access_policy=access_policy,
+            event_sink=event_sink,
             max_rows=active_settings.evidence_max_rows,
             max_evidence_bytes=active_settings.evidence_max_bytes,
-        ),
-        model_adapter=model_adapter,
-        execution_controller=execution_controller,
+        )
+    application.state.question_orchestrator = (
+        question_orchestrator or core.question
     )
-    application.state.insight_orchestrator = insight_orchestrator or ScreenInsightOrchestrator(
-        model_adapter, execution_controller=execution_controller
+    application.state.insight_orchestrator = (
+        insight_orchestrator or core.insight
     )
     application.include_router(router)
     return application
