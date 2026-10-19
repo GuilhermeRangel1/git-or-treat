@@ -1,6 +1,6 @@
 # PRD — V-Energy Grid 360
 
-**Versão:** 1.3 documental · **Data:** 16/10/2026 · **Estado da implementação:** não iniciada
+**Versão:** 1.3 documental · **Data:** 16/10/2026 · **Estado da implementação:** parcial — fundação e primeira fatia visual concluídas; requisitos funcionais pendentes
 
 **Origem:** case final Visagio, Rocket Lab 2026.2, fornecido pela pessoa usuária em dez páginas de imagem. Este documento reescreve o enunciado em texto pesquisável, organiza critérios de aceite e separa exigências do case de decisões futuras do time. As imagens não integram o repositório.  
 **Classificação do material de origem:** o enunciado traz indicação de confidencialidade. O mesmo enunciado exige repositório GitHub público na entrega. Essa tensão precisa de confirmação com a organização antes da publicação de conteúdo ou dados do case.
@@ -190,6 +190,8 @@ Toda a transformação deve ocorrer no Databricks com PySpark. A camada Bronze i
 ### 5.2 Portal web
 
 O portal interno recebe os dados tratados no banco local. Stack indicada: React + TypeScript com Vite, FastAPI em Python, banco SQLite ou PostgreSQL. Deve oferecer indicadores e comparação temporal, decomposição da receita, visão 360 por UC, fila de inspeção, gestão das ordens, continuidade do serviço, filtros/exportações onde pedidos, acesso ao agente e insights de IA contextualizados. A quantidade de telas, navegação e visualizações é decisão de produto desde que cada história seja atendida.
+
+Como decisão da equipe em 18/10/2026, o frontend adota também Tailwind CSS para estilização e Lucide para ícones. A fundação modular, layout persistente e responsabilidade dos provedores estão descritos na [arquitetura do frontend](architecture/frontend.md) e na [ADR-0001](decisions/0001-arquitetura-frontend.md). A primeira etapa prepara a arquitetura. A etapa visual começou pela sidebar e pelo topo estático do Panorama, sem filtros nem dados; integração e critérios funcionais continuam pendentes.
 
 ### 5.3 Inteligência artificial
 
@@ -650,6 +652,48 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Critérios de aceite revisados e pendências: a ordem cancelada deve permanecer terminal na simulação e o fluxo precisa ser repetido após correção. Filtros, busca e estados são exemplos estáticos; nada nesta passada comprova API, Gold, persistência, autorização ou cálculo real. Mobile não está no arquivo testado. Leitor de tela aparece desativado no player; acessibilidade executável e responsividade continuam pendentes.
 - Responsável/revisor: Codex; correção e revisão humana do protótipo pendentes.
 
+### 2026-10-18 — preparação de WEB-01 a WEB-07 e IA-01 a IA-06 — arquitetura do frontend
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; fundação arquitetural preparada na branch `refactor/arquitetura-frontend`.
+- Mudança observável: as sete áreas mantêm navegação e cabeçalho, agora com layout persistente e registro único de rotas. A indicação fixa e não verificada de API online foi retirada. As páginas continuam vazias; não foram construídos KPIs, gráficos ou integrações.
+- Arquivos: `frontend/src/app`, `layouts`, `features`, `shared`, `styles`; configuração Tailwind/Vite, TypeScript estrito, testes e verificações na CI. Decisão e limites em [ADR-0001](decisions/0001-arquitetura-frontend.md) e [guia arquitetural](architecture/frontend.md).
+- Dados usados: nenhum dataset ou dado de negócio; testes de infraestrutura usam respostas HTTP artificiais e rotas vazias. O provedor de consultas não dispara solicitações.
+- Verificações: instalação reproduzível com `npm ci`; limites de importação, formatação, lint, dez testes de transporte/composição e tipos/build. O resultado final e a revisão de navegação ficam no [plano de execução](plans/2026-10-18-arquitetura-frontend.md).
+- Pendências: alinhamento visual ao Figma, componentes visuais, contratos por domínio, filtros, dados reais, operações e IA. A arquitetura não comprova critérios de aceite funcionais, reconciliação com Gold ou conformidade WCAG AA.
+- Responsável/revisor: Codex executou a fundação; revisão humana da branch pendente.
+
+### 2026-10-18 — preparação visual de WEB-01 e navegação do portal — sidebar e topo do Panorama
+
+- Estado anterior → novo estado: requisitos funcionais continuam `Pendente`; primeira fatia visual implementada na branch `feat/visual-frontend`, renomeada de `refactor/arquitetura-frontend`.
+- Mudança observável: sidebar com marca e ícones Lucide do protótipo; topo do Panorama com título, subtítulo, decoração e alternância de tema. Menu mobile reproduz a navegação. O rodapé demonstrativo e a linha de atualização ilustrativa foram retirados conforme solicitação; filtros e todo o conteúdo de dados ficaram fora.
+- Arquivos: `frontend/src/layouts/`, `frontend/src/shared/ui/`, `frontend/src/features/panorama/` e `frontend/src/styles/`; medidas, frames Figma e limites na [arquitetura do frontend](architecture/frontend.md).
+- Dados usados: nenhum dataset, dado de negócio ou mock de produto. As imagens decorativas não representam métricas.
+- Verificações: limites de importação, formatação, lint, dez testes e tipos/build; revisão visual e de navegação no Chrome headless com temas claro/escuro, desktop 1440 × 1024 e mobile 390 × 844, incluindo Escape, retorno de foco e ausência de consultas de negócio. Evidências locais ficam em `work/visual-frontend/`, ignorado pelo Git.
+- Reconciliação e pendências: não aplicável a números nesta fatia. WEB-01/WEB-07 ainda exigem dados reais, filtros e evidência integrada; demais jornadas não foram implementadas. Revisão humana da aparência pendente.
+
+### 2026-10-18 — preparação visual de WEB-02 a WEB-06 e IA-05 — textos superiores
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; títulos, subtítulos e contexto superior das outras seis áreas alinhados aos frames originais do Figma, nos dois temas.
+- Mudança observável: textos de Receita, UC 360, Inspeções, Ordens, Operação e Assistente reproduzem o protótipo. UC 360 mostra Atendimento no topo; Inspeções mostra Perdas. Sidebar e Panorama preservados. O Assistente recebe a abertura textual em um painel central com superfície, borda e cantos do protótipo, sem exemplos, campo de envio ou funcionalidades de chat.
+- Arquivos: `frontend/src/app/routes.ts`, `frontend/src/layouts/navigation.ts`, `frontend/src/layouts/AppLayout.tsx`, `frontend/src/features/assistente/AssistentePage.tsx` e teste de navegação existente. Frames claros consultados via Figma MCP: `15:331`, `15:582`, `15:773`, `16:640`, `16:735`, `16:991`, além do painel mobile `195:8810`; correspondentes escuros: `16:1296`, `16:1547`, `16:1738`, `16:1894`, `16:1989`, `16:2245`.
+- Dados usados: nenhum dataset, mock de produto ou consulta. Não foram adicionados filtros, indicadores, tabelas, formulários ou respostas de IA.
+- Verificações: formatação, fronteiras, lint, dez testes existentes e tipos/build; seis rotas conferidas no navegador em claro/escuro, desktop/mobile, sem conteúdo de negócio. Após correção do layout do Assistente, suas caixas foram comparadas com os metadados do Figma e coincidiram nos dois temas: painel desktop 960 × 800 px em x=352/y=104, mobile 358 × 752 px em x=16/y=76, além das posições do título e texto de apoio. A altura do painel foi adaptada à janela: 800 px é máximo no desktop e apenas o histórico pode rolar; janelas menores não exigem rolar a página até o futuro compositor. A revisão posterior fixou o bloco textual padrão em 810 px no desktop e comparou posições e quebras ao Figma em 24 casos via Playwright MCP. O zoom nativo de 80% a 400% cobre sete rotas nos dois temas; em altura de até 480 px, o Assistente compacta o cabeçalho interno para manter área de histórico. Capturas e medições locais em `work/visual-frontend/`. Reconciliação de dados não se aplica a esta alteração visual.
+- Pendências e revisor: critérios funcionais e integrações continuam pendentes; revisão humana dos textos e interface pendente.
+
+### 2026-10-18 — preparação visual de WEB-01 — fluxo de energia no Panorama
+
+- Estado anterior → novo estado: requisito funcional permanece `Pendente`; decoração estática substituída por movimento SVG aprovado na conversa.
+- Mudança observável: as duas linhas originais aparecem progressivamente; pulsos goiaba percorrem as trilhas e pontos próximos acendem em pistache. A entrada termina em cerca de 3,7 s, sem loop; passar o mouse após o repouso repete apenas os pulsos. Movimento reduzido mantém a composição estática. No desktop, o ornamento fica na faixa entre o texto de abertura e o alternador de tema, cresce responsivamente até 320 px e não altera as posições do texto e do botão. O mobile continua sem o ornamento.
+- Arquivos: `frontend/src/features/panorama/PanoramaArtwork.tsx`, `panorama-artwork.css`; remoção dos dez SVGs decorativos substituídos. Referências e comportamento na [arquitetura do frontend](architecture/frontend.md#movimento-decorativo-do-panorama--18102026).
+- Dados usados: nenhum dataset, mock de produto ou API. O efeito é apenas decorativo.
+- Verificações: limites de importação, formatação, lint, dez testes existentes e tipos/build; Playwright MCP para duração finita, repouso, replay, movimento reduzido e comportamento nos dois temas/mobile; captura visual e deslocamento do pulso conferidos no navegador. Após o ajuste de composição, foram comparadas as posições do texto e do botão e o espaço do ornamento em 1440, 1280, 1024 e 390 px; build, lint, formatação e fronteiras passaram. Evidências locais em `work/visual-frontend/`.
+- Pendências e revisor: revisão humana da animação pendente; requisitos funcionais de indicadores, filtros e IA não são concluídos por este efeito.
+
+### 2026-10-18 — preparação visual do portal — favicon Grid360
+
+- Requisitos funcionais permanecem `Pendente`. O ícone padrão do Vite foi substituído pelo símbolo da marca usado na sidebar, em `frontend/public/favicon.svg`, referenciado por `frontend/index.html`.
+- O SVG adapta as cores à preferência clara/escura do navegador; não usa dados de negócio. Verificação: carregamento e renderização pelo Playwright MCP, formatação, lint, fronteiras, testes existentes e build. Revisão humana da identidade visual pendente.
+
 ### Modelo de entrada
 
 ```markdown
@@ -665,6 +709,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 ```
 
 Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em validação` ou `Bloqueado` e descreva o impedimento. Uma evidência não substitui outras exigências do mesmo ID.
+
 
 ## 15. Conferência de cobertura do enunciado por página
 
