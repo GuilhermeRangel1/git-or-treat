@@ -451,6 +451,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-19 — IA-03 e IA-06 — rastreabilidade segura do núcleo GenAI sintético
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; a trilha local não comprova consulta Gold nem auditoria durável.
+- Mudança observável para usuário/negócio: perguntas e insights geram eventos internos por estágio com correlação, resultado, código, duração, quantidades, versões e fingerprints do plano e da referência, sem registrar texto da pergunta, histórico, exceções ou linhas. Recusas HTTP também preservam o ID de correlação. Se auditoria durável for exigida na composição, destino ausente ou com falha impede a execução antes da consulta.
+- Arquivos/commit/PR: `ai-agent/app/ports/events.py`, `app/agent/planner.py`, orquestradores, `app/agent/composition.py`, `app/api/routes.py`, `app/main.py`, `app/schemas/responses.py`, `ai-agent/tests/test_safe_events.py`, `tests/test_core_composition.py` e [guia do serviço](services/ai-agent.md); alterações locais em revisão, sem commit/PR deste recorte.
+- Dados usados: perfil e fixtures sintéticas, referências e segredos artificiais nos testes; nenhum dado bruto ou pessoal real.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (259 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram em 19/10/2026; `git diff --check` passou na raiz. Os testes cobrem sucesso, recusa, erros de fonte/modelo, cancelamento, fallback, sanitização da referência e falha de destino opcional/obrigatório.
+- Reconciliação ou amostra manual: evento de falha sintética pode ser localizado pelo mesmo ID de correlação HTTP e pelo estágio, com código fixo; nenhuma evidência Gold foi reconciliada.
+- Critérios de aceite revisados e pendências: IA-03 ainda exige fonte/consulta Gold reproduzível e IA-06 requer identidade verificada, credencial de banco somente leitura, controles reais e teste integrado. O destino padrão descarta eventos; `durable=True` é contrato de adaptador, não comprovação de persistência. Retenção, controle de acesso e coleta distribuída continuam pendentes.
+- Responsável/revisor: Codex (implementação e testes sintéticos); revisão de integração com Backend/Dados e política de auditoria pendentes.
+
 ### 2026-10-18 — IA-01, IA-03, IA-04 e IA-06 — composição do núcleo GenAI sintético
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; os testes comprovam composição e substituição de dependências, sem números reconciliados com Gold ou integração ao portal.

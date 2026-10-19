@@ -29,6 +29,7 @@ def compose_core(
     execution_controller: ExecutionController,
     access_policy: ReadAccessPolicy | None = None,
     event_sink: EventSink | None = None,
+    require_durable_audit: bool = False,
     max_rows: int = 100,
     max_evidence_bytes: int = 16_384,
 ) -> CoreServices:
@@ -50,10 +51,12 @@ def compose_core(
             model_adapter=model_adapter,
             execution_controller=execution_controller,
             event_sink=sink,
+            require_durable_audit=require_durable_audit,
         ),
         insight=ScreenInsightOrchestrator(
             model_adapter,
             execution_controller=execution_controller,
             event_sink=sink,
+            require_durable_audit=require_durable_audit,
         ),
     )

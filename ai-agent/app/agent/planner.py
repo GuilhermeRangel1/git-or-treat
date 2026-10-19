@@ -14,6 +14,14 @@ from app.agent.read_plan import (
     ReadPlanBuilder,
     ReadPlanValidator,
 )
+from app.ports.events import (
+    AuditUnavailable,
+    EventCode,
+    EventOutcome,
+    EventStage,
+    EventTrace,
+    safe_reference_id,
+)
 from app.ports.evidence import (
     EvidenceAccessDenied,
     EvidenceContractInvalid,
@@ -95,9 +103,7 @@ class QuestionAnalysisPlanner:
         self._plan_validator = ReadPlanValidator(
             access_policy.profile, access_policy.source_id, access_policy, max_rows=max_rows
         )
-        self._evidence_guard = EvidenceGuard(
-            access_policy.profile, max_bytes=max_evidence_bytes
-        )
+        self._evidence_guard = EvidenceGuard(access_policy.profile, max_bytes=max_evidence_bytes)
 
     async def prepare(
         self,
@@ -105,9 +111,12 @@ class QuestionAnalysisPlanner:
         context: list[ConversationTurn] | None = None,
         access_context: AccessContext | None = None,
         budget: RequestBudget | None = None,
+        trace: EventTrace | None = None,
     ) -> AnalysisPlan:
         interpretation = self._interpreter.interpret(question, context)
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
+            if trace is not None:
+                trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
             return AnalysisPlan(
                 status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
                 interpretation=interpretation,
@@ -117,6 +126,8 @@ class QuestionAnalysisPlanner:
         try:
             proposed = self._plan_builder.build(interpretation.intent)
         except PlanCapabilityUnavailable as exc:
+            if trace is not None:
+                trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
             result = EvidenceLookupResult(
                 status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
                 message=str(exc),
@@ -127,8 +138,12 @@ class QuestionAnalysisPlanner:
                 evidence_result=result,
             )
         try:
-            approved, evidence_result = await self.execute_plan(proposed, access_context, budget)
+            approved, evidence_result = await self.execute_plan(
+                proposed, access_context, budget, trace
+            )
         except PlanCapabilityUnavailable as exc:
+            if trace is not None:
+                trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
             result = EvidenceLookupResult(
                 status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
                 message=str(exc),
@@ -150,10 +165,23 @@ class QuestionAnalysisPlanner:
         proposed: LogicalReadPlan | dict[str, object],
         access_context: AccessContext | None,
         budget: RequestBudget | None = None,
+        trace: EventTrace | None = None,
     ) -> tuple[LogicalReadPlan, EvidenceLookupResult]:
         """Ponto único de validação, inclusive para planos propostos futuramente por LLM."""
 
-        approved = self._plan_validator.approve(proposed, access_context)
+        try:
+            approved = self._plan_validator.approve(proposed, access_context)
+        except EvidenceAccessDenied:
+            if trace is not None:
+                trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
+            raise
+        if trace is not None:
+            trace.plan_id = approved.fingerprint()
+            trace.catalog_version = approved.catalog_version
+            trace.emit(EventStage.POLICY, EventCode.ALLOWED, EventOutcome.SUCCESS)
+            trace.emit(EventStage.PLAN, EventCode.READY, EventOutcome.SUCCESS)
+            trace.source_calls += 1
+            trace.emit(EventStage.SOURCE, EventCode.STARTED, EventOutcome.STARTED)
         try:
             evidence_result = (
                 await budget.source(lambda: self._evidence_source.retrieve(approved))
@@ -164,17 +192,41 @@ class QuestionAnalysisPlanner:
                 raise TypeError("Evidence source returned an unsupported result type.")
             evidence_result = EvidenceLookupResult.model_validate(evidence_result.model_dump())
             evidence_result = self._evidence_guard.validate(approved, evidence_result)
+            if trace is not None:
+                trace.emit(EventStage.SOURCE, EventCode.COMPLETED, EventOutcome.SUCCESS)
+                if evidence_result.evidence is not None:
+                    trace.evidence_ref = safe_reference_id(
+                        evidence_result.evidence.reference.source
+                    )
+                    trace.row_count = len(evidence_result.evidence.records)
+                    trace.emit(EventStage.EVIDENCE, EventCode.AVAILABLE, EventOutcome.SUCCESS)
+                elif evidence_result.status is EvidenceLookupStatus.NO_EVIDENCE:
+                    trace.emit(EventStage.EVIDENCE, EventCode.NO_EVIDENCE, EventOutcome.SUCCESS)
+                else:
+                    trace.emit(EventStage.EVIDENCE, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
+        except AuditUnavailable:
+            raise
         except EvidenceToolUnavailable:
+            if trace is not None:
+                trace.emit(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             raise
         except EvidenceAccessDenied:
+            if trace is not None:
+                trace.emit(EventStage.SOURCE, EventCode.DENIED, EventOutcome.REFUSED)
             raise
         except EvidenceContractInvalid:
+            if trace is not None:
+                trace.emit(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
             raise
         except ExecutionLimitExceeded:
             raise
         except (TypeError, ValidationError) as exc:
+            if trace is not None:
+                trace.emit(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
             raise EvidenceContractInvalid("Evidence source returned an invalid result.") from exc
         except Exception as exc:
+            if trace is not None:
+                trace.emit(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             raise EvidenceToolUnavailable("Evidence source failed.") from exc
         return approved, evidence_result
 

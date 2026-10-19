@@ -1,6 +1,8 @@
 """Coordena evidência e geração sem acoplar o serviço a um fornecedor."""
 
+import asyncio
 import logging
+from contextlib import suppress
 
 from pydantic import ValidationError
 
@@ -12,7 +14,15 @@ from app.agent.execution import (
 )
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.agent.safety import QuestionSafetyGate, SafetyRefusalCode
-from app.ports.events import CoreEvent, EventSink, NoopEventSink, record_safely
+from app.ports.events import (
+    AuditUnavailable,
+    EventCode,
+    EventOutcome,
+    EventSink,
+    EventStage,
+    EventTrace,
+    NoopEventSink,
+)
 from app.ports.evidence import (
     EvidenceAccessDenied,
     EvidenceContractInvalid,
@@ -46,32 +56,64 @@ class QuestionOrchestrator:
         safety_gate: QuestionSafetyGate | None = None,
         execution_controller: ExecutionController | None = None,
         event_sink: EventSink | None = None,
+        require_durable_audit: bool = False,
     ) -> None:
         self._analysis_planner = analysis_planner
         self._model_adapter = model_adapter
         self._safety_gate = safety_gate or QuestionSafetyGate()
         self._execution = execution_controller or ExecutionController()
         self._events = event_sink or NoopEventSink()
+        self._require_durable_audit = require_durable_audit
 
     async def answer(
         self,
         request: QuestionRequest,
         access_context: AccessContext | None = None,
+        correlation_id: str | None = None,
     ) -> QuestionResponse:
+        trace = EventTrace(
+            self._events,
+            "question",
+            correlation_id or (access_context.correlation_id if access_context else None),
+            require_durable=self._require_durable_audit,
+        )
         try:
+            trace.emit(EventStage.REQUEST, EventCode.STARTED, EventOutcome.STARTED)
             response = await self._execution.run(
-                lambda budget: self._answer_with_budget(request, access_context, budget)
+                lambda budget: self._answer_with_budget(request, access_context, budget, trace)
             )
+        except AuditUnavailable:
+            return self._recoverable_error(FailureCode.AUDIT_UNAVAILABLE)
+        except asyncio.CancelledError:
+            with suppress(AuditUnavailable):
+                trace.emit(EventStage.RESPONSE, EventCode.CANCELLED, EventOutcome.CANCELLED)
+            raise
         except ExecutionLimitExceeded:
             response = self._recoverable_error(FailureCode.EXECUTION_LIMIT)
-        record_safely(
-            self._events,
-            CoreEvent(
-                flow="question",
-                outcome=response.status.value,
-                correlation_id=(access_context.correlation_id if access_context else None),
-            ),
-        )
+        try:
+            trace.emit(
+                EventStage.RESPONSE,
+                EventCode.COMPLETED
+                if response.status is QuestionStatus.ANSWERED
+                else EventCode.REFUSED
+                if response.status is QuestionStatus.REFUSED
+                else EventCode.LIMIT
+                if response.error and response.error.code.value == "limit_exceeded"
+                else EventCode.UNAVAILABLE
+                if response.status is QuestionStatus.RECOVERABLE_ERROR
+                else EventCode.CLARIFICATION
+                if response.status is QuestionStatus.NEEDS_CLARIFICATION
+                else EventCode.NO_EVIDENCE,
+                EventOutcome.SUCCESS
+                if response.status is QuestionStatus.ANSWERED
+                else EventOutcome.REFUSED
+                if response.status is QuestionStatus.REFUSED
+                else EventOutcome.ERROR
+                if response.status is QuestionStatus.RECOVERABLE_ERROR
+                else EventOutcome.SUCCESS,
+            )
+        except AuditUnavailable:
+            return self._recoverable_error(FailureCode.AUDIT_UNAVAILABLE)
         return response
 
     async def _answer_with_budget(
@@ -79,8 +121,10 @@ class QuestionOrchestrator:
         request: QuestionRequest,
         access_context: AccessContext | None,
         budget: RequestBudget,
+        trace: EventTrace,
     ) -> QuestionResponse:
         if access_context is None:
+            trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
             return self._refused(FailureCode.ACCESS_DENIED)
         refusal = self._safety_gate.refusal_code(request.question)
         for turn in request.context:
@@ -88,6 +132,7 @@ class QuestionOrchestrator:
                 break
             refusal = self._safety_gate.refusal_code(turn.content)
         if refusal is not None:
+            trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
             code = (
                 FailureCode.OUT_OF_SCOPE
                 if refusal is SafetyRefusalCode.OUT_OF_SCOPE
@@ -97,7 +142,7 @@ class QuestionOrchestrator:
 
         try:
             plan = await self._analysis_planner.prepare(
-                request.question, request.context, access_context, budget
+                request.question, request.context, access_context, budget, trace
             )
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)
@@ -136,6 +181,8 @@ class QuestionOrchestrator:
             update={"cache_scope": authorized_cache_scope(access_context, read_plan)}
         )
         try:
+            trace.model_calls += 1
+            trace.emit(EventStage.MODEL, EventCode.STARTED, EventOutcome.STARTED)
             generated_result = await budget.model(
                 lambda: self._model_adapter.generate(
                     request.question,
@@ -148,18 +195,26 @@ class QuestionOrchestrator:
                 if isinstance(generated_result, GeneratedAnswer)
                 else generated_result
             )
+            trace.emit(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
         except ModelProviderUnavailable:
+            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             return self._recoverable_error(FailureCode.MODEL_UNAVAILABLE)
         except ModelProviderRejected:
+            trace.emit(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
             return self._recoverable_error(FailureCode.MODEL_REJECTED)
         except ModelProviderInvalidResponse:
+            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
             return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
         except ExecutionLimitExceeded:
             raise
+        except AuditUnavailable:
+            raise
         except (ValidationError, TypeError, ValueError):
+            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
             logger.warning("O adaptador de modelo retornou uma resposta inválida.")
             return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
         except Exception:
+            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             logger.warning("Falha ao gerar resposta pelo adaptador de modelo.")
             return self._recoverable_error(FailureCode.UNEXPECTED)
 
@@ -192,9 +247,7 @@ class QuestionOrchestrator:
             answer = f"{prefix}{read_plan.metric_id} — {period}: {values}."
 
         error = (
-            map_failure(FailureCode.POLICY_REFUSAL).error
-            if generated.status == "refused"
-            else None
+            map_failure(FailureCode.POLICY_REFUSAL).error if generated.status == "refused" else None
         )
 
         return QuestionResponse(

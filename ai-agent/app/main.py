@@ -33,6 +33,7 @@ def create_app(
     model_adapter: ModelAdapter | None = None,
     access_policy: ReadAccessPolicy | None = None,
     event_sink: EventSink | None = None,
+    require_durable_audit: bool = False,
     source_id: str = SYNTHETIC_SOURCE_ID,
 ) -> FastAPI:
     """Cria a API isolada; adaptadores reais podem ser injetados quando estiverem disponíveis."""
@@ -88,6 +89,7 @@ def create_app(
             execution_controller=execution_controller,
             access_policy=access_policy,
             event_sink=event_sink,
+            require_durable_audit=require_durable_audit,
             max_rows=active_settings.evidence_max_rows,
             max_evidence_bytes=active_settings.evidence_max_bytes,
         )

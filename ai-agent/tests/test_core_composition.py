@@ -16,6 +16,7 @@ from app.api.access import SYNTHETIC_SOURCE_ID, demo_access_context
 from app.config import Settings
 from app.generation.prompts import INSIGHT_TASK, SYSTEM_INSTRUCTION
 from app.main import create_app
+from app.ports.events import EventCode, EventOutcome, EventStage
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.gemini import GeminiModelAdapter
@@ -90,10 +91,26 @@ def test_direct_core_runs_authorized_question_and_records_only_safe_outcome() ->
     assert response.status == "answered"
     assert "420 unidades fictícias" in response.answer
     assert source.calls == model.calls == 1
-    assert len(sink.events) == 1
+    assert [event.stage for event in sink.events] == [
+        EventStage.REQUEST,
+        EventStage.POLICY,
+        EventStage.PLAN,
+        EventStage.SOURCE,
+        EventStage.SOURCE,
+        EventStage.EVIDENCE,
+        EventStage.MODEL,
+        EventStage.MODEL,
+        EventStage.RESPONSE,
+    ]
     assert sink.events[0].flow == "question"
-    assert sink.events[0].outcome == "answered"
+    assert sink.events[-1].outcome is EventOutcome.SUCCESS
+    assert sink.events[-1].code is EventCode.COMPLETED
     assert sink.events[0].correlation_id == CORRELATION_ID
+    assert sink.events[-1].source_calls == 1
+    assert sink.events[-1].model_calls == 1
+    assert sink.events[-1].row_count == 1
+    assert sink.events[-1].plan_id is not None
+    assert sink.events[-1].evidence_ref is not None
     assert QUESTION not in repr(sink.events)
 
 
@@ -152,7 +169,7 @@ def test_direct_insight_uses_injected_model_and_sink_without_reading_source() ->
     assert source.calls == 0
     assert model.calls == 1
     assert sink.events[0].flow == "insight"
-    assert sink.events[0].outcome == "answered"
+    assert sink.events[-1].outcome is EventOutcome.SUCCESS
 
 
 def test_injected_core_stops_before_source_and_model_for_unsafe_input() -> None:
@@ -232,10 +249,14 @@ def test_gemini_and_fake_model_use_the_same_core_and_business_response() -> None
         )
         answers.append(response.answer)
 
-    assert answers == [
-        "Demonstração sintética: energy.consumption — período de demonstração: "
-        "420 unidades fictícias."
-    ] * 2
+    assert (
+        answers
+        == [
+            "Demonstração sintética: energy.consumption — período de demonstração: "
+            "420 unidades fictícias."
+        ]
+        * 2
+    )
 
 
 def test_fallback_model_uses_the_same_authorized_evidence_and_output_validation() -> None:

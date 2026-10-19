@@ -50,7 +50,9 @@ async def ask_question(
 ) -> QuestionResponse:
     """Recebe pergunta com contexto limitado e delega ao orquestrador injetado."""
 
-    response = await request.app.state.question_orchestrator.answer(payload, access_context)
+    response = await request.app.state.question_orchestrator.answer(
+        payload, access_context, request.state.correlation_id
+    )
     return response.model_copy(update={"correlation_id": request.state.correlation_id})
 
 
@@ -69,5 +71,7 @@ async def generate_screen_insight(
 ) -> ScreenInsightResponse:
     """Gera hipótese exploratória a partir do recorte estruturado enviado pelo portal."""
 
-    response = await request.app.state.insight_orchestrator.generate(payload.screen, access_context)
+    response = await request.app.state.insight_orchestrator.generate(
+        payload.screen, access_context, request.state.correlation_id
+    )
     return response.model_copy(update={"correlation_id": request.state.correlation_id})

@@ -38,6 +38,7 @@ class FailureCode(StrEnum):
     INTERPRETATION_FAILURE = "interpretation_failure"
     ACCESS_DENIED = "access_denied"
     SOURCE_UNAVAILABLE = "source_unavailable"
+    AUDIT_UNAVAILABLE = "audit_unavailable"
     INVALID_SOURCE_RESPONSE = "invalid_source_response"
     EXECUTION_LIMIT = "execution_limit"
     MODEL_UNAVAILABLE = "model_unavailable"
@@ -55,8 +56,7 @@ class PublicError(BaseModel):
     code: PublicErrorCode = Field(description="Código público estável, sem detalhe interno.")
     retryable: bool = Field(
         description=(
-            "Indica se repetir a mesma solicitação pode ser útil; "
-            "não dispara retry automático."
+            "Indica se repetir a mesma solicitação pode ser útil; não dispara retry automático."
         )
     )
 
@@ -127,6 +127,10 @@ _FAILURE_MAP: dict[FailureCode, MappedFailure] = {
     FailureCode.SOURCE_UNAVAILABLE: MappedFailure(
         error=PublicError(code=PublicErrorCode.SERVICE_UNAVAILABLE, retryable=True),
         message="A consulta está temporariamente indisponível. Tente novamente.",
+    ),
+    FailureCode.AUDIT_UNAVAILABLE: MappedFailure(
+        error=PublicError(code=PublicErrorCode.SERVICE_UNAVAILABLE, retryable=True),
+        message="A solicitação está temporariamente indisponível. Tente novamente.",
     ),
     FailureCode.INVALID_SOURCE_RESPONSE: MappedFailure(
         error=PublicError(code=PublicErrorCode.INVALID_UPSTREAM_RESPONSE, retryable=False),
