@@ -573,6 +573,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Critérios de aceite revisados e pendências: falta para `Concluído`: (a) importar/confirmar os dois `.ipynb` no Databricks; (b) recontar as 4 colunas de data de `ocorrencias_rede` e `atendimentos`; (c) decisão de negócio sobre data ambígua de dia/mês; (d) decisões B1 a B3 do dicionário de dados; (e) revisão do PR #8; (f) tarefas de Silver e Gold no Workflow, quando os notebooks existirem.
 - Responsável/revisor: juliatenoriocalado (criação do job e execução no Databricks); revisão de pares pendente no PR #8.
 
+### 2026-10-19 — DE-01 — falhas explícitas na ingestão Bronze
+
+- Estado anterior → novo estado: `Em validação` → `Em validação`; a correção local ainda não foi executada no Databricks.
+- Mudança observável para usuário/negócio: o notebook encerra a tarefa com erro se o autoteste de parse falhar, se as três abas esperadas de inspeções mudarem, se a quarentena não fechar com as rejeições registradas ou se a reconciliação de alguma fonte divergir. O Workflow não inicia o perfilamento quando a ingestão falha.
+- Arquivos/commit/PR: `data-engineering/Landing_to_Bronze.ipynb`, `data-engineering/Bronze_perfilamento.ipynb`, `data-engineering/img/workflow-graph.png`, `data-engineering/README.md`, `data-engineering/v-energy-grid-360.yaml` e este PRD; alteração local na worktree de `origin/feat/bronze`, sem commit ou publicação nesta etapa.
+- Dados usados (versão/fonte; sem anexar dados sensíveis): nenhum dado real foi lido nesta correção; as verificações locais usaram estados sintéticos de falha.
+- Verificações: em 19/10/2026, o JSON do notebook foi lido e as 15 células de código Python foram compiladas localmente; a execução isolada das células confirmou `RuntimeError` para autoteste `FALHA` e reconciliação com `delta = 2`/`INVESTIGAR`, `ValueError` para abas incompletas, e continuidade normal com reconciliação `OK` tanto sem rejeições quanto com rejeições capturadas. Não houve reexecução do Job Databricks.
+- Reconciliação ou amostra manual: o cenário sintético com `leituras` divergente foi usado apenas para verificar a sinalização da falha; as contagens reais de 18/10/2026 permanecem como evidência da última execução do Job.
+- Critérios de aceite revisados e pendências: a falha agora bloqueia a tarefa dependente, mas uma divergência descoberta ao fim da ingestão pode ocorrer após sobrescrita de tabelas Bronze; publicação atômica, reconciliação por arquivo/aba, hash/versão dos arquivos e rastreio até a linha original continuam pendentes. Validar os caminhos de sucesso e falha no Databricks antes de concluir DE-01.
+- Responsável/revisor: Codex (alteração e verificações locais); revisão humana e execução no Databricks pendentes.
+
 ### Modelo de entrada
 
 ```markdown

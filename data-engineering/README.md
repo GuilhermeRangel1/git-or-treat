@@ -50,3 +50,5 @@ A agenda está armada no job (`pause_status: UNPAUSED`), mas continua sendo uma 
 2. Crie o job com duas tarefas, `Landing_to_Bronze` e `Bronze_perfilamento` (a segunda com `Depends on = Landing_to_Bronze`), em compute serverless — ou aplique [`v-energy-grid-360.yaml`](v-energy-grid-360.yaml) como definição do job.
 3. Rode com `Run now`.
 4. Confira o resultado: a ingestão lista as 10 tabelas Bronze e imprime a reconciliação com `delta = 0` e `AUTOTESTE_OK`; o perfilador termina sem `AVISO` e grava `quality.perfil_bronze`.
+
+Se o autoteste de parse falhar, as abas de inspeção mudarem, a contagem da quarentena divergir ou alguma reconciliação ficar fora de `OK`/`SEM_BASE`, a ingestão lança erro e o Workflow não inicia o perfilamento. Uma divergência detectada no fim da ingestão pode ocorrer depois da sobrescrita das tabelas Bronze; nesse caso, confira `bronze.reconciliacao` e a versão anterior das tabelas Delta antes de retomar. A publicação atômica do lote ainda não foi implementada.
