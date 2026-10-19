@@ -124,7 +124,18 @@ class CachingModelAdapter:
             )
         except (ValidationError, TypeError, ValueError, AttributeError):
             raise ModelProviderInvalidResponse("Saída do modelo inválida.") from None
-        if answer.status == "answered":
+        observation_ids = answer.observation_ids
+        available_ids = {
+            record["observation_id"]
+            for record in evidence.records
+            if isinstance(record, dict) and isinstance(record.get("observation_id"), str)
+        }
+        if (
+            answer.status == "answered"
+            and observation_ids
+            and len(set(observation_ids)) == len(observation_ids)
+            and set(observation_ids) <= available_ids
+        ):
             self._store(key, answer)
         return answer
 

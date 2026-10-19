@@ -47,7 +47,14 @@ def _evidence(
             description="Resultado artificial para teste, sem dados da V-Energy.",
             is_demo=True,
         ),
-        records=[{"metric": "consumption_demo", "value": value, "unit": "unidades fictícias"}],
+        records=[
+            {
+                "observation_id": "row_1",
+                "metric": "consumption_demo",
+                "value": value,
+                "unit": "unidades fictícias",
+            }
+        ],
         provenance=EvidenceProvenance(
             source_id=source.split(":")[0],
             reference_source=source,
@@ -62,7 +69,7 @@ def _evidence(
 
 
 def _answer(text: str = "O consumo foi 42 unidades fictícias.") -> GeneratedAnswer:
-    return GeneratedAnswer(status="answered", answer=text)
+    return GeneratedAnswer(status="answered", answer=text, observation_ids=("row_1",))
 
 
 class ScriptedAdapter:
@@ -446,7 +453,13 @@ def test_new_caller_after_all_waiters_cancel_starts_fresh_model_call() -> None:
 
 
 def test_cached_ungrounded_answer_is_still_refused_by_orchestrator() -> None:
-    inner = ScriptedAdapter(_answer("O consumo demonstrativo foi 999 unidades fictícias."))
+    inner = ScriptedAdapter(
+        GeneratedAnswer(
+            status="answered",
+            answer="O consumo demonstrativo foi 999 unidades fictícias.",
+            observation_ids=("row_999",),
+        )
+    )
     orchestrator = QuestionOrchestrator(
         analysis_planner=QuestionAnalysisPlanner(
             QuestionInterpreter(GRID360_DEMO_PROFILE),
@@ -467,10 +480,39 @@ def test_cached_ungrounded_answer_is_still_refused_by_orchestrator() -> None:
 
     responses = asyncio.run(run())
 
-    assert inner.calls == 1
+    assert inner.calls == 2
     for response in responses:
         assert response.status is QuestionStatus.REFUSED
         assert "999" not in response.message
+
+
+def test_cache_retries_answer_with_unknown_observation_instead_of_reusing_it() -> None:
+    inner = ScriptedAdapter(
+        GeneratedAnswer(status="answered", answer="inválida", observation_ids=("row_999",)),
+        GeneratedAnswer(status="answered", answer="válida", observation_ids=("row_1",)),
+    )
+    orchestrator = QuestionOrchestrator(
+        analysis_planner=QuestionAnalysisPlanner(
+            QuestionInterpreter(GRID360_DEMO_PROFILE),
+            SyntheticScenarioTool(),
+            ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
+        ),
+        model_adapter=_cached(inner),
+    )
+    request = QuestionRequest(question=QUESTION)
+
+    async def run():
+        return [
+            await orchestrator.answer(
+                request, demo_access_context(GRID360_DEMO_PROFILE, "0" * 32)
+            )
+            for _ in range(2)
+        ]
+
+    responses = asyncio.run(run())
+
+    assert [item.status for item in responses] == [QuestionStatus.REFUSED, QuestionStatus.ANSWERED]
+    assert inner.calls == 2
 
 
 def test_authorization_runs_before_cache_hit_and_separates_callers() -> None:
