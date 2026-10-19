@@ -507,6 +507,28 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Pendências: CSS px, teclado, Escape, leitor de tela, reflow, foco executável e navegação completa no player exigem testes específicos. A revisão parcial não comprova conformidade WCAG AA nem critérios funcionais do portal.
 - Responsável/revisor: Codex coordenou consulta, alterações e verificações; subagente realizou o teste documental da skill. Revisão humana do comportamento executável pendente.
 
+### 2026-10-17 — checkup de cobertura do protótipo contra o PRD
+
+- Estado anterior → novo estado: requisitos funcionais e diferenciais permanecem `Pendente`; revisão da cobertura visual não muda seus estados.
+- Mudança observável para usuário/negócio: matriz por ID separa o que está mostrado do que precisa ser confirmado para fechar o protótipo; inclui os caminhos mobile que a pessoa usuária informou que adicionará.
+- Arquivos/commit/PR: [checkup e lista de fechamento](design/grid360-prototype.md#checkup-contra-o-prd--17102026); arquivo Figma e frames estão vinculados no registro visual.
+- Dados usados: PRD, guias frontend/backend/IA, dicionário Gold ainda sem esquema real, registro visual e conteúdo sintético do protótipo. Nenhum dado real ou pessoal.
+- Verificações: comparação requisito a requisito de WEB-01 a WEB-10 e IA-01 a IA-06 com a cobertura e limitações documentadas; player testado em 17/10/2026 nos modos claro/escuro, Receita, Inspeções, detalhe da suspeita e criação demonstrativa de ordem `OS-DEMO-001`.
+- Reconciliação ou amostra manual: navegação e transição da fila para detalhe e criação de ordem foram observadas no player. A ordem é simulada e não persiste; os valores continuam sintéticos, sem Gold/API.
+- Critérios de aceite revisados e pendências: frames cobrem as jornadas principais, mas faltam conferir por fluxo os estados alternativos, recorte de receita por classe, casos de ausência da UC, filtros/insight após alteração e ciclo completo/cancelamento de ordens. Mobile está em andamento pela pessoa usuária. Segurança da IA, reconciliação, acessibilidade executável e responsividade permanecem dependentes da aplicação. WEB-08 a WEB-10 seguem fora do escopo selecionado.
+- Responsável/revisor: Codex; revisão humana do protótipo após a inclusão mobile pendente.
+
+### 2026-10-17 — WEB-01 a WEB-07 e IA-01 a IA-06 — passada manual ampliada no player Figma
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; a passada verificou apenas a execução demonstrativa do protótipo.
+- Mudança observável para usuário/negócio: foram percorridos filtros/estados do panorama, Receita, busca e detalhe de UC, inspeções, ações de ordem, operação DEC/FEC e exemplos do assistente em tema claro/escuro. A matriz registra o que foi visto e limitações por requisito em [checkup do protótipo](design/grid360-prototype.md#checkup-contra-o-prd--17102026).
+- Arquivos/commit/PR: `docs/design/grid360-prototype.md` (registro dos cenários e resultado); sem edição do arquivo Figma.
+- Dados usados: somente conteúdo sintético do protótipo; nenhum dataset ou dado pessoal.
+- Verificações: navegação e cliques diretos no player autenticado em 17/10/2026; fluxo de receita e UC, estados de insuficiência/erro/recuperação, ordem `OS-DEMO-001`, detalhe DEC/FEC e assistente. Reiniciar retornou ao panorama.
+- Reconciliação ou amostra manual: IA respondeu insuficiência sem inferir zero; UI distinguiu faturado de pago; UC mostrou ressalvas de GD/dados incompletos. Falha reproduzida: cancelar `OS-DEMO-001`, reabrir suas ações e atualizar o estado faz a ordem voltar visualmente a “Em análise”.
+- Critérios de aceite revisados e pendências: a ordem cancelada deve permanecer terminal na simulação e o fluxo precisa ser repetido após correção. Filtros, busca e estados são exemplos estáticos; nada nesta passada comprova API, Gold, persistência, autorização ou cálculo real. Mobile não está no arquivo testado. Leitor de tela aparece desativado no player; acessibilidade executável e responsividade continuam pendentes.
+- Responsável/revisor: Codex; correção e revisão humana do protótipo pendentes.
+
 ### 2026-10-17 — DE-01 — Bronze com reconciliação e captura de registros malformados
 
 - Estado anterior → novo estado: `Pendente` → `Em validação`; a ingestão roda e a conta fecha, mas o PR #8 ainda não foi revisado e a reconciliação não registra o hash do arquivo de origem (§4.3).

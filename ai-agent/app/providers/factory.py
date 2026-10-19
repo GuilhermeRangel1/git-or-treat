@@ -1,6 +1,8 @@
 """Cria adaptadores de modelo a partir da configuração local do serviço."""
 
 from app.config import Settings
+from app.providers.caching import CachingModelAdapter
+from app.providers.fallback import FallbackModelAdapter
 from app.providers.protocols import ModelAdapter
 from app.providers.unavailable import UnavailableModelAdapter
 
@@ -23,13 +25,29 @@ def build_model_adapter(settings: Settings, *, client=None) -> ModelAdapter:
     try:
         from app.providers.gemini import GeminiModelAdapter
 
-        return GeminiModelAdapter(
-            model_name=settings.gemini_model,
-            api_key=settings.gemini_api_key.get_secret_value(),
-            timeout_ms=settings.model_timeout_ms,
-            client=client,
-        )
+        adapters: list[ModelAdapter] = [
+            GeminiModelAdapter(
+                model_name=model_name,
+                api_key=settings.gemini_api_key.get_secret_value(),
+                timeout_ms=settings.model_timeout_ms,
+                client=client,
+            )
+            for model_name in [settings.gemini_model, *settings.gemini_fallback_models]
+        ]
     except ImportError:
         raise ModelConfigurationError(
             'Instale a dependência opcional com: python -m pip install -e ".[gemini]".'
         ) from None
+
+    adapter = adapters[0]
+    if len(adapters) > 1:
+        adapter = FallbackModelAdapter(
+            adapters, total_timeout_seconds=settings.model_total_timeout_ms / 1000
+        )
+    if settings.model_cache_ttl_seconds > 0:
+        adapter = CachingModelAdapter(
+            adapter,
+            ttl_seconds=settings.model_cache_ttl_seconds,
+            max_entries=settings.model_cache_max_entries,
+        )
+    return adapter
