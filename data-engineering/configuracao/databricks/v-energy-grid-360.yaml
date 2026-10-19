@@ -4,7 +4,7 @@
 # da aba YAML do job, mais os comentários de porquê. Ele não é um bundle instalável
 # (isso exigiria a CLI do Databricks e um `databricks.yml` na raiz); é o registro
 # versionado do Workflow, no lugar que o documento de entrega pede
-# (`data-engineering/`: notebooks `.ipynb` + o yaml do Workflow).
+# (`data-engineering/notebook/`: notebooks `.ipynb`; YAML em `data-engineering/configuracao/databricks/`).
 #
 # Encadeamento: Landing_to_Bronze -> Bronze_perfilamento.
 # A ordem não é decorativa: o perfilador lê as tabelas que a ingestão acabou de

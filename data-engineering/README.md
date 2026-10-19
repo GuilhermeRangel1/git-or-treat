@@ -6,14 +6,14 @@ Pipeline PySpark/Databricks que leva as 8 fontes do case da Landing até a Gold.
 
 | Notebook | Papel |
 | --- | --- |
-| [`Landing_to_Bronze.ipynb`](Landing_to_Bronze.ipynb) | lê as 8 fontes brutas, separa o que é malformado, grava a camada Bronze no Delta e reconcilia lidas × rejeitadas × gravadas |
-| [`Bronze_perfilamento.ipynb`](Bronze_perfilamento.ipynb) | mede a qualidade do que a Bronze recebeu (nulos, duplicatas, órfãos, grafias divergentes, datas) e grava em `quality.perfil_bronze` |
+| [`Landing_to_Bronze.ipynb`](notebook/Landing_to_Bronze.ipynb) | lê as 8 fontes brutas, separa o que é malformado, grava a camada Bronze no Delta e reconcilia lidas × rejeitadas × gravadas |
+| [`Bronze_perfilamento.ipynb`](notebook/Bronze_perfilamento.ipynb) | mede a qualidade do que a Bronze recebeu (nulos, duplicatas, órfãos, grafias divergentes, datas) e grava em `quality.perfil_bronze` |
 
 A transição para a Silver (`Bronze_to_Silver.ipynb`) e a Gold entram depois, como novas tarefas do mesmo Workflow.
 
 ## Workflow
 
-[`v-energy-grid-360.yaml`](v-energy-grid-360.yaml) é a definição do job `v-energy-grid-360` no Databricks: as duas tarefas que existem hoje, encadeadas na ordem em que o dado anda.
+[`v-energy-grid-360.yaml`](configuracao/databricks/v-energy-grid-360.yaml) é a definição do job `v-energy-grid-360` no Databricks: as duas tarefas que existem hoje, encadeadas na ordem em que o dado anda.
 
 ```text
 Landing_to_Bronze ──▶ Bronze_perfilamento
@@ -23,7 +23,7 @@ A ordem não é decorativa: o perfilador lê as tabelas que a ingestão acabou d
 
 ### Execução comprovada
 
-![Job v-energy-grid-360 com as duas tarefas concluídas](img/workflow-graph.png)
+![Job v-energy-grid-360 com as duas tarefas concluídas](evidencias/workflow/workflow-graph.png)
 
 | Item | Valor |
 | --- | --- |
@@ -46,8 +46,8 @@ A agenda está armada no job (`pause_status: UNPAUSED`), mas continua sendo uma 
 
 ### Como reexecutar
 
-1. Importe os dois notebooks deste diretório no Workspace (Workspace → Create → Import), ou use os que já estão lá.
-2. Crie o job com duas tarefas, `Landing_to_Bronze` e `Bronze_perfilamento` (a segunda com `Depends on = Landing_to_Bronze`), em compute serverless — ou aplique [`v-energy-grid-360.yaml`](v-energy-grid-360.yaml) como definição do job.
+1. Importe os dois notebooks de `notebook/` no Workspace (Workspace → Create → Import), ou use os que já estão lá.
+2. Crie o job com duas tarefas, `Landing_to_Bronze` e `Bronze_perfilamento` (a segunda com `Depends on = Landing_to_Bronze`), em compute serverless — ou aplique [`v-energy-grid-360.yaml`](configuracao/databricks/v-energy-grid-360.yaml) como definição do job.
 3. Rode com `Run now`.
 4. Confira o resultado: a ingestão lista as 10 tabelas Bronze e imprime a reconciliação com `delta = 0` e `AUTOTESTE_OK`; o perfilador termina sem `AVISO` e grava `quality.perfil_bronze`.
 
