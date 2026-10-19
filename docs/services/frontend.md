@@ -1,6 +1,10 @@
 # Serviço: portal web
 
-**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** especificado; nenhuma tela implementada. **Stack do case:** React + TypeScript com Vite.
+**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** fundação arquitetural preparada; sidebar, topo visual do Panorama e textos superiores das demais páginas alinhados ao Figma, com temas claro/escuro e navegação mobile. As outras seis áreas permanecem sem conteúdo de negócio; não há integração de dados. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
+
+## Arquitetura adotada
+
+Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para estrutura, limites de importação, layout persistente, tema, transporte HTTP e política de estado. TanStack Query está configurado sem consultas de negócio. A primeira fatia visual cobre apenas navegação, apresentação visual do Panorama e textos superiores das demais páginas, até antes dos filtros ou conteúdo operacional. Não inclui o rodapé demonstrativo, a linha de atualização ilustrativa, KPIs, gráficos, dados mockados ou integrações.
 
 ## Público e jornadas
 
