@@ -71,6 +71,11 @@ class CachingModelAdapter:
         self._in_flight: dict[str, asyncio.Task[GeneratedAnswer]] = {}
         self._waiters: dict[str, int] = {}
 
+    @property
+    def max_attempts(self) -> int:
+        """Um cache miss pode executar toda a cadeia encapsulada."""
+        return getattr(self._inner, "max_attempts", 1)
+
     async def generate(
         self,
         question: str,

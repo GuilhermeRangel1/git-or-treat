@@ -66,7 +66,7 @@
       "model_answer": "O consumo demonstrativo foi 420 unidades fictícias.",
       "model_observation_ids": ["row_1"],
       "expected_answer_fragment": "420 unidades fictícias",
-      "expected_evidence_source": "synthetic_fixture:consumption_demo"
+      "expected_evidence_source": "synthetic.fixture"
     },
     {
       "id": "ambiguous_bill_clarification",
@@ -117,7 +117,7 @@
       "expected_model_calls": 1,
       "model_status": "answered",
       "model_answer": "O consumo demonstrativo foi 999 unidades fictícias.",
-      "expected_evidence_source": "synthetic_fixture:consumption_demo"
+      "expected_evidence_source": "synthetic.fixture"
     },
     {
       "id": "synthetic_tool_failure",

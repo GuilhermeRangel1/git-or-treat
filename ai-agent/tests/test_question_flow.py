@@ -2,6 +2,7 @@ from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.agent.safety import QuestionSafetyGate
 from app.api.access import SYNTHETIC_SOURCE_ID
 from app.config import Settings
 from app.main import create_app
@@ -118,6 +119,9 @@ def _client(model_adapter=None, scenario_tool=None) -> InProcessClient:
             ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
         ),
         model_adapter=model_adapter or FakeModelAdapter(),
+        safety_gate=QuestionSafetyGate(
+            out_of_scope_terms=GRID360_DEMO_PROFILE.out_of_scope_terms
+        ),
     )
     return InProcessClient(
         create_app(
@@ -145,7 +149,7 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
         "message": None,
         "evidence": [
             {
-                "source": "synthetic_fixture:consumption_demo",
+                "source": body["evidence"][0]["source"],
                 "description": "Evidência agregada validada pelo serviço.",
                 "is_demo": True,
             }
@@ -164,6 +168,7 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
             "filters": {},
         },
     }
+    assert body["evidence"][0]["source"].startswith("synthetic.fixture:")
 
 
 def test_write_request_is_refused_before_the_analytic_tool_runs() -> None:
@@ -262,7 +267,7 @@ def test_model_text_is_not_published_even_with_a_valid_observation_id(caplog) ->
 
     assert response.json()["status"] == "answered"
     assert "420 unidades fictícias" in response.json()["answer"]
-    assert "999" not in response.text
+    assert "999" not in response.json()["answer"]
     assert "123.456.789-00" not in response.text
     assert "123.456.789-00" not in caplog.text
     assert model.calls[0][2].records == [

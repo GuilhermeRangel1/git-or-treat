@@ -11,7 +11,7 @@ import pytest
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.composition import compose_core
-from app.agent.execution import ExecutionController
+from app.agent.execution import ExecutionController, ExecutionLimits
 from app.api.access import SYNTHETIC_SOURCE_ID, demo_access_context
 from app.config import Settings
 from app.generation.prompts import INSIGHT_TASK, SYSTEM_INSTRUCTION
@@ -64,13 +64,13 @@ class FailingSink:
         raise RuntimeError("internal-event-secret")
 
 
-def _core(source, model, sink=None):
+def _core(source, model, sink=None, *, limits=None):
     return compose_core(
         profile=GRID360_DEMO_PROFILE,
         source_id=SYNTHETIC_SOURCE_ID,
         evidence_source=source,
         model_adapter=model,
-        execution_controller=ExecutionController(),
+        execution_controller=ExecutionController(limits),
         event_sink=sink,
     )
 
@@ -172,6 +172,37 @@ def test_direct_insight_uses_injected_model_and_sink_without_reading_source() ->
     assert sink.events[-1].outcome is EventOutcome.SUCCESS
 
 
+def test_insight_refuses_context_from_another_profile_or_without_read_scope() -> None:
+    model = RecordingModel()
+    core = _core(RecordingSource(), model)
+    screen = ScreenContext.model_validate(
+        {
+            "metric": "indicador demonstrativo",
+            "unit": "unidades fictícias",
+            "period": {"start": "2025-01-01", "end": "2025-01-31", "granularity": "month"},
+            "filters": {"classe": "exemplo"},
+            "observations": [{"label": "valor observado", "value": 42}],
+            "reference": {
+                "source": "synthetic_screen:example",
+                "description": "Tela artificial para teste.",
+                "is_demo": True,
+            },
+            "limitations": ["Amostra artificial."],
+        }
+    )
+    allowed = demo_access_context(GRID360_DEMO_PROFILE, CORRELATION_ID)
+    wrong_profile = allowed.model_copy(update={"profile_id": "other.profile"})
+    no_scope = allowed.model_copy(update={"allowed_operations": frozenset()})
+
+    responses = [
+        asyncio.run(core.insight.generate(screen, context))
+        for context in (wrong_profile, no_scope)
+    ]
+
+    assert [response.status for response in responses] == ["refused", "refused"]
+    assert model.calls == 0
+
+
 def test_injected_core_stops_before_source_and_model_for_unsafe_input() -> None:
     source = RecordingSource()
     model = RecordingModel()
@@ -268,7 +299,7 @@ def test_fallback_model_uses_the_same_authorized_evidence_and_output_validation(
     fallback = RecordingModel()
     model = FallbackModelAdapter([UnavailableModel(), fallback])
     response = asyncio.run(
-        _core(source, model).question.answer(
+        _core(source, model, limits=ExecutionLimits(max_model_calls=2)).question.answer(
             QuestionRequest(question=QUESTION),
             demo_access_context(GRID360_DEMO_PROFILE, CORRELATION_ID),
         )

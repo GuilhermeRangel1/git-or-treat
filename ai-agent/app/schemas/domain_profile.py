@@ -217,6 +217,7 @@ class DomainProfile(BaseModel):
     correction_terms: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=30)
     follow_up_starters: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=30)
     direction_terms: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=30)
+    out_of_scope_terms: tuple[CatalogPhrase, ...] = Field(default=(), max_length=30)
     ambiguities: tuple[AmbiguityRule, ...] = Field(default=(), max_length=50)
     clarifications: ClarificationMessages
     operations: tuple[CatalogOperation, ...] = Field(min_length=1)
@@ -250,6 +251,10 @@ class DomainProfile(BaseModel):
             raise ValueError("frase de ambiguidade duplicada")
         if set(metric_aliases) & set(ambiguity_phrases):
             raise ValueError("frase de ambiguidade conflita com alias de métrica")
+        denied_terms = [_normalize(item) for item in self.out_of_scope_terms]
+        _require_unique(denied_terms, "termo fora do escopo duplicado")
+        if set(metric_aliases) & set(denied_terms):
+            raise ValueError("termo fora do escopo conflita com alias de métrica")
 
         dimension_aliases = [
             _normalize(alias) for dimension in self.dimensions for alias in dimension.aliases

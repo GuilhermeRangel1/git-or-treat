@@ -1,6 +1,7 @@
 """Confere proveniência e reduz dados da fonte antes de qualquer modelo ou resposta."""
 
 import json
+from hashlib import sha256
 from math import isfinite
 
 from app.ports.evidence import EvidenceContractInvalid
@@ -17,6 +18,16 @@ from app.schemas.evidence import (
     EvidenceResult,
 )
 from app.schemas.read_plan import LogicalReadPlan
+
+
+def safe_reference_source(source_id: str, raw_reference: str) -> str:
+    """Preserva a origem lógica e mantém a referência pública dentro do contrato."""
+
+    prefix = source_id
+    if len(prefix) > 55:
+        prefix = f"source:{sha256(source_id.encode('utf-8')).hexdigest()[:16]}"
+    reference_digest = sha256(raw_reference.encode("utf-8")).hexdigest()
+    return f"{prefix}:{reference_digest}"
 
 
 class EvidenceGuard:
@@ -117,17 +128,21 @@ class EvidenceGuard:
                 {"observation_id": f"row_{index}", "value": value, "unit": plan.unit}
             )
 
+        safe_source = safe_reference_source(plan.source_id, evidence.reference.source)
         safe_reference = EvidenceReference(
-            source=evidence.reference.source,
+            source=safe_source,
             description="Evidência agregada validada pelo serviço.",
             is_demo=evidence.reference.is_demo,
+        )
+        safe_provenance = provenance.model_copy(
+            update={"reference_source": safe_source}
         )
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
                 reference=safe_reference,
                 records=safe_records,
-                provenance=provenance,
+                provenance=safe_provenance,
             ),
             limitations=result.limitations,
         )

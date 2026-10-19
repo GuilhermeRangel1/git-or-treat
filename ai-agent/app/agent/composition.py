@@ -8,6 +8,7 @@ from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.agent.safety import QuestionSafetyGate
 from app.ports.events import EventSink, NoopEventSink
 from app.ports.evidence import EvidenceSource
 from app.providers.protocols import ModelAdapter
@@ -49,12 +50,14 @@ def compose_core(
                 max_evidence_bytes=max_evidence_bytes,
             ),
             model_adapter=model_adapter,
+            safety_gate=QuestionSafetyGate(out_of_scope_terms=profile.out_of_scope_terms),
             execution_controller=execution_controller,
             event_sink=sink,
             require_durable_audit=require_durable_audit,
         ),
         insight=ScreenInsightOrchestrator(
             model_adapter,
+            policy,
             execution_controller=execution_controller,
             event_sink=sink,
             require_durable_audit=require_durable_audit,

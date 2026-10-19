@@ -5,6 +5,8 @@ from contextlib import suppress
 
 from pydantic import ValidationError
 
+from app.agent.access import ReadAccessPolicy
+from app.agent.evidence_guard import safe_reference_source
 from app.agent.execution import ExecutionController, ExecutionLimitExceeded, RequestBudget
 from app.generation.prompts import INSIGHT_TASK
 from app.ports.events import (
@@ -17,6 +19,7 @@ from app.ports.events import (
     NoopEventSink,
     safe_reference_id,
 )
+from app.ports.evidence import EvidenceAccessDenied
 from app.providers.protocols import (
     GeneratedAnswer,
     ModelAdapter,
@@ -36,7 +39,7 @@ from app.schemas.questions import QuestionStatus
 from app.schemas.responses import FailureCode, PublicError, map_failure
 
 SYNTHETIC_INSIGHT_LIMITATIONS = [
-    "O contexto e os valores são sintéticos; não representam dados reais da V-Energy.",
+    "O contexto e os valores são sintéticos; não representam dados operacionais reais.",
     "A hipótese é uma sugestão de investigação, não uma causa comprovada.",
 ]
 
@@ -47,12 +50,15 @@ class ScreenInsightOrchestrator:
     def __init__(
         self,
         model_adapter: ModelAdapter,
+        access_policy: ReadAccessPolicy,
         execution_controller: ExecutionController | None = None,
         event_sink: EventSink | None = None,
         require_durable_audit: bool = False,
     ) -> None:
         self._model_adapter = model_adapter
+        self._access_policy = access_policy
         self._execution = execution_controller or ExecutionController()
+        self._execution.ensure_model_capacity(model_adapter)
         self._events = event_sink or NoopEventSink()
         self._require_durable_audit = require_durable_audit
 
@@ -128,7 +134,9 @@ class ScreenInsightOrchestrator:
         budget: RequestBudget,
         trace: EventTrace,
     ) -> ScreenInsightResponse:
-        if access_context is None:
+        try:
+            self._access_policy.authorize_insight(access_context)
+        except EvidenceAccessDenied:
             trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
             failure = map_failure(FailureCode.ACCESS_DENIED)
             return self._response(
@@ -155,8 +163,10 @@ class ScreenInsightOrchestrator:
             }
         ]
         evidence = EvidenceResult(
-            reference=screen.reference.model_copy(
-                update={"description": "Contexto sintético de tela fornecido pelo cliente."}
+            reference=EvidenceReference(
+                source=safe_reference_source("synthetic.screen", screen.reference.source),
+                description="Contexto sintético de tela fornecido pelo cliente.",
+                is_demo=True,
             ),
             records=records,
         )
@@ -283,7 +293,7 @@ class ScreenInsightOrchestrator:
             error=error,
             evidence=[
                 EvidenceReference(
-                    source=screen.reference.source,
+                    source=safe_reference_source("synthetic.screen", screen.reference.source),
                     description="Contexto sintético de tela fornecido pelo cliente.",
                     is_demo=True,
                 )

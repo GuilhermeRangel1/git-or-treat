@@ -7,7 +7,7 @@ from dataclasses import asdict
 import pytest
 
 from app.agent.composition import compose_core
-from app.agent.execution import ExecutionController
+from app.agent.execution import ExecutionController, ExecutionLimits
 from app.api.access import SYNTHETIC_SOURCE_ID, demo_access_context
 from app.config import Settings
 from app.main import create_app
@@ -28,13 +28,13 @@ from .test_core_composition import (
 )
 
 
-def _core(source, model, sink, *, require_durable=False):
+def _core(source, model, sink, *, require_durable=False, limits=None):
     return compose_core(
         profile=GRID360_DEMO_PROFILE,
         source_id=SYNTHETIC_SOURCE_ID,
         evidence_source=source,
         model_adapter=model,
-        execution_controller=ExecutionController(),
+        execution_controller=ExecutionController(limits),
         event_sink=sink,
         require_durable_audit=require_durable,
     )
@@ -143,7 +143,8 @@ def test_cancellation_and_fallback_do_not_serialize_sensitive_content() -> None:
     sink = RecordingSink()
     result = asyncio.run(
         _core(
-            RecordingSource(), FallbackModelAdapter([FailedFirstModel(), RecordingModel()]), sink
+            RecordingSource(), FallbackModelAdapter([FailedFirstModel(), RecordingModel()]),
+            sink, limits=ExecutionLimits(max_model_calls=2)
         ).question.answer(QuestionRequest(question=QUESTION), _context())
     )
     assert result.status == "answered"

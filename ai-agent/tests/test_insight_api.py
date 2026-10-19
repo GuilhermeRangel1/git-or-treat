@@ -1,8 +1,11 @@
 """Contratos HTTP públicos para insights contextuais sintéticos."""
 
+from app.agent.access import ReadAccessPolicy
 from app.agent.insights import ScreenInsightOrchestrator
+from app.api.access import SYNTHETIC_SOURCE_ID
 from app.config import Settings
 from app.main import create_app
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.caching import CachingModelAdapter
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
 
@@ -61,7 +64,10 @@ class InvalidInsightModel:
 def _client(model=None) -> InProcessClient:
     application = create_app(
         settings=Settings(_env_file=None),
-        insight_orchestrator=ScreenInsightOrchestrator(model or RecordingInsightModel()),
+        insight_orchestrator=ScreenInsightOrchestrator(
+            model or RecordingInsightModel(),
+            ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
+        ),
     )
     return InProcessClient(application)
 
@@ -70,7 +76,9 @@ def test_insight_real_mode_without_verified_identity_never_calls_model() -> None
     model = RecordingInsightModel()
     application = create_app(
         settings=Settings(environment="production", _env_file=None),
-        insight_orchestrator=ScreenInsightOrchestrator(model),
+        insight_orchestrator=ScreenInsightOrchestrator(
+            model, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
+        ),
     )
     with InProcessClient(application) as client:
         response = client.post("/api/v1/insights", json={"screen": _screen_context()})
@@ -117,6 +125,27 @@ def test_insight_separates_supplied_observation_from_generated_hypothesis() -> N
     assert model.calls[0][2].records[0]["observations"] == [
         {"observation_id": "row_1", "value": 420}
     ]
+
+
+def test_insight_does_not_forward_client_reference_to_model_or_response() -> None:
+    model = RecordingInsightModel()
+    raw_source = "synthetic_screen:tokenabc123"
+
+    with _client(model) as client:
+        response = client.post(
+            "/api/v1/insights",
+            json={"screen": _screen_context(reference={
+                "source": raw_source,
+                "description": "Tela artificial.",
+                "is_demo": True,
+            })},
+        )
+
+    assert response.json()["status"] == "answered"
+    safe_source = response.json()["evidence"][0]["source"]
+    assert safe_source.startswith("synthetic.screen:")
+    assert raw_source not in response.text
+    assert model.calls[0][2].reference.source == safe_source
 
 
 def test_insight_rejects_context_without_period_or_result() -> None:

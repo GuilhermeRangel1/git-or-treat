@@ -25,21 +25,50 @@ class ReadAccessPolicy:
     def source_id(self) -> str:
         return self._source_id
 
-    def authorize(self, plan: LogicalReadPlan, context: AccessContext | None) -> None:
-        if context is not None:
-            try:
-                context = AccessContext.model_validate(dict(context))
-            except (AttributeError, TypeError, ValidationError) as exc:
-                raise EvidenceAccessDenied("contexto interno inválido") from exc
+    def authorize_context(self, context: AccessContext | None) -> AccessContext:
+        """Confere a origem e o escopo mínimo antes de qualquer fluxo de leitura."""
+
+        if context is None:
+            raise EvidenceAccessDenied("escopo de leitura indisponível")
+        try:
+            validated = AccessContext.model_validate(dict(context))
+        except (AttributeError, TypeError, ValidationError) as exc:
+            raise EvidenceAccessDenied("contexto interno inválido") from exc
         if (
-            context is None
-            or context.profile_id != self._profile.profile_id
-            or context.source_id != self._source_id
-            or plan.profile_id != context.profile_id
+            validated.profile_id != self._profile.profile_id
+            or validated.source_id != self._source_id
+            or CatalogOperation.READ not in validated.allowed_operations
+            or CatalogOperation.READ not in self._profile.operations
+        ):
+            raise EvidenceAccessDenied("escopo de leitura indisponível")
+        return validated
+
+    def authorize_insight(self, context: AccessContext | None) -> None:
+        """O insight sintético exige algum escopo analítico aprovado para o perfil."""
+
+        validated = self.authorize_context(context)
+        allowed_metrics = {
+            item.id
+            for item in self._profile.metrics
+            if item.sensitivity is not CatalogSensitivity.PERSONAL
+        }
+        allowed_dimensions = {
+            item.id
+            for item in self._profile.dimensions
+            if item.sensitivity is not CatalogSensitivity.PERSONAL
+        }
+        if (
+            not validated.allowed_metric_ids & allowed_metrics
+            or not validated.allowed_dimension_ids & allowed_dimensions
+        ):
+            raise EvidenceAccessDenied("escopo analítico indisponível")
+
+    def authorize(self, plan: LogicalReadPlan, context: AccessContext | None) -> None:
+        context = self.authorize_context(context)
+        if (
+            plan.profile_id != context.profile_id
             or plan.source_id != context.source_id
             or plan.operation != CatalogOperation.READ
-            or CatalogOperation.READ not in context.allowed_operations
-            or CatalogOperation.READ not in self._profile.operations
         ):
             raise EvidenceAccessDenied("escopo de leitura indisponível")
 

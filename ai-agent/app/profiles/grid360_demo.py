@@ -143,7 +143,7 @@ GRID360_DEMO_PROFILE = DomainProfile(
             id="service.attendance",
             domain_id="service",
             aliases=("atendimentos", "atendimento", "chamados", "chamado"),
-            unit="registros fictícios",
+            unit="atendimento fictício",
             granularities=_MONTH_YEAR,
             dimension_ids=_ALL_DIMENSIONS,
             sensitivity=CatalogSensitivity.INTERNAL,
@@ -180,6 +180,7 @@ GRID360_DEMO_PROFILE = DomainProfile(
     correction_terms=("não", "na verdade", "corrigindo"),
     follow_up_starters=("e", "também", "nesse", "neste", "então", "agora"),
     direction_terms=("queda", "redução", "aumento", "subida", "crescimento"),
+    out_of_scope_terms=("capital", "clima", "previsão do tempo", "futebol", "cotação"),
     ambiguities=(
         AmbiguityRule(
             phrases=("conta de luz",),

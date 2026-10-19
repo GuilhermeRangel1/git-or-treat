@@ -12,6 +12,21 @@ def _imported_modules(path: Path) -> set[str]:
             modules.add(node.module)
         elif isinstance(node, ast.Import):
             modules.update(alias.name for alias in node.names)
+        elif (
+            isinstance(node, ast.Call)
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+            and (
+                isinstance(node.func, ast.Name)
+                and node.func.id == "__import__"
+                or isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "importlib"
+                and node.func.attr == "import_module"
+            )
+        ):
+            modules.add(node.args[0].value)
     return modules
 
 
@@ -21,10 +36,15 @@ def test_core_contract_modules_do_not_import_concrete_adapters_or_composition() 
         APP_ROOT / "generation",
         APP_ROOT / "ports",
         APP_ROOT / "schemas",
+        APP_ROOT / "providers" / "protocols.py",
     ]
     forbidden_prefixes = (
         "app.main",
+        "app.api",
+        "app.config",
         "app.tools",
+        "app.profiles",
+        "app.scenarios",
         "app.providers.gemini",
         "app.providers.fallback",
         "app.providers.caching",
@@ -32,7 +52,14 @@ def test_core_contract_modules_do_not_import_concrete_adapters_or_composition() 
         "app.providers.unavailable",
         "app.profiles.grid360_demo",
         "fastapi",
-        "google.genai",
+        "google",
+        "openai",
+        "httpx",
+        "requests",
+        "langchain",
+        "llama_index",
+        "crewai",
+        "databricks",
         "sqlalchemy",
         "psycopg",
         "sqlite3",
@@ -40,9 +67,13 @@ def test_core_contract_modules_do_not_import_concrete_adapters_or_composition() 
     violations = []
 
     for root in core_roots:
-        for path in root.rglob("*.py"):
+        paths = (root,) if root.is_file() else root.rglob("*.py")
+        for path in paths:
             for module in _imported_modules(path):
-                if module.startswith(forbidden_prefixes):
+                if any(
+                    module == prefix or module.startswith(f"{prefix}.")
+                    for prefix in forbidden_prefixes
+                ):
                     violations.append(f"{path.relative_to(APP_ROOT)} imports {module}")
 
     assert violations == []
@@ -56,7 +87,10 @@ def test_concrete_adapters_do_not_import_the_agent_or_composition_root() -> None
     for root in adapter_roots:
         for path in root.rglob("*.py"):
             for module in _imported_modules(path):
-                if module.startswith(forbidden_prefixes):
+                if any(
+                    module == prefix or module.startswith(f"{prefix}.")
+                    for prefix in forbidden_prefixes
+                ):
                     violations.append(f"{path.relative_to(APP_ROOT)} imports {module}")
 
     assert violations == []

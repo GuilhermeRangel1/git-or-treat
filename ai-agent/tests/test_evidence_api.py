@@ -85,8 +85,9 @@ async def test_questions_api_uses_an_alternate_evidence_source() -> None:
     assert "5 unidades fictícias" in response.json()["answer"]
     assert response.json()["evidence"] == [
         {
-            "source": "synthetic_fixture:alternate_test",
+            "source": response.json()["evidence"][0]["source"],
             "description": "Evidência agregada validada pelo serviço.",
             "is_demo": True,
         }
     ]
+    assert response.json()["evidence"][0]["source"].startswith(f"{SYNTHETIC_SOURCE_ID}:")

@@ -62,6 +62,7 @@ class QuestionOrchestrator:
         self._model_adapter = model_adapter
         self._safety_gate = safety_gate or QuestionSafetyGate()
         self._execution = execution_controller or ExecutionController()
+        self._execution.ensure_model_capacity(model_adapter)
         self._events = event_sink or NoopEventSink()
         self._require_durable_audit = require_durable_audit
 

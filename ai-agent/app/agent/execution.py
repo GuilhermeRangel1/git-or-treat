@@ -66,6 +66,12 @@ class ExecutionController:
         self._sources = asyncio.Semaphore(self.limits.concurrent_sources)
         self._models = asyncio.Semaphore(self.limits.concurrent_models)
 
+    def ensure_model_capacity(self, model: object) -> None:
+        """Rejeita cadeias capazes de exceder o orçamento de tentativas por request."""
+        attempts = getattr(model, "max_attempts", 1)
+        if type(attempts) is not int or attempts < 1 or attempts > self.limits.max_model_calls:
+            raise ValueError("A cadeia de modelos excede o limite de chamadas configurado.")
+
     async def run(self, action: Callable[["RequestBudget"], Awaitable[T]]) -> T:
         try:
             async with asyncio.timeout(self.limits.request_seconds) as deadline:

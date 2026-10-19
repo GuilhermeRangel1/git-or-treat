@@ -11,6 +11,7 @@ from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.agent.safety import QuestionSafetyGate
 from app.api.access import SYNTHETIC_SOURCE_ID
 from app.config import Settings
 from app.main import create_app
@@ -77,11 +78,16 @@ def evaluate_case(case: dict) -> dict:
             interpreter, tool, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
         ),
         model_adapter=model,
+        safety_gate=QuestionSafetyGate(
+            out_of_scope_terms=GRID360_DEMO_PROFILE.out_of_scope_terms
+        ),
     )
     application = create_app(
         settings=Settings(_env_file=None),
         question_orchestrator=orchestrator,
-        insight_orchestrator=ScreenInsightOrchestrator(model),
+        insight_orchestrator=ScreenInsightOrchestrator(
+            model, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
+        ),
     )
     with InProcessClient(application) as client:
         if case.get("endpoint") == "insights":
@@ -112,8 +118,17 @@ def evaluate_case(case: dict) -> dict:
         )
         checks["expected_content"] = case["expected_answer_fragment"] in generated_text
     if "expected_evidence_source" in case:
+        expected_source = case["expected_evidence_source"]
+        is_insight = case.get("endpoint") == "insights"
         checks["evidence_source"] = any(
-            item["source"] == case["expected_evidence_source"] for item in body.get("evidence", [])
+            (
+                item["source"].startswith("synthetic.screen:")
+                and len(item["source"].split(":", 1)[1]) == 64
+                and item["source"] != expected_source
+            )
+            if is_insight
+            else item["source"].startswith(f"{expected_source}:")
+            for item in body.get("evidence", [])
         )
     if "expected_observation_value" in case:
         observed_values = body.get("observation", {}).get("values", [])

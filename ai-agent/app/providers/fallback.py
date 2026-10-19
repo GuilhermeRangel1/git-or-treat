@@ -41,6 +41,11 @@ class FallbackModelAdapter:
         self._total_timeout_seconds = total_timeout_seconds
         self._backoff_seconds = backoff_seconds
 
+    @property
+    def max_attempts(self) -> int:
+        """Máximo de chamadas subjacentes em uma geração, inclusive cadeias aninhadas."""
+        return sum(getattr(adapter, "max_attempts", 1) for adapter in self._adapters)
+
     async def generate(
         self,
         question: str,
