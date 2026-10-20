@@ -210,6 +210,73 @@ def test_escalated_strong_answer_is_published() -> None:
     assert response.error is None
 
 
+def test_light_numeric_claim_not_supported_by_selected_evidence_escalates_to_strong() -> None:
+    light = ScriptedModel(
+        GeneratedAnswer(
+            status="answered",
+            answer="O consumo foi 999 unidades fictícias.",
+            observation_ids=("row_1",),
+        )
+    )
+    strong = ScriptedModel(
+        GeneratedAnswer(
+            status="answered",
+            answer="O consumo foi 420 unidades fictícias.",
+            observation_ids=("row_1",),
+        )
+    )
+
+    response = _ask(_orchestrator(_router(light, strong)))
+
+    assert (light.calls, strong.calls) == (1, 1)
+    assert response.status is QuestionStatus.ANSWERED
+    assert response.model_tier == "strong"
+    assert "420 unidades fictícias" in response.answer
+    assert "999" not in response.answer
+
+
+@pytest.mark.parametrize("numeric_claim", ["420,0", "4,2e2", "4.20e2"])
+def test_light_numeric_claim_matching_evidence_stays_light(numeric_claim: str) -> None:
+    light = ScriptedModel(
+        GeneratedAnswer(
+            status="answered",
+            answer=f"O consumo foi {numeric_claim} unidades fictícias.",
+            observation_ids=("row_1",),
+        )
+    )
+    strong = ScriptedModel(_grounded(STRONG_TEXT))
+
+    response = _ask(_orchestrator(_router(light, strong)))
+
+    assert (light.calls, strong.calls) == (1, 0)
+    assert response.status is QuestionStatus.ANSWERED
+    assert response.model_tier == "light"
+
+
+def test_numeric_mismatch_from_strong_after_escalation_is_refused() -> None:
+    light = ScriptedModel(
+        GeneratedAnswer(
+            status="answered",
+            answer="O consumo foi 999 unidades fictícias.",
+            observation_ids=("row_1",),
+        )
+    )
+    strong = ScriptedModel(
+        GeneratedAnswer(
+            status="answered",
+            answer="O consumo foi 998 unidades fictícias.",
+            observation_ids=("row_1",),
+        )
+    )
+
+    response = _ask(_orchestrator(_router(light, strong)))
+
+    assert (light.calls, strong.calls) == (1, 1)
+    assert response.status is QuestionStatus.REFUSED
+    assert response.model_tier == "strong"
+    assert response.error == map_failure(FailureCode.UNGROUNDED_OUTPUT).error
+
+
 @pytest.mark.parametrize(
     "observation_ids",
     [(), ("row_1", "row_1"), ("row_999",)],
@@ -283,7 +350,13 @@ def test_construction_counts_fallback_chains_of_both_tiers() -> None:
 
 
 def test_escalation_is_counted_by_the_request_budget() -> None:
-    light = ScriptedModel(_ungrounded(LIGHT_TEXT))
+    light = ScriptedModel(
+        GeneratedAnswer(
+            status="answered",
+            answer="O consumo foi 999 unidades fictícias.",
+            observation_ids=("row_1",),
+        )
+    )
     strong = ScriptedModel(_grounded(STRONG_TEXT))
     orchestrator = _orchestrator(_router(light, strong), max_model_calls=2)
     # Reduz o limite depois da construção para forçar o estouro durante a escalada.

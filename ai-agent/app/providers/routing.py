@@ -1,9 +1,9 @@
 """Escolhe o nível de modelo conforme o tipo de pergunta e o tamanho da evidência.
 
 O roteador recebe só strings e inteiros, sem depender dos contratos de intenção e de
-evidência, para continuar isolado do fluxo de perguntas. A retentativa com o nível mais
-forte, quando a saída do modelo leve não tiver sustentação na evidência (``observation_ids``
-ausentes, repetidos ou inexistentes), fica a cargo de quem chamar ``escalate``.
+evidência, para continuar isolado do fluxo de perguntas. A decisão de repetir no nível forte
+quando a saída leve tiver referências ou números sem sustentação na evidência fica a cargo
+do orquestrador que chama ``escalate``.
 """
 
 from collections.abc import Mapping

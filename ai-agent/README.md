@@ -43,7 +43,7 @@ GENAI_MODEL_MAX_CALLS=3
 
 A API usa `RoutingPolicy` no `ModelRouter` montado pela factory e injetado em `compose_core`. A decisão acontece após interpretação, autorização e redução da evidência. Domínio ausente/desconhecido, intenção não listada, evidência acima de qualquer limite ou nível leve não configurado envia a pergunta ao nível forte. O nível forte é obrigatório; sem configuração de domínios leves, todas as perguntas usam o modelo forte. O insight de tela também continua no nível forte.
 
-O serviço publica respostas quantitativas montadas a partir das observações selecionadas, e não o texto livre do modelo. Se o nível leve selecionar observações ausentes, repetidas ou desconhecidas, o serviço tenta o nível forte uma única vez; se o nível forte também falhar na seleção, recusa a resposta. Falhas de provedor seguem o fallback existente e não acionam escalada. As tentativas máximas dos dois níveis, incluindo fallbacks de cada um, precisam caber em `GENAI_MODEL_MAX_CALLS`. A classificação dos domínios e os limites devem ser validados pela equipe; não há medição de custo, latência ou qualidade real nesta etapa.
+O serviço publica respostas quantitativas montadas a partir das observações selecionadas, e não o texto livre do modelo. Com o roteador ativo, se a resposta `light` selecionar observações ausentes, repetidas ou desconhecidas, ou trouxer um número que não corresponda às observações selecionadas, o serviço tenta o nível `strong` uma única vez. Se o forte também falhar na seleção ou na checagem numérica, recusa a resposta. Falhas de provedor seguem o fallback existente e não acionam escalada. As tentativas máximas dos dois níveis, incluindo fallbacks de cada um, precisam caber em `GENAI_MODEL_MAX_CALLS`. A classificação dos domínios e os limites devem ser validados pela equipe; não há medição de custo, latência ou qualidade real nesta etapa.
 
 O serviço aplica orçamento total por solicitação e prazos próprios para fonte e modelo, inclusive ao esperar uma vaga de concorrência. Os valores e limites de chamadas podem ser ajustados pelas variáveis comentadas no `.env.example`. Prazo ou limite esgotado produz `limit_exceeded`, sem nova tentativa automática. Uma cadeia de fallback injetada precisa caber em `GENAI_MODEL_MAX_CALLS`, inclusive quando encapsulada pelo cache; a composição recusa cadeias maiores. O fallback só avança após indisponibilidade transitória; erro definitivo ou resposta inválida encerra a cadeia. O cache opcional usa identidade, permissões, plano, catálogo, evidência, prompt e modelos na chave; sem escopo autorizado ele é ignorado. Insights demonstrativos com observações enviadas pelo navegador não entram no cache.
 
@@ -62,6 +62,8 @@ python -m pytest
 python -m ruff check .
 python -m tests.test_genai_regression --output reports/synthetic-regression-report.json
 ```
+
+Para exercitar manualmente a escalada numérica com duas chamadas reais ao Gemini, configure uma chave em `.env` e execute `python -m tests.manual_gemini_numeric_retry_smoke --strong-model gemini-3.6-flash --light-model gemini-3.5-flash-lite --run-live`. O script usa somente `synthetic.fixture`; após a chamada real ao modelo leve, injeta `999` no rascunho para provocar a checagem e verifica a chamada real ao forte e a resposta pública sem esse número. Esse comando pode gerar cobrança e não valida uma alucinação espontânea do modelo.
 
 O serviço expõe a documentação OpenAPI em `http://127.0.0.1:8001/docs`. A aplicação sobe sem banco de dados e sem chave de provedor; o acesso a Gold real será integrado em etapas posteriores.
 
