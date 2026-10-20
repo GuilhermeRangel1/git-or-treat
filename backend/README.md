@@ -1,6 +1,6 @@
 # Backend — V-Energy Grid 360
 
-API FastAPI com conexão SQLAlchemy, migração Alembic e persistência inicial das ordens de inspeção. As rotas de indicadores, receita, UC, fila, continuidade e IA ainda são placeholders; elas não consultam a Gold. Os requisitos de produto permanecem pendentes de implementação e reconciliação com dados Gold.
+API FastAPI com conexão SQLAlchemy, migração Alembic e persistência inicial das ordens de inspeção. As rotas analíticas têm contratos versionados e um adaptador sintético em memória para desenvolvimento; elas não consultam a Gold. Os requisitos de produto permanecem pendentes de implementação e reconciliação com dados Gold.
 
 PostgreSQL é o banco configurado para execução normal. SQLite é usado nos testes HTTP. O quality workflow executa também migrações e uma gravação/leitura ORM contra um serviço PostgreSQL descartável, com credenciais sintéticas definidas apenas no CI.
 
@@ -41,6 +41,19 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 O health check fica em `http://localhost:8000/api/v1/health`. Swagger UI: `http://localhost:8000/docs`; ReDoc: `http://localhost:8000/redoc`.
+
+## Contratos analíticos de desenvolvimento
+
+`ANALYTICS_SOURCE` aceita `unavailable` (padrão, retorna HTTP 503 nas rotas analíticas) ou `synthetic`. Para experimentar os contratos sem conectar ao PostgreSQL, configure a opção `synthetic` no ambiente antes de iniciar a API. Um valor desconhecido impede a inicialização. `/api/v1/kpis`, `/revenue`, `/ucs`, `/ucs/{uc_id}`, `/inspections/queue` e `/operations/continuity` usam a interface `get_analytics_repository`; filas de inspeção continuam separadas das ordens operacionais persistidas.
+
+A fixture determinística declara faturamento BRL 182, pagamentos BRL 170, energia faturada de 170 kWh e energia medida conhecida de 407 kWh no período janeiro–fevereiro de 2025. Faturado e pago usam fatos de fatura; energia medida e faturada têm campos separados. O perfil de UC traz uma referência e um nome fictícios. Vencimento, pagamento e situação de cada fatura são campos propostos, podendo ser nulos quando desconhecidos. A decomposição preço-volume endpoint e as taxas de continuidade são demonstrativas, versionadas e não homologadas pela Gold. A fixture inclui leitura zero válida, leitura ausente, UC sem fatura, medidor retirado, alimentador sem denominador e o AL-02 distribuído entre Olinda e Paulista; limitações e nulidade aparecem na resposta.
+
+Exemplo PowerShell para iniciar a API em modo demonstrativo:
+
+```powershell
+$env:ANALYTICS_SOURCE = "synthetic"
+uvicorn app.main:app --reload --port 8000
+```
 
 ## Verificações
 

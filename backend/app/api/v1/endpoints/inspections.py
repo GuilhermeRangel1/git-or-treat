@@ -4,21 +4,40 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.operational import OrderStatus
-from app.schemas.common import PaginatedResponse
+from app.schemas.analytics import AnalyticsListResponse, InspectionQueueItem
+from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
+from app.api.v1.analytics_route import AnalyticsRoute
+from app.services.analytics import DEFAULT_END, DEFAULT_START, filters_model, metadata, page_items
+from app.services.inspection_analytics import build_inspection_queue
 from app.schemas.inspections import OrderCreateRequest, OrderResponse, OrderUpdateRequest
 from app.services import inspections as inspection_service
 
 router = APIRouter()
+analytics_router = APIRouter(route_class=AnalyticsRoute)
 
 
-@router.get("/queue", summary="Fila de UCs com suspeita de anomalia (Gold)")
+@analytics_router.get("/queue", response_model=AnalyticsListResponse[InspectionQueueItem], summary="Fila sintética de UCs com suspeita")
 def get_inspection_queue(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    order_by: str = Query("priority", max_length=40),
+    municipio: str | None = Query(None, max_length=100),
+    bairro: str | None = Query(None, max_length=100),
+    classe: str | None = Query(None, max_length=100),
+    alimentador: str | None = Query(None, max_length=100),
+    repository: AnalyticsRepository = Depends(get_analytics_repository),
 ):
-    """Retorna a fila priorizada gerada pelas regras analíticas da Gold (WEB-04)."""
-    return PaginatedResponse(items=[], total=0, page=page, page_size=page_size, total_pages=0)
+    """Read-only demonstration queue; estimates are provisional and not Gold metrics."""
+    filters = filters_model(municipio, bairro, classe, alimentador)
+    items, state = build_inspection_queue(repository, filters)
+    selected, pagination = page_items(items, page, page_size, order_by, {"priority", "uc_id", "potential_recoverable_energy_kwh"}, descending=order_by == "priority")
+    result_metadata = metadata(repository, state, DEFAULT_START, DEFAULT_END, filters)
+    if state == "partial":
+        result_metadata.limitations.append("Há suspeitas sem estimativa demonstrativa de energia recuperável.")
+    return {"data": {"items": selected}, "pagination": pagination, "metadata": result_metadata}
+
+
+router.include_router(analytics_router)
 
 
 @router.get(
