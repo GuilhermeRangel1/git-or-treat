@@ -25,6 +25,26 @@ Para preparar o adaptador Gemini opcional, instale `python -m pip install -e ".[
 
 Gemini é uma implementação opcional baseada na recomendação do case, não uma decisão definitiva de provedor da equipe. O módulo continua com interfaces substituíveis. O teste automatizado usa cliente falso e não faz chamadas de rede ou faturáveis.
 
+### Roteamento de perguntas entre modelos
+
+O roteamento é desligado por padrão e fica restrito ao perfil demonstrativo `GRID360_DEMO_PROFILE` com a fonte `synthetic.fixture`. `create_app` rejeita a configuração se ela for ativada para outro perfil ou fonte. Os dados enviados ao modelo continuam sendo as evidências sintéticas do serviço. Com uma chave real, as chamadas ao Gemini são reais e podem gerar cobrança; os testes automatizados usam cliente falso. Para habilitá-lo, configure `GENAI_MODEL_PROVIDER=gemini`, a chave Gemini, um modelo forte em `GENAI_GEMINI_MODEL` e um modelo leve distinto em `GENAI_MODEL_LIGHT_MODEL`. `GENAI_MODEL_LIGHT_INTENTS` lista os domínios que podem usar o modelo leve; deixe vazio até a equipe aprovar essa classificação. Exemplo:
+
+```dotenv
+GENAI_MODEL_ROUTING_ENABLED=true
+GENAI_MODEL_PROVIDER=gemini
+GENAI_GEMINI_API_KEY=<sua chave Gemini>
+GENAI_GEMINI_MODEL=gemini-3.6-flash
+GENAI_MODEL_LIGHT_MODEL=gemini-3.5-flash-lite
+GENAI_MODEL_LIGHT_INTENTS=consumption
+GENAI_MODEL_LIGHT_MAX_EVIDENCE_RECORDS=50
+GENAI_MODEL_LIGHT_MAX_EVIDENCE_CHARS=8000
+GENAI_MODEL_MAX_CALLS=3
+```
+
+A API usa `RoutingPolicy` no `ModelRouter` montado pela factory e injetado em `compose_core`. A decisão acontece após interpretação, autorização e redução da evidência. Domínio ausente/desconhecido, intenção não listada, evidência acima de qualquer limite ou nível leve não configurado envia a pergunta ao nível forte. O nível forte é obrigatório; sem configuração de domínios leves, todas as perguntas usam o modelo forte. O insight de tela também continua no nível forte.
+
+O serviço publica respostas quantitativas montadas a partir das observações selecionadas, e não o texto livre do modelo. Com o roteador ativo, se a resposta `light` selecionar observações ausentes, repetidas ou desconhecidas, ou trouxer um número que não corresponda às observações selecionadas, o serviço tenta o nível `strong` uma única vez. Se o forte também falhar na seleção ou na checagem numérica, recusa a resposta. Falhas de provedor seguem o fallback existente e não acionam escalada. As tentativas máximas dos dois níveis, incluindo fallbacks de cada um, precisam caber em `GENAI_MODEL_MAX_CALLS`. A classificação dos domínios e os limites devem ser validados pela equipe; não há medição de custo, latência ou qualidade real nesta etapa.
+
 O serviço aplica orçamento total por solicitação e prazos próprios para fonte e modelo, inclusive ao esperar uma vaga de concorrência. Os valores e limites de chamadas podem ser ajustados pelas variáveis comentadas no `.env.example`. Prazo ou limite esgotado produz `limit_exceeded`, sem nova tentativa automática. Uma cadeia de fallback injetada precisa caber em `GENAI_MODEL_MAX_CALLS`, inclusive quando encapsulada pelo cache; a composição recusa cadeias maiores. O fallback só avança após indisponibilidade transitória; erro definitivo ou resposta inválida encerra a cadeia. O cache opcional usa identidade, permissões, plano, catálogo, evidência, prompt e modelos na chave; sem escopo autorizado ele é ignorado. Insights demonstrativos com observações enviadas pelo navegador não entram no cache.
 
 ## Executar e verificar
@@ -42,6 +62,8 @@ python -m pytest
 python -m ruff check .
 python -m tests.test_genai_regression --output reports/synthetic-regression-report.json
 ```
+
+Para exercitar manualmente a escalada numérica com duas chamadas reais ao Gemini, configure uma chave em `.env` e execute `python -m tests.manual_gemini_numeric_retry_smoke --strong-model gemini-3.6-flash --light-model gemini-3.5-flash-lite --run-live`. O script usa somente `synthetic.fixture`; após a chamada real ao modelo leve, injeta `999` no rascunho para provocar a checagem e verifica a chamada real ao forte e a resposta pública sem esse número. Esse comando pode gerar cobrança e não valida uma alucinação espontânea do modelo.
 
 O serviço expõe a documentação OpenAPI em `http://127.0.0.1:8001/docs`. A aplicação sobe sem banco de dados e sem chave de provedor; o acesso a Gold real será integrado em etapas posteriores.
 
@@ -61,7 +83,7 @@ Invoke-RestMethod -Method Post `
   -Body '{"contract_version":"v1","question":"Qual foi o consumo?"}'
 ```
 
-A resposta dos endpoints de perguntas e insights segue o envelope público `v1`: `contract_version`, `status`, `answer` ou `message`, `evidence`, `limitations`, `error`, `correlation_id` e `audit_reference`. `answered` usa `answer` em perguntas ou `hypothesis` em insights; os outros estados usam `message`, sem misturar os campos. A resposta também envia o `correlation_id` no cabeçalho `X-Correlation-ID`. O identificador é gerado pelo serviço e serve para localizar a requisição; não representa uma trilha de auditoria. `audit_reference` permanece `null` até existir auditoria durável. Em perguntas respondidas, `analysis_context` mostra o recorte lógico que a fonte declarou ter aplicado; a janela ainda pode ser uma frase do catálogo demonstrativo. Em insights, o contexto recebido fica separado das observações e da hipótese. O núcleo confere perfil, fonte e escopo de leitura do contexto de acesso; a API local usa identidade fictícia. Métrica e filtros da tela sintética ainda não são ligados a um plano Gold autorizado.
+As respostas seguem o envelope público `v1`. Perguntas incluem `model_tier`: `light` ou `strong` quando o roteador gera a saída, e `null` quando não há roteamento ou uma geração concluída. O campo identifica só o nível, sem expor provedor nem ID do modelo. `answered` usa `answer` em perguntas ou `hypothesis` em insights; os outros estados usam `message`, sem misturar os campos. A resposta também envia o `correlation_id` no cabeçalho `X-Correlation-ID`. O identificador é gerado pelo serviço e serve para localizar a requisição; não representa uma trilha de auditoria. `audit_reference` permanece `null` até existir auditoria durável. Em perguntas respondidas, `analysis_context` mostra o recorte lógico que a fonte declarou ter aplicado; a janela ainda pode ser uma frase do catálogo demonstrativo. Em insights, o contexto recebido fica separado das observações e da hipótese. O núcleo confere perfil, fonte e escopo de leitura do contexto de acesso; a API local usa identidade fictícia. Métrica e filtros da tela sintética ainda não são ligados a um plano Gold autorizado.
 
 Recusas e falhas incluem `error.code` e `error.retryable`. Os erros de entrada HTTP usam status 422 e o mesmo envelope v1, com mensagem estável sem ecoar valores inválidos. Falhas inesperadas usam status 500 e mensagem genérica. A API não devolve linhas tabulares nem oferece paginação; perguntas retornam texto e referências. O contexto de insight aceita até 20 filtros, 20 observações e 20 limitações; limites excedidos são rejeitados, nunca truncados silenciosamente. Evidências internas aceitam por padrão até 100 registros e 16 KiB após serialização, com limites configuráveis; esse conjunto não é serializado na resposta pública. O ingresso HTTP ainda não tem um teto agregado em bytes.
 
@@ -92,6 +114,7 @@ Exemplo de resposta sintética a uma pergunta:
 {
   "contract_version": "v1",
   "status": "answered",
+  "model_tier": null,
   "answer": "Demonstração sintética: energy.consumption — período de demonstração: 420 unidades fictícias.",
   "message": null,
   "evidence": [

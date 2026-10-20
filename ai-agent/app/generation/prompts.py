@@ -8,7 +8,9 @@ sustentar uma resposta, solicite esclarecimento ou recuse conforme o caso. A sa�
 exatamente o esquema JSON solicitado.
 Para resposta baseada em valores, indique em observation_ids os IDs das observações usadas.
 O serviço montará o trecho quantitativo a partir dessas observações; não é necessário copiar
-números no campo answer. Se nenhuma observação sustentar a resposta, recuse.
+números no campo answer. Se incluir números nesse campo, use somente números presentes nos
+valores, períodos ou dimensões das observações selecionadas, sem calcular nem arredondar. Se
+nenhuma observação sustentar a resposta, recuse.
 """.strip()
 
 INSIGHT_TASK = (
