@@ -28,6 +28,9 @@ packages = ["app"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "live: chama um provedor real; opt-in via GENAI_RUN_LIVE_SMOKE=1, fora do CI",
+]
 
 [tool.ruff]
 line-length = 100
