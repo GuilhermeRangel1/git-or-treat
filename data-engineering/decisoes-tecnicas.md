@@ -1,0 +1,888 @@
+# Decisões técnicas do pipeline V-Energy Grid 360
+
+Este documento **centraliza as decisões técnicas** das camadas de engenharia de dados (Bronze, perfilamento,
+Silver e Gold), explica **de onde vem cada número** e diz **o que ainda é pendência**. Ele existe para facilitar a
+correção: em vez de garimpar decisão espalhada por notebook, PRD e ADR, o leitor acha aqui o "porquê" de cada
+escolha e um registro de decisões com evidência.
+
+Regras deste documento:
+
+- **Fonte de verdade:** o [PRD](../docs/PRD.md) (IDs, estados, critérios) e o
+  [ADR-0001](../docs/decisions/0001-reconciliacao-e-captura-de-registros-malformados.md). Em divergência, PRD e ADR
+  vencem; aqui é a leitura consolidada.
+- **Só entra afirmação com número ou prova.** Todo número citado vem do perfil da Bronze
+  (`quality.perfil_bronze`, execução de 17/10/2026, 113 linhas), da reconciliação da ingestão
+  (`bronze.reconciliacao`), da execução do Workflow, ou de verificação local reprodutível — e a origem está dita.
+- **Sem prova, é pendência declarada**, não afirmação. O que só se prova no Databricks está marcado como
+  "só no runtime".
+- **Camada Gold ainda não existe.** A seção da Gold é **proposta de modelagem** (decisão a tomar), não código.
+
+Nomes de arquivo: `Landing_to_Bronze.ipynb`, `Bronze_perfilamento.ipynb`, `Bronze_to_Silver.ipynb`,
+`v-energy-grid-360.yaml`, todos em `data-engineering/`. O contêiner é `workspace`; as tabelas são
+`workspace.bronze.*`, `workspace.quality.perfil_bronze` e `workspace.silver.*`.
+
+---
+
+## 0. Como as camadas se encaixam
+
+```text
+8 fontes brutas (Volume)
+      │  Landing_to_Bronze.ipynb      → bronze_stg.* (preparo) e, no fim, a publicação do lote em
+      │                                 workspace.bronze.*, bronze.rejeitados, bronze.reconciliacao,
+      │                                 bronze.arquivos_lote e bronze.controle_lote
+      ▼
+   Bronze (Delta, conteúdo original preservado)
+      │  Bronze_perfilamento.ipynb    → workspace.quality.perfil_bronze   (mede, não altera)
+      ▼
+   Plano de limpeza (números por problema)
+      │  Bronze_to_Silver.ipynb       → workspace.silver.* + silver.quarentena
+      ▼
+   Silver (limpa, tipada, relacionada)
+      │  (a construir)                → Gold
+      ▼
+   Gold (métricas de negócio)  →  CSV  →  banco local  →  API / portal / IA
+```
+
+Cada seta só existe se a anterior fechou a conta. As duas contas que governam o pipeline:
+
+- **Ingestão:** `linhas físicas de origem = gravadas + rejeitadas` (com `delta = 0`), **por origem** (arquivo e aba);
+  o total da tabela é a soma das origens (D39).
+- **Silver:** `bronze = aceitos + quarentenados` (com `delta = 0`), por tabela, no grão certo.
+
+---
+
+## 1. Registro de decisões (resumo)
+
+| # | Camada | Decisão | Por quê (motivo) | Evidência / número | Estado |
+|---|---|---|---|---|---|
+| D1 | Bronze | Schema explícito **100% string** | Bronze não interpreta tipo; tipo é decisão da Silver | `Landing_to_Bronze.ipynb` §0 | implementado |
+| D2 | Bronze | `_corrupt_record` para erros de parse; largura CSV validada antes do Spark | `PERMISSIVE` pode completar campos ausentes e descartar excedentes sem marcá-los | ADR-0001; autoteste da guarda CSV (2 divergências bloqueadas) e JSON 1/1 | revisão local 19/10; falta executar no Databricks |
+| D3 | Bronze | Colunas de auditoria `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro`, `_data_carga` (+`_aba_origem`) | rastrear lote e identificar a origem | `_id_registro` localiza na Bronze; `_ordem_na_origem` auxilia a busca, com limite em D40 | implementado, **revisado** |
+| D4 | Bronze | `unionByName(..., allowMissingColumns=True)` nos 5 arquivos de leitura | coluna ausente num ano vira `null` em vez de derrubar a leitura | 5 arquivos 2022–2026 | implementado |
+| D5 | Bronze | Carga por **`overwrite`** (não `append`), **na área de preparo** (`bronze_stg`) | a extração vem completa; sem isso, rodar 2× dobraria a base; e preparo separado permite trocar a publicada só no fim | 2.184.623 faturas virariam 4.369.246 | implementado, **revisado (D42)** |
+| D6 | Bronze | Reconciliação **por origem** (arquivo e aba) + `bronze.rejeitados` | "diferenças de parse e rejeições contadas e explicadas" (DE-01), **para cada fonte e lote** (§4.3) | 5 linhas em `leituras` + 3 em `inspecoes`; `delta = 0` nas origens | implementado, **revisado (D39)** |
+| D7 | Perfil | Notebook **separado** da ingestão | medir ≠ alterar; o perfil só investiga e grava o plano de limpeza | `quality.perfil_bronze`, 113 linhas | implementado |
+| D8 | Perfil | Deduplicação e nulos contados **só nas colunas de negócio** | `_id_registro` é único por linha e daria 0 duplicatas sempre (falso negativo) | `Bronze_perfilamento.ipynb` §2 | implementado |
+| D9 | Perfil | Normalizar **moeda/vírgula** antes de chamar valor de "não numérico" | senão formato vira "podridão" | `valor_total` não numérico: 196.624 → 2 | implementado |
+| D10 | Perfil | Data fora do ISO conta como **ambígua**, não inválida | ordem dia/mês é decisão de negócio, não defeito do dado | 102.878 (leituras) + 61.226 (faturas) | implementado |
+| D11 | Silver | **Rastreio na Silver (revisado):** `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro` (+`_aba_origem` em `inspecoes`) **entram** como metadados técnicos | localizam o registro aceito na Bronze sem serem atributo de negócio; o rastro inteiro segue no `_registro` da quarentena | decisão do time (opção A), 18/10; `_ordem` entrou em 2 (D43) | implementado |
+| D12 | Silver | Fim da **releitura** de tabela depois de `saveAsTable` | evitar custo e ponto de inconsistência; usa o DataFrame em memória | seção 5.1 | implementado |
+| D13 | Silver | Data ambígua de dia/mês → **quarentena** | a Silver não chuta ordem dia/mês | seção 5.3 / 8 | implementado, mas **regra pendente** |
+| D14 | Silver | Deduplicação por **chave de negócio**, mantendo o registro mais completo | uma verdade por registro; empate por `_data_carga` | duplicata exata 21.523/900/513/1 | implementado |
+| D15 | Silver | **Sentinela `9999-12-31` preservada (revisado):** o valor **fica** na coluna tipada e é marcado com `_*_sentinela`; `_tem_pagamento` a exclui | decisão do time: só virar nulo depois que a origem confirmar o significado; até lá não é lida como data real | faturas.data_pagamento 61.333 de 61.335 | implementado, **confirmar com a origem** |
+| D16 | Silver | Conversões **à prova de ANSI** (`try_to_*`, `try_cast`) | valor ruim vira nulo em vez de estourar a execução | seção 5.3 | implementado |
+| D17 | Silver | Contrato de tipos conferido **antes** de transformar | não gravar tabela errada em silêncio | `historico: array<struct>`, `nota_satisfacao: double` | implementado, só no runtime |
+| D18 | Silver | Reconciliação Bronze→Silver com `delta` por tabela | invariante da camada | seção 7 | implementado, só no runtime |
+| D21 | Silver | Data no futuro → **flag**, não quarentena | perfil §6: futuro é "investigar", não defeito (competência corrente pode cair à frente) | flags `_*_futura` | revisão 18/10 |
+| D22 | Silver | A verificação final **lê** `quality.perfil_bronze`, `bronze.reconciliacao`, `bronze.arquivos_lote` e `bronze.controle_lote` | antes os números eram digitados e `PERFIL`/`RECON` eram código morto | seção 13 do notebook | revisão 18/10, ampliada |
+| D23 | Silver | Negativos impossíveis de GD/inspeções → quarentena; fatura/nota → flag | perfil §7 classifica negativo por coluna | `gd_negativo`, `kwh_recuperado_negativo`; `_valor_negativo`, `_nota_negativa` | revisão 18/10 |
+| D24 | Silver | `atendimentos_historico` com `explode` (não `explode_outer`) | grão de saída = `sum(size(historico))` da entrada | reconciliação de grão fecha | revisão 18/10 |
+| D25 | Silver | Desempate de dedup por `_id_registro` (terceiro critério) | `_data_carga` é constante por lote; sem isso o empate é arbitrário entre execuções | janela determinística | revisão 2, 18/10 |
+| D26 | Silver | Flag `_*_futura` em **toda** tabela com data | o sinal de "futuro" não pode ser calculado e descartado | contrato de saída confere as flags | revisão 2, 18/10 |
+| D27 | Silver | `vazio`/`texto` colapsam espaço antes do placeholder | `SEM  INFORMACAO` (espaço duplo) passava como valor | `numero`/`data` provados iguais ao perfil (14.5) | revisão 2, 18/10 |
+| D28 | Silver | `DROP TABLE IF EXISTS quarentena` quando não há rejeição | não herdar a quarentena de execução anterior | idempotência | revisão 2, 18/10 |
+| D29 | Silver | Seção 13 mede data inválida, chave duplicada (GD/inspeções/ocorrências/atendimentos) e cascata de órfão | tornar visível o que antes só existia no perfil | verificação final | revisão 2, 18/10 |
+| D30 | Silver | Órfão de UC também em `medidores` e `geracao_distribuida` (quarentena `uc_inexistente`) | o perfil mede órfão nas cinco fontes com `id_uc` | invariante de órfãos nas seis tabelas | revisão 3, 18/10 |
+| D31 | Silver | Deduplica `ocorrencias_rede` (`id_ocorrencia`) e `atendimentos` (`protocolo`) | o `CHAVES` do perfil mede `chave duplicada` das duas; a saída tinha chave repetida | chaves únicas de fato nas 8 tabelas | revisão 3, 18/10 |
+| D32 | Silver | Bloco de cobertura na seção 13 (lê o perfil e lista achados com ocorrências > 0) | garantir que nenhum achado fique sem tratamento/justificativa | cobertura do plano de limpeza | revisão 3, 18/10 |
+| D33 | Silver | `mes_referencia_invalido` também em `leituras` | o perfil checa o formato nas duas fontes; antes só `faturas` | quarentena no grão certo | revisão 3, 18/10 |
+| D34 | Silver | Flag `_pagamento_antes_emissao` em `faturas` | regra ALTA do perfil sem tratamento | flag na saída | revisão 3, 18/10 |
+| D35 | Silver | Seções `14.5 Divergências` / `14.6 Próximos passos` reordenadas | eu havia inserido a 14.6 antes da 14.5 | numeração corrente | revisão 3, 18/10 |
+| D36 | Silver | Data ambígua de dia/mês: **manter quarentena (opção B)** e rodar a evidência por arquivo (opção C) | decisão do time: não chutar a ordem dia/mês; recuperar só com prova | 102.878 leituras / 61.226 faturas | **decidido** 18/10 |
+| D37 | Silver | Achados que não rejeitam + `inspetor`: **manter as regras atuais**, quantificar no próximo perfil e **confirmar se `inspetor` é exibido ao usuário** antes de padronizar | decisão do time: não criar regra sem justificativa; padronizar nome de pessoa pode afetar a exibição | §14.4 do notebook | **decidido** 18/10 |
+| D38 | Silver | **Cascata de órfão — decidido:** validar a FK contra a **Silver** (A) e dar **motivo próprio** ao bloqueio (`uc_em_quarentena`/`medidor_em_quarentena`) quando a chave existe na Bronze e o cadastro pai caiu na quarentena | decisão do time: a linha bloqueada não é registro malformado; mantê-la na Bronze e no `_registro` permite reprocessar depois de 14.1 | `medidor_inexistente` volta a 8.609 e as 58.214 leituras ficam identificadas | **decidido** 19/10 (R41) |
+| D39 | Bronze | Reconciliação **por origem** (uma linha por arquivo e por aba), com `_aba_origem` | o §4.3 pede a conta "para cada fonte e lote"; por tabela, um ano das leituras ou uma aba do Excel que encolhesse ficava invisível | `leituras` 5 linhas, `inspecoes` 3; a Silver soma por `_tabela` (§13.1b) | **implementado** 19/10 (revê D6) |
+| D40 | Bronze | `_ordem_na_origem`: ordem de leitura por arquivo/aba | `_id_registro` localiza na tabela; a ordem do Spark depende do particionamento e não prova a linha física de CSV/JSON | Excel: índice da aba; CSV/JSON: localizar por arquivo, hash e valores brutos | limitação explicitada 19/10; linha física CSV/JSON ainda pendente |
+| D41 | Bronze | `bronze.arquivos_lote`: nome, caminho, tamanho, modificação e **SHA-256** por lote | provar **qual versão** do arquivo entrou e comparar reexecuções; fecha a pendência de hash do §4.3 / DE-01 | `status_hash = OK` ou `INDISPONIVEL` (a limitação fica visível) | **implementado** 19/10 |
+| D42 | Bronze | **Publicação por lote:** ingestão escreve em `bronze_stg.*` e só troca `bronze.*` no fim, com `bronze.controle_lote` (`EM_ANDAMENTO`/`PUBLICADO`/`FALHOU`) e conferência de contagem | uma falha no fim da carga deixava a Bronze metade nova, metade velha (o `raise` do `bcc3022` só protege o que não foi publicado) | falha antes da publicação deixa o lote anterior intacto; após falha no meio, consumidores precisam bloquear leitura enquanto o lote atual não estiver `PUBLICADO`; recuperação por reexecução ainda requer teste com falha induzida | publicação em staging implementada; gate do consumidor e recuperação comprovada pendentes |
+| D43 | Silver | `_ordem_na_origem` entra no rastreio publicado, no contrato de tipos e nas `AUDITORIA` do perfilador e da Silver | preserva a ordem auxiliar até a Silver; no perfilador, incluí-la como dado zeraria a duplicata exata | §13 compara as 4 colunas; contrato confere `bigint`; limite da posição física em D40 | **implementado** 19/10 (revê D11) |
+| D44 | Silver | **UF/CEP/endereço:** `uf` publicada no **código de 2 letras** (mapa das 27 UFs); `cep` só com **8 dígitos**; `logradouro`/`numero` aparados; `nome_titular` preserva a caixa | a seção 5.2 já dizia "UF padronizada", mas a carga só fazia maiúscula — o arquivo tem **5 grafias** cruas para PE (`PE` 39.470, `pe` 1.826, `pernambuco` 1.729, `P.E.` 1.726, `Pernambuco` 1.709); `cep = "-1"` (162 linhas) virava `"1"`; 2.797 logradouros tinham espaço nas pontas e 1.551, espaço duplo | 45.200 UCs, todas `PE`; CEP nulo onde não há 8 dígitos; 1.557 grafias de logradouro → 217 | **implementado** 19/10 (R42–R44) |
+| D45 | Silver | **Tipo de medidor:** mapa canônico `ELETRO-MECANICO` → `ELETROMECANICO` e `SMART METER` → `SMART` | o arquivo tem **5 valores (10 grafias cruas) para 3 tipos**; o perfil mediu 3 grupos cosméticos, mas o hífen e o nome em inglês ficavam fora do colapso — o mesmo tipo apareceria duas vezes na saída e a Gold agruparia errado | 51.812 medidores, 3 tipos na saída (§13.6) | **implementado** 19/10 (R48) |
+| D19 | Gold | Modelo de métricas (receita, DEC/FEC, GD, UC 360) | responder às perguntas do portal/IA | PRD §5, dicionário | **proposta** |
+| D20 | Gold | **Mascaramento/hash** de dado pessoal | LGPD: não expor CPF/nome a portal, IA e CSV local | seção 9 | **pendente** |
+
+---
+
+## 2. Camada Bronze
+
+### 2.1 Papel
+
+A Bronze é uma **cópia fiel da Landing**, sem tratar nada: limpar é trabalho da Silver. Isso é o que permite
+reprocessar a partir do bruto a qualquer momento e comparar "o que veio" com "o que a Silver publicou".
+
+### 2.2 Por que schema 100% string (D1)
+
+Ler tudo como texto impede que o Spark infira tipo errado (ex.: CEP `"05001-000"` virar número, ou um código com
+zero à esquerda perder o zero) e mantém a Bronze "original". A consequência assumida: **nenhum tipo é confiável na
+Bronze** e a tipagem é a primeira coisa que a Silver faz.
+
+### 2.3 Captura de registro malformado (D2)
+
+Alternativas testadas no ADR-0001: `badRecordsPath` (arquivo lateral) **gravou 0 bytes** com corrupção certa e não
+pode ser combinado com `mode=overwrite`. A validação externa para fazer todo o parse foi descartada;
+a revisão de 19/10 usa `csv.reader` somente para conferir a largura em fluxo contínuo.
+Decisão: `columnNameOfCorruptRecord="_corrupt_record"` com schema explícito — a linha ruim
+fica na própria linha, vai para `bronze.rejeitados` com o bruto, e um **autoteste** roda a cada execução para provar
+que o mecanismo continua funcionando (CSV: 2 larguras divergentes bloqueadas; JSON: 1 válida/1 rejeitada). Sem o autoteste,
+`rejeitadas = 0` poderia significar só "o detector parou", não "o dado está limpo". A leitura adicional
+consome tempo e só bloqueia o lote; linhas de largura divergente permanecem na Landing para investigação.
+
+### 2.4 Colunas de auditoria (D3)
+
+| Coluna | O que é | Por que existe |
+|---|---|---|
+| `_arquivo_origem` | arquivo/ano de onde a linha veio | localiza a origem (ex.: `leituras_2023.csv`) |
+| `_aba_origem` | aba do Excel (só em inspeções: `ago-set`, `dez`, `out-nov`) | o Excel tem 3 abas com grãos possivelmente distintos |
+| `_ordem_na_origem` | ordem de leitura por arquivo/aba (1-based) | localizador auxiliar; só no Excel equivale ao índice da aba |
+| `_lote_id` | identificador da execução de ingestão | série de volumes por lote; uma queda fica visível |
+| `_id_registro` | id técnico **único dentro do lote** | chave técnica de linha; **não** é o número da linha física |
+| `_data_carga` | carimbo da ingestão | ordena a deduplicação na Silver (qual cópia é a mais recente) |
+
+Ponto sutil que já causou erro uma vez: `_id_registro` é único por linha, então **não pode** entrar na contagem de
+duplicatas nem no grão de negócio (D8). Ele é chave técnica de lote, não atributo do dado. Pelo mesmo motivo,
+`_ordem_na_origem` também está nas colunas de auditoria do perfilador (D43) — como ela é única por arquivo, deixá-la
+fora faria a checagem de duplicata exata dar **0 sempre**.
+
+Como ler `_ordem_na_origem` (D40): no XLSX, ela vem do índice da aba e a linha física é
+`_ordem_na_origem + 1`. Em CSV e JSON, é a ordem observada pelo Spark. O particionamento e as rejeições
+podem deslocá-la da posição original. Para localizar um registro, conferir arquivo, hash e valores na
+Landing; a posição física garantida dessas fontes permanece pendente em DE-01.
+
+Na Silver, `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_id_registro` (e `_aba_origem` em inspeções) são
+**publicados** como **metadados de rastreio** dos registros aceitos (D11 revisado 2, §5.4); `_data_carga` fica de fora.
+
+### 2.5 Carga por `overwrite` (D5, revisado em D42)
+
+A extração do case é completa, não incremental — não existe a chave de "só o que chegou de novo" que o `append`
+exigiria. Sem `overwrite`, reexecutar dobraria a base **sem erro visível** (2.184.623 faturas → 4.369.246) e o
+estrago só apareceria na Silver como número dobrado. O histórico de cargas não se perde: cada execução carimba
+`_lote_id`, registra `lidas × rejeitadas × gravadas` em `bronze.reconciliacao` e fecha o status em
+`bronze.controle_lote`. Risco assumido de olho aberto: se a Landing estiver incompleta na hora da carga, a
+sobrescrita encolhe a tabela em silêncio — por isso a reconciliação grava o volume por lote e a Bronze é
+reconstruível a partir da Landing.
+
+O `overwrite` continua sendo o modo de escrita, mas **na área de preparo** (`bronze_stg.*`), não na Bronze publicada:
+a troca só acontece na publicação do lote (§2.9).
+
+### 2.6 Reconciliação e rejeitados (D6, revisado em D39)
+
+`bronze.reconciliacao` fecha, **por origem**, `linhas físicas de origem × gravadas × rejeitadas`, com
+`delta = gravadas + rejeitadas − linhas` que **precisa ser 0** (delta ≠ 0 é falha declarada, não ruído).
+`bronze.rejeitados` guarda o bruto do que não parseou.
+
+Cada linha da reconciliação é uma **origem**: um arquivo ou uma aba. As 5 leituras anuais, por exemplo, não entram
+como uma linha só — cada ano tem a sua, com `_arquivo_origem = leituras/leituras_20XX.csv`; as inspeções entram em
+3 linhas, uma por aba, com `_aba_origem` preenchido. O total da tabela é a **soma** das origens, e é assim que a
+Silver compara (§13.1b): somar as origens sem somar a tabela daria `DIVERGE` em toda leitura. A motivação vem do §4.3 ("para cada fonte e lote"): com uma linha por tabela, um ano que encolhesse ou uma aba que
+sumisse do Excel ficava invisível dentro do agregado.
+
+Três exceções documentadas, todas visíveis na própria linha: `atendimentos` sai `SEM_BASE` porque o JSON indentado
+não tem contagem de linhas físicas comparável — o número de **objetos interpretados** vai no campo
+`objetos_interpretados`; `inspecoes` sai com `linhas_arquivo = null` (origem XLSX, lida por pandas), com
+`linhas_dados` vindo do próprio arquivo; e `_autoteste_badrecords` (tabela começando com `_`) é o resultado do
+autoteste, fora das checagens. Para tornar a conta de `leituras` independente do próprio parser, ela é conferida
+contra a contagem **física** do Volume: 2.182.473 linhas − 5 cabeçalhos = **2.182.468**, igual à tabela.
+
+**Lacuna do §4.3 fechada em D41:** a reconciliação guardava o **nome** do arquivo, mas não a **versão/hash** do
+arquivo ingerido. Agora `bronze.arquivos_lote` traz o SHA-256 por lote (§2.9).
+
+### 2.7 Encoding e separador (documentado, conferência manual)
+
+| Arquivo | Formato | Encoding | Separador | Tratamento |
+|---|---|---|---|---|
+| `unidades_consumidoras.csv` | CSV | UTF-8 | `,` | leitura padrão |
+| `medidores.csv` | CSV | UTF-8 | `,` | leitura padrão |
+| `ocorrencias_rede.csv` | CSV | UTF-8 | `,` | leitura padrão |
+| `geracao_distribuida.csv` | CSV | UTF-8 | `,` | leitura padrão |
+| `faturas.csv` | CSV | UTF-8 | `;` | separador explícito |
+| `leituras/leituras_2022..2026.csv` | CSV | UTF-8 | `,` | 5 arquivos unidos por `unionByName` |
+| `atendimentos.json` | JSON array (`multiLine`) | UTF-8 | — | mantém **aninhado** |
+| `inspecoes.xlsx` | XLSX (3 abas) | — | — | pandas + openpyxl |
+
+A Bronze **não** detecta sozinha mudança de encoding/separador — por isso a tabela é documentada e a conferência é
+manual (PRD §4.1).
+
+### 2.8 Volumes da ingestão (execução de 17/10/2026)
+
+`unidades_consumidoras` 46.461 · `medidores` 51.812 · `ocorrencias_rede` 180.000 · `geracao_distribuida` 3.510 ·
+`faturas` 2.184.623 · `leituras` 2.182.468 · `atendimentos` 318.871 · `inspecoes` 1.389 (abas 511 + 383 + 495).
+`delta = 0` em todas; `bronze.rejeitados` vazia.
+
+### 2.9 Publicação por lote (D42)
+
+O problema que isto resolve é de **momento da falha**, não de dado. A ingestão valida no fim (autoteste, contagem da
+quarentena, reconciliação) e, até esta versão, gravava cada tabela com `overwrite` **enquanto** lia: quando o `raise`
+do fim disparava, as 8 tabelas já tinham sido trocadas — o notebook falhava com a Bronze metade nova, metade velha.
+O README declarava essa lacuna com todas as letras.
+
+Agora a ingestão escreve em `bronze_stg.*` e a Bronze publicada só é trocada no fim:
+
+| Etapa | O que acontece |
+|---|---|
+| 1 | `CREATE TABLE IF NOT EXISTS bronze.controle_lote` + linha do lote com status `EM_ANDAMENTO` |
+| 2 | leitura, separação de rejeitados, escrita das 10 tabelas em `bronze_stg.*`, reconciliação por origem |
+| 3 | validações (autoteste, quarentena, reconciliação) — qualquer falha **aqui** deixa a Bronze publicada intacta |
+| 4 | grava `bronze.arquivos_lote` (identidade do lote, §2.10) |
+| 5 | publica: `CREATE OR REPLACE TABLE bronze.<t> AS SELECT * FROM bronze_stg.<t>` para as 10 tabelas |
+| 6 | confere publicado × preparo e fecha `controle_lote` como `PUBLICADO` (ou `FALHOU`, se divergir) |
+
+**O que isto não garante (declarado, não escondido):** o Delta não tem transação entre tabelas. A troca da etapa 5 é
+tabela a tabela, então uma falha de infraestrutura **no meio dela** pode deixar um lote misto. `controle_lote` fica
+`EM_ANDAMENTO`, mas isso só protege os dados se cada consumidor bloquear a leitura do lote até o status atual ser
+`PUBLICADO`; esse gate ainda não está implementado neste PR e deve entrar com a Silver. A reexecução deve substituir
+todas as tabelas de forma idempotente, mas não foi comprovada com falha induzida seguida de nova execução no Databricks.
+A alternativa atômica por *view* mudaria o contrato de leitura de todos os consumidores; fica como evolução possível,
+sem necessidade de adotá-la agora.
+
+Custo assumido: o lote é escrito **duas vezes** (preparo + publicação). Uma falha antes da publicação preserva o lote
+anterior; durante a troca, o controle de status precisa ser respeitado pelos consumidores.
+
+### 2.10 Identidade do arquivo ingerido (D41)
+
+`bronze.arquivos_lote` guarda uma linha por arquivo e lote: nome, caminho relativo, **tamanho em bytes**, data de
+modificação e **SHA-256**. É o que permite provar *qual versão* do arquivo entrou e comparar duas execuções do mesmo
+nome de arquivo (retificação na Landing). O hash é calculado no driver, por streaming em blocos de 1 MB, sem
+carregar o arquivo na memória; se o runtime não expuser o arquivo para leitura local, a linha grava
+`status_hash = INDISPONIVEL` em vez de derrubar a carga — a limitação fica visível, não silenciosa. A tabela é
+`append` por lote, e reexecutar o mesmo `_lote_id` não duplica (o notebook apaga as linhas do lote antes de gravar).
+A Silver mostra o lote no §13.1c (caminho, tamanho, 16 primeiros dígitos do hash).
+
+---
+
+## 3. Por que existe um notebook de perfilamento separado (D7)
+
+A pergunta "por que não medir a qualidade dentro da ingestão?" tem três respostas, e todas são de engenharia:
+
+1. **Medir não é alterar.** A ingestão **grava** (e por isso assume `overwrite`, `_corrupt_record`, etc.). O
+   perfilamento **só lê e conta** — não grava nem corrige nada. Separar mantém a ingestão com uma
+   responsabilidade só e permite rodar o perfil quantas vezes for preciso sem risco.
+2. **O perfil é insumo, não efeito colateral.** O produto dele é a tabela `quality.perfil_bronze`, que vira o
+   **plano de limpeza da Silver** e a **seção de limpeza do dicionário de dados**. A Silver não "descobre" o que
+   limpar: ela executa o que o perfil mediu, com número.
+3. **Ordem e dependência explícitas.** No Workflow, o perfilador lê as tabelas que a ingestão acabou de gravar —
+   o elo é `depends_on` + `run_if: ALL_SUCCESS`. Arquivos separados deixam essa dependência escrita, não implícita.
+
+### 3.1 O que o perfil mede
+
+Cinco famílias: **completude** (nulos/vazios), **unicidade** (duplicata exata e duplicata na chave),
+**integridade referencial** (órfãos), **validade** (formato inválido e valor impossível) e **consistência**
+(grafia divergente). Mais regras de negócio pontuais (ex.: fatura paga sem data de pagamento).
+
+### 3.2 Duas correções de medição que mudaram números (D8, D9, D10)
+
+- **Deduplicação só nas colunas de negócio (D8).** Se `_id_registro` entrasse na comparação, toda linha seria
+  "única" e a duplicata exata seria sempre 0 — um falso negativo. Medindo só as colunas de dado, ela aparece:
+  `leituras` 21.523, `unidades_consumidoras` 900, `medidores` 513, `faturas` 1.
+- **Moeda/vírgula antes de julgar o número (D9).** `valor_total` "R$ 1.234,56" é formato, não erro. Depois de
+  normalizar, o não numérico caiu de **196.624 para 2**.
+- **Data não-ISO é ambígua, não inválida (D10).** `11-05-2022` casa nos dois sentidos (dia/mês e mês/dia) e dá
+  datas diferentes. O perfil passou a contar isso como **ambígua** — decisão de negócio — em vez de "inválida".
+
+### 3.3 Ajustes estruturais
+
+`inspecoes._aba_origem` é **coluna nossa** (auditoria), não do arquivo: saiu do perfil de **dado** e entrou em
+`AUDITORIA`, junto de `_arquivo_origem`, `_lote_id`, `_id_registro` e `_data_carga`. Sem isso, ela contaria como
+"categoria com duas grafias" e geraria achado falso.
+
+### 3.4 Achados do perfil que a Silver trata (números de 17/10)
+
+| Achado | Onde | Número |
+|---|---|---|
+| Duplicata exata | leituras / UC / medidores / faturas | 21.523 / 900 / 513 / 1 |
+| Órfão | faturas / leituras | 32.285 linhas (31.705 UCs) / 8.609 |
+| Negativo impossível | leitura_anterior / consumo_kwh | 8.068 / 8.150 |
+| Valor não numérico | faturas.valor_total | 2 (era 196.624) |
+| Grafia divergente | inspetor / modelo / classe / tipo / resultado | 32 / 9 / 5 / 3 / 2 |
+| Data ambígua dia/mês | leituras.data_leitura / faturas.data_emissao | 102.878 (≈4,71%) / 61.226 (≈2,80%) |
+| Data no futuro | faturas.data_pagamento | 61.333 de 61.335 |
+| Nulos | medidores.data_ultima_manutencao / data_retirada | 51.812 (100%) / 31.796 (61,37%) |
+
+`latitude`/`longitude` são **isentas** da regra de negativo: 46.460 valores negativos cada, e negativo é coordenada
+legítima (hemisfério sul/oeste). O laço de órfãos do perfil cobre **cinco** fontes por `id_uc` (`leituras`,
+`faturas`, `medidores`, `ocorrencias_rede`, `geracao_distribuida`) mais `leituras` por `id_medidor` — a Silver
+aplica a regra nas cinco e valida o medidor em `leituras`; só `leituras` e `faturas` trouxeram número não-zero em
+17/10 (8.609 e 32.285 linhas).
+
+---
+
+## 4. Camada Silver — princípios
+
+1. **A Bronze nunca é alterada.** É a fonte da verdade bruta.
+2. **Nada é apagado sem rastro.** Toda linha que não entra vai para `silver.quarentena` com o **motivo** e a
+   **linha bruta inteira** em JSON (`_registro`, com as colunas de auditoria dentro).
+3. **Uma verdade por registro.** As chaves são únicas nas tabelas Silver; as cópias vão para a quarentena.
+4. **A coluna de auditoria não é atributo de negócio**, mas **as de localização entram na Silver** como metadados
+   técnicos: `_arquivo_origem`/`_lote_id`/`_id_registro` (e `_aba_origem` em inspeções). `_data_carga` fica de fora,
+   só ordenando a deduplicação (D11 revisado).
+5. **Toda regra que tira/troca/agrega linha tem antes e depois.** `bronze = aceitos + quarentenados` com `delta = 0`.
+
+---
+
+## 5. Camada Silver — tratamento atributo a atributo
+
+Ordem de leitura: cada tabela recebe o mesmo tratamento de forma (trim, placeholders → nulo, colapso de espaços),
+depois as regras específicas de negócio. `_data_processamento` carimba toda saída.
+
+### 5.1 Sem releitura de tabela (D12)
+
+O rascunho `03_silver.py` fazia `spark.table(DESTINO.t).select(...)` logo depois do `saveAsTable` só para montar as
+chaves de integridade. Isso é custo e ponto de inconsistência. Agora a Silver usa o **DataFrame em memória**
+(`silver_uc`, `silver_med`) para as chaves de UC e medidor. A releitura continua **só onde é proposital**: na
+verificação final e na conferência de chaves, que devem olhar a **tabela gravada**, e não o DataFrame.
+
+### 5.2 Padronização de texto e número
+
+- **Vazios:** lista de placeholders (`""`, `NULL`, `N/A`, `NA`, `NAN`, `NONE`, `-`, `--`, `S/I`, `SEM INFORMACAO`)
+  vira **nulo**. Nulo **não** vira zero (regra PRD §4.1.6).
+- **Texto:** trim + colapso de espaços; categorias viram MAIÚSCULO **sem acento** (`sem_acento(maiusculo(...))`).
+  Só se aplica a categoria — nunca a texto livre que o usuário vê.
+- **Número BR:** remove `R$` e letras, `1.234,56 → 1234.56`, aceita sufixo (`217 min → 217`). Só converte o que
+  casa o padrão; o resto vira **nulo** (e, onde o campo é obrigatório, quarentena — ver faturas).
+
+### 5.3 Datas: leitura igual à do perfil; sentinela e futuro são decisão da Silver (D13, D15, D16)
+
+O rascunho tratava `/` e `.` como convenção brasileira (dia primeiro) e só quarentenava o hífen ambíguo — o que
+**contradizia o perfil**, que mede 102.878 datas ambíguas em `leituras`. Regra atual — os passos **1–3 são idênticos**
+aos do `Bronze_perfilamento.ipynb`; os passos **4–5 são decisão da Silver** (o perfil não os tem):
+
+1. troca separadores (`/`, `.`) por hífen;
+2. tenta ISO, depois `dd-MM-yyyy` e `MM-dd-yyyy`;
+3. **se as duas ordens parseiam e dão datas diferentes → ambígua → quarentena** (a Silver não chuta);
+4. `9999-12-31` é **sentinela** de "não se aplica": o valor é **preservado** na coluna tipada e marcado com
+   `_*_sentinela`; ela **não** é lida como data real (`_tem_pagamento` a exclui). A Silver trata; o perfil **não** —
+   por isso ele conta 9999-12-31 como data futura, e a flag de futuro diverge nessa coluna. Só virará nulo se a
+   origem confirmar o significado (D15);
+5. valor no futuro vira **flag** (`_*_futura`), **não** quarentena — o perfil §6 classifica futuro como sinal a
+   investigar (a competência corrente pode cair à frente da execução); rejeitar poderia apagar dado válido.
+
+Tudo com `try_to_date`/`try_to_timestamp`/`try_cast` (ANSI não estoura com valor ruim).
+
+Todas as **flags `_*` de saída são booleanas não nulas** (`true`/`false`): quando a coluna de origem é nula, a flag é
+`false` (via `coalesce`), de modo que o **mesmo nome de coluna significa a mesma coisa em qualquer tabela** (R28).
+
+### 5.4 Rastreio na Silver (D11, revisado 2)
+
+Os registros **aceitos** preservam a linhagem com **metadados técnicos**: `_arquivo_origem`, `_ordem_na_origem`,
+`_lote_id` e `_id_registro` entram no `select` de **todas** as tabelas, e `_aba_origem` **só** em `inspecoes` (as 3
+abas do Excel). `_data_carga` fica de fora — serve só para ordenar a deduplicação. Não são atributo de negócio (ficam
+fora da completude) e o rastro inteiro segue no `_registro` da quarentena. Em `atendimentos_historico` o rastreio é
+**herdado do protocolo** (a tratativa localiza-se pela linha do protocolo na Bronze). `_ordem_na_origem` é o único
+deles que auxilia a busca no arquivo, mas só no Excel prova a linha física (D40); `_id_registro`
+aponta para a linha na tabela Bronze. Um hash pode entrar como **complemento de integridade** (seção 9), mas não
+substitui esses identificadores. A reconciliação **por arquivo/aba** continua disponível na Bronze, e a verificação
+final imprime `bronze.leituras` por arquivo, `bronze.inspecoes` por aba, a identidade dos arquivos do lote
+(`bronze.arquivos_lote`, §13.1c) e o status da publicação (`bronze.controle_lote`, §13.1d).
+
+### 5.5 Tratamento por tabela
+
+**`unidades_consumidoras`** — remove linha de cabeçalho repetida; deduplica por `id_uc` (cobre as **1.256** chaves
+repetidas: **1.260** linhas excedentes, das quais **900** são duplicata exata e **360** grupos têm a cópia diferindo
+em `nome_titular`/`cpf_cnpj`); `cpf_cnpj` e `cep` guardam **só os dígitos** (sem dígito → **nulo**; `cep` exige os
+**8 dígitos**, então o sentinela `-1` vira nulo; `cpf_cnpj` não é hasheado na Silver — ver seção 9);
+`bairro`/`municipio`/`uf`/`classe`/`status` padronizados — **`uf` sai sempre no código de 2 letras** ("Pernambuco",
+"P.E." e "pe" → "PE"), `logradouro`/`numero` só aparam espaço e `nome_titular` preserva a caixa; `latitude`/`longitude`
+viram número ou nulo com flag **`_geo_invalida`** (negativo legítimo, não é erro); `data_ligacao` ambígua de dia/mês →
+**quarentena**, e no futuro vira flag **`_ligacao_futura`** (a sentinela, **`_ligacao_sentinela`** — sinais, não
+rejeição).
+
+**`medidores`** — deduplica por `id_medidor` (cobre 513); `data_instalacao`/`data_retirada`/
+`data_ultima_manutencao` normalizadas; `modelo`/`tipo`/`status` padronizados, com mapa canônico do `tipo`
+(`ELETRO-MECANICO` → `ELETROMECANICO`, `SMART METER` → `SMART`); `9999-12-31` em `data_retirada` (medidor ativo) é
+**preservado** e marcado com `_retirada_sentinela` (não é lido como data real);
+`data_ultima_manutencao` é 100% nula (51.812): campo opcional, **não** vira zero; `id_uc` inexistente no cadastro →
+quarentena (`uc_inexistente`) — o laço de órfãos do perfil cobre esta fonte; as três datas expõem flag de futuro
+(`_instalacao_futura`/`_retirada_futura`/`_manutencao_futura`) e de sentinela (`_*_sentinela`), sinal e não rejeição.
+
+**`leituras`** — deduplica por `id_leitura` (cobre 21.523); `data_leitura` ambígua → quarentena (no futuro vira flag
+`_leitura_futura`; a sentinela, `_leitura_sentinela`); `consumo_kwh` negativo → quarentena (8.150); `leitura_anterior`/`leitura_atual` negativo →
+quarentena (`leitura_negativa`, cobre 8.068); `leitura_atual < leitura_anterior` **não** rejeita, marca flag
+`_leitura_decrescente` (pode ser troca de medidor); `mes_referencia` fora de `AAAA-MM` → quarentena
+(`mes_referencia_invalido`, o perfil checa o formato nas duas fontes); medidor/UC inexistente → quarentena (cobre
+8.609 órfãos).
+
+**`faturas`** — deduplica por `id_fatura` (cobre 1); `9999-12-31` em `data_pagamento` é **preservado** e marcado com
+`_pagamento_sentinela` (responde pelas duas linhas do relatório antigo — "data inválida" e "não paga com data" eram o
+mesmo registro); moeda → número;
+`valor_total` não numérico → quarentena (cobre 2); UC inexistente → quarentena (cobre 32.285 linhas / 31.705 UCs);
+`mes_referencia` fora de `AAAA-MM` → quarentena; flags `_valor_inconsistente` (|total − (energia+tributos)| > 0,01),
+`_paga`, `_tem_pagamento`, `_pagamento_antes_emissao` (regra ALTA do perfil), `_emissao_futura`/`_vencimento_futura`/
+`_pagamento_futura`, `_*_sentinela` e `_valor_negativo` **documentam** sem rejeitar — data no futuro e valor negativo
+de fatura são sinal a investigar (estorno/ajuste, competência corrente), não defeito provado.
+
+**`geracao_distribuida`** — deduplica por `id_uc`; `potencia_kwp` e `energia_injetada_kwh_media_mensal` → número, com
+**negativo → quarentena** (`gd_negativo`), como o perfil (§7) classifica; `id_uc` inexistente no cadastro →
+quarentena (`uc_inexistente`, o laço de órfãos do perfil cobre esta fonte); `data_conexao` normalizada, com flag
+`_conexao_futura` se cair no futuro (e `_conexao_sentinela` para a sentinela). Limite: potência instalada **não**
+prova energia gerada/abatida (ver Gold).
+
+**`ocorrencias_rede`** — deduplica por `id_ocorrencia` (o dict `CHAVES` do perfil mede `chave duplicada` aqui,
+`id_ocorrencia_duplicado`); `data_abertura`/`data_encerramento` são **timestamp** (com hora); `duracao_min` vinha com
+sufixo (`217 min`) → número; negativo → quarentena; UC inexistente → quarentena (o laço de órfãos do perfil cobre
+esta fonte também); carimbo no futuro vira **flag** (`_abertura_futura`/`_encerramento_futura`), não quarentena.
+Ressalva de medição: as contagens de data de `ocorrencias_rede` e `atendimentos` saíram infladas
+em 17/10 (o leitor aceitava só data pura); a leitura foi corrigida e **essas contagens serão refeitas** — por isso
+não há número novo derivado delas.
+
+**`atendimentos`** — o JSON veio **aninhado** (`historico` é lista de tratativas). `atendimentos` é deduplicado por
+`protocolo` (o dict `CHAVES` do perfil mede `chave duplicada` aqui, `protocolo_duplicado`), e o histórico exploda só
+os protocolos aceitos. Duas saídas com grãos distintos:
+`silver.atendimentos` (uma linha por **protocolo**, com `qtd_tratativas`) e `silver.atendimentos_historico` (uma
+linha por **tratativa**, via **`explode`** — protocolo sem tratativa não gera linha de histórico, então o grão de
+saída bate exatamente com `sum(size(historico))`). Por isso `atendimentos_historico` **não** entra no quadro de
+reconciliação: sua entrada é a soma de `size(historico)`, não a contagem de protocolos (PRD: não somar grãos
+diferentes). Data no futuro (`_abertura_futura`/`_fechamento_futura`) e nota negativa (`_nota_negativa`) são flags.
+
+**`inspecoes`** — consolida as 3 abas e **publica `_aba_origem`** como metadado de rastreio (as demais tabelas publicam
+só `_arquivo_origem`/`_lote_id`/`_id_registro`, seção 5.4); deduplica por `id_inspecao`
+(`id_inspecao_duplicado`); `resultado` normaliza as grafias divergentes (2 grupos) para dois valores; `inspetor`
+passa a ser padronizado como as demais categorias — decisão a revisar, incluindo se o nome é exibido ao usuário
+(seções 8 e 14.4); `tipo_irregularidade` e `data`
+tipados (no futuro, flag `_data_futura`; a sentinela, `_data_sentinela`); `kwh_recuperado` negativo → quarentena
+(`kwh_recuperado_negativo`), como o perfil (§7) classifica.
+
+### 5.6 Contrato de tipos (D17)
+
+Antes de transformar, a Silver **verifica o que assume da Bronze** e **falha à vista** se não bater: `historico`
+tem de ser `array<struct>` com `sequencia`/`data`/`acao`/`canal`, e `nota_satisfacao` tem de converter para
+`double`. Na saída, um segundo contrato confere os tipos publicados por tabela. Isso evita gravar tabela errada em
+silêncio.
+
+---
+
+## 6. Motivos de quarentena (vocabulário único)
+
+`_motivo` é um array (pode haver mais de um por linha) serializado com `; `. Vocabulário atual:
+`linha_cabecalho_repetida`, `data_<col>_ambigua`, `data_<col>_invalida`, `id_uc_duplicado`,
+`id_medidor_duplicado`, `id_leitura_duplicado`, `id_fatura_duplicado`, `id_ocorrencia_duplicado`,
+`id_inspecao_duplicado`, `protocolo_duplicado`, `consumo_kwh_negativo`, `leitura_negativa`, `medidor_inexistente`,
+`uc_inexistente`, `medidor_em_quarentena`, `uc_em_quarentena`, `duracao_negativa`, `valor_total_nao_numerico`,
+`mes_referencia_invalido`, `gd_negativo`, `kwh_recuperado_negativo`.
+
+> **Órfão × cascata.** `*_inexistente` é a chave que **não existe** na Bronze (defeito do registro);
+> `*_em_quarentena` é a chave que **existe** e cujo cadastro pai caiu na quarentena — a linha está **bloqueada**,
+> não malformada (D38/R41). As duas aparecem separadas no confronto e a segunda é reprocessável.
+
+> **Futuro não é motivo.** `data no futuro` **não** aparece aqui: desde a revisão de 18/10 ela é **flag**
+> (`_*_futura`), não quarentena (o perfil classifica futuro como "investigar"). O status interno da coluna ainda
+> registra `futura`, mas ele não vira motivo de rejeição. A **sentinela `9999-12-31`** também **não** é motivo:
+> desde a revisão do time (D15) ela é **preservada** e marcada com `_*_sentinela` (§5.3).
+
+Padronizar o motivo é o que permite **confrontar a quarentena com o número do perfil** (seção 7) e transformar
+"rejeitado" em frase auditável.
+
+---
+
+## 7. Reconciliação e confronto com o perfil (D18)
+
+- **Reconciliação Bronze → Silver:** por tabela, `bronze = aceitos + quarentenados`, com `delta` explícito. Uma
+  linha com mais de um motivo conta **uma vez** no total (os motivos são um array), então a soma fecha.
+- **Confronto com o perfil (lido, não digitado):** a verificação final **lê `quality.perfil_bronze`** e compara,
+  motivo a motivo, o número do perfil com o medido na quarentena — não há número de perfil escrito no código. Ponto
+  que confunde: o perfil mede **chave repetida** (nº de chaves que se repetem) enquanto o motivo da quarentena conta
+  **linhas excedentes** (chave repetida 3× = 1 no perfil, 2 na quarentena) — então `id_*_duplicado` pode vir
+  diferente do número do perfil de forma legítima. A linha de **duplicata exata** e a de **grafia divergente** são
+  medidas na **saída**, onde o esperado é **zero**.
+- **Reconciliação de ingestão (lida, não digitada):** a verificação final também lê **`bronze.reconciliacao`** e
+  confere que a entrada da Silver (`count` de cada tabela Bronze) bate com as `gravadas` da ingestão — costura a
+  Silver à Landing em vez de assumir. Como a Bronze reconcilia **por origem** (D39), a Silver **soma `gravadas` por
+  `_tabela`** antes de comparar; comparar linha a linha daria `DIVERGE` nas leituras (5 origens) e nas inspeções (3).
+  A mesma seção imprime a **identidade dos arquivos** do lote (`bronze.arquivos_lote`, §13.1c) e o **status da
+  publicação** (`bronze.controle_lote`, §13.1d).
+- **Invariantes da Silver:** chaves únicas (as 8 tabelas são deduplicadas), zero órfãos (nas seis tabelas com FK),
+  zero negativos (leituras, ocorrências, GD, inspeções), zero grafia divergente, contrato de tipos.
+- **Cobertura do plano de limpeza:** no fim da seção 13, a verificação **lê** `quality.perfil_bronze` e lista
+  **todos** os achados com ocorrências > 0 — o que não tem linha no confronto está tratado por padronização/flag
+  (não por rejeição) ou é regra de negócio exposta como coluna (D32).
+
+**Só no runtime:** `delta`, contagens por motivo e invariantes só se confirmam executando o notebook na Free
+Edition. Localmente dá para provar que o código compila, que a conversão `.py → .ipynb` não muda lógica e que os
+links da documentação estão íntegros — não que as contas fecham.
+
+---
+
+## 8. Pendências da Silver (o que a camada não resolve sozinha)
+
+1. **Data ambígua de dia/mês (bloqueia receita/consumo por competência).** O arquivo não diz a ordem.
+   `leituras.data_leitura` 102.878 (≈4,71% de 2.182.468) e `faturas.data_emissao` 61.226 (≈2,80% de 2.184.623).
+
+   | Opção | O que faz | Ganho | Custo / risco |
+   |---|---|---|---|
+   | **A. Convenção brasileira** | trata `/`/`.` como `dd/MM/yyyy`; só o hífen com dia e mês ≤ 12 fica ambíguo | recupera ~102,9 mil leituras e ~61,2 mil faturas | se a origem escreveu `MM/dd`, troca dia/mês **em silêncio** e erra a competência de receita |
+   | **B. Quarentena (atual)** | nenhuma data ambígua entra | zero risco; reversível (a linha bruta fica na quarentena) | perde ~4,71% das leituras e ~2,80% das faturas até a decisão |
+   | **C. Evidência por arquivo** | mede, por arquivo/ano, quantas datas têm componente > 12 e aceita a convenção só onde houver prova | decide com dado, não com suposição | exige um passo de análise; pode dar resposta diferente por arquivo |
+
+   **Decidido pelo time (18/10): manter **B** e rodar **C** para produzir a evidência por arquivo** — as ambíguas
+   seguem em quarentena e fora dos cálculos por competência até haver prova. (D36)
+2. **Sentinela `9999-12-31` — decidido pelo time (18/10).** Confirmar com a origem; **até a confirmação, preservar o
+   valor original** e não usá-lo como data real (flag `_*_sentinela`; `_tem_pagamento` a exclui). Se a origem
+   confirmar, virar nulo na Silver e documentar o efeito em `data_retirada` e `_tem_pagamento` (Gold). (D15)
+3. **`inspetor` — decidido pelo time (18/10): manter a padronização atual.** Medir no próximo perfilamento e
+   **confirmar se o nome do inspetor é exibido ao usuário** antes de qualquer mudança. (D37)
+4. **Rastro linha a linha do que foi aceito — decidido pelo time (18/10): preservar (opção A).**
+   `_arquivo_origem`/`_lote_id`/`_id_registro` (e `_aba_origem` em inspeções) entram na Silver como metadados
+   técnicos; `_data_carga` fica de fora; um hash pode complementar a integridade (D11 revisado, §5.4). (D37)
+5. **`mes_referencia` de `leituras` e chave duplicada de `ocorrencias_rede`/`atendimentos`.** **Resolvido na 3ª
+   revisão:** o perfil mede os três (o dict `CHAVES` dele inclui as duas fontes e o laço dele checa `mes_referencia`
+   nas duas); a Silver passou a aplicar `mes_referencia_invalido` em `leituras` e a deduplicar `ocorrencias_rede` e
+   `atendimentos`. Não era "sem número" — era número não capturado na nota.
+6. **Quarentena dos rejeitados da Bronze.** A ADR-0001 deixou em aberto: decidir se `bronze.rejeitados` é
+   reprocessado ou apenas auditado (hoje sem linhas).
+7. **Divergências conscientes Silver × perfil.** A verificação final pode divergir do perfil por (a) `vazio` mais
+   estrito na Silver (placeholder), (b) cascata de órfão (FK validada na Silver, não na Bronze) e (c) chave repetida
+   × linha excedente. Não são bug — estão explicadas na seção 14.5 do notebook, e `vazio` e cascata são **medidos**
+   pela seção 13. Dois pontos de julgamento também são declarados: (d) o perfil mede "valor não numérico" em
+   **todas** as colunas numéricas, mas só `faturas.valor_total` teve ocorrência não-zero (2) — só ele **rejeita**
+   quando não converte; nas demais, valor ruim vira nulo (padronização), não rejeição; e (e) o negativo de
+   `nota_satisfacao` vira flag (`_nota_negativa`, lido como "sem avaliação"), embora o perfil o classifique como
+   negativo impossível (ALTA) — assunção a confirmar com o negócio (o perfil não reportou ocorrência aqui).
+8. **Datas inválidas em `atendimentos`.** Diferente das outras tabelas com data, `data_abertura`/`data_fechamento`
+   de `atendimentos` **não** vão para a quarentena quando não convertem: viram **nulo** (só tipagem). O perfil mede
+   data inválida nessas duas colunas (o `DATAS` dele inclui `atendimentos`), mas as contagens de data de
+   `atendimentos`/`ocorrencias_rede` saíram infladas em 17/10 e serão refeitas; sem número confiável, a Silver
+   mantém a tipagem e **declara a pendência** em vez de fixar regra nova. Alinhar (quarentenar como as demais)
+   quando a contagem for reconferida.
+9. **Cascata de órfão — decidido em 19/10: A (validar contra a Silver) + rótulo do bloqueio (§14.7).** A validação
+   continua contra a **Silver** (garante integridade referencial interna), mas a linha que aponta para cadastro que
+   **existe na Bronze** e caiu na quarentena deixa de ser contada como órfã: recebe o motivo
+   `uc_em_quarentena`/`medidor_em_quarentena`. O motivo `*_inexistente` fica só para a chave ausente da Bronze — é o
+   que faz `medidor_inexistente` voltar a bater com o perfil (**8.609**) e separa as **58.214** leituras bloqueadas
+   (1.369 medidores removidos por `data_instalacao` ambígua/duplicação; `faturas.uc_inexistente` 32.285 → 32.287 =
+   2 por cascata). A linha continua na Bronze e no `_registro` da quarentena, com origem e ordem, para reprocessar
+   quando 14.1 sair. Se o negócio confirmar que a identidade do medidor vale mesmo com `data_instalacao` ambígua,
+   avaliar a **B parcial** (medidor entra com a data nula + flag) — não agora. (D38, R41)
+
+---
+
+## 9. Camada Gold — proposta e decisões a tomar
+
+> A Gold **não existe ainda**. Esta seção é a **proposta de modelagem** para não repetir a modelagem quando o
+> notebook for escrito; cada item é decisão a registrar em `docs/data-dictionary.md` (DE-08) e, se alterar
+> arquitetura/métrica, em ADR (workflow §4).
+
+### 9.1 Tabelas propostas (grão e chave)
+
+| Tabela Gold | Uma linha representa | Chave | Perguntas que atende |
+|---|---|---|---|
+| `receita_uc_competencia` | 1 UC × 1 competência | `id_uc + mes_referencia` | receita, faturado × pago, preço médio |
+| `consumo_uc_competencia` | 1 UC × 1 competência | `id_uc + mes_referencia` | consumo, queda de consumo |
+| `uc_360` | 1 UC | `id_uc` | visão 360 (cadastro + últimos indicadores) |
+| `continuidade_alimentador` | 1 alimentador × 1 período | `alimentador + período` | DEC/FEC simplificado |
+| `gd_uc` | 1 UC com GD | `id_uc` | geração distribuída |
+| `inspecao_prioridade` | 1 UC (ou 1 ordem) | `id_uc` / `id_inspecao` | fila de inspeção, energia recuperável |
+| `atendimento_indicadores` | 1 período (ou 1 canal) | `período` | satisfação, volume de atendimento |
+
+### 9.2 Regras de negócio a declarar antes de publicar a métrica
+
+- **Faturado × pago** e **competência × vencimento** são eixos diferentes (PRD §5.4); receita não é "valor_total"
+  somado às cegas.
+- **Preço-volume:** a decomposição tem de **fechar com o total**, com termo de interação e regra de
+  arredondamento explícitos (PRD §4.3).
+- **Joins não podem multiplicar receita/energia:** agregar cada fato no grão pretendido **antes** de unir
+  (PRD §4.1.4 e invariante de Gold).
+- **DEC/FEC:** DESCREVER numerador, denominador, janela e UC afetada; **não** apresentar como apuração regulatória
+  oficial (DE-05).
+- **GD:** potência instalada **não** prova energia gerada/abatida por competência (PRD §4.2, GD).
+- **Inspeção:** separar suspeita, ordem operacional e resultado; `inspecoes.xlsx` é histórico (PRD §5.4).
+
+### 9.3 Hashing / mascaramento de dado pessoal — **por que e como** (D20, pendente)
+
+**Por quê.** A Silver preserva `cpf_cnpj` e `nome_titular` como **dígitos/texto reais** porque a Bronze é a fonte
+rastreável e a Silver resolve qualidade — a proteção não é papel delas. Mas a Gold alimenta **CSV exportado para o
+banco local**, que por sua vez alimenta **API, portal e agente Text-to-SQL**. Expor CPF/nome nessa ponta é risco
+de LGPD e de vazamento no Git. Marcar/anonimizar na Gold resolve isso sem perder o rastro, porque o dado cru segue
+íntegro na Bronze/Silver dentro do ambiente autorizado (`AGENTS.md`: não copiar dado pessoal para commits/logs).
+
+**Por que hashing e não simplesmente "apagar" ou "substituir por sequencial".** Existem três usos concorrentes:
+
+- o **portal** mostra o titular (talvez mascarado, ex.: `***.***.***-09`);
+- o **agente/IA** às vezes precisa **contar** UCs por titular ou reconhecer "mesmo titular" sem ler o nome;
+- a **reconciliação** precisa continuar possível entre Gold e Silver.
+
+O hash **determinístico** (mesma entrada → mesma saída) permite agrupar/contar por titular sem revelar o valor; um
+sequencial arbitrário até permitiria isso, mas quebraria a reprodutibilidade entre execuções (reimportar a Gold
+renumeraria titulares). O hash determinístico mantém a chave estável.
+
+**Opções e custo:**
+
+| Opção | O que faz | Ganho | Custo / risco |
+|---|---|---|---|
+| **A. Hash determinístico com *salt* secreto** (ex.: SHA-256 de `salt + cpf`) | substitui CPF/nome reais pelo hash na Gold | agrupa/conta sem revelar; estável entre execuções | o *salt* precisa ser segredo (não versionar); hash de domínio pequeno (CPF) ainda é atacável por força bruta se o *salt* vazar |
+| **B. Mascaramento parcial** (`***.***.***-09`, primeiro nome) | mostra o suficiente para o usuário humano | baixo risco, legível para o operador | não serve para agrupar por titular no agente |
+| **C. Não expor** (Gold sem CPF/nome; só `id_uc`) | nenhum dado pessoal sai | risco zero | o portal perde "de quem é a UC"; a IA não responde por titular |
+
+**Recomendação conservadora:** **A + B** — o hash substitui o identificador pessoal nos fatos exportados (para
+agrupar), e uma versão mascarada **B** fica só para exibição; o CPF/`nome_titular` real **não** sai da camada
+Bronze/Silver. Decidir o *salt* e onde guardá-lo é requisito para a Gold (pendência).
+
+### 9.4 Exportação (DE-06)
+
+Gold → CSV → banco local (`SQLite` ou `PostgreSQL`, a definir) precisa ser **reimportável sem duplicar** (segunda
+carga do mesmo lote não duplica linhas/valores). Conferir esquema, chaves, contagens e agregados nos dois lados.
+Decisão de banco ainda aberta (PRD §5).
+
+---
+
+## 10. Decisões transversais e de processo
+
+- **Workflow (DE-07):** o job `v-energy-grid-360` hoje tem `Landing_to_Bronze → Bronze_perfilamento`
+  (elo `depends_on` + `run_if: ALL_SUCCESS`), definido em `data-engineering/v-energy-grid-360.yaml` e comprovado
+  na Free Edition (run `14313419965490`, 21m 03s = 15m 22s + 5m 39s, `Succeeded`). As tarefas de **Silver** e
+  **Gold** entram como novos elos quando os notebooks existirem (**pendente**).
+- **Agenda proposta:** mensal, dia 5, 03:00 (America/Recife) — o insumo é mensal (competência) e a reexecução é
+  segura porque a Bronze é `overwrite` com `delta = 0`. É proposta para operação futura, **não** integração de
+  produção existente (o case entrega extração única).
+- **Ambiente:** Free Edition sobre Spark Connect, compute **serverless** — por isso **não** se usa `.cache()` e as
+  conversões são à prova de ANSI.
+- **Idempotência:** reexecutar Bronze/Silver não acumula versões (Bronze `overwrite`; Silver `overwrite` com
+  `overwriteSchema`).
+- **Processo:** Bronze fechada (branch `feat/bronze`, PR #8); a Silver nasce **depois** do merge do #8, como
+  `feat/silver`. Enquanto o #8 não estiver mesclado, o notebook da Silver e este documento ficam **não rastreados**
+  e o texto de PRD vai para fora do repositório.
+
+## 11. Verificações locais desta entrega (o que dá para provar sem Databricks)
+
+Feitas em 18/10/2026 sobre `Bronze_to_Silver.ipynb`:
+
+- `python -m py_compile` no fonte: OK.
+- Conversão `.py → .ipynb` com **round-trip idêntico** célula a célula (32 células: 17 markdown, 15 de código;
+  932 linhas de código + 312 de markdown) e **hash das linhas de código igual** entre fonte e `.ipynb`
+  (`75d91c8c7b86c51e`) — prova de que a conversão não mudou lógica.
+- `nbformat` 4.5 válido, ids de célula únicos, UTF-8 sem BOM, sem CRLF.
+- Varredura AST de nomes indefinidos: limpa (932 linhas, 172 nomes).
+- `check_docs.py` na raiz: 36 documentos, nenhum link quebrado.
+- **Teste diferencial das funções de normalização** (`teste_helper.py`): portando `num_br`/`numero` e
+  `data_br`/`data_normalizada` para Python e rodando uma bateria de casos, o valor convertido e a ambiguidade
+  dão **0 divergência** entre a Silver e o perfil; a única divergência é no guarda `vazio` (placeholder), que é
+  consciente (§11.1/R8 e 14.5 do notebook).
+
+**Só se prova no runtime:** reconciliação com `delta = 0`, contagem da quarentena por motivo, remoção de
+órfãos/negativos/grafia divergente, contrato de tipos de saída e o índice `historico[0]`/`historico[size-1]`.
+
+### 11.1 Revisão pós-execução (18/10/2026)
+
+Feita **depois** de a primeira versão rodar na Free Edition (todas as células passaram, `delta = 0` em todas as
+tabelas). O que a revisão encontrou e o que foi corrigido **na fonte**, com base no próprio repositório:
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R1 | `PERFIL` e `RECON` eram **declarados e nunca lidos**; o confronto usava números digitados (podiam ficar obsoletos em silêncio) | alta | Seção 13 passa a **ler** `quality.perfil_bronze` e `bronze.reconciliacao`; nenhum número de perfil é digitado (D22) |
+| R2 | `data no futuro` ia para **quarentena** em `faturas.data_emissao`/`data_vencimento` e em `ocorrencias_rede`/`atendimentos` — podia **apagar fatura/leitura válida** da competência corrente | alta | Futuro vira **flag** (`_*_futura`), não quarentena (o perfil §6 diz "investigar", não erro) (D21) |
+| R3 | Negativos impossíveis de **outras fontes** (`potencia_kwp`, `energia_injetada_kwh_media_mensal`, `kwh_recuperado`) não eram tratados | média | Quarentena (`gd_negativo`, `kwh_recuperado_negativo`); fatura/nota negativas viram flag (estorno/ajuste/"sem avaliação") (D23) |
+| R4 | `atendimentos_historico` usava `explode_outer`, inflando o grão (protocolo sem tratativa gerava 1 linha) | média | `explode` (D24); grão de saída = `sum(size(historico))` |
+| R5 | Doc dizia que a sentinela `9999-12-31` "explica parte dos nulos" de `data_retirada` | baixa | Corrigido: os 31.796 nulos medidos são **vazios**, não sentinela; o tratamento da sentinela é defensivo (assunção) |
+
+**Segunda revisão (18/10/2026), depois da anterior** — desta vez com um **teste diferencial** das funções de
+normalização (Silver × perfil) e confronto do notebook com o `Landing_to_Bronze.ipynb`:
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R6 | A janela de deduplicação desempatava por `_data_carga`, que é **constante por lote** — no empate de completude a linha escolhida era **arbitrária entre execuções** | média | Terceiro critério `_id_registro` (asc) na janela; deduplicação fica **determinística** (D25) |
+| R7 | O status `futura` era calculado para UC, medidores, leituras, GD, inspeções, mas **não virava coluna** — o sinal se perdia (só faturas/ocorrências/atendimentos expunham flag) | média | Toda tabela com data expõe `_*_futura` (D26); contrato de saída atualizado |
+| R8 | `vazio`/`texto` checavam placeholder **antes** de colapsar espaço: `SEM  INFORMACAO` (espaço duplo) não era reconhecido como vazio | baixa | Colapsa antes de checar; `numero`/`data` provados iguais ao perfil, divergência só no `vazio` (documentada em 14.5) (D27) |
+| R9 | Se uma execução não rejeitasse nada, a `silver.quarentena` **anterior** ficava viva e era lida como se fosse desta rodada | baixa | `DROP TABLE IF EXISTS` no ramo vazio (D28) |
+| R10 | O confronto não mostrava **data inválida**, **chave duplicada** das fontes não deduplicadas (GD/inspeções/ocorrências/atendimentos) nem a **cascata de órfão** | média | Seção 13 ganhou esses três blocos (D29); a cascata explica por que o órfão pode superar o perfil |
+| R11 | As funções `numero`/`data` **não tinham prova** de equivalência com o perfil (só leitura humana) | média | Teste diferencial em Python: **0 divergência** no valor/ambiguidade; divergência só no guarda `vazio` (consciente) |
+
+Conclusão da segunda revisão: nenhuma incoerência de contrato, de vocabulário de motivos ou de grão foi
+encontrada; o que restou é **comportamento deliberado** (medido e documentado em 14.5) e pendência de negócio.
+
+**Terceira revisão (18/10/2026)** — foco em **cobertura**: *todo achado do perfil chegou na Silver?* Confrontando o
+notebook com o `Bronze_perfilamento.ipynb` célula a célula (dict `CHAVES`, laço de órfãos, regras de negócio):
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R12 | Órfão de UC só era tratado em `leituras`/`faturas`/`ocorrencias_rede` — o perfil mede também em **`medidores`** e **`geracao_distribuida`** (o laço dele cobre as duas) | média | Regra `uc_inexistente` nas duas, invariante de órfãos nas seis tabelas e linhas no confronto (D30) |
+| R13 | `ocorrencias_rede` e `atendimentos` **não eram deduplicadas**, mas o dict `CHAVES` do perfil mede `chave duplicada` das duas — a saída podia ter chave repetida, contrariando o invariante "chaves únicas" (a §14.4 dizia "sem número", o que era falso) | média | Dedup por `id_ocorrencia`/`protocolo` (`id_ocorrencia_duplicado`, `protocolo_duplicado`); histórico sai dos protocolos aceitos (D31) |
+| R14 | A seção `14.6` (inserida por mim) ficou **antes** da `14.5` | baixa | `14.5 Divergências`, `14.6 Próximos passos` (D35) |
+| R15 | Não havia como saber se **todo** achado do perfil foi tratado | média | Bloco de **cobertura** na seção 13: lista todos os achados com ocorrências > 0, lidos do perfil (D32) |
+| R16 | `mes_referencia` era validado só em `faturas`; o perfil checa o formato **nas duas** fontes | média | `mes_referencia_invalido` também em `leituras` (D33) |
+| R17 | A regra ALTA do perfil `pagamento antes da emissão` não tinha tratamento | média | Flag `_pagamento_antes_emissao` em `faturas` (D34) |
+| R18 | As regras de negócio MEDIA/ALTA do perfil (§9 dele) não estavam mapeadas na doc | baixa | Tabela de justificativa na §14.4 do notebook (viram sinal/flags, não rejeição) |
+
+Conclusão da terceira revisão: as lacunas eram de **cobertura** (achado do perfil sem tratamento), não de lógica.
+Com o bloco de cobertura da seção 13, a próxima execução prova item a item.
+
+**Quarta revisão (18/10/2026)** — foco em **consistência da documentação com o código** (confronto da
+§5.3/§5.5/§6/§7/§8 com o próprio notebook e com o `Bronze_perfilamento.ipynb`), depois das revisões anteriores:
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R19 | A §5.5 (tratamento por tabela) e a §6 (motivos) estavam defasadas de R7/R12/R13/R16/R17: não citavam flag de futuro em UC/medidores/leituras/GD/inspeções, órfão em `medidores`/`geracao_distribuida`, dedup de `ocorrencias_rede`/`atendimentos`/`inspecoes` (`id_ocorrencia_duplicado`/`protocolo_duplicado`/`id_inspecao_duplicado`), `mes_referencia` em `leituras` nem `_pagamento_antes_emissao` | média | Seções reescritas para espelhar o código; vocabulário de motivos completado |
+| R20 | A §5.3 dizia que a regra de datas era **"idêntica à do perfil"**, mas o perfil **não** trata a sentinela `9999-12-31` — esse passo (e a flag de futuro) é decisão da Silver | média | Passos 1–3 marcados como iguais ao perfil; 4–5 como decisão da Silver |
+| R21 | A §8 item 7 dizia que "as demais colunas numéricas não têm contagem no perfil"; o perfil mede "valor não numérico" em **todas** as colunas numéricas, mas só `valor_total` teve ocorrência não-zero (2) | média | Texto corrigido; a assunção sobre `nota_satisfacao` negativa foi declarada |
+| R22 | O notebook (§1, decisão 9) sugeria que o perfil não classifica `nota_satisfacao` negativa como impossível; o perfil a inclui em `NEGATIVO_IMPOSSIVEL` (ALTA) | baixa | Redação corrigida + bullet na §14.4 (só markdown) |
+
+Conclusão da quarta revisão: os ajustes são de **documentação** — nenhuma linha de código mudou (o hash do código
+segue `bfd3ce6d6e72be37`). As decisões de negócio (§14.1–14.4) seguem abertas, dependentes do time.
+
+**Quinta revisão (18/10/2026)** — foco no **núcleo do código** (helpers, `rejeitar`/`gravar`, contadores e a
+reconciliação), lido linha a linha:
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R23 | `rejeitar` dava `append` na quarentena **incondicionalmente**, então `QUARENTENA` nunca ficava vazia e o ramo que **remove** a quarentena de uma execução anterior (D28/R9) era **inalcançável** — o código não fazia o que a decisão documentava | média | `append` só quando há rejeição (`n_rej > 0`); o `DROP TABLE IF EXISTS` passa a valer de fato (código — muda o hash) |
+| R24 | A decisão "só `faturas.valor_total` rejeita não numérico" (as demais colunas viram nulo) estava só na doc; o notebook não a expunha | baixa | Bullet em §14.4 do notebook (markdown) |
+| R25 | `atendimentos` só **tipa** as datas de abertura/fechamento (inválida → nulo), enquanto **as outras** tabelas com data quarentenam inválida — e o perfil mede "data inválida" nas duas colunas (o `DATAS` dele inclui `atendimentos`) | baixa | **Pendência declarada** (§8 item 8 + §14.4 do notebook): sem número confiável (as contagens de data de `atendimentos`/`ocorrências` serão refeitas), a Silver não fixa regra nova; alinhar após a reconferência |
+
+Conclusão da quinta revisão: R23 é a única correção de **código** desde a terceira revisão; as demais foram de
+documentação. Não há número novo — o ajuste é de **controle de fluxo** (não herdar quarentena antiga), não de
+tratamento de dado. O hash do código passa a `1ea620fdfa0d83ff`.
+
+**Sexta revisão (18/10/2026)** — foco na **verificação final** e na **consistência de tratamento** (código lido linha
+a linha: helpers, blocos da seção 13 e os `select`s de saída):
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R26 | O bloco de **órfãos remanescentes** da §13 usava `left_anti` puro: como `null` não casa com nada, uma **chave estrangeira nula** era contada como órfã — mas a regra da Silver (`chave IS NOT NULL AND ausente no cadastro`) **não** trata nulo como órfão (a própria §13 diz "chave estrangeira nula não é órfã pela regra"). O "deve ser 0" podia dar **falso positivo**, contrariando o invariante | baixa | O check passa a filtrar `isNotNull` antes do anti-join (`orfaos_remanescentes`), medindo **órfão de verdade**; a chave nula segue reportada no bloco separado (código — muda o hash) |
+| R27 | `cep` era gravado **só com dígitos**, mas vazio/placeholder virava **string vazia**, enquanto `cpf_cnpj` (mesmo tipo de campo: código extraído por dígitos) virava **nulo** — destoava do princípio "vazio vira nulo" (§5.2) | baixa | `cep` alinhado ao `cpf_cnpj`: só dígitos e **nulo** quando não há dígito (código — muda o hash) |
+| R28 | Algumas flags podiam ficar **nulas** quando a coluna de origem era nula (`_abertura_futura`/`_fechamento_futura` em `atendimentos`, `_paga` em `faturas`, `_leitura_decrescente` em `leituras`), enquanto todas as outras flags do layer são booleanas **não nulas** — e `_abertura_futura`, com o **mesmo nome**, era não nula em `ocorrencias_rede` e nula em `atendimentos` | baixa | Flags com `F.coalesce(..., F.lit(False))`: toda flag é `true`/`false` (nunca nula) e o mesmo nome de coluna tem a mesma semântica em todas as tabelas (código — muda o hash) |
+
+Conclusão da sexta revisão: R26 corrige um **falso positivo da verificação** (não do dado — sem FK nula o resultado é
+idêntico); R27 e R28 são **consistência de tratamento/contrato** (campo de código e flags). Nenhum número do perfil
+muda; nenhum invariante de dado é afetado. O hash do código passa a `f9228e8527173c51`.
+
+A versão atual (após R1–R28) **ainda não rodou** na Free Edition: R1–R4, R12–R17, R23, R27 e R28 mudam o que o
+notebook faz (R26 muda só o bloco de verificação), então precisa de **nova execução** para reconfirmar `delta = 0` e
+as contagens de quarentena. As contagens citadas na seção 5 vieram da execução anterior e continuam válidas como
+**entrada** (o perfil não mudou).
+
+**Sétima revisão (18/10/2026)** — foco no **grão de `atendimentos_historico`** e no fechamento da §14.5:
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R29 | `sum(size(historico))` (grão de entrada de `atendimentos_historico` e coluna `qtd_tratativas`) dependia do comportamento de `size(null)` **na sessão**: sob ANSI devolve **nulo** (ok), mas fora dela devolve **`-1`** — nesse caso `qtd_tratativas` sairia `-1` e a reconciliação acusaria delta falso. `historico` é inferido do JSON, então uma linha pode chegar sem ele | baixa | `F.coalesce(F.size("historico"), F.lit(0))` nas três contas: protocolo com histórico nulo conta **0** tratativas, independente da sessão (código — muda o hash) |
+
+Fechamentos de documentação da sétima revisão: a §13 e a §14.5 do notebook passam a explicitar a **4ª divergência
+consciente** (o anti-join do perfil conta chave **nula** como órfã; a Silver não) — o número do perfil pode ser
+**maior** que a quarentena de órfão, e o bloco de FK nula mostra a diferença.
+
+Conclusão da sétima revisão: R29 remove a dependência de uma configuração de sessão e torna `qtd_tratativas` um
+contador limpo; o restante é documentação. Nenhum número do perfil muda. O hash do código passa a
+`75d91c8c7b86c51e`.
+
+A versão atual (após R1–R29) **ainda não rodou** na Free Edition: R1–R4, R12–R17, R23, R27, R28 e R29 mudam o que o
+notebook faz (R26 muda só o bloco de verificação), então precisa de **nova execução** para reconfirmar `delta = 0` e
+as contagens de quarentena. As contagens citadas na seção 5 vieram da execução anterior e continuam válidas como
+**entrada** (o perfil não mudou).
+
+**Revisão de decisões do time (18/10/2026)** — depois de a primeira versão rodar sem erros na Free Edition, o time
+respondeu às issues (§14.1–14.4 / D36–D37). Duas decisões mudam o **código** (e o hash):
+
+| # | Decisão | Efeito no código |
+|---|---|---|
+| R30 | **Rastreio na Silver (opção A)** — `_arquivo_origem`/`_lote_id`/`_id_registro` em todas as tabelas e `_aba_origem` em `inspecoes`; `_data_carga` fora; `atendimentos_historico` herda do protocolo (D11 revisado) | `select` de 9 tabelas; contrato de saída; §13 troca o check "auditoria ausente" pelo de "rastreio presente"; a duplicata exata da §13 exclui o rastreio |
+| R31 | **Sentinela preservada** — o valor `9999-12-31` fica na coluna tipada + flag `_*_sentinela`; `_tem_pagamento` exclui a sentinela (D15 revisado) | `add_data` deixa de anular; 12 flags novas; `_tem_pagamento`; contrato de saída |
+
+As demais decisões **não** mudam código: data ambígua segue em quarentena (B) + evidência por arquivo (C) (D36);
+achados que não rejeitam + `inspetor` mantêm as regras atuais, a quantificar no próximo perfilamento, com a
+exibição do `inspetor` a confirmar (D37).
+
+Conclusão: R30/R31 são **mudanças de contrato** pedidas pelo time; o resto é registro. O hash do código passa a
+`3911197866596542`.
+
+**Verificação da execução (18/10/2026)** — o time rodou a versão R30/R31 na Free Edition: todas as células
+passaram e os invariantes fecharam:
+
+- Reconciliação Bronze→Silver com `delta = 0` nas 8 tabelas; entrada da Silver = `gravadas` da ingestão em todas.
+- Invariantes: 0 chave duplicada, 0 duplicata exata, 0 órfão remanescente, 0 negativo, 0 grafia divergente e 0 FK
+  nula; contrato de tipos OK; rastreio presente nas 9 saídas (`_data_carga` ausente).
+- Confronto com o perfil: duplicatas, negativos, datas ambíguas e "valor não numérico" batem **exatamente**.
+
+Divergências **explicadas** (não são defeito):
+- `medidor_inexistente` 8.609 → 66.823 = 8.609 órfãos reais + 58.214 por **cascata** (leitura cujo medidor saiu da
+  Silver: 1.369 medidores removidos — `data_instalacao` ambígua [1.381 linhas] + 513 duplicados + cabeçalho).
+- `id_uc_duplicado` 1.256 → 1.260 = chaves vs linhas excedentes (o outro achado do perfil, "id_uc duplicado no
+  cadastro", já é 1.260 — bate exato).
+- `faturas.uc_inexistente` 32.285 → 32.287 = +2 por cascata.
+- "Data no futuro" = 0 em várias colunas: o perfil conta a **sentinela** como "no futuro"; a Silver a separa
+  (`_*_sentinela`). `ocorrencias_rede`/`atendimentos` divergem em "data inválida" por **tipagem** (R25) + contagem
+  inflada do perfil.
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R32 | O bloco de "data no futuro" só imprimia a flag de futuro — não dava para separar "futuro real" de **sentinela** pelas flags (várias colunas com perfil > 0 e flag 0) | baixa | Passa a imprimir `futura` e `sentinela` lado a lado (código — muda o hash) |
+| R33 | O bloco de "data inválida" atribuía a divergência de `ocorrencias_rede`/`atendimentos` só a "placeholder", quando a causa é **tipagem** (R25) + contagem inflada do perfil; e o confronto de **data ambígua** não mostrava `medidores.data_instalacao` nem `inspecoes.data` (que a Silver **já** quarentena) | baixa | Nota corrigida e as duas linhas acrescentadas ao confronto (código — muda o hash) |
+
+Conclusão da 10ª revisão: a Silver **passou** na verificação (execução real); os ajustes são de **verificação**
+(deixar a divergência visível e explicada), sem mudar tratamento de dado. A cascata de órfão virou **decisão de
+produto** (D38): documentada no notebook (§14.7) e na seção 10 item 9. O hash do código passa a
+`d3c43b74214baf8b` (inalterado pela §14.7 — markdown).
+
+**Revisão da contribuição do colega (19/10/2026)** — quatro itens propostos na revisão do PR #8, todos aceitos, mais
+o efeito colateral que a revisão dele não previa (o perfilador). Os itens 2 e 3 fecham lacunas que o **próprio
+ADR-0001** já declarava; os outros dois são da mesma família (rastreabilidade e momento da falha). O **R39** e o
+**R40** não vêm da revisão: apareceram na primeira execução real no Databricks (R39) e na revisão do código de
+verificação depois dela (R40):
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R34 | **Reconciliação por tabela** (item 1): `_arquivo_origem` era rótulo (`leituras/*.csv`) e cada tabela tinha **uma** linha. O §4.3 pede a conta "para cada fonte e lote": um ano das leituras que encolhesse, ou uma aba que sumisse do Excel, não apareceria em lugar nenhum | média | Uma linha por **origem**: 5 em `leituras` e 3 em `inspecoes`, com `_aba_origem` (D39). A Silver passou a **somar por `_tabela`** antes de comparar (§13.1b) — sem isso o confronto daria `DIVERGE` em toda leitura |
+| R35 | **Localizador do registro** (item 2): `_id_registro` acha a linha **na tabela**, não no arquivo; o ADR-0001 (§38) já declarava isso como lacuna do DE-01 | média | `_ordem_na_origem` (D40) auxilia a busca e segue à Silver (D43); somente no Excel corresponde à posição física. A garantia para CSV/JSON continua pendente |
+| R36 | **Identidade do arquivo** (item 3): nada provava a **versão** do arquivo ingerido — o mesmo nome retificado na Landing entraria sem diferença visível | média | `bronze.arquivos_lote` com SHA-256, tamanho e modificação (D41); hash calculado no driver por streaming, com `status_hash` explícito quando não for possível |
+| R37 | **Publicação por lote** (item 4): o `raise` do fim da carga protegia só o que **ainda não** tinha sido escrito — as 8 tabelas eram sobrescritas durante a leitura, então uma falha no fim deixava a Bronze metade nova, metade velha (o README declarava a lacuna) | alta | Ingestão escreve em `bronze_stg.*` e publica no fim, com `bronze.controle_lote` e conferência de contagem (D42). Limite: Delta não tem transação entre tabelas; uma falha durante a troca pode deixar lote misto. O status `EM_ANDAMENTO` só protege consumidores que o verificam; falha induzida seguida de reexecução ainda precisa de evidência no Databricks |
+| R38 | **Efeito colateral de R35 no perfilador:** o `AUDITORIA` do `Bronze_perfilamento.ipynb` não conhecia `_ordem_na_origem`; a coluna entraria como **dado** e, sendo única por arquivo, zeraria a duplicata exata — o mesmo falso negativo que `_id_registro` causava (D8) | alta | Coluna acrescentada ao `AUDITORIA` do perfilador (D43). Nenhum número do perfil muda: as três colunas de lote/posição seguem fora do cálculo |
+
+| R39 | **A célula de dependência não executava** (achado na execução de 19/10): `%pip install openpyxl` estava numa célula **markdown** (a conversão `.py → .ipynb` tratou `# MAGIC %pip` como markdown), então nunca instalava nada. A carga parou na seção 6 com `ImportError: Missing optional dependency 'openpyxl'` — ambiente serverless sem o pacote | alta | Célula passou a ser **de código** (o conversor agora distingue `%md` de comando mágico) e a seção 6 traduz o `ImportError` do pandas numa mensagem que diz o que rodar. Nada muda no dado; muda o notebook abrir e executar |
+| R40 | **A checagem de rastreio estourava em vez de reportar:** `f"faltando={faltando or 'nenhum':<18}"` aplica formato de texto a uma **lista** — funciona só no caso feliz (lista vazia → `'nenhum'`); com qualquer coluna faltando, o print levanta `TypeError` no meio da verificação e esconde justamente o problema que devia apontar | baixa | Faltantes e indevidos passam a ser unidos em texto antes do print. Sem efeito no dado: só o caminho de falha muda |
+
+**Resposta do time à 5ª pendência (19/10/2026) — cascata de órfão (D38):** manter a **A** (a leitura só entra se o
+medidor entrou na Silver), mas **não tratar a linha bloqueada como malformada**. As **58.214** leituras que apontam
+para medidor existente na Bronze e removido na Silver passam a ter motivo próprio, ficam na Bronze com o registro
+inteiro (origem + ordem) e podem ser reprocessadas quando a decisão da data ambígua (14.1) sair:
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R41 | **Cascata contada como defeito:** o motivo `medidor_inexistente` misturava dois fatos diferentes — 8.609 chaves que **não existem** na Bronze (erro de dado) e 58.214 leituras cujo medidor **existe** e caiu na quarentena (bloqueio). O confronto com o perfil aparecia como divergência (66.823 × 8.609) e o reprocessamento futuro não tinha como separar os dois | média | `uc_chk`/`med_chk` passam a levar o **status da chave** (`OK`/`QUARENTENA`); o motivo vira `uc_em_quarentena`/`medidor_em_quarentena`, e `*_inexistente` fica só para a chave ausente da Bronze. A validação continua contra a Silver; muda o **motivo**, não o destino (a linha já ia para a quarentena) |
+
+Conclusão: os quatro itens são de **rastreabilidade e momento da falha**; nenhum toca regra de negócio da Silver
+além do rastreio (R35/D43). O item 4 muda o desenho de `write_bronze` — a escrita deixou de ser "direto na Bronze",
+e é a razão de a ingestão ganhar uma **seção 7** e o schema `bronze_stg`. O R39 é de **execução** (a célula nunca
+rodou); foi encontrado no primeiro teste de verdade, e é por isso que a verificação local não bastava. O R41 é de
+**semântica do motivo** (não muda o destino da linha) e fecha a última pendência de modelagem da Silver. O hash do
+código da Silver passa a `85d0c0a88c058a3f`; o da ingestão muda e a versão **ainda não rodou** até o fim na Free
+Edition.
+
+**Pendências que continuam abertas:** data ambígua (D36) e os achados que não rejeitam / `inspetor` (D37) — as duas
+dependentes de resposta do time. A cascata de órfão (D38) foi **decidida e implementada** (R41).
+
+**Revisão final sobre os dados reais (19/10/2026)** — depois de a Silver rodar sem erro no Databricks, a leitura foi
+feita **contra os arquivos brutos**, não contra o perfil: contagens independentes de datas, duplicatas, órfãos,
+formatos e textos, com as funções reais da Silver. O que o perfil não media apareceu aqui:
+
+| # | Achado | Gravidade | Correção |
+|---|---|---|---|
+| R42 | `uf` com **5 grafias** cruas do mesmo estado (`PE` 39.470, `pe` 1.826, `pernambuco` 1.729, `P.E.` 1.726, `Pernambuco` 1.709) passava pela carga como 5 valores — a seção 5.2 já dizia "UF padronizada" | média | `uf` mapeada para o **código de 2 letras** (27 UFs, sem acento/pontuação), com fallback para o texto limpo (D44) |
+| R43 | `cep = "-1"` (162 linhas) virava `"1"`: a regra "só os dígitos" não exigia comprimento, e um CEP de 1 dígito é pior que nulo | média | `cep` só é publicado com **8 dígitos**; sentinela/placeholder → nulo (D44) |
+| R44 | `logradouro` saía cru: **2.797** com espaço nas pontas e **1.551** com espaço duplo (`numero` idem, sem caso na amostra); eram **1.557** grafias para 217 ruas | baixa | `texto()` em `logradouro`/`numero`/`nome_titular` (apara e colapsa; a caixa do nome e do endereço é preservada) |
+| R45 | A conferência "grafia divergente remanescente" era **tautológica**: agrupava `lower(trim(collapse(bruto)))` e contava `distinct(bruto)` **sobre a coluna já normalizada** — o valor da Silver já é maiúsculo/sem acento/sem espaço duplo, então dava sempre 0 e não pegava a UF | média | O bloco passa a mostrar o **colapso bruto → Silver** nas 5 colunas que o perfil mediu e a exigir o **domínio fechado** (UF nos 27 códigos; resultado com 2 valores) |
+| R46 | `sequencia.cast("int")` era o único cast sem `try_`: um valor fora de faixa derrubaria a célula sob ANSI em vez de virar nulo | baixa | `try_cast` (mesma regra de datas e números) |
+| R47 | §13.1c usava `max(_lote_id)` de `arquivos_lote` — o lote **tentado**, não necessariamente o **publicado**; uma tentativa que falhou antes de publicar mostraria os arquivos errados | baixa | Usa o último `PUBLICADO` de `controle_lote` (fallback para `arquivos_lote` se a tabela de controle não existir) |
+| R48 | `tipo` de medidor saía com **5** valores (10 grafias cruas) para **3** tipos: `ELETRO-MECANICO`/`ELETROMECANICO` (hífen) e `SMART`/`SMART METER` (nome em inglês) não eram colapsados pela normalização cosmética, e a conferência não olhava o domínio | média | Mapa canônico no `tipo` e **domínio fechado** de 3 valores na §13.6 (D45) |
+
+Números que sustentam os ajustes (medidos nos brutos, com as funções reais da Silver): leituras com data ambígua
+**102.878**; `faturas.data_emissao` **61.226**; `medidores.data_instalacao` **1.381** (1.369 chaves + 12 cópias
+exatas); `inspecoes.data` **45**; `UC.data_ligacao` **1** (cabeçalho). Duplicatas: leituras **21.523** exatas,
+medidores **513**, faturas **1** (par de cabeçalhos), UC **1.256** chaves (1.260 linhas; 900 exatas, 360 não
+exatas). Órfãos independentes: faturas **32.285**, leituras **8.609** (8.569 medidores), zero de UC em
+leituras/medidores/GD/ocorrências. Cascata: **1.369** medidores ambíguos → **58.214** leituras bloqueadas; as **2**
+faturas `uc_em_quarentena` são as linhas de cabeçalho de `faturas`, não cadastros reais.
+
+Conclusão: os ajustes mudam **valor publicado** (R42–R44, R48), **verificação** (R45), **robustez** (R46) e **leitura
+da prova** (R47); nenhum muda a chave, o grão ou o destino de linha. O hash do código da Silver passa a
+`07a103e22251bf45`. O que continua **sem correção, por decisão**: `nome_titular` preserva a caixa (359 grupos com
+mais de uma grafia de caixa/acento; a identidade é o `cpf_cnpj`), `mes_referencia` nulo não é rejeitado (não há nulo
+no arquivo; o perfil mede o formato) e a Silver não é atômica **entre tabelas** (cada `saveAsTable` é atômico; uma
+falha no meio deixa tabelas de versões diferentes — visível na §13 e reparável por reexecução).
+
+## 12. Referências
+
+- [PRD](../docs/PRD.md) — IDs DE-01 a DE-09; §4 (regras de tratamento, perfil, reconciliação), §5 (arquitetura), §6.1.
+- [ADR-0001 — reconciliação e captura de registros malformados](../docs/decisions/0001-reconciliacao-e-captura-de-registros-malformados.md).
+- [Serviço: engenharia de dados](../docs/services/data-engineering.md) — contrato por camada e invariantes.
+- [Dicionário de dados Gold](../docs/data-dictionary.md) — a preencher em DE-08.
+- [Workflow de desenvolvimento e qualidade](../docs/agents/workflow.md).
+- Notebooks (`data-engineering/notebook/`): `Landing_to_Bronze.ipynb` (reconciliação por origem, `_ordem_na_origem`,
+  `bronze.arquivos_lote` e publicação por lote — R34–R37), `Bronze_perfilamento.ipynb` (R38) e
+  `Bronze_to_Silver.ipynb` (a versão R30/R31 rodou e passou nos invariantes; a versão R34–R38 aguarda nova
+  execução).
+- Job: `data-engineering/configuracao/databricks/v-energy-grid-360.yaml`.
