@@ -2,8 +2,8 @@
 
 O roteador recebe só strings e inteiros, sem depender dos contratos de intenção e de
 evidência, para continuar isolado do fluxo de perguntas. A retentativa com o nível mais
-forte, quando a resposta falhar na checagem de números contra a evidência, fica a cargo de
-quem chamar ``escalate``.
+forte, quando a saída do modelo leve não tiver sustentação na evidência (``observation_ids``
+ausentes, repetidos ou inexistentes), fica a cargo de quem chamar ``escalate``.
 """
 
 from collections.abc import Mapping
@@ -91,7 +91,8 @@ class ModelTierNotConfigured(LookupError):
 class ModelRouter:
     """Associa cada nível a um adaptador, que pode ser uma cadeia de fallback.
 
-    Com um único nível configurado, ``route`` sempre o usa, qualquer que seja a política.
+    O nível forte é obrigatório e o leve, opcional. Se a política escolher o nível leve e ele
+    não estiver configurado, ``route`` usa o forte.
     """
 
     def __init__(
@@ -99,9 +100,10 @@ class ModelRouter:
         adapters: Mapping[ModelTier, ModelAdapter],
         policy: RoutingPolicy,
     ) -> None:
-        if not adapters:
-            raise ValueError("Informe ao menos um nível de modelo.")
-        self._adapters = MappingProxyType({ModelTier(tier): a for tier, a in adapters.items()})
+        normalized = {ModelTier(tier): adapter for tier, adapter in adapters.items()}
+        if ModelTier.STRONG not in normalized:
+            raise ValueError("Configure o nível de modelo 'strong'; ele é obrigatório.")
+        self._adapters = MappingProxyType(normalized)
         self._policy = policy
 
     @property
@@ -130,6 +132,6 @@ class ModelRouter:
             evidence_chars=evidence_chars,
             policy=self._policy,
         )
-        if len(self._adapters) == 1:
-            (tier,) = self._adapters
+        if tier not in self._adapters:
+            tier = ModelTier.STRONG
         return tier, self.adapter_for(tier)

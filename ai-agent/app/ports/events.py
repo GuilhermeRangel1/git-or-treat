@@ -35,6 +35,7 @@ class EventCode(StrEnum):
     UNAVAILABLE = "unavailable"
     COMPLETED = "completed"
     REFUSED = "refused"
+    ESCALATED = "escalated"
     LIMIT = "limit"
     CANCELLED = "cancelled"
 

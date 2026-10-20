@@ -1,6 +1,7 @@
 """Coordena evidência e geração sem acoplar o serviço a um fornecedor."""
 
 import asyncio
+import json
 import logging
 from contextlib import suppress
 
@@ -35,8 +36,9 @@ from app.providers.protocols import (
     ModelProviderRejected,
     ModelProviderUnavailable,
 )
+from app.providers.routing import ModelRouter, ModelTier, escalate
 from app.schemas.access import AccessContext
-from app.schemas.evidence import EvidenceLookupStatus
+from app.schemas.evidence import EvidenceLookupStatus, EvidenceResult
 from app.schemas.questions import (
     AppliedQueryContext,
     QuestionRequest,
@@ -60,21 +62,54 @@ def _describe_observation(observation: dict[str, object]) -> str:
     return f"{', '.join(labels)}: {value_with_unit}" if labels else value_with_unit
 
 
+def _is_ungrounded(generated: GeneratedAnswer, observation_ids: set[str]) -> bool:
+    """Resposta ``answered`` sem IDs, com IDs repetidos ou fora da evidência enviada."""
+
+    return generated.status == "answered" and (
+        not generated.observation_ids
+        or len(set(generated.observation_ids)) != len(generated.observation_ids)
+        or not set(generated.observation_ids) <= observation_ids
+    )
+
+
+def _serialized_evidence_chars(evidence: EvidenceResult) -> int:
+    """Tamanho da evidência como os adaptadores a serializam para o provedor."""
+
+    return len(json.dumps(evidence.model_dump(mode="json"), ensure_ascii=False))
+
+
 class QuestionOrchestrator:
+    """Responde perguntas com um único adaptador ou com um roteador de níveis de modelo.
+
+    Informe ``model_adapter`` ou ``model_router``, nunca os dois. Com roteador, o nível é
+    escolhido depois da redução da evidência; uma saída sem sustentação do nível leve é
+    refeita uma vez pelo nível forte, dentro do mesmo orçamento de chamadas.
+    """
+
     def __init__(
         self,
         analysis_planner: QuestionAnalysisPlanner,
-        model_adapter: ModelAdapter,
+        model_adapter: ModelAdapter | None = None,
         safety_gate: QuestionSafetyGate | None = None,
         execution_controller: ExecutionController | None = None,
         event_sink: EventSink | None = None,
         require_durable_audit: bool = False,
+        model_router: ModelRouter | None = None,
     ) -> None:
+        if (model_adapter is None) == (model_router is None):
+            raise ValueError("Informe exatamente um entre model_adapter e model_router.")
         self._analysis_planner = analysis_planner
         self._model_adapter = model_adapter
+        self._model_router = model_router
         self._safety_gate = safety_gate or QuestionSafetyGate()
         self._execution = execution_controller or ExecutionController()
-        self._execution.ensure_model_capacity(model_adapter)
+        if model_router is None:
+            self._execution.ensure_model_capacity(model_adapter)
+        else:
+            # Pior caso: o nível leve inteiro seguido da escalada para o forte.
+            self._execution.ensure_model_capacity(
+                *(model_router.adapter_for(tier) for tier in sorted(model_router.tiers))
+            )
         self._events = event_sink or NoopEventSink()
         self._require_durable_audit = require_durable_audit
 
@@ -193,50 +228,37 @@ class QuestionOrchestrator:
         evidence = evidence.model_copy(
             update={"cache_scope": authorized_cache_scope(access_context, read_plan)}
         )
-        try:
-            trace.model_calls += 1
-            trace.emit(EventStage.MODEL, EventCode.STARTED, EventOutcome.STARTED)
-            generated_result = await budget.model(
-                lambda: self._model_adapter.generate(
-                    request.question,
-                    request.context,
-                    evidence,
-                )
-            )
-            generated = GeneratedAnswer.model_validate(
-                generated_result.model_dump()
-                if isinstance(generated_result, GeneratedAnswer)
-                else generated_result
-            )
-            trace.emit(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
-        except ModelProviderUnavailable:
-            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
-            return self._recoverable_error(FailureCode.MODEL_UNAVAILABLE)
-        except ModelProviderRejected:
-            trace.emit(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
-            return self._recoverable_error(FailureCode.MODEL_REJECTED)
-        except ModelProviderInvalidResponse:
-            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
-            return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
-        except ExecutionLimitExceeded:
-            raise
-        except AuditUnavailable:
-            raise
-        except (ValidationError, TypeError, ValueError):
-            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
-            logger.warning("O adaptador de modelo retornou uma resposta inválida.")
-            return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
-        except Exception:
-            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
-            logger.warning("Falha ao gerar resposta pelo adaptador de modelo.")
-            return self._recoverable_error(FailureCode.UNEXPECTED)
-
         observations = {row["observation_id"]: row for row in evidence.records}
-        if generated.status == "answered" and (
-            not generated.observation_ids
-            or len(set(generated.observation_ids)) != len(generated.observation_ids)
-            or not set(generated.observation_ids) <= set(observations)
-        ):
+        tier: ModelTier | None = None
+        adapter = self._model_adapter
+        if self._model_router is not None:
+            intent = plan.interpretation.intent
+            tier, adapter = self._model_router.route(
+                intent=intent.domain if intent is not None else None,
+                evidence_records=len(evidence.records),
+                evidence_chars=_serialized_evidence_chars(evidence),
+            )
+        assert adapter is not None
+        generated = await self._generate(adapter, request, evidence, budget, trace)
+        if isinstance(generated, QuestionResponse):
+            return generated
+
+        stronger = escalate(tier) if tier is not None else None
+        if stronger is not None and _is_ungrounded(generated, set(observations)):
+            # Só saída sem sustentação escala; erros do provedor seguem o tratamento acima.
+            assert self._model_router is not None
+            generated = await self._generate(
+                self._model_router.adapter_for(stronger),
+                request,
+                evidence,
+                budget,
+                trace,
+                start_code=EventCode.ESCALATED,
+            )
+            if isinstance(generated, QuestionResponse):
+                return generated
+
+        if _is_ungrounded(generated, set(observations)):
             return QuestionResponse(
                 status=QuestionStatus.REFUSED,
                 message=map_failure(FailureCode.UNGROUNDED_OUTPUT).message,
@@ -290,6 +312,57 @@ class QuestionOrchestrator:
                 },
             ),
         )
+
+    async def _generate(
+        self,
+        adapter: ModelAdapter,
+        request: QuestionRequest,
+        evidence: EvidenceResult,
+        budget: RequestBudget,
+        trace: EventTrace,
+        *,
+        start_code: EventCode = EventCode.STARTED,
+    ) -> GeneratedAnswer | QuestionResponse:
+        """Chama o modelo pelo orçamento; falhas viram a resposta de erro correspondente."""
+
+        try:
+            trace.model_calls += 1
+            trace.emit(EventStage.MODEL, start_code, EventOutcome.STARTED)
+            generated_result = await budget.model(
+                lambda: adapter.generate(
+                    request.question,
+                    request.context,
+                    evidence,
+                )
+            )
+            generated = GeneratedAnswer.model_validate(
+                generated_result.model_dump()
+                if isinstance(generated_result, GeneratedAnswer)
+                else generated_result
+            )
+            trace.emit(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
+        except ModelProviderUnavailable:
+            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+            return self._recoverable_error(FailureCode.MODEL_UNAVAILABLE)
+        except ModelProviderRejected:
+            trace.emit(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
+            return self._recoverable_error(FailureCode.MODEL_REJECTED)
+        except ModelProviderInvalidResponse:
+            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
+        except ExecutionLimitExceeded:
+            raise
+        except AuditUnavailable:
+            raise
+        except (ValidationError, TypeError, ValueError):
+            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            logger.warning("O adaptador de modelo retornou uma resposta inválida.")
+            return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
+        except Exception:
+            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+            logger.warning("Falha ao gerar resposta pelo adaptador de modelo.")
+            return self._recoverable_error(FailureCode.UNEXPECTED)
+        return generated
 
     @staticmethod
     def _recoverable_error(code: FailureCode) -> QuestionResponse:

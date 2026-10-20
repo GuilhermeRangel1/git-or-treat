@@ -153,24 +153,29 @@ def test_router_raises_clear_error_for_missing_tier():
         router.adapter_for(ModelTier.LIGHT)
 
 
-@pytest.mark.parametrize("configured", list(ModelTier))
-def test_router_with_single_tier_always_uses_it(configured):
-    only = NamedAdapter("only")
-    router = ModelRouter({configured: only}, POLICY)
+def test_router_without_light_uses_strong_even_when_policy_picks_light():
+    strong = NamedAdapter("strong")
+    router = ModelRouter({ModelTier.STRONG: strong}, POLICY)
 
     for intent, records in [("lookup", 1), ("diagnosis", 1), (None, 1), ("lookup", 999)]:
         assert router.route(intent=intent, evidence_records=records, evidence_chars=10) == (
-            configured,
-            only,
+            ModelTier.STRONG,
+            strong,
         )
 
 
-def test_router_requires_at_least_one_tier():
-    with pytest.raises(ValueError, match="ao menos um"):
-        ModelRouter({}, POLICY)
+@pytest.mark.parametrize("adapters", [{}, {ModelTier.LIGHT: NamedAdapter("light")}])
+def test_router_requires_strong_tier(adapters):
+    with pytest.raises(ValueError, match="'strong'.*obrigatório"):
+        ModelRouter(adapters, POLICY)
 
 
 def test_router_exposes_configured_tiers():
-    router = ModelRouter({ModelTier.LIGHT: NamedAdapter("light")}, POLICY)
+    strong_only = ModelRouter({ModelTier.STRONG: NamedAdapter("strong")}, POLICY)
+    both = ModelRouter(
+        {ModelTier.LIGHT: NamedAdapter("light"), ModelTier.STRONG: NamedAdapter("strong")},
+        POLICY,
+    )
 
-    assert router.tiers == frozenset({ModelTier.LIGHT})
+    assert strong_only.tiers == frozenset({ModelTier.STRONG})
+    assert both.tiers == frozenset(ModelTier)
