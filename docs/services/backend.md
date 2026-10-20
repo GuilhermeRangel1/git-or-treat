@@ -1,12 +1,16 @@
 # Serviço: backend e banco local
 
-**Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** especificado, sem API ou banco criados. **Stack do case:** FastAPI em Python; SQLite, PostgreSQL ou alternativa justificada.
+**Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** API FastAPI, conexão SQLAlchemy, modelos ORM e migração Alembic existem; os requisitos funcionais seguem pendentes conforme o PRD. **Stack atual:** Python 3.12, FastAPI, SQLAlchemy e PostgreSQL com driver psycopg 3; os testes HTTP usam SQLite.
 
 ## Responsabilidade
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-## Contratos a definir antes de implementar
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas/IA são placeholders e ainda não leem dados Gold. A carga CSV não insere linhas nem implementa idempotência. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+
+Nas ordens, endpoints HTTP validam os schemas de entrada/saída e delegam operações ao serviço, que recebe a sessão SQLAlchemy e usa os modelos ORM. `app/db/base.py` declara `Base` sem importar conexão; `app/core/database.py` configura engine, pooling, `SessionLocal` e `get_db`. Os modelos importam `Base` do módulo neutro, e Alembic carrega esses modelos para compor `target_metadata`. O import compatível `app.core.database.Base` permanece disponível.
+
+## Requisitos de produto e contratos ainda pendentes
 
 | Domínio | Operações necessárias | Condições de aceite |
 | --- | --- | --- |
@@ -17,7 +21,8 @@ Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter
 | Operação | DEC/FEC por alimentador/período e ocorrências | Mesma fórmula da Gold, sem rótulo de conformidade regulatória |
 | IA | Consulta controlada às Gold e trilha da resposta | Credencial somente leitura, allowlist de tabelas, limite/timeout de consultas |
 
-Os endpoints e contratos JSON são **a definir** junto do frontend e agente; não há nomes de rota prescritos no case. Versionar contrato, paginação, erro, tipos, nulidade e exemplos sem dados pessoais no momento da implementação.
+O case não prescreve nomes de rota. As rotas HTTP iniciais já existem, mas seus contratos analíticos são placeholders, não funcionalidades concluídas. Definir e versionar contratos JSON, paginação, erros, tipos, nulidade e exemplos sem dados pessoais junto do frontend e agente.
+Para a fronteira com a GenAI, há uma proposta pendente de revisão para o Backend controlar as consultas Gold por um contrato estruturado, sem SQL livre do agente ([ADR-0002](../decisions/0002-genai-gold-query-owner.md)). A rota `/api/v1/ai/query` existente é apenas scaffold e ainda não consulta dados.
 
 ### Envelope conceitual de uma resposta analítica
 
@@ -46,7 +51,7 @@ WEB-05 exige criar, atualizar status, registrar resultado e cancelar. Antes de i
 
 ## Carga da Gold e consistência
 
-Registrar o lote exportado, esquema e contagens por tabela. Uma carga só passa a servir consultas depois que tabelas dependentes estiverem consistentes entre si; a segunda execução do mesmo lote precisa produzir os mesmos totais. Alterações na fórmula Gold exigem atualização coordenada do dicionário, API, portal, IA e diagnóstico. Testar um mesmo recorte no Databricks, banco local e resposta da API. Se o banco escolhido não suportar separação robusta de permissões, documentar controles compensatórios para o agente de IA antes de afirmar que consultas são somente leitura.
+O script `backend/scripts/load_gold.py` é um esqueleto: não carrega linhas CSV nem garante idempotência. Quando a ingestão for implementada, registrar lote, esquema e contagens por tabela; só disponibilizar consultas após validar consistência entre tabelas. A segunda execução do mesmo lote deve produzir os mesmos totais. Alterações na fórmula Gold exigem atualização coordenada do dicionário, API, portal, IA e diagnóstico. Testar o mesmo recorte no Databricks, banco local e resposta da API. Se o banco escolhido não suportar separação robusta de permissões, documentar controles compensatórios para o agente de IA antes de afirmar que consultas são somente leitura.
 
 ## Qualidade
 

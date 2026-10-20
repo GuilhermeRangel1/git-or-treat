@@ -8,15 +8,17 @@ from typing import TYPE_CHECKING
 import httpx
 from pydantic import SecretStr, ValidationError
 
-from app.providers.gemini import SYSTEM_INSTRUCTION
+from app.generation.prompts import SYSTEM_INSTRUCTION
 from app.providers.protocols import (
     GeneratedAnswer,
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
     ModelProviderUnavailable,
 )
 from app.schemas.questions import ConversationTurn
 
 if TYPE_CHECKING:
-    from app.tools.evidence import EvidenceResult
+    from app.schemas.evidence import EvidenceResult
 
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -74,10 +76,20 @@ class GroqModelAdapter:
         try:
             response = await self._post(payload)
             response.raise_for_status()
-        except httpx.HTTPError:
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            if status == 429 or status >= 500:
+                raise ModelProviderUnavailable(
+                    "O provedor de modelo está temporariamente indisponível."
+                ) from None
+            raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
+        except httpx.TransportError:
+            # Inclui timeouts e falhas de rede.
             raise ModelProviderUnavailable(
                 "O provedor de modelo está temporariamente indisponível."
             ) from None
+        except httpx.HTTPError:
+            raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
 
         try:
             response_text = response.json()["choices"][0]["message"]["content"]
@@ -85,7 +97,9 @@ class GroqModelAdapter:
                 raise ValueError("resposta vazia")
             return GeneratedAnswer.model_validate_json(response_text)
         except (KeyError, IndexError, TypeError, ValueError, ValidationError):
-            raise ModelProviderUnavailable("O provedor retornou uma resposta inválida.") from None
+            raise ModelProviderInvalidResponse(
+                "O provedor retornou uma resposta inválida."
+            ) from None
 
     async def _post(self, payload: dict[str, object]) -> httpx.Response:
         headers = {"Authorization": f"Bearer {self._api_key.get_secret_value()}"}

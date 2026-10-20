@@ -6,14 +6,20 @@ from pathlib import Path
 
 import pytest
 
+from app.agent.access import ReadAccessPolicy
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
-from app.agent.planner import QuestionAnalysisPlanner, ScenarioToolUnavailable
+from app.agent.planner import QuestionAnalysisPlanner
+from app.agent.safety import QuestionSafetyGate
+from app.api.access import SYNTHETIC_SOURCE_ID
 from app.config import Settings
 from app.main import create_app
+from app.ports.evidence import EvidenceToolUnavailable
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
-from app.tools.synthetic_analytics import SyntheticScenarioRequest, SyntheticScenarioTool
+from app.schemas.analysis import AnalysisIntent
+from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 from .conftest import InProcessClient
 
@@ -24,7 +30,7 @@ DATASET = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
 
 class CountingInterpreter:
     def __init__(self) -> None:
-        self.delegate = QuestionInterpreter()
+        self.delegate = QuestionInterpreter(profile=GRID360_DEMO_PROFILE)
         self.results = []
 
     def interpret(self, question, context=None):
@@ -39,11 +45,11 @@ class CountingScenarioTool:
         self.calls = []
         self.fail = fail
 
-    def execute(self, request: SyntheticScenarioRequest):
-        self.calls.append(request)
+    async def retrieve(self, intent: AnalysisIntent):
+        self.calls.append(intent)
         if self.fail:
-            raise ScenarioToolUnavailable("private synthetic tool detail")
-        return self.delegate.execute(request)
+            raise EvidenceToolUnavailable("private source detail")
+        return await self.delegate.retrieve(intent)
 
 
 class CaseModelAdapter:
@@ -51,6 +57,7 @@ class CaseModelAdapter:
         self.answer = GeneratedAnswer(
             status=case.get("model_status", "answered"),
             answer=case.get("model_answer", "Resposta sintética sem números."),
+            observation_ids=tuple(case.get("model_observation_ids", ())),
         )
         self.calls = []
         self.fail = case.get("model_failure", False)
@@ -67,13 +74,20 @@ def evaluate_case(case: dict) -> dict:
     tool = CountingScenarioTool(fail=case.get("tool_failure", False))
     model = CaseModelAdapter(case)
     orchestrator = QuestionOrchestrator(
-        analysis_planner=QuestionAnalysisPlanner(interpreter, tool),
+        analysis_planner=QuestionAnalysisPlanner(
+            interpreter, tool, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
+        ),
         model_adapter=model,
+        safety_gate=QuestionSafetyGate(
+            out_of_scope_terms=GRID360_DEMO_PROFILE.out_of_scope_terms
+        ),
     )
     application = create_app(
-        settings=Settings(_env_file=None),
+        settings=Settings(_env_file=None, environment="local", enable_demo_access=True),
         question_orchestrator=orchestrator,
-        insight_orchestrator=ScreenInsightOrchestrator(model),
+        insight_orchestrator=ScreenInsightOrchestrator(
+            model, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
+        ),
     )
     with InProcessClient(application) as client:
         if case.get("endpoint") == "insights":
@@ -88,7 +102,7 @@ def evaluate_case(case: dict) -> dict:
 
     actual_domain = None
     if interpreter.results and interpreter.results[-1].intent is not None:
-        actual_domain = interpreter.results[-1].intent.domain.value
+        actual_domain = interpreter.results[-1].intent.domain
     checks = {
         "http_ok": response.status_code == 200,
         "status": body.get("status") == case["expected_status"],
@@ -104,14 +118,22 @@ def evaluate_case(case: dict) -> dict:
         )
         checks["expected_content"] = case["expected_answer_fragment"] in generated_text
     if "expected_evidence_source" in case:
+        expected_source = case["expected_evidence_source"]
+        is_insight = case.get("endpoint") == "insights"
         checks["evidence_source"] = any(
-            item["source"] == case["expected_evidence_source"] for item in body.get("evidence", [])
+            (
+                item["source"].startswith("synthetic.screen:")
+                and len(item["source"].split(":", 1)[1]) == 64
+                and item["source"] != expected_source
+            )
+            if is_insight
+            else item["source"].startswith(f"{expected_source}:")
+            for item in body.get("evidence", [])
         )
     if "expected_observation_value" in case:
         observed_values = body.get("observation", {}).get("values", [])
         checks["observation_value"] = any(
-            item.get("value") == case["expected_observation_value"]
-            for item in observed_values
+            item.get("value") == case["expected_observation_value"] for item in observed_values
         )
     return {
         "id": case["id"],
@@ -135,9 +157,7 @@ def test_versioned_synthetic_regression_case_passes(case: dict) -> None:
 
 def test_insight_fixtures_cover_required_synthetic_outcomes() -> None:
     insight_categories = {
-        case.get("category")
-        for case in DATASET["cases"]
-        if case.get("endpoint") == "insights"
+        case.get("category") for case in DATASET["cases"] if case.get("endpoint") == "insights"
     }
 
     assert insight_categories == {

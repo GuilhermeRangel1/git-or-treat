@@ -1,12 +1,12 @@
 {
-  "dataset_version": "2.0.0",
+  "dataset_version": "3.0.0",
   "synthetic": true,
   "scenario_scope": "POST /api/v1/questions e POST /api/v1/insights com fixtures e adaptadores fixos.",
   "limitations": [
     "Todos os valores e cenários são artificiais e não representam a V-Energy.",
     "O adaptador de linguagem é falso; a execução não mede qualidade ou disponibilidade do Gemini.",
     "A avaliação cobre regras e contratos locais, não reconciliação com Gold.",
-    "Os casos de insight verificam estado, separação de observação/hipótese e presença de números; não avaliam qualidade semântica da hipótese."
+    "Os casos de insight verificam estado, separação de observação/hipótese e seleção de IDs de observação; não avaliam a veracidade do contexto enviado pelo cliente."
   ],
   "screen_contexts": {
     "quarterly_consumption": {
@@ -64,8 +64,9 @@
       "expected_model_calls": 1,
       "model_status": "answered",
       "model_answer": "O consumo demonstrativo foi 420 unidades fictícias.",
+      "model_observation_ids": ["row_1"],
       "expected_answer_fragment": "420 unidades fictícias",
-      "expected_evidence_source": "synthetic_fixture:consumption_demo"
+      "expected_evidence_source": "synthetic.fixture"
     },
     {
       "id": "ambiguous_bill_clarification",
@@ -116,7 +117,7 @@
       "expected_model_calls": 1,
       "model_status": "answered",
       "model_answer": "O consumo demonstrativo foi 999 unidades fictícias.",
-      "expected_evidence_source": "synthetic_fixture:consumption_demo"
+      "expected_evidence_source": "synthetic.fixture"
     },
     {
       "id": "synthetic_tool_failure",
@@ -147,6 +148,7 @@
       "expected_model_calls": 1,
       "model_status": "answered",
       "model_answer": "O consumo observado foi 420 kWh fictícios; investigue a distribuição no recorte.",
+      "model_observation_ids": ["row_1"],
       "expected_answer_fragment": "420 kWh fictícios",
       "expected_evidence_source": "synthetic_screen:consumption",
       "expected_observation_value": 420
@@ -162,7 +164,7 @@
       "expected_model_calls": 1,
       "model_status": "needs_clarification",
       "model_answer": "Qual recorte você quer priorizar para investigar a observação?",
-      "expected_answer_fragment": "Qual recorte",
+      "expected_answer_fragment": "Esclareça o recorte",
       "expected_evidence_source": "synthetic_screen:consumption"
     },
     {
@@ -190,7 +192,7 @@
       "expected_model_calls": 1,
       "model_status": "needs_clarification",
       "model_answer": "A tela traz um único total; falta série histórica para avaliar tendência.",
-      "expected_answer_fragment": "falta série histórica",
+      "expected_answer_fragment": "série histórica",
       "expected_evidence_source": "synthetic_screen:single_value",
       "expected_observation_value": 420
     }

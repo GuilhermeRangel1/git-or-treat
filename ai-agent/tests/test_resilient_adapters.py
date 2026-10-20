@@ -1,42 +1,75 @@
 import asyncio
+import hashlib
 import logging
 
 import pytest
+from pydantic import ValidationError
 
+from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
+from app.api.access import SYNTHETIC_SOURCE_ID, demo_access_context
 from app.config import Settings
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.caching import CachingModelAdapter
 from app.providers.factory import build_model_adapter
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.gemini import GeminiModelAdapter
-from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
+from app.providers.protocols import (
+    GeneratedAnswer,
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
+    ModelProviderUnavailable,
+)
+from app.schemas.evidence import EvidenceProvenance, EvidenceResult
 from app.schemas.questions import (
     ConversationTurn,
     EvidenceReference,
     QuestionRequest,
     QuestionStatus,
 )
-from app.tools.evidence import EvidenceResult
+from app.schemas.read_plan import ReadWindow, WindowKind
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 QUESTION = "Qual foi o consumo no período de demonstração?"
 
 
-def _evidence(value: int = 42, source: str = "synthetic_fixture:consumption_demo"):
+def _evidence(
+    value: int = 42,
+    source: str = "synthetic_fixture:consumption_demo",
+    *,
+    scope: str | None = "caller-a",
+):
     return EvidenceResult(
         reference=EvidenceReference(
             source=source,
             description="Resultado artificial para teste, sem dados da V-Energy.",
             is_demo=True,
         ),
-        records=[{"metric": "consumption_demo", "value": value, "unit": "unidades fictícias"}],
+        records=[
+            {
+                "observation_id": "row_1",
+                "metric": "consumption_demo",
+                "value": value,
+                "unit": "unidades fictícias",
+            }
+        ],
+        provenance=EvidenceProvenance(
+            source_id=source.split(":")[0],
+            reference_source=source,
+            plan_fingerprint="0" * 64,
+            catalog_version="v1",
+            metric_id="consumption_demo",
+            unit="unidades fictícias",
+            window=ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase="período de teste"),
+        ),
+        cache_scope=hashlib.sha256(scope.encode()).hexdigest() if scope is not None else None,
     )
 
 
 def _answer(text: str = "O consumo foi 42 unidades fictícias.") -> GeneratedAnswer:
-    return GeneratedAnswer(status="answered", answer=text)
+    return GeneratedAnswer(status="answered", answer=text, observation_ids=("row_1",))
 
 
 class ScriptedAdapter:
@@ -92,6 +125,34 @@ def test_fallback_raises_unavailable_when_every_adapter_fails() -> None:
         asyncio.run(FallbackModelAdapter(adapters).generate(QUESTION, [], _evidence()))
 
     assert [item.calls for item in adapters] == [1, 1, 1]
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [ModelProviderRejected("negado"), ModelProviderInvalidResponse("contrato inválido")],
+)
+def test_fallback_never_retries_definitive_or_invalid_output(outcome: Exception) -> None:
+    later = ScriptedAdapter(_answer())
+    adapter = FallbackModelAdapter([ScriptedAdapter(outcome), later])
+    with pytest.raises(type(outcome)):
+        asyncio.run(adapter.generate(QUESTION, [], _evidence()))
+    assert later.calls == 0
+
+
+def test_fallback_backoff_is_bounded_between_transient_attempts(monkeypatch) -> None:
+    pauses = []
+
+    async def fake_sleep(seconds: float) -> None:
+        pauses.append(seconds)
+
+    monkeypatch.setattr("app.providers.fallback.asyncio.sleep", fake_sleep)
+    adapter = FallbackModelAdapter(
+        [ScriptedAdapter(_unavailable()) for _ in range(3)]
+        + [ScriptedAdapter(_answer())],
+        backoff_seconds=2,
+    )
+    assert asyncio.run(adapter.generate(QUESTION, [], _evidence())) == _answer()
+    assert pauses == [2, 4, 5]
 
 
 def test_fallback_does_not_hide_unexpected_errors() -> None:
@@ -170,6 +231,31 @@ def test_cache_hit_skips_inner_adapter() -> None:
 
     assert first == second == _answer()
     assert inner.calls == 1
+
+
+def test_cache_bypasses_requests_without_authorized_scope() -> None:
+    inner = ScriptedAdapter(_answer())
+    adapter = _cached(inner)
+
+    async def run() -> None:
+        await adapter.generate(QUESTION, [], _evidence(scope=None))
+        await adapter.generate(QUESTION, [], _evidence(scope=None))
+
+    asyncio.run(run())
+    assert inner.calls == 2
+
+
+def test_cache_separates_identities_with_identical_question_and_evidence() -> None:
+    inner = ScriptedAdapter(_answer())
+    adapter = _cached(inner)
+
+    async def run() -> None:
+        await adapter.generate(QUESTION, [], _evidence(scope="caller-a"))
+        await adapter.generate(QUESTION, [], _evidence(scope="caller-b"))
+        await adapter.generate(QUESTION, [], _evidence(scope="caller-a"))
+
+    asyncio.run(run())
+    assert inner.calls == 2
 
 
 def test_cache_returns_copies_that_do_not_change_stored_answer() -> None:
@@ -311,23 +397,157 @@ def test_cancelled_caller_does_not_cancel_shared_call() -> None:
     assert inner.calls == 1
 
 
+def test_cancelling_every_cache_waiter_cancels_underlying_model() -> None:
+    class WaitingAdapter:
+        cancelled = False
+        started = None
+
+        async def generate(self, question, context, evidence):
+            self.started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                self.cancelled = True
+
+    async def run() -> tuple[bool, bool]:
+        inner = WaitingAdapter()
+        inner.started = asyncio.Event()
+        adapter = _cached(inner)
+        first = asyncio.create_task(adapter.generate(QUESTION, [], _evidence()))
+        second = asyncio.create_task(adapter.generate(QUESTION, [], _evidence()))
+        await inner.started.wait()
+        first.cancel()
+        second.cancel()
+        await asyncio.gather(first, second, return_exceptions=True)
+        await asyncio.sleep(0)
+        return inner.cancelled, not adapter._in_flight
+
+    assert asyncio.run(run()) == (True, True)
+
+
+def test_new_caller_after_all_waiters_cancel_starts_fresh_model_call() -> None:
+    class FirstCallWaits:
+        calls = 0
+        started = None
+
+        async def generate(self, question, context, evidence):
+            self.calls += 1
+            if self.calls == 1:
+                self.started.set()
+                await asyncio.Event().wait()
+            return _answer()
+
+    async def run() -> tuple[GeneratedAnswer, int]:
+        inner = FirstCallWaits()
+        inner.started = asyncio.Event()
+        adapter = _cached(inner)
+        abandoned = asyncio.create_task(adapter.generate(QUESTION, [], _evidence()))
+        await inner.started.wait()
+        abandoned.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await abandoned
+        result = await adapter.generate(QUESTION, [], _evidence())
+        return result, inner.calls
+
+    assert asyncio.run(run()) == (_answer(), 2)
+
+
 def test_cached_ungrounded_answer_is_still_refused_by_orchestrator() -> None:
-    inner = ScriptedAdapter(_answer("O consumo demonstrativo foi 999 unidades fictícias."))
+    inner = ScriptedAdapter(
+        GeneratedAnswer(
+            status="answered",
+            answer="O consumo demonstrativo foi 999 unidades fictícias.",
+            observation_ids=("row_999",),
+        )
+    )
     orchestrator = QuestionOrchestrator(
-        analysis_planner=QuestionAnalysisPlanner(QuestionInterpreter(), SyntheticScenarioTool()),
+        analysis_planner=QuestionAnalysisPlanner(
+            QuestionInterpreter(GRID360_DEMO_PROFILE),
+            SyntheticScenarioTool(),
+            ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
+        ),
         model_adapter=_cached(inner),
     )
     request = QuestionRequest(question=QUESTION)
 
     async def run():
-        return [await orchestrator.answer(request) for _ in range(2)]
+        return [
+            await orchestrator.answer(
+                request, demo_access_context(GRID360_DEMO_PROFILE, "0" * 32)
+            )
+            for _ in range(2)
+        ]
 
     responses = asyncio.run(run())
 
-    assert inner.calls == 1
+    assert inner.calls == 2
     for response in responses:
         assert response.status is QuestionStatus.REFUSED
-        assert "999" not in response.answer
+        assert "999" not in response.message
+
+
+def test_cache_retries_answer_with_unknown_observation_instead_of_reusing_it() -> None:
+    inner = ScriptedAdapter(
+        GeneratedAnswer(status="answered", answer="inválida", observation_ids=("row_999",)),
+        GeneratedAnswer(status="answered", answer="válida", observation_ids=("row_1",)),
+    )
+    orchestrator = QuestionOrchestrator(
+        analysis_planner=QuestionAnalysisPlanner(
+            QuestionInterpreter(GRID360_DEMO_PROFILE),
+            SyntheticScenarioTool(),
+            ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
+        ),
+        model_adapter=_cached(inner),
+    )
+    request = QuestionRequest(question=QUESTION)
+
+    async def run():
+        return [
+            await orchestrator.answer(
+                request, demo_access_context(GRID360_DEMO_PROFILE, "0" * 32)
+            )
+            for _ in range(2)
+        ]
+
+    responses = asyncio.run(run())
+
+    assert [item.status for item in responses] == [QuestionStatus.REFUSED, QuestionStatus.ANSWERED]
+    assert inner.calls == 2
+
+
+def test_authorization_runs_before_cache_hit_and_separates_callers() -> None:
+    inner = ScriptedAdapter(
+        GeneratedAnswer(status="answered", answer="seleção", observation_ids=("row_1",))
+    )
+    orchestrator = QuestionOrchestrator(
+        analysis_planner=QuestionAnalysisPlanner(
+            QuestionInterpreter(GRID360_DEMO_PROFILE),
+            SyntheticScenarioTool(),
+            ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
+        ),
+        model_adapter=_cached(inner),
+    )
+    first = demo_access_context(GRID360_DEMO_PROFILE, "0" * 32)
+    second = first.model_copy(update={"caller_ref": "second_caller"})
+    denied = first.model_copy(update={"allowed_metric_ids": frozenset()})
+    request = QuestionRequest(question=QUESTION)
+
+    async def run():
+        return (
+            await orchestrator.answer(request, first),
+            await orchestrator.answer(request, denied),
+            await orchestrator.answer(request, second),
+            await orchestrator.answer(request, first),
+        )
+
+    responses = asyncio.run(run())
+    assert [item.status for item in responses] == [
+        QuestionStatus.ANSWERED,
+        QuestionStatus.REFUSED,
+        QuestionStatus.ANSWERED,
+        QuestionStatus.ANSWERED,
+    ]
+    assert inner.calls == 2
 
 
 # Configuração e factory
@@ -340,6 +560,32 @@ def test_settings_default_keeps_current_behaviour() -> None:
     assert settings.model_cache_ttl_seconds == 0
     assert settings.model_cache_max_entries == 256
     assert settings.model_total_timeout_ms == 30_000
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"request_timeout_ms": 0},
+        {"source_timeout_ms": 0},
+        {"concurrent_requests": 0},
+        {"concurrent_sources": 0},
+        {"concurrent_models": 0},
+        {"model_max_calls": 0},
+        {"evidence_max_rows": 0},
+        {"evidence_max_bytes": 0},
+    ],
+)
+def test_execution_configuration_rejects_nonpositive_limits(invalid) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **invalid)
+
+
+def test_factory_rejects_fallback_chain_above_call_limit() -> None:
+    with pytest.raises(ValueError, match="GENAI_MODEL_MAX_CALLS"):
+        build_model_adapter(
+            _gemini_settings(gemini_fallback_models=["gemini-b"], model_max_calls=1),
+            client=_client(RoutingEndpoint(set())),
+        )
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from sqlalchemy import Column, DateTime
-from app.core.database import Base
+from app.db.base import Base
 
 
 class TimestampMixin:

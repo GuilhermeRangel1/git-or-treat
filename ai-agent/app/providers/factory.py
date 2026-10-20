@@ -1,6 +1,9 @@
 """Cria adaptadores de modelo a partir da configuração local do serviço."""
 
+import hashlib
+
 from app.config import ModelProviderName, Settings
+from app.generation.prompts import SYSTEM_INSTRUCTION
 from app.providers.caching import CachingModelAdapter
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.protocols import ModelAdapter
@@ -41,26 +44,38 @@ def build_model_adapter(settings: Settings, *, client=None, groq_client=None) ->
     for provider in providers:
         _require_api_key(settings, provider)
 
-    adapters: list[ModelAdapter] = []
+    chain: list[tuple[ModelProviderName, str]] = []
     for position, provider in enumerate(providers):
         if provider == "gemini":
-            model_names = [settings.gemini_model]
+            chain.append(("gemini", settings.gemini_model))
             if position == 0:
-                model_names += settings.gemini_fallback_models
-            adapters += _build_gemini_adapters(settings, model_names, client)
+                chain += [("gemini", name) for name in settings.gemini_fallback_models]
+        else:
+            chain.append(("groq", settings.groq_model))
+    # Cada adaptador é uma chamada possível ao modelo, seja qual for o provedor.
+    if len(chain) > settings.model_max_calls:
+        raise ModelConfigurationError("A cadeia excede GENAI_MODEL_MAX_CALLS.")
+
+    adapters: list[ModelAdapter] = []
+    for provider, model_name in chain:
+        if provider == "gemini":
+            adapters.append(_build_gemini_adapter(settings, model_name, client))
         else:
             adapters.append(_build_groq_adapter(settings, groq_client))
 
     adapter = adapters[0]
     if len(adapters) > 1:
         adapter = FallbackModelAdapter(
-            adapters, total_timeout_seconds=settings.model_total_timeout_ms / 1000
+            adapters,
+            total_timeout_seconds=settings.model_total_timeout_ms / 1000,
+            backoff_seconds=settings.fallback_backoff_ms / 1000,
         )
     if settings.model_cache_ttl_seconds > 0:
         adapter = CachingModelAdapter(
             adapter,
             ttl_seconds=settings.model_cache_ttl_seconds,
             max_entries=settings.model_cache_max_entries,
+            namespace=_cache_namespace(providers, chain),
         )
     return adapter
 
@@ -74,21 +89,26 @@ def _require_api_key(settings: Settings, provider: ModelProviderName) -> None:
         )
 
 
-def _build_gemini_adapters(
-    settings: Settings, model_names: list[str], client
-) -> list[ModelAdapter]:
+def _cache_namespace(
+    providers: list[ModelProviderName], chain: list[tuple[ModelProviderName, str]]
+) -> str:
+    """Separa o cache por ordem de provedores, modelos e prompt de sistema."""
+
+    models = ",".join(f"{provider}:{model_name}" for provider, model_name in chain)
+    prompt_digest = hashlib.sha256(SYSTEM_INSTRUCTION.encode("utf-8")).hexdigest()
+    return f"providers={','.join(providers)};models={models};prompt={prompt_digest}"
+
+
+def _build_gemini_adapter(settings: Settings, model_name: str, client) -> ModelAdapter:
     try:
         from app.providers.gemini import GeminiModelAdapter
 
-        return [
-            GeminiModelAdapter(
-                model_name=model_name,
-                api_key=settings.gemini_api_key.get_secret_value(),
-                timeout_ms=settings.model_timeout_ms,
-                client=client,
-            )
-            for model_name in model_names
-        ]
+        return GeminiModelAdapter(
+            model_name=model_name,
+            api_key=settings.gemini_api_key.get_secret_value(),
+            timeout_ms=settings.model_timeout_ms,
+            client=client,
+        )
     except ImportError:
         raise ModelConfigurationError(
             'Instale a dependência opcional com: python -m pip install -e ".[gemini]".'
