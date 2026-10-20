@@ -1,6 +1,6 @@
 # Serviço: engenharia de dados
 
-**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** Bronze implementada e executada na Databricks Free Edition em 17/10/2026 e o Workflow `v-energy-grid-360` criado em 18/10/2026 com as duas tarefas da Bronze encadeadas (PR #8 em revisão); Silver, Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
+**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** Bronze implementada e executada na Databricks Free Edition (17/10/2026; a versão com publicação por lote rodou em 19/10/2026) e o Workflow `v-energy-grid-360` criado em 18/10/2026 com as duas tarefas da Bronze encadeadas (PR #8 em revisão); Silver implementada e em validação (em PR separado); Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
 
 ## Responsabilidade
 
@@ -47,7 +47,7 @@ Existe hoje o job `v-energy-grid-360` com as duas tarefas da Bronze encadeadas (
 
 O case fornece uma extração única e pede que o time proponha agendamento para uma operação futura. A periodicidade, a janela de chegada das fontes, o tratamento de atrasos/retificações e o custo da atualização são decisões a justificar após inspecionar o material. Não apresentar uma simulação de agenda como integração de produção existente.
 
-Agenda proposta para essa operação futura: **mensal, dia 5, às 03:00 (America/Recife)** — o insumo é mensal por natureza (leituras e faturas são por competência), o dia 5 dá folga para o fechamento chegar íntegro, e a reexecução é segura porque a Bronze é carregada por sobrescrita e reconciliada com `delta = 0`, de modo que uma competência retificada entra no lugar da anterior em vez de acumular. A janela real de chegada das fontes continua desconhecida, porque o case não a informa.
+Agenda proposta para essa operação futura: **mensal, dia 5, às 03:00 (America/Recife)** — o insumo é mensal por natureza (leituras e faturas são por competência), o dia 5 dá folga para o fechamento chegar íntegro, e a reexecução é segura porque a Bronze é **publicada por lote** (ingestão em `bronze_stg`, troca de `bronze.*` só no fim, com `bronze.controle_lote`) e reconciliada com `delta = 0`, de modo que uma competência retificada entra no lugar da anterior em vez de acumular e uma falha antes da publicação deixa o lote anterior inteiro. A janela real de chegada das fontes continua desconhecida, porque o case não a informa.
 
 ## Dependências e decisões pendentes
 

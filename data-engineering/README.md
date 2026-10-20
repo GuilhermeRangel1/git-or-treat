@@ -6,10 +6,10 @@ Pipeline PySpark/Databricks que leva as 8 fontes do case da Landing até a Gold.
 
 | Notebook | Papel |
 | --- | --- |
-| [`Landing_to_Bronze.ipynb`](notebook/Landing_to_Bronze.ipynb) | lê as 8 fontes brutas, separa o que é malformado, grava a camada Bronze no Delta e reconcilia lidas × rejeitadas × gravadas |
+| [`Landing_to_Bronze.ipynb`](notebook/Landing_to_Bronze.ipynb) | lê as 8 fontes brutas, separa o que é malformado, grava a camada Bronze no Delta e reconcilia lidas × rejeitadas × gravadas **por origem** (arquivo e aba) |
 | [`Bronze_perfilamento.ipynb`](notebook/Bronze_perfilamento.ipynb) | mede a qualidade do que a Bronze recebeu (nulos, duplicatas, órfãos, grafias divergentes, datas) e grava em `quality.perfil_bronze` |
 
-A transição para a Silver (`Bronze_to_Silver.ipynb`) e a Gold entram depois, como novas tarefas do mesmo Workflow.
+A Gold entra depois, como nova tarefa do mesmo Workflow.
 
 ## Workflow
 
@@ -36,19 +36,21 @@ A ordem não é decorativa: o perfilador lê as tabelas que a ingestão acabou d
 
 As duas tarefas somam 21m 01s contra 21m 03s de total: rodaram **uma depois da outra**. Se rodassem em paralelo, o job fecharia em torno de 15m 22s, o tempo da tarefa mais longa — o total ser a soma das partes é o que prova a serialização.
 
-O job foi executado 4 vezes em 18/10, todas bem-sucedidas, sem duplicar dado: a Bronze é carregada por sobrescrita e reconciliada com `delta = 0`. No output da ingestão, o autoteste de captura de registro malformado imprime `AUTOTESTE registros malformados: OK`, as oito tabelas fecham com `delta = 0` (`atendimentos` sai como `SEM_BASE`, esperado porque o JSON é indentado) e `bronze.rejeitados` fica vazia.
+O job foi executado 4 vezes em 18/10, todas bem-sucedidas, sem duplicar dado — na versão da época, a Bronze era carregada por sobrescrita e reconciliada com `delta = 0` (hoje ela é publicada por lote, como descrito abaixo). No output da ingestão, o autoteste de captura de registro malformado imprime `AUTOTESTE registros malformados: OK`, as oito tabelas fecham com `delta = 0` (`atendimentos` sai como `SEM_BASE`, esperado porque o JSON é indentado) e `bronze.rejeitados` fica vazia.
+
+> Os números acima e o tempo de 15m 22s são da versão **anterior** à reconciliação por origem e à publicação por lote. As duas mudanças alteram a contagem de linhas de `bronze.reconciliacao` (de 8 para 15 linhas: 14 origens — 5 arquivos simples/faturas, 5 leituras, `atendimentos.json` e 3 abas — mais a linha do autoteste) e acrescentam a reescrita da publicação; o tempo medido acima ainda vale como evidência da serialização das tarefas, não como tempo esperado desta versão.
 
 ### Agenda proposta
 
-Mensal, dia 5, às 03:00 (America/Recife). O insumo é mensal por natureza — leituras e faturas são por competência —, então rodar mais de uma vez no mês não traria dado novo, só custo; o dia 5 dá folga para o fechamento da competência anterior chegar íntegro. Reexecutar é seguro, e é a mesma idempotência que motivou carregar com `overwrite` e não com `append`: uma competência retificada entra no lugar da anterior, sem acumular versões.
+Mensal, dia 5, às 03:00 (America/Recife). O insumo é mensal por natureza — leituras e faturas são por competência —, então rodar mais de uma vez no mês não traria dado novo, só custo; o dia 5 dá folga para o fechamento da competência anterior chegar íntegro. Reexecutar é seguro, e é a mesma idempotência que motivou publicar por lote — substituindo a tabela publicada, não com `append`: uma competência retificada entra no lugar da anterior, sem acumular versões.
 
 A agenda está armada no job (`pause_status: UNPAUSED`), mas continua sendo uma **proposta para a operação futura**, não uma integração de produção existente: o case entrega uma extração única. Um gatilho de chegada de arquivo no Volume foi considerado e descartado — os arquivos do Dataset entram em lote, e cada chegada dispararia uma execução, enquanto o agendamento dispara uma vez no dia combinado.
 
 ### Como reexecutar
 
-1. Importe os dois notebooks de `notebook/` no Workspace (Workspace → Create → Import), ou use os que já estão lá.
+1. Importe os dois notebooks da Bronze de `notebook/` no Workspace (Workspace → Create → Import), ou use os que já estão lá.
 2. Crie o job com duas tarefas, `Landing_to_Bronze` e `Bronze_perfilamento` (a segunda com `Depends on = Landing_to_Bronze`), em compute serverless — ou aplique [`v-energy-grid-360.yaml`](configuracao/databricks/v-energy-grid-360.yaml) como definição do job.
 3. Rode com `Run now`.
-4. Confira o resultado: a ingestão lista as 10 tabelas Bronze e imprime a reconciliação com `delta = 0` e `AUTOTESTE_OK`; o perfilador termina sem `AVISO` e grava `quality.perfil_bronze`.
+4. Confira o resultado: a ingestão lista as tabelas Bronze (8 de dados + `rejeitados` + `reconciliacao` + `arquivos_lote` + `controle_lote`) e imprime a reconciliação com `delta = 0` **em todas as origens** e `AUTOTESTE_OK`; o perfilador termina sem `AVISO` e grava `quality.perfil_bronze`.
 
-Se o autoteste de parse falhar, as abas de inspeção mudarem, a contagem da quarentena divergir ou alguma reconciliação ficar fora de `OK`/`SEM_BASE`, a ingestão lança erro e o Workflow não inicia o perfilamento. Uma divergência detectada no fim da ingestão pode ocorrer depois da sobrescrita das tabelas Bronze; nesse caso, confira `bronze.reconciliacao` e a versão anterior das tabelas Delta antes de retomar. A publicação atômica do lote ainda não foi implementada.
+Se o autoteste de parse falhar, as abas de inspeção mudarem, a contagem da quarentena divergir ou alguma reconciliação ficar fora de `OK`/`SEM_BASE`, a ingestão lança erro e o Workflow não inicia o perfilamento. A ingestão escreve o lote em `bronze_stg.*` e só troca a Bronze publicada no fim, quando tudo já validou: falhar antes disso deixa o lote anterior **inteiro** no ar, e `bronze.controle_lote` fica `EM_ANDAMENTO` como registro de que aquele lote não fechou. A troca é tabela a tabela — o Delta não tem transação entre tabelas —, então uma falha **durante** a publicação ainda deixa um lote misto (detectável pelo `EM_ANDAMENTO`); reexecutar corrige, porque a carga é idempotente.
