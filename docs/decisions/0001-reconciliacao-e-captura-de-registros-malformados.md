@@ -19,24 +19,24 @@ Dois fatos do ambiente limitam as opções:
 
 1. **`badRecordsPath` (arquivo lateral de rejeitados).** Mantém a tabela da fonte só com válidos e grava os ruins fora do Delta. Descartada: comprovadamente ineficaz neste runtime (0 bytes com corrupção certa) e incompatível com `mode=overwrite`.
 2. **Coluna de corrupção (`columnNameOfCorruptRecord` → `_corrupt_record`).** O registro malformado vira o valor de uma coluna e permanece na própria linha. Tudo fica dentro do Delta, permite separar válidos e rejeitados em memória e não conflita com `mode`.
-3. **Validação fora do Spark (reler o arquivo com `csv`/Python no driver).** Não depende do runtime para contar malformados. Descartada: cria uma segunda fonte de verdade, não escala para ~2,2 mi de linhas e duplicaria a lógica de parsing.
+3. **Validação fora do Spark (reler o arquivo com `csv`/Python no driver).** Foi descartada para fazer todo o parse. A revisão de 19/10/2026 a usa apenas para conferir a quantidade de campos por registro, em fluxo contínuo e com memória constante; o Spark continua responsável pela ingestão.
 
 ## Decisão
 
 Adotar a opção 2, com as seguintes regras de contrato:
 
-- Toda leitura de CSV/JSON usa **schema explícito 100% string** e `columnNameOfCorruptRecord="_corrupt_record"`. Como o schema é explícito, a inferência do JSON não duplica a coluna de corrupção.
+- CSV usa schema explícito 100% string; JSON usa schema inferido para preservar a estrutura aninhada e acrescenta `_corrupt_record` sem duplicá-la. Ambos usam `columnNameOfCorruptRecord="_corrupt_record"`. Antes da leitura Spark, a largura do CSV é validada pelo cabeçalho; divergência interrompe o lote com contagem e linhas de exemplo.
 - Linha com `_corrupt_record` nulo é válida e vai para a tabela da fonte; as demais vão para `bronze.rejeitados`, com o conteúdo bruto preservado.
 - `rejeitadas` é sempre derivada por aritmética (`total lido − gravadas`), **nunca** de `count()` sobre o DataFrame filtrado por `_corrupt_record` (o Spark Connect recusa essa expressão).
 - Cada tabela registra uma linha em `bronze.reconciliacao` com `linhas_lidas`, `gravadas`, `rejeitadas` e `delta = linhas_dados − gravadas − rejeitadas`; `delta ≠ 0` é falha declarada, não ruído.
 - `bronze.leituras` é reconciliada contra a contagem **física** de linhas do Volume (`spark.read.text`), não contra a contagem do parser, para que a verificação seja independente.
-- Um **autoteste** roda a cada execução, com corrupção certa por construção (CSV 1 válida/2 rejeitadas; JSON 1 válida/1 rejeitada). Se o mecanismo parar de funcionar, a execução avisa que `rejeitadas = 0` não é garantia de dataset limpo.
+- Um **autoteste** roda a cada execução. Na revisão de 19/10/2026, dois registros CSV com largura divergente precisam ser bloqueados antes do Spark; um CSV íntegro produz uma linha válida e nenhuma rejeição; o JSON produz uma linha válida e uma rejeitada. Se o mecanismo falhar, o lote não é publicado. A guarda de largura acrescenta uma leitura sequencial de cada CSV; validar seu custo no Databricks.
 
 ## Consequências e verificação
 
 - `bronze.rejeitados` e `bronze.reconciliacao` passam a fazer parte do contrato da camada. A quarentena dos rejeitados é decisão da Silver e segue em aberto.
-- A tabela da fonte perde a equivalência "linha física = linha da tabela": `_id_registro` é o id técnico do lote, não o número da linha no arquivo. O rastreio da linha bruta se dá por `_arquivo_origem` e pelo `_corrupt_record` guardado em `bronze.rejeitados`.
+- A tabela da fonte perde a equivalência "linha física = linha da tabela": `_id_registro` é o id técnico do lote. `_ordem_na_origem` depende do particionamento do Spark e não garante a linha física em CSV/JSON; somente no Excel vem do índice da aba. O rastreio usa arquivo, hash e valores brutos, e a posição física CSV/JSON continua pendente em DE-01.
 - `atendimentos` fecha como `SEM_BASE` (array JSON identado: não há contagem de linhas físicas comparável) e `inspecoes` fecha com `linhas_arquivo = null` (origem XLSX, lida por `pandas`).
-- Lacuna conhecida frente ao §4.3: a reconciliação registra o **nome** do arquivo de origem, mas ainda não o **hash/versão** do arquivo ingerido.
+- A lacuna histórica de hash/versão foi resolvida em 19/10/2026 por `bronze.arquivos_lote` (SHA-256 quando o Volume permite leitura no driver).
 - Se o runtime voltar a suportar `badRecordsPath` com gravação confiável, esta decisão deve ser revista; o contrato de reconciliação pode ser mantido trocando apenas o mecanismo de captura.
-- Verificação: execução completa do notebook em 17/10/2026 — `delta = 0` em todas as tabelas, autoteste `OK` nos dois leitores e `bronze.rejeitados` sem linhas.
+- Verificação histórica: execução completa do notebook em 17/10/2026 — `delta = 0` em todas as tabelas, autoteste `OK` nos dois leitores e `bronze.rejeitados` sem linhas. A guarda de largura de 19/10/2026 ainda precisa de execução no Databricks. A distinção de largura segue a documentação oficial do Apache Spark 3.5.6: https://spark.apache.org/docs/3.5.6/sql-data-sources-csv.html#data-source-option.

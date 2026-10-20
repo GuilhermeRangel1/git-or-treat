@@ -56,8 +56,8 @@ Cada seta só existe se a anterior fechou a conta. As duas contas que governam o
 | # | Camada | Decisão | Por quê (motivo) | Evidência / número | Estado |
 |---|---|---|---|---|---|
 | D1 | Bronze | Schema explícito **100% string** | Bronze não interpreta tipo; tipo é decisão da Silver | `Landing_to_Bronze.ipynb` §0 | implementado |
-| D2 | Bronze | Captura de malformado por **coluna** `_corrupt_record`, não por `badRecordsPath` | `badRecordsPath` gravou 0 bytes no runtime e é incompatível com `mode=overwrite` | ADR-0001; autoteste CSV 1 válida/2 rejeitadas, JSON 1/1, `OK` | implementado |
-| D3 | Bronze | Colunas de auditoria `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro`, `_data_carga` (+`_aba_origem`) | rastrear lote e localizar a linha de origem | `_id_registro` é id técnico do lote; `_ordem_na_origem` é o localizador (D40) | implementado, **revisado** |
+| D2 | Bronze | `_corrupt_record` para erros de parse; largura CSV validada antes do Spark | `PERMISSIVE` pode completar campos ausentes e descartar excedentes sem marcá-los | ADR-0001; autoteste da guarda CSV (2 divergências bloqueadas) e JSON 1/1 | revisão local 19/10; falta executar no Databricks |
+| D3 | Bronze | Colunas de auditoria `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro`, `_data_carga` (+`_aba_origem`) | rastrear lote e identificar a origem | `_id_registro` localiza na Bronze; `_ordem_na_origem` auxilia a busca, com limite em D40 | implementado, **revisado** |
 | D4 | Bronze | `unionByName(..., allowMissingColumns=True)` nos 5 arquivos de leitura | coluna ausente num ano vira `null` em vez de derrubar a leitura | 5 arquivos 2022–2026 | implementado |
 | D5 | Bronze | Carga por **`overwrite`** (não `append`), **na área de preparo** (`bronze_stg`) | a extração vem completa; sem isso, rodar 2× dobraria a base; e preparo separado permite trocar a publicada só no fim | 2.184.623 faturas virariam 4.369.246 | implementado, **revisado (D42)** |
 | D6 | Bronze | Reconciliação **por origem** (arquivo e aba) + `bronze.rejeitados` | "diferenças de parse e rejeições contadas e explicadas" (DE-01), **para cada fonte e lote** (§4.3) | 5 linhas em `leituras` + 3 em `inspecoes`; `delta = 0` nas origens | implementado, **revisado (D39)** |
@@ -92,10 +92,10 @@ Cada seta só existe se a anterior fechou a conta. As duas contas que governam o
 | D37 | Silver | Achados que não rejeitam + `inspetor`: **manter as regras atuais**, quantificar no próximo perfil e **confirmar se `inspetor` é exibido ao usuário** antes de padronizar | decisão do time: não criar regra sem justificativa; padronizar nome de pessoa pode afetar a exibição | §14.4 do notebook | **decidido** 18/10 |
 | D38 | Silver | **Cascata de órfão — decidido:** validar a FK contra a **Silver** (A) e dar **motivo próprio** ao bloqueio (`uc_em_quarentena`/`medidor_em_quarentena`) quando a chave existe na Bronze e o cadastro pai caiu na quarentena | decisão do time: a linha bloqueada não é registro malformado; mantê-la na Bronze e no `_registro` permite reprocessar depois de 14.1 | `medidor_inexistente` volta a 8.609 e as 58.214 leituras ficam identificadas | **decidido** 19/10 (R41) |
 | D39 | Bronze | Reconciliação **por origem** (uma linha por arquivo e por aba), com `_aba_origem` | o §4.3 pede a conta "para cada fonte e lote"; por tabela, um ano das leituras ou uma aba do Excel que encolhesse ficava invisível | `leituras` 5 linhas, `inspecoes` 3; a Silver soma por `_tabela` (§13.1b) | **implementado** 19/10 (revê D6) |
-| D40 | Bronze | Localizador `_ordem_na_origem`: posição do registro dentro da origem (1-based, reinicia por arquivo/aba) | `_id_registro` localiza na **tabela**, não no arquivo — lacuna declarada no ADR-0001 (§38); quem recebe o registro precisa achá-lo na origem | CSV/Excel: linha física = `_ordem + 1`; JSON: ordinal do objeto | **implementado** 19/10 |
+| D40 | Bronze | `_ordem_na_origem`: ordem de leitura por arquivo/aba | `_id_registro` localiza na tabela; a ordem do Spark depende do particionamento e não prova a linha física de CSV/JSON | Excel: índice da aba; CSV/JSON: localizar por arquivo, hash e valores brutos | limitação explicitada 19/10; linha física CSV/JSON ainda pendente |
 | D41 | Bronze | `bronze.arquivos_lote`: nome, caminho, tamanho, modificação e **SHA-256** por lote | provar **qual versão** do arquivo entrou e comparar reexecuções; fecha a pendência de hash do §4.3 / DE-01 | `status_hash = OK` ou `INDISPONIVEL` (a limitação fica visível) | **implementado** 19/10 |
-| D42 | Bronze | **Publicação por lote:** ingestão escreve em `bronze_stg.*` e só troca `bronze.*` no fim, com `bronze.controle_lote` (`EM_ANDAMENTO`/`PUBLICADO`/`FALHOU`) e conferência de contagem | uma falha no fim da carga deixava a Bronze metade nova, metade velha (o `raise` do `bcc3022` só protege o que não foi publicado) | falha antes da publicação deixa o lote anterior inteiro; falha no meio é detectável pelo `EM_ANDAMENTO` | **implementado** 19/10 (revê D5) |
-| D43 | Silver | `_ordem_na_origem` entra no rastreio publicado, no contrato de tipos e nas `AUDITORIA` do perfilador e da Silver | sem isso, o localizador morre na Bronze: o registro da Silver não volta ao arquivo. No perfilador, deixá-la fora zeraria a duplicata exata (é única por arquivo) | §13 do notebook compara as 4 colunas; contrato confere `bigint` | **implementado** 19/10 (revê D11) |
+| D42 | Bronze | **Publicação por lote:** ingestão escreve em `bronze_stg.*` e só troca `bronze.*` no fim, com `bronze.controle_lote` (`EM_ANDAMENTO`/`PUBLICADO`/`FALHOU`) e conferência de contagem | uma falha no fim da carga deixava a Bronze metade nova, metade velha (o `raise` do `bcc3022` só protege o que não foi publicado) | falha antes da publicação deixa o lote anterior intacto; após falha no meio, consumidores precisam bloquear leitura enquanto o lote atual não estiver `PUBLICADO`; recuperação por reexecução ainda requer teste com falha induzida | publicação em staging implementada; gate do consumidor e recuperação comprovada pendentes |
+| D43 | Silver | `_ordem_na_origem` entra no rastreio publicado, no contrato de tipos e nas `AUDITORIA` do perfilador e da Silver | preserva a ordem auxiliar até a Silver; no perfilador, incluí-la como dado zeraria a duplicata exata | §13 compara as 4 colunas; contrato confere `bigint`; limite da posição física em D40 | **implementado** 19/10 (revê D11) |
 | D44 | Silver | **UF/CEP/endereço:** `uf` publicada no **código de 2 letras** (mapa das 27 UFs); `cep` só com **8 dígitos**; `logradouro`/`numero` aparados; `nome_titular` preserva a caixa | a seção 5.2 já dizia "UF padronizada", mas a carga só fazia maiúscula — o arquivo tem **5 grafias** cruas para PE (`PE` 39.470, `pe` 1.826, `pernambuco` 1.729, `P.E.` 1.726, `Pernambuco` 1.709); `cep = "-1"` (162 linhas) virava `"1"`; 2.797 logradouros tinham espaço nas pontas e 1.551, espaço duplo | 45.200 UCs, todas `PE`; CEP nulo onde não há 8 dígitos; 1.557 grafias de logradouro → 217 | **implementado** 19/10 (R42–R44) |
 | D45 | Silver | **Tipo de medidor:** mapa canônico `ELETRO-MECANICO` → `ELETROMECANICO` e `SMART METER` → `SMART` | o arquivo tem **5 valores (10 grafias cruas) para 3 tipos**; o perfil mediu 3 grupos cosméticos, mas o hífen e o nome em inglês ficavam fora do colapso — o mesmo tipo apareceria duas vezes na saída e a Gold agruparia errado | 51.812 medidores, 3 tipos na saída (§13.6) | **implementado** 19/10 (R48) |
 | D19 | Gold | Modelo de métricas (receita, DEC/FEC, GD, UC 360) | responder às perguntas do portal/IA | PRD §5, dicionário | **proposta** |
@@ -119,11 +119,13 @@ Bronze** e a tipagem é a primeira coisa que a Silver faz.
 ### 2.3 Captura de registro malformado (D2)
 
 Alternativas testadas no ADR-0001: `badRecordsPath` (arquivo lateral) **gravou 0 bytes** com corrupção certa e não
-pode ser combinado com `mode=overwrite`; validação fora do Spark criaria segunda fonte de verdade e não escala
-(≈2,2 milhões de linhas). Decisão: `columnNameOfCorruptRecord="_corrupt_record"` com schema explícito — a linha ruim
+pode ser combinado com `mode=overwrite`. A validação externa para fazer todo o parse foi descartada;
+a revisão de 19/10 usa `csv.reader` somente para conferir a largura em fluxo contínuo.
+Decisão: `columnNameOfCorruptRecord="_corrupt_record"` com schema explícito — a linha ruim
 fica na própria linha, vai para `bronze.rejeitados` com o bruto, e um **autoteste** roda a cada execução para provar
-que o mecanismo continua funcionando (CSV 1 válida/2 rejeitadas; JSON 1 válida/1 rejeitada). Sem o autoteste,
-`rejeitadas = 0` poderia significar só "o detector parou", não "o dado está limpo".
+que o mecanismo continua funcionando (CSV: 2 larguras divergentes bloqueadas; JSON: 1 válida/1 rejeitada). Sem o autoteste,
+`rejeitadas = 0` poderia significar só "o detector parou", não "o dado está limpo". A leitura adicional
+consome tempo e só bloqueia o lote; linhas de largura divergente permanecem na Landing para investigação.
 
 ### 2.4 Colunas de auditoria (D3)
 
@@ -131,7 +133,7 @@ que o mecanismo continua funcionando (CSV 1 válida/2 rejeitadas; JSON 1 válida
 |---|---|---|
 | `_arquivo_origem` | arquivo/ano de onde a linha veio | localiza a origem (ex.: `leituras_2023.csv`) |
 | `_aba_origem` | aba do Excel (só em inspeções: `ago-set`, `dez`, `out-nov`) | o Excel tem 3 abas com grãos possivelmente distintos |
-| `_ordem_na_origem` | posição do registro **dentro do arquivo/aba** (1-based, reinicia por origem) | é o localizador que o §4.3 pede: quem recebe um registro consegue achar a linha na origem |
+| `_ordem_na_origem` | ordem de leitura por arquivo/aba (1-based) | localizador auxiliar; só no Excel equivale ao índice da aba |
 | `_lote_id` | identificador da execução de ingestão | série de volumes por lote; uma queda fica visível |
 | `_id_registro` | id técnico **único dentro do lote** | chave técnica de linha; **não** é o número da linha física |
 | `_data_carga` | carimbo da ingestão | ordena a deduplicação na Silver (qual cópia é a mais recente) |
@@ -141,10 +143,10 @@ duplicatas nem no grão de negócio (D8). Ele é chave técnica de lote, não at
 `_ordem_na_origem` também está nas colunas de auditoria do perfilador (D43) — como ela é única por arquivo, deixá-la
 fora faria a checagem de duplicata exata dar **0 sempre**.
 
-Como ler `_ordem_na_origem` (D40): em CSV e XLSX, com uma linha de cabeçalho, a **linha física** é
-`_ordem_na_origem + 1`; em `atendimentos.json` (array indentado) não existe linha física, então o valor é o ordinal do
-**objeto**. A ordem é a que o Spark leu o arquivo — reproduzível na prática e igual entre execuções do mesmo arquivo,
-mas não é uma garantia do parser; quem precisa de posição absoluta tem de ler o arquivo bruto.
+Como ler `_ordem_na_origem` (D40): no XLSX, ela vem do índice da aba e a linha física é
+`_ordem_na_origem + 1`. Em CSV e JSON, é a ordem observada pelo Spark. O particionamento e as rejeições
+podem deslocá-la da posição original. Para localizar um registro, conferir arquivo, hash e valores na
+Landing; a posição física garantida dessas fontes permanece pendente em DE-01.
 
 Na Silver, `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_id_registro` (e `_aba_origem` em inspeções) são
 **publicados** como **metadados de rastreio** dos registros aceitos (D11 revisado 2, §5.4); `_data_carga` fica de fora.
@@ -225,15 +227,15 @@ Agora a ingestão escreve em `bronze_stg.*` e a Bronze publicada só é trocada 
 | 6 | confere publicado × preparo e fecha `controle_lote` como `PUBLICADO` (ou `FALHOU`, se divergir) |
 
 **O que isto não garante (declarado, não escondido):** o Delta não tem transação entre tabelas. A troca da etapa 5 é
-tabela a tabela, então uma falha de infraestrutura **no meio dela** deixa um lote misto. Dois mitigadores: a
-conferência da etapa 6 acusa a divergência, e `controle_lote` fica `EM_ANDAMENTO` — o estado parcial é
-**detectável**, e reexecutar corrige (a carga é idempotente). A alternativa atômica de verdade é publicar por *view*
-sobre tabelas de lote, com um único campo marcando o lote completo: a atomicidade passa a ser uma linha só, mas todo
-consumidor passa a ler *view* em vez de tabela. Ficou registrada como evolução possível; o custo/benefício não fecha
-para 10 tabelas e um job mensal.
+tabela a tabela, então uma falha de infraestrutura **no meio dela** pode deixar um lote misto. `controle_lote` fica
+`EM_ANDAMENTO`, mas isso só protege os dados se cada consumidor bloquear a leitura do lote até o status atual ser
+`PUBLICADO`; esse gate ainda não está implementado neste PR e deve entrar com a Silver. A reexecução deve substituir
+todas as tabelas de forma idempotente, mas não foi comprovada com falha induzida seguida de nova execução no Databricks.
+A alternativa atômica por *view* mudaria o contrato de leitura de todos os consumidores; fica como evolução possível,
+sem necessidade de adotá-la agora.
 
-Custo assumido: o lote é escrito **duas vezes** (preparo + publicação). Em troca, a Bronze publicada nunca mostra
-metade de uma carga.
+Custo assumido: o lote é escrito **duas vezes** (preparo + publicação). Uma falha antes da publicação preserva o lote
+anterior; durante a troca, o controle de status precisa ser respeitado pelos consumidores.
 
 ### 2.10 Identidade do arquivo ingerido (D41)
 
@@ -365,7 +367,7 @@ Os registros **aceitos** preservam a linhagem com **metadados técnicos**: `_arq
 abas do Excel). `_data_carga` fica de fora — serve só para ordenar a deduplicação. Não são atributo de negócio (ficam
 fora da completude) e o rastro inteiro segue no `_registro` da quarentena. Em `atendimentos_historico` o rastreio é
 **herdado do protocolo** (a tratativa localiza-se pela linha do protocolo na Bronze). `_ordem_na_origem` é o único
-deles que **volta ao arquivo** (`_arquivo_origem` + `_ordem_na_origem` → linha física na origem, D40); `_id_registro`
+deles que auxilia a busca no arquivo, mas só no Excel prova a linha física (D40); `_id_registro`
 aponta para a linha na tabela Bronze. Um hash pode entrar como **complemento de integridade** (seção 9), mas não
 substitui esses identificadores. A reconciliação **por arquivo/aba** continua disponível na Bronze, e a verificação
 final imprime `bronze.leituras` por arquivo, `bronze.inspecoes` por aba, a identidade dos arquivos do lote
@@ -815,9 +817,9 @@ verificação depois dela (R40):
 | # | Achado | Gravidade | Correção |
 |---|---|---|---|
 | R34 | **Reconciliação por tabela** (item 1): `_arquivo_origem` era rótulo (`leituras/*.csv`) e cada tabela tinha **uma** linha. O §4.3 pede a conta "para cada fonte e lote": um ano das leituras que encolhesse, ou uma aba que sumisse do Excel, não apareceria em lugar nenhum | média | Uma linha por **origem**: 5 em `leituras` e 3 em `inspecoes`, com `_aba_origem` (D39). A Silver passou a **somar por `_tabela`** antes de comparar (§13.1b) — sem isso o confronto daria `DIVERGE` em toda leitura |
-| R35 | **Localizador do registro** (item 2): `_id_registro` acha a linha **na tabela**, não no arquivo; o ADR-0001 (§38) já declarava isso como lacuna do DE-01 | média | `_ordem_na_origem` (D40), publicado também na Silver (D43). Semântica declarada: CSV/Excel → linha física = `_ordem + 1`; JSON → ordinal do objeto; é a ordem de leitura, não garantia do parser |
+| R35 | **Localizador do registro** (item 2): `_id_registro` acha a linha **na tabela**, não no arquivo; o ADR-0001 (§38) já declarava isso como lacuna do DE-01 | média | `_ordem_na_origem` (D40) auxilia a busca e segue à Silver (D43); somente no Excel corresponde à posição física. A garantia para CSV/JSON continua pendente |
 | R36 | **Identidade do arquivo** (item 3): nada provava a **versão** do arquivo ingerido — o mesmo nome retificado na Landing entraria sem diferença visível | média | `bronze.arquivos_lote` com SHA-256, tamanho e modificação (D41); hash calculado no driver por streaming, com `status_hash` explícito quando não for possível |
-| R37 | **Publicação por lote** (item 4): o `raise` do fim da carga protegia só o que **ainda não** tinha sido escrito — as 8 tabelas eram sobrescritas durante a leitura, então uma falha no fim deixava a Bronze metade nova, metade velha (o README declarava a lacuna) | alta | Ingestão escreve em `bronze_stg.*` e publica no fim, com `bronze.controle_lote` e conferência de contagem (D42). Limite declarado: Delta não tem transação entre tabelas — a janela que sobra é a própria publicação, detectável e reparável por reexecução |
+| R37 | **Publicação por lote** (item 4): o `raise` do fim da carga protegia só o que **ainda não** tinha sido escrito — as 8 tabelas eram sobrescritas durante a leitura, então uma falha no fim deixava a Bronze metade nova, metade velha (o README declarava a lacuna) | alta | Ingestão escreve em `bronze_stg.*` e publica no fim, com `bronze.controle_lote` e conferência de contagem (D42). Limite: Delta não tem transação entre tabelas; uma falha durante a troca pode deixar lote misto. O status `EM_ANDAMENTO` só protege consumidores que o verificam; falha induzida seguida de reexecução ainda precisa de evidência no Databricks |
 | R38 | **Efeito colateral de R35 no perfilador:** o `AUDITORIA` do `Bronze_perfilamento.ipynb` não conhecia `_ordem_na_origem`; a coluna entraria como **dado** e, sendo única por arquivo, zeraria a duplicata exata — o mesmo falso negativo que `_id_registro` causava (D8) | alta | Coluna acrescentada ao `AUDITORIA` do perfilador (D43). Nenhum número do perfil muda: as três colunas de lote/posição seguem fora do cálculo |
 
 | R39 | **A célula de dependência não executava** (achado na execução de 19/10): `%pip install openpyxl` estava numa célula **markdown** (a conversão `.py → .ipynb` tratou `# MAGIC %pip` como markdown), então nunca instalava nada. A carga parou na seção 6 com `ImportError: Missing optional dependency 'openpyxl'` — ambiente serverless sem o pacote | alta | Célula passou a ser **de código** (o conversor agora distingue `%md` de comando mágico) e a seção 6 traduz o `ImportError` do pandas numa mensagem que diz o que rodar. Nada muda no dado; muda o notebook abrir e executar |
