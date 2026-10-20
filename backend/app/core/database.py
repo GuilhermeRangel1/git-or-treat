@@ -1,7 +1,8 @@
 from typing import Generator
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy.orm import sessionmaker, Session
 from app.core.config import settings
+from app.db.base import Base
 
 # Configuração de engine e pool de conexões otimizado para PostgreSQL
 engine_kwargs = {
@@ -25,9 +26,6 @@ else:
 engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
-
 
 def get_db() -> Generator[Session, None, None]:
     """Dependency that provides a database session and ensures closure."""

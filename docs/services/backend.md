@@ -22,7 +22,6 @@ Nas ordens, endpoints HTTP validam os schemas de entrada/saída e delegam opera�
 | IA | Consulta controlada às Gold e trilha da resposta | Credencial somente leitura, allowlist de tabelas, limite/timeout de consultas |
 
 O case não prescreve nomes de rota. As rotas HTTP iniciais já existem, mas seus contratos analíticos são placeholders, não funcionalidades concluídas. Definir e versionar contratos JSON, paginação, erros, tipos, nulidade e exemplos sem dados pessoais junto do frontend e agente.
-
 Para a fronteira com a GenAI, há uma proposta pendente de revisão para o Backend controlar as consultas Gold por um contrato estruturado, sem SQL livre do agente ([ADR-0002](../decisions/0002-genai-gold-query-owner.md)). A rota `/api/v1/ai/query` existente é apenas scaffold e ainda não consulta dados.
 
 ### Envelope conceitual de uma resposta analítica

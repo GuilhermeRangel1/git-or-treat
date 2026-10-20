@@ -3,7 +3,7 @@ Modelos analíticos alimentados pela camada Gold (CSVs exportados pelo pipeline)
 Tratados como SOMENTE LEITURA pelo portal e pelo agente de IA.
 """
 from sqlalchemy import Column, String, Integer, BigInteger, Numeric, Index
-from app.core.database import Base
+from app.db.base import Base
 
 
 class GoldIndicador(Base):

@@ -55,6 +55,22 @@ jobs:
     name: Qualidade do backend
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: venergy_test
+          POSTGRES_PASSWORD: venergy_test
+          POSTGRES_DB: v_energy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U venergy_test -d v_energy_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_POSTGRES_URL: postgresql+psycopg://venergy_test:venergy_test@localhost:5432/v_energy_test
 
     defaults:
       run:
