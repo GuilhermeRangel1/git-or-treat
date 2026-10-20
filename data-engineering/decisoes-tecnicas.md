@@ -8,7 +8,7 @@ escolha e um registro de decisões com evidência.
 Regras deste documento:
 
 - **Fonte de verdade:** o [PRD](../docs/PRD.md) (IDs, estados, critérios) e o
-  [ADR-0001](../docs/decisions/0001-reconciliacao-e-captura-de-registros-malformados.md). Em divergência, PRD e ADR
+  [ADR-0003](../docs/decisions/0003-reconciliacao-e-captura-de-registros-malformados.md). Em divergência, PRD e ADR
   vencem; aqui é a leitura consolidada.
 - **Só entra afirmação com número ou prova.** Todo número citado vem do perfil da Bronze
   (`quality.perfil_bronze`, execução de 17/10/2026, 113 linhas), da reconciliação da ingestão
@@ -56,7 +56,7 @@ Cada seta só existe se a anterior fechou a conta. As duas contas que governam o
 | # | Camada | Decisão | Por quê (motivo) | Evidência / número | Estado |
 |---|---|---|---|---|---|
 | D1 | Bronze | Schema explícito **100% string** | Bronze não interpreta tipo; tipo é decisão da Silver | `Landing_to_Bronze.ipynb` §0 | implementado |
-| D2 | Bronze | `_corrupt_record` para erros de parse; largura CSV validada antes do Spark | `PERMISSIVE` pode completar campos ausentes e descartar excedentes sem marcá-los | ADR-0001; autoteste da guarda CSV (2 divergências bloqueadas) e JSON 1/1 | revisão local 19/10; falta executar no Databricks |
+| D2 | Bronze | `_corrupt_record` para erros de parse; largura CSV validada antes do Spark | `PERMISSIVE` pode completar campos ausentes e descartar excedentes sem marcá-los | ADR-0003; autoteste da guarda CSV (2 divergências bloqueadas) e JSON 1/1 | revisão local 19/10; falta executar no Databricks |
 | D3 | Bronze | Colunas de auditoria `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro`, `_data_carga` (+`_aba_origem`) | rastrear lote e identificar a origem | `_id_registro` localiza na Bronze; `_ordem_na_origem` auxilia a busca, com limite em D40 | implementado, **revisado** |
 | D4 | Bronze | `unionByName(..., allowMissingColumns=True)` nos 5 arquivos de leitura | coluna ausente num ano vira `null` em vez de derrubar a leitura | 5 arquivos 2022–2026 | implementado |
 | D5 | Bronze | Carga por **`overwrite`** (não `append`), **na área de preparo** (`bronze_stg`) | a extração vem completa; sem isso, rodar 2× dobraria a base; e preparo separado permite trocar a publicada só no fim | 2.184.623 faturas virariam 4.369.246 | implementado, **revisado (D42)** |
@@ -118,7 +118,7 @@ Bronze** e a tipagem é a primeira coisa que a Silver faz.
 
 ### 2.3 Captura de registro malformado (D2)
 
-Alternativas testadas no ADR-0001: `badRecordsPath` (arquivo lateral) **gravou 0 bytes** com corrupção certa e não
+Alternativas testadas no ADR-0003: `badRecordsPath` (arquivo lateral) **gravou 0 bytes** com corrupção certa e não
 pode ser combinado com `mode=overwrite`. A validação externa para fazer todo o parse foi descartada;
 a revisão de 19/10 usa `csv.reader` somente para conferir a largura em fluxo contínuo.
 Decisão: `columnNameOfCorruptRecord="_corrupt_record"` com schema explícito — a linha ruim
@@ -525,7 +525,7 @@ links da documentação estão íntegros — não que as contas fecham.
    revisão:** o perfil mede os três (o dict `CHAVES` dele inclui as duas fontes e o laço dele checa `mes_referencia`
    nas duas); a Silver passou a aplicar `mes_referencia_invalido` em `leituras` e a deduplicar `ocorrencias_rede` e
    `atendimentos`. Não era "sem número" — era número não capturado na nota.
-6. **Quarentena dos rejeitados da Bronze.** A ADR-0001 deixou em aberto: decidir se `bronze.rejeitados` é
+6. **Quarentena dos rejeitados da Bronze.** A ADR-0003 deixou em aberto: decidir se `bronze.rejeitados` é
    reprocessado ou apenas auditado (hoje sem linhas).
 7. **Divergências conscientes Silver × perfil.** A verificação final pode divergir do perfil por (a) `vazio` mais
    estrito na Silver (placeholder), (b) cascata de órfão (FK validada na Silver, não na Bronze) e (c) chave repetida
@@ -810,14 +810,14 @@ produto** (D38): documentada no notebook (§14.7) e na seção 10 item 9. O hash
 
 **Revisão da contribuição do colega (19/10/2026)** — quatro itens propostos na revisão do PR #8, todos aceitos, mais
 o efeito colateral que a revisão dele não previa (o perfilador). Os itens 2 e 3 fecham lacunas que o **próprio
-ADR-0001** já declarava; os outros dois são da mesma família (rastreabilidade e momento da falha). O **R39** e o
+ADR-0003** já declarava; os outros dois são da mesma família (rastreabilidade e momento da falha). O **R39** e o
 **R40** não vêm da revisão: apareceram na primeira execução real no Databricks (R39) e na revisão do código de
 verificação depois dela (R40):
 
 | # | Achado | Gravidade | Correção |
 |---|---|---|---|
 | R34 | **Reconciliação por tabela** (item 1): `_arquivo_origem` era rótulo (`leituras/*.csv`) e cada tabela tinha **uma** linha. O §4.3 pede a conta "para cada fonte e lote": um ano das leituras que encolhesse, ou uma aba que sumisse do Excel, não apareceria em lugar nenhum | média | Uma linha por **origem**: 5 em `leituras` e 3 em `inspecoes`, com `_aba_origem` (D39). A Silver passou a **somar por `_tabela`** antes de comparar (§13.1b) — sem isso o confronto daria `DIVERGE` em toda leitura |
-| R35 | **Localizador do registro** (item 2): `_id_registro` acha a linha **na tabela**, não no arquivo; o ADR-0001 (§38) já declarava isso como lacuna do DE-01 | média | `_ordem_na_origem` (D40) auxilia a busca e segue à Silver (D43); somente no Excel corresponde à posição física. A garantia para CSV/JSON continua pendente |
+| R35 | **Localizador do registro** (item 2): `_id_registro` acha a linha **na tabela**, não no arquivo; o ADR-0003 (§38) já declarava isso como lacuna do DE-01 | média | `_ordem_na_origem` (D40) auxilia a busca e segue à Silver (D43); somente no Excel corresponde à posição física. A garantia para CSV/JSON continua pendente |
 | R36 | **Identidade do arquivo** (item 3): nada provava a **versão** do arquivo ingerido — o mesmo nome retificado na Landing entraria sem diferença visível | média | `bronze.arquivos_lote` com SHA-256, tamanho e modificação (D41); hash calculado no driver por streaming, com `status_hash` explícito quando não for possível |
 | R37 | **Publicação por lote** (item 4): o `raise` do fim da carga protegia só o que **ainda não** tinha sido escrito — as 8 tabelas eram sobrescritas durante a leitura, então uma falha no fim deixava a Bronze metade nova, metade velha (o README declarava a lacuna) | alta | Ingestão escreve em `bronze_stg.*` e publica no fim, com `bronze.controle_lote` e conferência de contagem (D42). Limite: Delta não tem transação entre tabelas; uma falha durante a troca pode deixar lote misto. O status `EM_ANDAMENTO` só protege consumidores que o verificam; falha induzida seguida de reexecução ainda precisa de evidência no Databricks |
 | R38 | **Efeito colateral de R35 no perfilador:** o `AUDITORIA` do `Bronze_perfilamento.ipynb` não conhecia `_ordem_na_origem`; a coluna entraria como **dado** e, sendo única por arquivo, zeraria a duplicata exata — o mesmo falso negativo que `_id_registro` causava (D8) | alta | Coluna acrescentada ao `AUDITORIA` do perfilador (D43). Nenhum número do perfil muda: as três colunas de lote/posição seguem fora do cálculo |
@@ -877,7 +877,7 @@ falha no meio deixa tabelas de versões diferentes — visível na §13 e repar�
 ## 12. Referências
 
 - [PRD](../docs/PRD.md) — IDs DE-01 a DE-09; §4 (regras de tratamento, perfil, reconciliação), §5 (arquitetura), §6.1.
-- [ADR-0001 — reconciliação e captura de registros malformados](../docs/decisions/0001-reconciliacao-e-captura-de-registros-malformados.md).
+- [ADR-0003 — reconciliação e captura de registros malformados](../docs/decisions/0003-reconciliacao-e-captura-de-registros-malformados.md).
 - [Serviço: engenharia de dados](../docs/services/data-engineering.md) — contrato por camada e invariantes.
 - [Dicionário de dados Gold](../docs/data-dictionary.md) — a preencher em DE-08.
 - [Workflow de desenvolvimento e qualidade](../docs/agents/workflow.md).

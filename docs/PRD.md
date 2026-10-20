@@ -453,6 +453,136 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-19 — IA-01, IA-02, IA-03 e IA-06 — prova técnica de reuso do núcleo GenAI
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; a prova usa exclusivamente perfis e fontes artificiais, sem números reconciliados com a Gold.
+- Mudança observável para usuário/negócio: a mesma composição do núcleo atende perguntas sobre energia e clima artificial com vocabulários, métricas, unidades e escopos diferentes. API e chamada direta preservam fundamentação, ausência de evidência, recusa e erros controlados. Instâncias simultâneas não compartilham permissão, resultado, cache nem eventos indevidamente.
+- Arquivos/commit/PR: `ai-agent/tests/weather_fixture.py`, `tests/test_reusable_core.py`, `tests/test_import_boundaries.py`, [guia de reuso](services/ai-agent-reuse.md), [guia do serviço](services/ai-agent.md) e [README do GenAI](../ai-agent/README.md); commits locais registrados nesta branch, sem PR aberto para este recorte.
+- Dados usados: apenas medidas e localidades inventadas nas fixtures do Grid 360 e de clima; nenhum dataset do case ou dado pessoal real.
+- Verificações: em `ai-agent/`, `python -m pytest -q` passou com 301 testes; `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` aprovou 13/13; Ruff e compilação passaram. `git diff --check` passou na raiz. A matriz de conformidade cobre sucesso, vazio, filtro sem suporte declarado, acesso negado, resposta inválida, campo sensível, limite, timeout, cancelamento e proveniência, além de cache/fallback, autorização de insight sintético e dois perfis. A revisão adicional cobre município desconhecido em minúsculas sem alargar o filtro, preservação de expressões conhecidas como “na classe residencial” e “no município de Olinda”, referência opaca no insight, limites do catálogo coerentes com plano/resposta e descarte de saída não fundamentada no cache.
+- Reconciliação ou amostra manual: consumo artificial `420 unidades fictícias` e chuva artificial `12 mm fictícios` foram retornados por composições independentes sem edição de `app/agent/`. Esses valores não representam métricas reais nem decisões operacionais.
+- Critérios de aceite revisados e pendências: IA-01/IA-02 exigem vocabulário e respostas sobre o Grid 360 oficial; IA-03 exige fonte Gold reproduzível; IA-06 exige identidade, executor e permissões somente leitura reais. A referência da fonte é exposta como ID opaco estável após validação; a reprodução operacional dependerá do vínculo mantido pelo adaptador real. O insight sintético verifica perfil/fonte/escopo de leitura, mas seus filtros e métrica enviados pelo cliente não provam autorização de uma consulta Gold. O contrato externo com Backend/Dados (4.1), esquema Gold e revisão de segurança permanecem pendentes. Reuso do núcleo não implica compatibilidade automática com qualquer banco ou regra de negócio.
+- Responsável/revisor: Codex (implementação e verificação sintética); integração/revisão com Backend, Dados e Segurança pendentes.
+
+### 2026-10-19 — IA-03 e IA-06 — rastreabilidade segura do núcleo GenAI sintético
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; a trilha local não comprova consulta Gold nem auditoria durável.
+- Mudança observável para usuário/negócio: perguntas e insights geram eventos internos por estágio com correlação, resultado, código, duração, quantidades, versões e fingerprints do plano e da referência, sem registrar texto da pergunta, histórico, exceções ou linhas. Recusas HTTP também preservam o ID de correlação. Se auditoria durável for exigida na composição, destino ausente ou com falha impede a execução antes da consulta.
+- Arquivos/commit/PR: commit `df6fc04`, `ai-agent/app/ports/events.py`, `app/agent/planner.py`, orquestradores, `app/agent/composition.py`, `app/api/routes.py`, `app/main.py`, `app/schemas/responses.py`, `ai-agent/tests/test_safe_events.py`, `tests/test_core_composition.py` e [guia do serviço](services/ai-agent.md).
+- Dados usados: perfil e fixtures sintéticas, referências e segredos artificiais nos testes; nenhum dado bruto ou pessoal real.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (259 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram em 19/10/2026; `git diff --check` passou na raiz. Os testes cobrem sucesso, recusa, erros de fonte/modelo, cancelamento, fallback, sanitização da referência e falha de destino opcional/obrigatório.
+- Reconciliação ou amostra manual: evento de falha sintética pode ser localizado pelo mesmo ID de correlação HTTP e pelo estágio, com código fixo; nenhuma evidência Gold foi reconciliada.
+- Critérios de aceite revisados e pendências: IA-03 ainda exige fonte/consulta Gold reproduzível e IA-06 requer identidade verificada, credencial de banco somente leitura, controles reais e teste integrado. O destino padrão descarta eventos; `durable=True` é contrato de adaptador, não comprovação de persistência. Retenção, controle de acesso e coleta distribuída continuam pendentes.
+- Responsável/revisor: Codex (implementação e testes sintéticos); revisão de integração com Backend/Dados e política de auditoria pendentes.
+
+### 2026-10-18 — IA-01, IA-03, IA-04 e IA-06 — composição do núcleo GenAI sintético
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; os testes comprovam composição e substituição de dependências, sem números reconciliados com Gold ou integração ao portal.
+- Mudança observável para usuário/negócio: perguntas e insights passam por casos de uso compostos com perfil, política, fonte, modelo, limites e destino opcional de eventos injetados. A resposta sintética mantém fundamentação por IDs de observação e falhas controladas. A API preserva o contrato público `v1`.
+- Arquivos/commit/PR: commit `7cad797`, `ai-agent/app/agent/composition.py`, `app/generation/prompts.py`, `app/ports/events.py`, `app/main.py`, orquestradores, adaptadores, `ai-agent/tests/test_core_composition.py`, [README do serviço](../ai-agent/README.md) e [guia do serviço](services/ai-agent.md).
+- Dados usados: perfil e fixtures sintéticas do Grid 360, fonte/modelos falsos e cliente falso do Gemini; nenhum dataset ou banco Gold.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (251 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), Ruff, compilação e `git diff --check` passaram em 18/10/2026. Testes exercitam chamada direta e HTTP, substituição entre modelo falso/Gemini/fallback, recusa antes da fonte, insight injetado, falha do destino de eventos e importação do núcleo sem FastAPI, fixture ou SDK.
+- Reconciliação ou amostra manual: resposta demonstrativa de consumo `420 unidades fictícias` resulta do mesmo plano e evidência aprovada com adaptadores de modelo distintos; não representa consumo real.
+- Critérios de aceite revisados e pendências: IA-01 e IA-03 exigem catálogo Gold oficial e reconciliação; IA-04 exige insight com contexto autorizado no portal; IA-06 exige identidade verificada, executor somente leitura, controles do banco e prova integrada. O evento mínimo não é auditoria durável; detalhamento e política de falha pertencem a 4.12.
+- Responsável/revisor: Codex (implementação e testes sintéticos); validação de integração com Backend/Dados e revisão do produto pendentes.
+
+### 2026-10-18 — IA-06 — limites de execução e isolamento do cache no protótipo GenAI
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; os controles assíncronos foram exercitados com fonte e modelo falsos, sem consulta Gold real.
+- Mudança observável para usuário/negócio: o fluxo limita duração, chamadas e concorrência de fonte/modelo e retorna falha controlada quando o orçamento acaba. O cache opcional só reutiliza uma resposta após autorização e com identidade, permissões, plano, catálogo e evidência compatíveis. O fallback avança apenas após falha transitória.
+- Arquivos/commit/PR: commit `9ae3326`, `ai-agent/app/agent/execution.py`, orquestradores, planner, adaptadores de cache/fallback/Gemini, configuração, testes em `ai-agent/tests/`, [README do serviço](../ai-agent/README.md) e [guia do serviço](services/ai-agent.md).
+- Dados usados: fixtures e identidades sintéticas; nenhum dataset, credencial, pessoa real ou esquema Gold oficial.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (240 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram em 18/10/2026; `git diff --check` passou na raiz. Testes controlados verificam fonte/modelo lentos, cancelamento, liberação de vagas, concorrência, isolamento por chamador, recusa antes de cache, limite de chamadas e parada do fallback em erro definitivo.
+- Reconciliação ou amostra manual: duas identidades fictícias com a mesma pergunta/evidência causam gerações separadas; escopo negado não alcança o cache. Nenhuma medida de latência ou cancelamento foi feita contra o banco ou SDK real.
+- Critérios de aceite revisados e pendências: IA-06 ainda exige autenticação real, permissões e credencial somente leitura no banco, limites do executor Gold, validação de eventual SQL e teste integrado. Cancelamento de coroutine não comprova interrupção de trabalho síncrono ou remoto; cada adaptador concreto precisa impor seu timeout e demonstrar limpeza de recursos.
+- Responsável/revisor: Codex (implementação e verificação sintética); revisão de Backend, Dados e Segurança pendente para a fonte real.
+
+### 2026-10-18 — IA-03, IA-04 e IA-06 — proteção de evidência e saída no protótipo GenAI
+
+- Estado anterior → novo estado: `Pendente` → `Pendente` para os três requisitos; esta entrega protege o caminho sintético, sem validar dados Gold ou integração com o portal.
+- Mudança observável para usuário/negócio: a resposta de pergunta usa apenas observações aprovadas da fonte e apresenta métrica, valor, unidade, período e referência. O texto quantitativo livre do modelo não é publicado. Insights locais usam IDs de observação válidos; em modo real sem identidade confiável, o contexto enviado pelo navegador não é tratado como evidência autorizada.
+- Arquivos/commit/PR: `ai-agent/app/agent/evidence_guard.py`, orquestradores de pergunta e insight, perfil e contratos de evidência, adaptadores e testes de `ai-agent/tests/`; commit `8a72304` na branch de fundação GenAI.
+- Dados usados: catálogos e fixtures artificiais de energia e clima, incluindo valores pessoais e instruções maliciosas fictícias nos testes; nenhum dado identificável real ou esquema Gold oficial.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (209 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram em 18/10/2026. `tests/test_evidence_guard.py` cobre 17 casos; `git diff --check` passou na raiz.
+- Reconciliação ou amostra manual: a proveniência vincula o resultado ao plano lógico e ao catálogo local; isso detecta incompatibilidades, mas não comprova que uma fonte externa executou fielmente o plano. Valores, fórmulas, qualidade e permissões Gold ainda exigem verificação independente.
+- Critérios de aceite revisados e pendências: a fonte deve fornecer origem, referência, versão, recorte e unidade compatíveis; campos não classificados são descartados antes do modelo. IA-03 ainda exige amostra reproduzível da Gold; IA-04 exige insight na tela real; IA-06 exige autorização e leitura somente leitura na execução concreta. Limites de tempo, cache, fallback e observabilidade pertencem aos próximos checkpoints.
+- Responsável/revisor: Codex (implementação sintética); revisão por Backend, Dados e Segurança pendente para integração real.
+
+### 2026-10-18 — IA-06 — plano lógico de leitura no protótipo GenAI
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; o plano sintético é um controle anterior à fonte, sem comprovar consulta Gold segura.
+- Mudança observável para usuário/negócio: a fonte recebe um plano aprovado com métrica e filtros lógicos, unidade, período e limite. Filtro ou comparação sem representação no catálogo gera esclarecimento antes de consultar dados; a entrada não é simplificada silenciosamente.
+- Arquivos/commit/PR: `ai-agent/app/schemas/read_plan.py`, `app/agent/read_plan.py`, planner, porta de evidência, adaptador sintético, testes em `ai-agent/tests/` e [guia do serviço](services/ai-agent.md); commit `17254ce` na branch de fundação GenAI.
+- Dados usados: catálogos artificiais de energia e clima e fixtures sintéticas; nenhum dataset, dado pessoal ou esquema Gold oficial.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (189 passaram), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram em 18/10/2026; `git diff --check` passou na raiz. Testes confirmam plano aprovado idêntico ao recebido pela fonte, dois catálogos, bloqueio de escrita, IDs/operadores/valores/grão/limite inválidos e escopo restrito.
+- Reconciliação ou amostra manual: a fixture de consumo continua retornando 420 unidades fictícias e a regressão sintética preserva os 13 resultados; não houve reconciliação com Gold.
+- Critérios de aceite revisados e pendências: IA-06 continua sem autenticação real, resolução de período e grão Gold, AST/dialeto para eventual SQL textual, execução com credencial somente leitura e prova no banco. O plano lógico aprovado não torna SQL arbitrário seguro.
+- Responsável/revisor: Codex (implementação e verificação sintética); revisão dos contratos e limites reais por Backend e Engenharia de Dados pendente.
+
+### 2026-10-18 — IA-06 — política de acesso sintética na GenAI
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`; a proteção demonstrativa é evidência técnica parcial, sem autorização Gold.
+- Mudança observável para usuário/negócio: perguntas e insights em modo real sem identidade verificada são recusados antes de acessar fonte ou modelo. No modo local, um principal fictício permite somente leitura de métricas e dimensões autorizadas no catálogo sintético. O corpo da requisição não concede permissão.
+- Arquivos/commit/PR: `ai-agent/app/schemas/access.py`, `app/agent/access.py`, `app/api/access.py`, planner, orquestradores, rotas, `ai-agent/tests/test_access_policy.py` e [guia do serviço](services/ai-agent.md); commit `87a8a16` na branch de fundação GenAI.
+- Dados usados: perfil e fontes sintéticas; nenhum dataset, dado pessoal ou consulta Gold.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (171 passaram em 18/10/2026), `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` (13 casos, 0 falhas), `python -m ruff check .` e `python -m compileall -q app tests` passaram; `git diff --check` passou na raiz. Testes com spies cobrem falta/adulteração de escopo, a mesma pergunta sob duas permissões, escrita, dados pessoais, limite HTTP, histórico que alega permissão e ausência de nova consulta causada por texto de evidência.
+- Reconciliação ou amostra manual: o teste HTTP confirma recusa sem identidade no modo real e rejeição de campo `trusted` no payload. Não houve comparação quantitativa com Gold.
+- Critérios de aceite revisados e pendências: a política checa fonte, operação, métrica, dimensão e sensibilidade antes da porta de evidência; autenticação do portal, derivação de permissões oficiais, validação de consulta concreta, credencial somente leitura, proteção completa da saída e reconciliação com Gold continuam pendentes. IA-06 não está concluído.
+- Responsável/revisor: Codex (implementação e verificação local); revisão de Backend, Segurança e Engenharia de Dados pendente para integração real.
+
+### 2026-10-20 — revisão da evidência sintética e ativação explícita do acesso demonstrativo
+
+- Estado anterior → novo estado: IA-01 e IA-06 permanecem `Pendente`; esta revisão melhora o protótipo e não comprova integração com Gold ou autenticação real.
+- Mudança observável: observações multirregistro podem conservar período ISO e dimensão catalogada em cada linha; a resposta quantitativa identifica esses recortes. O principal fictício só é concedido quando `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true` forem definidos explicitamente.
+- Arquivos: `ai-agent/app/agent/evidence_guard.py`, `app/agent/orchestrator.py`, `app/schemas/domain_profile.py`, `app/api/access.py`, `app/config.py`, `app/main.py`, testes de evidência e acesso e guia do serviço. `app/agent/grounding.py`, sem consumidores, foi removido.
+- Dados usados: perfis e linhas inteiramente sintéticos; nenhum registro Gold ou dado pessoal.
+- Verificações: em `ai-agent/`, `python -m pytest -q` passou com 309 testes; `python -m ruff check .`, `python -m compileall -q app tests` e `git diff --check` passaram. A suíte foi executada fora do sandbox porque nele os sockets locais necessários ao event loop do Windows ficam bloqueados.
+- Critérios de aceite e pendências: período e dimensão só atravessam a fronteira se classificados e validados; valores livres não entram. A janela por frase ainda não prova que as competências retornadas pertencem ao intervalo, e a origem dos dados continua sintética. Validar contrato/permissões Gold antes de concluir IA-01 ou IA-06.
+
+### 2026-10-18 — proposta de propriedade da consulta Gold pelo Backend
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; registrada uma proposta para revisão conjunta sobre a propriedade da consulta Gold.
+- Mudança observável para usuário/negócio: nenhuma. O endpoint atual de IA no Backend continua sendo placeholder e não consulta dados Gold.
+- Arquivos/commit: proposta em [ADR-0002](decisions/0002-genai-gold-query-owner.md); estado atual da rota descrito no guia do Backend.
+- Dados usados: código e contratos atuais do Backend/GenAI, PRD e dicionário Gold; nenhum dado real ou pessoal.
+- Verificações: inspeção do endpoint `/api/v1/ai/query` confirmou que valida nomes contra uma lista fixa e devolve `records: []`; o modelo `GoldIndicador` é o único modelo analítico encontrado. A comparação não demonstra consulta, autorização somente leitura ou catálogo Gold funcional.
+- Reconciliação ou amostra manual: a proposta recomenda Backend como dono da execução para centralizar autorização e consulta para portal e agente; não fixa tabelas, métricas ou fórmulas ainda não aprovadas.
+- Critérios de aceite revisados e pendências: proposta aguarda revisão de Backend e Engenharia de Dados. P-04, esquema/carga Gold e contrato entre serviços continuam abertos; nenhum requisito IA ou DE mudou de estado.
+- Responsável/revisor: Codex (proposta); confirmação pelos responsáveis de Backend e Engenharia de Dados pendente.
+
+### 2026-10-18 — fronteira interna de evidências da GenAI
+
+- Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; o fluxo interno do agente passa a depender de uma porta de evidências implementada atualmente pelo adaptador sintético.
+- Mudança observável para usuário/negócio: nenhuma mudança no contrato HTTP; a troca da implementação de evidências não altera a resposta pública.
+- Arquivos/commit: `ai-agent/app/tools/evidence.py`, `ai-agent/app/tools/synthetic_analytics.py`, `ai-agent/app/agent/planner.py`, `ai-agent/app/agent/orchestrator.py`, `ai-agent/tests/` e [guia do serviço GenAI](services/ai-agent.md).
+- Dados usados: somente cenários sintéticos versionados; nenhuma consulta Gold ou dado real/pessoal.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (118 passaram), `python -m ruff check app tests`, `python -m compileall -q app tests` e `git diff --check` passaram fora do sandbox. Dentro do sandbox Windows, o event loop trava ao criar o `socketpair` local em `socket.accept`, antes de executar a aplicação.
+- Reconciliação ou amostra manual: `tests/test_evidence_api.py` envia pergunta a `POST /api/v1/questions` com uma fonte alternativa à fixture e confirma que resposta e referência vêm desse adaptador. O planner mantém esclarecimento antes da consulta, filtros corrigidos e proveniência.
+- Critérios de aceite revisados e pendências: a porta é interna e provisória; não define schema, métricas, fórmulas nem contrato HTTP entre serviços e não executa SQL. A proposta 4.1 aguarda revisão de Backend e Engenharia de Dados; integração Gold e todos os requisitos funcionais de IA continuam pendentes.
+- Responsável/revisor: Codex (implementação); revisão do contrato pelos responsáveis de Backend e Engenharia de Dados pendente.
+
+### 2026-10-18 — limite de payload no contrato interno de evidências
+
+- Estado anterior → novo estado: requisitos funcionais continuam `Pendente`; o contrato interno valida o tamanho e a estrutura da evidência antes de repassá-la ao modelo.
+- Mudança observável para usuário/negócio: fonte que retorna mais de 100 registros ou uma resposta inválida recebe erro recuperável genérico antes da geração.
+- Arquivos/commit: `ai-agent/app/tools/evidence.py`, `ai-agent/app/agent/planner.py`, testes de contrato/fluxo e guia do serviço GenAI.
+- Dados usados: fixtures sintéticas e resultados artificiais, sem dataset, Gold ou dados pessoais.
+- Verificações: em `ai-agent/`, `python -m pytest -q` (121 passaram), `python -m compileall -q app tests` e `python -m ruff check .` passaram; na raiz, `git diff --check` passou fora do sandbox Windows.
+- Reconciliação ou amostra manual: teste cobre resultado com mais de 100 registros, metadado de referência ausente e erro público genérico; cenários existentes cobrem filtro não suportado e ausência de evidência.
+- Critérios de aceite revisados e pendências: limite de payload e tratamento de contrato inválido estão cobertos; timeout, autorização por identidade confiável, allowlist do executor e auditoria/correlação da consulta Gold continuam pendentes de decisão e integração com Backend/Dados. Nenhum requisito IA/DE mudou de estado.
+- Responsável/revisor: Codex; revisão da política de acesso e auditoria por Backend e Engenharia de Dados pendente.
+
+### 2026-10-18 — contratos e tratamento de falhas do protótipo GenAI
+
+- Estado anterior → novo estado: requisitos IA permanecem Pendente; os contratos internos e a fronteira de evidências do protótipo foram reforçados, sem integração com Gold.
+- Mudança observável para usuário/negócio: o fluxo demonstrativo distingue recusa, ausência de evidência e indisponibilidade; saídas inválidas da fonte ou do modelo resultam em erro controlado, sem resposta quantitativa infundada.
+- Arquivos/commits: contratos em ai-agent/app/schemas/, porta em ai-agent/app/ports/evidence.py, adaptador sintético, planner, orquestradores e testes em ai-agent/tests/; limites e dependências descritos em docs/services/ai-agent.md.
+- Dados usados: fixtures sintéticas identificadas como demonstração e fontes falsas; nenhum dado Gold, pessoal ou bruto foi usado.
+- Verificações: em ai-agent/, python -m pytest -q (148 passaram), python -m compileall -q app tests e python -m ruff check .; na raiz, git diff --check. Os testes incluem contratos, endpoints, falhas da fonte, recusa, concorrência e cancelamento com fontes falsas.
+- Reconciliação ou amostra manual: as expectativas dos testes sintéticos são fixadas separadamente do código testado; não houve reconciliação numérica com Gold.
+- Critérios de aceite revisados e pendências: nenhum requisito IA foi concluído. Permanecem necessários catálogo e métricas Gold aprovados, autorização efetiva, consulta somente leitura na fonte real, reconciliação e integração com backend e portal.
+- Responsável/revisor: Codex (implementação e verificação local); revisão de Backend e Engenharia de Dados pendente para o contrato real.
+
 ### 2026-10-16 — IA-07 — protótipo de follow-up contextual
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; o protótipo local cobre parte do comportamento, mas não conclui o diferencial no produto integrado.
@@ -535,7 +665,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 - Estado anterior → novo estado: `Pendente` → `Em validação`; a ingestão roda e a conta fecha, mas o PR #8 ainda não foi revisado e a reconciliação não registra o hash do arquivo de origem (§4.3).
 - Mudança observável para usuário/negócio: a Bronze passa a devolver, por fonte, quantas linhas físicas de origem foram lidas, quantas viraram linha da tabela e quantas foram rejeitadas. Registro malformado deixa de ser descartado em silêncio: vai para `bronze.rejeitados` com o conteúdo bruto, e `bronze.reconciliacao` fecha a conta com `delta = 0`.
-- Arquivos/commit/PR: `data-engineering/notebook/Landing_to_Bronze.ipynb` (reescrito, então `01_bronze.py`), `data-engineering/notebook/Bronze_perfilamento.ipynb` (colunas de auditoria no perfilamento e deduplicação restrita às colunas de negócio, então `02_perfilamento.py`), [ADR-0001](decisions/0001-reconciliacao-e-captura-de-registros-malformados.md), `docs/services/data-engineering.md` e este PRD; branch `feat/bronze`, PR #8 (ainda sem revisão).
+- Arquivos/commit/PR: `data-engineering/notebook/Landing_to_Bronze.ipynb` (reescrito, então `01_bronze.py`), `data-engineering/notebook/Bronze_perfilamento.ipynb` (colunas de auditoria no perfilamento e deduplicação restrita às colunas de negócio, então `02_perfilamento.py`), [ADR-0003](decisions/0003-reconciliacao-e-captura-de-registros-malformados.md), `docs/services/data-engineering.md` e este PRD; branch `feat/bronze`, PR #8 (ainda sem revisão).
 - Dados usados (versão/fonte; sem anexar dados sensíveis): extração do case com as 8 fontes, no Volume `/Volumes/workspace/default/venergy`; dados brutos não versionados (`.gitignore`).
 - Verificações: execução completa do notebook na Databricks Free Edition em 17/10/2026, sem erro. Contagens: unidades_consumidoras 46.461, medidores 51.812, ocorrencias_rede 180.000, geracao_distribuida 3.510, faturas 2.184.623, leituras 2.182.468, atendimentos 318.871, inspecoes 1.389 (abas 511 + 383 + 495). `bronze.reconciliacao` com `delta = 0` em todas as linhas; `atendimentos` sai como `SEM_BASE` e `inspecoes` com `linhas_arquivo = null` (esperado). Autoteste de registros malformados `OK` nos dois leitores (CSV 1 válida/2 rejeitadas; JSON 1 válida/1 rejeitada). `bronze.rejeitados` sem linhas. `python -m py_compile` local nos dois notebooks.
 - Reconciliação ou amostra manual: `bronze.leituras` conferida contra a contagem física do Volume — 2.182.473 linhas menos 5 cabeçalhos = 2.182.468, igual à tabela. As demais fontes fecham por aritmética dentro do próprio notebook (§4.3).
@@ -643,7 +773,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 - Estado anterior → novo estado: DE-01 `Em validação` → `Em validação`; DE-02 permanece `Pendente`.
 - Mudança observável: antes de ler cada CSV, a Bronze confere a quantidade de campos com o cabeçalho e bloqueia o lote com contagem e linhas de exemplo se houver divergência. O autoteste usa dois registros de largura incorreta para verificar esse bloqueio. O perfilador registra `NAO_EXECUTADA` em `quality.perfil_bronze` quando uma coluna esperada falta. O limite da ordem de leitura em CSV/JSON passa a ser declarado corretamente.
-- Arquivos/branch: `data-engineering/notebook/Landing_to_Bronze.ipynb`, `data-engineering/notebook/Bronze_perfilamento.ipynb`, `data-engineering/decisoes-tecnicas.md`, `docs/decisions/0001-reconciliacao-e-captura-de-registros-malformados.md`, `data-engineering/README.md` e este PRD; `feat/bronze`, sem commit nesta etapa.
+- Arquivos/branch: `data-engineering/notebook/Landing_to_Bronze.ipynb`, `data-engineering/notebook/Bronze_perfilamento.ipynb`, `data-engineering/decisoes-tecnicas.md`, `docs/decisions/0003-reconciliacao-e-captura-de-registros-malformados.md`, `data-engineering/README.md` e este PRD; `feat/bronze`, sem commit nesta etapa.
 - Dados usados: nenhum arquivo real do case foi aberto localmente. A guarda é baseada no contrato de CSV e nos registros sintéticos do autoteste; a execução histórica de 19/10/2026 precede esta alteração.
 - Verificações locais (script auxiliar não versionado): as células Python dos dois notebooks compilaram; com arquivos sintéticos, a guarda aceitou campos delimitados entre aspas e bloqueou duas linhas com larguras incorretas, informando linhas 3 e 4. O perfil registrou `NAO_EXECUTADA` uma única vez para uma coluna ausente consultada duas vezes. `git diff --check` não apontou erro. A execução completa no Databricks, a contagem real por origem e o tempo adicional da varredura CSV continuam pendentes. Para a publicação por lote, também falta comprovar uma falha induzida durante a troca seguida de reexecução e implementar no consumidor a leitura somente quando o lote atual estiver `PUBLICADO`.
 - Reconciliação e pendências: a guarda evita que o Spark complete campos ausentes ou descarte excedentes silenciosamente. A reconciliação do JSON continua `SEM_BASE`, pois `objetos_interpretados` vem do próprio parser. A localização física CSV/JSON e a execução Databricks desta versão ainda precisam de evidência antes de concluir DE-01.

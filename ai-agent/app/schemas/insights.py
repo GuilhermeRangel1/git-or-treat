@@ -1,9 +1,10 @@
 """Contratos HTTP para insights de uma tela durante a etapa sintética."""
 
+import re
 from datetime import date
 from enum import StrEnum
 from math import isfinite
-from typing import Annotated
+from typing import Annotated, Self
 
 from pydantic import (
     BaseModel,
@@ -13,13 +14,29 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
+    StringConstraints,
     field_validator,
     model_validator,
 )
 
-from app.schemas.questions import EvidenceReference, QuestionStatus
+from app.schemas.evidence import EvidenceReference
+from app.schemas.questions import QuestionStatus
+from app.schemas.responses import PublicResponseMetadata
 
 FilterValue = StrictStr | StrictInt | StrictFloat | StrictBool
+InsightText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=4000),
+]
+InsightLimitation = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=300),
+]
+_UNSAFE_DEMO_TEXT = re.compile(
+    r"(?:[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b\d{3}[. ]?\d{3}[. ]?\d{3}[- ]?\d{2}\b|"
+    r"\b(?:sk[-_]|api[_ -]?key|token|senha|ignore (?:as )?instru\w*|revele|execute)\b)",
+    re.IGNORECASE,
+)
 
 
 class PeriodGranularity(StrEnum):
@@ -71,7 +88,7 @@ class ScreenContext(BaseModel):
     )
     observations: list[ScreenObservationValue] = Field(min_length=1, max_length=20)
     reference: EvidenceReference
-    limitations: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(
+    limitations: list[InsightLimitation] = Field(
         min_length=1,
         max_length=20,
     )
@@ -105,6 +122,18 @@ class ScreenContext(BaseModel):
         labels = [item.label.casefold() for item in self.observations]
         if len(labels) != len(set(labels)):
             raise ValueError("os rótulos das observações devem ser únicos")
+        texts = [
+            self.metric,
+            self.unit,
+            self.reference.source,
+            self.reference.description,
+            *self.limitations,
+            *(item.label for item in self.observations),
+            *self.filters.keys(),
+            *(value for value in self.filters.values() if isinstance(value, str)),
+        ]
+        if any(_UNSAFE_DEMO_TEXT.search(value) for value in texts):
+            raise ValueError("contexto demonstrativo contém texto não permitido")
         return self
 
 
@@ -129,21 +158,30 @@ class InsightObservation(BaseModel):
     values: list[ScreenObservationValue]
 
 
-class ScreenInsightResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ScreenInsightResponse(PublicResponseMetadata):
 
     status: QuestionStatus
     context: InsightContextSummary
     observation: InsightObservation
-    hypothesis: str | None = None
-    message: str | None = None
-    evidence: list[EvidenceReference] = Field(default_factory=list)
-    limitations: list[str] = Field(default_factory=list)
+    hypothesis: InsightText | None = None
+    message: InsightText | None = None
+    evidence: list[EvidenceReference] = Field(default_factory=list, max_length=20)
+    limitations: list[InsightLimitation] = Field(default_factory=list, max_length=22)
 
     @model_validator(mode="after")
-    def validate_generated_content(self) -> "ScreenInsightResponse":
-        if self.status is QuestionStatus.ANSWERED and not self.hypothesis:
-            raise ValueError("insight respondido exige uma hipótese gerada")
-        if self.status is not QuestionStatus.ANSWERED and self.hypothesis is not None:
-            raise ValueError("resposta não concluída não pode incluir hipótese")
+    def validate_generated_content(self) -> Self:
+        if self.status is QuestionStatus.ANSWERED:
+            if self.hypothesis is None or self.message is not None:
+                raise ValueError("insight respondido exige hipótese e não permite mensagem")
+            if not self.evidence:
+                raise ValueError("insight respondido exige referência de evidência")
+            if self.error is not None:
+                raise ValueError("insight respondido não deve conter erro")
+        elif self.message is None or self.hypothesis is not None:
+            raise ValueError("insight não concluído exige mensagem e não permite hipótese")
+        if self.status in (QuestionStatus.REFUSED, QuestionStatus.RECOVERABLE_ERROR):
+            if self.error is None:
+                raise ValueError("recusa ou falha exige código público e política de retry")
+        elif self.error is not None:
+            raise ValueError("esclarecimento e ausência de evidência não devem conter erro")
         return self
