@@ -48,6 +48,18 @@ from app.schemas.responses import FailureCode, map_failure
 logger = logging.getLogger(__name__)
 
 
+def _describe_observation(observation: dict[str, object]) -> str:
+    labels: list[str] = []
+    if "period" in observation:
+        labels.append(str(observation["period"]))
+    dimensions = observation.get("dimensions", {})
+    if isinstance(dimensions, dict):
+        for dimension_id, dimension_value in dimensions.items():
+            labels.append(f"{dimension_id}={dimension_value}")
+    value_with_unit = f"{observation['value']} {observation['unit']}"
+    return f"{', '.join(labels)}: {value_with_unit}" if labels else value_with_unit
+
+
 class QuestionOrchestrator:
     def __init__(
         self,
@@ -241,7 +253,7 @@ class QuestionOrchestrator:
         answer = None
         if generated.status == "answered":
             values = ", ".join(
-                f"{observations[item]['value']} {observations[item]['unit']}"
+                _describe_observation(observations[item])
                 for item in generated.observation_ids
             )
             prefix = "Demonstração sintética: " if evidence.reference.is_demo else ""

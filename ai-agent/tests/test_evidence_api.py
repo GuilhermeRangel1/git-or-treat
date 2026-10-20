@@ -69,7 +69,7 @@ async def test_questions_api_uses_an_alternate_evidence_source() -> None:
         model_adapter=FixedModelAdapter(),
     )
     app = create_app(
-        settings=Settings(_env_file=None),
+        settings=Settings(_env_file=None, environment="local", enable_demo_access=True),
         question_orchestrator=orchestrator,
     )
     transport = httpx.ASGITransport(app=app)

@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     """Configuração mínima para iniciar o serviço sem Gold ou provedor de IA."""
 
     service_name: str = "V-Energy Grid 360 GenAI"
-    environment: str = "local"
+    environment: str = "production"
+    enable_demo_access: bool = False
     model_provider: Literal["unavailable", "gemini"] = "unavailable"
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_api_key: SecretStr | None = None

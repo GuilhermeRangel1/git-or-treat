@@ -530,11 +530,20 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Critérios de aceite revisados e pendências: a política checa fonte, operação, métrica, dimensão e sensibilidade antes da porta de evidência; autenticação do portal, derivação de permissões oficiais, validação de consulta concreta, credencial somente leitura, proteção completa da saída e reconciliação com Gold continuam pendentes. IA-06 não está concluído.
 - Responsável/revisor: Codex (implementação e verificação local); revisão de Backend, Segurança e Engenharia de Dados pendente para integração real.
 
-### 2026-10-18 — proposta de propriedade da consulta Gold pela GenAI
+### 2026-10-20 — revisão da evidência sintética e ativação explícita do acesso demonstrativo
+
+- Estado anterior → novo estado: IA-01 e IA-06 permanecem `Pendente`; esta revisão melhora o protótipo e não comprova integração com Gold ou autenticação real.
+- Mudança observável: observações multirregistro podem conservar período ISO e dimensão catalogada em cada linha; a resposta quantitativa identifica esses recortes. O principal fictício só é concedido quando `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true` forem definidos explicitamente.
+- Arquivos: `ai-agent/app/agent/evidence_guard.py`, `app/agent/orchestrator.py`, `app/schemas/domain_profile.py`, `app/api/access.py`, `app/config.py`, `app/main.py`, testes de evidência e acesso e guia do serviço. `app/agent/grounding.py`, sem consumidores, foi removido.
+- Dados usados: perfis e linhas inteiramente sintéticos; nenhum registro Gold ou dado pessoal.
+- Verificações: em `ai-agent/`, `python -m pytest -q` passou com 309 testes; `python -m ruff check .`, `python -m compileall -q app tests` e `git diff --check` passaram. A suíte foi executada fora do sandbox porque nele os sockets locais necessários ao event loop do Windows ficam bloqueados.
+- Critérios de aceite e pendências: período e dimensão só atravessam a fronteira se classificados e validados; valores livres não entram. A janela por frase ainda não prova que as competências retornadas pertencem ao intervalo, e a origem dos dados continua sintética. Validar contrato/permissões Gold antes de concluir IA-01 ou IA-06.
+
+### 2026-10-18 — proposta de propriedade da consulta Gold pelo Backend
 
 - Estado anterior → novo estado: requisitos funcionais permanecem `Pendente`; registrada uma proposta para revisão conjunta sobre a propriedade da consulta Gold.
 - Mudança observável para usuário/negócio: nenhuma. O endpoint atual de IA no Backend continua sendo placeholder e não consulta dados Gold.
-- Arquivos/commit: proposta em [ADR-0001](decisions/0001-genai-gold-query-owner.md); estado atual da rota descrito no guia do Backend.
+- Arquivos/commit: proposta em [ADR-0002](decisions/0002-genai-gold-query-owner.md); estado atual da rota descrito no guia do Backend.
 - Dados usados: código e contratos atuais do Backend/GenAI, PRD e dicionário Gold; nenhum dado real ou pessoal.
 - Verificações: inspeção do endpoint `/api/v1/ai/query` confirmou que valida nomes contra uma lista fixa e devolve `records: []`; o modelo `GoldIndicador` é o único modelo analítico encontrado. A comparação não demonstra consulta, autorização somente leitura ou catálogo Gold funcional.
 - Reconciliação ou amostra manual: a proposta recomenda Backend como dono da execução para centralizar autorização e consulta para portal e agente; não fixa tabelas, métricas ou fórmulas ainda não aprovadas.

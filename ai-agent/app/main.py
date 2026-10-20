@@ -57,6 +57,7 @@ def create_app(
     application.add_exception_handler(RequestValidationError, invalid_request_response)
     application.add_exception_handler(Exception, unexpected_error_response)
     application.state.environment = active_settings.environment
+    application.state.enable_demo_access = active_settings.enable_demo_access
     application.state.domain_profile = active_domain_profile
     application.state.source_id = source_id
 

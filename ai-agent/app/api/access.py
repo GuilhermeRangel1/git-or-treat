@@ -38,7 +38,10 @@ def demo_access_context(
 def resolve_access_context(request: Request) -> AccessContext | None:
     """Sem autenticação verificada no modo real, nega por padrão."""
 
-    if request.app.state.environment != "local":
+    if (
+        request.app.state.environment != "local"
+        or not request.app.state.enable_demo_access
+    ):
         return None
     return demo_access_context(
         request.app.state.domain_profile,

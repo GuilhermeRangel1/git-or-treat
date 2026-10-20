@@ -83,7 +83,7 @@ def evaluate_case(case: dict) -> dict:
         ),
     )
     application = create_app(
-        settings=Settings(_env_file=None),
+        settings=Settings(_env_file=None, environment="local", enable_demo_access=True),
         question_orchestrator=orchestrator,
         insight_orchestrator=ScreenInsightOrchestrator(
             model, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)

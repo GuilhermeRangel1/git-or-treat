@@ -172,7 +172,7 @@ def test_same_core_runs_directly_and_over_http_for_each_domain(subject) -> None:
 
     http_source, http_model = RecordingSource(subject.factory()), RecordingModel()
     app = create_app(
-        settings=Settings(_env_file=None),
+        settings=Settings(_env_file=None, environment="local", enable_demo_access=True),
         domain_profile=subject.profile,
         source_id=subject.source_id,
         evidence_source=http_source,

@@ -63,7 +63,7 @@ class InvalidInsightModel:
 
 def _client(model=None) -> InProcessClient:
     application = create_app(
-        settings=Settings(_env_file=None),
+        settings=Settings(_env_file=None, environment="local", enable_demo_access=True),
         insight_orchestrator=ScreenInsightOrchestrator(
             model or RecordingInsightModel(),
             ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),

@@ -61,4 +61,6 @@ class FakeModelAdapter:
 
 
 def client_factory() -> InProcessClient:
-    return InProcessClient(create_app(settings=Settings(_env_file=None)))
+    return InProcessClient(
+        create_app(settings=Settings(_env_file=None, environment="local", enable_demo_access=True))
+    )

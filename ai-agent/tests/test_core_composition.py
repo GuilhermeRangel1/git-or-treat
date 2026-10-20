@@ -119,7 +119,7 @@ def test_http_uses_injected_source_model_and_sink_with_the_same_flow() -> None:
     model = RecordingModel()
     sink = RecordingSink()
     application = create_app(
-        settings=Settings(_env_file=None),
+        settings=Settings(_env_file=None, environment="local", enable_demo_access=True),
         evidence_source=source,
         model_adapter=model,
         event_sink=sink,

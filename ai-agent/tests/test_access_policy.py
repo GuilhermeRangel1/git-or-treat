@@ -1,12 +1,15 @@
 """Autorização observada pelas fronteiras do caso de uso e da API."""
 
 import asyncio
+from types import SimpleNamespace
+
+import pytest
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
 from app.agent.planner import QuestionAnalysisPlanner
-from app.api.access import SYNTHETIC_SOURCE_ID, demo_access_context
+from app.api.access import SYNTHETIC_SOURCE_ID, demo_access_context, resolve_access_context
 from app.config import Settings
 from app.main import create_app
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
@@ -280,6 +283,56 @@ def test_http_body_cannot_grant_identity_in_real_mode() -> None:
     assert denied.json()["error"]["code"] == "access_denied"
     assert tampered.status_code == 422
     assert source.calls == model.calls == 0
+
+
+@pytest.mark.parametrize(
+    "environment, enabled",
+    [("local", False), ("production", True)],
+)
+def test_demo_access_requires_both_local_and_explicit_flag(
+    environment: str, enabled: bool
+) -> None:
+    source = RecordingSource()
+    model = RecordingModel()
+    app = create_app(
+        settings=Settings(
+            environment=environment, enable_demo_access=enabled, _env_file=None
+        ),
+        question_orchestrator=_orchestrator(source, model),
+        insight_orchestrator=object(),
+    )
+    with InProcessClient(app) as client:
+        denied = client.post(
+            "/api/v1/questions",
+            json={"question": "Qual foi o consumo no período de demonstração?"},
+        )
+
+    assert denied.status_code == 200
+    assert denied.json()["error"]["code"] == "access_denied"
+    assert source.calls == model.calls == 0
+
+
+@pytest.mark.parametrize(
+    "environment, enabled, granted",
+    [("production", False, False), ("local", False, False), ("production", True, False),
+     ("local", True, True)],
+)
+def test_access_resolver_defaults_to_denial_without_both_demo_options(
+    environment: str, enabled: bool, granted: bool
+) -> None:
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                environment=environment,
+                enable_demo_access=enabled,
+                domain_profile=GRID360_DEMO_PROFILE,
+                source_id=SYNTHETIC_SOURCE_ID,
+            )
+        ),
+        state=SimpleNamespace(correlation_id="0" * 32),
+    )
+
+    assert (resolve_access_context(request) is not None) is granted
 
 
 def test_http_input_limits_run_before_source_and_model() -> None:

@@ -1,4 +1,4 @@
-# ADR-0001 — Propriedade da consulta analítica da GenAI
+# ADR-0002 — Backend como proprietário da consulta analítica Gold
 
 **Data:** 2026-10-18
 **Estado:** proposta — aguarda revisão de Backend e Engenharia de Dados

@@ -99,7 +99,10 @@ def test_interpreter_asks_when_question_matches_multiple_metrics_in_one_domain()
 
 def test_application_composition_passes_the_supplied_profile() -> None:
     profile = DomainProfile.model_validate(profile_data())
-    application = app.main.create_app(settings=Settings(_env_file=None), domain_profile=profile)
+    application = app.main.create_app(
+        settings=Settings(_env_file=None, environment="local", enable_demo_access=True),
+        domain_profile=profile,
+    )
 
     with InProcessClient(application) as client:
         response = client.post("/api/v1/questions", json={"question": "Qual foi a chuva?"})

@@ -63,6 +63,18 @@ class EvidenceFieldDefinition(BaseModel):
     role: EvidenceFieldRole
     value_type: FilterValueType
     sensitivity: CatalogSensitivity
+    dimension_id: LogicalIdentifier | None = None
+
+    @model_validator(mode="after")
+    def require_dimension_mapping(self) -> Self:
+        if self.role is EvidenceFieldRole.DIMENSION:
+            if self.sensitivity is not CatalogSensitivity.PERSONAL and self.dimension_id is None:
+                raise ValueError("dimensão de evidência exige ID lógico")
+        elif self.dimension_id is not None:
+            raise ValueError("ID de dimensão exige campo de dimensão")
+        if self.role is EvidenceFieldRole.PERIOD and self.value_type is not FilterValueType.DATE:
+            raise ValueError("período de evidência exige tipo date")
+        return self
 
 
 class DimensionRole(StrEnum):
@@ -181,6 +193,19 @@ class MetricDefinition(BaseModel):
             raise ValueError("campo de evidência duplicado na métrica")
         if sum(field.role is EvidenceFieldRole.MEASURE for field in self.evidence_fields) > 1:
             raise ValueError("métrica aceita somente um campo de medida")
+        if sum(field.role is EvidenceFieldRole.PERIOD for field in self.evidence_fields) > 1:
+            raise ValueError("métrica aceita somente um campo de período")
+        evidence_dimension_ids = [
+            field.dimension_id for field in self.evidence_fields if field.dimension_id is not None
+        ]
+        if len(evidence_dimension_ids) != len(set(evidence_dimension_ids)):
+            raise ValueError("dimensão de evidência duplicada na métrica")
+        if any(
+            field.dimension_id not in self.dimension_ids
+            for field in self.evidence_fields
+            if field.dimension_id is not None
+        ):
+            raise ValueError("campo de evidência referencia dimensão fora da métrica")
         return self
 
 
