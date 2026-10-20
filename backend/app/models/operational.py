@@ -1,6 +1,6 @@
 from enum import Enum
 from sqlalchemy import Column, String, Integer, BigInteger, Text, Enum as SQLEnum, Index
-from app.core.database import Base
+from app.db.base import Base
 from app.models.base import TimestampMixin
 
 
