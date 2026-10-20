@@ -1,6 +1,15 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "@/layouts/AppLayout";
 import { routes } from "./routes";
+
+const DevContractsPage = import.meta.env.DEV
+  ? lazy(() =>
+      import("@/features/dev-contracts/DevContractsPage").then((module) => ({
+        default: module.DevContractsPage,
+      })),
+    )
+  : null;
 
 export function AppRoutes() {
   return (
@@ -12,6 +21,16 @@ export function AppRoutes() {
         ))}
         <Route path="*" element={<Navigate to="/panorama" replace />} />
       </Route>
+      {DevContractsPage ? (
+        <Route
+          path="/dev/contratos"
+          element={
+            <Suspense fallback={<p role="status">Carregando diagnóstico…</p>}>
+              <DevContractsPage />
+            </Suspense>
+          }
+        />
+      ) : null}
     </Routes>
   );
 }
