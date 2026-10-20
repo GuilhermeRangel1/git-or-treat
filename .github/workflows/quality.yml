@@ -110,6 +110,12 @@ jobs:
       - name: Executar lint
         run: npm run lint
 
+      - name: Verificar arquitetura, formatação e testes do frontend
+        run: |
+          npm run check:boundaries
+          npm run format:check
+          npm test
+
       - name: Validar tipos e build
         run: npm run build
 
