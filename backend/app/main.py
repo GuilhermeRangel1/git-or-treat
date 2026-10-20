@@ -1,10 +1,13 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.db.base import Base
 from app.core.database import engine
 from app.api.v1.router import api_router
+from app.repositories.analytics import AnalyticsSourceUnavailable
+from app.services.analytics import AnalyticsAPIError
 
 
 @asynccontextmanager
@@ -24,6 +27,24 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(AnalyticsAPIError)
+async def analytics_error_handler(request: Request, exc: AnalyticsAPIError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}},
+    )
+
+
+@app.exception_handler(AnalyticsSourceUnavailable)
+async def analytics_unavailable_handler(request: Request, exc: AnalyticsSourceUnavailable):
+    return JSONResponse(
+        status_code=503,
+        content={"error": {"code": "source_unavailable", "message": "A fonte analítica não está configurada.", "details": []}},
+    )
+
+
 
 # Configuração de CORS para permitir requisições do frontend Vite/React
 if settings.BACKEND_CORS_ORIGINS:

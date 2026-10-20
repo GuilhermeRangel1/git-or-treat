@@ -25,6 +25,8 @@ def test_ai_query_rejects_invalid_request_field_types(client):
     )
 
     assert response.status_code == 422
+    assert "detail" in response.json()
+    assert "error" not in response.json()
 
 
 def test_ai_query_keeps_existing_table_allowlist_error(client):
