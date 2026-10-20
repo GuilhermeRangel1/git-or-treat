@@ -39,9 +39,20 @@ def setup_test_db():
     Base.metadata.drop_all(bind=test_engine)
 
 
-@pytest.fixture(scope="module")
-def client():
+@pytest.fixture
+def clean_test_db():
+    with test_engine.begin() as connection:
+        for table in reversed(Base.metadata.sorted_tables):
+            connection.execute(table.delete())
+    yield
+    with test_engine.begin() as connection:
+        for table in reversed(Base.metadata.sorted_tables):
+            connection.execute(table.delete())
+
+
+@pytest.fixture
+def client(clean_test_db):
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
+    with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
     app.dependency_overrides.clear()

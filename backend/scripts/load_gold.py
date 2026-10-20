@@ -1,5 +1,7 @@
 """
-Script idempotente para carregar CSVs da camada Gold (ou mocks locais) no banco analítico.
+Esqueleto do futuro carregador CSV da camada Gold.
+
+O script ainda não lê nem insere registros e não implementa idempotência.
 
 Uso:
     python scripts/load_gold.py
@@ -22,12 +24,12 @@ def load_gold_data():
     print(f"[*] Verificando diretório de dados Gold: {data_dir.resolve()}")
 
     if not data_dir.exists():
-        print(f"[!] Diretório {data_dir} não encontrado. Crie a pasta e adicione os CSVs.")
+        print(f"[!] Diretório {data_dir} não encontrado; nenhuma carga foi realizada.")
         return
 
     csv_files = list(data_dir.glob("*.csv"))
     if not csv_files:
-        print(f"[i] Nenhum arquivo .csv encontrado em {data_dir}. Coloque seus mocks ou a Gold exportada aqui.")
+        print(f"[i] Nenhum CSV encontrado em {data_dir}; nenhuma carga foi realizada.")
         return
 
     print(f"[+] Arquivos encontrados: {[f.name for f in csv_files]}")
@@ -36,12 +38,9 @@ def load_gold_data():
     db = SessionLocal()
 
     try:
-        # Exemplo de leitura e carga idempotente para PostgreSQL
         for csv_path in csv_files:
-            print(f"[*] Processando: {csv_path.name}")
-            # Dica PostgreSQL: Em produção com grandes volumes, use lote/batch:
-            # db.bulk_insert_mappings(Model, rows) ou COPY / insert().on_conflict_do_update()
-        print("[✔] Carga analítica concluída com sucesso.")
+            print(f"[*] Arquivo encontrado, mas não processado: {csv_path.name}")
+        print("[i] Leitura e inserção ainda não implementadas; nenhum registro foi gravado.")
     except Exception as e:
         db.rollback()
         print(f"[✘] Erro durante a carga: {e}")
