@@ -7,6 +7,7 @@ from app.generation.prompts import SYSTEM_INSTRUCTION
 from app.providers.caching import CachingModelAdapter
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.protocols import ModelAdapter
+from app.providers.routing import ModelRouter, ModelTier, RoutingPolicy
 from app.providers.unavailable import UnavailableModelAdapter
 
 
@@ -78,6 +79,95 @@ def build_model_adapter(settings: Settings, *, client=None, groq_client=None) ->
             namespace=_cache_namespace(providers, chain),
         )
     return adapter
+
+
+def build_model_router(
+    settings: Settings,
+    strong_adapter: ModelAdapter,
+    *,
+    client=None,
+    groq_client=None,
+) -> ModelRouter | None:
+    """Monta o roteador opcional da pergunta a partir de configuração validada.
+
+    O nível forte reutiliza a cadeia principal já criada, incluindo fallback e cache. O nível
+    leve é opcional e, nesta etapa, usa Gemini com uma chave e um modelo próprios, seguido do
+    Groq quando ele está em ``model_fallback_providers``. O insight continua recebendo
+    ``strong_adapter`` pela composição do núcleo.
+    """
+
+    if not settings.model_routing_enabled or not settings.model_light_intents:
+        return None
+    if settings.model_provider == "unavailable":
+        # Mantém o modo padrão sem provedor inicializável; nenhuma chamada externa é feita.
+        return None
+    if settings.model_provider != "gemini":
+        raise ModelConfigurationError(
+            "O roteamento por nível está configurado apenas para o provedor Gemini."
+        )
+    if settings.model_light_model is None:
+        raise ModelConfigurationError(
+            "Configure GENAI_MODEL_LIGHT_MODEL quando GENAI_MODEL_LIGHT_INTENTS não estiver vazio."
+        )
+    if settings.gemini_api_key is None or not settings.gemini_api_key.get_secret_value().strip():
+        raise ModelConfigurationError(
+            "Configure GENAI_GEMINI_API_KEY para habilitar o nível leve do roteador."
+        )
+    if settings.model_light_model in {settings.gemini_model, *settings.gemini_fallback_models}:
+        raise ModelConfigurationError(
+            "Os modelos light e strong devem ser distintos para habilitar o roteamento."
+        )
+
+    # O Groq entra como fallback do nível leve, sem um modelo leve próprio.
+    providers: list[ModelProviderName] = ["gemini", *settings.model_fallback_providers]
+    chain: list[tuple[ModelProviderName, str]] = [("gemini", settings.model_light_model)]
+    if "groq" in settings.model_fallback_providers:
+        _require_api_key(settings, "groq")
+        chain.append(("groq", settings.groq_model))
+
+    light_adapters: list[ModelAdapter] = [
+        _build_gemini_adapter(settings, model_name, client)
+        if provider == "gemini"
+        else _build_groq_adapter(settings, groq_client)
+        for provider, model_name in chain
+    ]
+    light_adapter = light_adapters[0]
+    if len(light_adapters) > 1:
+        light_adapter = FallbackModelAdapter(
+            light_adapters,
+            total_timeout_seconds=settings.model_total_timeout_ms / 1000,
+            backoff_seconds=settings.fallback_backoff_ms / 1000,
+        )
+
+    if settings.model_cache_ttl_seconds > 0:
+        prompt_digest = hashlib.sha256(SYSTEM_INSTRUCTION.encode("utf-8")).hexdigest()
+        light_adapter = CachingModelAdapter(
+            light_adapter,
+            ttl_seconds=settings.model_cache_ttl_seconds,
+            max_entries=settings.model_cache_max_entries,
+            namespace=(
+                f"gemini:{settings.model_light_model}:{prompt_digest}"
+                if len(chain) == 1
+                else _cache_namespace(providers, chain)
+            ),
+        )
+
+    max_attempts = getattr(strong_adapter, "max_attempts", 1) + getattr(
+        light_adapter, "max_attempts", 1
+    )
+    if max_attempts > settings.model_max_calls:
+        raise ModelConfigurationError(
+            "Os níveis light e strong excedem GENAI_MODEL_MAX_CALLS no pior caso."
+        )
+
+    return ModelRouter(
+        {ModelTier.LIGHT: light_adapter, ModelTier.STRONG: strong_adapter},
+        RoutingPolicy(
+            light_intents=frozenset(settings.model_light_intents),
+            max_light_evidence_records=settings.model_light_max_evidence_records,
+            max_light_evidence_chars=settings.model_light_max_evidence_chars,
+        ),
+    )
 
 
 def _require_api_key(settings: Settings, provider: ModelProviderName) -> None:

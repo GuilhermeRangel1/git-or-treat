@@ -17,7 +17,11 @@ from app.config import Settings
 from app.generation.prompts import SYSTEM_INSTRUCTION
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.caching import CachingModelAdapter
-from app.providers.factory import ModelConfigurationError, build_model_adapter
+from app.providers.factory import (
+    ModelConfigurationError,
+    build_model_adapter,
+    build_model_router,
+)
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.gemini import GeminiModelAdapter
 from app.providers.groq import GROQ_CHAT_COMPLETIONS_URL, SYSTEM_PROMPT, GroqModelAdapter
@@ -27,6 +31,7 @@ from app.providers.protocols import (
     ModelProviderRejected,
     ModelProviderUnavailable,
 )
+from app.providers.routing import ModelTier
 from app.schemas.evidence import EvidenceProvenance, EvidenceResult
 from app.schemas.questions import (
     ConversationTurn,
@@ -531,6 +536,53 @@ def test_cache_namespace_separates_provider_order_models_and_prompt() -> None:
     assert all(prompt_digest in namespace for namespace in variants.values())
     assert _namespace() == variants["gemini-then-groq"]
     assert FAKE_KEY not in repr(variants)
+
+
+def _router(settings: Settings, calls: list[str] | None = None):
+    calls = [] if calls is None else calls
+    client = _gemini_client(RoutingGeminiEndpoint(set(), calls))
+    groq_client = _groq_client(calls, httpx.Response(500))
+    strong = build_model_adapter(settings, client=client, groq_client=groq_client)
+    return build_model_router(settings, strong, client=client, groq_client=groq_client)
+
+
+def _routing_settings(**overrides) -> Settings:
+    return _chain_settings(
+        model_routing_enabled=True,
+        model_light_model="gemini-light",
+        model_light_intents=["consumption"],
+        **overrides,
+    )
+
+
+def test_router_adds_groq_as_fallback_of_each_tier() -> None:
+    calls: list[str] = []
+
+    with pytest.raises(ModelConfigurationError, match="GENAI_MODEL_MAX_CALLS"):
+        _router(_routing_settings(model_max_calls=3), calls)
+
+    router = _router(_routing_settings(model_max_calls=4), calls)
+    light = router.adapter_for(ModelTier.LIGHT)
+    strong = router.adapter_for(ModelTier.STRONG)
+
+    assert isinstance(light, FallbackModelAdapter)
+    assert [item._model_name for item in light._adapters] == ["gemini-light", "groq-model"]
+    assert isinstance(light._adapters[1], GroqModelAdapter)
+    assert [item._model_name for item in strong._adapters] == ["gemini-primary", "groq-model"]
+    assert calls == []
+
+
+def test_router_light_cache_namespace_includes_groq_only_when_configured() -> None:
+    with_groq = _router(_routing_settings(model_max_calls=4, model_cache_ttl_seconds=300))
+    without_groq = _router(
+        _routing_settings(model_fallback_providers=[], model_cache_ttl_seconds=300)
+    )
+    with_groq_namespace = with_groq.adapter_for(ModelTier.LIGHT)._namespace
+    without_groq_namespace = without_groq.adapter_for(ModelTier.LIGHT)._namespace
+
+    assert "groq:groq-model" in with_groq_namespace
+    assert with_groq_namespace != with_groq.adapter_for(ModelTier.STRONG)._namespace
+    assert without_groq_namespace.startswith("gemini:gemini-light:")
 
 
 def test_factory_unavailable_ignores_fallback_providers() -> None:
