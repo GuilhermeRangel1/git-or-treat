@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
     groq_api_key: SecretStr | None = None
     # Confira no console do Groq se este ID continua disponível e aceita JSON mode.
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
     request_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
     source_timeout_ms: int = Field(default=10_000, ge=100, le=120_000)
     source_max_calls: int = Field(default=1, ge=1, le=10)

@@ -33,10 +33,10 @@ O adaptador Groq usa a API de chat compatível com OpenAI via `httpx`, em JSON m
 | --- | --- | --- |
 | `GENAI_MODEL_PROVIDER` | `unavailable`, `gemini` ou `groq` | `unavailable` |
 | `GENAI_GROQ_API_KEY` | chave do Groq; obrigatória quando `groq` está na cadeia | vazia |
-| `GENAI_GROQ_MODEL` | ID de modelo do Groq | `llama-3.3-70b-versatile` |
+| `GENAI_GROQ_MODEL` | ID de modelo do Groq | `openai/gpt-oss-120b` |
 | `GENAI_MODEL_FALLBACK_PROVIDERS` | `gemini` e/ou `groq`, separados por vírgula ou como lista JSON | vazia |
 
-O modelo padrão do Groq ainda não foi confirmado com uma chamada real; confira no console do Groq se o ID está disponível e aceita JSON mode.
+O modelo padrão do Groq passou em uma execução do smoke test real em 20/10/2026, com dados sintéticos. O Groq remove modelos com o tempo: antes de usar, confira o nome do modelo na lista da sua conta e, se preciso, troque-o com `GENAI_GROQ_MODEL`.
 
 Exemplo com Gemini primeiro e Groq depois:
 
