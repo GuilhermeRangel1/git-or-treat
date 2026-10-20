@@ -25,13 +25,16 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 from app.core.config import settings
-from app.core.database import Base
+from app.db.base import Base
 import app.models  # Garante registro de todos os modelos
 
 target_metadata = Base.metadata
 
-# Sobrescreve sqlalchemy.url com a URL configurada no Settings (.env)
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Respeita URL explicitamente passada pelo chamador e usa Settings no fluxo CLI.
+database_url = config.get_main_option("sqlalchemy.url")
+if not database_url or database_url.startswith("driver://"):
+    database_url = settings.DATABASE_URL
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
@@ -65,6 +68,13 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    connection = config.attributes.get("connection")
+    if connection is not None:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

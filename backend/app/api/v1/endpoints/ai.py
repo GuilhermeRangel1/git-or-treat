@@ -1,21 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Dict, Any, List
 from app.core.database import get_db
+from app.schemas.ai import AIQueryRequest, AIQueryResponse
 
 router = APIRouter()
 
 ALLOWED_READ_TABLES = ["gold_indicadores", "gold_ucs", "gold_receita", "gold_continuidadade"]
 
 
-class AIQueryRequest(BaseModel):
-    intent: str
-    target_table: str
-    filters: Dict[str, Any] = {}
-
-
-@router.post("/query", summary="Consulta somente-leitura controlada para o agente de IA")
+@router.post(
+    "/query",
+    response_model=AIQueryResponse,
+    summary="Consulta somente-leitura controlada para o agente de IA",
+)
 def query_analytical_data(payload: AIQueryRequest, db: Session = Depends(get_db)):
     """
     Permite ao agente de IA consultar tabelas analíticas permitidas (allowlist)

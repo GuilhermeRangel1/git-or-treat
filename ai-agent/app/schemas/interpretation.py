@@ -5,7 +5,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from app.schemas.scenarios import AnalysisIntent
+from app.schemas.analysis import AnalysisIntent
 
 
 class InterpretationStatus(StrEnum):
