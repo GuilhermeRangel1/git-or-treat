@@ -1,6 +1,6 @@
 # Serviço: engenharia de dados
 
-**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** especificado; ainda sem notebooks, Workflow ou dataset. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
+**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** Bronze implementada e executada na Databricks Free Edition (17/10/2026; a versão com publicação por lote rodou em 19/10/2026) e o Workflow `v-energy-grid-360` criado em 18/10/2026 com as duas tarefas da Bronze encadeadas (PR #8 em revisão); Silver implementada e em validação (em PR separado); Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
 
 ## Responsabilidade
 
@@ -43,7 +43,11 @@ Montar um mapa de relacionamento **com chaves verificadas**, cobrindo UC, client
 
 O Job deve mostrar dependências explícitas entre ingestão, tratamento, Gold e exportação, com parâmetros de ambiente/lote, status observável, logs úteis e falha que interrompe publicação de dados inválidos. Testar uma execução completa e uma reexecução do mesmo lote. Se uma etapa falhar, registrar quais saídas permanecem válidas e como retomar sem mistura de versões.
 
+Existe hoje o job `v-energy-grid-360` com as duas tarefas da Bronze encadeadas (`Landing_to_Bronze` → `Bronze_perfilamento`, o elo em `depends_on` + `run_if: ALL_SUCCESS`), definido em [`data-engineering/configuracao/databricks/v-energy-grid-360.yaml`](../../data-engineering/configuracao/databricks/v-energy-grid-360.yaml) e comprovado em execução na Free Edition (run `14313419965490`, 21m 03s, `Succeeded`). A evidência com identificação da execução e resultado está no [README do módulo](../../data-engineering/README.md#execução-comprovada).
+
 O case fornece uma extração única e pede que o time proponha agendamento para uma operação futura. A periodicidade, a janela de chegada das fontes, o tratamento de atrasos/retificações e o custo da atualização são decisões a justificar após inspecionar o material. Não apresentar uma simulação de agenda como integração de produção existente.
+
+Agenda proposta para essa operação futura: **mensal, dia 5, às 03:00 (America/Recife)** — o insumo é mensal por natureza (leituras e faturas são por competência), o dia 5 dá folga para o fechamento chegar íntegro, e a reexecução é segura porque a Bronze é **publicada por lote** (ingestão em `bronze_stg`, troca de `bronze.*` só no fim, com `bronze.controle_lote`) e reconciliada com `delta = 0`, de modo que uma competência retificada entra no lugar da anterior em vez de acumular e uma falha antes da publicação deixa o lote anterior inteiro. A janela real de chegada das fontes continua desconhecida, porque o case não a informa.
 
 ## Dependências e decisões pendentes
 
@@ -53,12 +57,12 @@ O case fornece uma extração única e pede que o time proponha agendamento para
 | Regra de faturas duplicadas/canceladas | Campos e distribuição reais das faturas | Relatório de qualidade e definição de receita |
 | Modelo Gold | Perguntas do portal, IA e diagnóstico; grãos disponíveis | Dicionário e contrato de exportação |
 | DEC/FEC simplificado | Ocorrências, vínculo com UC/alimentador e denominador temporal | Fórmula, amostra manual e limites |
-| Agenda do Workflow | Janela operacional e atraso das fontes, não fornecidos no case | ADR ou seção operacional do README |
+| Agenda do Workflow | Periodicidade definida (mensal, dia 5, 03:00, America/Recife); a janela operacional e o atraso das fontes continuam não fornecidos pelo case | [Agenda proposta](../../data-engineering/README.md#agenda-proposta) |
 
 ## Entregáveis futuros
 
 1. Notebooks PySpark ou equivalente versionado, parâmetros e instruções de execução.
-2. Definição YAML/JSON do Databricks Workflow com dependências Bronze → Silver → Gold → exportação.
+2. Definição YAML/JSON do Databricks Workflow com dependências Bronze → Silver → Gold → exportação (**já existe com as duas tarefas da Bronze**; os demais elos entram quando os notebooks existirem).
 3. Relatório de perfil e qualidade por origem, decisões de tratamento e testes automatizados se DE-09 for perseguido.
 4. CSVs Gold exportados no ambiente de execução, esquema e processo de carga ao banco local; dados reais não entram no Git sem autorização.
 5. [Dicionário de dados](../data-dictionary.md) preenchido a partir do dataset real.
