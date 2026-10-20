@@ -257,6 +257,7 @@ class QuestionOrchestrator:
             )
             if isinstance(generated, QuestionResponse):
                 return generated
+            tier = stronger
 
         if _is_ungrounded(generated, set(observations)):
             return QuestionResponse(
@@ -265,6 +266,7 @@ class QuestionOrchestrator:
                 evidence=[evidence.reference],
                 limitations=plan.evidence_result.limitations,
                 error=map_failure(FailureCode.UNGROUNDED_OUTPUT).error,
+                model_tier=tier,
             )
 
         period = (
@@ -298,6 +300,7 @@ class QuestionOrchestrator:
             evidence=[evidence.reference],
             limitations=plan.evidence_result.limitations,
             error=error,
+            model_tier=tier,
             analysis_context=AppliedQueryContext(
                 metric=read_plan.metric_id,
                 unit=read_plan.unit,

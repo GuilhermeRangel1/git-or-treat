@@ -131,6 +131,7 @@ def test_light_intent_with_small_evidence_uses_only_light() -> None:
     response = _ask(_orchestrator(_router(light, strong)))
 
     assert response.status is QuestionStatus.ANSWERED
+    assert response.model_tier == "light"
     assert (light.calls, strong.calls) == (1, 0)
 
 
@@ -205,6 +206,7 @@ def test_escalated_strong_answer_is_published() -> None:
 
     assert (light.calls, strong.calls) == (1, 1)
     assert response.status is QuestionStatus.ANSWERED
+    assert response.model_tier == "strong"
     assert response.error is None
 
 

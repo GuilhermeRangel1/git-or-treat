@@ -158,6 +158,7 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
     body = response.json()
     assert body == {
         "status": "answered",
+        "model_tier": None,
         "answer": (
             "Demonstração sintética: energy.consumption — período de demonstração: "
             "420 unidades fictícias."

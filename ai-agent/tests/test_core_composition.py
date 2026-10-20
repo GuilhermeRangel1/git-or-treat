@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import app.main as app_main
 from app.agent.access import ReadAccessPolicy
 from app.agent.composition import compose_core
 from app.agent.execution import ExecutionController, ExecutionLimits
@@ -21,6 +22,7 @@ from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.gemini import GeminiModelAdapter
 from app.providers.protocols import ModelProviderUnavailable
+from app.providers.routing import ModelRouter, ModelTier, RoutingPolicy
 from app.schemas.insights import ScreenContext
 from app.schemas.questions import QuestionRequest
 from app.tools.synthetic_analytics import SyntheticScenarioTool
@@ -132,6 +134,69 @@ def test_http_uses_injected_source_model_and_sink_with_the_same_flow() -> None:
     assert response.json()["status"] == "answered"
     assert source.calls == model.calls == 1
     assert sink.events[0].correlation_id == response.headers["x-correlation-id"]
+
+
+def test_http_composes_configured_router_into_question_flow(monkeypatch) -> None:
+    source = RecordingSource()
+    light, strong = RecordingModel(), RecordingModel()
+    router = ModelRouter(
+        {ModelTier.LIGHT: light, ModelTier.STRONG: strong},
+        RoutingPolicy(light_intents={"consumption"}),
+    )
+    monkeypatch.setattr(app_main, "build_model_adapter", lambda settings: strong)
+    monkeypatch.setattr(app_main, "build_model_router", lambda settings, adapter: router)
+    application = create_app(
+        settings=Settings(
+            _env_file=None,
+            environment="local",
+            enable_demo_access=True,
+            model_routing_enabled=True,
+            model_light_model="gemini-light-test",
+            model_light_intents=["consumption"],
+        ),
+        evidence_source=source,
+    )
+
+    with InProcessClient(application) as client:
+        response = client.post("/api/v1/questions", json={"question": QUESTION})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "answered"
+    assert response.json()["model_tier"] == "light"
+    assert source.calls == light.calls == 1
+    assert strong.calls == 0
+    assert application.state.insight_orchestrator is not None
+
+
+def test_http_rejects_routing_configuration_for_non_synthetic_source() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_routing_enabled=True,
+        model_light_intents=["consumption"],
+    )
+
+    with pytest.raises(ValueError, match="roteamento de modelos.*restrito"):
+        create_app(settings=settings, source_id="warehouse.gold")
+
+
+def test_http_rejects_injected_router_for_non_synthetic_profile() -> None:
+    light, strong = RecordingModel(), RecordingModel()
+    router = ModelRouter(
+        {ModelTier.LIGHT: light, ModelTier.STRONG: strong},
+        RoutingPolicy(light_intents={"consumption"}),
+    )
+    non_synthetic_profile = GRID360_DEMO_PROFILE.model_copy(
+        update={"profile_id": "approved.gold.v1"}
+    )
+
+    with pytest.raises(ValueError, match="roteamento de modelos.*restrito"):
+        create_app(
+            settings=Settings(_env_file=None),
+            model_adapter=strong,
+            model_router=router,
+            domain_profile=non_synthetic_profile,
+            source_id=SYNTHETIC_SOURCE_ID,
+        )
 
 
 def test_direct_insight_uses_injected_model_and_sink_without_reading_source() -> None:

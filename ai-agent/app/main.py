@@ -17,8 +17,9 @@ from app.config import Settings, get_settings
 from app.ports.events import EventSink
 from app.ports.evidence import EvidenceSource
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
-from app.providers.factory import build_model_adapter
+from app.providers.factory import build_model_adapter, build_model_router
 from app.providers.protocols import ModelAdapter
+from app.providers.routing import ModelRouter, ModelTier
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.domain_profile import DomainProfile
 from app.tools.synthetic_analytics import SyntheticScenarioTool
@@ -31,6 +32,7 @@ def create_app(
     domain_profile: DomainProfile | None = None,
     evidence_source: EvidenceSource | None = None,
     model_adapter: ModelAdapter | None = None,
+    model_router: ModelRouter | None = None,
     access_policy: ReadAccessPolicy | None = None,
     event_sink: EventSink | None = None,
     require_durable_audit: bool = False,
@@ -40,6 +42,16 @@ def create_app(
 
     active_settings = settings or get_settings()
     active_domain_profile = domain_profile or GRID360_DEMO_PROFILE
+    routing_requested = active_settings.model_routing_enabled or model_router is not None
+    is_synthetic_schema = (
+        active_domain_profile == GRID360_DEMO_PROFILE and source_id == SYNTHETIC_SOURCE_ID
+    )
+    if routing_requested and not is_synthetic_schema:
+        raise ValueError(
+            "O roteamento de modelos está restrito ao perfil Grid 360 demonstrativo "
+            "e à fonte synthetic.fixture."
+        )
+
     application = FastAPI(
         title=active_settings.service_name,
         version="0.1.0",
@@ -76,6 +88,17 @@ def create_app(
 
     core = None
     if question_orchestrator is None or insight_orchestrator is None:
+        active_model_adapter = model_adapter
+        if active_model_adapter is None:
+            active_model_adapter = (
+                model_router.adapter_for(ModelTier.STRONG)
+                if model_router is not None
+                else build_model_adapter(active_settings)
+            )
+        active_model_router = model_router or build_model_router(
+            active_settings,
+            active_model_adapter,
+        )
         core = compose_core(
             profile=active_domain_profile,
             source_id=source_id,
@@ -84,9 +107,8 @@ def create_app(
                 if evidence_source is not None
                 else SyntheticScenarioTool(SYNTHETIC_SCENARIOS)
             ),
-            model_adapter=(
-                model_adapter if model_adapter is not None else build_model_adapter(active_settings)
-            ),
+            model_adapter=active_model_adapter,
+            model_router=active_model_router,
             execution_controller=execution_controller,
             access_policy=access_policy,
             event_sink=event_sink,
