@@ -817,6 +817,28 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Critérios de aceite e pendências: confirmar runtime e permissões no Databricks; comparar as 14 origens autorizadas, hashes e publicação; induzir falha e reexecutar; validar inferência descritiva com o inventário real. Manter DE-01 em validação até essas evidências.
 - Responsável/revisor: Codex (alteração local); revisão humana e execução Databricks pendentes.
 
+### 2026-10-20 — DE-01/DE-02 — mapa de relações e abas de inspeção
+
+- Estado anterior → novo estado: DE-01 permanece `Em validação`; DE-02 permanece `Pendente`.
+- Mudança observável: o perfilamento descreve o período aparente das três abas de inspeções, mede a unicidade de `id_inspecao` por aba e registra que a finalidade específica das abas depende de confirmação da origem. O mapa passa a distinguir vínculos com chave compartilhada, comparação exploratória por UC/competência e fluxos sem chave verificada; registra máximos de linhas por chave e a ausência de prova de vigência temporal. A ingestão reúne código repetido de carga e reconciliação no próprio notebook.
+- Arquivos/branch: `data-engineering/notebook/Bronze_perfilamento.ipynb`, `data-engineering/notebook/Landing_to_Bronze.ipynb` e este PRD; `feat/bronze-rastreabilidade-publicacao`, mudanças locais sem commit.
+- Dados usados: nenhum arquivo real do case foi aberto nesta revisão; o grão e as relações dependem de medição no Databricks.
+- Verificações: JSON e sintaxe Python das células conferidos; IDs das células únicos; `git diff --check` sem erros. O notebook de ingestão passou de 1.052 para 1.023 linhas de conteúdo e de 384 para 224 linhas na maior célula. O perfil tem 1.002 linhas de conteúdo; a célula de 432 linhas foi separada em blocos de até 204 linhas. Execução no Databricks pendente.
+- Reconciliação ou amostra manual: nenhuma amostra real nova nesta revisão. O perfil resultante deverá ser confrontado com o inventário das 14 origens e com o conhecimento da equipe sobre as abas.
+- Critérios de aceite e pendências: confirmar finalidade e grão das abas com a origem, verificar os vínculos e a vigência temporal sobre os dados reais e validar carga, perfil e reconciliação no Databricks antes de concluir DE-01 ou DE-02.
+- Responsável/revisor: Codex (alteração local); revisão humana e execução Databricks pendentes.
+
+### 2026-10-20 — DE-01/DE-02 — contagens pendentes da issue #19 no perfil da Bronze
+
+- Estado anterior → novo estado: DE-01 permanece `Em validação`; DE-02 permanece `Pendente`.
+- Mudança observável: o relatório persistido por arquivo/aba reúne contagem de `mes_referencia` fora de `AAAA-MM`, chaves duplicadas e linhas excedentes, linhas CSV iguais ao cabeçalho inteiro e grupos de grafias candidatas de `inspetor`. Nomes de pessoas não são persistidos nesses novos achados. As contagens medem a Bronze e não alteram registros.
+- Arquivos/branch: `data-engineering/notebook/Bronze_perfilamento.ipynb` e este PRD; `feat/bronze-rastreabilidade-publicacao`, mudanças locais sem commit.
+- Dados usados: nenhum arquivo real do case foi aberto nesta revisão.
+- Verificações: estrutura JSON, sintaxe Python das células e `git diff --check`; execução do perfil atualizado no Databricks pendente.
+- Reconciliação ou amostra manual: sem números novos até executar o perfil contra o lote publicado.
+- Critérios de aceite e pendências: conferir os quatro resultados por origem; depois decidir quais regras da Silver manter, ajustar ou criar. Antes de padronizar `inspetor`, confirmar se o nome é exibido ao usuário. A issue #19 e DE-02 dependem dessa análise e decisão.
+- Responsável/revisor: Codex (alteração local); revisão humana e execução Databricks pendentes.
+
 ### Modelo de entrada
 
 ```markdown
