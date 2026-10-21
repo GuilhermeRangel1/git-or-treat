@@ -76,9 +76,9 @@ Conflitos de CPF/CNPJ ou nome de titular ficam nulos e sinalizados na UC. Data f
 - Se qualquer invariante falhar, o notebook **falha** e não troca o ponteiro de publicação. A Gold deve consultar
   `silver_publicada.*` e conferir que `silver.controle_publicacao` aponta para execução `CONCLUIDO` do lote desejado.
 - Estado: executada no Databricks com o dataset real em 21/10/2026 (run `20261021T101818Z_223235ca`, `CONCLUIDO`);
-  essa execução precede as alterações atuais. Falta executar a versão
-  atual no lote real e analisar o diagnóstico C por arquivo. O Workflow será alterado posteriormente.
-  Decisões D46–D56 e §11.2–11.4 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
+  essa execução precede as alterações atuais e não as valida. Falta executar a versão atual no lote real e analisar
+  o diagnóstico C por arquivo. O Workflow permanece inalterado, conforme `43c2e590`.
+  Decisões D46–D60 e §11.2–11.4 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
 
 ## Executar no Databricks
 
