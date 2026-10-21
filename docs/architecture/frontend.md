@@ -71,6 +71,14 @@ Além dos provedores de tema e cache, há controles locais de navegação e apar
 
 ## Fronteira HTTP e contratos
 
+### DEV-01 — verificação isolada de contratos
+
+A rota `/dev/contratos`, documentada na [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md), existe somente em desenvolvimento. Sua feature usa o transporte existente, TanStack Query e um decoder da resposta de indicadores; filtros aplicados compõem a chave da consulta e requisições aceitam cancelamento. Ela não consta na navegação e sua importação é excluída do build de produção. As afirmações anteriores de ausência de consultas descrevem a fatia visual das páginas do produto; o diagnóstico DEV-01 é a primeira consulta sintética integrada.
+
+O recorte aplicado da ferramenta fica na URL normalizada; o formulário mantém somente o rascunho ainda não confirmado. Links válidos restauram consulta e campos ao abrir/recarregar, e a navegação pelo histórico acompanha o recorte. Parâmetros inválidos impedem a consulta até a correção. Atualização em segundo plano mantém o resultado cacheado válido com aviso acessível, distinto do carregamento inicial.
+
+O [catálogo de contratos](../contracts/analytics-api.md) descreve versão, disponibilidade, origem e pontos provisórios. Os schemas legados de `common.py` e contratos locais de IA não são prova de integração Gold. O decoder do diagnóstico aceita a versão sintética explícita; a futura integração com dados reais requer revisão do consumidor e das definições.
+
 `shared/api/client.ts` usa Fetch e aceita `RequestInit`, inclusive `AbortSignal`. Lê o corpo uma única vez, distingue erro HTTP, rede, configuração e JSON inválido e preserva cancelamentos. Resposta vazia retorna `undefined`; o consumidor deve tipá-la como `void`. Um corpo string é tratado como JSON quando o chamador não fornece `Content-Type`; FormData mantém seu cabeçalho automático.
 
 `apiClient<T>` expressa o tipo esperado em compilação; não valida o conteúdo recebido em execução. Cada funcionalidade deverá acordar DTOs e validação/adaptação com o backend antes de consumir dados. Os envelopes já propostos em `backend/app/schemas/common.py` e os contratos sintéticos no [guia de IA](../services/ai-agent.md) são referências em revisão, não autorização para apresentar placeholders como dados reais.

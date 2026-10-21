@@ -14,6 +14,16 @@ Skills externas foram copiadas para `.agents/skills/` em 16/10/2026, a partir do
 
 As instruções completas ficam em `.agents/skills/` e são descobertas pelo Codex e pelo Antigravity. `.claude/skills/` contém adaptadores com nome e descrição compatíveis que direcionam Claude Code às mesmas instruções e recursos de apoio; altere o conteúdo canônico em `.agents/skills/`, não replique a skill inteira no adaptador.
 
+### Skills de padrões de backend e frontend
+
+[backend-coding-standards](../../.agents/skills/backend-coding-standards/SKILL.md) reúne orientação em português para camadas FastAPI, schemas, injeção, sync/async, evolução dos serviços e verificações. Foi adaptada em 20/10/2026 da [skill de msb7-jpg](https://github.com/msb7-jpg/visagio-atividade-v-energy-360/tree/d90fe16c26e3b6cc2cdcea4e5f2c116ded73ceb5/.agents/skills/backend-coding-standards), revisão `d90fe16c26e3b6cc2cdcea4e5f2c116ded73ceb5`. A origem não declara uma licença na raiz consultada; este registro atribui a referência, sem presumir uma licença.
+
+A adaptação mantém a organização temática, preserva os serviços funcionais e a sessão síncrona atuais e trata limites de linhas como sinais de revisão. Corrige o exemplo de dependência chamável, evita presumir ferramentas instaladas e acrescenta transações, concorrência/idempotência, contratos analíticos e limites dos testes. As recomendações foram confrontadas com documentação oficial; referências ficam nos guias da skill. Não há mudança de arquitetura aprovada nem implementação funcional decorrente da instalação da skill.
+
+[frontend-coding-standards](../../.agents/skills/frontend-coding-standards/SKILL.md) foi escrita em português a partir da arquitetura React/Vite existente, dos componentes/tokens locais e das decisões registradas do Figma Grid 360. A [skill frontend da mesma origem e revisão](https://github.com/msb7-jpg/visagio-atividade-v-energy-360/tree/d90fe16c26e3b6cc2cdcea4e5f2c116ded73ceb5/.agents/skills/frontend-coding-standards) serviu apenas de referência pontual, conforme orientação da pessoa usuária. A versão local cobre composição, contratos em execução, filtros/cache, Tailwind 4, acessibilidade, temas, movimento e conferência visual; não impõe Shadcn, Base UI, Motion, Bun ou bibliotecas de formulários. As referências ao Figma usam o arquivo e os registros existentes; esta entrega não realizou nova auditoria do arquivo.
+
+As instruções canônicas ficam em `.agents/skills/`; há metadados de apresentação Codex e adaptadores em `.claude/skills/`. A descoberta depende do cliente carregar as skills do workspace. Invoque `$backend-coding-standards` ou `$frontend-coding-standards`; não instalam dependências nem alteram permissões dos agentes.
+
 ### Skill própria de prototipação
 
 [git-or-treat-figma](../../.agents/skills/git-or-treat-figma/SKILL.md), criada em 16/10/2026, orienta preparação, discussão visual, construção e revisão do protótipo V-Energy Grid 360. Pode ser invocada como `$git-or-treat-figma`; há adaptador em `.claude/skills/git-or-treat-figma/`. A descoberta em cada IDE depende de seu cliente carregar as skills do workspace.
@@ -64,7 +74,7 @@ Ao iniciar implementação do frontend, instalar Prettier em `frontend/` antes d
 O workflow `.github/workflows/quality.yml` roda em pull requests, em pushes para `main` e sob solicitação manual. Com permissões de leitura, ele valida documentação/configurações dos agentes e executa os gates disponíveis nos módulos atuais:
 
 - **GenAI:** instala `.[dev]`, roda `pytest`, `compileall`, Ruff e gera o relatório sintético de regressão. Os testes não exigem chave Gemini nem chamadas faturáveis.
-- **Backend:** instala `requirements.txt`, roda `pytest` e `compileall`. Os testes usam SQLite em memória e não dependem de um serviço PostgreSQL.
+- **Backend:** instala `requirements.txt`, roda `pytest` e `compileall`, constrói a imagem Docker Hardened e executa `pip check` e a suíte dentro dela. Os testes HTTP usam SQLite em memória; o teste de migração e persistência usa PostgreSQL 16 descartável do CI. O login em `dhi.io` é feito quando os secrets `DHI_USERNAME` e `DHI_TOKEN` estão configurados.
 - **Frontend:** instala pelo `package-lock.json` com `npm ci`, roda `oxlint` e `npm run build` para validar TypeScript e gerar o bundle.
 - **Documentação e harness:** valida JSON/TOML, imports `CLAUDE.md` → `AGENTS.md`, links locais e sintaxe dos hooks compartilhados.
 
