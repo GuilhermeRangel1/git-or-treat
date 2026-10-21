@@ -4,8 +4,8 @@ import { QueryClient } from "@tanstack/react-query";
 export function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
+      queries: { retry: false, networkMode: "always" },
+      mutations: { retry: false, networkMode: "always" },
     },
   });
 }

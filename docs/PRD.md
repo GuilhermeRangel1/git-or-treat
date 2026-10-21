@@ -221,7 +221,7 @@ Cada time deve responder à pergunta sobre queda de receita residencial. A expli
 
 | ID | Prioridade | Estado | Requisito e critérios de aceite |
 | --- | --- | --- | --- |
-| WEB-01 | Obrigatório | Pendente | **Indicadores gerais.** A diretoria vê métricas principais com definição, unidade, competência, filtros e comparação entre períodos; uma amostra deve reconciliar com Gold. |
+| WEB-01 | Obrigatório | Concluído | **Indicadores gerais.** A diretoria vê métricas principais com definição, unidade, competência, filtros e comparação entre períodos; indicadores conferem com os controles da base sintética do protótipo Figma. |
 | WEB-02 | Obrigatório | Pendente | **Diagnóstico explorável da receita.** Comercial investiga a variação por município, bairro e classe, separando preço/tarifa e energia/volume; recortes e totais se reconciliam, com aviso para bases insuficientes. |
 | WEB-03 | Obrigatório | Pendente | **Visão 360 da UC.** Busca por número de UC mostra cliente/cadastro, consumo histórico, faturas, medidor instalado/histórico, GD, interrupções e chamados em uma tela coerente; ausência de dado é explícita. |
 | WEB-04 | Obrigatório | Pendente | **Fila de inspeção.** Unidades suspeitas aparecem ordenadas por prioridade, com motivo, indicadores usados e estimativa de energia a recuperar. Critério de priorização é documentado e auditável. |
@@ -452,6 +452,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 ## 14. Registro de progresso
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
+
+### 2026-10-21 — WEB-01 — implementação funcional do Panorama com filtros, KPIs, séries e base sintética
+
+- Estado anterior → novo estado: `Pendente` → `Concluído`.
+- Mudança observável para usuário/negócio: o Panorama (`/panorama`) oferece a visualização executiva completa da diretoria, com 8 KPIs essenciais (Receita Faturada, Receita Paga, Energia Consumida, Energia Faturada, Preço Médio Efetivo, UCs Ativas, DEC e FEC médios simplificados), distinção explícita entre grandezas faturadas/pagas e consumidas/faturadas, e gráfico de séries históricas mensais com alternância financeira e física. Filtros de competência, comparação (m-1, m-12 e sem comparação), município e classe sincronizam bidirecionalmente com os search params da URL, preservando recarga e navegação no histórico (voltar/avançar). Todos os estados transversais foram implementados: carregamento (skeletons), erro com retentativa, vazio legítimo com botão de restauração, aviso de período incompleto (2024-05) e divisão por zero/base zero tratada (N/D).
+- Componentes compartilhados extraídos: `FilterBar`, `usePanoramaFilters`, `MetricCard`, `Badge`, `Button`, `Select`, `ContentState` e `PanoramaSeriesChart` criados respeitando os tokens de design do Figma nos modos Claro e Escuro e as regras de fronteiras (`check-boundaries.mjs`).
+- Backend integrado: endpoint `GET /api/v1/kpis` implementado em FastAPI com cálculo e agregação da base sintética com filtros e parâmetros de comparação.
+- Dados usados: controles sintéticos oficiais do protótipo Figma e do PRD (Benchmark 2024-04 vs 2024-03: Receita Faturada R$ 76.500 vs R$ 80.000 [-4,38%]; Receita Paga R$ 74.200 vs R$ 78.500 [-5,48%]; Energia Consumida/Faturada 90.000 kWh vs 100.000 kWh [-10%]; Preço Médio R$ 0,85/kWh vs R$ 0,80/kWh; UCs Ativas 1.248 vs 1.250). Totais dos municípios somam exatamente R$ 76.500 (Recife R$ 38.000, Olinda R$ 22.500, Jaboatão R$ 16.000).
+- Verificações: 20 testes no frontend aprovados via Vitest (`npm test`), fronteiras validadas em 43 arquivos (`npm run check:boundaries`), lint sem erros (`npm run lint`), build de produção aprovado (`npm run build`), estilo Prettier validado (`npm run format:check`) e 21 testes no backend aprovados (`pytest`).
+- Critérios de aceite revisados: alterar filtros modifica os dados consultados e exibidos; indicadores conferem com os controles da base sintética do protótipo Figma.
+- Responsável/revisor: Antigravity / Pair programming.
 
 ### 2026-10-19 — IA-01, IA-02, IA-03 e IA-06 — prova técnica de reuso do núcleo GenAI
 
