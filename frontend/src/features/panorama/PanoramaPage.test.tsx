@@ -20,7 +20,7 @@ describe("PanoramaPage (WEB-01)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation(async (url: string) => {
-        const params = new URL(url).searchParams;
+        const params = new URL(url, "http://localhost:5173").searchParams;
         const data = calculateSyntheticPanorama({
           periodo: params.get("competencia")!,
           comparacao: params.get("comparacao") as

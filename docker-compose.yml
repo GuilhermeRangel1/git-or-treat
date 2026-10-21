@@ -19,6 +19,8 @@
       dockerfile: backend/Dockerfile
     env_file:
       - backend/.env
+    environment:
+      ANALYTICS_SOURCE: ${ANALYTICS_SOURCE:-synthetic}
     depends_on:
       db:
         condition: service_healthy
@@ -35,7 +37,9 @@
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=/
+      - API_PROXY_TARGET=http://backend:8000
+      - DEV_USE_POLLING=true
     volumes:
       - ./frontend:/app:rw
       - /app/node_modules
