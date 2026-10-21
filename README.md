@@ -31,6 +31,26 @@ docs/              PRD, diagnóstico, dicionário e decisões
 
 As pastas de serviços são apenas esqueletos documentais. A solução será construída em entregas verificáveis, seguindo os IDs do PRD. O dataset mencionado no case será disponibilizado separadamente na plataforma da atividade; o repositório não o contém.
 
+## Executar localmente com Docker
+
+O `docker-compose.yml` sobe portal, API e PostgreSQL. Os arquivos de ambiente são locais e não versionados; sem eles o Compose aborta com `env file ... not found` antes de criar qualquer container.
+
+```bash
+cp .env.db.example .env.db
+cp backend/.env.example backend/.env
+docker compose up -d --build
+```
+
+| Serviço | URL | Observação |
+| --- | --- | --- |
+| Portal web | http://localhost:5173 | Vite com HMR; `VITE_API_URL=http://localhost:8000` |
+| API FastAPI | http://localhost:8000/api/v1 | OpenAPI em http://localhost:8000/docs |
+| PostgreSQL | localhost:5432 | Banco `v_energy`, usuário `v_energy_app` |
+
+Comandos de apoio: `docker compose ps`, `docker compose logs -f backend` e `docker compose down` (o volume `pgdata` é preservado; `docker compose down -v` apaga os dados).
+
+`docker compose` sem `up` apenas exibe a ajuda. O Compose é a forma suportada de subir a stack; rodar `npm run dev` e `uvicorn` na máquina assume que o PostgreSQL local usa as mesmas credenciais de `backend/.env`.
+
 ## Preparação dos agentes
 
 Codex, Claude Code e Antigravity compartilham os `AGENTS.md`, as skills compatíveis em `.agents/skills/` e os scripts em `.hooks/`. Cada cliente tem configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e nenhum item funcional foi concluído nesta fase.
