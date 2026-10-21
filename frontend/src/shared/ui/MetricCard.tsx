@@ -103,7 +103,7 @@ export default function MetricCard({
   return (
     <article
       aria-label={`${metric.nome}: ${formatValue(metric.valorAtual, metric.unidade)}`}
-      className="flex flex-col justify-between rounded-xl border border-border bg-surface p-5 shadow-sm transition-all hover:border-control hover:shadow-md"
+      className="min-w-0 flex flex-col justify-between rounded-xl border border-border bg-surface p-5 shadow-sm transition-all hover:border-control hover:shadow-md"
     >
       {/* Cabeçalho do Card */}
       <div>
@@ -130,7 +130,7 @@ export default function MetricCard({
 
       {/* Valor Principal */}
       <div className="my-4">
-        <div className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-content">
+        <div className="break-words font-heading text-2xl 2xl:text-3xl font-bold tracking-tight text-content">
           {formatValue(metric.valorAtual, metric.unidade)}
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function MetricCard({
                 </span>
               )}
 
-              <span className="w-full text-muted mt-1 truncate">
+              <span className="w-full text-muted mt-1 break-words">
                 {comparacaoLabel}:{" "}
                 <strong className="text-content font-medium">
                   {formatValue(metric.valorAnterior, metric.unidade)}
@@ -200,11 +200,11 @@ export default function MetricCard({
             <strong className="text-content block font-medium">
               Fórmula matemática:
             </strong>
-            <code className="font-mono text-content bg-surface px-1.5 py-0.5 rounded border border-border">
+            <code className="break-words font-mono text-content bg-surface px-1.5 py-0.5 rounded border border-border">
               {metric.formula}
             </code>
           </div>
-          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[var(--line-subtle)] font-mono">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-1 border-t border-[var(--line-subtle)] font-mono">
             <span>Unidade: {metric.unidade}</span>
             <span>{loteVersao}</span>
           </div>

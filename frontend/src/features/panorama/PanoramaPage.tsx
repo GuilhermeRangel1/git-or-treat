@@ -23,8 +23,8 @@ export default function PanoramaPage() {
   return (
     <div className="relative space-y-6 pb-12">
       {/* Topo e Arte do Panorama (Preservando Identidade Visual do Figma) */}
-      <div className="relative">
-        <div className="relative z-10 w-full lg:w-[calc(100%_-_278px)]">
+      <div className="relative lg:min-h-[120px]">
+        <div className="relative z-10 w-full lg:w-[calc(100%_-_248px)] xl:w-[calc(100%_-_288px)] 2xl:w-[calc(100%_-_328px)]">
           <h1 className="font-heading text-[26px] leading-[34px] font-semibold lg:w-fit lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
             Sua rede, em perspectiva.
           </h1>
@@ -78,7 +78,7 @@ export default function PanoramaPage() {
         <>
           {/* Grid de KPIs do Panorama (Diretoria · WEB-01) */}
           <section aria-label="Indicadores principais do Panorama">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard
                 metric={data.metricas.receitaFaturada}
                 comparacaoLabel={comparacaoLabel}

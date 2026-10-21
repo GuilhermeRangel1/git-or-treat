@@ -34,7 +34,7 @@ export default function ContentState({
         className="w-full space-y-4 py-8 animate-pulse"
       >
         <span className="sr-only">Carregando indicadores...</span>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <div
               key={i}

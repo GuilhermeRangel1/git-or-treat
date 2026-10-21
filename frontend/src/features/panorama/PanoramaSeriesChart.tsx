@@ -64,7 +64,7 @@ export default function PanoramaSeriesChart({
         </div>
 
         {/* Controles de alternância */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg border border-control p-0.5 bg-[var(--bg-surface-hover)]">
             <button
               type="button"
