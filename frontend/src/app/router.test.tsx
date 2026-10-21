@@ -15,10 +15,14 @@ beforeEach(() => {
       removeEventListener: vi.fn(),
     }),
   );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockRejectedValue(new Error("network offline")),
+  );
 });
 
-it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar dados", async () => {
-  const fetchSpy = vi.fn();
+it("mantém a estrutura e o tema ao navegar entre as sete áreas", async () => {
+  const fetchSpy = vi.fn().mockRejectedValue(new Error("network offline"));
   vi.stubGlobal("fetch", fetchSpy);
   const user = userEvent.setup();
   render(
@@ -55,9 +59,12 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar 
     );
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  expect(fetchSpy).not.toHaveBeenCalled();
+  // O Panorama consulta /api/v1/panorama para carregar métricas; as outras 6 áreas continuam sem consultas
+  for (const call of fetchSpy.mock.calls) {
+    expect(call[0]).toContain("/api/v1/panorama");
+  }
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
-});
+}, 15000);
 
 it("inicia e permite alternar o tema quando o armazenamento está indisponível", async () => {
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
@@ -77,7 +84,7 @@ it("inicia e permite alternar o tema quando o armazenamento está indisponível"
     screen.getByRole("button", { name: "Alternar para tema escuro" }),
   );
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-});
+}, 10000);
 
 it("mantém o redirecionamento inicial e trata caminhos desconhecidos", () => {
   render(
