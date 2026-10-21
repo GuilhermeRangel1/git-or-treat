@@ -140,6 +140,7 @@ def evaluate_case(case: dict) -> dict:
         "endpoint": case.get("endpoint", "questions"),
         "category": case.get("category", "question_flow"),
         "passed": all(checks.values()),
+        "known_failure": case.get("known_failure"),
         "checks": checks,
         "actual_status": body.get("status", f"http_{response.status_code}"),
         "actual_domain": actual_domain,
@@ -148,7 +149,19 @@ def evaluate_case(case: dict) -> dict:
     }
 
 
-@pytest.mark.parametrize("case", DATASET["cases"], ids=lambda case: case["id"])
+def _case_param(case: dict):
+    """Falhas conhecidas usam xfail estrito: quando o código for corrigido, o XPASS
+    reprova a execução e avisa que a marcação deve sair da fixture."""
+    if "known_failure" not in case:
+        return pytest.param(case, id=case["id"])
+    return pytest.param(
+        case,
+        id=case["id"],
+        marks=pytest.mark.xfail(strict=True, reason=case["known_failure"]),
+    )
+
+
+@pytest.mark.parametrize("case", [_case_param(case) for case in DATASET["cases"]])
 def test_versioned_synthetic_regression_case_passes(case: dict) -> None:
     result = evaluate_case(case)
 
@@ -182,13 +195,24 @@ def test_report_is_repeatable_and_declares_version_scope_and_limitations() -> No
 def build_report() -> dict:
     results = [evaluate_case(case) for case in DATASET["cases"]]
     passed = sum(result["passed"] for result in results)
+    known = [result for result in results if result["known_failure"]]
     return {
         "report_type": "synthetic_regression",
         "synthetic": True,
         "dataset_version": DATASET["dataset_version"],
         "scenario_scope": DATASET["scenario_scope"],
         "provider": "fixed_test_adapter; no Gemini API calls",
-        "summary": {"total": len(results), "passed": passed, "failed": len(results) - passed},
+        "summary": {
+            "total": len(results),
+            "passed": passed,
+            "failed": len(results) - passed,
+            "pass_rate": f"{passed}/{len(results)} ({passed / len(results):.1%})",
+            "known_failures": sum(not result["passed"] for result in known),
+            "unexpected_failures": sum(
+                not result["passed"] and not result["known_failure"] for result in results
+            ),
+            "known_failures_now_passing": sum(result["passed"] for result in known),
+        },
         "limitations": DATASET["limitations"],
         "cases": results,
     }
@@ -207,7 +231,8 @@ def main() -> None:
     report_json = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     args.output.write_text(report_json, encoding="utf-8")
     print(json.dumps(report["summary"], ensure_ascii=False))
-    if report["summary"]["failed"]:
+    summary = report["summary"]
+    if summary["unexpected_failures"] or summary["known_failures_now_passing"]:
         raise SystemExit(1)
 
 
