@@ -4,6 +4,10 @@
 **Decisão:** [ADR-0001](../decisions/0001-arquitetura-frontend.md).
 **Escopo de produto:** [PRD §5.2 e WEB/IA](../PRD.md). Os requisitos funcionais continuam pendentes.
 
+## Panorama integrado — 21/10/2026
+
+A fatia inicial abaixo é histórica. O Panorama agora consulta exclusivamente `GET /api/v1/panorama`, com oito KPIs, série mensal, filtros na URL, validação JSON e cancelamento. Não há fallback local em falhas da API. A fonte é sintética explicitamente habilitada no backend; WEB-01 segue em validação até reconciliação com Gold. As demais jornadas continuam no escopo visual descrito abaixo.
+
 ## Limite da entrega
 
 A fundação arquitetural foi concluída antes da etapa visual. A primeira fatia visual autorizada reproduz a sidebar e o topo do Panorama nos temas claro/escuro, com navegação mobile. O conteúdo do Panorama termina antes dos filtros: título, subtítulo e decoração SVG com movimento finito. A sidebar não inclui o rodapé demonstrativo; a linha de dados sintéticos e atualização ilustrativa também foi omitida.

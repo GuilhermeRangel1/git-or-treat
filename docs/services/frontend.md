@@ -1,6 +1,6 @@
 # Serviço: portal web
 
-**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** fundação arquitetural preparada; sidebar, topo visual do Panorama e textos superiores das demais páginas alinhados ao Figma, com temas claro/escuro e navegação mobile. As páginas do produto permanecem sem integração de negócio. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos com API sintética real. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
+**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros sincronizados na URL, 8 KPIs de governança, distinção faturado/pago e consumido/faturado, séries temporais e controles demonstrativos da base sintética publicada em `GET /api/v1/panorama`. As outras seis áreas permanecem na primeira fatia visual, aguardando suas respectivas jornadas. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos com API sintética real, sem alterar o contrato de produto do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
 
 ## Arquitetura adotada
 
