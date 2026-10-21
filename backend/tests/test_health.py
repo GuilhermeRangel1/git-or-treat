@@ -61,9 +61,8 @@ def test_root_endpoint(client):
     assert response.json()["health"] == "/api/v1/health"
 
 
-def test_kpis_endpoint_keeps_its_existing_placeholder_envelope(client):
+def test_kpis_endpoint_is_unavailable_without_explicit_analytics_source(client):
     response = client.get("/api/v1/kpis")
 
-    assert response.status_code == 200
-    assert "data" in response.json()
-    assert "metadata" in response.json()
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "source_unavailable"

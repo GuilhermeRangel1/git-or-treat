@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
 
+    # Explicitly opt in to the in-memory demonstration analytics source.
+    ANALYTICS_SOURCE: str = "unavailable"
+
     # Database (PostgreSQL com driver psycopg 3)
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/v_energy"
     DB_POOL_SIZE: int = 10
@@ -42,6 +45,13 @@ class Settings(BaseSettings):
         elif isinstance(v, (list, str)):
             return v
         raise ValueError(v)
+
+    @field_validator("ANALYTICS_SOURCE")
+    @classmethod
+    def validate_analytics_source(cls, value: str) -> str:
+        if value not in {"unavailable", "synthetic"}:
+            raise ValueError("ANALYTICS_SOURCE must be 'unavailable' or 'synthetic'")
+        return value
 
 
 settings = Settings()

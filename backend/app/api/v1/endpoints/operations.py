@@ -1,31 +1,31 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.schemas.common import AnalyticalResponse, AnalyticalMetadata
 
-router = APIRouter()
+from app.api.v1.analytics_route import AnalyticsRoute
+from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
+from app.schemas.analytics import ContinuityResponse
+from app.services.analytics import AnalyticsAPIError, build_continuity, filters_model, metadata, validate_period
+
+router = APIRouter(route_class=AnalyticsRoute)
 
 
-@router.get("/continuity", summary="Indicadores DEC/FEC simplificados por alimentador e período")
+@router.get("/continuity", response_model=ContinuityResponse, summary="DEC/FEC demonstrativos por alimentador e competência")
 def get_continuity_metrics(
-    periodo: Optional[str] = Query(None, description="Período de apuração"),
-    alimentador: Optional[str] = Query(None, description="Identificador do alimentador"),
-    db: Session = Depends(get_db),
+    periodo: str | None = Query(None, max_length=7),
+    competencia_inicio: str | None = Query(None, max_length=7),
+    competencia_fim: str | None = Query(None, max_length=7),
+    alimentador: str | None = Query(None, max_length=100),
+    repository: AnalyticsRepository = Depends(get_analytics_repository),
 ):
-    """
-    Retorna métricas de duração (DEC) e frequência (FEC) simplificadas calculadas na Gold (WEB-06).
-    """
-    return AnalyticalResponse(
-        data={
-            "alimentador": alimentador or "TODOS",
-            "dec_horas": 0.0,
-            "fec_interrupcoes": 0.0,
-            "total_ocorrencias": 0,
-        },
-        metadata=AnalyticalMetadata(
-            periodo=periodo or "global",
-            unidade="Horas / Interrupções por UC",
-            qualidade_cobertura="DEC/FEC simplificado operacional",
-        ),
-    )
+    if periodo is not None:
+        if competencia_inicio is not None or competencia_fim is not None:
+            raise AnalyticsAPIError(422, "invalid_query", "Use periodo ou o intervalo, sem combiná-los.", [{"field": "periodo", "message": "Parâmetro incompatível com competencia_inicio/competencia_fim."}])
+        competencia_inicio = competencia_fim = periodo
+    start, end = validate_period(competencia_inicio, competencia_fim)
+    filters = filters_model(alimentador=alimentador)
+    items, state = build_continuity(repository, start, end, filters)
+    result_metadata = metadata(repository, state, start, end, filters)
+    for item in items:
+        for limitation in item.limitations:
+            if limitation not in result_metadata.limitations:
+                result_metadata.limitations.append(limitation)
+    return {"data": {"items": items}, "metadata": result_metadata}

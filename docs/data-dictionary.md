@@ -2,6 +2,8 @@
 
 **Estado:** estrutura pronta; campos reais não conhecidos até o dataset ser recebido. Este arquivo será preenchido durante DE-08. Nunca inventar esquema.
 
+Os [contratos de consumo DEV-01](contracts/analytics-api.md) e as definições de suas fixtures sintéticas são propostas de aplicação, separadas deste dicionário Gold. Sua existência não comprova nomes de colunas, fórmulas ou granularidades do dataset. A integração futura deve revisar os pontos provisórios indicados no catálogo antes de apresentar métricas reais.
+
 ## Modelo de tabela Gold
 
 | Campo | Descrição |

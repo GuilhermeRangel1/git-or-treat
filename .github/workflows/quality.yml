@@ -70,7 +70,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      TEST_POSTGRES_URL: postgresql+psycopg://venergy_test:venergy_test@localhost:5432/v_energy_test
+      TEST_POSTGRES_URL: postgresql+psycopg://venergy_migrator:venergy_migrator@localhost:5432/v_energy_test
 
     defaults:
       run:
@@ -92,11 +92,36 @@ jobs:
       - name: Instalar dependências
         run: python -m pip install -r requirements.txt
 
-      - name: Executar testes
+      - name: Preparar usuário de migração sem superusuário no banco efêmero
+        env:
+          PGPASSWORD: venergy_test
+        run: psql --host localhost --port 5432 --username venergy_test --dbname v_energy_test --file scripts/prepare_test_postgres.sql
+
+      - name: Executar testes e verificar drift entre modelos e migrações
         run: python -m pytest -q
 
       - name: Validar compilação Python
         run: python -m compileall -q app tests scripts
+
+      - name: Autenticar no registry DHI quando configurado
+        env:
+          DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
+          DHI_TOKEN: ${{ secrets.DHI_TOKEN }}
+        run: |
+          if [ -n "$DHI_USERNAME" ] && [ -n "$DHI_TOKEN" ]; then
+            printf '%s' "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin
+          fi
+
+      - name: Construir imagem Docker Hardened do backend
+        working-directory: .
+        run: docker build --pull -f backend/Dockerfile -t venergy-backend:ci .
+
+      - name: Validar dependências e testes na imagem Docker Hardened
+        run: |
+          docker run --rm venergy-backend:ci python -m pip check
+          docker run --rm --network host \
+            -e TEST_POSTGRES_URL \
+            venergy-backend:ci python -m pytest -q
 
   qualidade-frontend:
     name: Qualidade do frontend

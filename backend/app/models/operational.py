@@ -23,7 +23,7 @@ class InspectionOrder(Base, TimestampMixin):
     uc_id = Column(String(50), nullable=False, index=True)
     reason = Column(String(255), nullable=False)
     priority = Column(String(20), default="MEDIA", nullable=False, index=True)
-    # native_enum=False armazena como VARCHAR com check constraint, facilitando futuras migrações sem lock de tipo
+    # Persiste os nomes do enum (PENDING etc.) como VARCHAR; não cria CHECK por padrão.
     status = Column(SQLEnum(OrderStatus, native_enum=False, length=20), default=OrderStatus.PENDING, nullable=False, index=True)
     notes = Column(Text, nullable=True)
     result = Column(Text, nullable=True)

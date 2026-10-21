@@ -1,6 +1,6 @@
 # Frontend — Grid360
 
-SPA React + TypeScript + Vite, com Tailwind CSS e ícones Lucide. A fundação arquitetural está preparada. A sidebar, o topo do Panorama e os textos superiores das demais páginas seguem o Figma nos temas claro/escuro, com navegação mobile; as outras seis áreas permanecem sem conteúdo de negócio. Não há dados mockados ou integração de dados.
+SPA React + TypeScript + Vite, com Tailwind CSS e ícones Lucide. A fundação arquitetural está preparada. A sidebar, o topo do Panorama e os textos superiores das páginas de produto seguem o Figma nos temas claro/escuro, com navegação mobile; as jornadas de negócio continuam pendentes.
 
 A [arquitetura](../docs/architecture/frontend.md) define responsabilidades, dependências, tema, transporte HTTP e política de estado. A escolha está registrada na [ADR-0001](../docs/decisions/0001-arquitetura-frontend.md). O [PRD](../docs/PRD.md) governa os critérios funcionais.
 
@@ -15,7 +15,7 @@ npm run dev
 
 O ambiente de CI usa Node.js 22; use uma versão compatível com os requisitos declarados pelo Vite instalado. O Docker de desenvolvimento está disponível em `Dockerfile.dev`.
 
-Abrir a interface visual não exige API. Para futuras requisições, copie `.env.example` para `.env.local` e configure `VITE_API_URL`. Essa URL é pública; credenciais não pertencem a variáveis `VITE_*`. Em desenvolvimento há fallback para `http://localhost:8000`. Fora dele, uma requisição sem configuração falha explicitamente.
+Abrir as páginas de produto não exige API. A rota de diagnóstico `/dev/contratos` existe somente durante o desenvolvimento e consulta `/api/v1/kpis` por meio do cliente HTTP compartilhado. Em desenvolvimento há fallback para `http://localhost:8000`; para outro servidor, copie `.env.example` para `.env.local` e configure `VITE_API_URL`. Essa URL é pública; credenciais não pertencem a variáveis `VITE_*`.
 
 ## Verificar
 
@@ -35,4 +35,4 @@ Branch `feat/visual-frontend`, renomeada de `refactor/arquitetura-frontend`. A [
 
 Os ícones usam Lucide; a logo é um asset local. A decoração do Panorama usa um único SVG no componente: desenha as linhas, transmite pulsos e repousa em cerca de 3,7 s; passar o mouse repete os pulsos. A preferência por movimento reduzido mantém o desenho estático. O tema é persistido quando o armazenamento permite. No mobile, o menu pode ser aberto, fechado com botão/Escape e usado para navegar. Há foco visível e atalho para o conteúdo.
 
-Para conferir a fatia: abra `/panorama` em 1440 × 1024 e 390 × 844, alterne os dois temas, navegue nas sete áreas e exercite o menu mobile. Nenhum filtro, valor, gráfico ou chamada de API deve aparecer. A construção de KPIs, gráficos, consultas, filtros funcionais, ordens e IA depende de autorização e contratos próprios.
+Para conferir a fatia visual do produto: abra `/panorama` em 1440 × 1024 e 390 × 844, alterne os dois temas, navegue nas sete áreas e exercite o menu mobile. Para conferir o consumidor do contrato em desenvolvimento, abra `/dev/contratos`; essa tela é uma ferramenta de diagnóstico separada, sem item no menu e sem dados embutidos. A construção das jornadas de negócio, ordens e IA permanece pendente.
