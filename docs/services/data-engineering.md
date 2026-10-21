@@ -1,6 +1,6 @@
 # Serviço: engenharia de dados
 
-**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. O Workflow mantém as duas tarefas da Bronze encadeadas. A Silver (`Bronze_to_Silver.ipynb`) foi executada no Databricks em 21/10/2026 (`CONCLUIDO`, 0 falhas); os ajustes P0 posteriores ainda não foram executados nem encadeados ao Workflow. Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
+**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. O Workflow mantém as duas tarefas da Bronze encadeadas. A Silver (`Bronze_to_Silver.ipynb`) foi executada no Databricks em 21/10/2026 (`CONCLUIDO`, 0 falhas); as alterações posteriores ainda não foram executadas. O Workflow será alterado posteriormente. Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
 
 ## Responsabilidade
 
@@ -29,10 +29,28 @@ Montar um mapa de relacionamento **com chaves verificadas**, cobrindo UC, client
 ### Invariantes de qualidade por transição
 
 - **Bronze:** reprocessar o mesmo lote deve conservar o conteúdo e permitir localizar arquivo/aba/registro de origem. Quando um formato não for interpretável, contar e isolar a falha sem alterar silenciosamente o restante. O perfil registra, por arquivo/aba, padrões observados de data, fuso e pontuação numérica sem inferir decimal versus milhar.
-- **Silver:** toda regra que remove, substitui ou agrega registros precisa de contagem antes/depois e motivo. A soma de aceitos, quarentenados e rejeitados deve reconciliar com a entrada adequada ao grão.
-- **Silver, política P0:** datas ambíguas de leitura/emissão permanecem em quarentena (B), enquanto o diagnóstico C mede evidências por arquivo sem inferir datas; medidor com instalação ambígua fica em quarentena, e leituras dependentes são bloqueadas com `medidor_em_quarentena` (A); CPF/CNPJ ou nome conflitante não é escolhido por completude; data registrada ou futura não comprova quitação, e `9999-12-31` é preservada sem uso como data real. Rejeitados preservam payload integral em `silver.quarentena._registro`; aceitos carregam metadados técnicos de linhagem. Consulte D36–D38 e D48–D56 em [decisões técnicas](../../data-engineering/decisoes-tecnicas.md). O diagnóstico e esta revisão ainda precisam ser executados no lote real.
+- **Silver:** toda regra que remove, substitui ou agrega registros precisa de contagem antes/depois e motivo. A soma de aceitos, quarentenados e rejeitados deve reconciliar com a entrada adequada ao grão, por arquivo/aba, competência e classe quando aplicável. A versão em preparo não substitui as vistas publicadas antes da validação.
+- **Silver:** datas ambíguas de leitura/emissão permanecem em quarentena (B), enquanto o diagnóstico C mede evidências por arquivo sem inferir datas; medidor com instalação ambígua fica em quarentena, e leituras dependentes são bloqueadas com `medidor_em_quarentena` (A); CPF/CNPJ ou nome conflitante não é escolhido por completude; data registrada ou futura não comprova quitação, e `9999-12-31` é preservada sem uso como data real. Rejeitados preservam payload integral em `silver_hist.quarentena._registro`; aceitos carregam metadados técnicos de linhagem. Consulte D36–D38 e D48–D60 em [decisões técnicas](../../data-engineering/decisoes-tecnicas.md). O diagnóstico e esta revisão ainda precisam ser executados no lote real.
 - **Gold:** publicar uma métrica apenas depois de declarar grão, chave, fórmula e população. Verificar que joins não multiplicam receita/energia e que recortes geográficos/classes somam ao total quando compõem uma partição válida.
 - **Exportação:** carregar CSVs Gold em banco local de modo repetível; segunda carga do mesmo lote não duplica linhas ou valores. Comparar contagem, chave e amostras de agregados em ambos os lados.
+
+### Contrato de entrada da Gold
+
+A Gold deve ler apenas `silver_publicada.*` depois de conferir uma única linha `silver.controle_publicacao` para `chave = 'silver'`, com `run_ativo`, `lote_ativo` e estado `CONCLUIDO` correspondente em `silver.controle_silver`. A mesma execução e o mesmo lote devem aparecer em todas as tabelas consumidas; tabelas de preparo, `silver_hist` e quarentena não são entrada de métricas. Antes de liberar exportação, conferir permissões efetivas: somente operadores autorizados podem ler Bronze, histórico, quarentena e campos pessoais da Silver. Não conceder acesso direto da aplicação ou da IA a esses objetos.
+
+| Vista Silver | Grão e chave para consumo | Limite para agregação |
+| --- | --- | --- |
+| `unidades_consumidoras` | Uma UC por `id_uc` aceito | Cadastro atual não prova titularidade ou classe histórica; CPF/CNPJ e nome não saem em Gold/CSV sem regra de mascaramento aprovada. |
+| `medidores` | Um medidor por `id_medidor` aceito | Datas ambíguas de instalação ficam fora; não inferir troca ou vigência não observada. |
+| `leituras` | Uma leitura por `id_leitura` aceito | `consumo_kwh` soma no grão de leitura; datas ambíguas e vínculos bloqueados ficam fora, flags de vigência e leitura decrescente seguem para avaliação. |
+| `faturas` | Uma fatura por `id_fatura` aceito | `valor_total` é R$ decimal com duas casas; competência e classe não tornam fatura única por UC. Status ou data isolada não comprovam pagamento; sentinela não é data real. |
+| `geracao_distribuida` | Uma linha por `id_uc` aceito | Potência instalada e média de injeção não provam geração/compensação por competência. |
+| `ocorrencias_rede` | Uma ocorrência por `id_ocorrencia` aceito | Duração e UC afetada não bastam para DEC/FEC regulatório; investigar `_duracao_incompativel`. |
+| `atendimentos` | Um protocolo por `protocolo` aceito | `qtd_tratativas` não é número de protocolos; nota inválida fica nula e sinalizada. |
+| `atendimentos_historico` | Uma tratativa por `(protocolo, posicao_historico)` | `sequencia` do JSON não é chave confiável; não somar chamados após explodir tratativas. |
+| `inspecoes` | Uma inspeção por `id_inspecao` aceito, com `_aba_origem` | Resultado desconhecido continua explícito; inspeção histórica não é ordem operacional criada no portal. |
+
+Toda linha aceita mantém `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_id_registro`; inspeções mantêm `_aba_origem` e tratativas mantêm `posicao_historico`. Esses campos são para auditoria, não dimensões de negócio. A população excluída e os motivos são recuperáveis no histórico da quarentena por execução; cobertura e impacto devem acompanhar qualquer métrica publicada. Juntar fatos pela UC antes de agregar pode multiplicar valores, portanto agregar cada fato no próprio grão e só depois unir os resultados. O dicionário de métricas Gold permanece a preencher quando as tabelas Gold forem implementadas.
 
 ## Pontos críticos de modelagem
 

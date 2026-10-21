@@ -52,9 +52,11 @@ do objeto JSON.
 ## Silver
 
 `Bronze_to_Silver.ipynb` lê o lote **ativo** da Bronze (`bronze.controle_publicacao`) em `bronze_hist`, com o
-`_lote_id` fixado no início, e grava `silver.*`, `silver.quarentena` e `silver.controle_silver`. Parâmetros: `catalog`
-(padrão `workspace`). Rode `Landing_to_Bronze` e `Bronze_perfilamento` antes: a Silver confronta seus números com
-`quality.perfil_bronze` do mesmo lote.
+`_lote_id` fixado no início. A versão atual prepara as tabelas por execução, reconcilia as saídas, grava o histórico
+em `silver_hist` e expõe o run selecionado por `silver.controle_publicacao` nas vistas `silver_publicada.*`.
+`silver.controle_silver` registra o estado da execução. Parâmetros: `catalog` (padrão `workspace`) e
+`lote_bronze` opcional. Rode `Landing_to_Bronze` e `Bronze_perfilamento` antes: a Silver exige o perfil,
+a reconciliação e as identidades de arquivo do mesmo lote.
 
 Datas ambíguas de leitura e emissão permanecem em quarentena (opção B); a seção 13 mede por arquivo
 e competência evidências de ordem e consistência das datas inequívocas para análise posterior (opção C),
@@ -64,18 +66,18 @@ Medidores com instalação ambígua ficam em quarentena, e leituras dependentes 
 inclusive `_registro_bruto`; registros aceitos preservam os metadados técnicos de linhagem.
 Conflitos de CPF/CNPJ ou nome de titular ficam nulos e sinalizados na UC. Data futura e
 `9999-12-31` são preservadas, sem presumir quitação nem interpretar a sentinela como data real.
-Os testes sintéticos P0 executam com `python -m unittest discover -s data-engineering/tests -p test_silver_p0.py -v`
-na raiz do repositório, com PySpark e Java configurados localmente. No Windows, `PYSPARK_PYTHON`
-deve apontar para o executável Python instalado, evitando o alias do Microsoft Store.
 
-- Todo registro que não entra na Silver vai para `silver.quarentena` com motivo, origem, lote e valor de controle.
-- A conta fecha por tabela (`bronze = aceitos + quarentenados`), em R$ (faturas) e kWh (leituras), e ponta a ponta
-  com os rejeitados do parse da Bronze.
-- Se qualquer invariante falhar, a execução fica `FALHOU` em `silver.controle_silver` e o notebook **falha**. A Gold só
-  deve consumir uma execução `CONCLUIDO` do lote desejado.
+- Todo registro que não entra na Silver vai para a quarentena da execução, com motivo, origem, lote e valor de
+  controle; seu histórico permanece em `silver_hist.quarentena`.
+- As tratativas de `atendimentos_historico` preservam `posicao_historico` (posição no array JSON, a partir de 1),
+  além do localizador do protocolo na Bronze; `sequencia` não é usada como chave de linhagem.
+- A conta fecha por tabela, arquivo/aba, competência e classe quando aplicável (`bronze = aceitos + quarentenados`),
+  em R$ (faturas) e kWh (leituras), e ponta a ponta com os rejeitados do parse da Bronze.
+- Se qualquer invariante falhar, o notebook **falha** e não troca o ponteiro de publicação. A Gold deve consultar
+  `silver_publicada.*` e conferir que `silver.controle_publicacao` aponta para execução `CONCLUIDO` do lote desejado.
 - Estado: executada no Databricks com o dataset real em 21/10/2026 (run `20261021T101818Z_223235ca`, `CONCLUIDO`);
-  essa execução **precede esta revisão P0**, exercitada localmente com dados sintéticos. Falta executar a versão
-  atual no lote real, analisar o diagnóstico C por arquivo e encadear no Workflow.
+  essa execução precede as alterações atuais. Falta executar a versão
+  atual no lote real e analisar o diagnóstico C por arquivo. O Workflow será alterado posteriormente.
   Decisões D46–D56 e §11.2–11.4 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
 
 ## Executar no Databricks
