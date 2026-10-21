@@ -914,6 +914,13 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Evidência: regressões em `ReceitaPage.test.tsx` conferem destinos literais, filtros base geográfico/classe, histórico e consistência entre endereço e clique. Em `frontend/`: `npm.cmd test` → 67 aprovados; `check:boundaries` → 45 arquivos; `format:check`, `lint` e `build` aprovados. Documentação e `git diff --check` aprovados; ver [registro da DEV-03](plans/2026-10-21-dev03-evidence.md).
 - Dados/revisão: somente respostas artificiais de contrato; implementação GPT-6 Luna/high e revisão do controlador. A jornada de navegador não foi repetida por ausência de navegador conectado; testes de interação e evidência anterior não equivalem a nova execução com Gold. Sincronização Trello pendente após timeout do MCP.
 
+### 2026-10-21 — DEV-03 — B5: cálculo compartilhado dos recortes
+
+- Estado: WEB-02, WEB-07 e ENT-01 permanecem `Pendente`; sem mudanças de métrica, fonte ou JSON 1.1.0.
+- Mudança: `backend/app/services/revenue_analytics.py` compartilha contexto filtrado e cálculo de cobertura/comparação. Faturas e leituras são particionadas por grupo uma vez; os grupos deixam de montar série/acumulados/opções completos, e a reconciliação reutiliza a comparação agregada. Foram removidos a recursão de `build_revenue` e seu controle privado sem outros consumidores.
+- Evidência: suíte backend completa → 101 aprovados, 1 PostgreSQL ignorado; `compileall` de `app`, `tests` e `scripts` aprovado. Comparação independente contra `bbb59d2`: 10.080 combinações de resultados/erros idênticas, com fonte sintética normal, sem cobertura, faturamento incompleto e universo vazio, seis janelas e três agrupamentos. Documentação e `git diff --check` aprovados; detalhes no [registro da DEV-03](plans/2026-10-21-dev03-evidence.md).
+- Dados/revisão: somente fixtures artificiais; implementação GPT-6 Luna/high, revisão de código e comparação diferencial pelo controlador. Controles HTTP de Decimal, arredondamento, base pequena, ausência, mix e reconciliação preservados. Acesso Gold por consultas no PostgreSQL continua evolução futura, condicionado ao dicionário aprovado. Limites de navegador, Python 3.12/PostgreSQL e sincronização Trello permanecem os registrados nesta rodada.
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.

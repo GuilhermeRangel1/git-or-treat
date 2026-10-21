@@ -93,6 +93,14 @@ O novo controle HTTP caracteriza as quatro coberturas indisponíveis e o envelop
 
 `ReceitaPage.test.tsx` acrescenta regressões de destino e jornada com endereços esperados literais, município/classe base, histórico e consistência entre `href` e clique. Em `frontend/`: `npm.cmd test` → 67 aprovados; `npm.cmd run check:boundaries` → 45 arquivos; `npm.cmd run format:check`, `npm.cmd run lint` e `npm.cmd run build` aprovados. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão do controlador; sem novas pastas, dependências, alterações visuais ou de contrato.
 
+### B5 — contexto e comparação compartilhados pelos recortes
+
+`backend/app/services/revenue_analytics.py` passou a usar `_RevenueContext`, `_metric_coverage` e `_comparison_summary` para compartilhar os dados filtrados e o cálculo entre agregado e grupos. `_build_breakdown` recebe o contexto e a comparação total já calculada; particiona faturas/leituras por identidade e calcula apenas os resultados necessários às linhas. Não monta série, acumulados, preço-volume ou opções completos para cada grupo nem recalcula o total. O controle privado de recursão e seu placeholder sem outros consumidores foram removidos; o contrato HTTP permanece 1.1.0.
+
+O controlador revisou o diff completo e executou uma comparação diferencial contra o serviço do commit `bbb59d2`: 10.080 combinações de resultados/erros idênticas. Foram exercitadas fontes sintéticas normal, sem cobertura, com faturamento nulo no extremo final e com universo vazio; seis janelas, município/bairro/classe e combinações de filtros conhecidos/desconhecidos. O auxiliar local ignorado `work/dev03/compare-revenue-refactor.py` carrega o código anterior por `git show` e compara o resultado integral das duas implementações; comando a partir de `backend/`: `venv/Scripts/python.exe ../work/dev03/compare-revenue-refactor.py --baseline bbb59d2`.
+
+Os testes HTTP existentes mantêm os controles independentes de resultado; não foram acrescentados testes de chamadas internas. Em `backend/`: `venv/Scripts/python.exe -m pytest -q` → 101 aprovados, 1 PostgreSQL ignorado; `venv/Scripts/python.exe -m compileall -q app tests scripts` aprovado. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão e comparação pelo controlador. Sem novas dependências, arquivos de produto ou alteração do repositório analítico. Consultas Gold e suas definições continuam fora desta refatoração.
+
 ### Limites desta rodada
 
 Nenhum navegador estava conectado ao inventário de automação; a jornada visual não foi repetida nesta rodada. As evidências anteriores de navegador continuam identificadas acima, sem serem apresentadas como nova execução. Python 3.12, PostgreSQL e Gold permanecem pendentes. A nova tentativa de leitura do quadro Trello pelo MCP expirou; nenhum cartão foi alterado.

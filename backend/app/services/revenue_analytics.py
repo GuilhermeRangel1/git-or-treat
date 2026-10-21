@@ -1,7 +1,8 @@
+from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Iterable, Literal
 
-from app.repositories.analytics import AnalyticsRepository
+from app.repositories.analytics import AnalyticsRepository, RevenueCoverage
 from app.schemas.analytics import AnalyticsFilters, AnalyticsStatus
 from app.services.analytics import AnalyticsAPIError
 
@@ -15,6 +16,28 @@ PRICE_QUANTUM = Decimal("0.0001")
 METHOD_LIMITATION = "Método demonstrativo por extremos; não identifica causalidade nem reajuste homologado."
 
 GroupBy = Literal["municipio", "bairro", "classe"]
+
+
+@dataclass(frozen=True)
+class _ComparisonSummary:
+    comparison: dict
+    quality: dict
+    billed_change: Decimal | None
+    initial_amount: Decimal | None
+    final_amount: Decimal | None
+    initial_energy: Decimal | None
+    final_energy: Decimal | None
+
+
+@dataclass(frozen=True)
+class _RevenueContext:
+    start: str
+    end: str
+    months: list[str]
+    units: list[dict]
+    invoices: list[dict]
+    readings: list[dict]
+    coverage: RevenueCoverage
 
 
 def _decimal(value: int | float | Decimal) -> Decimal:
@@ -206,6 +229,127 @@ def _quality(initial: dict, final: dict, finance_complete: bool, start: str, end
     }
 
 
+def _metric_coverage(
+    context: _RevenueContext,
+) -> dict:
+    unit_ids = {unit["uc_id"] for unit in context.units}
+    payment_partial = False
+    measured_partial = False
+    billed_amount_partial = False
+    billed_energy_partial = False
+    for month in context.months:
+        month_invoices = [row for row in context.invoices if row["competencia"] == month]
+        month_readings = [row for row in context.readings if row["competencia"] == month]
+        paid_rows = [row for row in month_invoices if row.get("paid_amount") is not None]
+        measured_rows = [row for row in month_readings if row.get("measured_energy_kwh") is not None]
+        payment_partial |= len(paid_rows) < len(month_invoices)
+        measured_partial |= len(measured_rows) < len(month_readings)
+        billed_amount_partial |= any(row.get("billed_amount") is None for row in month_invoices)
+        billed_energy_partial |= any(row.get("billed_energy_kwh") is None for row in month_invoices)
+
+    metric_coverage = {}
+    for field, covered_months, partial_records, non_financial in (
+        ("billed_amount", context.coverage.billed_amount, billed_amount_partial, False),
+        ("billed_energy_kwh", context.coverage.billed_energy_kwh, billed_energy_partial, False),
+        ("paid_amount", context.coverage.paid_amount, payment_partial, False),
+        (
+            "measured_energy_kwh",
+            context.coverage.measured_energy_kwh,
+            measured_partial or any(
+                {row["uc_id"] for row in context.readings if row["competencia"] == month} != unit_ids
+                for month in context.months
+            ),
+            True,
+        ),
+    ):
+        status, covered, missing, limitations = _coverage_status(
+            context.months,
+            covered_months,
+            bool(context.units),
+            partial_records,
+            non_financial,
+        )
+        metric_coverage[field] = {
+            "status": status,
+            "covered_months": covered,
+            "missing_months": missing,
+            "limitations": limitations,
+        }
+    return metric_coverage
+
+
+def _comparison_summary(
+    context: _RevenueContext,
+    metric_coverage: dict,
+) -> _ComparisonSummary:
+    finance_complete = (
+        metric_coverage["billed_amount"]["status"] == "available"
+        and metric_coverage["billed_energy_kwh"]["status"] == "available"
+    )
+    initial, initial_amount, initial_energy = _snapshot(
+        context.start,
+        context.invoices,
+        context.units,
+        context.coverage.billed_amount,
+        context.coverage.billed_energy_kwh,
+    )
+    final, final_amount, final_energy = _snapshot(
+        context.end,
+        context.invoices,
+        context.units,
+        context.coverage.billed_amount,
+        context.coverage.billed_energy_kwh,
+    )
+    quality = _quality(initial, final, finance_complete, context.start, context.end)
+
+    billed_change = energy_change = measured_change = percent_change = None
+    comparison_eligible = (
+        context.start != context.end
+        and finance_complete
+        and initial_amount is not None
+        and final_amount is not None
+    )
+    if comparison_eligible:
+        displayed_initial_amount = _decimal(initial["billed_amount"])
+        displayed_final_amount = _decimal(final["billed_amount"])
+        billed_change = _round(displayed_final_amount - displayed_initial_amount, MONEY_QUANTUM)
+        if initial["billed_energy_kwh"] is not None and final["billed_energy_kwh"] is not None:
+            energy_change = _round(
+                _decimal(final["billed_energy_kwh"]) - _decimal(initial["billed_energy_kwh"]),
+                MONEY_QUANTUM,
+            )
+        if quality["percent_change_eligible"] and displayed_initial_amount > 0:
+            percent_change = _round((billed_change / displayed_initial_amount) * Decimal("100"), PERCENT_QUANTUM)
+
+    first_measured = _sum_field(
+        [row for row in context.readings if row["competencia"] == context.start], "measured_energy_kwh"
+    )
+    last_measured = _sum_field(
+        [row for row in context.readings if row["competencia"] == context.end], "measured_energy_kwh"
+    )
+    first_measured = _number(_round(first_measured, MONEY_QUANTUM)) if first_measured is not None else None
+    last_measured = _number(_round(last_measured, MONEY_QUANTUM)) if last_measured is not None else None
+    if context.start != context.end and first_measured is not None and last_measured is not None:
+        measured_change = _round(_decimal(last_measured) - _decimal(first_measured), MONEY_QUANTUM)
+
+    return _ComparisonSummary(
+        comparison={
+            "initial": initial,
+            "final": final,
+            "billed_amount_change_brl": _number(billed_change),
+            "billed_energy_change_kwh": _number(energy_change),
+            "measured_energy_change_kwh": _number(measured_change),
+            "billed_amount_change_percent": _number(percent_change),
+        },
+        quality=quality,
+        billed_change=billed_change,
+        initial_amount=initial_amount,
+        final_amount=final_amount,
+        initial_energy=initial_energy,
+        final_energy=final_energy,
+    )
+
+
 def _filter_options(units: list[dict]) -> dict:
     municipalities = sorted({_dimension_value(unit, "municipio") for unit in units})
     neighborhoods = sorted({(_dimension_value(unit, "municipio"), _dimension_value(unit, "bairro")) for unit in units})
@@ -214,23 +358,6 @@ def _filter_options(units: list[dict]) -> dict:
         "municipios": municipalities,
         "bairros": [{"municipio": municipality, "bairro": neighborhood} for municipality, neighborhood in neighborhoods],
         "classes": classes,
-    }
-
-
-def _unavailable_breakdown(group_by: GroupBy) -> dict:
-    return {
-        "dimension": group_by,
-        "items": [],
-        "reconciliation": {
-            "status": "unavailable",
-            "initial_known_sum_brl": None,
-            "final_known_sum_brl": None,
-            "comparable_change_sum_brl": None,
-            "non_comparable_group_count": 0,
-            "unattributed_change_brl": None,
-            "residual_brl": None,
-            "limitations": ["O detalhamento por grupo será disponibilizado na fatia de recortes."],
-        },
     }
 
 
@@ -246,38 +373,57 @@ def _group_identity(unit: dict, dimension: GroupBy) -> tuple[tuple[str, ...], st
 
 
 def _build_breakdown(
-    repository: AnalyticsRepository,
-    start: str,
-    end: str,
+    context: _RevenueContext,
     filters: AnalyticsFilters,
     group_by: GroupBy,
-    units: list[dict],
+    total_summary: _ComparisonSummary,
 ) -> dict:
     groups: dict[tuple[str, ...], tuple[str, str, dict]] = {}
-    for unit in units:
+    unit_groups: dict[str, tuple[str, ...]] = {}
+    group_units: dict[tuple[str, ...], list[dict]] = {}
+    for unit in context.units:
         identity, key, label, overrides = _group_identity(unit, group_by)
         if identity not in groups:
             groups[identity] = (key, label, overrides)
+            group_units[identity] = []
+        unit_groups[unit["uc_id"]] = identity
+        group_units[identity].append(unit)
+
+    group_invoices: dict[tuple[str, ...], list[dict]] = {identity: [] for identity in groups}
+    for invoice in context.invoices:
+        identity = unit_groups.get(invoice["uc_id"])
+        if identity is not None:
+            group_invoices[identity].append(invoice)
+
+    group_readings: dict[tuple[str, ...], list[dict]] = {identity: [] for identity in groups}
+    for reading in context.readings:
+        identity = unit_groups.get(reading["uc_id"])
+        if identity is not None:
+            group_readings[identity].append(reading)
 
     inherited = filters.model_dump()
     items = []
     for identity in sorted(groups, key=lambda value: (groups[value][1].casefold(), groups[value][0])):
         key, label, overrides = groups[identity]
         effective_filters = inherited | overrides
-        summary = build_revenue(
-            repository,
-            start,
-            end,
-            AnalyticsFilters(**effective_filters),
-            group_by=group_by,
-            _include_breakdown=False,
+        selected_units = group_units[identity]
+        group_context = _RevenueContext(
+            start=context.start,
+            end=context.end,
+            months=context.months,
+            units=selected_units,
+            invoices=group_invoices[identity],
+            readings=group_readings[identity],
+            coverage=context.coverage,
         )
+        metric_coverage = _metric_coverage(group_context)
+        summary = _comparison_summary(group_context, metric_coverage)
         items.append({
             "key": key,
             "label": label,
             "filters": effective_filters,
-            "comparison": summary["comparison"],
-            "quality": summary["quality"],
+            "comparison": summary.comparison,
+            "quality": summary.quality,
         })
 
     if not items:
@@ -315,12 +461,9 @@ def _build_breakdown(
     initial_sum = _round(sum(initial_values, Decimal("0")), MONEY_QUANTUM) if initial_values else None
     final_sum = _round(sum(final_values, Decimal("0")), MONEY_QUANTUM) if final_values else None
     change_sum = _round(sum(change_values, Decimal("0")), MONEY_QUANTUM) if change_values else None
-    total = build_revenue(
-        repository, start, end, filters, group_by=group_by, _include_breakdown=False
-    )
-    total_change = total["comparison"]["billed_amount_change_brl"]
-    initial_total = total["comparison"]["initial"]["billed_amount"]
-    final_total = total["comparison"]["final"]["billed_amount"]
+    total_change = total_summary.comparison["billed_amount_change_brl"]
+    initial_total = total_summary.comparison["initial"]["billed_amount"]
+    final_total = total_summary.comparison["final"]["billed_amount"]
     extreme_mismatch = (
         (initial_sum is not None and initial_total is not None and initial_sum != _decimal(initial_total))
         or (final_sum is not None and final_total is not None and final_sum != _decimal(final_total))
@@ -366,7 +509,6 @@ def build_revenue(
     end: str,
     filters: AnalyticsFilters,
     group_by: GroupBy = "municipio",
-    _include_breakdown: bool = True,
 ) -> dict:
     months = _month_sequence(start, end)
     units = _validate_and_filter_units(repository.units, filters)
@@ -377,19 +519,11 @@ def build_revenue(
     has_universe = bool(units)
 
     series = []
-    payment_partial = False
-    measured_partial = False
-    billed_amount_partial = False
-    billed_energy_partial = False
     for month in months:
         month_invoices = [row for row in invoices if row["competencia"] == month]
         month_readings = [row for row in readings if row["competencia"] == month]
         paid_rows = [row for row in month_invoices if row.get("paid_amount") is not None]
         measured_rows = [row for row in month_readings if row.get("measured_energy_kwh") is not None]
-        payment_partial |= len(paid_rows) < len(month_invoices)
-        measured_partial |= len(measured_rows) < len(month_readings)
-        billed_amount_partial |= any(row.get("billed_amount") is None for row in month_invoices)
-        billed_energy_partial |= any(row.get("billed_energy_kwh") is None for row in month_invoices)
         billed_amount = _known_month_value(month_invoices, "billed_amount", month, coverage.billed_amount, has_universe)
         billed_energy = _known_month_value(month_invoices, "billed_energy_kwh", month, coverage.billed_energy_kwh, has_universe)
         paid_amount = (
@@ -406,51 +540,28 @@ def build_revenue(
             "billed_energy_kwh": _number(_round(billed_energy, MONEY_QUANTUM)) if billed_energy is not None else None,
         })
 
-    metric_coverage = {}
-    for field, covered_months, partial_records, non_financial in (
-        ("billed_amount", coverage.billed_amount, billed_amount_partial, False),
-        ("billed_energy_kwh", coverage.billed_energy_kwh, billed_energy_partial, False),
-        ("paid_amount", coverage.paid_amount, payment_partial, False),
-        ("measured_energy_kwh", coverage.measured_energy_kwh, measured_partial or any(
-            {row["uc_id"] for row in readings if row["competencia"] == month} != unit_ids
-            for month in months
-        ), True),
-    ):
-        status, covered, missing, limitations = _coverage_status(
-            months, covered_months, has_universe, partial_records, non_financial
-        )
-        metric_coverage[field] = {
-            "status": status,
-            "covered_months": covered,
-            "missing_months": missing,
-            "limitations": limitations,
-        }
-
+    context = _RevenueContext(
+        start=start,
+        end=end,
+        months=months,
+        units=units,
+        invoices=invoices,
+        readings=readings,
+        coverage=coverage,
+    )
+    metric_coverage = _metric_coverage(context)
     finance_complete = (
         metric_coverage["billed_amount"]["status"] == "available"
         and metric_coverage["billed_energy_kwh"]["status"] == "available"
     )
-    initial, initial_amount, initial_energy = _snapshot(start, invoices, units, coverage.billed_amount, coverage.billed_energy_kwh)
-    final, final_amount, final_energy = _snapshot(end, invoices, units, coverage.billed_amount, coverage.billed_energy_kwh)
-    quality = _quality(initial, final, finance_complete, start, end)
-
-    billed_change = energy_change = measured_change = percent_change = None
-    comparison_eligible = start != end and finance_complete and initial_amount is not None and final_amount is not None
-    if comparison_eligible:
-        displayed_initial_amount = _decimal(initial["billed_amount"])
-        displayed_final_amount = _decimal(final["billed_amount"])
-        billed_change = _round(displayed_final_amount - displayed_initial_amount, MONEY_QUANTUM)
-        if initial["billed_energy_kwh"] is not None and final["billed_energy_kwh"] is not None:
-            energy_change = _round(
-                _decimal(final["billed_energy_kwh"]) - _decimal(initial["billed_energy_kwh"]),
-                MONEY_QUANTUM,
-            )
-        if quality["percent_change_eligible"] and displayed_initial_amount > 0:
-            percent_change = _round((billed_change / displayed_initial_amount) * Decimal("100"), PERCENT_QUANTUM)
-    first_measured = next((point["measured_energy_kwh"] for point in series if point["competencia"] == start), None)
-    last_measured = next((point["measured_energy_kwh"] for point in series if point["competencia"] == end), None)
-    if start != end and first_measured is not None and last_measured is not None:
-        measured_change = _round(_decimal(last_measured) - _decimal(first_measured), MONEY_QUANTUM)
+    comparison_summary = _comparison_summary(context, metric_coverage)
+    comparison = comparison_summary.comparison
+    quality = comparison_summary.quality
+    initial_amount = comparison_summary.initial_amount
+    final_amount = comparison_summary.final_amount
+    initial_energy = comparison_summary.initial_energy
+    final_energy = comparison_summary.final_energy
+    billed_change = comparison_summary.billed_change
 
     volume_effect = price_effect = interaction_effect = rounding_adjustment = None
     decomposition_status: AnalyticsStatus = "unavailable"
@@ -505,14 +616,7 @@ def build_revenue(
         "total_billed_energy_kwh": _number(total_billed_energy),
         "observed_price_brl_per_kwh": observed_price,
         "series": series,
-        "comparison": {
-            "initial": initial,
-            "final": final,
-            "billed_amount_change_brl": _number(billed_change),
-            "billed_energy_change_kwh": _number(energy_change),
-            "measured_energy_change_kwh": _number(measured_change),
-            "billed_amount_change_percent": _number(percent_change),
-        },
+        "comparison": comparison,
         "price_volume": {
             "method": "endpoint_price_volume",
             "reference_version": "dev03-v1",
@@ -525,8 +629,7 @@ def build_revenue(
         },
         "coverage": {"requested_months": months, **metric_coverage},
         "quality": quality,
-        "breakdown": _build_breakdown(repository, start, end, filters, group_by, units)
-        if _include_breakdown else _unavailable_breakdown(group_by),
+        "breakdown": _build_breakdown(context, filters, group_by, comparison_summary),
         "filter_options": _filter_options(repository.units),
     }
 
