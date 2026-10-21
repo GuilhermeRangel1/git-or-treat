@@ -1,6 +1,6 @@
 # Serviço: engenharia de dados
 
-**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. O Workflow mantém as duas tarefas da Bronze encadeadas. Silver está em validação separada; Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
+**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. O Workflow mantém as duas tarefas da Bronze encadeadas. A Silver (`Bronze_to_Silver.ipynb`) foi adaptada à publicação por lote e executada no Databricks em 21/10/2026 (`CONCLUIDO`, 0 falhas); falta encadeá-la ao Workflow. Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
 
 ## Responsabilidade
 

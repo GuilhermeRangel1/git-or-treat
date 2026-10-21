@@ -210,8 +210,8 @@ Cada time deve responder à pergunta sobre queda de receita residencial. A expli
 | ID | Prioridade | Estado | Requisito e critérios de aceite |
 | --- | --- | --- | --- |
 | DE-01 | Obrigatório | Em validação | **Ingerir tudo em Bronze.** Os oito conjuntos, incluindo cinco arquivos de leitura e três abas de inspeção, estão em Delta; linhas, colunas, valores e arquivos de origem são rastreáveis. Diferenças de parse e rejeições são contadas e explicadas. |
-| DE-02 | Obrigatório | Pendente | **Silver confiável.** Perfil de qualidade por fonte, regras de limpeza/padronização, contagens antes/depois e exceções documentadas; datas, classes, identificadores e medidas podem ser usados com significado consistente. |
-| DE-03 | Obrigatório | Pendente | **Integridade referencial.** Medição, faturamento e cadastro possuem vínculos válidos ou exceções explicitamente segregadas; verificações detectam órfãos e multiplicação indevida de fatos. |
+| DE-02 | Obrigatório | Em validação | **Silver confiável.** Perfil de qualidade por fonte, regras de limpeza/padronização, contagens antes/depois e exceções documentadas; datas, classes, identificadores e medidas podem ser usados com significado consistente. |
+| DE-03 | Obrigatório | Em validação | **Integridade referencial.** Medição, faturamento e cadastro possuem vínculos válidos ou exceções explicitamente segregadas; verificações detectam órfãos e multiplicação indevida de fatos. |
 | DE-04 | Obrigatório | Pendente | **Gold para perguntas de negócio.** Tabelas consolidadas suportam indicadores, receita, visão UC, inspeção, rede e IA; granularidade, fórmulas e escolhas de modelagem estão documentadas. |
 | DE-05 | Obrigatório | Pendente | **DEC/FEC por alimentador.** Implementar a definição simplificada descrita no case/ANEEL com numerador, denominador, janela e UC afetada explícitos; conferir amostras e não apresentar resultado como conformidade regulatória oficial. |
 | DE-06 | Obrigatório | Pendente | **Exportar Gold ao banco local.** CSVs de Gold podem ser carregados novamente sem duplicar resultados; conferir esquema, contagens, chaves e agregados entre Databricks e banco. |
@@ -456,6 +456,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 ## 14. Registro de progresso
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
+
+### 2026-10-21 — DE-02/DE-03 — Silver adaptada à Bronze com publicação por lote
+
+- Estado anterior → novo estado: DE-02 `Pendente` → `Em validação`; DE-03 `Pendente` → `Em validação`. Há execução real no Databricks com reconciliação fechada; faltam o Workflow, as decisões de negócio abaixo e a revisão humana.
+- Mudança observável: `Bronze_to_Silver.ipynb` lê o lote ativo da Bronze com o `_lote_id` fixado, valida o contrato de colunas antes de gravar, concilia contagem e soma (R$ e kWh) por tabela, inclui os rejeitados do parse na conta ponta a ponta, registra a execução em `silver.controle_silver` e **falha** quando um invariante é violado. Corrige `primeira_acao`/`ultima_acao` de `atendimentos`, que estourava com `historico` vazio em ANSI.
+- Arquivos/branch: `data-engineering/notebook/Bronze_to_Silver.ipynb`, `data-engineering/README.md`, `data-engineering/decisoes-tecnicas.md` (D46–D52, §11.2–11.3), `docs/services/data-engineering.md` e este PRD; branch `feat/silver`, criada a partir de `feat/bronze-rastreabilidade`.
+- Dados usados: dataset real do case no Volume autorizado do Databricks (nenhum dado copiado para o Git) e uma extração sintética local para os testes de falha.
+- Verificações: Databricks Free Edition, serverless, em 21/10/2026. Bronze lote `20261021T095426Z_106436a4` (com o ajuste de tipo na migração, ver pendências), perfil com 108 linhas, Silver run `20261021T101818Z_223235ca` `CONCLUIDO` com 0 falhas em ≈ 7 min 45 s. Localmente (Spark 4.0.1 + Delta 4.0.0, dados sintéticos): a Silver anterior falha com `INVALID_ARRAY_INDEX`; contrato violado falha antes de gravar; dedup desligada falha no portão e marca `FALHOU`; reexecução reproduz as contagens.
+- Reconciliação ou amostra manual: `delta = 0` nas 8 tabelas e em `atendimentos_historico`; soma de faturas R$ 676.675.147,58 = aceitos 647.055.875,02 + quarentena 29.619.272,56. Os motivos batem com o perfil de 17/10 (leituras: data ambígua 102.878, medidor inexistente 8.609, cascata 58.214; faturas: emissão ambígua 61.226, UC inexistente 32.285). Oráculo independente em Python puro sobre a extração sintética confirma contagem e soma de faturas e leituras. Contagens completas em `decisoes-tecnicas.md` §11.3.
+- Critérios de aceite e pendências: encadear a Silver no Workflow; decidir a data ambígua com a evidência de D52 (todas as datas ambíguas de faturas e leituras têm interpretação única pela competência; recupera R$ 19,4 milhões e 39,7 milhões de kWh); sentinela `9999-12-31` (14.2); exibição de `inspetor` (14.4); 1.369 medidores com instalação ambígua. Bronze: a migração sobre tabelas anteriores exige o `cast("long")` de `_ordem_na_origem` em `Landing_to_Bronze.ipynb`, em commit separado. Trello não sincronizado (MCP não conectado).
+- Responsável/revisor: Júlia (juliatenoriocalado), com apoio do Claude Code; revisão humana pendente.
 
 ### 2026-10-20 — IA-06 — roteador de níveis de modelo ligado ao fluxo de perguntas
 

@@ -98,6 +98,13 @@ Cada seta só existe se a anterior fechou a conta. As duas contas que governam o
 | D43 | Silver | `_ordem_na_origem` entra no rastreio publicado, no contrato de tipos e nas `AUDITORIA` do perfilador e da Silver | preserva a ordem auxiliar até a Silver; no perfilador, incluí-la como dado zeraria a duplicata exata | §13 compara as 4 colunas e confere `bigint`; o intervalo físico fica registrado na Bronze conforme D40 | **implementado** 19/10 (revê D11) |
 | D44 | Silver | **UF/CEP/endereço:** `uf` publicada no **código de 2 letras** (mapa das 27 UFs); `cep` só com **8 dígitos**; `logradouro`/`numero` aparados; `nome_titular` preserva a caixa | a seção 5.2 já dizia "UF padronizada", mas a carga só fazia maiúscula — o arquivo tem **5 grafias** cruas para PE (`PE` 39.470, `pe` 1.826, `pernambuco` 1.729, `P.E.` 1.726, `Pernambuco` 1.709); `cep = "-1"` (162 linhas) virava `"1"`; 2.797 logradouros tinham espaço nas pontas e 1.551, espaço duplo | 45.200 UCs, todas `PE`; CEP nulo onde não há 8 dígitos; 1.557 grafias de logradouro → 217 | **implementado** 19/10 (R42–R44) |
 | D45 | Silver | **Tipo de medidor:** mapa canônico `ELETRO-MECANICO` → `ELETROMECANICO` e `SMART METER` → `SMART` | o arquivo tem **5 valores (10 grafias cruas) para 3 tipos**; o perfil mediu 3 grupos cosméticos, mas o hífen e o nome em inglês ficavam fora do colapso — o mesmo tipo apareceria duas vezes na saída e a Gold agruparia errado | 51.812 medidores, 3 tipos na saída (§13.6) | **implementado** 19/10 (R48) |
+| D46 | Silver | **Lote fixado:** a Silver lê `bronze_hist.<tabela>` filtrada por `_lote_id`, com o lote lido de `bronze.controle_publicacao` no início e exigido `PUBLICADO` em `bronze.controle_lote`; não lê as vistas `bronze.*` | o ponteiro da Bronze pode mudar no meio da execução; a vista misturaria lotes entre tabelas. É o mesmo padrão do `Bronze_perfilamento` | execução local: ponteiro verificado no início e no fim; aviso se andar | implementado; executado no Databricks em 21/10 (§11.3) |
+| D47 | Silver | **Portão de qualidade e controle de execução:** `silver.controle_silver` (`EM_ANDAMENTO` → `CONCLUIDO`/`FALHOU`) e `FALHAS`: qualquer invariante violado (reconciliação, chave, órfão, negativo, tipo, rastreio, lote) falha a tarefa | antes a seção 13 só imprimia; o Workflow seguiria para a Gold com dado reprovado (DE-07, DE-09). A Gold só consome execução `CONCLUIDO` do lote desejado | testes de falha locais: contrato violado (falha antes de gravar) e dedup desligada (10 falhas, `FALHOU`) | implementado; executado no Databricks em 21/10 (§11.3) |
+| D48 | Silver | **Auditoria nova da Bronze:** `_linha_fisica_inicial/_final`, `_registro_bruto`, `_lote_origem`, `_versao_origem` entram em `AUDITORIA` (fora de completude, duplicata exata e `_registro`); a quarentena ganha `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro` como colunas e `_valor_controle` | sem isso, `_registro_bruto` (sempre preenchido) entrava na completude e o JSON da quarentena duplicava o texto bruto; localizar uma linha exigia parsear JSON | colunas conferidas no contrato de saída (§13.5) | implementado; executado no Databricks em 21/10 (§11.3) |
+| D49 | Silver | **Conta em valor e detecção de multiplicação:** soma de `faturas.valor_total` (R$) e `leituras.consumo_kwh` (kWh) na entrada = aceitos + quarentena; a entrada medida depois dos joins deve igualar a contagem independente da Bronze | PRD §4.3 pede reconciliar somas; DE-03 pede detectar multiplicação de fatos | teste local: a conta fecha com `delta = 0,00`; com dedup desligada a multiplicação é detectada | implementado; executado no Databricks em 21/10 (§11.3) |
+| D50 | Silver | **`try_element_at` para `primeira_acao`/`ultima_acao`** (em vez de `historico[0]` e `historico[size-1]`) | com ANSI ligado, índice fora do limite **estoura** (`INVALID_ARRAY_INDEX`); um protocolo com `historico = []` derrubava a execução depois de 6 de 9 tabelas gravadas | reproduzido no Spark 4.0.1 local com a Silver anterior; corrigido | implementado; executado no Databricks em 21/10 (§11.3) |
+| D51 | Silver | **Conta ponta a ponta inclui `bronze_hist.rejeitados`:** origem lógica = rejeitados no parse + aceitos na Bronze; aceitos na Bronze = quarentena + Silver. Rejeitados do parse **não** entram na quarentena da Silver | a quarentena mede a Silver; misturar os dois quebraria o invariante D18 | §13.2 imprime a conta por origem e por tabela | implementado; executado no Databricks em 21/10 (§11.3) |
+| D52 | Silver | **Evidência para a data ambígua (opção C de D36):** nas linhas sem ambiguidade, a data cai no mês da competência em 99,5% das faturas (`data_emissao`; 0,5% no mês seguinte) e em 100% das leituras (`data_leitura`). Nas ambíguas, **todas** têm exatamente uma interpretação compatível com a competência: faturas 40.271 dia/mês + 20.378 mês/dia + 378/199 no mês seguinte = 61.226; leituras 68.684 dia/mês + 34.194 mês/dia = 102.878 | o arquivo **mistura** as duas convenções (~2/3 dia/mês, ~1/3 mês/dia): a convenção brasileira (opção A) trocaria ~20,6 mil datas de fatura em silêncio | consultas sobre `silver.faturas`, `silver.leituras` e `silver.quarentena` do run `20261021T101818Z_223235ca` | **proposta ao time**: resolver pela competência com flag `_data_*_resolvida`; a regra atual (quarentena) segue até a decisão |
 | D19 | Gold | Modelo de métricas (receita, DEC/FEC, GD, UC 360) | responder às perguntas do portal/IA | PRD §5, dicionário | **proposta** |
 | D20 | Gold | **Mascaramento/hash** de dado pessoal | LGPD: não expor CPF/nome a portal, IA e CSV local | seção 9 | **pendente** |
 
@@ -925,6 +932,56 @@ da prova** (R47); nenhum muda a chave, o grão ou o destino de linha. O hash do 
 mais de uma grafia de caixa/acento; a identidade é o `cpf_cnpj`), `mes_referencia` nulo não é rejeitado (não há nulo
 no arquivo; o perfil mede o formato) e a Silver não é atômica **entre tabelas** (cada `saveAsTable` é atômico; uma
 falha no meio deixa tabelas de versões diferentes — visível na §13 e reparável por reexecução).
+
+### 11.2 Verificação local da Silver adaptada à Bronze por lote (21/10/2026)
+
+Feita com **Spark 4.0.1 + Delta 4.0.0 locais** e uma extração **sintética** (≈28 mil linhas, oito fontes, defeitos
+semeados e contados); nenhum arquivo real do case foi usado. Os notebooks rodaram células a células, com o
+`dbutils` simulado e `try_to_date` emulado.
+
+- **Silver anterior contra a Bronze nova:** falha em `atendimentos` com `INVALID_ARRAY_INDEX` (protocolo com
+  `historico` vazio, ANSI ligado), depois de gravar 6 de 9 tabelas (D50).
+- **Silver nova:** conclui com 0 falhas; reconciliação `delta = 0` nas 8 tabelas e em `atendimentos_historico`;
+  soma de controle fecha (`delta = 0,00`) em R$ e kWh; quarentena por motivo igual ao número do perfil nos 22 motivos
+  comparáveis (2 sem par: `UC sem nenhuma leitura` e `geracao_distribuida | chave duplicada`, que o perfil não rotula); zero chave repetida, duplicata exata, órfão ou negativo na saída.
+- **Oráculo independente:** reimplementação em Python puro, a partir dos arquivos brutos, das regras de `faturas` e
+  `leituras`: mesma contagem e mesma soma da Silver (7.995 faturas / R$ 3.783.488,74; 11.499 leituras / 3.723.354 kWh,
+  nos dados sintéticos).
+- **Falhas e reexecução:** contrato violado falha antes de gravar; dedup desligada falha no portão e marca `FALHOU`;
+  reexecutar com o mesmo lote reproduz as contagens e acrescenta uma linha em `controle_silver`.
+- **Bronze (achado):** a migração por cima das tabelas da Bronze anterior falha com `DELTA_FAILED_TO_MERGE_FIELDS`
+  em `_ordem_na_origem` (`int` no legado, `bigint` no lote novo) em 7 das 8 tabelas de dados. Um `cast("long")` na
+  cópia histórica resolve; a correção pertence a `Landing_to_Bronze.ipynb` e **não** está nesta mudança.
+  Com ela, migração, reexecução da mesma origem (vista inalterada, histórico +1 lote) e falha depois do preparo
+  (ponteiro mantido, lote `FALHOU`) se comportaram como projetado.
+- **Bronze (limite):** um CSV com aspas abertas isola todo o trecho até o fim do arquivo em **um** rejeitado; a conta
+  fecha com `delta = 0`, mas subestima a perda (991 linhas físicas num rejeitado, no teste). Vale uma guarda por
+  tamanho do trecho ou por linhas físicas na reconciliação.
+
+Os 22 motivos acima são do perfil **sintético**; a execução real está em §11.3.
+
+### 11.3 Execução no Databricks Free Edition (21/10/2026)
+
+Dataset real no Volume autorizado, compute serverless, notebooks importados à mão (o Workflow ainda não inclui a Silver).
+
+- **Bronze** (`Landing_to_Bronze` com o `cast("long")` de `_ordem_na_origem` na migração): lote `20261021T095426Z_106436a4`
+  publicado, 10 fontes, 4.969.149 linhas, migrando as tabelas da Bronze anterior (`_ordem_na_origem` era `int`). Sem o
+  cast, a migração falharia como em §11.2. 14 origens com `delta = 0` e 0 rejeitados no parse.
+- **Perfil** (`Bronze_perfilamento`): `quality.perfil_bronze` com 108 linhas para o mesmo lote.
+- **Silver**: run `20261021T101818Z_223235ca`, `CONCLUIDO`, 0 falhas, ≈ 7 min 45 s. Entrada → aceitos + quarentena:
+  UCs 46.461 → 45.200 + 1.261; medidores 51.812 → 49.930 + 1.882; leituras 2.182.468 → 1.981.032 + 201.436;
+  faturas 2.184.623 → 2.091.968 + 92.655; GD 3.510, ocorrências 180.000 e atendimentos 318.871 sem quarentena;
+  inspeções 1.389 → 1.344 + 45; `atendimentos_historico` 636.857 tratativas. Soma de controle com `delta = 0,00`:
+  faturas R$ 676.675.147,58 = 647.055.875,02 + 29.619.272,56.
+- **Bate com o perfil de 17/10** (somando as combinações de motivos): leituras com data ambígua 102.878, medidor
+  inexistente 8.609, cascata `medidor_em_quarentena` 58.214; faturas com emissão ambígua 61.226, UC inexistente 32.285.
+- **Consumo negativo:** 7.592 leituras somam −366,7 milhões de kWh (≈ −48 mil kWh por leitura). Por isso a soma bruta
+  de `consumo_kwh` na Bronze (509,2 milhões) é **menor** que a aceita (813,3 milhões). Não somar consumo direto da Bronze.
+- **Quarentena por data ambígua:** faturas R$ 19,4 milhões só por esse motivo (60.368 linhas) e leituras 39,7 milhões
+  de kWh (98.168 linhas). A evidência para resolvê-la está em D52.
+
+**Continua pendente:** encadear a Silver no Workflow, decidir D52/14.1, a sentinela (14.2), a exibição de `inspetor`
+(14.4) e os 1.369 medidores com instalação ambígua (sem competência para servir de prova).
 
 ## 12. Referências
 

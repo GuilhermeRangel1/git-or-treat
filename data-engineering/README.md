@@ -11,6 +11,7 @@ tratamento e decisão de negócio pertencem à Silver. O contrato completo está
 | --- | --- |
 | [`Landing_to_Bronze.ipynb`](notebook/Landing_to_Bronze.ipynb) | Ingestão, rejeitados, reconciliação por origem e publicação |
 | [`Bronze_perfilamento.ipynb`](notebook/Bronze_perfilamento.ipynb) | Inventário, achados e relações por arquivo/aba |
+| [`Bronze_to_Silver.ipynb`](notebook/Bronze_to_Silver.ipynb) | Silver: limpeza, tipos, chaves, quarentena, reconciliação e portão de qualidade |
 
 O scanner grava JSONL de preparo **somente no Volume autorizado**. Cada
 registro aceito mantém o conteúdo bruto, arquivo, ordinal e linha física inicial
@@ -47,6 +48,21 @@ indica o tipo armazenado no Delta, sem afirmar significado de negócio: os campo
 CSV/Excel ficam como texto e o JSON mantém sua estrutura aninhada com os tipos
 físicos lidos pelo parser. `_registro_bruto` preserva a representação original
 do objeto JSON.
+
+## Silver
+
+`Bronze_to_Silver.ipynb` lê o lote **ativo** da Bronze (`bronze.controle_publicacao`) em `bronze_hist`, com o
+`_lote_id` fixado no início, e grava `silver.*`, `silver.quarentena` e `silver.controle_silver`. Parâmetro: `catalog`
+(padrão `workspace`). Rode `Landing_to_Bronze` e `Bronze_perfilamento` antes: a Silver confronta seus números com
+`quality.perfil_bronze` do mesmo lote.
+
+- Todo registro que não entra na Silver vai para `silver.quarentena` com motivo, origem, lote e valor de controle.
+- A conta fecha por tabela (`bronze = aceitos + quarentenados`), em R$ (faturas) e kWh (leituras), e ponta a ponta
+  com os rejeitados do parse da Bronze.
+- Se qualquer invariante falhar, a execução fica `FALHOU` em `silver.controle_silver` e o notebook **falha**. A Gold só
+  deve consumir uma execução `CONCLUIDO` do lote desejado.
+- Estado: executada no Databricks com o dataset real em 21/10/2026 (run `20261021T101818Z_223235ca`, `CONCLUIDO`);
+  falta encadear no Workflow. Decisões D46–D52 e §11.2–11.3 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
 
 ## Executar no Databricks
 
