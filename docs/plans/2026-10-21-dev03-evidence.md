@@ -87,6 +87,12 @@ A classificação de `metadata.status` saiu da rota HTTP e passou para `revenue_
 
 O novo controle HTTP caracteriza as quatro coberturas indisponíveis e o envelope parcial; os demais casos continuam nos testes existentes. Comandos em `backend/`: `venv/Scripts/python.exe -m pytest -q tests/test_revenue_dev03.py` → 33 aprovados; `venv/Scripts/python.exe -m pytest -q` → 101 aprovados, 1 PostgreSQL ignorado. Aviso preexistente de depreciação Starlette/HTTPX. `git diff --check` aprovado. Implementador GPT-6 Luna/high, revisão do controlador; sem alteração de fórmulas, schemas ou repositório.
 
+### B1 — destinos de retorno centralizados
+
+`revenueRefinementDestination` em `frontend/src/features/receita/revenue-filters.ts` concentra a transformação do destino de Total/Município; `ReceitaPage.tsx` usa o mesmo resultado para o endereço do link e para a navegação pelo clique. A classe continua independente: retornar ao Município remove somente o bairro; retornar ao Total remove somente `recorte_*`, preservando filtros base, período e agrupamento.
+
+`ReceitaPage.test.tsx` acrescenta regressões de destino e jornada com endereços esperados literais, município/classe base, histórico e consistência entre `href` e clique. Em `frontend/`: `npm.cmd test` → 67 aprovados; `npm.cmd run check:boundaries` → 45 arquivos; `npm.cmd run format:check`, `npm.cmd run lint` e `npm.cmd run build` aprovados. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão do controlador; sem novas pastas, dependências, alterações visuais ou de contrato.
+
 ### Limites desta rodada
 
 Nenhum navegador estava conectado ao inventário de automação; a jornada visual não foi repetida nesta rodada. As evidências anteriores de navegador continuam identificadas acima, sem serem apresentadas como nova execução. Python 3.12, PostgreSQL e Gold permanecem pendentes. A nova tentativa de leitura do quadro Trello pelo MCP expirou; nenhum cartão foi alterado.

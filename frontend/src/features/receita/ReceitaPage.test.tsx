@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ReceitaPage from "./ReceitaPage";
+import { revenueRefinementDestination } from "./revenue-filters";
 
 const response = {
   data: {
@@ -220,6 +221,25 @@ function HistoryProbe() {
 
 describe("Receita", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("builds total and municipality breadcrumb destinations from the current URL", () => {
+    const current = new URLSearchParams({
+      competencia_inicio: "2025-01",
+      competencia_fim: "2025-02",
+      municipio: "Olinda",
+      agrupar_por: "classe",
+      recorte_municipio: "Olinda",
+      recorte_bairro: "Centro",
+      recorte_classe: "Comercial",
+    });
+
+    expect(revenueRefinementDestination(current, "municipio").toString()).toBe(
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&agrupar_por=classe&recorte_municipio=Olinda&recorte_classe=Comercial",
+    );
+    expect(revenueRefinementDestination(current, "total").toString()).toBe(
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&agrupar_por=classe",
+    );
+  });
 
   it("shows accumulated totals separately from endpoint comparisons and exposes an accessible series", async () => {
     const user = userEvent.setup();
@@ -684,6 +704,66 @@ describe("Receita", () => {
     const request = new URL(String(fetchMock.mock.calls[2][0]));
     expect(request.searchParams.get("municipio")).toBe("Olinda");
     expect(request.searchParams.get("bairro")).toBe("Centro");
+  });
+
+  it("uses the breadcrumb destination for both its href and browser navigation", async () => {
+    const initialSearch =
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&agrupar_por=classe&recorte_municipio=Olinda&recorte_bairro=Centro&recorte_classe=Comercial";
+    const municipalitySearch =
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&agrupar_por=classe&recorte_municipio=Olinda&recorte_classe=Comercial";
+    const totalSearch =
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&agrupar_por=classe";
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(response), { status: 200 }),
+        ),
+    );
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[`/receita?${initialSearch}`]}>
+          <ReceitaPage />
+          <LocationProbe />
+          <HistoryProbe />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const municipalityLink = await screen.findByRole("link", {
+      name: /Município: Olinda/,
+    });
+    expect(municipalityLink).toHaveAttribute("href", `?${municipalitySearch}`);
+    await user.click(municipalityLink);
+    await waitFor(() =>
+      expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+        municipalitySearch,
+      ),
+    );
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "recorte_classe=Comercial",
+    );
+    expect(screen.getByLabelText("URL atual")).not.toHaveTextContent(
+      "recorte_bairro",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Voltar histórico" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+        initialSearch,
+      ),
+    );
+    const totalLink = await screen.findByRole("link", { name: "Total" });
+    expect(totalLink).toHaveAttribute("href", `?${totalSearch}`);
+    await user.click(totalLink);
+    await waitFor(() =>
+      expect(screen.getByLabelText("URL atual")).toHaveTextContent(totalSearch),
+    );
   });
 
   it("rejects long and contradictory refinements without requesting data", () => {

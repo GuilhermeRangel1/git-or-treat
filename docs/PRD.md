@@ -907,6 +907,13 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Evidência: `backend/tests/test_revenue_dev03.py` acrescenta um controle HTTP para as quatro coberturas indisponíveis. `venv/Scripts/python.exe -m pytest -q tests/test_revenue_dev03.py`: 33 aprovados; suíte backend completa: 101 aprovados, 1 PostgreSQL ignorado. `git diff --check` aprovado. Detalhes no [registro da DEV-03](plans/2026-10-21-dev03-evidence.md).
 - Dados/revisão: somente fonte sintética `dev03-v1` e fixtures artificiais de contrato; implementação por GPT-6 Luna/high e revisão do controlador. Gold, Python 3.12 e PostgreSQL seguem pendentes. Trello: a tentativa de leitura do quadro pelo MCP expirou; sincronização pendente.
 
+### 2026-10-21 — DEV-03 — B1: destinos de retorno centralizados
+
+- Estado: WEB-02, WEB-07 e ENT-01 permanecem `Pendente`; contratos e aparência preservados.
+- Mudança: `revenueRefinementDestination` em `frontend/src/features/receita/revenue-filters.ts` fornece o mesmo destino para `href` e clique dos links Total/Município em `ReceitaPage.tsx`. Total remove somente refinamentos; Município remove o bairro e mantém classe independente, filtros base, competências e agrupamento.
+- Evidência: regressões em `ReceitaPage.test.tsx` conferem destinos literais, filtros base geográfico/classe, histórico e consistência entre endereço e clique. Em `frontend/`: `npm.cmd test` → 67 aprovados; `check:boundaries` → 45 arquivos; `format:check`, `lint` e `build` aprovados. Documentação e `git diff --check` aprovados; ver [registro da DEV-03](plans/2026-10-21-dev03-evidence.md).
+- Dados/revisão: somente respostas artificiais de contrato; implementação GPT-6 Luna/high e revisão do controlador. A jornada de navegador não foi repetida por ausência de navegador conectado; testes de interação e evidência anterior não equivalem a nova execução com Gold. Sincronização Trello pendente após timeout do MCP.
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.

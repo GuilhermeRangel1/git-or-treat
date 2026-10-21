@@ -213,6 +213,21 @@ export function updateRevenueGroupBy(
   return next;
 }
 
+export function revenueRefinementDestination(
+  current: URLSearchParams,
+  destination: "total" | "municipio",
+) {
+  const next = new URLSearchParams(current);
+  if (destination === "total") {
+    next.delete("recorte_municipio");
+    next.delete("recorte_bairro");
+    next.delete("recorte_classe");
+  } else {
+    next.delete("recorte_bairro");
+  }
+  return next;
+}
+
 export function refineRevenueParams(
   current: URLSearchParams,
   dimension: RevenueGroupBy,

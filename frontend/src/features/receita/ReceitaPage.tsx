@@ -8,6 +8,7 @@ import RevenueSeries from "./RevenueSeries";
 import RevenueSummary from "./RevenueSummary";
 import {
   parseRevenueSearchParams,
+  revenueRefinementDestination,
   refineRevenueParams,
   updateRevenueBaseParams,
   updateRevenueGroupBy,
@@ -103,19 +104,15 @@ export default function ReceitaPage() {
     setSearchParams(next, { preventScrollReset: true });
   }
 
-  function returnToRefinement(refinement?: "municipio" | "bairro") {
-    const next = new URLSearchParams(searchParams);
-    if (!refinement) {
-      next.delete("recorte_municipio");
-      next.delete("recorte_bairro");
-      next.delete("recorte_classe");
-    } else if (refinement === "municipio") {
-      next.delete("recorte_bairro");
-    }
-    setSearchParams(next, { preventScrollReset: true });
-  }
-
   const envelope = revenue.data;
+  const totalRefinementParams = revenueRefinementDestination(
+    searchParams,
+    "total",
+  );
+  const municipalityRefinementParams = revenueRefinementDestination(
+    searchParams,
+    "municipio",
+  );
   const unavailableMessage = (() => {
     if (!(revenue.error instanceof ApiError)) {
       return "Não foi possível consultar a receita. Tente novamente.";
@@ -235,19 +232,12 @@ export default function ReceitaPage() {
               className="col-span-2 mt-1 flex flex-wrap items-center gap-1 text-xs md:col-span-4"
             >
               <a
-                href={
-                  "?" +
-                  (() => {
-                    const total = new URLSearchParams(searchParams);
-                    total.delete("recorte_municipio");
-                    total.delete("recorte_bairro");
-                    total.delete("recorte_classe");
-                    return total.toString();
-                  })()
-                }
+                href={`?${totalRefinementParams.toString()}`}
                 onClick={(event) => {
                   event.preventDefault();
-                  returnToRefinement();
+                  setSearchParams(totalRefinementParams, {
+                    preventScrollReset: true,
+                  });
                 }}
                 className="font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               >
@@ -259,17 +249,12 @@ export default function ReceitaPage() {
                     ›
                   </span>
                   <a
-                    href={
-                      "?" +
-                      (() => {
-                        const next = new URLSearchParams(searchParams);
-                        next.delete("recorte_bairro");
-                        return next.toString();
-                      })()
-                    }
+                    href={`?${municipalityRefinementParams.toString()}`}
                     onClick={(event) => {
                       event.preventDefault();
-                      returnToRefinement("municipio");
+                      setSearchParams(municipalityRefinementParams, {
+                        preventScrollReset: true,
+                      });
                     }}
                     className="font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                   >
