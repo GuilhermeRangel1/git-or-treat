@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import AppProviders from "./providers";
@@ -17,8 +17,10 @@ beforeEach(() => {
   );
 });
 
-it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar dados", async () => {
-  const fetchSpy = vi.fn();
+it("mantém a estrutura e o tema ao navegar e consulta dados somente em Receita", async () => {
+  const fetchSpy = vi
+    .fn()
+    .mockResolvedValue(new Response(JSON.stringify({}), { status: 503 }));
   vi.stubGlobal("fetch", fetchSpy);
   const user = userEvent.setup();
   render(
@@ -53,9 +55,13 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar 
       "aria-current",
       "page",
     );
+    if (name === "Receita") {
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+      expect(String(fetchSpy.mock.calls[0][0])).toContain("/api/v1/revenue?");
+    }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  expect(fetchSpy).not.toHaveBeenCalled();
+  expect(fetchSpy).toHaveBeenCalledTimes(1);
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
 });
 

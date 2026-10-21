@@ -37,14 +37,17 @@ def test_listings_return_empty_out_of_range_page_and_preserve_total(client, monk
 
     assert response.status_code == 200
     assert response.json()["data"]["items"] == []
-    assert response.json()["pagination"] == {"page": 20, "page_size": 2, "total": 5, "total_pages": 3}
+    assert response.json()["pagination"] == {"page": 20, "page_size": 2, "total": 10, "total_pages": 5}
 
 
 def test_partially_paid_invoice_has_a_consistent_payment_status(client):
     response = client.get("/api/v1/ucs/UC-1002")
 
     assert response.status_code == 200
-    invoice = response.json()["data"]["invoices"][0]
+    invoice = next(
+        item for item in response.json()["data"]["invoices"]
+        if item["competencia"] == "2025-02"
+    )
     assert invoice["billed_amount"] == 82.0
     assert invoice["paid_amount"] == 70.0
     assert invoice["payment_status"] == "partial"
@@ -60,7 +63,7 @@ def test_uc_search_preserves_case_insensitive_id_filter_order_pagination_and_pro
         {"uc_id": "UC-1003", "municipio": "Olinda", "bairro": "Casa Caiada", "classe": "Residencial", "alimentador": "AL-02", "status": "active"},
         {"uc_id": "UC-1005", "municipio": "Paulista", "bairro": "Jardim", "classe": "Residencial", "alimentador": "AL-02", "status": "active"},
     ]
-    assert body["pagination"] == {"page": 1, "page_size": 2, "total": 5, "total_pages": 3}
+    assert body["pagination"] == {"page": 1, "page_size": 2, "total": 10, "total_pages": 5}
     assert body["metadata"]["status"] == "available"
 
 

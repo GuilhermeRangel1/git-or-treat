@@ -1,6 +1,8 @@
 # DEV-01 — Contratos de consumo analítico
 
-**Versão:** 1.0.0 · **Fonte disponível nesta etapa:** sintética (`dev01-v1`).
+> **DEV-03 verificada com fonte sintética:** a jornada Receita usa 1.1.0, conforme o [contrato de Receita](revenue-dev03.md) e as [evidências integradas](../plans/2026-10-21-dev03-evidence.md). Os demais endpoints preservam 1.0.0. A verificação demonstrativa não conclui a integração Gold.
+
+**Versão:** 1.0.0 nas jornadas DEV-01, 1.1.0 em Receita conforme DEV-03 · **Fonte sintética atual:** `dev03-v1` (substitui `dev01-v1` como lote de demonstração).
 **Escopo:** preparação de WEB-01 a WEB-07 e IA-01 a IA-06. As formas JSON são contratos de aplicação; não representam o esquema físico ou as fórmulas oficiais da Gold.
 
 [Desenho](../design/2026-10-20-dev01-design.md), [plano](../plans/2026-10-20-dev01-plan.md), [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md) e [PRD](../PRD.md) registram motivação, decisões e aceite. O OpenAPI servido em `/openapi.json` e `/docs` é a referência executável dos schemas e parâmetros.
@@ -33,7 +35,7 @@ Receita declara `currency_unit: BRL` e `energy_unit: kWh`; faturas também decla
 | Jornada | Operação | Consumo preparado | Pendência de integração com Gold |
 | --- | --- | --- | --- |
 | Panorama | `GET /api/v1/kpis` | Métricas com unidade, disponibilidade, contexto e origem; consulta por competências e recorte | Definições oficiais, comparação e reconciliação do lote real |
-| Receita | `GET /api/v1/revenue` | Totais, série, preço observado e contrato para decomposição; lacunas explícitas | Método preço-volume, janela comparativa e detalhamento territorial validados |
+| Receita | `GET /api/v1/revenue` | Totais, série inclusiva, extremos, preço observado, decomposição e recortes demonstrativos conforme [1.1.0](revenue-dev03.md) | Método e população Gold, janelas anuais e reconciliação com lote real |
 | Atendimento | `GET /api/v1/ucs` e `GET /api/v1/ucs/{uc_id}` | Busca/listagem e cadastro, consumo, faturas, medidores, GD, interrupções e chamados | Chave/vigência real, cobertura de fontes e paginação de históricos volumosos |
 | Perdas | `GET /api/v1/inspections/queue` | Fila, prioridade, motivo, indicadores e estimativa demonstrativos | Regra e estimativa auditáveis sobre a Gold |
 | Ordens | `GET/POST /api/v1/inspections/orders` e `PATCH /api/v1/inspections/orders/{order_id}` | Schemas e persistência existentes, separados dos dados analíticos | Ciclo de estados, histórico, idempotência e UI nos cards DEV-06/07 |
@@ -78,7 +80,7 @@ Consultas ao Figma em 20/10/2026 confirmaram os frames de Panorama (`15:164`/`16
 | Valor faturado, energia faturada, consumo apurado e base de UCs separados | IDs/unidades distintos, sem misturar grãos ou nomes |
 | Competência, comparação, território e classe visíveis | Janela e filtros efetivos são metadados; comparação completa permanece na jornada do próximo card |
 | Fundamento, atualização e limitações | Origem, versão, atualização e limitações no envelope |
-| Receita com preço, volume, interação e total | Contrato registra componentes e indisponibilidade do método enquanto não definido |
+| Receita com preço, volume, interação e total | DEV-03 registra método demonstrativo, ajuste explícito e indisponibilidade conforme cobertura/denominadores; método Gold permanece pendente |
 | Busca pelo número da UC e ausência explícita | Busca restrita à UC, detalhe 404 e estados das seções |
 | DEC/FEC, base atendida e cobertura | Denominador e disponibilidade explícitos, sem alegar conformidade regulatória |
 
@@ -86,24 +88,24 @@ A rota `/dev/contratos` é uma ferramenta interna de verificação aprovada para
 
 ## Controles sintéticos e fórmulas provisórias
 
-O lote `dev01-v1`, definido em `backend/app/synthetic/fixtures.py`, contém cinco UCs fictícias e três faturas. Os totais abaixo são controles literais para janeiro–fevereiro de 2025, sem filtros:
+O lote atual `dev03-v1`, definido em `backend/app/synthetic/fixtures.py`, contém dez UCs fictícias e dezesseis faturas, com oito UCs faturadas em cada extremo. Evolui a amostra DEV-01 para permitir exploração com base suficiente; registros de progresso anteriores preservam os controles históricos `dev01-v1`. Os totais abaixo são controles literais para janeiro–fevereiro de 2025, sem filtros:
 
 | Controle | Resultado esperado |
 | --- | --- |
-| Valor faturado | 100 + 82 + 0 = BRL 182 |
-| Valor pago das faturas selecionadas | 100 + 70 + 0 = BRL 170 |
-| Energia faturada | 90 + 80 + 0 = 170 kWh |
-| Energia medida conhecida | 407 kWh; estado parcial pela leitura ausente de UC-1004 em fevereiro |
-| Base ativa | 5 UCs no snapshot; não é uma população histórica homologada |
+| Valor faturado | BRL 1.727; extremos BRL 800 → BRL 927 |
+| Valor pago conhecido das faturas selecionadas | BRL 1.710 |
+| Energia faturada | 1.585 kWh; extremos 730 → 855 kWh |
+| Energia medida conhecida | 407 kWh; estado parcial pela leitura ausente de UC-1004 e UCs da demonstração sem histórico de leitura |
+| Base ativa | 10 UCs no snapshot; não é uma população histórica homologada |
 | Olinda, janeiro | Fatura e leitura de zero conhecido; estado disponível |
-| Paulista | UC-1005 sem faturas ou leituras; medidas vazias, sem fabricar zero |
+| Paulista | KPI legado vazio/nulo por ausência de fatos; Receita 1.1 publica zero financeiro observado com base zero porque sua fonte declara cobertura financeira completa. Sem essa cobertura, Receita publica nulo. |
 | AL-03, fevereiro | Leitura registrada com valor ausente; medida indisponível, diferente de ausência de registro |
 | AL-01, janeiro–fevereiro | Duas UCs no denominador, duas interrupções individuais somando três horas: DEC 1,5 h/UC e FEC 1 interrupção/UC |
 | AL-03, continuidade | Denominador desconhecido; DEC/FEC nulos e motivo explícito |
 
-Os pagamentos são associados à competência da fatura, mesmo quando a data do pagamento ocorre em fevereiro ou março. BRL 170 não representa fluxo de caixa recebido dentro da janela janeiro–fevereiro. A fatura de UC-1002 cobra BRL 82, registra BRL 70 pagos em 05/03/2025 e situação de pagamento parcial.
+Os pagamentos são associados à competência da fatura, mesmo quando a data do pagamento ocorre em fevereiro ou março. BRL 1.710 não representa fluxo de caixa recebido dentro da janela janeiro–fevereiro. A fatura de fevereiro de UC-1002 cobra BRL 82, registra BRL 70 pagos em 05/03/2025 e situação de pagamento parcial.
 
-O preço observado é valor faturado dividido por energia faturada: 182 / 170 = 1,0706 BRL/kWh. Não equivale à tarifa homologada. A decomposição `endpoint_price_volume` compara exclusivamente os meses inicial e final solicitados: com preço `p` e energia faturada `q`, volume = `p0 × (q1 − q0)`, preço = `q0 × (p1 − p0)` e interação = `(p1 − p0) × (q1 − q0)`. Janeiro contra fevereiro resulta em −11,11, −7,75 e +0,86 BRL, somando −18 BRL; o método permanece demonstrativo. Extremos ausentes, iguais ou sem energia faturada positiva tornam a decomposição indisponível. Totais monetários e componentes são arredondados a duas casas; preço observado a quatro.
+O preço observado acumulado é valor faturado dividido por energia faturada: 1.727 / 1.585 = 1,0896 BRL/kWh. Não equivale à tarifa homologada. A decomposição `endpoint_price_volume` compara exclusivamente os meses inicial e final solicitados: com preço `p` e energia faturada `q`, volume = `p0 × (q1 − q0)`, preço = `q0 × (p1 − p0)` e interação = `(p1 − p0) × (q1 − q0)`. Janeiro contra fevereiro resulta em +136,99, −8,53 e −1,46 BRL, somando +127 BRL com ajuste zero; o método permanece demonstrativo. Extremos ausentes, iguais, cobertura financeira incompleta ou energia faturada não positiva tornam a decomposição indisponível. Dinheiro e componentes são quantizados a centavos, preço observado a quatro casas; o [contrato DEV-03](revenue-dev03.md) fixa arredondamento, deltas publicados, ajustes, mix e reconciliação dos grupos.
 
 DEC/FEC usam eventos individuais por UC, duração em horas e denominador fixo por alimentador; ainda não implementam todas as regras de DE-05. A cobertura usa o cadastro do snapshot, sem reconstrução temporal. Prioridades, motivos e estimativas das suspeitas são valores artificiais da fixture, não resultado de um modelo ou regra validada. A potência GD permanece em kW e não é tratada como energia gerada. Essas definições precisam de revisão com a Gold.
 
@@ -125,7 +127,9 @@ As leituras sintéticas não precisam de migração nem de um banco populado. Es
 npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-Abrir `http://127.0.0.1:5173/dev/contratos`, consultar janeiro–fevereiro de 2025 sem filtros e conferir BRL 182, BRL 170, 170 kWh e 407 kWh parcial, junto da origem sintética e versão. Filtrar Olinda e janeiro para observar zero disponível; Paulista para ausência; AL-03 em fevereiro pode ser conferido diretamente na API. A rota existe somente em desenvolvimento; no preview do build de produção, `/dev/contratos` redireciona ao Panorama.
+Abrir `http://127.0.0.1:5173/dev/contratos`, consultar janeiro–fevereiro de 2025 sem filtros e conferir BRL 1.727, BRL 1.710, 1.585 kWh e 407 kWh parcial, junto da origem sintética e versão. Filtrar Olinda e janeiro para observar zero disponível; Paulista para ausência no KPI; AL-03 em fevereiro pode ser conferido diretamente na API. A rota existe somente em desenvolvimento; no preview do build de produção, `/dev/contratos` redireciona ao Panorama.
+
+A exploração de produto DEV-03 usa `/receita`: abrir Residencial, explorar Recife e um bairro, retornar ao total e conferir classe/período preservados na URL. No lote atual, Residencial total compara BRL 620 → BRL 725 (Δ BRL 105); Recife/Residencial compara BRL 620 → BRL 645 (Δ BRL 25). Totais acumulados e valores dos extremos são apresentados separadamente. Esses controles sintéticos não substituem diagnóstico ou reconciliação Gold.
 
 O formulário mantém o rascunho local; ao consultar, o período e os filtros aplicados compõem a URL e a chave de cache. Abrir/recarregar um link com recorte válido restaura a consulta; voltar/avançar acompanha o histórico da URL. Uma URL inválida não dispara consulta e apresenta validação para correção. Durante atualização de dados já cacheados, o resultado válido permanece identificado com um aviso de atualização.
 

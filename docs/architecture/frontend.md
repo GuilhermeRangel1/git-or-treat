@@ -1,6 +1,8 @@
 # Arquitetura do frontend
 
 **Estado:** fundação e primeira fatia visual implementadas em 18/10/2026 na branch `feat/visual-frontend` (renomeada de `refactor/arquitetura-frontend`).
+
+Em 21/10/2026, a DEV-03 acrescentou exploração funcional demonstrativa em `features/receita`: decoder do contrato 1.1.0, hook TanStack Query com cancelamento, filtros base/refinamentos na URL, diálogo de rascunho e componentes de resumo, decomposição, recortes e série. O retorno ao total preserva filtros base. A feature usa o transporte compartilhado e não importa `features/dev-contracts`. Confira [revisão e limites Gold](../plans/2026-10-21-dev03-evidence.md).
 **Decisão:** [ADR-0001](../decisions/0001-arquitetura-frontend.md).
 **Escopo de produto:** [PRD §5.2 e WEB/IA](../PRD.md). Os requisitos funcionais continuam pendentes.
 
