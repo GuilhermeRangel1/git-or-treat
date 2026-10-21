@@ -225,7 +225,7 @@ Cada time deve responder à pergunta sobre queda de receita residencial. A expli
 | WEB-02 | Obrigatório | Pendente | **Diagnóstico explorável da receita.** Comercial investiga a variação por município, bairro e classe, separando preço/tarifa e energia/volume; recortes e totais se reconciliam, com aviso para bases insuficientes. |
 | WEB-03 | Obrigatório | Pendente | **Visão 360 da UC.** Busca por número de UC mostra cliente/cadastro, consumo histórico, faturas, medidor instalado/histórico, GD, interrupções e chamados em uma tela coerente; ausência de dado é explícita. |
 | WEB-04 | Obrigatório | Pendente | **Fila de inspeção.** Unidades suspeitas aparecem ordenadas por prioridade, com motivo, indicadores usados e estimativa de energia a recuperar. Critério de priorização é documentado e auditável. |
-| WEB-05 | Obrigatório | Pendente | **Ordens de inspeção.** A partir da fila, usuário cria ordem, altera status, registra resultado de campo e cancela ordem desnecessária; transições inválidas e repetição indevida são impedidas. |
+| WEB-05 | Obrigatório | Em validação | **Ordens de inspeção.** A partir da fila, usuário cria ordem, altera status, registra resultado de campo e cancela ordem desnecessária; transições inválidas e repetição indevida são impedidas. |
 | WEB-06 | Obrigatório | Pendente | **Operação DEC/FEC.** Gerente visualiza evolução por alimentador e identifica piores regiões; números remetem à mesma definição Gold e a ausência de denominador adequado é tratada. |
 | WEB-07 | Obrigatório | Pendente | **Filtro e recorte.** Usuário filtra informações conforme necessidade, mantém contexto visível e entende quais filtros afetam cada gráfico/tabela. |
 | WEB-08 | Diferencial | Pendente | **Exportar fila de inspeção.** O arquivo reflete ordem, filtros e dados exibidos, com proteção de acesso e formato documentado. |
@@ -806,6 +806,25 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Reconciliação/amostra: testes HTTP exercitam criação, leitura, atualização, filtro de status, 404 e validação com persistência em SQLite. Falhas reais de INSERT/UPDATE por triggers verificam recuperação da mesma Session; a retirada temporária do rollback fez o teste falhar com `PendingRollbackError`, e sua restauração fez o teste passar. Alembic foi exercitado em upgrade/downgrade SQLite; o health foi testado com conexão disponível e indisponível, preservando o contrato atual.
 - Critérios de aceite e pendências: autorização, transições, histórico, idempotência e paginação das ordens continuam pendentes de decisões e implementação; rotas analíticas/IA permanecem placeholders, sem consulta Gold ou reconciliação numérica. WEB-05 e WEB-11 seguem `Pendente`. A separação de código não comprova acesso somente leitura da IA, segurança para uso público ou validade de métricas.
 - Responsável/revisor: dois implementadores GPT-6 Luna high e revisão independente GPT-6.1 Sol high; revisão integrada sem achados críticos/importantes remanescentes após reforço do teste de rollback na mesma Session. Sincronização Trello pendente porque o MCP não está conectado nesta sessão.
+
+
+### 2026-10-20 — implementação do ciclo operacional do backend de ordens (WEB-05 e WEB-11)
+
+- Estado anterior → novo estado: `Pendente` → `Em validação` para WEB-05 (backend operacional implementado e validado; interface frontend pendente de ligação).
+- Mudança observável: ciclo operacional completo implementado em FastAPI conforme [ADR-0004](decisions/0004-ciclo-operacional-e-concorrencia-das-ordens-de-inspecao.md).
+  - Estados permitidos: `PENDENTE`, `EM_ANDAMENTO`, `CONCLUIDA`, `CANCELADA`.
+  - Validação estrita de transições no servidor: ordens canceladas e concluídas são imutáveis (eliminando a regressão registrada no protótipo Figma onde reabrir ações permitia reativar indevidamente uma ordem cancelada).
+  - Conclusão exige registro de resultado de campo (`result` obrigatório e não vazio).
+  - Endpoint de registro de resultado de campo implementado (`POST /api/v1/inspections/orders/{order_id}/result`).
+  - Endpoint de confirmação de cancelamento identificando a ordem implementado (`POST /api/v1/inspections/orders/{order_id}/cancel`).
+  - Trilha de auditoria e histórico de alterações persistida na tabela `operational_order_history` e consultável via `GET /api/v1/inspections/orders/{order_id}/history`.
+  - Tratamento de repetição e concorrência: suporte a `idempotency_key` (payload e header `X-Idempotency-Key`), prevenção de ordens ativas duplicadas para a mesma UC (HTTP 409) e controle de concorrência otimista via coluna `version` (HTTP 409 em descompasso).
+  - Nova migração Alembic `c4b1a239d8e7` com upgrade/downgrade testados.
+- Arquivos/branch: `backend/app/models/operational.py`, `backend/app/models/__init__.py`, `backend/app/schemas/inspections.py`, `backend/app/services/inspections.py`, `backend/app/api/v1/endpoints/inspections.py`, `backend/alembic/versions/c4b1a239d8e7_add_order_lifecycle_concurrency_and_history.py`, `backend/tests/test_inspections.py`, `backend/tests/test_migrations.py`, `backend/tests/test_database.py`, `docs/decisions/0004-ciclo-operacional-e-concorrencia-das-ordens-de-inspecao.md`, `docs/decisions/README.md`, [guia do serviço](services/backend.md).
+- Dados usados: apenas dados sintéticos operacionais e bancos SQLite descartáveis de teste; nenhum dado pessoal ou confidencial foi utilizado.
+- Verificações locais: em `backend/`, `./venv/Scripts/python.exe -m pytest -v` executou 29 testes (28 passaram, 1 ignorado por ausência de `TEST_POSTGRES_URL`); `./venv/Scripts/python.exe -m compileall -q app tests scripts alembic` executou com sucesso (0 erros).
+- Critérios de aceite e pendências: o backend atende plenamente ao ciclo operacional, validação, resultado, histórico, cancelamento identificado e concorrência/idempotência. Para conclusão integral de WEB-05 resta conectar a página correspondente no portal frontend (`frontend/src/features/ordens/OrdensPage.tsx`). Sincronização Trello pendente por ausência de MCP Trello na sessão.
+
 
 ## 15. Conferência de cobertura do enunciado por página
 
