@@ -1,6 +1,6 @@
 # Serviço: engenharia de dados
 
-**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. O Workflow mantém as duas tarefas da Bronze encadeadas. A Silver (`Bronze_to_Silver.ipynb`) foi adaptada à publicação por lote e executada no Databricks em 21/10/2026 (`CONCLUIDO`, 0 falhas); falta encadeá-la ao Workflow. Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
+**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. O Workflow mantém as duas tarefas da Bronze encadeadas. A Silver (`Bronze_to_Silver.ipynb`) foi executada no Databricks em 21/10/2026 (`CONCLUIDO`, 0 falhas); os ajustes P0 posteriores ainda não foram executados nem encadeados ao Workflow. Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
 
 ## Responsabilidade
 
@@ -30,6 +30,7 @@ Montar um mapa de relacionamento **com chaves verificadas**, cobrindo UC, client
 
 - **Bronze:** reprocessar o mesmo lote deve conservar o conteúdo e permitir localizar arquivo/aba/registro de origem. Quando um formato não for interpretável, contar e isolar a falha sem alterar silenciosamente o restante. O perfil registra, por arquivo/aba, padrões observados de data, fuso e pontuação numérica sem inferir decimal versus milhar.
 - **Silver:** toda regra que remove, substitui ou agrega registros precisa de contagem antes/depois e motivo. A soma de aceitos, quarentenados e rejeitados deve reconciliar com a entrada adequada ao grão.
+- **Silver, política P0:** datas ambíguas de leitura/emissão permanecem em quarentena (B), enquanto o diagnóstico C mede evidências por arquivo sem inferir datas; medidor com instalação ambígua fica em quarentena, e leituras dependentes são bloqueadas com `medidor_em_quarentena` (A); CPF/CNPJ ou nome conflitante não é escolhido por completude; data registrada ou futura não comprova quitação, e `9999-12-31` é preservada sem uso como data real. Rejeitados preservam payload integral em `silver.quarentena._registro`; aceitos carregam metadados técnicos de linhagem. Consulte D36–D38 e D48–D56 em [decisões técnicas](../../data-engineering/decisoes-tecnicas.md). O diagnóstico e esta revisão ainda precisam ser executados no lote real.
 - **Gold:** publicar uma métrica apenas depois de declarar grão, chave, fórmula e população. Verificar que joins não multiplicam receita/energia e que recortes geográficos/classes somam ao total quando compõem uma partição válida.
 - **Exportação:** carregar CSVs Gold em banco local de modo repetível; segunda carga do mesmo lote não duplica linhas ou valores. Comparar contagem, chave e amostras de agregados em ambos os lados.
 

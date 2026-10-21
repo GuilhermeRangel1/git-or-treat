@@ -52,9 +52,21 @@ do objeto JSON.
 ## Silver
 
 `Bronze_to_Silver.ipynb` lê o lote **ativo** da Bronze (`bronze.controle_publicacao`) em `bronze_hist`, com o
-`_lote_id` fixado no início, e grava `silver.*`, `silver.quarentena` e `silver.controle_silver`. Parâmetro: `catalog`
+`_lote_id` fixado no início, e grava `silver.*`, `silver.quarentena` e `silver.controle_silver`. Parâmetros: `catalog`
 (padrão `workspace`). Rode `Landing_to_Bronze` e `Bronze_perfilamento` antes: a Silver confronta seus números com
 `quality.perfil_bronze` do mesmo lote.
+
+Datas ambíguas de leitura e emissão permanecem em quarentena (opção B); a seção 13 mede por arquivo
+e competência evidências de ordem e consistência das datas inequívocas para análise posterior (opção C),
+sem inferir datas na publicação.
+Medidores com instalação ambígua ficam em quarentena, e leituras dependentes recebem
+`medidor_em_quarentena` como bloqueio em cascata (opção A). A quarentena preserva o payload integral,
+inclusive `_registro_bruto`; registros aceitos preservam os metadados técnicos de linhagem.
+Conflitos de CPF/CNPJ ou nome de titular ficam nulos e sinalizados na UC. Data futura e
+`9999-12-31` são preservadas, sem presumir quitação nem interpretar a sentinela como data real.
+Os testes sintéticos P0 executam com `python -m unittest discover -s data-engineering/tests -p test_silver_p0.py -v`
+na raiz do repositório, com PySpark e Java configurados localmente. No Windows, `PYSPARK_PYTHON`
+deve apontar para o executável Python instalado, evitando o alias do Microsoft Store.
 
 - Todo registro que não entra na Silver vai para `silver.quarentena` com motivo, origem, lote e valor de controle.
 - A conta fecha por tabela (`bronze = aceitos + quarentenados`), em R$ (faturas) e kWh (leituras), e ponta a ponta
@@ -62,7 +74,9 @@ do objeto JSON.
 - Se qualquer invariante falhar, a execução fica `FALHOU` em `silver.controle_silver` e o notebook **falha**. A Gold só
   deve consumir uma execução `CONCLUIDO` do lote desejado.
 - Estado: executada no Databricks com o dataset real em 21/10/2026 (run `20261021T101818Z_223235ca`, `CONCLUIDO`);
-  falta encadear no Workflow. Decisões D46–D52 e §11.2–11.3 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
+  essa execução **precede esta revisão P0**, exercitada localmente com dados sintéticos. Falta executar a versão
+  atual no lote real, analisar o diagnóstico C por arquivo e encadear no Workflow.
+  Decisões D46–D56 e §11.2–11.4 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
 
 ## Executar no Databricks
 
