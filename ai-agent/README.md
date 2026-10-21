@@ -1,6 +1,6 @@
 # Agente de IA
 
-Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; o adaptador Gemini é opcional e fica desativado por padrão. As evidências ainda são sintéticas: não há integração com Gold, backend do portal ou interface. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md) e [PRD](../docs/PRD.md).
+Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; os adaptadores Gemini e Groq são opcionais e ficam desativados por padrão. As evidências ainda são sintéticas: não há integração com Gold, backend do portal ou interface. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md) e [PRD](../docs/PRD.md).
 
 Os endpoints podem ser exercitados localmente com adaptadores simulados. Resultados sintéticos demonstram fluxo e contrato, não números reais nem requisitos concluídos no PRD.
 
@@ -25,6 +25,33 @@ Para preparar o adaptador Gemini opcional, instale `python -m pip install -e ".[
 
 Gemini é uma implementação opcional baseada na recomendação do case, não uma decisão definitiva de provedor da equipe. O módulo continua com interfaces substituíveis. O teste automatizado usa cliente falso e não faz chamadas de rede ou faturáveis.
 
+### Groq e fallback entre provedores
+
+O adaptador Groq usa a API de chat compatível com OpenAI via `httpx`, em JSON mode, com o esquema da resposta no prompt de sistema. Instale o extra com `python -m pip install -e ".[dev,groq]"` (ou `".[dev,gemini,groq]"` para usar os dois provedores) e configure no `.env`:
+
+| Variável | Valores aceitos | Padrão |
+| --- | --- | --- |
+| `GENAI_MODEL_PROVIDER` | `unavailable`, `gemini` ou `groq` | `unavailable` |
+| `GENAI_GROQ_API_KEY` | chave do Groq; obrigatória quando `groq` está na cadeia | vazia |
+| `GENAI_GROQ_MODEL` | ID de modelo do Groq | `openai/gpt-oss-120b` |
+| `GENAI_MODEL_FALLBACK_PROVIDERS` | `gemini` e/ou `groq`, separados por vírgula ou como lista JSON | vazia |
+
+O modelo padrão do Groq passou em uma execução do smoke test real em 20/10/2026, com dados sintéticos. O Groq remove modelos com o tempo: antes de usar, confira o nome do modelo na lista da sua conta e, se preciso, troque-o com `GENAI_GROQ_MODEL`.
+
+Exemplo com Gemini primeiro e Groq depois:
+
+```dotenv
+GENAI_MODEL_PROVIDER=gemini
+GENAI_GEMINI_API_KEY=<sua chave Gemini>
+GENAI_GEMINI_FALLBACK_MODELS=gemini-3.6-flash
+GENAI_MODEL_FALLBACK_PROVIDERS=groq
+GENAI_GROQ_API_KEY=<sua chave Groq>
+```
+
+A cadeia resultante é `gemini-3.5-flash-lite` → `gemini-3.6-flash` → Groq. Os modelos de `GENAI_GEMINI_FALLBACK_MODELS` só entram quando o Gemini é o provedor principal; como fallback, o Gemini usa apenas `GENAI_GEMINI_MODEL`. `GENAI_MODEL_FALLBACK_PROVIDERS` não pode repetir provedores nem incluir o principal, e cada provedor da cadeia exige sua chave. O total de modelos, somando todos os provedores, precisa caber em `GENAI_MODEL_MAX_CALLS` (padrão 3); caso contrário, a factory recusa a configuração na inicialização.
+
+O Groq segue a mesma classificação de erros do Gemini: 429, 5xx, timeout e falha de rede são indisponibilidade transitória e acionam o próximo provedor; os demais 4xx são rejeição definitiva e encerram a cadeia; resposta vazia, JSON inválido ou fora do esquema é resposta inválida. As mensagens são genéricas e não incluem chave, corpo da resposta nem pergunta. Com cache ligado, a chave do cache também inclui a ordem dos provedores, os modelos (inclusive o do Groq) e o digest do prompt de sistema, para que configurações diferentes nunca compartilhem respostas. Os testes automatizados simulam o Groq com `httpx.MockTransport` e não fazem chamadas de rede.
+
 ### Roteamento de perguntas entre modelos
 
 O roteamento é desligado por padrão e fica restrito ao perfil demonstrativo `GRID360_DEMO_PROFILE` com a fonte `synthetic.fixture`. `create_app` rejeita a configuração se ela for ativada para outro perfil ou fonte. Os dados enviados ao modelo continuam sendo as evidências sintéticas do serviço. Com uma chave real, as chamadas ao Gemini são reais e podem gerar cobrança; os testes automatizados usam cliente falso. Para habilitá-lo, configure `GENAI_MODEL_PROVIDER=gemini`, a chave Gemini, um modelo forte em `GENAI_GEMINI_MODEL` e um modelo leve distinto em `GENAI_MODEL_LIGHT_MODEL`. `GENAI_MODEL_LIGHT_INTENTS` lista os domínios que podem usar o modelo leve; deixe vazio até a equipe aprovar essa classificação. Exemplo:
@@ -43,7 +70,7 @@ GENAI_MODEL_MAX_CALLS=3
 
 A API usa `RoutingPolicy` no `ModelRouter` montado pela factory e injetado em `compose_core`. A decisão acontece após interpretação, autorização e redução da evidência. Domínio ausente/desconhecido, intenção não listada, evidência acima de qualquer limite ou nível leve não configurado envia a pergunta ao nível forte. O nível forte é obrigatório; sem configuração de domínios leves, todas as perguntas usam o modelo forte. O insight de tela também continua no nível forte.
 
-O serviço publica respostas quantitativas montadas a partir das observações selecionadas, e não o texto livre do modelo. Com o roteador ativo, se a resposta `light` selecionar observações ausentes, repetidas ou desconhecidas, ou trouxer um número que não corresponda às observações selecionadas, o serviço tenta o nível `strong` uma única vez. Se o forte também falhar na seleção ou na checagem numérica, recusa a resposta. Falhas de provedor seguem o fallback existente e não acionam escalada. As tentativas máximas dos dois níveis, incluindo fallbacks de cada um, precisam caber em `GENAI_MODEL_MAX_CALLS`. A classificação dos domínios e os limites devem ser validados pela equipe; não há medição de custo, latência ou qualidade real nesta etapa.
+O serviço publica respostas quantitativas montadas a partir das observações selecionadas, e não o texto livre do modelo. Com o roteador ativo, se a resposta `light` selecionar observações ausentes, repetidas ou desconhecidas, ou trouxer um número que não corresponda às observações selecionadas, o serviço tenta o nível `strong` uma única vez. Se o forte também falhar na seleção ou na checagem numérica, recusa a resposta. Falhas de provedor seguem o fallback existente e não acionam escalada. As tentativas máximas dos dois níveis, incluindo fallbacks de cada um, precisam caber em `GENAI_MODEL_MAX_CALLS`. Com `GENAI_MODEL_FALLBACK_PROVIDERS=groq`, o Groq (`GENAI_GROQ_MODEL`) entra como último fallback da cadeia de cada nível; não há modelo leve ou forte próprio do Groq, e o roteamento continua exigindo o Gemini como provedor principal. Com o Groq nos dois níveis, o pior caso soma pelo menos quatro chamadas, então aumente `GENAI_MODEL_MAX_CALLS` ou a factory recusa a configuração. A classificação dos domínios e os limites devem ser validados pela equipe; não há medição de custo, latência ou qualidade real nesta etapa.
 
 O serviço aplica orçamento total por solicitação e prazos próprios para fonte e modelo, inclusive ao esperar uma vaga de concorrência. Os valores e limites de chamadas podem ser ajustados pelas variáveis comentadas no `.env.example`. Prazo ou limite esgotado produz `limit_exceeded`, sem nova tentativa automática. Uma cadeia de fallback injetada precisa caber em `GENAI_MODEL_MAX_CALLS`, inclusive quando encapsulada pelo cache; a composição recusa cadeias maiores. O fallback só avança após indisponibilidade transitória; erro definitivo ou resposta inválida encerra a cadeia. O cache opcional usa identidade, permissões, plano, catálogo, evidência, prompt e modelos na chave; sem escopo autorizado ele é ignorado. Insights demonstrativos com observações enviadas pelo navegador não entram no cache.
 
@@ -66,6 +93,20 @@ python -m tests.test_genai_regression --output reports/synthetic-regression-repo
 Para exercitar manualmente a escalada numérica com duas chamadas reais ao Gemini, configure uma chave em `.env` e execute `python -m tests.manual_gemini_numeric_retry_smoke --strong-model gemini-3.6-flash --light-model gemini-3.5-flash-lite --run-live`. O script usa somente `synthetic.fixture`; após a chamada real ao modelo leve, injeta `999` no rascunho para provocar a checagem e verifica a chamada real ao forte e a resposta pública sem esse número. Esse comando pode gerar cobrança e não valida uma alucinação espontânea do modelo.
 
 O serviço expõe a documentação OpenAPI em `http://127.0.0.1:8001/docs`. A aplicação sobe sem banco de dados e sem chave de provedor; o acesso a Gold real será integrado em etapas posteriores.
+
+### Smoke test real do Groq (opt-in)
+
+`tests/live/test_groq_live_smoke.py` envia uma pergunta e evidência sintéticas do perfil Grid 360 ao Groq real e valida só o contrato: a saída é um `GeneratedAnswer` válido, os `observation_ids` existem na evidência enviada e o provedor não falhou. Ele é pulado no `pytest` padrão e no CI, e só roda com as duas variáveis definidas no ambiente do terminal (o teste não lê o `.env`):
+
+```powershell
+$env:GENAI_RUN_LIVE_SMOKE = "1"
+$env:GENAI_GROQ_API_KEY = "<sua chave Groq>"
+# Opcional: $env:GENAI_GROQ_MODEL = "<outro modelo>"
+python -m pytest -m live -rs tests/live
+Remove-Item Env:GENAI_RUN_LIVE_SMOKE, Env:GENAI_GROQ_API_KEY
+```
+
+A chamada é faturável conforme o plano da conta Groq. Use só dados sintéticos.
 
 ## Contratos HTTP do serviço
 

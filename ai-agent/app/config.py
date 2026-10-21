@@ -7,6 +7,8 @@ from typing import Annotated, Literal
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+ModelProviderName = Literal["gemini", "groq"]
+
 
 class Settings(BaseSettings):
     """Configuração mínima para iniciar o serviço sem Gold ou provedor de IA."""
@@ -14,7 +16,7 @@ class Settings(BaseSettings):
     service_name: str = "V-Energy Grid 360 GenAI"
     environment: str = "production"
     enable_demo_access: bool = False
-    model_provider: Literal["unavailable", "gemini"] = "unavailable"
+    model_provider: Literal["unavailable", "gemini", "groq"] = "unavailable"
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_api_key: SecretStr | None = None
     model_timeout_ms: int = Field(default=20_000, ge=1_000, le=120_000)
@@ -27,6 +29,13 @@ class Settings(BaseSettings):
     model_total_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
     model_cache_ttl_seconds: int = Field(default=0, ge=0, le=86_400)
     model_cache_max_entries: int = Field(default=256, ge=1, le=10_000)
+    # Provedores tentados, em ordem, depois dos modelos do provedor principal.
+    model_fallback_providers: Annotated[list[ModelProviderName], NoDecode] = Field(
+        default_factory=list
+    )
+    groq_api_key: SecretStr | None = None
+    # Confira no console do Groq se este ID continua disponível e aceita JSON mode.
+    groq_model: str = "openai/gpt-oss-120b"
     request_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
     source_timeout_ms: int = Field(default=10_000, ge=100, le=120_000)
     source_max_calls: int = Field(default=1, ge=1, le=10)
@@ -45,7 +54,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    @field_validator("gemini_fallback_models", mode="before")
+    @field_validator("gemini_fallback_models", "model_fallback_providers", mode="before")
     @classmethod
     def _split_model_list(cls, value: object) -> object:
         """Aceita lista JSON ou nomes separados por vírgula."""
