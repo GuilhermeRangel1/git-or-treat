@@ -64,7 +64,7 @@ Ao iniciar implementação do frontend, instalar Prettier em `frontend/` antes d
 O workflow `.github/workflows/quality.yml` roda em pull requests, em pushes para `main` e sob solicitação manual. Com permissões de leitura, ele valida documentação/configurações dos agentes e executa os gates disponíveis nos módulos atuais:
 
 - **GenAI:** instala `.[dev]`, roda `pytest`, `compileall`, Ruff e gera o relatório sintético de regressão. Os testes não exigem chave Gemini nem chamadas faturáveis.
-- **Backend:** instala `requirements.txt`, roda `pytest` e `compileall`. Os testes usam SQLite em memória e não dependem de um serviço PostgreSQL.
+- **Backend:** instala `requirements.txt`, roda `pytest` e `compileall`, constrói a imagem Docker Hardened e executa `pip check` e a suíte dentro dela. Os testes HTTP usam SQLite em memória; o teste de migração e persistência usa PostgreSQL 16 descartável do CI. O login em `dhi.io` é feito quando os secrets `DHI_USERNAME` e `DHI_TOKEN` estão configurados.
 - **Frontend:** instala pelo `package-lock.json` com `npm ci`, roda `oxlint` e `npm run build` para validar TypeScript e gerar o bundle.
 - **Documentação e harness:** valida JSON/TOML, imports `CLAUDE.md` → `AGENTS.md`, links locais e sintaxe dos hooks compartilhados.
 

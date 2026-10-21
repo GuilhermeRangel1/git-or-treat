@@ -43,6 +43,8 @@ O contrato final pode variar, mas cada resposta que sustenta um número deve per
 
 ## Regras de segurança e consistência
 
+O contêiner usa `dhi.io/python:3.12-alpine3.24-dev`, base mantida pela Docker com zlib `1.3.2-r1` já corrigida para CVE-2026-85091, conforme a [ADR-0003](../decisions/0003-backend-python312-alpine.md). O CI constrói e testa a imagem com PostgreSQL descartável e aceita autenticação DHI por secrets quando necessária. A varredura é manual e deve examinar tanto a base quanto a imagem construída. Comandos, acesso ao registry e limites ficam no [README](../../backend/README.md#imagem-docker).
+
 - Segredos via ambiente/gerenciador; nunca no frontend ou Git.
 - Validação de entradas, parâmetros e escopo de filtros no servidor; consulta ao banco parametrizada.
 - Garantir autorização de escrita das ordens; se WEB-10 for implementado, mapear perfis para leitura e ações.

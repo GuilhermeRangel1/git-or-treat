@@ -57,6 +57,26 @@ uvicorn app.main:app --reload --port 8000
 
 ## Verificações
 
+### Imagem Docker
+
+O backend usa a base `dhi.io/python:3.12-alpine3.24-dev`, mantida pela Docker Hardened Images. A base verificada em 20/10/2026 contém Python 3.12.15 e zlib `1.3.2-r1`, já corrigida para CVE-2026-85091; não é necessário atualizar essa biblioteca no Dockerfile. A decisão e seus limites estão na [ADR-0003](../docs/decisions/0003-backend-python312-alpine.md).
+
+A partir da raiz do repositório:
+
+```powershell
+docker build --pull --no-cache -f backend/Dockerfile -t git-or-treat-backend:dhi-check .
+docker run --rm git-or-treat-backend:dhi-check python -m pip check
+docker run --rm git-or-treat-backend:dhi-check python -m pytest -q
+docker scout cves registry://dhi.io/python:3.12-alpine3.24-dev --platform linux/amd64 --format packages
+docker scout cves local://git-or-treat-backend:dhi-check --platform linux/amd64 --format packages
+```
+
+Sem `TEST_POSTGRES_URL`, o teste PostgreSQL é ignorado. Para incluí-lo, forneça ao contêiner uma URL de banco descartável `*_test` e acesso à mesma rede desse banco. O CI constrói a imagem e executa a suíte dentro dela com PostgreSQL 16 descartável, além dos testes existentes no runner. O scanner acima é uma verificação manual; o workflow não executa Docker Scout.
+
+A [documentação DHI](https://docs.docker.com/dhi/how-to/use/) orienta autenticar com `docker login dhi.io`. O pull local com configuração Docker vazia também funcionou na verificação desta entrega; o acesso no runner GitHub ainda precisa ser confirmado. Se o registry exigir autenticação, use o login interativo localmente e configure os secrets `DHI_USERNAME` e `DHI_TOKEN` no GitHub; o workflow faz login quando ambos estão presentes. Não colocar credenciais no Dockerfile ou no repositório.
+
+### Ambiente local
+
 ```powershell
 python -m pytest -q
 python -m compileall -q app tests scripts

@@ -1,8 +1,9 @@
-FROM python:3.12-slim
+FROM dhi.io/python:3.12-alpine3.24-dev
 
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
+
 ENV PYTHONUNBUFFERED=1
 
 COPY backend/requirements.txt ./
