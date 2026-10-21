@@ -79,6 +79,18 @@ npm.cmd run preview -- --host 127.0.0.1 --port 4173
 
 Abrir `/receita?competencia_inicio=2025-01&competencia_fim=2025-02`, aplicar Residencial, explorar Recife e Centro e voltar por Total. Conferir controles da tabela acima. Para vazio, aplicar Olinda/Comercial; para zero conhecido, Paulista; para lacuna, competência final `2025-03`.
 
+## Refinamentos arquiteturais — 21/10/2026
+
+### B4 — disponibilidade classificada pelo serviço
+
+A classificação de `metadata.status` saiu da rota HTTP e passou para `revenue_metadata_status` em `backend/app/services/revenue_analytics.py`. A rota continua responsável por parâmetros, metadados e resposta HTTP. A precedência 1.1.0 foi preservada, inclusive envelope `partial` para universo conhecido com todas as coberturas indisponíveis e período único sem degradação causada apenas pela decomposição indisponível.
+
+O novo controle HTTP caracteriza as quatro coberturas indisponíveis e o envelope parcial; os demais casos continuam nos testes existentes. Comandos em `backend/`: `venv/Scripts/python.exe -m pytest -q tests/test_revenue_dev03.py` → 33 aprovados; `venv/Scripts/python.exe -m pytest -q` → 101 aprovados, 1 PostgreSQL ignorado. Aviso preexistente de depreciação Starlette/HTTPX. `git diff --check` aprovado. Implementador GPT-6 Luna/high, revisão do controlador; sem alteração de fórmulas, schemas ou repositório.
+
+### Limites desta rodada
+
+Nenhum navegador estava conectado ao inventário de automação; a jornada visual não foi repetida nesta rodada. As evidências anteriores de navegador continuam identificadas acima, sem serem apresentadas como nova execução. Python 3.12, PostgreSQL e Gold permanecem pendentes. A nova tentativa de leitura do quadro Trello pelo MCP expirou; nenhum cartão foi alterado.
+
 ## Parecer e pendências
 
 **Requisitos:** exploração sintética aprovada no escopo DEV-03. Série, extremos, deltas, recortes, preservação do contexto, método, reconciliação e casos de qualidade foram exercitados. Preço médio observado permanece distinto de tarifa homologada, cuja fonte não está disponível.

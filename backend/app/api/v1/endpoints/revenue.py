@@ -6,7 +6,7 @@ from app.api.v1.analytics_route import AnalyticsRoute
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
 from app.schemas.analytics import RevenueResponse
 from app.services.analytics import AnalyticsAPIError, filters_model, metadata, validate_period
-from app.services.revenue_analytics import build_revenue
+from app.services.revenue_analytics import build_revenue, revenue_metadata_status
 
 router = APIRouter(route_class=AnalyticsRoute)
 
@@ -34,17 +34,7 @@ def get_revenue_analysis(
     start, end = validate_period(competencia_inicio, competencia_fim)
     filters = filters_model(municipio, bairro, classe, alimentador)
     data = build_revenue(repository, start, end, filters, group_by=group_by)
-    metric_coverage = [data["coverage"][name]["status"] for name in (
-        "billed_amount", "billed_energy_kwh", "paid_amount", "measured_energy_kwh"
-    )]
-    if data["comparison"]["initial"]["status"] == "empty":
-        state = "empty"
-    elif any(status in {"partial", "unavailable"} for status in metric_coverage):
-        state = "partial"
-    elif start != end and data["price_volume"]["status"] == "unavailable":
-        state = "partial"
-    else:
-        state = "available"
+    state = revenue_metadata_status(data, start, end)
     result_metadata = metadata(repository, state, start, end, filters)
     result_metadata = result_metadata.model_copy(update={"contract_version": "1.1.0"})
     return {"data": data, "metadata": result_metadata}

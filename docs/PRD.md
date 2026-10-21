@@ -900,6 +900,13 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Critérios e revisão: esta sessão revisou padrões das skills locais e requisitos, corrigindo desconhecido convertido em zero, cobertura nula, arredondamento oculto entre grupos, delta publicado, fidelidade visual, overflow mobile, retorno de foco e conteúdo fora do escopo (totalizadores agregados removidos da UI; mantidos no contrato DEV-01). Exploração sintética aprovada sem achados importantes abertos nesse escopo. Adaptador/reconciliação Gold → banco → API → portal, métricas/janelas homologadas, demais telas WEB-07 e diagnóstico ENT-01 permanecem pendentes.
 - Responsável/revisor: dois implementadores GPT-6 Luna/high, revisão integrada pelo controlador conforme autorização. Trello pendente: MCP retornou recurso não encontrado ou sem acesso ao quadro indicado; nenhum cartão foi alterado. Sem PR, merge ou publicação de produto nesta etapa.
 
+### 2026-10-21 — DEV-03 — B4: classificação analítica no serviço
+
+- Estado: WEB-02, WEB-07 e ENT-01 permanecem `Pendente`; refatoração da demonstração sintética, sem mudança do contrato 1.1.0.
+- Mudança: a rota de Receita delega a classificação de disponibilidade a `revenue_metadata_status` em `backend/app/services/revenue_analytics.py`. Foram preservados o vazio, o período único e o envelope parcial para universo conhecido com coberturas indisponíveis.
+- Evidência: `backend/tests/test_revenue_dev03.py` acrescenta um controle HTTP para as quatro coberturas indisponíveis. `venv/Scripts/python.exe -m pytest -q tests/test_revenue_dev03.py`: 33 aprovados; suíte backend completa: 101 aprovados, 1 PostgreSQL ignorado. `git diff --check` aprovado. Detalhes no [registro da DEV-03](plans/2026-10-21-dev03-evidence.md).
+- Dados/revisão: somente fonte sintética `dev03-v1` e fixtures artificiais de contrato; implementação por GPT-6 Luna/high e revisão do controlador. Gold, Python 3.12 e PostgreSQL seguem pendentes. Trello: a tentativa de leitura do quadro pelo MCP expirou; sincronização pendente.
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.

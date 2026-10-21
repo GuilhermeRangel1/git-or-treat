@@ -242,6 +242,32 @@ def test_same_competence_with_complete_coverage_does_not_mark_envelope_partial(c
     assert response.json()["data"]["comparison"]["measured_energy_change_kwh"] is None
 
 
+def test_all_unavailable_metric_coverages_keep_revenue_envelope_partial(client):
+    repository = _revenue_edge_repository(_edge_invoices(5), covered_months=())
+
+    response = _get_revenue_with_repository(client, repository)
+
+    assert response.status_code == 200
+    body = response.json()
+    coverage = body["data"]["coverage"]
+    assert {
+        name: coverage[name]["status"]
+        for name in (
+            "billed_amount",
+            "billed_energy_kwh",
+            "paid_amount",
+            "measured_energy_kwh",
+        )
+    } == {
+        "billed_amount": "unavailable",
+        "billed_energy_kwh": "unavailable",
+        "paid_amount": "unavailable",
+        "measured_energy_kwh": "unavailable",
+    }
+    assert body["data"]["comparison"]["initial"]["status"] == "unavailable"
+    assert body["metadata"]["status"] == "partial"
+
+
 def test_covered_empty_municipality_is_zero_but_uncovered_month_is_null(client):
     covered = client.get(
         "/api/v1/revenue?municipio=Paulista&competencia_inicio=2025-01&competencia_fim=2025-02"

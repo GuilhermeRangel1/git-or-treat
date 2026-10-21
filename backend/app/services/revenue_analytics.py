@@ -529,3 +529,21 @@ def build_revenue(
         if _include_breakdown else _unavailable_breakdown(group_by),
         "filter_options": _filter_options(repository.units),
     }
+
+
+def revenue_metadata_status(data: dict, start: str, end: str) -> AnalyticsStatus:
+    """Keep Revenue 1.1 envelope precedence: empty first, then partial, otherwise available.
+
+    Unavailable metric coverage in a known universe remains partial at the envelope;
+    a same-competence request stays available when only price-volume is unavailable.
+    """
+    metric_coverage = [data["coverage"][name]["status"] for name in (
+        "billed_amount", "billed_energy_kwh", "paid_amount", "measured_energy_kwh"
+    )]
+    if data["comparison"]["initial"]["status"] == "empty":
+        return "empty"
+    if any(status in {"partial", "unavailable"} for status in metric_coverage):
+        return "partial"
+    if start != end and data["price_volume"]["status"] == "unavailable":
+        return "partial"
+    return "available"
