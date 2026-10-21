@@ -7,7 +7,7 @@
 
 ## Configuração e fronteira
 
-Configurar `ANALYTICS_SOURCE=synthetic` explicitamente no processo do backend. O padrão `unavailable` não produz valores demonstrativos: as rotas analíticas retornam 503. Uma escolha desconhecida de fonte é erro de configuração, sem fallback. O frontend usa `VITE_API_URL` e o transporte HTTP existente; não lê arquivos ou banco.
+Configurar `ANALYTICS_SOURCE=synthetic` explicitamente no processo do backend. O Compose de desenvolvimento faz essa seleção no ambiente do serviço (sobrescrevível pelo ambiente do comando); fora dele o padrão continua `unavailable`. O padrão `unavailable` não produz valores demonstrativos: as rotas analíticas retornam 503. Uma escolha desconhecida de fonte é erro de configuração, sem fallback. O frontend usa `VITE_API_URL` e o transporte HTTP existente; não lê arquivos ou banco.
 
 Fluxo de leitura: rota FastAPI → serviço analítico → interface de repositório → implementação sintética. Ordens usam sua própria persistência operacional. O serviço de IA preserva seus próprios contratos; não recebe permissão de escrita ou acesso SQL por esta mudança.
 

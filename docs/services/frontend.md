@@ -2,6 +2,8 @@
 
 **Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros sincronizados na URL, 8 KPIs de governança, distinção faturado/pago e consumido/faturado, séries temporais e controles demonstrativos da base sintética publicada em `GET /api/v1/panorama`. As outras seis áreas permanecem na primeira fatia visual, aguardando suas respectivas jornadas. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos com API sintética real, sem alterar o contrato de produto do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
 
+O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite, inclusive ao acessar pelo celular. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
+
 ## Arquitetura adotada
 
 Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para estrutura, limites de importação, layout persistente, tema, transporte HTTP e política de estado. A primeira fatia visual cobre apenas navegação, apresentação visual do Panorama e textos superiores das demais páginas, até antes dos filtros ou conteúdo operacional.

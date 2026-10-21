@@ -87,9 +87,13 @@ O [catálogo de contratos](../contracts/analytics-api.md) descreve versão, disp
 
 `apiClient<T>` expressa o tipo esperado em compilação; não valida o conteúdo recebido em execução. Cada funcionalidade deverá acordar DTOs e validação/adaptação com o backend antes de consumir dados. Os envelopes já propostos em `backend/app/schemas/common.py` e os contratos sintéticos no [guia de IA](../services/ai-agent.md) são referências em revisão, não autorização para apresentar placeholders como dados reais.
 
-`VITE_API_URL` é uma URL pública do backend: fallback local somente em desenvolvimento; uma requisição fora desse modo exige configuração explícita. Não é necessário configurar API para abrir esta interface visual. Variáveis `VITE_*` são públicas e não recebem credenciais. Nenhuma rota do backend é consultada nesta etapa.
+`VITE_API_URL` é pública e não recebe credenciais. Em desenvolvimento, a ausência da variável usa a origem do portal; o proxy `/api` encaminha ao destino definido por `API_PROXY_TARGET` (padrão `http://127.0.0.1:8000`, `http://backend:8000` no Docker). Fora de desenvolvimento, a URL continua exigindo configuração explícita. O Panorama consulta sua API; as demais páginas mantêm o escopo visual.
 
 As próximas integrações devem preservar unidade, período, filtros, atualização, qualidade e indisponibilidade. Ausência não vira zero. Fórmulas oficiais, segurança, transições e idempotência permanecem responsabilidades do backend/Gold. A interface deverá refletir confirmação do servidor e vincular o insight ao mesmo recorte aplicado, sem apresentar resposta antiga como interpretação nova.
+
+## Responsividade do Panorama — 21/10/2026
+
+Cabeçalho e conteúdo analítico compartilham largura fluida até 1920 px, centralizada na área após a sidebar. Filtros usam uma, duas ou quatro colunas; KPIs passam de uma para duas e quatro colunas (quatro a partir de 1280 px). Textos e controles podem quebrar linha, inclusive comparação, unidade e metadados. A arte fica restrita à abertura com altura reservada no desktop; o mobile usa menu próprio e não exibe a decoração. O layout de conversa do Assistente mantém sua gestão de altura.
 
 ## Qualidade e evidências
 

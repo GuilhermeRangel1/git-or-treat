@@ -457,6 +457,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-21 — WEB-01 e WEB-07 — demonstração local e responsividade
+
+- Estado: WEB-01 permanece `Em validação`; WEB-07 permanece `Pendente` para as demais jornadas.
+- Causa reproduzida: `docker compose exec -T backend python -c "from app.core.config import settings; print(settings.ANALYTICS_SOURCE)"` retornou `unavailable`, explicando o HTTP 503 e a tela de erro. O Compose agora seleciona explicitamente `synthetic`; o padrão da API fora dele permanece indisponível.
+- Mudança observável: API acessada por `/api` na origem do portal, com proxy Vite para backend no Docker; funciona sem endereço localhost da API embutido no navegador. Polling permite refletir mudanças do volume Windows. Cabeçalho e conteúdo centralizados até 1920 px, KPIs em uma/duas/quatro colunas, filtros e controles com quebra de linha e decoração contida na abertura.
+- Arquivos: `docker-compose.yml`, `backend/.env.example`, `frontend/vite.config.ts`, transporte HTTP e seus testes, layout/header, componentes do Panorama, cartões/select e documentos de execução/arquitetura.
+- Verificações: container frontend com `npm test` (59 aprovados), `npm run lint`, `npm run check:boundaries` (51 arquivos) e `npm run build` aprovados. Regressão do teste legado de produção ajustada: a rota interna continua excluída, mas o redirecionamento ao Panorama permite sua consulta própria. Nova regressão verifica URLs da mesma origem. No backend, `docker compose exec -T backend python -m pytest -q` aprovou 79 testes, com 1 ignorado e aviso Starlette/httpx; o teste de fonte desabilitada passou a selecionar seu estado explicitamente para não depender do ambiente sintético do container.
+- Amostra integrada: `GET http://localhost:5173/api/v1/panorama?competencia=2024-04` devolveu R$ 76.500 e nove registros; interação no navegador com município Recife exibiu R$ 38.000 e 620 UCs. Dados exclusivamente sintéticos, sem diagnóstico real.
+- Revisão visual: navegador local com API real nos temas claro/escuro. Larguras 320, 390, 768, 1024, 1440 e 2560 px tiveram `scrollWidth == clientWidth`; colunas verificadas em DOM e capturas inspecionadas. Captura local `panorama-desktop.png` salva fora do repositório, na pasta de visualizações da sessão. Esta evidência substitui o bloqueio de acesso local registrado na passada anterior, sem afirmar nova leitura do Figma.
+- Pendências: Gold e reconciliação real, comparação direta com Figma e sincronização Trello (MCP ausente). Responsável: Codex; revisão pelo time pendente.
+
 ### 2026-10-21 — WEB-01 — implementação funcional do Panorama com filtros, KPIs, séries e base sintética
 
 - Estado anterior → novo estado: `Pendente` → `Em validação` no escopo demonstrativo; a reconciliação com a Gold e as definições oficiais das fórmulas permanecem pendentes, porque o conjunto de dados do case não está no repositório e a fonte usada é sintética.
