@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_TABLES = {"gold_indicadores", "operational_inspection_orders"}
+EXPECTED_TABLES = {
+    "gold_indicadores",
+    "operational_inspection_orders",
+    "operational_order_history",
+}
 
 
 def alembic_config(connection):
