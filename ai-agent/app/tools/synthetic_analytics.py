@@ -7,9 +7,16 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.scenarios import SYNTHETIC_SCENARIOS
-from app.schemas.questions import EvidenceReference
-from app.schemas.scenarios import AnalysisIntent, SyntheticScenario
-from app.tools.evidence import EvidenceResult
+from app.schemas.analysis import AnalysisIntent
+from app.schemas.evidence import (
+    EvidenceLookupResult,
+    EvidenceLookupStatus,
+    EvidenceProvenance,
+    EvidenceReference,
+    EvidenceResult,
+)
+from app.schemas.read_plan import LogicalReadPlan, WindowKind
+from app.schemas.scenarios import SyntheticScenario
 
 
 class ToolStatus(StrEnum):
@@ -43,11 +50,14 @@ class SyntheticScenarioRequest(BaseModel):
 
     scenario_id: str | None = None
     intent: AnalysisIntent | None = None
+    plan: LogicalReadPlan | None = None
 
     @model_validator(mode="after")
     def require_one_selector(self) -> Self:
-        if (self.scenario_id is None) == (self.intent is None):
-            raise ValueError("informe scenario_id ou intent, mas não ambos")
+        if sum(
+            item is not None for item in (self.scenario_id, self.intent, self.plan)
+        ) != 1:
+            raise ValueError("informe exatamente um seletor de cenário")
         return self
 
 
@@ -60,10 +70,60 @@ class SyntheticScenarioTool:
     ) -> None:
         self._catalog = catalog
 
+    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
+        """Recebe somente o plano aprovado pelo núcleo."""
+        result = self.execute(SyntheticScenarioRequest(plan=plan))
+        if result.evidence is not None:
+            result.evidence = result.evidence.model_copy(
+                update={
+                    "provenance": EvidenceProvenance(
+                        source_id=plan.source_id,
+                        reference_source=result.evidence.reference.source,
+                        plan_fingerprint=plan.fingerprint(),
+                        catalog_version=plan.catalog_version,
+                        metric_id=plan.metric_id,
+                        unit=plan.unit,
+                        window=plan.window,
+                        filters=plan.filters,
+                        dimension_ids=plan.dimension_ids,
+                    )
+                }
+            )
+        status = {
+            ToolStatus.SUCCESS: EvidenceLookupStatus.AVAILABLE,
+            ToolStatus.NO_EVIDENCE: EvidenceLookupStatus.NO_EVIDENCE,
+            ToolStatus.NEEDS_CLARIFICATION: EvidenceLookupStatus.NEEDS_CLARIFICATION,
+        }[result.status]
+        return EvidenceLookupResult(
+            status=status,
+            evidence=result.evidence,
+            message=result.message,
+            limitations=result.limitations,
+        )
+
     def execute(self, request: SyntheticScenarioRequest) -> SyntheticToolResult:
         if request.scenario_id is not None:
             scenario = next(
                 (item for item in self._catalog if item.scenario_id == request.scenario_id),
+                None,
+            )
+        elif request.plan is not None:
+            plan = request.plan
+            if plan.filters:
+                return SyntheticToolResult(
+                    status=ToolStatus.NO_EVIDENCE,
+                    message="A fixture sintética não contém os filtros solicitados.",
+                )
+            if (
+                plan.window.kind is not WindowKind.CATALOG_PHRASE
+                or "demonstração" not in (plan.window.phrase or "").casefold()
+            ):
+                return SyntheticToolResult(
+                    status=ToolStatus.NO_EVIDENCE,
+                    message="A fixture não representa o período solicitado.",
+                )
+            scenario = next(
+                (item for item in self._catalog if item.intent.domain == plan.domain_id),
                 None,
             )
         else:
@@ -80,7 +140,7 @@ class SyntheticScenarioTool:
                     message="A fixture não representa o período solicitado.",
                 )
             scenario = next(
-                (item for item in self._catalog if item.intent.domain is intent.domain),
+                (item for item in self._catalog if item.intent.domain == intent.domain),
                 None,
             )
 

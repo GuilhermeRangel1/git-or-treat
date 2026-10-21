@@ -1,26 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/shared/api/client";
 import { decodeKpisEnvelope, type KpisEnvelope } from "./contract";
-
-export type KpisFilters = {
-  competencia_inicio: string;
-  competencia_fim: string;
-  municipio: string;
-  classe: string;
-};
-
-function queryString(filters: KpisFilters) {
-  const params = new URLSearchParams();
-  params.set("competencia_inicio", filters.competencia_inicio);
-  params.set("competencia_fim", filters.competencia_fim);
-  if (filters.municipio) params.set("municipio", filters.municipio);
-  if (filters.classe) params.set("classe", filters.classe);
-  return params.toString();
-}
+import { kpisSearchParams, type KpisFilters } from "./kpis-filters";
 
 async function fetchKpis(filters: KpisFilters, signal: AbortSignal) {
   const response = await apiClient<unknown>(
-    `/api/v1/kpis?${queryString(filters)}`,
+    `/api/v1/kpis?${kpisSearchParams(filters)}`,
     { signal },
   );
   return decodeKpisEnvelope(response);

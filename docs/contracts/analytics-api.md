@@ -3,7 +3,7 @@
 **Versão:** 1.0.0 · **Fonte disponível nesta etapa:** sintética (`dev01-v1`).
 **Escopo:** preparação de WEB-01 a WEB-07 e IA-01 a IA-06. As formas JSON são contratos de aplicação; não representam o esquema físico ou as fórmulas oficiais da Gold.
 
-[Desenho](../design/2026-10-20-dev01-design.md), [plano](../plans/2026-10-20-dev01-plan.md), [ADR-0002](../decisions/0002-contratos-analiticos-e-fonte-sintetica.md) e [PRD](../PRD.md) registram motivação, decisões e aceite. O OpenAPI servido em `/openapi.json` e `/docs` é a referência executável dos schemas e parâmetros.
+[Desenho](../design/2026-10-20-dev01-design.md), [plano](../plans/2026-10-20-dev01-plan.md), [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md) e [PRD](../PRD.md) registram motivação, decisões e aceite. O OpenAPI servido em `/openapi.json` e `/docs` é a referência executável dos schemas e parâmetros.
 
 ## Configuração e fronteira
 
@@ -107,6 +107,8 @@ O preço observado é valor faturado dividido por energia faturada: 182 / 170 = 
 
 DEC/FEC usam eventos individuais por UC, duração em horas e denominador fixo por alimentador; ainda não implementam todas as regras de DE-05. A cobertura usa o cadastro do snapshot, sem reconstrução temporal. Prioridades, motivos e estimativas das suspeitas são valores artificiais da fixture, não resultado de um modelo ou regra validada. A potência GD permanece em kW e não é tratada como energia gerada. Essas definições precisam de revisão com a Gold.
 
+A fonte de interrupções declara separadamente sua cobertura temporal inclusiva: janeiro a fevereiro de 2025. `coverage_ratio`, `covered_uc_count` e `coverage_status` descrevem a cobertura cadastral/espacial, não comprovam observação em qualquer competência. Uma janela totalmente fora da cobertura temporal ou uma fonte com cobertura temporal desconhecida resulta em DEC/FEC nulos e estado `unavailable`, com motivo. Uma janela parcialmente coberta retorna `partial`, calcula somente os eventos da interseção e informa o trecho observado nas limitações; `metadata.period` mantém a janela solicitada. Zero dentro de uma janela conhecida continua disponível. Se alguns alimentadores estiverem disponíveis e outros indisponíveis, o estado agregado é `partial`; se todos estiverem indisponíveis, é `unavailable`. O adaptador Gold futuro precisará declarar sua cobertura real, sem inferi-la apenas das datas dos eventos encontrados.
+
 ## Reprodução da consulta integrada
 
 Na pasta `backend`, com as dependências instaladas, iniciar uma sessão PowerShell:
@@ -124,6 +126,8 @@ npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
 Abrir `http://127.0.0.1:5173/dev/contratos`, consultar janeiro–fevereiro de 2025 sem filtros e conferir BRL 182, BRL 170, 170 kWh e 407 kWh parcial, junto da origem sintética e versão. Filtrar Olinda e janeiro para observar zero disponível; Paulista para ausência; AL-03 em fevereiro pode ser conferido diretamente na API. A rota existe somente em desenvolvimento; no preview do build de produção, `/dev/contratos` redireciona ao Panorama.
+
+O formulário mantém o rascunho local; ao consultar, o período e os filtros aplicados compõem a URL e a chave de cache. Abrir/recarregar um link com recorte válido restaura a consulta; voltar/avançar acompanha o histórico da URL. Uma URL inválida não dispara consulta e apresenta validação para correção. Durante atualização de dados já cacheados, o resultado válido permanece identificado com um aviso de atualização.
 
 ```powershell
 Invoke-RestMethod 'http://127.0.0.1:8000/api/v1/kpis?competencia_inicio=2025-01&competencia_fim=2025-02'

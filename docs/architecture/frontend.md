@@ -73,7 +73,9 @@ Além dos provedores de tema e cache, há controles locais de navegação e apar
 
 ### DEV-01 — verificação isolada de contratos
 
-A rota `/dev/contratos`, documentada na [ADR-0002](../decisions/0002-contratos-analiticos-e-fonte-sintetica.md), existe somente em desenvolvimento. Sua feature usa o transporte existente, TanStack Query e um decoder da resposta de indicadores; filtros aplicados compõem a chave da consulta e requisições aceitam cancelamento. Ela não consta na navegação e sua importação é excluída do build de produção. As afirmações anteriores de ausência de consultas descrevem a fatia visual das páginas do produto; o diagnóstico DEV-01 é a primeira consulta sintética integrada.
+A rota `/dev/contratos`, documentada na [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md), existe somente em desenvolvimento. Sua feature usa o transporte existente, TanStack Query e um decoder da resposta de indicadores; filtros aplicados compõem a chave da consulta e requisições aceitam cancelamento. Ela não consta na navegação e sua importação é excluída do build de produção. As afirmações anteriores de ausência de consultas descrevem a fatia visual das páginas do produto; o diagnóstico DEV-01 é a primeira consulta sintética integrada.
+
+O recorte aplicado da ferramenta fica na URL normalizada; o formulário mantém somente o rascunho ainda não confirmado. Links válidos restauram consulta e campos ao abrir/recarregar, e a navegação pelo histórico acompanha o recorte. Parâmetros inválidos impedem a consulta até a correção. Atualização em segundo plano mantém o resultado cacheado válido com aviso acessível, distinto do carregamento inicial.
 
 O [catálogo de contratos](../contracts/analytics-api.md) descreve versão, disponibilidade, origem e pontos provisórios. Os schemas legados de `common.py` e contratos locais de IA não são prova de integração Gold. O decoder do diagnóstico aceita a versão sintética explícita; a futura integração com dados reais requer revisão do consumidor e das definições.
 

@@ -6,7 +6,7 @@
 
 Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para estrutura, limites de importação, layout persistente, tema, transporte HTTP e política de estado. A primeira fatia visual cobre apenas navegação, apresentação visual do Panorama e textos superiores das demais páginas, até antes dos filtros ou conteúdo operacional.
 
-A DEV-01 usa TanStack Query e o transporte existente na rota `/dev/contratos`, somente em desenvolvimento e sem item no menu. Ela valida o contrato de indicadores em execução, consulta a API real e mostra demonstração, disponibilidade e proveniência. O build de produção exclui essa página. Veja [contratos](../contracts/analytics-api.md), [desenho](../design/2026-10-20-dev01-design.md) e [ADR-0002](../decisions/0002-contratos-analiticos-e-fonte-sintetica.md). A rota não implementa os dashboards ou conclui suas jornadas.
+A DEV-01 usa TanStack Query e o transporte existente na rota `/dev/contratos`, somente em desenvolvimento e sem item no menu. Ela valida o contrato de indicadores em execução, consulta a API real e mostra demonstração, disponibilidade e proveniência. O build de produção exclui essa página. Veja [contratos](../contracts/analytics-api.md), [desenho](../design/2026-10-20-dev01-design.md) e [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md). A rota não implementa os dashboards ou conclui suas jornadas.
 
 ## Público e jornadas
 

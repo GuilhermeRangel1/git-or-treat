@@ -19,9 +19,33 @@ Copy-Item .env.example .env
 
 O arquivo `.env` é local e ignorado pelo Git. Não adicione chaves ou credenciais ao `.env.example`.
 
+Por padrão, o serviço inicia sem identidade autorizada. Para testar as perguntas e insights com fixtures sintéticas, defina **ambas** `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true` no `.env` local. O modo demonstrativo concede acesso fictício às métricas não pessoais do perfil; não o habilite numa implantação com Gold ou dados reais. `GET /health` e a documentação OpenAPI funcionam sem essa opção.
+
 Para preparar o adaptador Gemini opcional, instale `python -m pip install -e ".[dev,gemini]"` e configure no `.env` `GENAI_MODEL_PROVIDER=gemini`, `GENAI_GEMINI_MODEL=gemini-3.5-flash-lite` e `GENAI_GEMINI_API_KEY`. Para tarefas que precisem de mais capacidade geral, selecione `gemini-3.6-flash` em `GENAI_GEMINI_MODEL`. O identificador `gemini-3.5-flash` foi descontinuado e é redirecionado pelo provedor para 3.6 Flash. O timeout pode ser ajustado em `GENAI_MODEL_TIMEOUT_MS` (milissegundos). O padrão do provedor continua `unavailable`; a chave não é necessária para iniciar a aplicação nem para executar os testes. Quando configurado como `gemini`, o `create_app` seleciona o adaptador pela factory e o usa nos endpoints de perguntas e insights. O adaptador só recebe pergunta/contexto e evidências fornecidas; não tem ferramentas para consultar ou alterar o banco.
 
 Gemini é uma implementação opcional baseada na recomendação do case, não uma decisão definitiva de provedor da equipe. O módulo continua com interfaces substituíveis. O teste automatizado usa cliente falso e não faz chamadas de rede ou faturáveis.
+
+### Roteamento de perguntas entre modelos
+
+O roteamento é desligado por padrão e fica restrito ao perfil demonstrativo `GRID360_DEMO_PROFILE` com a fonte `synthetic.fixture`. `create_app` rejeita a configuração se ela for ativada para outro perfil ou fonte. Os dados enviados ao modelo continuam sendo as evidências sintéticas do serviço. Com uma chave real, as chamadas ao Gemini são reais e podem gerar cobrança; os testes automatizados usam cliente falso. Para habilitá-lo, configure `GENAI_MODEL_PROVIDER=gemini`, a chave Gemini, um modelo forte em `GENAI_GEMINI_MODEL` e um modelo leve distinto em `GENAI_MODEL_LIGHT_MODEL`. `GENAI_MODEL_LIGHT_INTENTS` lista os domínios que podem usar o modelo leve; deixe vazio até a equipe aprovar essa classificação. Exemplo:
+
+```dotenv
+GENAI_MODEL_ROUTING_ENABLED=true
+GENAI_MODEL_PROVIDER=gemini
+GENAI_GEMINI_API_KEY=<sua chave Gemini>
+GENAI_GEMINI_MODEL=gemini-3.6-flash
+GENAI_MODEL_LIGHT_MODEL=gemini-3.5-flash-lite
+GENAI_MODEL_LIGHT_INTENTS=consumption
+GENAI_MODEL_LIGHT_MAX_EVIDENCE_RECORDS=50
+GENAI_MODEL_LIGHT_MAX_EVIDENCE_CHARS=8000
+GENAI_MODEL_MAX_CALLS=3
+```
+
+A API usa `RoutingPolicy` no `ModelRouter` montado pela factory e injetado em `compose_core`. A decisão acontece após interpretação, autorização e redução da evidência. Domínio ausente/desconhecido, intenção não listada, evidência acima de qualquer limite ou nível leve não configurado envia a pergunta ao nível forte. O nível forte é obrigatório; sem configuração de domínios leves, todas as perguntas usam o modelo forte. O insight de tela também continua no nível forte.
+
+O serviço publica respostas quantitativas montadas a partir das observações selecionadas, e não o texto livre do modelo. Com o roteador ativo, se a resposta `light` selecionar observações ausentes, repetidas ou desconhecidas, ou trouxer um número que não corresponda às observações selecionadas, o serviço tenta o nível `strong` uma única vez. Se o forte também falhar na seleção ou na checagem numérica, recusa a resposta. Falhas de provedor seguem o fallback existente e não acionam escalada. As tentativas máximas dos dois níveis, incluindo fallbacks de cada um, precisam caber em `GENAI_MODEL_MAX_CALLS`. A classificação dos domínios e os limites devem ser validados pela equipe; não há medição de custo, latência ou qualidade real nesta etapa.
+
+O serviço aplica orçamento total por solicitação e prazos próprios para fonte e modelo, inclusive ao esperar uma vaga de concorrência. Os valores e limites de chamadas podem ser ajustados pelas variáveis comentadas no `.env.example`. Prazo ou limite esgotado produz `limit_exceeded`, sem nova tentativa automática. Uma cadeia de fallback injetada precisa caber em `GENAI_MODEL_MAX_CALLS`, inclusive quando encapsulada pelo cache; a composição recusa cadeias maiores. O fallback só avança após indisponibilidade transitória; erro definitivo ou resposta inválida encerra a cadeia. O cache opcional usa identidade, permissões, plano, catálogo, evidência, prompt e modelos na chave; sem escopo autorizado ele é ignorado. Insights demonstrativos com observações enviadas pelo navegador não entram no cache.
 
 ## Executar e verificar
 
@@ -39,13 +63,15 @@ python -m ruff check .
 python -m tests.test_genai_regression --output reports/synthetic-regression-report.json
 ```
 
+Para exercitar manualmente a escalada numérica com duas chamadas reais ao Gemini, configure uma chave em `.env` e execute `python -m tests.manual_gemini_numeric_retry_smoke --strong-model gemini-3.6-flash --light-model gemini-3.5-flash-lite --run-live`. O script usa somente `synthetic.fixture`; após a chamada real ao modelo leve, injeta `999` no rascunho para provocar a checagem e verifica a chamada real ao forte e a resposta pública sem esse número. Esse comando pode gerar cobrança e não valida uma alucinação espontânea do modelo.
+
 O serviço expõe a documentação OpenAPI em `http://127.0.0.1:8001/docs`. A aplicação sobe sem banco de dados e sem chave de provedor; o acesso a Gold real será integrado em etapas posteriores.
 
 ## Contratos HTTP do serviço
 
 - `GET /health` informa somente que o processo está ativo.
 - `GET /api/v1/capabilities` descreve a versão e a disponibilidade do contrato de perguntas, sem expor configuração interna.
-- `POST /api/v1/questions` recebe `question` e até três mensagens de contexto (`role` `user` ou `assistant`), cada uma limitada a 1.000 caracteres.
+- `POST /api/v1/questions` recebe `contract_version` (opcional; padrão `v1`), `question` e até três mensagens de contexto (`role` `user` ou `assistant`), cada uma limitada a 1.000 caracteres. Versão nula ou não suportada é rejeitada.
 - `POST /api/v1/insights` recebe um objeto `screen` com métrica, unidade, período, filtros, observações numéricas, referência e limitações. Nesta etapa, `reference.is_demo` precisa ser `true`.
 
 Exemplo de pergunta no PowerShell:
@@ -54,14 +80,61 @@ Exemplo de pergunta no PowerShell:
 Invoke-RestMethod -Method Post `
   -Uri http://127.0.0.1:8001/api/v1/questions `
   -ContentType 'application/json' `
-  -Body '{"question":"Qual foi o consumo?"}'
+  -Body '{"contract_version":"v1","question":"Qual foi o consumo?"}'
 ```
 
-A resposta inclui `status`, `answer`, `message` e `evidence`. Os estados são `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador de modelo configurado para gerar a resposta, retorna indisponibilidade controlada. As fixtures vêm marcadas como demonstração.
+As respostas seguem o envelope público `v1`. Perguntas incluem `model_tier`: `light` ou `strong` quando o roteador gera a saída, e `null` quando não há roteamento ou uma geração concluída. O campo identifica só o nível, sem expor provedor nem ID do modelo. `answered` usa `answer` em perguntas ou `hypothesis` em insights; os outros estados usam `message`, sem misturar os campos. A resposta também envia o `correlation_id` no cabeçalho `X-Correlation-ID`. O identificador é gerado pelo serviço e serve para localizar a requisição; não representa uma trilha de auditoria. `audit_reference` permanece `null` até existir auditoria durável. Em perguntas respondidas, `analysis_context` mostra o recorte lógico que a fonte declarou ter aplicado; a janela ainda pode ser uma frase do catálogo demonstrativo. Em insights, o contexto recebido fica separado das observações e da hipótese. O núcleo confere perfil, fonte e escopo de leitura do contexto de acesso; a API local usa identidade fictícia. Métrica e filtros da tela sintética ainda não são ligados a um plano Gold autorizado.
 
-O endpoint de insights devolve `observation` com os valores recebidos e `hypothesis` em campo separado. A hipótese é gerada pelo adaptador de modelo configurado; números que não aparecem no contexto são recusados. O serviço não persiste o contexto nem confirma que o backend está autorizado a enviar aqueles filtros. Um consumidor futuro deverá transmitir contexto já validado e autorizado pela sua própria camada.
+Recusas e falhas incluem `error.code` e `error.retryable`. Os erros de entrada HTTP usam status 422 e o mesmo envelope v1, com mensagem estável sem ecoar valores inválidos. Falhas inesperadas usam status 500 e mensagem genérica. A API não devolve linhas tabulares nem oferece paginação; perguntas retornam texto e referências. O contexto de insight aceita até 20 filtros, 20 observações e 20 limitações; limites excedidos são rejeitados, nunca truncados silenciosamente. Evidências internas aceitam por padrão até 100 registros e 16 KiB após serialização, com limites configuráveis; esse conjunto não é serializado na resposta pública. O ingresso HTTP ainda não tem um teto agregado em bytes.
 
-O relatório versionado de regressão sintética cobre os fluxos de perguntas e insights. A versão atual do conjunto é `2.0.0`; a saída contém status por caso, resumo, escopo e limitações e é determinística para o mesmo código e fixtures. O adaptador usado é fixo e não chama o Gemini.
+O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador de modelo configurado para gerar a resposta, retorna indisponibilidade controlada. As referências sintéticas vêm com `is_demo: true`.
+
+O interpretador recebe um `DomainProfile` pela raiz de composição (`create_app(domain_profile=...)`). A configuração atual, `GRID360_DEMO_PROFILE`, mantém o vocabulário, métricas, dimensões e períodos de demonstração fora do mecanismo genérico. Os IDs são lógicos; unidades, granularidades, aliases, operadores e sensibilidades do catálogo são demonstrativos e não correspondem a uma definição Gold aprovada.
+
+`app/agent/composition.py` monta os fluxos de pergunta e insight com o mesmo perfil, política, fonte, modelo, controlador de execução e destino opcional de eventos. `create_app` injeta as implementações locais; testes e futuros integradores podem fornecer `evidence_source`, `source_id`, `model_adapter`, `access_policy` e `event_sink` sem alterar os orquestradores. A fonte e sua política devem usar o mesmo ID lógico. As instruções genéricas de geração ficam em `app/generation/prompts.py`; vocabulário e exemplos de negócio continuam no perfil. O modelo apenas seleciona IDs de observações da evidência aprovada, e o serviço valida a seleção e monta a resposta pública. Eventos por estágio têm correlação e campos controlados; o destino padrão descarta os eventos, e auditoria durável ainda não está disponível.
+
+O [guia de reuso e conformidade](../docs/services/ai-agent-reuse.md) mostra como compor outro perfil e fonte pelo contrato. A suíte `python -m pytest -q tests/test_reusable_core.py tests/test_import_boundaries.py` exercita Grid 360 e clima com dados artificiais, inclusive isolamento de cache, escopos e eventos.
+
+Exemplo de erro de contrato:
+
+```json
+{
+  "contract_version": "v1",
+  "status": "error",
+  "message": "A solicitação não segue o contrato esperado.",
+  "error": {"code": "invalid_request", "retryable": false},
+  "correlation_id": "0123456789abcdef0123456789abcdef",
+  "audit_reference": null
+}
+```
+
+Exemplo de resposta sintética a uma pergunta:
+
+```json
+{
+  "contract_version": "v1",
+  "status": "answered",
+  "model_tier": null,
+  "answer": "Demonstração sintética: energy.consumption — período de demonstração: 420 unidades fictícias.",
+  "message": null,
+  "evidence": [
+    {
+      "source": "synthetic_fixture:consumption_demo",
+      "description": "Evidência agregada validada pelo serviço.",
+      "is_demo": true
+    }
+  ],
+  "limitations": ["Valor inventado; não representa leitura, consumo ou unidade consumidora da V-Energy."],
+  "analysis_context": {"metric": "energy.consumption", "unit": "unidades fictícias", "period": "período de demonstração", "filters": {}},
+  "error": null,
+  "correlation_id": "0123456789abcdef0123456789abcdef",
+  "audit_reference": null
+}
+```
+
+O endpoint de insights devolve `observation` com os valores recebidos e `hypothesis` em campo separado. O modelo seleciona IDs de observações; o serviço monta a hipótese pública a partir dos valores escolhidos, sem publicar o texto livre do modelo. O protótipo local rejeita padrões evidentes de dado pessoal ou instrução nos campos da tela. Sem identidade verificada no modo real, a resposta omite filtros, observações e referência do cliente. O serviço não persiste o contexto nem confirma que o backend está autorizado a enviar aqueles filtros. Um consumidor futuro deverá transmitir contexto já validado e autorizado pela sua própria camada.
+
+O relatório versionado de regressão sintética cobre os fluxos de perguntas e insights. A versão atual do conjunto é `3.0.0`; a saída contém status por caso, resumo, escopo e limitações e é determinística para o mesmo código e fixtures. O adaptador usado é fixo e não chama o Gemini.
 
 No endpoint de perguntas, o consumidor pode reenviar até três turnos anteriores no campo `context`; o serviço não guarda histórico entre chamadas. Para uma continuação reconhecida, o interpretador herda a intenção da pergunta completa mais recente da pessoa usuária e substitui filtros informados na pergunta atual. Se a mensagem mais recente da pessoa usuária for ambígua, o serviço pede esclarecimento em vez de recuperar uma intenção mais antiga. A interpretação é lexical e limitada ao vocabulário configurado; não equivale a memória de conversa nem a resolução geral de linguagem. Como o serviço não autentica a origem dos turnos, o safety gate verifica tanto mensagens `user` quanto `assistant` do contexto antes de chamar ferramenta ou modelo.
 

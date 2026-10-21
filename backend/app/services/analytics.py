@@ -224,15 +224,28 @@ def build_continuity(repository: AnalyticsRepository, start: str, end: str, filt
     feeders = [row for row in repository.feeders if filters.alimentador is None or row["feeder_id"] == filters.alimentador]
     if filters.alimentador and not feeders:
         raise AnalyticsAPIError(422, "invalid_query", "Alimentador desconhecido.", [{"field": "alimentador", "message": "O valor não existe na fonte demonstrativa."}])
+    temporal_coverage = repository.continuity_coverage
+    observed_start = max(start, temporal_coverage.start) if temporal_coverage else start
+    observed_end = min(end, temporal_coverage.end) if temporal_coverage else end
+    has_temporal_coverage = temporal_coverage is not None and observed_start <= observed_end
+    temporal_limitations = []
+    if temporal_coverage is None:
+        temporal_limitations.append("Cobertura temporal da fonte de interrupções desconhecida; DEC/FEC não calculados.")
+    elif not has_temporal_coverage:
+        temporal_limitations.append(f"Janela solicitada fora da cobertura temporal da fonte ({temporal_coverage.start} a {temporal_coverage.end}); DEC/FEC não calculados.")
+    elif observed_start != start or observed_end != end:
+        temporal_limitations.append(f"Cobertura temporal parcial da fonte ({temporal_coverage.start} a {temporal_coverage.end}); DEC/FEC usam somente eventos observados de {observed_start} a {observed_end}, sem representar toda a janela solicitada.")
     result = []
     for feeder in sorted(feeders, key=lambda row: row["feeder_id"]):
-        events = [row for row in repository.interruptions if row["feeder_id"] == feeder["feeder_id"] and start <= row["competencia"] <= end]
+        events = [row for row in repository.interruptions if has_temporal_coverage and row["feeder_id"] == feeder["feeder_id"] and observed_start <= row["competencia"] <= observed_end]
         denominator = feeder["denominator_uc_count"]
         served_count = sum(1 for unit in repository.units if unit["alimentador"] == feeder["feeder_id"] and unit["status"] == "active")
         covered_count = served_count
         coverage = round(covered_count / denominator, 3) if denominator else None
-        status: AnalyticsStatus = "unavailable" if not denominator else ("partial" if coverage != 1 else "available")
-        coverage_limitations = []
+        status: AnalyticsStatus = "unavailable" if not denominator or not has_temporal_coverage else ("partial" if coverage != 1 or temporal_limitations else "available")
+        coverage_limitations = list(temporal_limitations)
+        if not denominator:
+            coverage_limitations.append("Denominador demonstrativo ausente ou zero; DEC/FEC não calculados.")
         if denominator is not None and covered_count != denominator:
             coverage_limitations.append("Contagem de UCs atendidas diverge do denominador configurado.")
         if feeder["territory_status"] == "multi_municipal":
@@ -241,8 +254,8 @@ def build_continuity(repository: AnalyticsRepository, start: str, end: str, filt
             feeder_id=feeder["feeder_id"],
             municipalities=feeder["municipios"],
             territory_status=feeder["territory_status"],
-            dec_hours_per_uc=round(sum(row["duration_hours"] for row in events) / denominator, 3) if denominator else None,
-            fec_interruptions_per_uc=round(len(events) / denominator, 3) if denominator else None,
+            dec_hours_per_uc=round(sum(row["duration_hours"] for row in events) / denominator, 3) if denominator and has_temporal_coverage else None,
+            fec_interruptions_per_uc=round(len(events) / denominator, 3) if denominator and has_temporal_coverage else None,
             interruption_count=len(events),
             denominator_uc_count=denominator,
             covered_uc_count=covered_count,
@@ -250,7 +263,14 @@ def build_continuity(repository: AnalyticsRepository, start: str, end: str, filt
             served_uc_count=served_count,
             coverage_status="unavailable" if not denominator else ("partial" if covered_count != denominator else "available"),
             status=status,
-            limitations=(["Denominador demonstrativo ausente ou zero; DEC/FEC não calculados."] if not denominator else coverage_limitations),
+            limitations=coverage_limitations,
         ))
-    overall: AnalyticsStatus = "unavailable" if any(item.status == "unavailable" for item in result) else ("partial" if any(item.status == "partial" for item in result) else ("empty" if not result or all(item.status == "empty" for item in result) else "available"))
+    if not result:
+        overall: AnalyticsStatus = "empty"
+    elif all(item.status == "unavailable" for item in result):
+        overall = "unavailable"
+    elif any(item.status in {"partial", "unavailable"} for item in result):
+        overall = "partial"
+    else:
+        overall = "available"
     return result, overall

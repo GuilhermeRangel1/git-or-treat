@@ -1,4 +1,4 @@
-# ADR-0002 — Contratos analíticos independentes da fonte física
+# ADR-0004 — Contratos analíticos independentes da fonte física
 
 **Data:** 2026-10-20
 **Estado:** aprovada pelo desenho DEV-01 em conversa; implementação e verificação nesta branch.

@@ -1,4 +1,4 @@
-# ADR-0003 — Python 3.12 com Docker Hardened Alpine no backend
+# ADR-0005 — Python 3.12 com Docker Hardened Alpine no backend
 
 **Data:** 2026-10-20
 **Estado:** aprovada pela pessoa usuária na solicitação de troca para a base DHI

@@ -49,3 +49,35 @@ def test_partially_paid_invoice_has_a_consistent_payment_status(client):
     assert invoice["paid_amount"] == 70.0
     assert invoice["payment_status"] == "partial"
     assert invoice["payment_date"] == "2025-03-05"
+
+
+def test_uc_search_preserves_case_insensitive_id_filter_order_pagination_and_projection(client):
+    response = client.get("/api/v1/ucs?q=uc-10&order_by=municipio&page_size=2")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"]["items"] == [
+        {"uc_id": "UC-1003", "municipio": "Olinda", "bairro": "Casa Caiada", "classe": "Residencial", "alimentador": "AL-02", "status": "active"},
+        {"uc_id": "UC-1005", "municipio": "Paulista", "bairro": "Jardim", "classe": "Residencial", "alimentador": "AL-02", "status": "active"},
+    ]
+    assert body["pagination"] == {"page": 1, "page_size": 2, "total": 5, "total_pages": 3}
+    assert body["metadata"]["status"] == "available"
+
+
+@pytest.mark.parametrize("q", ["Pessoa", "CLI-DEMO"])
+def test_uc_search_does_not_search_customer_fields(client, q):
+    response = client.get("/api/v1/ucs", params={"q": q})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"]["items"] == []
+    assert body["pagination"]["total"] == 0
+    assert body["metadata"]["status"] == "empty"
+
+
+@pytest.mark.parametrize("query", [{"q": ""}, {"q": "  "}, {"order_by": "customer_name"}])
+def test_uc_search_preserves_validation_errors(client, query):
+    response = client.get("/api/v1/ucs", params=query)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_query"

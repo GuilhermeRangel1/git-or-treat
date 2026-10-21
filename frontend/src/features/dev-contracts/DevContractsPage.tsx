@@ -1,8 +1,15 @@
-import { useState, type FormEvent } from "react";
+import { useEffect } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
 import ThemeToggle from "@/shared/ui/ThemeToggle";
 import { ContractError, type DataStatus } from "./contract";
-import { useKpis, type KpisFilters } from "./useKpis";
+import { useKpis } from "./useKpis";
+import { KpisFiltersForm } from "./KpisFiltersForm";
+import {
+  defaultKpisFilters,
+  kpisSearchParams,
+  readKpisFilters,
+} from "./kpis-filters";
 
 const statusLabels: Record<DataStatus, string> = {
   available: "Disponível",
@@ -38,22 +45,23 @@ function errorMessage(error: Error) {
 }
 
 export function DevContractsPage() {
-  const [start, setStart] = useState("2025-01");
-  const [end, setEnd] = useState("2025-02");
-  const [municipio, setMunicipio] = useState("");
-  const [classe, setClasse] = useState("");
-  const [applied, setApplied] = useState<KpisFilters | null>(null);
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selection = readKpisFilters(searchParams);
+  const invalid = selection && Object.keys(selection.errors).length > 0;
+  const applied = selection && !invalid ? selection.filters : null;
+  const search = searchParams.toString();
+  const normalizedSearch = invalid
+    ? search
+    : applied
+      ? kpisSearchParams(applied).toString()
+      : "";
+  useEffect(() => {
+    if (search !== normalizedSearch) {
+      setSearchParams(normalizedSearch, { replace: true });
+    }
+  }, [search, normalizedSearch, setSearchParams]);
   const query = useKpis(applied);
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setApplied({
-      competencia_inicio: start,
-      competencia_fim: end,
-      municipio: municipio.trim(),
-      classe: classe.trim(),
-    });
-  }
 
   const result = query.data;
   const hasMetrics = Boolean(result && result.data.metrics.length > 0);
@@ -77,56 +85,12 @@ export function DevContractsPage() {
           <ThemeToggle />
         </header>
 
-        <form
-          className="grid gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
-          onSubmit={submit}
-        >
-          <label className="grid gap-1.5 text-sm font-medium">
-            Competência inicial
-            <input
-              className="min-h-11 rounded-lg border border-control bg-canvas px-3 text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-              type="month"
-              value={start}
-              onChange={(event) => setStart(event.target.value)}
-              required
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Competência final
-            <input
-              className="min-h-11 rounded-lg border border-control bg-canvas px-3 text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-              type="month"
-              value={end}
-              onChange={(event) => setEnd(event.target.value)}
-              required
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Município
-            <input
-              className="min-h-11 rounded-lg border border-control bg-canvas px-3 text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-              type="text"
-              value={municipio}
-              onChange={(event) => setMunicipio(event.target.value)}
-              autoComplete="address-level2"
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Classe
-            <input
-              className="min-h-11 rounded-lg border border-control bg-canvas px-3 text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-              type="text"
-              value={classe}
-              onChange={(event) => setClasse(event.target.value)}
-            />
-          </label>
-          <button
-            className="min-h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-[var(--accent-goiaba-text)] hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-            type="submit"
-          >
-            Consultar
-          </button>
-        </form>
+        <KpisFiltersForm
+          navigationKey={location.key}
+          initialFilters={selection?.filters ?? defaultKpisFilters}
+          initialErrors={selection?.errors}
+          onApply={(filters) => setSearchParams(kpisSearchParams(filters))}
+        />
 
         {query.isPending && applied ? (
           <p
@@ -134,6 +98,16 @@ export function DevContractsPage() {
             role="status"
           >
             Carregando indicadores…
+          </p>
+        ) : null}
+
+        {query.isFetching && result ? (
+          <p
+            className="rounded-xl border border-border bg-surface p-5 text-sm text-muted"
+            role="status"
+          >
+            Atualizando indicadores… Os últimos dados válidos deste recorte
+            continuam visíveis.
           </p>
         ) : null}
 

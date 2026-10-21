@@ -3,6 +3,9 @@
 DATA_VERSION = "dev01-v1"
 UPDATED_AT = "2026-10-20T00:00:00Z"
 DATA_LIMITATION = "Dados sintéticos; não constituem diagnóstico da V-Energy."
+# Complete interruption observation window; zero events within it is a known zero.
+CONTINUITY_COVERAGE_START = "2025-01"
+CONTINUITY_COVERAGE_END = "2025-02"
 
 UNITS = [
     {"uc_id": "UC-1001", "customer_reference": "CLI-DEMO-01", "customer_name": "Pessoa Demonstração 01", "municipio": "Recife", "bairro": "Centro", "classe": "Residencial", "alimentador": "AL-01", "status": "active"},

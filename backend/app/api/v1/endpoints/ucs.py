@@ -9,8 +9,8 @@ from app.schemas.analytics import (
     UCDetailResponse,
     UCListItem,
 )
-from app.services.analytics import AnalyticsAPIError, DEFAULT_END, DEFAULT_START, metadata, page_items
-from app.services.uc_analytics import build_uc_detail
+from app.services.analytics import DEFAULT_END, DEFAULT_START, metadata
+from app.services.uc_analytics import build_uc_detail, build_uc_search
 
 router = APIRouter(route_class=AnalyticsRoute)
 
@@ -23,18 +23,11 @@ def search_ucs(
     order_by: str = Query("uc_id", max_length=32),
     repository: AnalyticsRepository = Depends(get_analytics_repository),
 ):
-    if q is not None and (not q.strip() or len(q) > 100):
-        raise AnalyticsAPIError(422, "invalid_query", "Busca inválida.", [{"field": "q", "message": "Use de 1 a 100 caracteres."}])
-    items = [
-        {key: unit[key] for key in ("uc_id", "municipio", "bairro", "classe", "alimentador", "status")}
-        for unit in repository.units
-        if q is None or q.lower() in unit["uc_id"].lower()
-    ]
-    selected, pagination = page_items(items, page, page_size, order_by, {"uc_id", "municipio", "bairro", "classe", "alimentador", "status"})
+    selected, pagination, state = build_uc_search(repository, q, page, page_size, order_by)
     return {
         "data": {"items": selected},
         "pagination": pagination,
-        "metadata": metadata(repository, "empty" if not items else "available", DEFAULT_START, DEFAULT_END, AnalyticsFilters()),
+        "metadata": metadata(repository, state, DEFAULT_START, DEFAULT_END, AnalyticsFilters()),
     }
 
 

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.v1.analytics_route import AnalyticsRoute
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
-from app.schemas.analytics import AnalyticsFilters, ContinuityResponse
-from app.services.analytics import AnalyticsAPIError, build_continuity, metadata, validate_period
+from app.schemas.analytics import ContinuityResponse
+from app.services.analytics import AnalyticsAPIError, build_continuity, filters_model, metadata, validate_period
 
 router = APIRouter(route_class=AnalyticsRoute)
 
@@ -21,7 +21,7 @@ def get_continuity_metrics(
             raise AnalyticsAPIError(422, "invalid_query", "Use periodo ou o intervalo, sem combiná-los.", [{"field": "periodo", "message": "Parâmetro incompatível com competencia_inicio/competencia_fim."}])
         competencia_inicio = competencia_fim = periodo
     start, end = validate_period(competencia_inicio, competencia_fim)
-    filters = AnalyticsFilters(alimentador=alimentador)
+    filters = filters_model(alimentador=alimentador)
     items, state = build_continuity(repository, start, end, filters)
     result_metadata = metadata(repository, state, start, end, filters)
     for item in items:

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Protocol
 
 from app.core.config import settings
@@ -6,6 +7,14 @@ from app.synthetic import fixtures
 
 class AnalyticsSourceUnavailable(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class MonthlyCoverage:
+    """Inclusive source coverage, independent of observed events and UC snapshots."""
+
+    start: str
+    end: str
 
 
 class AnalyticsRepository(Protocol):
@@ -23,6 +32,7 @@ class AnalyticsRepository(Protocol):
     source_is_demo: bool
     source_updated_at: str
     source_limitations: list[str]
+    continuity_coverage: MonthlyCoverage | None
 
 
 class SyntheticAnalyticsRepository:
@@ -42,6 +52,10 @@ class SyntheticAnalyticsRepository:
     source_is_demo = True
     source_updated_at = fixtures.UPDATED_AT
     source_limitations = [fixtures.DATA_LIMITATION]
+    continuity_coverage: MonthlyCoverage | None = MonthlyCoverage(
+        start=fixtures.CONTINUITY_COVERAGE_START,
+        end=fixtures.CONTINUITY_COVERAGE_END,
+    )
 
 
 _synthetic_repository = SyntheticAnalyticsRepository()

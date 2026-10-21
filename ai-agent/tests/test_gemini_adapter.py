@@ -6,11 +6,21 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from app.config import Settings
-from app.providers.factory import ModelConfigurationError, build_model_adapter
+from app.providers.factory import (
+    ModelConfigurationError,
+    build_model_adapter,
+    build_model_router,
+)
 from app.providers.gemini import GeminiModelAdapter
-from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
+from app.providers.protocols import (
+    GeneratedAnswer,
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
+    ModelProviderUnavailable,
+)
+from app.providers.routing import ModelTier
+from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn, EvidenceReference
-from app.tools.evidence import EvidenceResult
 
 
 class FakeModelEndpoint:
@@ -79,6 +89,80 @@ def test_gemini_factory_uses_configured_model_and_secret_without_exposing_it() -
 
     assert isinstance(adapter, GeminiModelAdapter)
     assert "fake-key-for-test" not in repr(settings)
+
+
+def test_configured_model_router_builds_light_and_strong_levels_without_network() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_provider="gemini",
+        gemini_model="gemini-strong-test",
+        gemini_api_key="fake-key-for-test",
+        model_routing_enabled=True,
+        model_light_model="gemini-light-test",
+        model_light_intents=["consumption"],
+        model_max_calls=2,
+    )
+    endpoint = FakeModelEndpoint(response=FakeResponse('{"status":"answered","answer":"ok"}'))
+    client = FakeClient(endpoint)
+
+    strong = build_model_adapter(settings, client=client)
+    router = build_model_router(settings, strong, client=client)
+
+    assert router is not None
+    light_tier, light = router.route(intent="consumption", evidence_records=1, evidence_chars=1)
+    strong_tier, strong_level = router.route(intent=None, evidence_records=1, evidence_chars=1)
+    assert light_tier is ModelTier.LIGHT
+    assert strong_tier is ModelTier.STRONG
+    assert light is not strong_level
+    assert router.adapter_for(ModelTier.STRONG) is strong
+    assert "fake-key-for-test" not in repr(settings)
+
+
+def test_configured_model_router_requires_light_model_when_light_intents_exist() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_provider="gemini",
+        gemini_api_key="fake-key-for-test",
+        model_routing_enabled=True,
+        model_light_intents=["consumption"],
+    )
+    strong = build_model_adapter(settings, client=FakeClient(FakeModelEndpoint()))
+
+    with pytest.raises(ModelConfigurationError, match="GENAI_MODEL_LIGHT_MODEL"):
+        build_model_router(settings, strong, client=FakeClient(FakeModelEndpoint()))
+
+
+def test_configured_model_router_rejects_same_light_and_strong_model() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_provider="gemini",
+        gemini_model="gemini-same-test",
+        gemini_api_key="fake-key-for-test",
+        model_routing_enabled=True,
+        model_light_model="gemini-same-test",
+        model_light_intents=["consumption"],
+    )
+    strong = build_model_adapter(settings, client=FakeClient(FakeModelEndpoint()))
+
+    with pytest.raises(ModelConfigurationError, match="modelos light e strong devem ser distintos"):
+        build_model_router(settings, strong, client=FakeClient(FakeModelEndpoint()))
+
+
+def test_configured_model_router_reserves_budget_for_possible_escalation() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_provider="gemini",
+        gemini_api_key="fake-key-for-test",
+        gemini_fallback_models=["gemini-strong-fallback"],
+        model_routing_enabled=True,
+        model_light_model="gemini-light-test",
+        model_light_intents=["consumption"],
+        model_max_calls=2,
+    )
+    strong = build_model_adapter(settings, client=FakeClient(FakeModelEndpoint()))
+
+    with pytest.raises(ModelConfigurationError, match="GENAI_MODEL_MAX_CALLS"):
+        build_model_router(settings, strong, client=FakeClient(FakeModelEndpoint()))
 
 
 def test_gemini_sdk_client_uses_bounded_timeout_and_disables_retries(monkeypatch) -> None:
@@ -164,7 +248,7 @@ def test_gemini_adapter_rejects_invalid_provider_responses(response_text: str | 
     endpoint = FakeModelEndpoint(response=FakeResponse(response_text))
     adapter = GeminiModelAdapter(model_name="gemini-test-model", client=FakeClient(endpoint))
 
-    with pytest.raises(ModelProviderUnavailable, match="resposta inválida"):
+    with pytest.raises(ModelProviderInvalidResponse, match="resposta inválida"):
         asyncio.run(
             adapter.generate(
                 "Pergunta sintética",
@@ -192,8 +276,30 @@ def test_gemini_adapter_sanitizes_timeout_and_provider_failures(
     endpoint = FakeModelEndpoint(error=failure)
     adapter = GeminiModelAdapter(model_name="gemini-test-model", client=FakeClient(endpoint))
 
-    with pytest.raises(ModelProviderUnavailable) as error:
+    expected = (
+        ModelProviderUnavailable if isinstance(failure, TimeoutError) else ModelProviderRejected
+    )
+    with pytest.raises(expected) as error:
         asyncio.run(adapter.generate("Pergunta sintética", [], demo_evidence))
 
     assert "private" not in str(error.value)
     assert "API key" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("429", ModelProviderUnavailable),
+        (503, ModelProviderUnavailable),
+        (403, ModelProviderRejected),
+    ],
+)
+def test_gemini_classifies_provider_status_for_fallback(status, expected, demo_evidence) -> None:
+    class ProviderError(Exception):
+        status_code = status
+
+    endpoint = FakeModelEndpoint(error=ProviderError("private provider detail"))
+    adapter = GeminiModelAdapter(model_name="gemini-test-model", client=FakeClient(endpoint))
+    with pytest.raises(expected) as error:
+        asyncio.run(adapter.generate("Pergunta sintética", [], demo_evidence))
+    assert "private" not in str(error.value)

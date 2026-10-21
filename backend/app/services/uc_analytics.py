@@ -1,6 +1,20 @@
 from app.repositories.analytics import AnalyticsRepository
-from app.schemas.analytics import AnalyticsFilters, AnalyticsStatus
-from app.services.analytics import AnalyticsAPIError
+from app.schemas.analytics import AnalyticsStatus
+from app.services.analytics import AnalyticsAPIError, page_items
+
+
+def build_uc_search(
+    repository: AnalyticsRepository, q: str | None, page: int, page_size: int, order_by: str,
+) -> tuple[list[dict], dict, AnalyticsStatus]:
+    if q is not None and (not q.strip() or len(q) > 100):
+        raise AnalyticsAPIError(422, "invalid_query", "Busca inválida.", [{"field": "q", "message": "Use de 1 a 100 caracteres."}])
+    items = [
+        {key: unit[key] for key in ("uc_id", "municipio", "bairro", "classe", "alimentador", "status")}
+        for unit in repository.units
+        if q is None or q.lower() in unit["uc_id"].lower()
+    ]
+    selected, pagination = page_items(items, page, page_size, order_by, {"uc_id", "municipio", "bairro", "classe", "alimentador", "status"})
+    return selected, pagination, "available" if items else "empty"
 
 
 def build_uc_detail(repository: AnalyticsRepository, uc_id: str) -> tuple[dict, AnalyticsStatus, list[str]]:

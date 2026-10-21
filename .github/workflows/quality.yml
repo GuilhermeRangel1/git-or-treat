@@ -70,7 +70,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      TEST_POSTGRES_URL: postgresql+psycopg://venergy_test:venergy_test@localhost:5432/v_energy_test
+      TEST_POSTGRES_URL: postgresql+psycopg://venergy_migrator:venergy_migrator@localhost:5432/v_energy_test
 
     defaults:
       run:
@@ -92,7 +92,12 @@ jobs:
       - name: Instalar dependências
         run: python -m pip install -r requirements.txt
 
-      - name: Executar testes
+      - name: Preparar usuário de migração sem superusuário no banco efêmero
+        env:
+          PGPASSWORD: venergy_test
+        run: psql --host localhost --port 5432 --username venergy_test --dbname v_energy_test --file scripts/prepare_test_postgres.sql
+
+      - name: Executar testes e verificar drift entre modelos e migrações
         run: python -m pytest -q
 
       - name: Validar compilação Python
