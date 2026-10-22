@@ -101,6 +101,14 @@ O controlador revisou o diff completo e executou uma comparação diferencial co
 
 Os testes HTTP existentes mantêm os controles independentes de resultado; não foram acrescentados testes de chamadas internas. Em `backend/`: `venv/Scripts/python.exe -m pytest -q` → 101 aprovados, 1 PostgreSQL ignorado; `venv/Scripts/python.exe -m compileall -q app tests scripts` aprovado. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão e comparação pelo controlador. Sem novas dependências, arquivos de produto ou alteração do repositório analítico. Consultas Gold e suas definições continuam fora desta refatoração.
 
+### Feedback — finais de linha no Windows
+
+O relato de falha em massa não se reproduziu inicialmente neste checkout já formatado: `npm.cmd run format:check` passou. A causa de portabilidade foi reproduzida sem alterar o arquivo de produto: Prettier 3.9.10 aceitou a versão LF de `ReceitaPage.tsx` e rejeitou o mesmo conteúdo convertido para CRLF. O Git local tinha `core.autocrlf=true` e não havia política versionada de EOL.
+
+`.gitattributes` agora define `/frontend/** text=auto eol=lf`; `frontend/.prettierrc.json` explicita `endOfLine: "lf"`. A regra é limitada ao frontend e mantém detecção de binários. Doze arquivos de texto locais foram normalizados para LF sem diferenças lógicas no índice; o commit não carrega reformatação em massa. O README explica como normalizar um checkout existente preservando trabalho local.
+
+Verificações: `git check-attr text eol` confirmou `text: auto` e `eol: lf`; `git -c core.autocrlf=true cat-file --filters HEAD:frontend/src/features/receita/ReceitaPage.tsx` produziu bytes LF; `npm.cmd run format:check`, validação documental e `git diff --check` aprovados. Referências oficiais consultadas via Context7: documentação de `endOfLine` do Prettier, com opção LF; fonte/versão e documentação Git constam no README. Configuração global do Git e código de produto preservados.
+
 ### Limites desta rodada
 
 Nenhum navegador estava conectado ao inventário de automação; a jornada visual não foi repetida nesta rodada. As evidências anteriores de navegador continuam identificadas acima, sem serem apresentadas como nova execução. Python 3.12, PostgreSQL e Gold permanecem pendentes. A nova tentativa de leitura do quadro Trello pelo MCP expirou; nenhum cartão foi alterado.

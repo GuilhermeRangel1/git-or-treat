@@ -1,0 +1,3 @@
+# O frontend usa LF no checkout, inclusive quando core.autocrlf=true no Windows.
+/frontend/** text=auto eol=lf
+/.gitattributes text eol=lf

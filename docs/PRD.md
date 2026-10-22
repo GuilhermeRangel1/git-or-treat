@@ -936,6 +936,12 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Evidência: suíte backend completa → 101 aprovados, 1 PostgreSQL ignorado; `compileall` de `app`, `tests` e `scripts` aprovado. Comparação independente contra `bbb59d2`: 10.080 combinações de resultados/erros idênticas, com fonte sintética normal, sem cobertura, faturamento incompleto e universo vazio, seis janelas e três agrupamentos. Documentação e `git diff --check` aprovados; detalhes no [registro da DEV-03](plans/2026-10-21-dev03-evidence.md).
 - Dados/revisão: somente fixtures artificiais; implementação GPT-6 Luna/high, revisão de código e comparação diferencial pelo controlador. Controles HTTP de Decimal, arredondamento, base pequena, ausência, mix e reconciliação preservados. Acesso Gold por consultas no PostgreSQL continua evolução futura, condicionado ao dicionário aprovado. Limites de navegador, Python 3.12/PostgreSQL e sincronização Trello permanecem os registrados nesta rodada.
 
+### 2026-10-21 — DEV-03 — finais de linha reproduzíveis no Windows
+
+- Estado: requisitos funcionais permanecem `Pendente`; ajuste de ferramentas, sem mudança de comportamento do produto.
+- Causa e correção: com `core.autocrlf=true` e sem atributos, o checkout podia produzir CRLF enquanto o Prettier esperava LF. `.gitattributes` fixa LF apenas no frontend, com detecção automática de binários; `frontend/.prettierrc.json` explicita a mesma política. O README orienta atualizar checkouts existentes sem descartar trabalho local nem mudar a configuração global do Git.
+- Evidência: Prettier 3.9.10 aceitou o conteúdo LF e rejeitou o mesmo conteúdo CRLF antes da correção de checkout. `git cat-file --filters` com `core.autocrlf=true` passou a produzir LF; `git check-attr` confirmou os atributos. `npm.cmd run format:check`, validação documental e `git diff --check` aprovados. Doze arquivos locais foram normalizados, sem diferenças lógicas no índice; não houve reformatação em massa de código. Revisão pelo controlador; ver [evidências](plans/2026-10-21-dev03-evidence.md).
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.
