@@ -6,19 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.access import ReadAccessPolicy
-from app.agent.insights import ScreenInsightOrchestrator
-from app.agent.interpreter import QuestionInterpreter
-from app.agent.orchestrator import QuestionOrchestrator
-from app.agent.planner import QuestionAnalysisPlanner
-from app.agent.safety import QuestionSafetyGate
 from app.api.access import SYNTHETIC_SOURCE_ID
 from app.config import Settings
 from app.main import create_app
 from app.ports.evidence import EvidenceToolUnavailable
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
-from app.schemas.analysis import AnalysisIntent
+from app.schemas.evidence import EvidenceLookupResult
+from app.schemas.read_plan import LogicalReadPlan, WindowKind
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 from .conftest import InProcessClient
@@ -27,29 +22,27 @@ ROOT = Path(__file__).parent
 DATASET_PATH = ROOT / "fixtures" / "genai_regression.json"
 DATASET = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
 
-
-class CountingInterpreter:
-    def __init__(self) -> None:
-        self.delegate = QuestionInterpreter(profile=GRID360_DEMO_PROFILE)
-        self.results = []
-
-    def interpret(self, question, context=None):
-        result = self.delegate.interpret(question, context)
-        self.results.append(result)
-        return result
+PASSED = "passed"
+UNEXPECTED_FAILURE = "unexpected_failure"
+KNOWN_FAILURE_CONFIRMED = "known_failure_confirmed"
+KNOWN_FAILURE_CHANGED = "known_failure_changed"
+KNOWN_FAILURE_NOW_PASSING = "known_failure_now_passing"
+ACCEPTED_OUTCOMES = {PASSED, KNOWN_FAILURE_CONFIRMED}
 
 
-class CountingScenarioTool:
+class RecordingEvidenceSource:
+    """Encapsula a fonte sintética e registra cada plano aprovado que chega a ela."""
+
     def __init__(self, *, fail: bool = False) -> None:
         self.delegate = SyntheticScenarioTool()
-        self.calls = []
+        self.plans: list[LogicalReadPlan] = []
         self.fail = fail
 
-    async def retrieve(self, intent: AnalysisIntent):
-        self.calls.append(intent)
+    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
+        self.plans.append(plan)
         if self.fail:
             raise EvidenceToolUnavailable("private source detail")
-        return await self.delegate.retrieve(intent)
+        return await self.delegate.retrieve(plan)
 
 
 class CaseModelAdapter:
@@ -69,25 +62,64 @@ class CaseModelAdapter:
         return self.answer
 
 
+def summarize_plan(plan: LogicalReadPlan) -> dict:
+    """Projeção do plano no formato de `expected_plan`, sem campos de versão ou limite."""
+    if plan.window.kind is WindowKind.CATALOG_PHRASE:
+        window = {"phrase": plan.window.phrase}
+    else:
+        window = {"start": plan.window.start.isoformat(), "end": plan.window.end.isoformat()}
+    return {
+        "domain_id": plan.domain_id,
+        "metric_id": plan.metric_id,
+        "dimension_ids": sorted(plan.dimension_ids),
+        "window": window,
+        "filters": sorted(
+            (
+                {"dimension_id": item.dimension_id, "values": list(item.values)}
+                for item in plan.filters
+            ),
+            key=lambda item: item["dimension_id"],
+        ),
+    }
+
+
+def _normalize_expected_plan(expected: dict) -> dict:
+    return {
+        **expected,
+        "dimension_ids": sorted(expected["dimension_ids"]),
+        "filters": sorted(expected["filters"], key=lambda item: item["dimension_id"]),
+    }
+
+
+def classify(case: dict, failing_checks: list[str], actual_status: str) -> str:
+    known = case.get("known_failure")
+    if known is None:
+        return UNEXPECTED_FAILURE if failing_checks else PASSED
+    if not failing_checks:
+        return KNOWN_FAILURE_NOW_PASSING
+    if (
+        failing_checks == sorted(known["failing_checks"])
+        and actual_status == known["actual_status"]
+    ):
+        return KNOWN_FAILURE_CONFIRMED
+    return KNOWN_FAILURE_CHANGED
+
+
 def evaluate_case(case: dict) -> dict:
-    interpreter = CountingInterpreter()
-    tool = CountingScenarioTool(fail=case.get("tool_failure", False))
+    source = RecordingEvidenceSource(fail=case.get("tool_failure", False))
     model = CaseModelAdapter(case)
-    orchestrator = QuestionOrchestrator(
-        analysis_planner=QuestionAnalysisPlanner(
-            interpreter, tool, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
-        ),
-        model_adapter=model,
-        safety_gate=QuestionSafetyGate(
-            out_of_scope_terms=GRID360_DEMO_PROFILE.out_of_scope_terms
-        ),
-    )
+    # Caminho oficial: create_app monta o ExecutionController e chama compose_core.
     application = create_app(
-        settings=Settings(_env_file=None, environment="local", enable_demo_access=True),
-        question_orchestrator=orchestrator,
-        insight_orchestrator=ScreenInsightOrchestrator(
-            model, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
+        settings=Settings(
+            _env_file=None,
+            environment="local",
+            enable_demo_access=True,
+            model_routing_enabled=False,
         ),
+        domain_profile=GRID360_DEMO_PROFILE,
+        source_id=SYNTHETIC_SOURCE_ID,
+        evidence_source=source,
+        model_adapter=model,
     )
     with InProcessClient(application) as client:
         if case.get("endpoint") == "insights":
@@ -100,16 +132,17 @@ def evaluate_case(case: dict) -> dict:
             )
     body = response.json()
 
-    actual_domain = None
-    if interpreter.results and interpreter.results[-1].intent is not None:
-        actual_domain = interpreter.results[-1].intent.domain
+    actual_plan = summarize_plan(source.plans[-1]) if source.plans else None
+    actual_domain = actual_plan["domain_id"] if actual_plan else None
     checks = {
         "http_ok": response.status_code == 200,
         "status": body.get("status") == case["expected_status"],
-        "tool_calls": len(tool.calls) == case["expected_tool_calls"],
+        "tool_calls": len(source.plans) == case["expected_tool_calls"],
         "model_calls": len(model.calls) == case["expected_model_calls"],
         "domain": actual_domain == case["expected_domain"],
     }
+    if "expected_plan" in case:
+        checks["plan"] = actual_plan == _normalize_expected_plan(case["expected_plan"])
     if "expected_answer_fragment" in case:
         generated_text = " ".join(
             value
@@ -135,15 +168,23 @@ def evaluate_case(case: dict) -> dict:
         checks["observation_value"] = any(
             item.get("value") == case["expected_observation_value"] for item in observed_values
         )
+
+    failing_checks = sorted(name for name, ok in checks.items() if not ok)
+    actual_status = body.get("status", f"http_{response.status_code}")
+    known = case.get("known_failure")
     return {
         "id": case["id"],
         "endpoint": case.get("endpoint", "questions"),
         "category": case.get("category", "question_flow"),
-        "passed": all(checks.values()),
+        "passed": not failing_checks,
+        "outcome": classify(case, failing_checks, actual_status),
+        "known_failure": known["reason"] if known else None,
+        "failing_checks": failing_checks,
         "checks": checks,
-        "actual_status": body.get("status", f"http_{response.status_code}"),
+        "actual_status": actual_status,
         "actual_domain": actual_domain,
-        "tool_calls": len(tool.calls),
+        "actual_plan": actual_plan,
+        "tool_calls": len(source.plans),
         "model_calls": len(model.calls),
     }
 
@@ -152,7 +193,34 @@ def evaluate_case(case: dict) -> dict:
 def test_versioned_synthetic_regression_case_passes(case: dict) -> None:
     result = evaluate_case(case)
 
-    assert result["passed"], result
+    if result["outcome"] == KNOWN_FAILURE_NOW_PASSING:
+        pytest.fail(
+            f"{case['id']} passou: remova known_failure da fixture. {result}", pytrace=False
+        )
+    if result["outcome"] == KNOWN_FAILURE_CHANGED:
+        expected = case["known_failure"]
+        pytest.fail(
+            f"{case['id']} falhou de forma diferente da registrada: esperado "
+            f"{sorted(expected['failing_checks'])} com status {expected['actual_status']}, "
+            f"obtido {result['failing_checks']} com status {result['actual_status']}. {result}",
+            pytrace=False,
+        )
+    assert result["outcome"] in ACCEPTED_OUTCOMES, result
+
+
+def test_known_failures_declare_reason_checks_and_actual_status() -> None:
+    for case in DATASET["cases"]:
+        known = case.get("known_failure")
+        if known is None:
+            continue
+        assert set(known) == {"reason", "failing_checks", "actual_status"}, case["id"]
+        assert known["reason"] and known["failing_checks"], case["id"]
+
+
+def test_expected_plan_is_declared_for_every_expected_tool_call() -> None:
+    questions = [case for case in DATASET["cases"] if case.get("endpoint") != "insights"]
+    for case in questions:
+        assert ("expected_plan" in case) == (case["expected_tool_calls"] > 0), case["id"]
 
 
 def test_insight_fixtures_cover_required_synthetic_outcomes() -> None:
@@ -182,13 +250,26 @@ def test_report_is_repeatable_and_declares_version_scope_and_limitations() -> No
 def build_report() -> dict:
     results = [evaluate_case(case) for case in DATASET["cases"]]
     passed = sum(result["passed"] for result in results)
+
+    def count(outcome: str) -> int:
+        return sum(result["outcome"] == outcome for result in results)
+
     return {
         "report_type": "synthetic_regression",
         "synthetic": True,
         "dataset_version": DATASET["dataset_version"],
         "scenario_scope": DATASET["scenario_scope"],
         "provider": "fixed_test_adapter; no Gemini API calls",
-        "summary": {"total": len(results), "passed": passed, "failed": len(results) - passed},
+        "summary": {
+            "total": len(results),
+            "passed": passed,
+            "failed": len(results) - passed,
+            "pass_rate": f"{passed}/{len(results)} ({passed / len(results):.1%})",
+            "known_failures_confirmed": count(KNOWN_FAILURE_CONFIRMED),
+            "known_failures_changed": count(KNOWN_FAILURE_CHANGED),
+            "known_failures_now_passing": count(KNOWN_FAILURE_NOW_PASSING),
+            "unexpected_failures": count(UNEXPECTED_FAILURE),
+        },
         "limitations": DATASET["limitations"],
         "cases": results,
     }
@@ -207,7 +288,7 @@ def main() -> None:
     report_json = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     args.output.write_text(report_json, encoding="utf-8")
     print(json.dumps(report["summary"], ensure_ascii=False))
-    if report["summary"]["failed"]:
+    if any(result["outcome"] not in ACCEPTED_OUTCOMES for result in report["cases"]):
         raise SystemExit(1)
 
 
