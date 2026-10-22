@@ -1,8 +1,8 @@
 # DEV-01 — Contratos de consumo analítico
 
-> **DEV-03 verificada com fonte sintética:** a jornada Receita usa 1.1.0, conforme o [contrato de Receita](revenue-dev03.md) e as [evidências integradas](../plans/2026-10-21-dev03-evidence.md). Os demais endpoints preservam 1.0.0. A verificação demonstrativa não conclui a integração Gold.
+> **Evoluções com fonte sintética:** Receita usa o [contrato DEV-03 1.1.0](revenue-dev03.md) e Atendimento acrescenta [overview e históricos DEV-04 1.1.0](uc360-dev04.md). Busca/detalhe legados e os demais endpoints preservam 1.0.0. As verificações demonstrativas não concluem a integração Gold.
 
-**Versão:** 1.0.0 nas jornadas DEV-01, 1.1.0 em Receita conforme DEV-03 · **Fonte sintética atual:** `dev03-v1` (substitui `dev01-v1` como lote de demonstração).
+**Versão:** 1.0.0 nas jornadas DEV-01; 1.1.0 em Receita DEV-03 e nas duas novas operações de Atendimento DEV-04 · **Fonte sintética atual:** `dev03-v1` (substitui `dev01-v1` como lote de demonstração).
 **Escopo:** preparação de WEB-01 a WEB-07 e IA-01 a IA-06. As formas JSON são contratos de aplicação; não representam o esquema físico ou as fórmulas oficiais da Gold.
 
 [Desenho](../design/2026-10-20-dev01-design.md), [plano](../plans/2026-10-20-dev01-plan.md), [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md) e [PRD](../PRD.md) registram motivação, decisões e aceite. O OpenAPI servido em `/openapi.json` e `/docs` é a referência executável dos schemas e parâmetros.
@@ -36,7 +36,7 @@ Receita declara `currency_unit: BRL` e `energy_unit: kWh`; faturas também decla
 | --- | --- | --- | --- |
 | Panorama | `GET /api/v1/kpis` | Métricas com unidade, disponibilidade, contexto e origem; consulta por competências e recorte | Definições oficiais, comparação e reconciliação do lote real |
 | Receita | `GET /api/v1/revenue` | Totais, série inclusiva, extremos, preço observado, decomposição e recortes demonstrativos conforme [1.1.0](revenue-dev03.md) | Método e população Gold, janelas anuais e reconciliação com lote real |
-| Atendimento | `GET /api/v1/ucs` e `GET /api/v1/ucs/{uc_id}` | Busca/listagem e cadastro, consumo, faturas, medidores, GD, interrupções e chamados | Chave/vigência real, cobertura de fontes e paginação de históricos volumosos |
+| Atendimento | `GET /api/v1/ucs`, `GET /api/v1/ucs/{uc_id}`, `/overview` e `/history/{section}` | Busca/listagem e detalhe legados 1.0.0; comparação e seis históricos paginados 1.1.0 conforme [DEV-04](uc360-dev04.md) | Chave/vigência real, cobertura e reconciliação Gold; escala dos históricos reais |
 | Perdas | `GET /api/v1/inspections/queue` | Fila, prioridade, motivo, indicadores e estimativa demonstrativos | Regra e estimativa auditáveis sobre a Gold |
 | Ordens | `GET/POST /api/v1/inspections/orders` e `PATCH /api/v1/inspections/orders/{order_id}` | Schemas e persistência existentes, separados dos dados analíticos | Ciclo de estados, histórico, idempotência e UI nos cards DEV-06/07 |
 | Operação | `GET /api/v1/operations/continuity` | Indicadores por alimentador, denominador e lacunas | Fórmula/denominador por período conforme DE-05 e dados reais |
@@ -53,6 +53,8 @@ Parâmetros por operação:
 | `/revenue` | Janela comum e município/bairro/classe/alimentador; comparação demonstrativa usa os extremos solicitados, sem substituí-los por meses disponíveis |
 | `/ucs` | `q`, `page`, `page_size`, `order_by`; busca parcial somente no número da UC |
 | `/ucs/{uc_id}` | Identificador no caminho; histórico sintético completo de janeiro/fevereiro, sem parâmetro de janela nesta etapa |
+| `/ucs/{uc_id}/overview` | Identificador canônico e janela mensal opcional `start`/`end` fornecidos juntos; comparação dos extremos e contexto com cobertura declarada |
+| `/ucs/{uc_id}/history/{section}` | Seção do enum DEV-04, mesma janela, `page`, `page_size` e `order_by` permitido por seção; ver [contrato UC](uc360-dev04.md) |
 | `/inspections/queue` | Município/bairro/classe/alimentador, `page`, `page_size`, `order_by`; fila do snapshot sintético |
 | `/operations/continuity` | Janela comum e `alimentador`; alias `periodo` para competência única |
 
