@@ -1098,3 +1098,12 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Pendências: revisão humana e reconciliação Gold permanecem; nenhuma imagem do enunciado adicionada ao repositório. Trello não sincronizado: MCP não conectado. Revisor humano: a definir pelo time.
 
 - Ajuste solicitado na mesma revisão: removida do topo a linha de demonstração sintética/lote e última atualização. Metadados continuam no contrato e lote nos detalhes das métricas; a omissão visual foi solicitada pela pessoa usuária e não altera a origem dos dados ou conclui o aceite Gold.
+
+
+### 2026-10-22 — DEV-02 / WEB-01 e WEB-02 — compatibilidade dos testes após integração
+
+- Estados mantidos: WEB-01 `Em validação`, WEB-02 `Pendente`. Corrige somente testes após integração da Receita à branch, sem mudança de produto, API ou dados.
+- Causa reproduzida no CI [39803861764](https://github.com/GuilhermeRangel1/git-or-treat/actions/runs/39803861764): cinco testes de Receita interpretavam URLs relativas sem origem; teste de navegação contava todas as consultas como se apenas Receita consultasse dados e depois esperava exclusivamente chamadas ao Panorama.
+- Correção: `frontend/src/features/receita/ReceitaPage.test.tsx` resolve os endereços contra a origem do ambiente de teste; `frontend/src/app/router.test.tsx` verifica a chamada de Receita por endpoint e restringe as consultas aos dois módulos atualmente integrados, mantendo checagens de navegação, layout e tema.
+- Evidência local: `npm test -- --reporter=dot` → 109 aprovados em 11 arquivos; lint, boundaries (64 arquivos) e build aprovados. Prettier global aprovado em cópia temporária dos arquivos rastreados com LF, reproduzindo os finais de linha do checkout Linux; os avisos locais com CRLF não exigem alterações nos demais arquivos. Nova execução remota ainda deve confirmar o commit.
+- Revisor humano: a definir. Trello não sincronizado: MCP não conectado. Reconciliação Gold continua pendente.

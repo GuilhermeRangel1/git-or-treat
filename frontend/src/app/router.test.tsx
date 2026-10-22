@@ -58,14 +58,27 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas", async () => {
       "page",
     );
     if (name === "Receita") {
-      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
-      expect(String(fetchSpy.mock.calls[0][0])).toContain("/api/v1/revenue?");
+      await waitFor(() =>
+        expect(
+          fetchSpy.mock.calls.filter((call) =>
+            String(call[0]).includes("/api/v1/revenue?"),
+          ),
+        ).toHaveLength(1),
+      );
     }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  // O Panorama consulta /api/v1/panorama para carregar métricas; as outras 6 áreas continuam sem consultas
+  // Panorama e Receita consultam suas APIs; as demais áreas desta branch são visuais.
+  await waitFor(() =>
+    expect(
+      fetchSpy.mock.calls.some((call) =>
+        String(call[0]).includes("/api/v1/panorama?"),
+      ),
+    ).toBe(true),
+  );
   for (const call of fetchSpy.mock.calls) {
-    expect(call[0]).toContain("/api/v1/panorama");
+    const path = new URL(String(call[0]), window.location.origin).pathname;
+    expect(["/api/v1/panorama", "/api/v1/revenue"]).toContain(path);
   }
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
 }, 15000);
