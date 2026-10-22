@@ -1,6 +1,6 @@
 param(
-    [ValidateRange(1024, 65535)][int]$BackendPort = 8055,
-    [ValidateRange(1024, 65535)][int]$FrontendPort = 5185
+    [ValidateRange(1024, 65535)][int]$BackendPort = 8000,
+    [ValidateRange(1024, 65535)][int]$FrontendPort = 5173
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,8 +9,8 @@ $backendRoot = Join-Path $repoRoot 'backend'
 $frontendRoot = Join-Path $repoRoot 'frontend'
 $pythonPath = Join-Path $backendRoot 'venv/Scripts/python.exe'
 $vitePath = Join-Path $frontendRoot 'node_modules/vite/bin/vite.js'
-$apiUrl = "http://127.0.0.1:$BackendPort"
-$pageUrl = "http://127.0.0.1:$FrontendPort/inspecoes"
+$apiUrl = "http://localhost:$BackendPort"
+$pageUrl = "http://localhost:$FrontendPort/inspecoes"
 
 if ($BackendPort -eq $FrontendPort) { throw 'Use portas diferentes para API e frontend.' }
 if (-not (Test-Path -LiteralPath $pythonPath)) {
@@ -25,7 +25,7 @@ $occupied = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
 if ($occupied) {
     try {
         $existingQueue = Invoke-RestMethod "$apiUrl/api/v1/inspections/queue?page_size=1" -TimeoutSec 2
-        $existingClient = Invoke-WebRequest "http://127.0.0.1:$FrontendPort/src/shared/api/client.ts" -UseBasicParsing -TimeoutSec 2
+        $existingClient = Invoke-WebRequest "http://localhost:$FrontendPort/src/shared/api/client.ts" -UseBasicParsing -TimeoutSec 2
         if ($existingQueue.metadata.source.is_demo -eq $true -and $null -ne $existingQueue.data.summary -and $existingClient.Content.Contains($apiUrl)) {
             Write-Host "Demo sintética já está ativa: $pageUrl"
             return
@@ -47,7 +47,7 @@ $frontendProcess = $null
 try {
     $env:ANALYTICS_SOURCE = 'synthetic'
     $env:DATABASE_URL = 'sqlite:///:memory:'
-    $env:BACKEND_CORS_ORIGINS = "[`"http://127.0.0.1:$FrontendPort`"]"
+    $env:BACKEND_CORS_ORIGINS = "[`"http://localhost:$FrontendPort`",`"http://127.0.0.1:$FrontendPort`"]"
     $env:VITE_API_URL = $apiUrl
     $apiProcess = Start-Process -FilePath $pythonPath -WorkingDirectory $backendRoot -WindowStyle Hidden -PassThru `
         -ArgumentList @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$BackendPort") `

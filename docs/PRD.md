@@ -997,6 +997,13 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Evidência: fila real da API mostrou duas UCs, prioridade máxima 0,92 e energia 45 kWh para UC-1004; ausência permanece explícita para UC-1002. Layout conferido em 1440, 1920, 2560 e 390 px. Inicialização nova testada em 5195/8065; instâncias temporárias encerradas após a conferência, preservando 5185/8055. Frontend: 85 testes aprovados, lint/fronteiras/formatação/build aprovados; o ajuste não altera backend nem dados. Ver [evidência DEV-05](plans/2026-10-22-dev05-evidence.md) e comando em [frontend/README](../frontend/README.md).
 - Pendências: homologação e Gold permanecem abertas. Trello sem MCP nesta sessão. Responsável: Codex; conferência funcional local, revisão de produto pelo time pendente.
 
+### 2026-10-22 — DEV-05 — execução na porta padrão 5173
+
+- WEB-04 permanece `Em validação`. A pessoa usuária solicitou execução em `localhost:5173`; a porta já pertencia ao frontend Docker do projeto.
+- Corrigida a origem da API no Compose para evitar duplicação de `/api/v1`; apenas o frontend foi recriado, preservando backend e banco. O inicializador standalone agora usa 5173/8000 por padrão e aceita as duas origens locais no CORS.
+- Evidência: `docker compose up -d --no-deps --force-recreate frontend` terminou com sucesso; o cliente servido em 5173 confirmou a origem correta e o inicializador reconheceu a fila sintética existente. Nenhuma alteração em `.env` ou volumes do banco.
+- A integração posterior da DEV-02 em `origin/develop` foi identificada; a sincronização da `dev05` com essa base é a etapa seguinte para recuperar o Panorama na mesma branch.
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.
