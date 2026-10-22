@@ -457,6 +457,14 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — primeiro percurso parametrizado de plano para SQL artificial
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. O recorte é técnico e isolado; não comprova consulta Gold nem permissão de banco de produção.
+- Mudança observável: um `LogicalReadPlan` aprovado para receita, município e mês completo pode ser traduzido por um catálogo físico injetado em SQL com valores vinculados separadamente, validado por AST e executado no SQLite temporário somente leitura. O leitor ainda não implementa `EvidenceSource` nem está ligado ao endpoint; o SQL textual legado continua isolado.
+- Arquivos/branch: `feat/ia-sql-readonly`, trabalho local ainda sem commit; `ai-agent/app/sql/plan.py`, `validator.py`, `service.py`, `executors.py`, `README.md`, `dictionary.toml` e testes SQL. O catálogo e todos os registros do ensaio são artificiais.
+- Verificações: em `ai-agent/`, com `sqlglot` 30.24.0 disponível para testes, a suíte SQL selecionada aprovou **271 testes** e pulou **1** de PostgreSQL real opcional. O controle independente fixa **3500,5 unidades fictícias** para janeiro de 2025 no Município Fictício A; texto de filtro semelhante a SQL permanece valor de parâmetro. O teste de parâmetros ausentes/extras e placeholder na projeção confirma recusa antes do executor. Ruff e compilação do módulo passaram. O sandbox travou a suíte completa no primeiro teste; a execução fora de suas restrições com `python -m pytest -q --basetemp <pasta temporária> --tb=short` aprovou **703 testes** e pulou **2** opcionais.
+- Critérios e pendências: o ensaio aceita apenas janela mensal completa, soma e filtro de igualdade no SQLite; `IN`, outros recortes, fonte de evidências, auditoria sem literais no caminho legado, PostgreSQL parametrizado, identidade real e integração Gold permanecem abertos. A proposta de propriedade da consulta na ADR-0002 aguarda Backend/Dados. Revisão de PR e sincronização do cartão IA-06 no Trello pendentes.
+
 ### 2026-10-20 — IA-06 — fallback configurável Gemini → Groq no protótipo GenAI
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`; a cadeia multi-provedor foi testada só com chamadas simuladas e não muda os critérios de somente leitura e limites do IA-06.

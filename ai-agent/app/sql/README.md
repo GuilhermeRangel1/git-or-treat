@@ -1,6 +1,6 @@
 # Camada SQL somente leitura
 
-Base do caminho Text-to-SQL do agente (IA-06): recebe um SQL gerado, valida-o contra um dicionário, executa **somente o SQL regenerado** em um executor de leitura e audita cada tentativa. Ainda **não está ligada** ao interpreter, ao planner, aos insights nem aos providers, e não há Gold real: o dicionário é provisório e os testes usam dados inventados. Isto não conclui IA-01, IA-03 nem IA-06 no PRD.
+Ensaio da borda SQL (IA-06): valida uma consulta contra um dicionário, executa **somente o SQL regenerado** em um executor de leitura e audita a tentativa. `SqlPlanReader` também traduz um `LogicalReadPlan` previamente aprovado para uma agregação mensal parametrizada no SQLite artificial. Esse leitor ainda não está ligado ao planner da aplicação, aos insights nem aos providers; não há Gold real. Isto não conclui IA-01, IA-03 nem IA-06 no PRD.
 
 ## Arquivos
 
@@ -11,9 +11,12 @@ Base do caminho Text-to-SQL do agente (IA-06): recebe um SQL gerado, valida-o co
 | `validator.py` | `validate_sql(sql, dictionary, dialect)` → `ValidatedQuery`, ou `SqlRejected(code, detail)`. |
 | `executors.py` | `SqliteReadOnlyExecutor` e `PostgresReadOnlyExecutor`; aceitam somente `ValidatedQuery`. |
 | `audit.py` | `QueryAuditRecord`, `InMemoryAuditSink` (testes) e `LoggingAuditSink` (uma linha JSON no logger `app.sql.audit`). |
-| `service.py` | `ReadOnlySqlService.run(sql)`: valida → executa → audita (`accepted`, `rejected` ou `failed`). |
+| `service.py` | `ReadOnlySqlService.run(sql, parameters=())`: valida → executa → audita (`accepted`, `rejected` ou `failed`). |
+| `plan.py` | Catálogo físico injetado e leitor do recorte artificial: plano aprovado → mês/filtro de igualdade parametrizados → resultado tabular. |
 
-Quando a Gold sair, atualize **apenas** `dictionary.toml` (ou passe outro caminho para `load_dictionary`) e o dicionário de dados do projeto. O código não contém nomes de tabela; `tests/test_sql_dictionary.py` verifica que renomear uma tabela só exige o TOML.
+`dictionary.toml` e `tests/fixtures/sql_dictionary_test.toml` contêm nomes provisórios. Renomear uma tabela no validador isolado depende do dicionário, conforme `tests/test_sql_dictionary.py`; a integração Gold exigirá também decidir o dono da consulta, homologar métrica, grão, unidades, permissões, credencial e reconciliação. O leitor de planos não tem tabela padrão: recebe um catálogo artificial explícito.
+
+O caminho parametrizado atual aceita placeholders posicionais `?` somente no dialeto SQLite e em predicados de valor, com quantidade e tipos conferidos antes da execução. O caminho legado de SQL textual sem parâmetros continua isolado. A expansão para `IN`, outras agregações e PostgreSQL parametrizado ainda está aberta.
 
 ## Regras do validador
 
@@ -24,7 +27,8 @@ Tudo funciona como lista branca: o que não estiver no dicionário é recusado. 
 | `empty`, `too_long`, `parse_error` | Entrada vazia, maior que `limits.max_sql_chars` ou não analisável. |
 | `multiple_statements` | Mais de uma instrução. |
 | `not_select` | A raiz não é `SELECT` ou `UNION`/`INTERSECT`/`EXCEPT` de selects, com `WITH` opcional. |
-| `forbidden_construct` | DML/DDL em qualquer ponto da árvore (inclusive CTE com `DELETE`/`UPDATE ... RETURNING`), `SELECT INTO`, `FOR UPDATE/SHARE`, `LATERAL`, `UNNEST`, `VALUES`, parâmetros/placeholders, acesso com ponto (`pg_catalog.pg_sleep`), `NATURAL JOIN`. |
+| `forbidden_construct` | DML/DDL em qualquer ponto da árvore (inclusive CTE com `DELETE`/`UPDATE ... RETURNING`), `SELECT INTO`, `FOR UPDATE/SHARE`, `LATERAL`, `UNNEST`, `VALUES`, parâmetros de sessão, acesso com ponto (`pg_catalog.pg_sleep`), `NATURAL JOIN`. |
+| `invalid_parameters` | Placeholder sem valor, valor sem placeholder, tipo/posição não autorizados ou uso fora do ensaio SQLite. |
 | `recursive_cte` | `WITH RECURSIVE`. |
 | `cte_shadowing` | CTE com o nome de uma tabela do dicionário. |
 | `sensitive_column` | Qualquer identificador (coluna, alias, CTE, tabela) que esteja em `sensitive_columns`, comparado em `casefold`: `"CPF_CNPJ"` e `Nome_Titular` também são recusados. |
@@ -53,7 +57,7 @@ Tudo funciona como lista branca: o que não estiver no dicionário é recusado. 
 
 Cada chamada a `ReadOnlySqlService.run` gera um `QueryAuditRecord` com: id, horário UTC, status, código do motivo, dialeto, versão do dicionário, SHA-256 e tamanho do SQL recebido, SQL executado (só se aprovado), tabelas, limites original/aplicado e se houve ajuste, número de linhas, truncamento, duração e classe do erro.
 
-O registro **não** guarda linhas de resultado, a pergunta da pessoa nem o texto do SQL recebido. O SQL recebido pode trazer literais pessoais (`WHERE nome_titular = '...'`), por isso fica só o hash. O SQL executado já passou pelo validador e não referencia colunas sensíveis.
+O registro **não** guarda linhas de resultado, a pergunta da pessoa nem o texto do SQL recebido. O SQL recebido pode trazer literais pessoais (`WHERE nome_titular = '...'`), por isso fica só o hash. **Pendência de privacidade:** no caminho legado, o campo `executed_sql` ainda pode conter literais de filtros; não use o destino de log em dados reais até substituir esse campo por template sem valores. O percurso parametrizado do leitor guarda SQL com placeholders, sem os valores vinculados.
 
 **Decisão em aberto:** retenção, acesso e destino durável da trilha. Até a equipe decidir, só existem os destinos em memória e de log do processo. Nenhum arquivo ou tabela de auditoria é criado.
 
@@ -62,7 +66,7 @@ O registro **não** guarda linhas de resultado, a pergunta da pessoa nem o texto
 - Analisa SQL em árvore com dialetos `sqlite` e `postgres`. Isso permite validar por tipo de nó, e não por regex sobre texto, e **regenerar** o SQL a partir da árvore aprovada.
 - Traz `qualify` e `traverse_scope`, que resolvem colunas por escopo (CTE, subconsulta, correlação) contra um esquema fornecido. É isso que torna possível limitar a resolução às colunas do dicionário.
 - É Python puro, sem serviço externo nem acesso ao banco para validar, com licença MIT.
-- Versão usada: **sqlglot 30.23.0** (faixa `>=30.23,<31.0` em `pyproject.toml`). As classes do AST mudam entre versões maiores, e a suíte de ataques precisa rodar a cada atualização. Fontes: [PyPI](https://pypi.org/project/sqlglot/) e o [repositório oficial](https://github.com/tobymao/sqlglot). O comportamento citado acima (por exemplo `And`/`Or` como `Func`, `current_user` como `CurrentUser`, `FETCH` em `limit`) foi verificado por inspeção direta na versão instalada; o Context7 não estava disponível nesta sessão.
+- Faixa declarada: `sqlglot>=30.23,<31.0` em `pyproject.toml`; a prova parametrizada foi testada com **30.24.0**. As classes do AST mudam entre versões maiores, e a suíte de ataques precisa rodar a cada atualização. Fontes: [repositório oficial](https://github.com/tobymao/sqlglot) e [documentação de qualificação consultada via Context7](https://github.com/tobymao/sqlglot/blob/main/posts/onboarding.md).
 - `psycopg` 3 (testado com 3.3.6) é o driver do executor PostgreSQL, como extra opcional.
 
 ## Limites conhecidos
@@ -71,7 +75,7 @@ O registro **não** guarda linhas de resultado, a pergunta da pessoa nem o texto
 - A lista branca de funções é deliberadamente pequena. Funções de janela, datas e strings adicionais precisam ser incluídas no TOML com teste.
 - Um nome de tabela em `CTE`/alias que coincida com o nome de uma coluna é recusado mesmo quando seria inofensivo.
 - Não há teste contra um PostgreSQL real no gate local: o teste de integração roda só com `GENAI_TEST_POSTGRES_DSN` definido. Os demais usam uma conexão falsa que confere as instruções emitidas.
-- A integração com `EvidenceTool`, o planner e a resposta ao usuário fica para uma etapa posterior.
+- O leitor de plano ainda não implementa a porta `EvidenceSource` nem compõe resposta ao usuário. Ele exige plano aprovado pelo chamador e valida novamente apenas o recorte que este catálogo físico consegue executar.
 
 ## Verificar
 

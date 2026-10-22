@@ -1,8 +1,8 @@
 # Dicionário PROVISÓRIO da camada SQL somente leitura.
 #
 # As tabelas e colunas abaixo são hipóteses de trabalho até a Gold ser publicada e
-# docs/data-dictionary.md registrar os nomes reais. Ao mudar a Gold, atualize somente
-# este arquivo: o código Python não contém nomes de tabela.
+# docs/data-dictionary.md registrar os nomes reais. A integração Gold também requer
+# catálogo semântico, contrato, permissões e reconciliação aprovados.
 #
 # Lista branca: qualquer tabela, coluna, função ou tipo de CAST ausente daqui é recusado.
 
