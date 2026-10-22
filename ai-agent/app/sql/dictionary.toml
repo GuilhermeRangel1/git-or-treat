@@ -6,12 +6,14 @@
 #
 # Lista branca: qualquer tabela, coluna, função ou tipo de CAST ausente daqui é recusado.
 
-version = "0.1.0-provisorio"
+version = "0.2.0-provisorio"
 status = "provisorio"
 
 [limits]
 # Teto de linhas devolvidas; LIMIT ausente ou maior é ajustado para este valor.
 max_rows = 500
+# Teto total de referências a tabelas, contando autojunções e origens em subconsultas/CTEs.
+max_tables = 5
 timeout_ms = 5000
 max_sql_chars = 4000
 

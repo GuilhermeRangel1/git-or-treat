@@ -267,18 +267,27 @@ def _check_identifiers(root: exp.Expression, dictionary: SqlDictionary) -> None:
 
 
 def _check_tables(root: exp.Expression, dictionary: SqlDictionary, ctes: set[str]) -> set[str]:
+    """Autoriza origens e limita referências AST, incluindo aliases de CTE e autojunções."""
+
     used: set[str] = set()
+    table_references = 0
     for table in root.find_all(exp.Table):
         if not isinstance(table.this, exp.Identifier):
             raise SqlRejected("table_function", "função usada como tabela não é permitida")
         if table.args.get("db") or table.args.get("catalog"):
             raise SqlRejected("schema_qualified", "nome de tabela com esquema não é permitido")
+        table_references += 1
         name = table.name.casefold()
         if name in ctes:
             continue
         if name not in dictionary.tables:
             raise SqlRejected("unknown_table", f"tabela fora do dicionário: {name}")
         used.add(name)
+    if table_references > dictionary.limits.max_tables:
+        raise SqlRejected(
+            "too_many_tables",
+            f"consulta excede o limite de {dictionary.limits.max_tables} referências a tabelas",
+        )
     if not used:
         raise SqlRejected(
             "unknown_table", "a consulta precisa ler ao menos uma tabela do dicionário"

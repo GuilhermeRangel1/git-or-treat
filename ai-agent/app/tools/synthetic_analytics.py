@@ -72,7 +72,7 @@ class SyntheticScenarioTool:
         self._catalog = catalog
 
     async def retrieve(
-        self, plan: LogicalReadPlan, _access_context: AccessContext
+        self, plan: LogicalReadPlan, access_context: AccessContext
     ) -> EvidenceLookupResult:
         """Recebe somente o plano aprovado pelo núcleo."""
         result = self.execute(SyntheticScenarioRequest(plan=plan))

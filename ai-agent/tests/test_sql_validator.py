@@ -92,6 +92,23 @@ def test_columns_are_qualified_in_executed_sql(dialect: str) -> None:
     assert query.tables == ("gold_indicadores",)
 
 
+@pytest.mark.parametrize(("join_count", "expected_code"), [(4, None), (5, "too_many_tables")])
+def test_table_reference_limit_counts_repeated_self_joins(join_count, expected_code) -> None:
+    aliases = [chr(ord("a") + index) for index in range(join_count + 1)]
+    sql = (
+        f"SELECT {aliases[0]}.municipio FROM gold_indicadores AS {aliases[0]} "
+        + " ".join(
+            f"JOIN gold_indicadores AS {alias} ON 1 = 1" for alias in aliases[1:]
+        )
+    )
+
+    if expected_code is None:
+        query = validate_sql(sql, DICTIONARY, "sqlite")
+        assert query.tables == ("gold_indicadores",)
+    else:
+        assert rejected_code(sql, "sqlite") == expected_code
+
+
 # --- LIMIT -------------------------------------------------------------------------------
 
 

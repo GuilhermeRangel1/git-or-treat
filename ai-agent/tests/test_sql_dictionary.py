@@ -39,6 +39,10 @@ def test_default_dictionary_validates_a_simple_query() -> None:
     assert query.applied_limit == dictionary.limits.max_rows
 
 
+def test_default_dictionary_declares_a_positive_table_reference_limit() -> None:
+    assert load_dictionary().limits.max_tables == 5
+
+
 def test_renaming_a_table_only_requires_the_dictionary(tmp_path) -> None:
     text = TEST_DICTIONARY_PATH.read_text(encoding="utf-8").replace(
         "gold_indicadores", "gold_indicadores_v2"
@@ -66,6 +70,9 @@ def test_column_both_allowed_and_sensitive_is_rejected() -> None:
         lambda raw: raw.pop("limits"),
         lambda raw: raw["limits"].update(max_rows=0),
         lambda raw: raw["limits"].update(timeout_ms=True),
+        lambda raw: raw["limits"].update(max_tables=0),
+        lambda raw: raw["limits"].update(max_tables=True),
+        lambda raw: raw["limits"].pop("max_tables"),
         lambda raw: raw.update(tables={}),
         lambda raw: raw["tables"].update({"pg_tabela": {"columns": {"a": "int"}}}),
         lambda raw: raw["tables"].update({"Maiuscula": {"columns": {"a": "int"}}}),

@@ -6,6 +6,7 @@ status = "teste"
 
 [limits]
 max_rows = 50
+max_tables = 5
 timeout_ms = 2000
 max_sql_chars = 2000
 

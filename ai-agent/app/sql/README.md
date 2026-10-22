@@ -38,6 +38,7 @@ Tudo funciona como lista branca: o que não estiver no dicionário é recusado. 
 | Código | Quando |
 | --- | --- |
 | `empty`, `too_long`, `parse_error` | Entrada vazia, maior que `limits.max_sql_chars` ou não analisável. |
+| `too_many_tables` | A árvore da consulta excede `limits.max_tables` referências a tabelas, inclusive autojunções e origens em subconsultas/CTEs. |
 | `multiple_statements` | Mais de uma instrução. |
 | `not_select` | A raiz não é `SELECT` ou `UNION`/`INTERSECT`/`EXCEPT` de selects, com `WITH` opcional. |
 | `forbidden_construct` | DML/DDL em qualquer ponto da árvore (inclusive CTE com `DELETE`/`UPDATE ... RETURNING`), `SELECT INTO`, `FOR UPDATE/SHARE`, `LATERAL`, `UNNEST`, `VALUES`, parâmetros de sessão, acesso com ponto (`pg_catalog.pg_sleep`), `NATURAL JOIN`. |
@@ -59,6 +60,8 @@ Tudo funciona como lista branca: o que não estiver no dicionário é recusado. 
 **Qualificação.** Depois das checagens, `sqlglot.optimizer.qualify` resolve cada coluna contra um esquema que contém **somente as colunas permitidas**, e o executor recebe o SQL qualificado (`"gold_indicadores"."bairro"`). Uma referência sem qualificação, por exemplo dentro de um `EXISTS` correlacionado, sai presa à tabela autorizada. Assim o banco não pode resolvê-la para uma coluna física fora do dicionário. A única coluna aceita sem tabela é um alias da projeção citado no `ORDER BY`. Comentários são descartados na regeneração.
 
 **LIMIT.** O teto é `limits.max_rows`. `LIMIT` ausente é injetado no SELECT externo; `LIMIT` acima do teto é reduzido; `FETCH FIRST n ROWS ONLY` é normalizado para `LIMIT`. Um `LIMIT` só na subconsulta não conta como teto do resultado. `ValidatedQuery` e a auditoria registram `original_limit`, `applied_limit` e `limit_adjusted`.
+
+**Referências a tabelas.** `limits.max_tables` limita o total de nós de tabela encontrados na AST, incluindo referências repetidas da mesma tabela em autojunções e subconsultas/CTEs. O dicionário artificial atual permite cinco referências; a sexta é recusada antes da execução, mesmo se os nomes forem todos autorizados. Isso limita a complexidade estrutural, mas não estima cardinalidade nem substitui timeout, limite de linhas ou permissões do banco.
 
 ## Executores
 
@@ -108,11 +111,13 @@ python -m pytest -q --tb=short
 python -m ruff check .
 ```
 
-Na execução de 22/10/2026, a seleção SQL passou com **329 testes** e
-**1 teste PostgreSQL opcional pulado**; a suíte GenAI completa passou com
-**761 testes** e **2 opcionais pulados**. A execução completa ocorreu fora das
-restrições do sandbox deste host, com `--basetemp` apontando para uma pasta
-temporária gravável. Ruff e compilação também passaram nessa execução.
+Na execução registrada de 22/10/2026, antes do limite `max_tables`, a seleção
+SQL passou com **329 testes** e **1 teste PostgreSQL opcional pulado**; a suíte
+GenAI completa passou com **761 testes** e **2 opcionais pulados**. Após a
+alteração do limite, a seleção focada de dicionário, validador, serviço SQL e
+assinatura da fonte passou com **277 testes**, pelo comando
+`python -m pytest -q --basetemp .pytest-tmp-read-review tests/test_sql_dictionary.py tests/test_sql_validator.py tests/test_sql_service.py tests/test_scenarios.py`.
+A suíte GenAI completa não foi reexecutada nesta mudança.
 
 O resultado artificial fixado nos testes inclui **3500,5 unidades fictícias**
 para janeiro de 2025 no município fictício A, **800,25** para o município B

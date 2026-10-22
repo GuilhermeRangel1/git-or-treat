@@ -185,6 +185,34 @@ def test_attack_never_reaches_executor(service_and_audit) -> None:
     assert service.run("SELECT COUNT(*) AS n FROM gold_indicadores").rows == ((8,),)
 
 
+def test_table_reference_limit_is_audited_before_executor(service_and_audit, monkeypatch) -> None:
+    service, audit = service_and_audit
+    executor_calls = 0
+
+    def fail_if_executed(query):
+        nonlocal executor_calls
+        executor_calls += 1
+        pytest.fail("consulta acima do limite chegou ao executor")
+
+    monkeypatch.setattr(service._executor, "execute", fail_if_executed)
+    aliases = ["a", "b", "c", "d", "e", "f"]
+    sql = (
+        f"SELECT {aliases[0]}.municipio FROM gold_indicadores AS {aliases[0]} "
+        + " ".join(
+            f"JOIN gold_indicadores AS {alias} ON 1 = 1" for alias in aliases[1:]
+        )
+    )
+
+    with pytest.raises(SqlRejected) as info:
+        service.run(sql)
+
+    assert info.value.code == "too_many_tables"
+    assert executor_calls == 0
+    [record] = audit.records
+    assert record.status == "rejected"
+    assert record.reason_code == "too_many_tables"
+
+
 def test_bound_filter_value_stays_data_and_never_enters_audit(service_and_audit) -> None:
     service, audit = service_and_audit
     template = (

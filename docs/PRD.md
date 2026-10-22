@@ -458,6 +458,14 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
 
+### 2026-10-22 — IA-06 — limita referências no ensaio SQL e alinha a porta de evidências
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. São guardas para o protótipo SQL artificial; não comprovam catálogo, permissão ou desempenho da Gold.
+- Mudanças: `SyntheticScenarioTool.retrieve` usa o nome de parâmetro `access_context` do protocolo; o guia exige essa assinatura para futuros adaptadores e reforça que o contexto vale por chamada. O dicionário declara `limits.max_tables=5`; o validador conta referências da AST, inclusive autojunções, `CROSS JOIN`, subconsultas e CTEs, e recusa a sexta antes do executor com `too_many_tables`.
+- Evidência: `ai-agent/tests/test_scenarios.py`, `test_sql_dictionary.py`, `test_sql_validator.py` e `test_sql_service.py`; a seleção focada desses módulos passou com **277 testes**. O teste do serviço comprova que uma consulta com seis referências é auditada como recusada e não chega ao executor. Ruff e compilação dos arquivos afetados passaram.
+- Limites e sequência: o teto estrutural não estima cardinalidade e não substitui timeout nem permissões no banco. A taxa de regressão registrada nesta branch continua em **29/55**; a medição **44/55** relatada para a combinação com a branch `fix/ia-safety-gate-ptbr` precisa ser atualizada depois que essa branch for integrada e a regressão for reexecutada. A suíte GenAI completa não foi repetida nesta mudança.
+
+
 ### 2026-10-22 — IA-06 — fechamento do ensaio SQL somente leitura com dados artificiais
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. O gate técnico sintético 4.14 foi aprovado; IA-06 ainda exige integração e validação com a Gold real.

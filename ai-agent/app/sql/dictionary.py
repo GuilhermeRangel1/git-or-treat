@@ -26,6 +26,7 @@ class TableSpec:
 @dataclass(frozen=True)
 class SqlLimits:
     max_rows: int
+    max_tables: int
     timeout_ms: int
     max_sql_chars: int
 
@@ -65,6 +66,7 @@ def parse_dictionary(raw: dict[str, Any]) -> SqlDictionary:
 
     limits = SqlLimits(
         max_rows=_positive_int(limits_raw, "max_rows"),
+        max_tables=_positive_int(limits_raw, "max_tables"),
         timeout_ms=_positive_int(limits_raw, "timeout_ms"),
         max_sql_chars=_positive_int(limits_raw, "max_sql_chars"),
     )
