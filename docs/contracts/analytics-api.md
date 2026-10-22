@@ -9,7 +9,7 @@
 
 ## Configuração e fronteira
 
-Configurar `ANALYTICS_SOURCE=synthetic` explicitamente no processo do backend. O padrão `unavailable` não produz valores demonstrativos: as rotas analíticas retornam 503. Uma escolha desconhecida de fonte é erro de configuração, sem fallback. O frontend usa `VITE_API_URL` e o transporte HTTP existente; não lê arquivos ou banco.
+Configurar `ANALYTICS_SOURCE=synthetic` explicitamente no processo do backend. O Compose de desenvolvimento faz essa seleção no ambiente do serviço (sobrescrevível pelo ambiente do comando); fora dele o padrão continua `unavailable`. O padrão `unavailable` não produz valores demonstrativos: as rotas analíticas retornam 503. Uma escolha desconhecida de fonte é erro de configuração, sem fallback. O frontend usa `VITE_API_URL` e o transporte HTTP existente; não lê arquivos ou banco.
 
 Fluxo de leitura: rota FastAPI → serviço analítico → interface de repositório → implementação sintética. Ordens usam sua própria persistência operacional. O serviço de IA preserva seus próprios contratos; não recebe permissão de escrita ou acesso SQL por esta mudança.
 
@@ -34,8 +34,9 @@ Receita declara `currency_unit: BRL` e `energy_unit: kWh`; faturas também decla
 
 | Jornada | Operação | Consumo preparado | Pendência de integração com Gold |
 | --- | --- | --- | --- |
-| Panorama | `GET /api/v1/kpis` | Métricas com unidade, disponibilidade, contexto e origem; consulta por competências e recorte | Definições oficiais, comparação e reconciliação do lote real |
-| Receita | `GET /api/v1/revenue` | Totais, série inclusiva, extremos, preço observado, decomposição e recortes demonstrativos conforme [1.1.0](revenue-dev03.md) | Método e população Gold, janelas anuais e reconciliação com lote real |
+| Panorama (produto) | `GET /api/v1/panorama` | Envelope de produto com oito KPIs, comparação, série mensal, filtros efetivos e estado do período | Definições oficiais, base de UCs, DEC/FEC e reconciliação do lote real |
+| Panorama (analítico) | `GET /api/v1/kpis` | Métricas com unidade, disponibilidade, contexto e origem; consulta por competências e recorte | Definições oficiais, comparação e reconciliação do lote real |
+| Receita | `GET /api/v1/revenue` | Totais, série, preço observado e contrato para decomposição; lacunas explícitas | Método preço-volume, janela comparativa e detalhamento territorial validados |
 | Atendimento | `GET /api/v1/ucs` e `GET /api/v1/ucs/{uc_id}` | Busca/listagem e cadastro, consumo, faturas, medidores, GD, interrupções e chamados | Chave/vigência real, cobertura de fontes e paginação de históricos volumosos |
 | Perdas | `GET /api/v1/inspections/queue` | Fila, prioridade, motivo, indicadores e estimativa demonstrativos | Regra e estimativa auditáveis sobre a Gold |
 | Ordens | `GET/POST /api/v1/inspections/orders` e `PATCH /api/v1/inspections/orders/{order_id}` | Schemas e persistência existentes, separados dos dados analíticos | Ciclo de estados, histórico, idempotência e UI nos cards DEV-06/07 |
@@ -50,6 +51,7 @@ Parâmetros por operação:
 | Operação | Entrada preparada |
 | --- | --- |
 | `/kpis` | Janela comum, município/bairro/classe/alimentador; `competencia` aceita uma competência única e não pode ser combinado com a janela |
+| `/panorama` | `competencia` (competência única, padrão 2024-04), `comparacao` (`anterior`, `ano_anterior` ou `nenhuma`), `municipio` e `classe`; o recorte aplicado volta em `data.filtros` |
 | `/revenue` | Janela comum e município/bairro/classe/alimentador; comparação demonstrativa usa os extremos solicitados, sem substituí-los por meses disponíveis |
 | `/ucs` | `q`, `page`, `page_size`, `order_by`; busca parcial somente no número da UC |
 | `/ucs/{uc_id}` | Identificador no caminho; histórico sintético completo de janeiro/fevereiro, sem parâmetro de janela nesta etapa |
@@ -110,6 +112,29 @@ O preço observado acumulado é valor faturado dividido por energia faturada: 1.
 DEC/FEC usam eventos individuais por UC, duração em horas e denominador fixo por alimentador; ainda não implementam todas as regras de DE-05. A cobertura usa o cadastro do snapshot, sem reconstrução temporal. Prioridades, motivos e estimativas das suspeitas são valores artificiais da fixture, não resultado de um modelo ou regra validada. A potência GD permanece em kW e não é tratada como energia gerada. Essas definições precisam de revisão com a Gold.
 
 A fonte de interrupções declara separadamente sua cobertura temporal inclusiva: janeiro a fevereiro de 2025. `coverage_ratio`, `covered_uc_count` e `coverage_status` descrevem a cobertura cadastral/espacial, não comprovam observação em qualquer competência. Uma janela totalmente fora da cobertura temporal ou uma fonte com cobertura temporal desconhecida resulta em DEC/FEC nulos e estado `unavailable`, com motivo. Uma janela parcialmente coberta retorna `partial`, calcula somente os eventos da interseção e informa o trecho observado nas limitações; `metadata.period` mantém a janela solicitada. Zero dentro de uma janela conhecida continua disponível. Se alguns alimentadores estiverem disponíveis e outros indisponíveis, o estado agregado é `partial`; se todos estiverem indisponíveis, é `unavailable`. O adaptador Gold futuro precisará declarar sua cobertura real, sem inferi-la apenas das datas dos eventos encontrados.
+
+## Contrato de produto do Panorama (WEB-01)
+
+A [ADR-0006](../decisions/0006-panorama-fonte-produto-e-contrato-dev01.md) define que o contrato de produto do Panorama é servido em `GET /api/v1/panorama`, com repositório, serviço e base sintética próprios, e que o contrato analítico da DEV-01 permanece intacto em `GET /api/v1/kpis`.
+
+A base do Panorama é o lote `Lote Gold 2024.04-sintetico-v1`, com competências 2024-03 a 2024-05, municípios Recife, Olinda e Jaboatão e classes Residencial, Comercial e Industrial. Não é o lote `dev01-v1` nem uma linha Gold: os números são controles de demonstração derivados do protótipo Figma e do PRD.
+
+O envelope traz `data.filtros` (competência, comparação, município e classe aplicados), `data.periodoIncompleto`, `data.totalRegistros`, `data.dataAtualizacao`, `data.loteVersao`, `data.metricas` e `data.serieMensal`, com `metadata` de período, filtros, unidade, versão do lote e qualidade da cobertura. Cada métrica declara id, nome, subtítulo, categoria, tipo de grandeza, valor atual e anterior, variação absoluta e percentual, unidade, definição, fórmula, marcação de base zero e o sentido favorável do indicador.
+
+Controles do lote (competência 2024-04, comparação com 2024-03, sem filtros):
+
+| Controle | Resultado esperado |
+| --- | --- |
+| Receita faturada | BRL 76.500 contra BRL 80.000, variação de −4,38% |
+| Receita paga | BRL 74.200 contra BRL 78.500, distinta do faturado |
+| Energia consumida e faturada | 90.000 kWh contra 100.000 kWh, variação de −10% |
+| Preço médio efetivo | BRL 0,85/kWh contra BRL 0,80/kWh (receita faturada dividida pela energia faturada) |
+| UCs ativas | 1.248 contra 1.250 |
+| Soma por município | Recife BRL 38.000, Olinda BRL 22.500 e Jaboatão BRL 16.000, totalizando BRL 76.500 |
+| Período em aberto | A competência 2024-05 é sinalizada em `data.periodoIncompleto` |
+| Base zero | Variação percentual nula e variação absoluta explícita, sem divisão por zero |
+
+O contrato do Panorama diverge da política da DEV-01 em dois pontos, ambos pendentes de revisão antes do aceite com Gold: a combinação válida sem fatos responde 200 com `totalRegistros: 0` e valores zerados, em vez de ausência com `null` e estado por métrica; e o período em aberto é sinalizado por um campo próprio, e não por estado de disponibilidade. A base zero da comparação é tratada como variação absoluta sem percentual. Ausência de fatos no mês comparado produz valores anteriores e variações nulos. A série inclui apenas competências existentes até o período selecionado, incluindo o mês parcial quando presente. O frontend não utiliza fallback sintético em falhas HTTP.
 
 ## Reprodução da consulta integrada
 
