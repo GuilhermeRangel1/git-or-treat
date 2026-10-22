@@ -155,6 +155,37 @@ def test_approved_plan_reads_only_the_requested_artificial_month_and_municipalit
     assert "Municipio Ficticio A" not in str(audit.records[0].to_dict())
 
 
+@pytest.mark.parametrize(
+    "invalid_result",
+    [
+        QueryResult(columns=("unexpected",), rows=(("2025-01",),), truncated=False),
+        QueryResult(
+            columns=("period", "value", "total_rows"),
+            rows=(("2025-01", 3500.5, 0),),
+            truncated=False,
+        ),
+    ],
+)
+def test_invalid_executor_result_is_audited_as_failure(
+    tmp_path, monkeypatch, invalid_result: QueryResult
+) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    monkeypatch.setattr(reader._service._executor, "execute", lambda _query: invalid_result)
+
+    with pytest.raises(SqlRejected, match="resultado artificial|contagem"):
+        reader.read(approved, SQL_DEMO_CONTEXT)
+
+    [record] = audit.records
+    assert record.status == "failed"
+    assert record.reason_code == "invalid_result"
+    assert "Municipio Ficticio A" not in str(record.to_dict())
+
+
 def test_approved_plan_groups_artificial_revenue_by_municipality(tmp_path) -> None:
     reader, approved, audit = _reader_with_approved_municipality_filter(
         tmp_path,

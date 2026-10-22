@@ -202,21 +202,31 @@ class SqlPlanReader:
                 catalog_version=plan.catalog_version,
                 correlation_id=correlation_id,
             ),
+            result_validator=lambda rows: _validate_artificial_result(
+                rows, group_id=group_id, limit=plan.limit
+            ),
         )
-        expected_columns = (
-            ("period", "category", "value", "total_rows")
-            if group_id is not None
-            else ("period", "value", "total_rows")
-        )
-        if result.columns != expected_columns or any(
-            len(row) != len(expected_columns) for row in result.rows
-        ):
-            raise SqlRejected("invalid_result", "resultado artificial fora do contrato")
-        total_rows = result.rows[0][-1] if result.rows else 0
-        if type(total_rows) is not int or total_rows < result.row_count:
-            raise SqlRejected("invalid_result", "contagem do resultado artificial inválida")
-        return QueryResult(
-            columns=("period", group_id, "value") if group_id else ("period", "value"),
-            rows=tuple(row[:-1] for row in result.rows[: plan.limit]),
-            truncated=result.truncated or total_rows > result.row_count,
-        )
+
+        return result
+
+
+def _validate_artificial_result(
+    result: QueryResult, *, group_id: str | None, limit: int
+) -> QueryResult:
+    expected_columns = (
+        ("period", "category", "value", "total_rows")
+        if group_id is not None
+        else ("period", "value", "total_rows")
+    )
+    if result.columns != expected_columns or any(
+        len(row) != len(expected_columns) for row in result.rows
+    ):
+        raise SqlRejected("invalid_result", "resultado artificial fora do contrato")
+    total_rows = result.rows[0][-1] if result.rows else 0
+    if type(total_rows) is not int or total_rows < result.row_count:
+        raise SqlRejected("invalid_result", "contagem do resultado artificial inválida")
+    return QueryResult(
+        columns=("period", group_id, "value") if group_id else ("period", "value"),
+        rows=tuple(row[:-1] for row in result.rows[:limit]),
+        truncated=result.truncated or total_rows > result.row_count,
+    )

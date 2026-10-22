@@ -457,6 +457,18 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — fechamento do ensaio SQL somente leitura com dados artificiais
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. O gate técnico sintético 4.14 foi aprovado; IA-06 ainda exige integração e validação com a Gold real.
+- Evidência: plano lógico revalidado com o contexto atual → catálogo artificial `v1` → SQL parametrizado → validação AST por `sqlglot` 30.24.0 → SQLite somente leitura. Os testes fixam resultados inventados independentemente do compilador, verificam limite e truncamento, zero e ausência, e recusam escrita, objetos fora da lista, recortes não autorizados e placeholders estruturais antes do executor. `ai-agent/app/sql/README.md` registra comandos, dialeto e limites. Suíte SQL selecionada: **329 testes passaram e 1 PostgreSQL opcional pulou**; suíte GenAI completa: **761 passaram e 2 opcionais pularam** fora do sandbox Windows.
+- Pendências: a API ainda usa a fixture; catálogo Gold, identidade verificada, credencial e permissões reais de leitura, correlação pelo caminho HTTP e reconciliação numérica serão tratados na integração. O executor PostgreSQL de teste não comprova esses critérios.
+
+### 2026-10-22 — IA-06 — consistência da auditoria do resultado artificial
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`.
+- Evidência: `ReadOnlySqlService` só registra `accepted` após a validação das colunas e da contagem pelo leitor; retorno fora do contrato registra `failed` com motivo fixo `invalid_result`. Os três testes direcionados passaram; Ruff e compilação dos arquivos afetados passaram. A suíte GenAI completa passou com **763 testes e 2 opcionais pulados** fora do sandbox Windows.
+- Limite: esta correção cobre a borda SQL artificial; validação da Gold, permissões reais e jornada HTTP continuam pendentes.
+
 ### 2026-10-22 — IA-06 — correlação da auditoria SQL demonstrativa
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. A prova continua restrita ao banco artificial.

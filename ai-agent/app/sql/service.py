@@ -1,6 +1,7 @@
 """Ponto único de execução: valida, executa o SQL regenerado e audita cada tentativa."""
 
 import time
+from collections.abc import Callable
 
 from app.sql.audit import (
     AuditSink,
@@ -60,6 +61,7 @@ class ReadOnlySqlService:
         parameters: tuple[str | int | float | bool, ...] = (),
         *,
         audit_context: SqlAuditContext | None = None,
+        result_validator: Callable[[QueryResult], QueryResult] | None = None,
     ) -> QueryResult:
         """Executa uma consulta gerada; levanta SqlRejected ou QueryExecutionError após auditar."""
 
@@ -116,6 +118,20 @@ class ReadOnlySqlService:
                 )
             )
             raise
+
+        if result_validator is not None:
+            try:
+                result = result_validator(result)
+            except SqlRejected as exc:
+                self._audit.record(
+                    QueryAuditRecord(
+                        status="failed",
+                        reason_code=exc.code,
+                        duration_ms=_elapsed_ms(started),
+                        **approved,
+                    )
+                )
+                raise
 
         self._audit.record(
             QueryAuditRecord(
