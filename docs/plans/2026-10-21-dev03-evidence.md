@@ -117,6 +117,14 @@ Os novos controles HTTP verificam: cobertura energética ausente apesar de valor
 
 Verificações em `backend/`: `venv/Scripts/python.exe -m pytest -q tests/test_revenue_dev03.py` → 37 aprovados; suíte completa → 105 aprovados, 1 PostgreSQL ignorado; `compileall app tests` aprovado. Aviso preexistente Starlette/HTTPX. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão do controlador; nenhum dado real, schema físico, migração ou biblioteca acrescentado.
 
+### Feedback — filtro legado e repetição de parâmetros
+
+Confirmado que o frontend ignorava `alimentador` do link e o removia ao aplicar o formulário, embora a API já aceitasse o filtro. A feature agora preserva o valor no parser, na query HTTP, na chave TanStack e no rascunho/aplicação, sem criar seletor novo. O contexto utiliza os filtros efetivos de `metadata` quando há resposta; a URL é apenas o fallback anterior à resposta.
+
+O parser rejeita repetição de qualquer chave bruta, inclusive `alimentador`, `group_by` e nomes não usados pela consulta. Aplicar um formulário válido remove repetições, inclusive as que não têm um campo editável, preservando parâmetros desconhecidos únicos sem enviá-los como filtros HTTP. Alimentador vazio ou com mais de cem caracteres não dispara consulta.
+
+Em `frontend/`: `npm.cmd test` → 75 aprovados; Receita → 30 aprovados; `check:boundaries` → 45 arquivos; `format:check`, `lint` e `build` aprovados. Após o ajuste final da fonte do contexto, Receita/build/formatação/lint foram repetidos e passaram. Os testes percorrem AL-01 → aplicar Município → AL-02, endereços inválidos e recuperação pelo formulário. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão do controlador. Desenho/contrato sincronizados; não se trata de introduzir dados Gold nem de corrigir o layout amplo cuja integração está prevista na DEV-02.
+
 ### Limites desta rodada
 
 Nenhum navegador estava conectado ao inventário de automação; a jornada visual não foi repetida nesta rodada. As evidências anteriores de navegador continuam identificadas acima, sem serem apresentadas como nova execução. Python 3.12, PostgreSQL e Gold permanecem pendentes. A nova tentativa de leitura do quadro Trello pelo MCP expirou; nenhum cartão foi alterado.

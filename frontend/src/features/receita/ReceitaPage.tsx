@@ -105,6 +105,12 @@ export default function ReceitaPage() {
   }
 
   const envelope = revenue.data;
+  const appliedFilters = envelope?.metadata.filters ?? {
+    municipio: parsed.query?.municipio || null,
+    bairro: parsed.query?.bairro || null,
+    classe: parsed.query?.classe || null,
+    alimentador: parsed.query?.alimentador || null,
+  };
   const totalRefinementParams = revenueRefinementDestination(
     searchParams,
     "total",
@@ -176,19 +182,17 @@ export default function ReceitaPage() {
         aria-label="Filtros aplicados"
         className="mt-2 flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"
       >
-        <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-4">
+        <div
+          className={`grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm ${appliedFilters.alimentador ? "md:grid-cols-5" : "md:grid-cols-4"}`}
+        >
           {(() => {
-            const filters = envelope?.metadata.filters ?? {
-              municipio: parsed.query?.municipio || null,
-              bairro: parsed.query?.bairro || null,
-              classe: parsed.query?.classe || null,
-            };
-            const territory = filters.bairro
-              ? filterLabel(filters.bairro, "Todos os bairros") +
-                (filters.municipio
-                  ? " · " + filterLabel(filters.municipio, "Não informado")
+            const territory = appliedFilters.bairro
+              ? filterLabel(appliedFilters.bairro, "Todos os bairros") +
+                (appliedFilters.municipio
+                  ? " · " +
+                    filterLabel(appliedFilters.municipio, "Não informado")
                   : "")
-              : filterLabel(filters.municipio, "Todos os municípios");
+              : filterLabel(appliedFilters.municipio, "Todos os municípios");
             return (
               <>
                 <div>
@@ -218,9 +222,17 @@ export default function ReceitaPage() {
                 <div className="min-w-0">
                   <p className="text-xs text-muted">Classe</p>
                   <p className="mt-1 truncate text-sm font-medium text-content">
-                    {filterLabel(filters.classe, "Todas as classes")}
+                    {filterLabel(appliedFilters.classe, "Todas as classes")}
                   </p>
                 </div>
+                {appliedFilters.alimentador ? (
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted">Alimentador</p>
+                    <p className="mt-1 truncate text-sm font-medium text-content">
+                      {filterLabel(appliedFilters.alimentador, "Não informado")}
+                    </p>
+                  </div>
+                ) : null}
               </>
             );
           })()}
@@ -229,7 +241,7 @@ export default function ReceitaPage() {
             parsed.refinements.classe) && (
             <nav
               aria-label="Caminho do recorte"
-              className="col-span-2 mt-1 flex flex-wrap items-center gap-1 text-xs md:col-span-4"
+              className={`col-span-2 mt-1 flex flex-wrap items-center gap-1 text-xs ${appliedFilters.alimentador ? "md:col-span-5" : "md:col-span-4"}`}
             >
               <a
                 href={`?${totalRefinementParams.toString()}`}

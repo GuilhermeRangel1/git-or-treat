@@ -7,7 +7,12 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import {
+  MemoryRouter,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ReceitaPage from "./ReceitaPage";
 import { revenueRefinementDestination } from "./revenue-filters";
@@ -215,6 +220,22 @@ function HistoryProbe() {
   return (
     <button type="button" onClick={() => navigate(-1)}>
       Voltar histórico
+    </button>
+  );
+}
+
+function ChangeFeederProbe() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const next = new URLSearchParams(searchParams);
+        next.set("alimentador", "AL-02");
+        setSearchParams(next);
+      }}
+    >
+      Alterar alimentador para AL-02
     </button>
   );
 }
@@ -511,6 +532,84 @@ describe("Receita", () => {
     expect(filtersTrigger).toHaveFocus();
   });
 
+  it("preserves a URL feeder through requests, form apply, context, and cache identity", async () => {
+    const fetchMock = vi.fn((request: RequestInfo | URL) => {
+      const url = new URL(String(request));
+      const filteredResponse = {
+        ...response,
+        metadata: {
+          ...response.metadata,
+          filters: {
+            ...response.metadata.filters,
+            municipio: url.searchParams.get("municipio"),
+            classe: url.searchParams.get("classe"),
+            alimentador: url.searchParams.get("alimentador"),
+          },
+        },
+      };
+      return Promise.resolve(
+        new Response(JSON.stringify(filteredResponse), { status: 200 }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter
+          initialEntries={[
+            "/receita?competencia_inicio=2025-01&competencia_fim=2025-02&alimentador=AL-01",
+          ]}
+        >
+          <ReceitaPage />
+          <LocationProbe />
+          <ChangeFeederProbe />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(
+      new URL(String(fetchMock.mock.calls[0][0])).searchParams.get(
+        "alimentador",
+      ),
+    ).toBe("AL-01");
+    expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+      "Alimentador",
+    );
+    expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+      "AL-01",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+    await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+    await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const appliedUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    expect(appliedUrl.searchParams.get("alimentador")).toBe("AL-01");
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "alimentador=AL-01",
+    );
+    expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+      "AL-01",
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Alterar alimentador para AL-02" }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(
+      new URL(String(fetchMock.mock.calls[2][0])).searchParams.get(
+        "alimentador",
+      ),
+    ).toBe("AL-02");
+    expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+      "AL-02",
+    );
+  });
+
   it("returns focus to the filter trigger after cancel and close", async () => {
     const fetchMock = vi
       .fn()
@@ -541,6 +640,74 @@ describe("Receita", () => {
     mountPage("/receita?competencia_inicio=2025-01&competencia_inicio=2025-02");
 
     expect(screen.getByRole("alert")).toHaveTextContent(/apenas uma vez/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["alimentador", "alimentador=AL-01&alimentador=AL-02"],
+    ["group_by", "group_by=municipio&group_by=bairro"],
+    ["unknown", "origem=link&origem=favorito"],
+  ])("blocks a repeated %s parameter before sending a request", (_, query) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    mountPage(`/receita?${query}`);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/apenas uma vez/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["group_by", "group_by=municipio&group_by=bairro"],
+    ["unknown", "origem=link&origem=favorito"],
+  ])(
+    "clears repeated %s parameters when applying valid filters",
+    async (_, query) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(response), { status: 200 }),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={[`/receita?${query}&source=keep`]}>
+            <ReceitaPage />
+            <LocationProbe />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+      await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("URL atual")).not.toHaveTextContent(
+        /(?:group_by|origem)=.*&(?:group_by|origem)=/,
+      );
+      expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+        "source=keep",
+      );
+    },
+  );
+
+  it.each([
+    ["empty", "alimentador="],
+    ["overlong", `alimentador=${"A".repeat(101)}`],
+  ])("rejects an %s feeder without requesting data", (_, query) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    mountPage(`/receita?${query}`);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/Alimentador/i);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

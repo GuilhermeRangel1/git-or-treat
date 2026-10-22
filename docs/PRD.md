@@ -949,6 +949,13 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Evidência: `backend/tests/test_revenue_dev03.py` cobre energia sem cobertura, energia nula, lacuna energética intermediária e energia completa com receita incompleta. Controle: BRL 500 → 550 mantém delta +50 e +10%, com fechamento em BRL e preço-volume indisponível. Receita HTTP: 37 testes aprovados; backend completo: 105 aprovados, 1 PostgreSQL ignorado; `compileall app tests`, documentação e `git diff --check` aprovados.
 - Decisão/revisão: [ADR-0006](decisions/0006-exploracao-demonstrativa-receita.md), [contrato](contracts/revenue-dev03.md), [desenho](design/2026-10-21-dev03-design.md) e [evidências](plans/2026-10-21-dev03-evidence.md) sincronizados. Implementação GPT-6 Luna/high, revisão do controlador. Navegador/Gold/Python 3.12/PostgreSQL e sincronização Trello permanecem pendentes nos termos registrados.
 
+### 2026-10-21 — DEV-03 — alimentador por URL e rejeição de escalares repetidos
+
+- Estado: WEB-02, WEB-07 e ENT-01 permanecem `Pendente`; fonte sintética e estrutura dos contratos preservadas.
+- Correção: o frontend descartava `alimentador`, embora a API já suportasse esse filtro. Agora ele atravessa parser, consulta HTTP, chave de cache e aplicação do formulário, com identificação no contexto efetivo e sem novo seletor. A validação rejeita duplicatas de qualquer chave bruta, além de alimentador vazio/longo; reaplicar filtros remove duplicatas e recupera links inválidos.
+- Evidência: testes públicos de `ReceitaPage.test.tsx` conferem AL-01 → AL-02, preservação ao aplicar Município, contexto da API, bloqueio sem fetch e recuperação de links repetidos. Frontend: 75 aprovados; Receita: 30 aprovados; fronteiras em 45 arquivos, formatação, lint e build aprovados. Após o ajuste final da fonte do contexto, Receita/build/formatação/lint repetidos e aprovados. Documentação e `git diff --check` aprovados; ver [evidências](plans/2026-10-21-dev03-evidence.md).
+- Arquivos/revisão: página, formulário, filtros e testes em `frontend/src/features/receita/`; [desenho](design/2026-10-21-dev03-design.md) e [contrato](contracts/revenue-dev03.md) sincronizados. Implementação GPT-6 Luna/high, revisão do controlador. Nenhum ajuste global de responsividade; a integração do layout da DEV-02 permanece separada.
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.

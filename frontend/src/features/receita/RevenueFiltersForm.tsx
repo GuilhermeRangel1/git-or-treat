@@ -71,6 +71,7 @@ export default function RevenueFiltersForm({
       ["municipio", "Município"],
       ["bairro", "Bairro"],
       ["classe", "Classe"],
+      ["alimentador", "Alimentador"],
     ] as const) {
       if (Array.from(draft[field]).length > 100) {
         nextErrors.push(`${label} deve ter no máximo 100 caracteres.`);
@@ -83,6 +84,7 @@ export default function RevenueFiltersForm({
         municipio: draft.municipio.trim(),
         bairro: draft.bairro.trim(),
         classe: draft.classe.trim(),
+        alimentador: draft.alimentador.trim(),
       });
     }
   }

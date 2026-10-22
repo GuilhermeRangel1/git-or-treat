@@ -6,6 +6,7 @@ export type RevenueBaseFilters = {
   municipio: string;
   bairro: string;
   classe: string;
+  alimentador: string;
 };
 
 export type RevenueRefinements = {
@@ -32,6 +33,7 @@ export const defaultRevenueFilters: RevenueBaseFilters = {
   municipio: "",
   bairro: "",
   classe: "",
+  alimentador: "",
 };
 
 const filterLabels: Record<keyof RevenueBaseFilters, string> = {
@@ -40,6 +42,7 @@ const filterLabels: Record<keyof RevenueBaseFilters, string> = {
   municipio: "Município",
   bairro: "Bairro",
   classe: "Classe",
+  alimentador: "Alimentador",
 };
 
 function validMonth(value: string) {
@@ -48,8 +51,6 @@ function validMonth(value: string) {
 
 function readScalar(params: URLSearchParams, key: string, errors: string[]) {
   const values = params.getAll(key);
-  if (values.length > 1)
-    errors.push(`${key} deve aparecer apenas uma vez no link.`);
   if (values.length === 1 && !values[0].trim()) {
     errors.push(`${key} não pode estar vazio no link.`);
   }
@@ -73,6 +74,15 @@ export function parseRevenueSearchParams(
   params: URLSearchParams,
 ): ParsedRevenueUrl {
   const errors: string[] = [];
+  const seen = new Set<string>();
+  const reported = new Set<string>();
+  for (const key of params.keys()) {
+    if (seen.has(key) && !reported.has(key)) {
+      errors.push(`${key} deve aparecer apenas uma vez no link.`);
+      reported.add(key);
+    }
+    seen.add(key);
+  }
   const values = Object.fromEntries(
     [
       ...Object.keys(defaultRevenueFilters),
@@ -91,6 +101,7 @@ export function parseRevenueSearchParams(
     municipio: values.municipio,
     bairro: values.bairro,
     classe: values.classe,
+    alimentador: values.alimentador,
   };
   if (!validMonth(base.competencia_inicio)) {
     errors.push("Competência inicial deve usar YYYY-MM com mês válido.");
@@ -105,7 +116,12 @@ export function parseRevenueSearchParams(
   ) {
     errors.push("Competência final deve ser igual ou posterior à inicial.");
   }
-  for (const field of ["municipio", "bairro", "classe"] as const) {
+  for (const field of [
+    "municipio",
+    "bairro",
+    "classe",
+    "alimentador",
+  ] as const) {
     if (Array.from(base[field]).length > 100) {
       errors.push(`${filterLabels[field]} deve ter no máximo 100 caracteres.`);
     }
@@ -167,6 +183,7 @@ export function parseRevenueSearchParams(
             municipio: municipality,
             bairro: neighborhood,
             classe: className,
+            alimentador: base.alimentador,
             group_by: groupBy,
           }
         : null,
@@ -180,7 +197,7 @@ export function revenueRequestParams(query: RevenueQuery): URLSearchParams {
     competencia_fim: query.competencia_fim,
     group_by: query.group_by,
   });
-  for (const key of ["municipio", "bairro", "classe"] as const) {
+  for (const key of ["municipio", "bairro", "classe", "alimentador"] as const) {
     if (query[key]) params.set(key, query[key]);
   }
   return params;
@@ -191,7 +208,14 @@ export function updateRevenueBaseParams(
   filters: RevenueBaseFilters,
 ): URLSearchParams {
   const next = new URLSearchParams(current);
-  next.delete("alimentador");
+  const seen = new Set<string>();
+  const repeated = new Set<string>();
+  for (const key of next.keys()) {
+    if (seen.has(key)) repeated.add(key);
+    seen.add(key);
+  }
+  for (const key of repeated) next.delete(key);
+
   for (const key of ["recorte_municipio", "recorte_bairro", "recorte_classe"]) {
     next.delete(key);
   }
