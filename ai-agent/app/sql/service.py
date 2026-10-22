@@ -2,7 +2,7 @@
 
 import time
 
-from app.sql.audit import AuditSink, QueryAuditRecord, template_fingerprint
+from app.sql.audit import AuditSink, QueryAuditRecord, SqlAuditContext, template_fingerprint
 from app.sql.dictionary import SqlDictionary
 from app.sql.executors import QueryExecutionError, QueryResult, ReadOnlyExecutor
 from app.sql.validator import SqlRejected, validate_sql
@@ -20,14 +20,24 @@ class ReadOnlySqlService:
         self._audit = audit
 
     def run(
-        self, sql: str, parameters: tuple[str | int | float | bool, ...] = ()
+        self,
+        sql: str,
+        parameters: tuple[str | int | float | bool, ...] = (),
+        *,
+        audit_context: SqlAuditContext | None = None,
     ) -> QueryResult:
         """Executa uma consulta gerada; levanta SqlRejected ou QueryExecutionError após auditar."""
 
+        if audit_context is not None and not isinstance(audit_context, SqlAuditContext):
+            raise TypeError("contexto de auditoria inválido")
         base = {
             "dialect": self._executor.dialect,
             "dictionary_version": self._dictionary.version,
             "received_sql_chars": len(sql),
+            "plan_fingerprint": (
+                audit_context.plan_fingerprint if audit_context is not None else None
+            ),
+            "catalog_version": audit_context.catalog_version if audit_context is not None else None,
         }
         try:
             query = validate_sql(sql, self._dictionary, self._executor.dialect, parameters)

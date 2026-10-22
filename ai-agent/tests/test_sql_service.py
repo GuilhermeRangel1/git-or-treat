@@ -8,6 +8,7 @@ from app.sql.audit import (
     InMemoryAuditSink,
     LoggingAuditSink,
     QueryAuditRecord,
+    SqlAuditContext,
     template_fingerprint,
 )
 from app.sql.executors import QueryExecutionError, SqliteReadOnlyExecutor
@@ -16,6 +17,16 @@ from app.sql.validator import SqlRejected
 from tests.sql_support import build_gold_sqlite, load_test_dictionary
 
 DICTIONARY = load_test_dictionary()
+PLAN_AUDIT_CONTEXT = SqlAuditContext(plan_fingerprint="a" * 64, catalog_version="v1")
+
+
+@pytest.mark.parametrize(
+    ("fingerprint", "version"),
+    [("pergunta privada", "v1"), ("a" * 64, "v1; municipio privado")],
+)
+def test_sql_audit_context_rejects_free_text(fingerprint: str, version: str) -> None:
+    with pytest.raises(ValueError):
+        SqlAuditContext(plan_fingerprint=fingerprint, catalog_version=version)
 
 
 @pytest.fixture
@@ -46,6 +57,8 @@ def test_accepted_query_is_audited_without_rows(service_and_audit) -> None:
     assert record.tables == ("gold_indicadores",)
     assert record.query_template is not None and record.query_template != sql
     assert record.query_template_sha256 == template_fingerprint(record.query_template)
+    assert record.plan_fingerprint is None
+    assert record.catalog_version is None
     assert record.limit_adjusted is False
     serialized = json.dumps(record.to_dict())
     assert "Municipio Ficticio A" not in serialized
@@ -114,11 +127,13 @@ def test_rejected_query_is_audited_without_received_text(service_and_audit) -> N
     sql = "SELECT uc_id FROM cadastro_teste WHERE nome_titular = 'Pessoa Ficticia Um' LIMIT 1"
 
     with pytest.raises(SqlRejected):
-        service.run(sql)
+        service.run(sql, audit_context=PLAN_AUDIT_CONTEXT)
 
     [record] = audit.records
     assert record.status == "rejected"
     assert record.reason_code == "sensitive_column"
+    assert record.plan_fingerprint == PLAN_AUDIT_CONTEXT.plan_fingerprint
+    assert record.catalog_version == "v1"
     assert record.query_template is None
     assert record.query_template_sha256 is None
     assert record.row_count is None
@@ -138,12 +153,17 @@ def test_failed_execution_is_audited(tmp_path) -> None:
     path.write_bytes(b"")
 
     with pytest.raises(QueryExecutionError):
-        service.run("SELECT bairro FROM gold_indicadores LIMIT 1")
+        service.run(
+            "SELECT bairro FROM gold_indicadores LIMIT 1",
+            audit_context=PLAN_AUDIT_CONTEXT,
+        )
 
     [record] = audit.records
     assert record.status == "failed"
     assert record.reason_code == "database_error"
     assert record.error_type == "OperationalError"
+    assert record.plan_fingerprint == PLAN_AUDIT_CONTEXT.plan_fingerprint
+    assert record.catalog_version == "v1"
     assert record.query_template is not None
     assert record.row_count is None
 

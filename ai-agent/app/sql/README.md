@@ -55,9 +55,9 @@ Tudo funciona como lista branca: o que não estiver no dicionário é recusado. 
 
 ## Auditoria
 
-Cada chamada a `ReadOnlySqlService.run` gera um `QueryAuditRecord` com: id, horário UTC, status, código do motivo, dialeto, versão do dicionário e tamanho do SQL recebido. Após aprovação, registra também o template normalizado da consulta, com literais substituídos por `?`, aliases livres generalizados e o SHA-256 desse template, tabelas, limites original/aplicado e se houve ajuste, número de linhas, truncamento, duração e classe do erro.
+Cada chamada a `ReadOnlySqlService.run` gera um `QueryAuditRecord` com: id, horário UTC, status, código do motivo, dialeto, versão do dicionário e tamanho do SQL recebido. Quando a chamada parte de `SqlPlanReader`, o registro também contém o fingerprint do plano revalidado e a versão do catálogo artificial. Após aprovação do SQL, registra o template normalizado da consulta, com literais substituídos por `?`, aliases livres generalizados e o SHA-256 desse template, tabelas, limites original/aplicado e se houve ajuste, número de linhas, truncamento, duração e classe do erro. Chamadas diretas ao serviço SQL deixam a identificação do plano e do catálogo vazia; esses campos não conferem autorização por si só.
 
-O registro **não** guarda linhas de resultado, a pergunta da pessoa, o texto SQL recebido ou um hash do SQL bruto. Consultas rejeitadas registram apenas metadados e o motivo, sem fingerprint; em consultas aprovadas ou com falha na execução, o template derivado da AST aprovada omite valores literais. O SQL completo continua apenas no executor e não entra na auditoria. Essa redução protege valores de filtros, mas não define retenção, acesso ou destino durável da trilha.
+O registro **não** guarda linhas de resultado, a pergunta da pessoa, o texto SQL recebido ou um hash do SQL bruto. Consultas rejeitadas pelo serviço SQL registram metadados do plano quando fornecidos e o motivo, sem template nem fingerprint do SQL recebido. Em consultas aprovadas ou com falha na execução, o template derivado da AST aprovada omite valores literais. O SQL completo não entra na auditoria. O fingerprint do plano é um hash estável que inclui filtros no seu cálculo: não é anonimização e não deve ser considerado proteção suficiente para dados reais de baixa cardinalidade. Retenção, acesso, destino durável e estratégia de correlação para produção ainda precisam de decisão.
 
 **Decisão em aberto:** retenção, acesso e destino durável da trilha. Até a equipe decidir, só existem os destinos em memória e de log do processo. Nenhum arquivo ou tabela de auditoria é criado.
 
@@ -76,7 +76,7 @@ O registro **não** guarda linhas de resultado, a pergunta da pessoa, o texto SQ
 - Um nome de tabela em `CTE`/alias que coincida com o nome de uma coluna é recusado mesmo quando seria inofensivo.
 - `SqlPlanReader.read` exige o contexto de acesso e reaplica o `ReadPlanValidator` injetado antes de chamar o serviço SQL; contexto ausente ou escopo revogado impede a consulta. A composição com o planner e a porta `EvidenceSource` ainda não foi feita. A identidade e as permissões reais do banco também não foram comprovadas.
 - Não há teste contra um PostgreSQL real no gate local: o teste de integração roda só com `GENAI_TEST_POSTGRES_DSN` definido. Os demais usam uma conexão falsa que confere as instruções emitidas.
-- O leitor de plano ainda não implementa a porta `EvidenceSource` nem compõe resposta ao usuário. Ele exige plano aprovado pelo chamador e valida novamente apenas o recorte que este catálogo físico consegue executar.
+- O leitor de plano ainda não implementa a porta `EvidenceSource` nem compõe resposta ao usuário. Ele reaplica a política de acesso com o contexto atual e valida também o recorte que este catálogo físico consegue executar. Recusas anteriores ao serviço SQL não geram `QueryAuditRecord` nesta camada; a composição deverá decidir como registrá-las sem incluir valores do plano.
 
 ## Verificar
 

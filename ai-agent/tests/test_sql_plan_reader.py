@@ -115,6 +115,24 @@ def test_approved_plan_reads_only_the_requested_artificial_month_and_municipalit
     assert "Municipio Ficticio A" not in str(audit.records[0].to_dict())
 
 
+def test_approved_plan_is_correlated_with_sql_audit_without_filter_values(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+
+    result = reader.read(approved, SQL_DEMO_CONTEXT)
+
+    assert result.rows == (("2025-01", 3500.5),)
+    [record] = audit.records
+    assert record.plan_fingerprint == approved.fingerprint()
+    assert record.catalog_version == approved.catalog_version == "v1"
+    assert record.dictionary_version == "teste-1"
+    assert "Municipio Ficticio A" not in str(record.to_dict())
+
+
 def test_reader_rechecks_current_access_scope_before_sql_service(tmp_path, monkeypatch) -> None:
     reader, approved, audit = _reader_with_approved_municipality_filter(
         tmp_path,

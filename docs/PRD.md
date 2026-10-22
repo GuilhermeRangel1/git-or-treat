@@ -457,6 +457,14 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — correlação da auditoria SQL com plano sintético
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. A trilha ainda pertence ao ensaio isolado e não comprova execução ou autorização Gold.
+- Mudança observável: depois da revalidação do plano e do catálogo artificial, `SqlPlanReader` envia ao serviço SQL um contexto de auditoria com o fingerprint do plano e a versão do catálogo. Registros de aceitação, recusa SQL e falha de execução preservam esses identificadores; chamadas diretas ao serviço SQL não recebem identificação de plano. O contexto aceita apenas um fingerprint hexadecimal e uma versão curta, impedindo texto livre nesses campos. Template SQL e parâmetros permanecem separados, e os valores dos filtros não são gravados no registro.
+- Arquivos e evidência: `ai-agent/app/sql/audit.py`, `app/sql/service.py`, `app/sql/plan.py`, `ai-agent/tests/test_sql_plan_reader.py`, `tests/test_sql_service.py`, `ai-agent/app/sql/README.md` e `docs/services/ai-agent.md`, na branch `feat/ia-sql-readonly`. O teste do leitor confere o mesmo fingerprint do plano revalidado, versão `v1`, versão `teste-1` do dicionário e resultado artificial fixo de **3500,5 unidades fictícias**.
+- Verificações: suíte SQL selecionada — **291 testes passaram, 1 PostgreSQL opcional pulado**; suíte GenAI completa — **723 passaram, 2 opcionais pulados**. `python -m ruff check .`, `python -m compileall -q app tests` e `git diff --check` passaram.
+- Critérios e pendências: o fingerprint é calculado a partir do plano que contém filtros e não anonimiza valores de baixa cardinalidade. A política de retenção e uma correlação segura para produção seguem abertas. Recusas anteriores ao serviço SQL ainda não produzem `QueryAuditRecord`; a composição com `EvidenceSource`, a identidade real, a credencial somente leitura, os controles do banco e a Gold permanecem pendentes. A ADR-0002 segue em proposta; IA-06 não está concluído.
+
 ### 2026-10-22 — IA-06 — autorização revalidada na borda SQL artificial
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. O controle cobre o ensaio isolado, sem comprovar permissões da Gold.

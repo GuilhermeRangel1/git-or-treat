@@ -13,6 +13,7 @@ from app.agent.read_plan import ReadPlanValidator
 from app.schemas.access import AccessContext
 from app.schemas.domain_profile import CatalogGranularity, FilterOperator
 from app.schemas.read_plan import LogicalReadPlan, WindowKind
+from app.sql.audit import SqlAuditContext
 from app.sql.dictionary import SqlDictionary
 from app.sql.executors import QueryResult
 from app.sql.service import ReadOnlySqlService
@@ -130,7 +131,13 @@ class SqlPlanReader:
             "SELECT period, value, (SELECT COUNT(*) FROM plan_rows) AS total_rows "
             f"FROM plan_rows ORDER BY period ASC LIMIT {plan.limit}"
         )
-        result = self._service.run(sql, tuple(parameters))
+        result = self._service.run(
+            sql,
+            tuple(parameters),
+            audit_context=SqlAuditContext(
+                plan_fingerprint=plan.fingerprint(), catalog_version=plan.catalog_version
+            ),
+        )
         if result.columns != ("period", "value", "total_rows") or any(
             len(row) != 3 for row in result.rows
         ):

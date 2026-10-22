@@ -7,6 +7,7 @@ memória (testes) e log de processo, sem persistência própria.
 import hashlib
 import json
 import logging
+import re
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -32,11 +33,31 @@ def template_fingerprint(sql_template: str) -> str:
 
 
 @dataclass(frozen=True)
+class SqlAuditContext:
+    """Identificadores controlados do plano, sem texto de filtros ou da pergunta."""
+
+    plan_fingerprint: str
+    catalog_version: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.plan_fingerprint, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", self.plan_fingerprint
+        ):
+            raise ValueError("fingerprint do plano inválido")
+        if not isinstance(self.catalog_version, str) or not re.fullmatch(
+            r"v[1-9][0-9]{0,2}", self.catalog_version
+        ):
+            raise ValueError("versão do catálogo inválida")
+
+
+@dataclass(frozen=True)
 class QueryAuditRecord:
     status: AuditStatus
     dialect: str
     dictionary_version: str
     received_sql_chars: int
+    plan_fingerprint: str | None = None
+    catalog_version: str | None = None
     reason_code: str | None = None
     query_template: str | None = None
     query_template_sha256: str | None = None
