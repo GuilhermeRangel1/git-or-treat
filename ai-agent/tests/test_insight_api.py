@@ -1,5 +1,7 @@
 """Contratos HTTP públicos para insights contextuais sintéticos."""
 
+import json
+
 from app.agent.access import ReadAccessPolicy
 from app.agent.insights import ScreenInsightOrchestrator
 from app.api.access import SYNTHETIC_SOURCE_ID
@@ -187,7 +189,10 @@ def test_insight_does_not_publish_untrusted_model_text() -> None:
     assert response.json()["status"] == "answered"
     assert "420 kWh fictícios" in response.json()["hypothesis"]
     assert "123.456.789-00" not in response.text
-    assert "999" not in response.text
+    # O correlation_id é hexadecimal aleatório e pode conter "999" por acaso.
+    public = response.json()
+    public.pop("correlation_id")
+    assert "999" not in json.dumps(public, ensure_ascii=False)
 
 
 def test_insight_rejects_inconsistent_period_and_real_evidence_in_synthetic_stage() -> None:
