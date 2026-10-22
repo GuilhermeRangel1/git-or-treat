@@ -239,15 +239,18 @@ export function updateRevenueGroupBy(
 
 export function revenueRefinementDestination(
   current: URLSearchParams,
-  destination: "total" | "municipio",
+  destination: "total" | "municipio" | "bairro",
 ) {
   const next = new URLSearchParams(current);
   if (destination === "total") {
     next.delete("recorte_municipio");
     next.delete("recorte_bairro");
     next.delete("recorte_classe");
-  } else {
+  } else if (destination === "municipio") {
     next.delete("recorte_bairro");
+    next.delete("recorte_classe");
+  } else {
+    next.delete("recorte_classe");
   }
   return next;
 }

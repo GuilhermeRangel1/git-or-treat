@@ -142,6 +142,16 @@ URL de aplicação usa os filtros base DEV-01, `agrupar_por` e refinamentos `rec
 
 O filtro legado `alimentador`, quando recebido na URL, compõe a query, a identidade do cache e os filtros base preservados ao aplicar o formulário ou navegar. A tela o identifica no contexto aplicado, mas não acrescenta um seletor de alimentador. O valor é validado quanto a vazio/tamanho no cliente e quanto à existência na fonte no servidor. A detecção de repetição cobre qualquer chave bruta da URL, inclusive nomes não usados como filtros; aplicar um formulário válido remove repetições e permite recuperar o link. Parâmetros desconhecidos únicos não se tornam filtros nem seguem para a consulta HTTP.
 
-Abrir município acrescenta refinamento e permite agrupar seus bairros; abrir bairro preserva seu município; classe pode ser filtrada e agrupada independentemente. Voltar ao total remove somente `recorte_*`. Filtro base nunca pode ser sobrescrito por refinamento contraditório. Formulário e contexto se restauram com reload e histórico; rascunho de formulário continua local. Dados antigos só aparecem com seu contexto original; resposta atrasada não ganha o contexto novo.
+Abrir município acrescenta refinamento e permite agrupar seus bairros; abrir bairro preserva seu município; classe pode ser filtrada e agrupada independentemente. Os retornos pelo caminho dos recortes removem os refinamentos abaixo do destino:
+
+| Destino de retorno | Refinamentos preservados | Refinamentos removidos |
+| --- | --- | --- |
+| Total | Nenhum | `recorte_municipio`, `recorte_bairro`, `recorte_classe` |
+| Município | `recorte_municipio` | `recorte_bairro`, `recorte_classe` |
+| Bairro | `recorte_municipio`, `recorte_bairro` | `recorte_classe` |
+
+Todos preservam competências, filtros base (inclusive `classe` e `alimentador`), agrupamento e parâmetros únicos compatíveis do link. Classe base é independente; classe refinada é removida ao retornar a um nível anterior do caminho. Bairro é link quando existe classe refinada abaixo dele; sem esse refinamento é o item atual. O endereço do link e o clique usam o mesmo destino calculado. Esta política substitui a interpretação intermediária de B1 que mantinha classe refinada ao retornar ao Município.
+
+Filtro base nunca pode ser sobrescrito por refinamento contraditório. Formulário e contexto se restauram com reload e histórico; rascunho de formulário continua local. Dados antigos só aparecem com seu contexto original; resposta atrasada não ganha o contexto novo.
 
 Reajuste homologado continua indisponível sem fonte específica. Nenhum campo deste contrato transforma os 10,5% do case em resultado consultado. A identificação de demonstração e os estados relevantes aparecem junto às informações que contextualizam; ausência e falha não aparecem como zeros.

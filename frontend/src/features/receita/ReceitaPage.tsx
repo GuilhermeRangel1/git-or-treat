@@ -119,6 +119,10 @@ export default function ReceitaPage() {
     searchParams,
     "municipio",
   );
+  const neighborhoodRefinementParams = revenueRefinementDestination(
+    searchParams,
+    "bairro",
+  );
   const unavailableMessage = (() => {
     if (!(revenue.error instanceof ApiError)) {
       return "Não foi possível consultar a receita. Tente novamente.";
@@ -280,14 +284,26 @@ export default function ReceitaPage() {
                   <span aria-hidden="true" className="text-muted">
                     ›
                   </span>
-                  <span
-                    aria-current={
-                      parsed.refinements.classe ? undefined : "page"
-                    }
-                  >
-                    Bairro:{" "}
-                    {filterLabel(parsed.refinements.bairro, "Não informado")}
-                  </span>
+                  {parsed.refinements.classe ? (
+                    <a
+                      href={`?${neighborhoodRefinementParams.toString()}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setSearchParams(neighborhoodRefinementParams, {
+                          preventScrollReset: true,
+                        });
+                      }}
+                      className="font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                    >
+                      Bairro:{" "}
+                      {filterLabel(parsed.refinements.bairro, "Não informado")}
+                    </a>
+                  ) : (
+                    <span aria-current="page">
+                      Bairro:{" "}
+                      {filterLabel(parsed.refinements.bairro, "Não informado")}
+                    </span>
+                  )}
                 </>
               ) : null}
               {parsed.refinements.classe ? (

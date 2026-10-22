@@ -28,6 +28,8 @@ Revisão de 21/10/2026, autorizada pela solicitação de corrigir os achados con
 
 Receitas e variações absolutas dos recortes devem somar o total do mesmo universo. Efeitos de preço/volume recalculados separadamente em cada grupo não são aditivos entre níveis quando o mix muda; a interface deve explicar esse limite. Grupos não comparáveis e diferenças não atribuídas ficam explícitos.
 
+Na revisão do retorno pelos recortes em 21/10/2026, adotar remoção explícita dos refinamentos descendentes: Município remove bairro/classe refinados; Bairro remove classe refinada; Total remove todos os refinamentos. Filtros base, inclusive classe e alimentador, período e agrupamento permanecem. Esta regra substitui a interpretação anterior do retorno intermediário, reduzindo restrições inesperadas sem apagar escolhas base da pessoa usuária.
+
 ## Consequências e verificação
 
 - A jornada Receita evolui para 1.1.0; demais endpoints preservam 1.0.0. O frontend valida JSON em execução e usa filtros base/refinamentos na URL.

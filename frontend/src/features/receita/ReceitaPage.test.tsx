@@ -243,22 +243,28 @@ function ChangeFeederProbe() {
 describe("Receita", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("builds total and municipality breadcrumb destinations from the current URL", () => {
+  it("builds total, municipality, and neighborhood destinations from the current URL", () => {
     const current = new URLSearchParams({
       competencia_inicio: "2025-01",
       competencia_fim: "2025-02",
       municipio: "Olinda",
+      classe: "Comercial",
+      alimentador: "AL-01",
       agrupar_por: "classe",
+      source: "share",
       recorte_municipio: "Olinda",
       recorte_bairro: "Centro",
       recorte_classe: "Comercial",
     });
 
     expect(revenueRefinementDestination(current, "municipio").toString()).toBe(
-      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&agrupar_por=classe&recorte_municipio=Olinda&recorte_classe=Comercial",
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&source=share&recorte_municipio=Olinda",
+    );
+    expect(revenueRefinementDestination(current, "bairro").toString()).toBe(
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&source=share&recorte_municipio=Olinda&recorte_bairro=Centro",
     );
     expect(revenueRefinementDestination(current, "total").toString()).toBe(
-      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&agrupar_por=classe",
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&source=share",
     );
   });
 
@@ -875,11 +881,13 @@ describe("Receita", () => {
 
   it("uses the breadcrumb destination for both its href and browser navigation", async () => {
     const initialSearch =
-      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&agrupar_por=classe&recorte_municipio=Olinda&recorte_bairro=Centro&recorte_classe=Comercial";
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&source=share&recorte_municipio=Olinda&recorte_bairro=Centro&recorte_classe=Comercial";
     const municipalitySearch =
-      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&agrupar_por=classe&recorte_municipio=Olinda&recorte_classe=Comercial";
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&source=share&recorte_municipio=Olinda";
+    const neighborhoodSearch =
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&source=share&recorte_municipio=Olinda&recorte_bairro=Centro";
     const totalSearch =
-      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&agrupar_por=classe";
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&source=share";
     vi.stubGlobal(
       "fetch",
       vi
@@ -906,17 +914,28 @@ describe("Receita", () => {
       name: /Município: Olinda/,
     });
     expect(municipalityLink).toHaveAttribute("href", `?${municipalitySearch}`);
+    const neighborhoodLink = screen.getByRole("link", {
+      name: /Bairro: Centro/,
+    });
+    expect(neighborhoodLink).toHaveAttribute("href", `?${neighborhoodSearch}`);
+    await user.click(neighborhoodLink);
+    await waitFor(() =>
+      expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+        neighborhoodSearch,
+      ),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Voltar histórico" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+        initialSearch,
+      ),
+    );
     await user.click(municipalityLink);
     await waitFor(() =>
       expect(screen.getByLabelText("URL atual")).toHaveTextContent(
         municipalitySearch,
       ),
-    );
-    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
-      "recorte_classe=Comercial",
-    );
-    expect(screen.getByLabelText("URL atual")).not.toHaveTextContent(
-      "recorte_bairro",
     );
 
     await user.click(screen.getByRole("button", { name: "Voltar histórico" }));
@@ -931,6 +950,71 @@ describe("Receita", () => {
     await waitFor(() =>
       expect(screen.getByLabelText("URL atual")).toHaveTextContent(totalSearch),
     );
+  });
+
+  it("returns from a municipality refinement to the municipality when only class remains", async () => {
+    const initialSearch =
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&recorte_municipio=Olinda&recorte_classe=Comercial";
+    const municipalitySearch =
+      "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&recorte_municipio=Olinda";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(response), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[`/receita?${initialSearch}`]}>
+          <ReceitaPage />
+          <LocationProbe />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const municipalityLink = await screen.findByRole("link", {
+      name: /Município: Olinda/,
+    });
+    expect(municipalityLink).toHaveAttribute("href", `?${municipalitySearch}`);
+    await user.click(municipalityLink);
+    await waitFor(() =>
+      expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+        municipalitySearch,
+      ),
+    );
+  });
+
+  it("keeps the neighborhood as the current breadcrumb when there is no class refinement", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(response), { status: 200 }),
+        ),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter
+          initialEntries={[
+            "/receita?competencia_inicio=2025-01&competencia_fim=2025-02&recorte_municipio=Olinda&recorte_bairro=Centro",
+          ]}
+        >
+          <ReceitaPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const neighborhood = await screen.findByText("Bairro: Centro");
+    expect(neighborhood.tagName).toBe("SPAN");
+    expect(neighborhood).toHaveAttribute("aria-current", "page");
   });
 
   it("rejects long and contradictory refinements without requesting data", () => {

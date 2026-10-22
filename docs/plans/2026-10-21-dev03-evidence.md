@@ -91,6 +91,8 @@ O novo controle HTTP caracteriza as quatro coberturas indisponíveis e o envelop
 
 `revenueRefinementDestination` em `frontend/src/features/receita/revenue-filters.ts` concentra a transformação do destino de Total/Município; `ReceitaPage.tsx` usa o mesmo resultado para o endereço do link e para a navegação pelo clique. A classe continua independente: retornar ao Município remove somente o bairro; retornar ao Total remove somente `recorte_*`, preservando filtros base, período e agrupamento.
 
+Registro histórico: a retenção de classe refinada no retorno ao Município foi substituída pela política explícita de retorno descrita na revisão de feedback abaixo. A centralização dos destinos foi preservada.
+
 `ReceitaPage.test.tsx` acrescenta regressões de destino e jornada com endereços esperados literais, município/classe base, histórico e consistência entre `href` e clique. Em `frontend/`: `npm.cmd test` → 67 aprovados; `npm.cmd run check:boundaries` → 45 arquivos; `npm.cmd run format:check`, `npm.cmd run lint` e `npm.cmd run build` aprovados. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão do controlador; sem novas pastas, dependências, alterações visuais ou de contrato.
 
 ### B5 — contexto e comparação compartilhados pelos recortes
@@ -124,6 +126,16 @@ Confirmado que o frontend ignorava `alimentador` do link e o removia ao aplicar 
 O parser rejeita repetição de qualquer chave bruta, inclusive `alimentador`, `group_by` e nomes não usados pela consulta. Aplicar um formulário válido remove repetições, inclusive as que não têm um campo editável, preservando parâmetros desconhecidos únicos sem enviá-los como filtros HTTP. Alimentador vazio ou com mais de cem caracteres não dispara consulta.
 
 Em `frontend/`: `npm.cmd test` → 75 aprovados; Receita → 30 aprovados; `check:boundaries` → 45 arquivos; `format:check`, `lint` e `build` aprovados. Após o ajuste final da fonte do contexto, Receita/build/formatação/lint foram repetidos e passaram. Os testes percorrem AL-01 → aplicar Município → AL-02, endereços inválidos e recuperação pelo formulário. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão do controlador. Desenho/contrato sincronizados; não se trata de introduzir dados Gold nem de corrigir o layout amplo cuja integração está prevista na DEV-02.
+
+### Feedback — retorno explícito pelos recortes
+
+A retenção de classe refinada ao retornar ao Município era uma interpretação anterior, agora substituída pela política explícita do contrato: Total remove os três refinamentos; Município remove bairro/classe refinados; Bairro remove classe refinada. Filtros base, incluindo classe e alimentador, período e agrupamento permanecem. Bairro é link quando há classe refinada abaixo dele; sem esse refinamento permanece como item atual. Endereço e clique continuam usando o mesmo destino calculado.
+
+Em `frontend/`: `npm.cmd test` → 77 aprovados; `npm.cmd run check:boundaries` → 45 arquivos; `format:check`, `lint` e `build` aprovados. As regressões verificam endereços literais, navegação/histórico dos três destinos, preservação de filtros base e classe refinada sem bairro. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão do controlador; contrato/desenho/ADR sincronizados.
+
+Validação adicional do controlador, sem interceptação de HTTP: API Uvicorn temporária em `127.0.0.1:18003`, fonte `synthetic` e SQLite em memória; parser e decoder TypeScript reais carregados por transpilação local. Quatro URLs (`alimentador=AL-01`; AL-02/Residencial; Recife/AL-01 por bairro; Recife/Centro/AL-01 por classe) geraram consultas 200 com agrupamento e filtros efetivos idênticos ao pedido. Repetições de alimentador, `group_by` e nome desconhecido foram bloqueadas no parser; chamada HTTP direta com alimentador repetido retornou 422. O servidor temporário foi encerrado. Isso verifica as fronteiras de filtros/API, sem equivaler a nova inspeção visual no navegador.
+
+O ajuste amplo de responsividade foi reservado à integração da DEV-02. Dados fictícios continuam sendo a demonstração explícita aprovada; o aceite Gold segue pendente. O relato de 404 foi tratado como questão de execução local, sem alterar a rota funcional: nesta branch, fonte não configurada retorna 503, e os caminhos corretos foram exercitados com 200 na checagem acima.
 
 ### Limites desta rodada
 
