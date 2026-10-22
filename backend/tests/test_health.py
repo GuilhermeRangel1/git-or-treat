@@ -61,7 +61,8 @@ def test_root_endpoint(client):
     assert response.json()["health"] == "/api/v1/health"
 
 
-def test_kpis_endpoint_is_unavailable_without_explicit_analytics_source(client):
+def test_kpis_endpoint_is_unavailable_without_explicit_analytics_source(client, monkeypatch):
+    monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "unavailable")
     response = client.get("/api/v1/kpis")
 
     assert response.status_code == 503

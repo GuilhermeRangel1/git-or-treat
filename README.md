@@ -31,6 +31,30 @@ docs/              PRD, diagnóstico, dicionário e decisões
 
 As pastas de serviços são apenas esqueletos documentais. A solução será construída em entregas verificáveis, seguindo os IDs do PRD. O dataset mencionado no case será disponibilizado separadamente na plataforma da atividade; o repositório não o contém.
 
+## Executar localmente com Docker
+
+O `docker-compose.yml` sobe portal, API e PostgreSQL. Os arquivos de ambiente são locais e não versionados; sem eles o Compose aborta com `env file ... not found` antes de criar qualquer container.
+
+```bash
+cp .env.db.example .env.db
+cp backend/.env.example backend/.env
+docker compose up -d --build
+```
+
+| Serviço | URL | Observação |
+| --- | --- | --- |
+| Portal web | http://localhost:5173 | Vite com HMR; `/api` usa proxy para o backend |
+| API FastAPI | http://localhost:8000/api/v1 | OpenAPI em http://localhost:8000/docs |
+| PostgreSQL | localhost:5432 | Banco `v_energy`, usuário `v_energy_app` |
+
+O Compose é um ambiente de desenvolvimento e seleciona explicitamente `ANALYTICS_SOURCE=synthetic` para demonstrar os indicadores. A API executada fora dele continua com padrão `unavailable`. Para testar indisponibilidade no Compose, defina `ANALYTICS_SOURCE=unavailable` no ambiente do comando e recrie o backend. Os números exibidos são fictícios, sem reconciliação Gold.
+
+O navegador usa a mesma origem do portal (`VITE_API_URL=/`); o Vite encaminha `/api` para `http://backend:8000` dentro do Docker. Assim o cliente não depende do próprio `localhost` para chegar à API. Para abrir no celular da mesma rede, use o endereço da máquina na porta 5173, conforme a conectividade local permitir. O frontend usa polling no volume Docker para refletir alterações feitas no Windows.
+
+Comandos de apoio: `docker compose ps`, `docker compose logs -f backend` e `docker compose down` (o volume `pgdata` é preservado; `docker compose down -v` apaga os dados).
+
+`docker compose` sem `up` apenas exibe a ajuda. O Compose é a forma suportada de subir a stack; rodar `npm run dev` e `uvicorn` na máquina assume que o PostgreSQL local usa as mesmas credenciais de `backend/.env`.
+
 ## Preparação dos agentes
 
 Codex, Claude Code e Antigravity compartilham os `AGENTS.md`, as skills compatíveis em `.agents/skills/` e os scripts em `.hooks/`. Cada cliente tem configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e nenhum item funcional foi concluído nesta fase.
