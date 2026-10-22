@@ -109,6 +109,14 @@ O relato de falha em massa não se reproduziu inicialmente neste checkout já fo
 
 Verificações: `git check-attr text eol` confirmou `text: auto` e `eol: lf`; `git -c core.autocrlf=true cat-file --filters HEAD:frontend/src/features/receita/ReceitaPage.tsx` produziu bytes LF; `npm.cmd run format:check`, validação documental e `git diff --check` aprovados. Referências oficiais consultadas via Context7: documentação de `endOfLine` do Prettier, com opção LF; fonte/versão e documentação Git constam no README. Configuração global do Git e código de produto preservados.
 
+### Feedback — receita independente da disponibilidade energética
+
+Confirmado o bloqueio indevido: a comparação financeira exigia simultaneamente cobertura de valor e energia faturados. Agora `revenue_analytics.py` usa disponibilidade de valor para delta BRL/percentual e de energia para delta kWh. Preço observado e decomposição exigem as bases comparáveis correspondentes; a reconciliação em BRL pode fechar mesmo com snapshot parcial por energia. A classificação geral do envelope permanece compatível com o controle B4. Contrato, desenho e ADR-0006 registram essa correção coordenada.
+
+Os novos controles HTTP verificam: cobertura energética ausente apesar de valores observados; energia nula com cobertura declarada; lacuna energética intermediária com preços extremos conhecidos; receita incompleta com energia completa. BRL 500 → 550 mantém delta +50 e +10%, com reconciliação financeira `available` e energia/preço-volume indisponíveis. Janela com lacuna energética intermediária mantém delta financeiro +150 (+30%) e preços por extremo 1,0000 → 1,0833, sem inventar delta energético ou preço acumulado comparável.
+
+Verificações em `backend/`: `venv/Scripts/python.exe -m pytest -q tests/test_revenue_dev03.py` → 37 aprovados; suíte completa → 105 aprovados, 1 PostgreSQL ignorado; `compileall app tests` aprovado. Aviso preexistente Starlette/HTTPX. Documentação e `git diff --check` aprovados. Implementador GPT-6 Luna/high, revisão do controlador; nenhum dado real, schema físico, migração ou biblioteca acrescentado.
+
 ### Limites desta rodada
 
 Nenhum navegador estava conectado ao inventário de automação; a jornada visual não foi repetida nesta rodada. As evidências anteriores de navegador continuam identificadas acima, sem serem apresentadas como nova execução. Python 3.12, PostgreSQL e Gold permanecem pendentes. A nova tentativa de leitura do quadro Trello pelo MCP expirou; nenhum cartão foi alterado.

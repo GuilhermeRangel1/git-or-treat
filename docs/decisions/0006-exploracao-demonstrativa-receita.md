@@ -24,6 +24,8 @@ Receita usa valor faturado e energia faturada. Preço médio observado é sua ra
 
 Adotar limiar demonstrativo de cinco UCs distintas com fatura por extremo para exibir percentual. Valores absolutos conhecidos continuam visíveis com aviso de base pequena. O limiar é política de apresentação provisória, sem pretensão estatística ou regulatória.
 
+Revisão de 21/10/2026, autorizada pela solicitação de corrigir os achados confirmados: separar disponibilidade financeira e energética. Valor faturado completo sustenta delta/percentual elegível e reconciliação em BRL mesmo com energia incompleta; delta em kWh depende apenas da comparação energética. Preço observado e decomposição exigem as bases comparáveis pertinentes, conforme o contrato. A estrutura JSON 1.1.0 é preservada; trata-se de corrigir o bloqueio indevido de uma grandeza pela ausência de outra, sem homologar definições Gold.
+
 Receitas e variações absolutas dos recortes devem somar o total do mesmo universo. Efeitos de preço/volume recalculados separadamente em cada grupo não são aditivos entre níveis quando o mix muda; a interface deve explicar esse limite. Grupos não comparáveis e diferenças não atribuídas ficam explícitos.
 
 ## Consequências e verificação

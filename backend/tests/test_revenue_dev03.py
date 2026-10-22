@@ -591,6 +591,116 @@ def test_revenue_zero_energy_keeps_known_absolute_change_and_disables_price_volu
     assert data["price_volume"]["volume_effect_brl"] is None
 
 
+@pytest.mark.parametrize(
+    ("energy_coverage", "null_energy_facts", "expected_energy_status"),
+    [
+        (frozenset(), False, "unavailable"),
+        (frozenset({"2025-01", "2025-02"}), True, "partial"),
+    ],
+)
+def test_revenue_amount_comparison_and_reconciliation_survive_unavailable_energy(
+    client, energy_coverage, null_energy_facts, expected_energy_status
+):
+    repository = _revenue_edge_repository(_edge_invoices(5, final_amount=110))
+    if null_energy_facts:
+        for invoice in repository.invoices:
+            invoice["billed_energy_kwh"] = None
+    repository.revenue_coverage = RevenueCoverage(
+        billed_amount=frozenset({"2025-01", "2025-02"}),
+        billed_energy_kwh=energy_coverage,
+        paid_amount=frozenset({"2025-01", "2025-02"}),
+        measured_energy_kwh=frozenset({"2025-01", "2025-02"}),
+    )
+
+    response = _get_revenue_with_repository(client, repository)
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["coverage"]["billed_amount"]["status"] == "available"
+    assert data["coverage"]["billed_energy_kwh"]["status"] == expected_energy_status
+    assert data["comparison"]["billed_amount_change_brl"] == 50.0
+    assert data["comparison"]["billed_amount_change_percent"] == 10.0
+    assert data["quality"]["percent_change_eligible"] is True
+    assert data["comparison"]["billed_energy_change_kwh"] is None
+    assert data["comparison"]["initial"]["status"] == "partial"
+    assert data["comparison"]["initial"]["observed_price_brl_per_kwh"] is None
+    assert data["observed_price_brl_per_kwh"] is None
+    assert data["price_volume"]["status"] == "unavailable"
+    reconciliation = data["breakdown"]["reconciliation"]
+    assert reconciliation["comparable_change_sum_brl"] == 50.0
+    assert reconciliation["residual_brl"] == 0.0
+    assert reconciliation["non_comparable_group_count"] == 0
+    assert reconciliation["status"] == "available"
+
+
+def test_revenue_energy_comparison_survives_incomplete_financial_coverage(client):
+    repository = _revenue_edge_repository(_edge_invoices(5, final_energy=120))
+    repository.revenue_coverage = RevenueCoverage(
+        billed_amount=frozenset({"2025-02"}),
+        billed_energy_kwh=frozenset({"2025-01", "2025-02"}),
+        paid_amount=frozenset({"2025-01", "2025-02"}),
+        measured_energy_kwh=frozenset({"2025-01", "2025-02"}),
+    )
+
+    response = _get_revenue_with_repository(client, repository)
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["coverage"]["billed_amount"]["status"] == "partial"
+    assert data["coverage"]["billed_energy_kwh"]["status"] == "available"
+    assert data["comparison"]["billed_amount_change_brl"] is None
+    assert data["comparison"]["billed_amount_change_percent"] is None
+    assert data["quality"]["percent_change_eligible"] is False
+    assert data["comparison"]["billed_energy_change_kwh"] == 100.0
+    assert data["comparison"]["initial"]["observed_price_brl_per_kwh"] is None
+    assert data["observed_price_brl_per_kwh"] is None
+    assert data["price_volume"]["status"] == "unavailable"
+
+
+def test_revenue_intermediate_energy_gap_keeps_financial_comparison_and_endpoint_prices(client):
+    invoices = [
+        {
+            "invoice_id": f"{month}-{index}",
+            "uc_id": f"EDGE-{index}",
+            "competencia": month,
+            "billed_amount": amount,
+            "paid_amount": amount,
+            "billed_energy_kwh": energy,
+        }
+        for month, amount, energy in (
+            ("2025-01", 100, 100),
+            ("2025-02", 120, 110),
+            ("2025-03", 130, 120),
+        )
+        for index in range(1, 6)
+    ]
+    repository = _revenue_edge_repository(invoices, covered_months=("2025-01", "2025-02", "2025-03"))
+    repository.revenue_coverage = RevenueCoverage(
+        billed_amount=frozenset({"2025-01", "2025-02", "2025-03"}),
+        billed_energy_kwh=frozenset({"2025-01", "2025-03"}),
+        paid_amount=frozenset({"2025-01", "2025-02", "2025-03"}),
+        measured_energy_kwh=frozenset({"2025-01", "2025-02", "2025-03"}),
+    )
+
+    response = _get_revenue_with_repository(
+        client,
+        repository,
+        "?competencia_inicio=2025-01&competencia_fim=2025-03",
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["coverage"]["billed_amount"]["status"] == "available"
+    assert data["coverage"]["billed_energy_kwh"]["status"] == "partial"
+    assert data["comparison"]["billed_amount_change_brl"] == 150.0
+    assert data["comparison"]["billed_amount_change_percent"] == 30.0
+    assert data["comparison"]["initial"]["observed_price_brl_per_kwh"] == 1.0
+    assert data["comparison"]["final"]["observed_price_brl_per_kwh"] == 1.0833
+    assert data["comparison"]["billed_energy_change_kwh"] is None
+    assert data["observed_price_brl_per_kwh"] is None
+    assert data["price_volume"]["status"] == "unavailable"
+
+
 def test_revenue_negative_initial_amount_blocks_percent_but_preserves_absolute_and_method(client):
     repository = _revenue_edge_repository(
         _edge_invoices(5, initial_amount=-100, initial_energy=100, final_amount=-50, final_energy=100)

@@ -179,21 +179,28 @@ def _snapshot(
     limitations = []
     if count is None:
         limitations.append("A cobertura financeira do extremo não está comprovada; contagem de UCs faturadas desconhecida.")
-    month_has_incomplete_billing = any(
-        row.get("billed_amount") is None or row.get("billed_energy_kwh") is None
-        for row in month_invoices
+    amount_complete = (
+        amount is not None
+        and month in billed_coverage
+        and not any(row.get("billed_amount") is None for row in month_invoices)
     )
-    status: AnalyticsStatus = (
-        "unavailable"
-        if amount is None or energy is None or count is None
-        else "partial" if month_has_incomplete_billing else "available"
+    energy_complete = (
+        energy is not None
+        and month in energy_coverage
+        and not any(row.get("billed_energy_kwh") is None for row in month_invoices)
     )
-    if month_has_incomplete_billing:
-        limitations.append("Há faturas sem valor faturado ou energia faturada observada neste extremo.")
-    if amount is None or energy is None:
-        limitations.append("Receita ou energia faturada não está coberta nesta competência.")
+    if amount is None or count is None:
+        status: AnalyticsStatus = "unavailable"
+    elif not amount_complete or not energy_complete:
+        status = "partial"
+    else:
+        status = "available"
+    if not amount_complete:
+        limitations.append("A cobertura financeira do extremo está ausente ou incompleta.")
+    if not energy_complete:
+        limitations.append("A cobertura de energia faturada do extremo está ausente ou incompleta.")
     observed_price = None
-    if amount is not None and energy is not None and energy > 0:
+    if amount_complete and energy_complete and amount is not None and energy is not None and energy > 0:
         observed_price = _number(_round(amount / energy, PRICE_QUANTUM))
     return ({
         "competencia": month,
@@ -282,10 +289,8 @@ def _comparison_summary(
     context: _RevenueContext,
     metric_coverage: dict,
 ) -> _ComparisonSummary:
-    finance_complete = (
-        metric_coverage["billed_amount"]["status"] == "available"
-        and metric_coverage["billed_energy_kwh"]["status"] == "available"
-    )
+    finance_complete = metric_coverage["billed_amount"]["status"] == "available"
+    energy_complete = metric_coverage["billed_energy_kwh"]["status"] == "available"
     initial, initial_amount, initial_energy = _snapshot(
         context.start,
         context.invoices,
@@ -303,23 +308,28 @@ def _comparison_summary(
     quality = _quality(initial, final, finance_complete, context.start, context.end)
 
     billed_change = energy_change = measured_change = percent_change = None
-    comparison_eligible = (
+    financial_comparison_eligible = (
         context.start != context.end
         and finance_complete
         and initial_amount is not None
         and final_amount is not None
     )
-    if comparison_eligible:
+    if financial_comparison_eligible:
         displayed_initial_amount = _decimal(initial["billed_amount"])
         displayed_final_amount = _decimal(final["billed_amount"])
         billed_change = _round(displayed_final_amount - displayed_initial_amount, MONEY_QUANTUM)
-        if initial["billed_energy_kwh"] is not None and final["billed_energy_kwh"] is not None:
-            energy_change = _round(
-                _decimal(final["billed_energy_kwh"]) - _decimal(initial["billed_energy_kwh"]),
-                MONEY_QUANTUM,
-            )
         if quality["percent_change_eligible"] and displayed_initial_amount > 0:
             percent_change = _round((billed_change / displayed_initial_amount) * Decimal("100"), PERCENT_QUANTUM)
+    if (
+        context.start != context.end
+        and energy_complete
+        and initial["billed_energy_kwh"] is not None
+        and final["billed_energy_kwh"] is not None
+    ):
+        energy_change = _round(
+            _decimal(final["billed_energy_kwh"]) - _decimal(initial["billed_energy_kwh"]),
+            MONEY_QUANTUM,
+        )
 
     first_measured = _sum_field(
         [row for row in context.readings if row["competencia"] == context.start], "measured_energy_kwh"
@@ -550,10 +560,8 @@ def build_revenue(
         coverage=coverage,
     )
     metric_coverage = _metric_coverage(context)
-    finance_complete = (
-        metric_coverage["billed_amount"]["status"] == "available"
-        and metric_coverage["billed_energy_kwh"]["status"] == "available"
-    )
+    finance_complete = metric_coverage["billed_amount"]["status"] == "available"
+    energy_complete = metric_coverage["billed_energy_kwh"]["status"] == "available"
     comparison_summary = _comparison_summary(context, metric_coverage)
     comparison = comparison_summary.comparison
     quality = comparison_summary.quality
@@ -570,6 +578,8 @@ def build_revenue(
         decomposition_limitations.append("A comparação preço-volume exige competências distintas.")
     elif not finance_complete:
         decomposition_limitations.append("As competências solicitadas não têm cobertura financeira completa para comparação; não substituímos extremos ausentes.")
+    elif not energy_complete:
+        decomposition_limitations.append("As competências solicitadas não têm cobertura completa de energia faturada para preço-volume.")
     elif initial_amount is not None and final_amount is not None and initial_energy is not None and final_energy is not None:
         if initial_energy <= 0 or final_energy <= 0:
             decomposition_limitations.append("Energia faturada precisa ser positiva nos dois extremos para calcular preço-volume.")
@@ -604,7 +614,13 @@ def build_revenue(
     total_billed_energy = _round(raw_billed_energy_total, MONEY_QUANTUM) if raw_billed_energy_total is not None else None
     total_measured = _round(raw_measured_total, MONEY_QUANTUM) if raw_measured_total is not None else None
     observed_price = None
-    if raw_billed_total is not None and raw_billed_energy_total is not None and raw_billed_energy_total > 0:
+    if (
+        finance_complete
+        and energy_complete
+        and raw_billed_total is not None
+        and raw_billed_energy_total is not None
+        and raw_billed_energy_total > 0
+    ):
         observed_price = _number(_round(raw_billed_total / raw_billed_energy_total, PRICE_QUANTUM))
 
     return {
