@@ -8,3 +8,4 @@ Registre aqui escolhas que alterem contratos, métricas, banco, frameworks, priv
 - [ADR-0004 — Contratos analíticos e fonte sintética](0004-contratos-analiticos-e-fonte-sintetica.md): aprovada em 20/10/2026 para preparar a DEV-01 sem antecipar o esquema físico da Gold.
 - [ADR-0005 — Python 3.12 com Docker Hardened Alpine](0005-backend-python312-alpine.md): aprovada em 20/10/2026 para usar uma base oficial já corrigida, com testes dentro do contêiner e PostgreSQL descartável.
 - [ADR-0006 — Exploração demonstrativa da receita por extremos](0006-exploracao-demonstrativa-receita.md): aprovada para DEV-03 em 21/10/2026; cobertura explícita, base pequena, preço observado e reconciliação, sem substituir a definição Gold ou as janelas anuais finais.
+- [ADR-0007 — Prioridade e estimativa auditáveis na fila sintética](0007-fila-de-inspecao-sintetica.md): adotada para DEV-05 em 22/10/2026; regra demonstrativa, evidências explícitas e revisão futura com a Gold.

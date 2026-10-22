@@ -17,7 +17,7 @@ beforeEach(() => {
   );
 });
 
-it("mantém a estrutura e o tema ao navegar e consulta dados somente em Receita", async () => {
+it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implementadas", async () => {
   const fetchSpy = vi
     .fn()
     .mockResolvedValue(new Response(JSON.stringify({}), { status: 503 }));
@@ -59,9 +59,15 @@ it("mantém a estrutura e o tema ao navegar e consulta dados somente em Receita"
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
       expect(String(fetchSpy.mock.calls[0][0])).toContain("/api/v1/revenue?");
     }
+    if (name === "Inspeções") {
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+      expect(String(fetchSpy.mock.calls[1][0])).toContain(
+        "/api/v1/inspections/queue?",
+      );
+    }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  expect(fetchSpy).toHaveBeenCalledTimes(1);
+  expect(fetchSpy).toHaveBeenCalledTimes(2);
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
 });
 
