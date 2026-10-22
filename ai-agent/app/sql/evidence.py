@@ -1,9 +1,12 @@
 """Projeta linhas do ensaio SQL em evidência explicitamente demonstrativa."""
 
+import asyncio
 from datetime import date
 from math import isfinite
 
-from app.ports.evidence import EvidenceContractInvalid
+from app.agent.read_plan import PlanCapabilityUnavailable
+from app.ports.evidence import EvidenceContractInvalid, EvidenceToolUnavailable
+from app.schemas.access import AccessContext
 from app.schemas.domain_profile import CatalogGranularity
 from app.schemas.evidence import (
     EvidenceLookupResult,
@@ -13,7 +16,54 @@ from app.schemas.evidence import (
     EvidenceResult,
 )
 from app.schemas.read_plan import LogicalReadPlan, WindowKind
-from app.sql.executors import QueryResult
+from app.sql.executors import QueryExecutionError, QueryResult
+from app.sql.plan import SqlPlanReader
+from app.sql.validator import SqlRejected
+
+_UNSUPPORTED_PLAN_CODES = frozenset(
+    {"plan_out_of_catalog", "unsupported_window", "unsupported_filter"}
+)
+
+
+class SqlArtificialEvidenceSource:
+    """Adapta o leitor SQLite artificial à porta sem reter o acesso entre requisições."""
+
+    def __init__(
+        self,
+        reader: SqlPlanReader,
+        *,
+        demo_limitation: str,
+        truncation_limitation: str,
+    ) -> None:
+        self._reader = reader
+        self._demo_limitation = demo_limitation
+        self._truncation_limitation = truncation_limitation
+
+    async def retrieve(
+        self, plan: LogicalReadPlan, access_context: AccessContext
+    ) -> EvidenceLookupResult:
+        try:
+            result = await asyncio.to_thread(self._reader.read, plan, access_context)
+        except PlanCapabilityUnavailable:
+            return EvidenceLookupResult(
+                status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
+                message="O recorte solicitado não está disponível neste ensaio.",
+            )
+        except SqlRejected as exc:
+            if exc.code in _UNSUPPORTED_PLAN_CODES:
+                return EvidenceLookupResult(
+                    status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
+                    message="O recorte solicitado não está disponível neste ensaio.",
+                )
+            raise EvidenceToolUnavailable("Falha controlada na consulta artificial.") from exc
+        except QueryExecutionError as exc:
+            raise EvidenceToolUnavailable("Falha controlada na consulta artificial.") from exc
+        return project_artificial_sql_evidence(
+            plan,
+            result,
+            demo_limitation=self._demo_limitation,
+            truncation_limitation=self._truncation_limitation,
+        )
 
 
 def project_artificial_sql_evidence(

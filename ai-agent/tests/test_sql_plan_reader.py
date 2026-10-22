@@ -1,5 +1,6 @@
 """Plano autorizado até o resultado em banco temporário inteiramente artificial."""
 
+import asyncio
 import sqlite3
 from datetime import date
 
@@ -7,6 +8,8 @@ import pytest
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.evidence_guard import EvidenceGuard
+from app.agent.interpreter import QuestionInterpreter
+from app.agent.planner import QuestionAnalysisPlanner
 from app.agent.read_plan import PlanCapabilityUnavailable, ReadPlanValidator
 from app.api.access import demo_access_context
 from app.ports.evidence import EvidenceAccessDenied, EvidenceContractInvalid
@@ -19,7 +22,7 @@ from app.schemas.domain_profile import (
 )
 from app.schemas.read_plan import LogicalReadPlan, ReadFilter, ReadOrder, ReadWindow, WindowKind
 from app.sql.audit import InMemoryAuditSink
-from app.sql.evidence import project_artificial_sql_evidence
+from app.sql.evidence import SqlArtificialEvidenceSource, project_artificial_sql_evidence
 from app.sql.executors import QueryResult, SqliteReadOnlyExecutor
 from app.sql.plan import SqlMetricBinding, SqlPlanCatalog, SqlPlanReader
 from app.sql.service import ReadOnlySqlService
@@ -29,6 +32,24 @@ from tests.sql_support import build_gold_sqlite, load_test_dictionary
 SQL_DEMO_CONTEXT = demo_access_context(GRID360_DEMO_PROFILE, "0" * 32, "synthetic.sql")
 SQL_DEMO_LIMITATION = GRID360_DEMO_PROFILE.metrics[0].limitation_texts[0]
 SQL_TRUNCATION_LIMITATION = "Resultado artificial limitado às primeiras observações."
+
+
+def _profile_with_sql_evidence(municipality_values: tuple[str, ...]) -> DomainProfile:
+    profile_data = GRID360_DEMO_PROFILE.model_dump(mode="python")
+    profile_data["dimensions"][0]["values"] = [
+        DimensionValue(value=value, aliases=(value,)) for value in municipality_values
+    ]
+    profile_data["metrics"][0]["evidence_fields"] = [
+        {"name": "value", "role": "measure", "value_type": "number", "sensitivity": "internal"},
+        {"name": "unit", "role": "unit", "value_type": "string", "sensitivity": "internal"},
+        {"name": "period", "role": "period", "value_type": "date", "sensitivity": "internal"},
+        {
+            "name": "category", "role": "dimension",
+            "dimension_id": "geography.municipality",
+            "value_type": "string", "sensitivity": "internal",
+        },
+    ]
+    return DomainProfile.model_validate(profile_data)
 
 
 def _reader_with_approved_municipality_filter(
@@ -697,22 +718,13 @@ def test_grouped_sql_result_becomes_guarded_artificial_evidence(tmp_path) -> Non
         grouped, result, demo_limitation=SQL_DEMO_LIMITATION
     )
 
-    profile_data = GRID360_DEMO_PROFILE.model_dump(mode="python")
-    profile_data["dimensions"][0]["values"] = [
-        DimensionValue(value=value, aliases=(value,))
-        for value in ("Municipio Ficticio A", "Municipio Ficticio B")
-    ]
-    profile_data["metrics"][0]["evidence_fields"] = [
-        {"name": "value", "role": "measure", "value_type": "number", "sensitivity": "internal"},
-        {"name": "unit", "role": "unit", "value_type": "string", "sensitivity": "internal"},
-        {"name": "period", "role": "period", "value_type": "date", "sensitivity": "internal"},
-        {
-            "name": "category", "role": "dimension",
-            "dimension_id": "geography.municipality",
-            "value_type": "string", "sensitivity": "internal",
-        },
-    ]
-    safe = EvidenceGuard(DomainProfile.model_validate(profile_data)).validate(grouped, evidence)
+    profile = _profile_with_sql_evidence(("Municipio Ficticio A", "Municipio Ficticio B"))
+    safe = EvidenceGuard(profile).validate(grouped, evidence)
+    missing_category = evidence.model_copy(deep=True)
+    assert missing_category.evidence is not None
+    missing_category.evidence.records[0].pop("category")
+    with pytest.raises(EvidenceContractInvalid):
+        EvidenceGuard(profile).validate(grouped, missing_category)
 
     assert safe.evidence is not None
     assert safe.evidence.reference.is_demo is True
@@ -731,6 +743,153 @@ def test_grouped_sql_result_becomes_guarded_artificial_evidence(tmp_path) -> Non
     assert safe.evidence.provenance is not None
     assert safe.evidence.provenance.plan_fingerprint == grouped.fingerprint()
     assert len(audit.records) == 1 and audit.records[0].status == "accepted"
+
+
+def test_sql_evidence_source_reads_with_current_context_and_preserves_provenance(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    source = SqlArtificialEvidenceSource(
+        reader,
+        demo_limitation=SQL_DEMO_LIMITATION,
+        truncation_limitation=SQL_TRUNCATION_LIMITATION,
+    )
+
+    result = asyncio.run(source.retrieve(approved, SQL_DEMO_CONTEXT))
+
+    assert result.status.value == "available"
+    assert result.evidence is not None
+    assert result.evidence.reference.is_demo is True
+    assert result.evidence.records == [
+        {"period": "2025-01", "value": 3500.5, "unit": "unidades fictícias"}
+    ]
+    assert result.evidence.provenance is not None
+    assert result.evidence.provenance.plan_fingerprint == approved.fingerprint()
+    assert len(audit.records) == 1 and audit.records[0].status == "accepted"
+
+
+def test_sql_evidence_source_denies_revoked_scope_before_query(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    source = SqlArtificialEvidenceSource(
+        reader,
+        demo_limitation=SQL_DEMO_LIMITATION,
+        truncation_limitation=SQL_TRUNCATION_LIMITATION,
+    )
+    revoked = SQL_DEMO_CONTEXT.model_copy(update={"allowed_metric_ids": frozenset()})
+
+    allowed = asyncio.run(source.retrieve(approved, SQL_DEMO_CONTEXT))
+    with pytest.raises(EvidenceAccessDenied):
+        asyncio.run(source.retrieve(approved, revoked))
+
+    assert allowed.status.value == "available"
+    assert [record.status for record in audit.records] == ["accepted", "rejected"]
+    assert audit.records[1].reason_code == "access_denied"
+    assert audit.records[1].received_sql_chars == 0
+
+
+def test_sql_evidence_source_explains_unsupported_window_before_query(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    source = SqlArtificialEvidenceSource(
+        reader,
+        demo_limitation=SQL_DEMO_LIMITATION,
+        truncation_limitation=SQL_TRUNCATION_LIMITATION,
+    )
+    phrase_plan = approved.model_copy(
+        update={
+            "window": ReadWindow(
+                kind=WindowKind.CATALOG_PHRASE, phrase="período de demonstração"
+            )
+        }
+    )
+
+    result = asyncio.run(source.retrieve(phrase_plan, SQL_DEMO_CONTEXT))
+
+    assert result.status.value == "needs_clarification"
+    assert result.evidence is None
+    assert len(audit.records) == 1
+    assert audit.records[0].status == "rejected"
+    assert audit.records[0].reason_code == "unsupported_window"
+    assert audit.records[0].received_sql_chars == 0
+
+
+def test_planner_accepts_sql_evidence_only_after_guard_checks_period_and_category(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    grouped = approved.model_copy(
+        update={"filters": (), "group_by_dimension_ids": ("geography.municipality",)}
+    )
+    profile = _profile_with_sql_evidence(("Municipio Ficticio A", "Municipio Ficticio B"))
+    source = SqlArtificialEvidenceSource(
+        reader,
+        demo_limitation=SQL_DEMO_LIMITATION,
+        truncation_limitation=SQL_TRUNCATION_LIMITATION,
+    )
+    planner = QuestionAnalysisPlanner(
+        QuestionInterpreter(profile), source, ReadAccessPolicy(profile, "synthetic.sql")
+    )
+
+    validated_plan, evidence = asyncio.run(planner.execute_plan(grouped, SQL_DEMO_CONTEXT))
+
+    assert validated_plan == grouped
+    assert evidence.evidence is not None
+    assert evidence.evidence.records == [
+        {
+            "observation_id": "row_1", "period": "2025-01", "value": 3500.5,
+            "unit": "unidades fictícias",
+            "dimensions": {"geography.municipality": "Municipio Ficticio A"},
+        },
+        {
+            "observation_id": "row_2", "period": "2025-01", "value": 800.25,
+            "unit": "unidades fictícias",
+            "dimensions": {"geography.municipality": "Municipio Ficticio B"},
+        },
+    ]
+    assert len(audit.records) == 1 and audit.records[0].status == "accepted"
+
+
+def test_planner_accepts_filtered_sql_total_without_grouped_category(tmp_path) -> None:
+    reader, approved, _ = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    profile = _profile_with_sql_evidence(("Municipio Ficticio A",))
+    source = SqlArtificialEvidenceSource(
+        reader,
+        demo_limitation=SQL_DEMO_LIMITATION,
+        truncation_limitation=SQL_TRUNCATION_LIMITATION,
+    )
+    planner = QuestionAnalysisPlanner(
+        QuestionInterpreter(profile), source, ReadAccessPolicy(profile, "synthetic.sql")
+    )
+
+    _, evidence = asyncio.run(planner.execute_plan(approved, SQL_DEMO_CONTEXT))
+
+    assert evidence.evidence is not None
+    assert evidence.evidence.records == [
+        {
+            "observation_id": "row_1", "period": "2025-01", "value": 3500.5,
+            "unit": "unidades fictícias",
+        }
+    ]
 
 
 def test_artificial_sql_projection_distinguishes_zero_from_no_evidence(tmp_path) -> None:

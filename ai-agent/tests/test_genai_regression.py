@@ -45,11 +45,11 @@ class CountingScenarioTool:
         self.calls = []
         self.fail = fail
 
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, access_context):
         self.calls.append(intent)
         if self.fail:
             raise EvidenceToolUnavailable("private source detail")
-        return await self.delegate.retrieve(intent)
+        return await self.delegate.retrieve(intent, access_context)
 
 
 class CaseModelAdapter:

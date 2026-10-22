@@ -38,9 +38,9 @@ class RecordingSource:
         self.calls = 0
         self._inner = SyntheticScenarioTool()
 
-    async def retrieve(self, plan):
+    async def retrieve(self, plan, access_context):
         self.calls += 1
-        return await self._inner.retrieve(plan)
+        return await self._inner.retrieve(plan, access_context)
 
 
 class RecordingModel(FakeModelAdapter):

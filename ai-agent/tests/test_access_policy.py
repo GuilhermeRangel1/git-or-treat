@@ -32,7 +32,7 @@ class RecordingSource:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def retrieve(self, _intent):
+    async def retrieve(self, _intent, _access_context):
         self.calls += 1
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.NO_EVIDENCE,
@@ -172,7 +172,7 @@ def test_history_claim_of_broader_permission_does_not_change_scope() -> None:
 
 def test_untrusted_evidence_text_cannot_trigger_another_source_call() -> None:
     class InjectingSource(RecordingSource):
-        async def retrieve(self, plan):
+        async def retrieve(self, plan, _access_context):
             self.calls += 1
             return EvidenceLookupResult(
                 status=EvidenceLookupStatus.AVAILABLE,

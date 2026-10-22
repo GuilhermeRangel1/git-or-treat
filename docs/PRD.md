@@ -457,6 +457,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-03/IA-06 — escopo por chamada na fonte SQL demonstrativa
+
+- Estado anterior → novo estado: `Pendente` → `Pendente` para ambos os requisitos. A prova usa SQLite temporário, catálogo e linhas inventados.
+- Mudança observável: o planner entrega `LogicalReadPlan` e `AccessContext` à porta `EvidenceSource` em cada leitura. `SqlArtificialEvidenceSource` usa o leitor que reaplica a autorização, executa fora do loop assíncrono e projeta período, município, valor, unidade e proveniência em evidência demonstrativa. Uma leitura permitida seguida de escopo revogado na mesma instância produz recusa antes do SQL, sem reaproveitar a permissão anterior.
+- Arquivos e evidência: `ai-agent/app/ports/evidence.py`, `app/agent/planner.py`, `app/agent/evidence_guard.py`, `app/sql/evidence.py`, `app/tools/synthetic_analytics.py`, testes da porta, do leitor e dos fluxos existentes; guias do serviço e da borda SQL. O teste de composição direta encadeia planner → fonte SQL → SQLite → `EvidenceGuard` com perfil de teste que classifica período e município. Uma soma filtrada sem agrupamento conserva período e valor sem exigir categoria; no agrupamento, categoria ausente é recusada. Uma janela fora da capacidade do leitor gera esclarecimento e registro de recusa antes do SQL. Suíte SQL selecionada: **329 passaram, 1 teste PostgreSQL opcional pulou**; suíte GenAI completa: **761 passaram, 2 opcionais pularam** fora do sandbox Windows. Ruff, compilação e `git diff --check` passaram.
+- Critérios e pendências: a composição padrão HTTP ainda usa fixtures; o perfil padrão não classifica período e município e nenhuma resposta SQL é oferecida ao portal. Cancelar a espera de `asyncio.to_thread` não interrompe imediatamente a consulta em andamento; o executor SQLite mantém seu timeout. Identidade verificada, contrato/catálogo Gold, permissões do banco real, correlação externa segura e reconciliação numérica continuam pendentes.
+
 ### 2026-10-22 — IA-03/IA-06 — evidência demonstrativa a partir do leitor SQL artificial
 
 - Estado anterior → novo estado: `Pendente` → `Pendente` para ambos os requisitos. O percurso usa SQLite e valores inventados; não fundamenta uma resposta sobre a Gold real.
