@@ -8,7 +8,11 @@
 
 A DEV-01 passou a servir um contrato analítico versionado em `GET /api/v1/kpis`, sobre o lote sintético `dev01-v1` (janeiro–fevereiro de 2025, envelope com `data.metrics[]` e estados de disponibilidade por métrica). Esse contrato é verificado pela página interna `/dev/contratos` e por testes HTTP próprios.
 
-A WEB-01 entrega o Panorama: oito KPIs executivos, distinção entre grandezas faturadas/pagas e consumidas/faturadas, comparação de período e série mensal. O protótipo Figma e o PRD definem controles sintéticos próprios (competências 2024-03 a 2024-05, base `Lote Gold 2024.04-sintetico-v1`), com envelope de produto diferente do contrato analítico: `data.metricas` indexado por chave, `data.serieMensal`, `data.filtros` e `data.totalRegistros`.
+A WEB-01 exige indicadores com definição, unidade, competência, filtros e comparação; o PRD não fixa oito KPIs nem competências de 2024. Conforme a revisão de produto da DEV-02 em 22/10/2026, o protótipo atual apresenta quatro indicadores principais e outro período. Ele orienta organização e estilização, sem definir o contrato HTTP ou o calendário desta fixture.
+
+A escolha de oito métricas, competências selecionáveis 2024-03 a 2024-05 e lote `Lote Gold 2024.04-sintetico-v1` foi da implementação demonstrativa. O nome histórico do lote não significa origem Gold: a fonte é sintética e não reconciliada com Gold. O envelope de produto (`data.metricas` indexado por chave, `data.serieMensal`, `data.filtros` e `data.totalRegistros`) também é uma decisão da implementação.
+
+Na revisão de 22/10, os quatro indicadores de destaque da implementação são receita faturada, receita paga, energia consumida e energia faturada, preservando as distinções solicitadas na DEV-02. Preço médio, UCs, DEC e FEC permanecem complementares, abaixo da série. Essa seleção não é apresentada como reprodução exata dos KPIs do protótipo. Os períodos da fixture foram preservados para manter os controles de teste existentes; o calendário final depende da Gold.
 
 Alternar o payload de `/api/v1/kpis` entre o contrato da DEV-01 e o contrato de produto quebraria a página de verificação de contratos, os testes do envelope de disponibilidade e a separação entre o contrato analítico e a jornada de produto.
 
@@ -26,7 +30,7 @@ A base do Panorama (`Lote Gold 2024.04-sintetico-v1`, competências 2024-03 a 20
 
 A entrada inválida (competência inexistente, comparação fora do conjunto, município ou classe inexistentes) responde 422 `invalid_query`. Combinação válida sem fatos responde 200 com `totalRegistros: 0`; essa diferença em relação à política da DEV-01 (que representa ausência com `null` e estado por métrica) está registrada como pendência de revisão no catálogo de contratos e precisa ser resolvida antes do aceite com Gold.
 
-A série histórica e as comparações usam a mesma base sintética dos totais, sem constantes paralelas. Fórmulas, definições e grandezas continuam declaradas em texto na resposta, e a origem sintética, a versão do lote e a limitação de demonstração acompanham o envelope.
+A série histórica e as comparações usam a mesma base sintética dos totais, sem constantes paralelas. Competências parciais preservam seus valores e sua série, mas não publicam valor anterior nem variações absoluta/percentual contra períodos completos. Percentual indisponível é `null`, distinto de zero. A URL é validada no portal antes da consulta, com erros por campo e restauração explícita; a API mantém sua validação independente. Fórmulas, definições e grandezas continuam declaradas em texto na resposta, e a origem sintética, a versão do lote e a limitação de demonstração acompanham o envelope.
 
 ## Consequências e verificação
 
@@ -39,3 +43,7 @@ A série histórica e as comparações usam a mesma base sintética dos totais, 
 ## Referências
 
 [PRD](../PRD.md), [catálogo de contratos](../contracts/analytics-api.md), [ADR-0004](0004-contratos-analiticos-e-fonte-sintetica.md), [serviço de backend](../services/backend.md) e [serviço de frontend](../services/frontend.md).
+
+## Revisão DEV-02 — 22/10/2026
+
+Correção da atribuição indevida de decisões da implementação ao PRD/Figma. A fonte e atualização aparecem antes dos indicadores; quatro cartões principais precedem a série e quatro complementares ficam depois dela. O insight de IA está fora desta atividade. Evidência da revisão funcional no Registro de progresso do PRD.

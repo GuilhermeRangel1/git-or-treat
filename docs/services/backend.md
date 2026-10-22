@@ -73,3 +73,7 @@ O script `backend/scripts/load_gold.py` é um esqueleto: não carrega linhas CSV
 Testar filtros combinados, estados vazios, UC inexistente, IDs inválidos, paginação, ordenação, idempotência da carga e transições das ordens. Quando houver alterações em métrica, fazer teste de contrato com amostra Gold reconciliada. Se PostgreSQL for escolhido, consultar a skill local `supabase-postgres-best-practices`; isso não impõe uso da plataforma Supabase.
 
 WEB-11 pede testes automatizados como diferencial; a conclusão dos requisitos obrigatórios ainda requer verificação funcional e numérica reproduzível mesmo que esse diferencial não seja perseguido. Registrar no PRD quais fluxos e contratos foram testados, com comando/resultado e lote de dados.
+
+### Comparação parcial do Panorama — DEV-02, 22/10/2026
+
+`GET /api/v1/panorama` conserva os totais e a série de maio/2024 parcial. Se a competência atual ou de referência estiver incompleta, as oito métricas retornam `valorAnterior`, `variacaoAbsoluta` e `variacaoPercentual` nulos, com `baseZero: false`. A solicitação de comparação permanece em `filtros`; `periodoIncompleto` identifica a limitação da competência atual. Não se compara mês parcial com fechamento mensal completo.
