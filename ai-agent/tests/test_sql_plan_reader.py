@@ -123,7 +123,13 @@ def test_approved_plan_groups_artificial_revenue_by_municipality(tmp_path) -> No
         filter_values=("Municipio Ficticio A",),
         operator=FilterOperator.EQ,
     )
-    grouped_plan = approved.model_copy(update={"filters": ()})
+    grouped_plan = LogicalReadPlan.model_validate(
+        {
+            **approved.model_dump(mode="python"),
+            "filters": (),
+            "group_by_dimension_ids": ("geography.municipality",),
+        }
+    )
 
     result = reader.read(grouped_plan, SQL_DEMO_CONTEXT)
 
@@ -147,7 +153,15 @@ def test_grouped_plan_orders_month_and_category_and_reports_truncation(tmp_path)
         plan_limit=3,
     )
 
-    result = reader.read(approved.model_copy(update={"filters": ()}), SQL_DEMO_CONTEXT)
+    result = reader.read(
+        approved.model_copy(
+            update={
+                "filters": (),
+                "group_by_dimension_ids": ("geography.municipality",),
+            }
+        ),
+        SQL_DEMO_CONTEXT,
+    )
 
     assert result.rows == (
         ("2025-01", "Municipio Ficticio A", 3500.5),
@@ -171,10 +185,63 @@ def test_grouped_plan_requires_current_dimension_access(tmp_path, monkeypatch) -
 
     monkeypatch.setattr(reader._service, "run", fail_if_sql_service_is_called)
     with pytest.raises(EvidenceAccessDenied):
-        reader.read(approved.model_copy(update={"filters": ()}), restricted)
+        reader.read(
+            approved.model_copy(
+                update={
+                    "filters": (),
+                    "group_by_dimension_ids": ("geography.municipality",),
+                }
+            ),
+            restricted,
+        )
 
     assert len(audit.records) == 1
     assert audit.records[0].reason_code == "access_denied"
+    assert audit.records[0].received_sql_chars == 0
+
+
+def test_unfiltered_dimension_without_explicit_grouping_is_rejected(tmp_path, monkeypatch) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+
+    def fail_if_sql_service_is_called(*_args, **_kwargs):
+        raise AssertionError("dimensão sem destino explícito não deve gerar SQL")
+
+    monkeypatch.setattr(reader._service, "run", fail_if_sql_service_is_called)
+    with pytest.raises(SqlRejected) as error:
+        reader.read(approved.model_copy(update={"filters": ()}), SQL_DEMO_CONTEXT)
+
+    assert error.value.code == "plan_out_of_catalog"
+    assert len(audit.records) == 1
+    assert audit.records[0].reason_code == "plan_out_of_catalog"
+    assert audit.records[0].received_sql_chars == 0
+
+
+def test_grouping_dimension_outside_the_plan_is_rejected_before_sql(tmp_path, monkeypatch) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    proposal = {
+        **approved.model_dump(mode="python"),
+        "group_by_dimension_ids": ("classification.consumer_class",),
+    }
+
+    def fail_if_sql_service_is_called(*_args, **_kwargs):
+        raise AssertionError("agrupamento fora do plano não deve gerar SQL")
+
+    monkeypatch.setattr(reader._service, "run", fail_if_sql_service_is_called)
+    with pytest.raises(PlanCapabilityUnavailable):
+        reader.read(proposal, SQL_DEMO_CONTEXT)
+
+    assert len(audit.records) == 1
+    assert audit.records[0].reason_code == "unsupported_plan"
     assert audit.records[0].received_sql_chars == 0
 
 

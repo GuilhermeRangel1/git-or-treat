@@ -457,6 +457,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — agrupamento explícito no plano lógico do ensaio SQL
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. A alteração remove uma interpretação ambígua no ensaio com SQLite artificial; não integra a Gold.
+- Mudança observável: `LogicalReadPlan` aceita `group_by_dimension_ids` opcional e valida que cada dimensão de agrupamento foi declarada no plano, sem repetição. `SqlPlanReader` só agrupa quando o plano pede isso explicitamente. Uma dimensão declarada sem filtro nem agrupamento é recusada e auditada antes do serviço SQL; um agrupamento fora do plano é recusado pelo validador antes do serviço. O plano existente com filtro continua sem agrupamento.
+- Arquivos e evidência: `ai-agent/app/schemas/read_plan.py`, `ai-agent/app/sql/plan.py`, `ai-agent/tests/test_sql_plan_reader.py`, `ai-agent/app/sql/README.md` e `docs/services/ai-agent.md`. Em `ai-agent/`, os **22** testes do leitor passaram; suíte SQL selecionada: **311 passaram, 1 PostgreSQL opcional pulou**; `python -m pytest -q --basetemp .pytest-tmp-explicit-group-full-final --tb=short`: **743 passaram, 2 opcionais pularam**, executada fora do sandbox por causa do bloqueio assíncrono conhecido neste host. Ruff e compilação do módulo passaram.
+- Critérios e pendências: o campo vazio preserva planos sem agrupamento, e o builder atual não solicita agrupamento a partir da pergunta. O leitor ainda cobre somente uma dimensão mapeada no catálogo artificial; faltam composição com `EvidenceSource`, validação com Gold, identidade e permissões reais. IA-06 permanece pendente.
+
 ### 2026-10-22 — IA-06 — agrupamento artificial por município na borda SQL
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. Este é um ensaio isolado com dados inventados, sem consulta Gold ou identidade de produção.

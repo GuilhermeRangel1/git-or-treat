@@ -89,7 +89,8 @@ class SqlPlanReader:
 
         catalog = self._catalog
         metric = catalog.metrics.get(plan.metric_id)
-        grouped_dimensions = set(plan.dimension_ids) - {
+        grouped_dimensions = set(plan.group_by_dimension_ids)
+        covered_dimensions = grouped_dimensions | {
             item.dimension_id for item in plan.filters
         }
         if (
@@ -101,6 +102,7 @@ class SqlPlanReader:
             or plan.domain_id != metric.domain_id
             or plan.unit != metric.unit
             or not set(plan.dimension_ids) <= metric.dimension_ids
+            or set(plan.dimension_ids) != covered_dimensions
             or len(grouped_dimensions) > 1
             or plan.order is not None
         ):
