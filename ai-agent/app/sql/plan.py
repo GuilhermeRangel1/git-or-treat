@@ -40,6 +40,7 @@ class SqlPlanCatalog:
     dictionary_version: str
     table: str
     period_column: str
+    period_granularity: CatalogGranularity
     metrics: Mapping[str, SqlMetricBinding]
     dimensions: Mapping[str, str]
     status: Literal["artificial"] = "artificial"
@@ -57,12 +58,16 @@ class SqlPlanReader:
     ) -> None:
         if catalog.status != "artificial" or catalog.dictionary_version != dictionary.version:
             raise ValueError("catálogo SQL artificial incompatível")
+        if catalog.period_granularity is not CatalogGranularity.MONTH:
+            raise ValueError("grão não implementado no catálogo SQL artificial")
         table = dictionary.tables.get(catalog.table)
         if table is None or catalog.period_column not in table.columns:
             raise ValueError("tabela ou coluna de período ausente do dicionário")
         for binding in catalog.metrics.values():
-            if binding.column not in table.columns or binding.aggregation not in {"sum"}:
+            if binding.column not in table.columns:
                 raise ValueError("métrica física ausente do dicionário")
+            if binding.aggregation != "sum":
+                raise ValueError("agregação não implementada no catálogo SQL artificial")
             if not binding.dimension_ids <= catalog.dimensions.keys():
                 raise ValueError("dimensão lógica ausente do catálogo SQL")
             if not binding.filter_operators <= {FilterOperator.EQ, FilterOperator.IN}:
@@ -118,7 +123,7 @@ class SqlPlanReader:
         window = plan.window
         if (
             window.kind is not WindowKind.BOUNDED
-            or window.granularity is not CatalogGranularity.MONTH
+            or window.granularity is not catalog.period_granularity
             or window.start is None
             or window.end is None
             or window.start.day != 1

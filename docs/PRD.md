@@ -457,6 +457,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — grão e agregação explícitos no catálogo SQL artificial
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. O ensaio continua restrito a registros inventados em SQLite, sem execução ou fórmula Gold.
+- Mudança observável: o catálogo físico declara o grão da coluna de período e a métrica declara a agregação. O leitor atual aceita apenas grão mensal e `sum`; catálogo anual ou outra agregação falham na composição. Um plano anual para catálogo mensal é recusado e auditado antes do serviço SQL, mesmo que o perfil lógico aceite o ano.
+- Arquivos e evidência: `ai-agent/app/sql/plan.py`, `ai-agent/tests/test_sql_plan_reader.py`, `ai-agent/app/sql/README.md` e `docs/services/ai-agent.md`. Leitor de planos: **30 testes passaram**; suíte SQL selecionada: **319 passaram, 1 PostgreSQL opcional pulou**; suíte GenAI completa: **751 passaram, 2 opcionais pularam** fora do sandbox por causa do bloqueio assíncrono conhecido neste host. Ruff e compilação passaram.
+- Critérios e pendências: o caso mensal com `sum` preserva os resultados fictícios existentes; catálogo anual, agregação `avg` e plano anual sobre tabela mensal são negados antes da consulta. Grãos e fórmulas reais dependem do catálogo Gold aprovado; a ligação à porta `EvidenceSource`, a identidade e as permissões reais continuam pendentes. IA-06 não está concluído.
+
 ### 2026-10-22 — IA-06 — operadores declarados por métrica no catálogo SQL artificial
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. A restrição foi testada no SQLite com catálogo e registros inventados; a autorização e a execução Gold continuam pendentes.

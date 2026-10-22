@@ -10,7 +10,12 @@ from app.agent.read_plan import PlanCapabilityUnavailable, ReadPlanValidator
 from app.api.access import demo_access_context
 from app.ports.evidence import EvidenceAccessDenied
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
-from app.schemas.domain_profile import DimensionValue, DomainProfile, FilterOperator
+from app.schemas.domain_profile import (
+    CatalogGranularity,
+    DimensionValue,
+    DomainProfile,
+    FilterOperator,
+)
 from app.schemas.read_plan import LogicalReadPlan, ReadFilter, ReadOrder, ReadWindow, WindowKind
 from app.sql.audit import InMemoryAuditSink
 from app.sql.executors import SqliteReadOnlyExecutor
@@ -36,6 +41,8 @@ def _reader_with_approved_municipality_filter(
     allowed_filter_operators: frozenset[FilterOperator] = frozenset(
         {FilterOperator.EQ, FilterOperator.IN}
     ),
+    catalog_granularity: CatalogGranularity = CatalogGranularity.MONTH,
+    aggregation: str = "sum",
 ) -> tuple[SqlPlanReader, LogicalReadPlan, InMemoryAuditSink]:
     dictionary = load_test_dictionary()
     database = build_gold_sqlite(tmp_path / "artificial.sqlite")
@@ -54,12 +61,13 @@ def _reader_with_approved_municipality_filter(
         dictionary_version=dictionary.version,
         table="gold_indicadores",
         period_column="competencia",
+        period_granularity=catalog_granularity,
         metrics={
             "billing.revenue": SqlMetricBinding(
                 domain_id="revenue",
                 unit="unidades fictícias",
                 column="receita_total",
-                aggregation="sum",
+                aggregation=aggregation,
                 dimension_ids=frozenset({"geography.municipality"}),
                 allow_value_order=allow_value_order,
                 filter_operators=allowed_filter_operators,
@@ -363,6 +371,60 @@ def test_catalog_cannot_declare_an_operator_the_artificial_reader_cannot_compile
             operator=FilterOperator.EQ,
             allowed_filter_operators=frozenset({FilterOperator.GT}),
         )
+
+
+@pytest.mark.parametrize(
+    ("catalog_granularity", "aggregation"),
+    [
+        (CatalogGranularity.YEAR, "sum"),
+        (CatalogGranularity.MONTH, "avg"),
+    ],
+)
+def test_catalog_rejects_unimplemented_granularity_or_aggregation(
+    tmp_path, catalog_granularity, aggregation
+) -> None:
+    with pytest.raises(ValueError):
+        _reader_with_approved_municipality_filter(
+            tmp_path,
+            municipality_values=("Municipio Ficticio A",),
+            filter_values=("Municipio Ficticio A",),
+            operator=FilterOperator.EQ,
+            catalog_granularity=catalog_granularity,
+            aggregation=aggregation,
+        )
+
+
+def test_annual_plan_does_not_reach_monthly_artificial_sql_service(
+    tmp_path, monkeypatch
+) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    annual = approved.model_copy(
+        update={
+            "window": ReadWindow(
+                kind=WindowKind.BOUNDED,
+                start=date(2025, 1, 1),
+                end=date(2025, 12, 31),
+                granularity=CatalogGranularity.YEAR,
+            )
+        }
+    )
+
+    def fail_if_sql_service_is_called(*_args, **_kwargs):
+        raise AssertionError("plano anual não deve gerar SQL mensal")
+
+    monkeypatch.setattr(reader._service, "run", fail_if_sql_service_is_called)
+    with pytest.raises(SqlRejected) as error:
+        reader.read(annual, SQL_DEMO_CONTEXT)
+
+    assert error.value.code == "unsupported_window"
+    assert len(audit.records) == 1
+    assert audit.records[0].reason_code == "unsupported_window"
+    assert audit.records[0].received_sql_chars == 0
 
 
 def test_approved_multi_month_window_returns_ordered_monthly_totals(tmp_path) -> None:
