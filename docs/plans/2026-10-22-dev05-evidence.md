@@ -60,3 +60,17 @@ A revisão local em agente separado não encontrou desvio funcional no checklist
 WEB-04 fica **Em validação**, pois o cenário é sintético. Homologar pesos, sinais, referência comparável, GD, sazonalidade, cobertura e horizonte com o time; depois reconciliar com a Gold e implementar o adaptador real. A regra demonstrativa falha explicitamente em fonte não demonstrativa. Ordens de campo pertencem à DEV-06/WEB-05.
 
 MCP Trello não está conectado nesta sessão: sincronização do cartão WEB-04 pendente. Nenhum dado real, segredo ou imagem do enunciado foi incluído. A homologação de produto e a CI remota ficam pendentes; não foi criado PR nesta entrega local.
+
+## Revisão visual após capturas fornecidas — 22/10/2026
+
+Acesso de leitura ao Figma aceitou a autenticação fornecida, mas o editor falhou ao abrir os frames. A pessoa usuária então forneceu duas capturas da seção Inspeções, usadas como referência autorizada para a adaptação. Nenhuma credencial ou captura foi salva no repositório. O resultado preserva a identidade local e acrescenta resumo do recorte, filtros recolhíveis, indicadores e barra de pontuação na fila, além de destaque do motivo e cartões de fundamento no detalhe. Não se afirma reprodução pixel a pixel ou inspeção estrutural por Figma MCP.
+
+O backend agora devolve `data.summary` calculado antes da paginação e `items[].signals` com rótulos/pesos. Controle sem filtros: duas UCs, maior pontuação 0,92, uma com estimativa e uma indisponível. `page_size=1&page=2` apresenta UC-1002 com pontuação 0,61 e estimativa ausente, mantendo o resumo completo 2/0,92/1/1. Olinda: contagens zero e maior pontuação nula. O teste HTTP novo verifica esses controles literais e a consistência das opções/indicadores.
+
+Mesmos comandos das seções anteriores: backend **120 passed, 1 skipped** e compileall aprovado; frontend **85 testes aprovados**, fronteiras (56 arquivos), lint, formatação e build aprovados. Os testes de interface também verificam abertura dos filtros e preservação do resumo ao paginar; o decoder recusa resumo contraditório. A revisão Standards não encontrou bloqueadores e sugeriu remover validação duplicada dos sinais no detalhe, corrigida. A revisão Spec não encontrou desvios.
+
+Conferência no navegador com backend sintético em 8055 e Vite em 5185: temas claro/escuro, cabeçalho de detalhe, pontos 0,92/0,61, projeção 45 kWh e ausência, filtros expansíveis e paginação. Viewport 390 × 844: leitura do detalhe, controles e tabela com rolagem horizontal/instrução visível. Os valores continuam no mesmo período/fonte. O viewport temporário é restaurado após a validação. A verificação não certifica todos os níveis de zoom ou conformidade completa de acessibilidade.
+
+Quality gate compartilhado executado na raiz com entrada `cwd` do projeto e `hook_event_name: Stop`, usando `backend/venv/Scripts/python.exe .hooks/quality_gate.py`. Primeira passada apontou somente formatação do último ajuste do cabeçalho; corrigida com Prettier. Segunda passada terminou com código 0 e saída `{}`. Skills e hooks foram consultados, sem mudanças em sua configuração. `git diff --check` também passou.
+
+Quality gate compartilhado executado na raiz com entrada `cwd` do projeto e `hook_event_name: Stop`, usando `backend/venv/Scripts/python.exe .hooks/quality_gate.py`. Primeira passada apontou somente formatação do último ajuste do cabeçalho; corrigida com Prettier. Segunda passada terminou com código 0 e saída `{}`. Skills e hooks foram consultados, sem mudanças em sua configuração. `git diff --check` também passou.

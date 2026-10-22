@@ -111,6 +111,12 @@ def build_queue_response(
         data={
             "items": items[(page - 1) * page_size:page * page_size],
             "filter_options": options,
+            "summary": {
+                "total_units": total,
+                "highest_priority": max((item["priority"] for item in items), default=None),
+                "estimated_units": sum(item["potential_recoverable_energy_kwh"] is not None for item in items),
+                "unavailable_estimate_units": sum(item["potential_recoverable_energy_kwh"] is None for item in items),
+            },
         },
         pagination={
             "page": page,

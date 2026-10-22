@@ -99,3 +99,16 @@ def test_synthetic_rule_is_not_applied_to_real_source(client):
     response = client.get("/api/v1/inspections/queue")
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "rule_unavailable"
+
+
+def test_queue_summary_covers_entire_filtered_scope_not_only_page(client):
+    first = client.get("/api/v1/inspections/queue?page_size=1").json()
+    second = client.get("/api/v1/inspections/queue?page_size=1&page=2").json()
+    expected = {"total_units": 2, "highest_priority": 0.92, "estimated_units": 1, "unavailable_estimate_units": 1}
+    assert first["data"]["summary"] == second["data"]["summary"] == expected
+    assert first["data"]["items"][0]["signals"][0]["label"] == "Lacuna de leitura"
+    assert first["data"]["items"][0]["signals"][0]["weight"] == 0.6
+    empty = client.get("/api/v1/inspections/queue?municipio=Olinda").json()
+    assert empty["data"]["summary"] == {"total_units": 0, "highest_priority": None, "estimated_units": 0, "unavailable_estimate_units": 0}
+    residential = client.get("/api/v1/inspections/queue?classe=Residencial").json()
+    assert residential["data"]["summary"] == {"total_units": 1, "highest_priority": 0.92, "estimated_units": 1, "unavailable_estimate_units": 0}

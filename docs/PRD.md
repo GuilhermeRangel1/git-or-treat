@@ -980,6 +980,15 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Visual: ainda não alterado nesta rodada. O Figma fornecido (`oTjmpIBgbA7OOYb9ZmMG9K`, nó `4:3`) abriu no navegador com proteção por senha; o plugin consta instalado, mas ferramentas de leitura do design não foram expostas à sessão. É necessária uma referência visual acessível ou capturas da fila e detalhe para conferir a fidelidade solicitada. Nenhuma imagem do enunciado foi adicionada.
 - Sincronização Trello permanece pendente por ausência do MCP. Arquivos: `backend/app/api/v1/endpoints/inspections.py`, `backend/app/services/inspection_analytics.py` e este registro.
 
+### 2026-10-22 — DEV-05 — revisão visual da fila e fundamento da suspeita
+
+- WEB-04 permanece `Em validação`. A pessoa usuária forneceu duas capturas do protótipo de Inspeções e autorizou acréscimos ao frontend. A referência orienta o estilo; valores, sinais e estimativas vêm da API sintética DEV-05, sem copiar os números ilustrativos do desenho.
+- Mudança observável: filtros compactos/recolhíveis; três cartões de resumo (UCs no recorte, maior pontuação e cobertura de estimativas); indicadores legíveis na lista; barras proporcionais à pontuação; ação de evidências para todas as UCs; detalhe com título próprio, motivo em destaque e cartões separados de cálculo, estimativa e limites. Fonte/atualização/limitações disponíveis sem ocupar o topo da fila. Adaptação aos dois temas e mobile, mantendo recorte/página no retorno.
+- API: `data.summary` cobre todo o recorte filtrado antes da paginação; `items[].signals` expõe rótulos e pesos já usados no detalhe. Fila vazia mantém maior pontuação nula e contagens zero. Nenhuma nova faixa de prioridade, taxa de fraude, total recuperável ou criação fictícia de ordem foi introduzida.
+- Arquivos: `frontend/src/features/inspecoes/`, `frontend/src/app/routes.ts`, schemas/serviço/testes da fila no backend e [contrato DEV-05](contracts/inspection-dev05.md). Padrões frontend/backend/React e hooks locais consultados; configurações de skills/hooks preservadas. Nenhuma captura, senha ou imagem do enunciado adicionada ao repositório.
+- Validação: 85 testes frontend aprovados; 120 backend aprovados e 1 ignorado. Lint, formatação, fronteiras e build aprovados. Conferência com API real em desktop/mobile e claro/escuro; revisão local de padrões e especificação sem bloqueadores. Detalhes em [evidência DEV-05](plans/2026-10-22-dev05-evidence.md).
+- Pendências: homologação de produto pelo time, validação dos critérios reais com a Gold e sincronização Trello, cujo MCP não está disponível. WEB-05/ordens continua fora desta entrega de fila WEB-04.
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.

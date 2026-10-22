@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -16,6 +16,10 @@ const item = {
   reason: "Lacuna de leitura e medidor retirado",
   potential_recoverable_energy_kwh: 45,
   indicators: ["reading_gap", "meter_removed"],
+  signals: [
+    { id: "reading_gap", label: "Lacuna de leitura", weight: 0.6 },
+    { id: "meter_removed", label: "Medidor retirado", weight: 0.32 },
+  ],
 };
 const second = {
   ...item,
@@ -48,7 +52,16 @@ function envelope(
   total = items.length,
 ) {
   return {
-    data: { items, filter_options: options },
+    data: {
+      items,
+      filter_options: options,
+      summary: {
+        total_units: total,
+        highest_priority: total ? 0.92 : null,
+        estimated_units: total ? 1 : 0,
+        unavailable_estimate_units: Math.max(0, total - 1),
+      },
+    },
     pagination: {
       page,
       page_size: size,
@@ -141,6 +154,7 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   const user = userEvent.setup();
   mount();
   await screen.findByRole("link", { name: "Ver evidências de UC-1004" });
+  await user.click(screen.getByText("Ajustar filtros"));
   await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
   await user.selectOptions(
     screen.getByLabelText("Ordenar por"),
@@ -179,6 +193,11 @@ it("pagina pelo servidor e mantém estimativa ausente distinta de zero", async (
   await user.click(screen.getByRole("button", { name: "Próxima" }));
   expect(await screen.findByText("Página 2 de 2")).toBeVisible();
   expect(screen.getByText("Estimativa indisponível")).toBeVisible();
+  const summary = within(
+    screen.getByRole("region", { name: "Resumo do recorte da fila" }),
+  );
+  expect(summary.getByText("0,92 / 1")).toBeVisible();
+  expect(summary.getByText("1 de 2")).toBeVisible();
   expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
 });
 
@@ -267,6 +286,20 @@ it("bloqueia parâmetros repetidos sem consultar a API", () => {
 });
 
 it("rejeita contratos inválidos antes de apresentar métricas", () => {
+  expect(() =>
+    decodeQueue({
+      ...envelope(),
+      data: {
+        ...envelope().data,
+        summary: {
+          total_units: 2,
+          highest_priority: 0.92,
+          estimated_units: 2,
+          unavailable_estimate_units: 1,
+        },
+      },
+    }),
+  ).toThrow();
   expect(() =>
     decodeQueue({
       ...envelope(),

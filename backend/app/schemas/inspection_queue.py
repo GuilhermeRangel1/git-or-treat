@@ -24,9 +24,21 @@ class SuspicionDetail(InspectionQueueItem):
     limitations: list[str]
 
 
+class InspectionCandidate(InspectionQueueItem):
+    signals: list[SignalEvidence]
+
+
+class QueueSummary(BaseModel):
+    total_units: int = Field(ge=0)
+    highest_priority: float | None = Field(ge=0, le=1)
+    estimated_units: int = Field(ge=0)
+    unavailable_estimate_units: int = Field(ge=0)
+
+
 class QueueData(BaseModel):
-    items: list[InspectionQueueItem]
+    items: list[InspectionCandidate]
     filter_options: dict[str, list[str]]
+    summary: QueueSummary
 
 
 class QueueResponse(BaseModel):

@@ -8,6 +8,7 @@ export type QueueItem = {
   reason: string;
   potential_recoverable_energy_kwh: number | null;
   indicators: string[];
+  signals: { id: string; label: string; weight: number }[];
 };
 export type Metadata = {
   status: string;
@@ -21,7 +22,16 @@ export type Metadata = {
   limitations: string[];
 };
 export type QueueEnvelope = {
-  data: { items: QueueItem[]; filter_options: Record<string, string[]> };
+  data: {
+    items: QueueItem[];
+    filter_options: Record<string, string[]>;
+    summary: {
+      total_units: number;
+      highest_priority: number | null;
+      estimated_units: number;
+      unavailable_estimate_units: number;
+    };
+  };
   pagination: {
     page: number;
     page_size: number;
@@ -72,6 +82,7 @@ function item(value: unknown): QueueItem {
   const row = record(value);
   const priority = number(row.priority);
   if (priority > 1) invalid();
+  if (!Array.isArray(row.signals)) invalid();
   return {
     uc_id: string(row.uc_id),
     municipality: string(row.municipality),
@@ -84,6 +95,12 @@ function item(value: unknown): QueueItem {
       row.potential_recoverable_energy_kwh,
     ),
     indicators: strings(row.indicators),
+    signals: row.signals.map((value) => {
+      const signal = record(value),
+        weight = number(signal.weight);
+      if (weight > 1) invalid();
+      return { id: string(signal.id), label: string(signal.label), weight };
+    }),
   };
 }
 function metadata(value: unknown): Metadata {
@@ -133,8 +150,27 @@ export function decodeQueue(value: unknown): QueueEnvelope {
     invalid();
   const items = data.items.map(item);
   if (items.length > page_size || items.length > total) invalid();
+  const rawSummary = record(data.summary);
+  const summary = {
+    total_units: number(rawSummary.total_units),
+    highest_priority: nullable(rawSummary.highest_priority),
+    estimated_units: number(rawSummary.estimated_units),
+    unavailable_estimate_units: number(rawSummary.unavailable_estimate_units),
+  };
+  if (
+    summary.total_units !== total ||
+    ![
+      summary.total_units,
+      summary.estimated_units,
+      summary.unavailable_estimate_units,
+    ].every(Number.isSafeInteger) ||
+    summary.estimated_units + summary.unavailable_estimate_units !== total ||
+    (total === 0) !== (summary.highest_priority === null) ||
+    (summary.highest_priority !== null && summary.highest_priority > 1)
+  )
+    invalid();
   return {
-    data: { items, filter_options },
+    data: { items, filter_options, summary },
     pagination: { page, page_size, total, total_pages },
     metadata: metadata(root.metadata),
   };
@@ -143,19 +179,12 @@ export function decodeDetail(value: unknown): DetailEnvelope {
   const root = record(value),
     data = record(root.data),
     evidence = record(data.estimate_evidence);
-  if (!Array.isArray(data.signals)) invalid();
   const horizon = number(evidence.horizon_months);
   if (!Number.isSafeInteger(horizon) || horizon < 1) invalid();
   return {
     data: {
       ...item(data),
       rule_version: string(data.rule_version),
-      signals: data.signals.map((value) => {
-        const signal = record(value);
-        const weight = number(signal.weight);
-        if (weight > 1) invalid();
-        return { id: string(signal.id), label: string(signal.label), weight };
-      }),
       estimate_evidence: {
         baseline_kwh: nullable(evidence.baseline_kwh),
         observed_kwh: nullable(evidence.observed_kwh),
