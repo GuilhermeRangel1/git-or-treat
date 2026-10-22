@@ -457,6 +457,20 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — auditoria de recusa anterior ao SQL sintético
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. O registro cobre a composição artificial do plano, sem identidade ou permissão Gold real.
+- Mudança observável: quando `SqlPlanReader` recusa acesso ou um recorte fora do catálogo antes de gerar SQL, `ReadOnlySqlService` registra uma recusa de motivo fixo. Não chama o fluxo de execução nem o executor. O registro não contém SQL, template, impressão do plano, filtros ou exceção; `received_sql_chars` é zero. Recusas que chegam ao serviço SQL continuam com um único registro próprio, sem duplicação.
+- Arquivos e evidência: `ai-agent/app/sql/plan.py`, `app/sql/service.py`, `ai-agent/tests/test_sql_plan_reader.py`, `ai-agent/app/sql/README.md` e `docs/services/ai-agent.md`. O teste do leitor cobre acesso revogado/ausente e recusas por versão, métrica, dimensão, período, ordenação e operador; **17 testes passaram**. Suíte SQL selecionada: **306 passaram, 1 opcional pulado**; suíte GenAI completa: **738 passaram, 2 opcionais pulados**, fora do sandbox devido ao bloqueio assíncrono deste host. `python -m ruff check .`, compilação e `git diff --check` passaram.
+- Limite e próximo passo: `query_id` identifica cada evento local, mas a recusa anterior ao SQL não tem correlação externa segura com a requisição do portal. Retenção, identidade, integração `EvidenceSource`, credencial e controles reais do banco seguem pendentes.
+
+### 2026-10-22 — IA-06 — parâmetros em CTE e subconsulta artificiais
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. O ensaio confirma comportamento do validador e do SQLite artificial, sem integração Gold.
+- Evidência observável: três valores vinculados preservam a ordem após qualificação de uma consulta com CTE, filtro externo e subconsulta; o resultado fixo é **2500,0 unidades fictícias**. Consultas com placeholder em projeção, origem, função ou ordenação, coluna não permitida na CTE ou coluna sensível na subconsulta são recusadas antes do executor. Nenhum código de produção precisou mudar neste recorte.
+- Arquivos e verificações: `ai-agent/tests/test_sql_service.py` e `ai-agent/app/sql/README.md`. Suíte SQL selecionada: **306 testes passaram, 1 opcional pulado**; suíte GenAI completa: **738 passaram, 2 opcionais pulados**, executada fora do sandbox por causa do bloqueio dos testes assíncronos neste host. `python -m ruff check .`, `python -m compileall -q app tests` e `git diff --check` passaram.
+- Pendências: o caminho parametrizado continua limitado ao SQLite. Autorização da Gold, credencial restrita e composição com a porta de evidência não estão demonstradas; IA-06 segue pendente.
+
 ### 2026-10-22 — IA-06 — revalidação na borda SQL sintética
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. O teste cobre apenas a entrada do serviço SQL do ensaio; não comprova a autorização ou as permissões de uma Gold real.

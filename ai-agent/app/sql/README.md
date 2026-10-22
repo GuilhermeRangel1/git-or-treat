@@ -20,6 +20,8 @@ Ensaio da borda SQL (IA-06): valida uma consulta contra um dicionário, executa 
 
 O caminho parametrizado atual aceita placeholders posicionais `?` somente no dialeto SQLite e em predicados de valor, com quantidade e tipos conferidos antes da execução. No `SqlPlanReader`, o recorte demonstrativo permite filtros de igualdade e `IN` para o município mapeado no catálogo artificial. Outras dimensões, operadores, agregações e PostgreSQL parametrizado continuam fora deste ensaio.
 
+Um teste pelo `ReadOnlySqlService` confirma a ordem de três valores vinculados após a qualificação de SQL que combina CTE, filtro externo e subconsulta, com resultado fictício fixo de `2500.0`. Testes de recusa pela mesma borda cobrem placeholder usado como projeção, argumento de função, nome de função, origem e ordenação; coluna não permitida em CTE e coluna sensível em subconsulta também são recusadas antes do executor. Isso verifica o percurso SQLite observado, sem ampliar o contrato do dialeto PostgreSQL.
+
 ## Regras do validador
 
 Tudo funciona como lista branca: o que não estiver no dicionário é recusado. A análise falha fechada, ou seja, um erro inesperado gera `validation_error`.
@@ -59,6 +61,8 @@ Tudo funciona como lista branca: o que não estiver no dicionário é recusado. 
 
 Cada chamada a `ReadOnlySqlService.run` gera um `QueryAuditRecord` com: id, horário UTC, status, código do motivo, dialeto, versão do dicionário e tamanho do SQL recebido. Quando a chamada parte de `SqlPlanReader`, o registro também contém o fingerprint do plano revalidado e a versão do catálogo artificial. Após aprovação do SQL, registra o template normalizado da consulta, com literais substituídos por `?`, aliases livres generalizados e o SHA-256 desse template, tabelas, limites original/aplicado e se houve ajuste, número de linhas, truncamento, duração e classe do erro. Chamadas diretas ao serviço SQL deixam a identificação do plano e do catálogo vazia; esses campos não conferem autorização por si só.
 
+Se o leitor recusar o plano **antes** de montar SQL, ele pede ao serviço um registro `rejected` com código fixo (`access_denied`, `unsupported_plan`, `plan_out_of_catalog`, `unsupported_window` ou `unsupported_filter`), dialeto e versão do dicionário. Esse registro não contém SQL, template, impressão do plano, filtros, texto da pergunta ou detalhes da exceção; `received_sql_chars` é zero. A recusa não chama `ReadOnlySqlService.run` nem o executor, e cada tentativa gera um registro. Ainda não existe correlação externa segura entre essa recusa e uma requisição do portal.
+
 O registro **não** guarda linhas de resultado, a pergunta da pessoa, o texto SQL recebido ou um hash do SQL bruto. Consultas rejeitadas pelo serviço SQL registram metadados do plano quando fornecidos e o motivo, sem template nem fingerprint do SQL recebido. Em consultas aprovadas ou com falha na execução, o template derivado da AST aprovada omite valores literais. O SQL completo não entra na auditoria. O fingerprint do plano é um hash estável que inclui filtros no seu cálculo: não é anonimização e não deve ser considerado proteção suficiente para dados reais de baixa cardinalidade. Retenção, acesso, destino durável e estratégia de correlação para produção ainda precisam de decisão.
 
 **Decisão em aberto:** retenção, acesso e destino durável da trilha. Até a equipe decidir, só existem os destinos em memória e de log do processo. Nenhum arquivo ou tabela de auditoria é criado.
@@ -78,7 +82,7 @@ O registro **não** guarda linhas de resultado, a pergunta da pessoa, o texto SQ
 - Um nome de tabela em `CTE`/alias que coincida com o nome de uma coluna é recusado mesmo quando seria inofensivo.
 - `SqlPlanReader.read` exige o contexto de acesso e reaplica o `ReadPlanValidator` injetado antes de chamar o serviço SQL; contexto ausente ou escopo revogado impede a consulta. A composição com o planner e a porta `EvidenceSource` ainda não foi feita. A identidade e as permissões reais do banco também não foram comprovadas.
 - Não há teste contra um PostgreSQL real no gate local: o teste de integração roda só com `GENAI_TEST_POSTGRES_DSN` definido. Os demais usam uma conexão falsa que confere as instruções emitidas.
-- O leitor de plano ainda não implementa a porta `EvidenceSource` nem compõe resposta ao usuário. Ele reaplica a política de acesso com o contexto atual e valida também o recorte que este catálogo físico consegue executar. Recusas anteriores ao serviço SQL não geram `QueryAuditRecord` nesta camada; a composição deverá decidir como registrá-las sem incluir valores do plano.
+- O leitor de plano ainda não implementa a porta `EvidenceSource` nem compõe resposta ao usuário. Ele reaplica a política de acesso com o contexto atual e valida também o recorte que este catálogo físico consegue executar. Recusas anteriores ao SQL geram registros mínimos, sem filtro nem correlação externa; retenção e ligação segura à requisição dependem da composição de produção.
 
 ## Verificar
 

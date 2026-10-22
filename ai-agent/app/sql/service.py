@@ -7,6 +7,16 @@ from app.sql.dictionary import SqlDictionary
 from app.sql.executors import QueryExecutionError, QueryResult, ReadOnlyExecutor
 from app.sql.validator import SqlRejected, validate_sql
 
+_PRE_SQL_REJECTION_CODES = frozenset(
+    {
+        "access_denied",
+        "unsupported_plan",
+        "plan_out_of_catalog",
+        "unsupported_window",
+        "unsupported_filter",
+    }
+)
+
 
 class ReadOnlySqlService:
     def __init__(
@@ -18,6 +28,21 @@ class ReadOnlySqlService:
         self._dictionary = dictionary
         self._executor = executor
         self._audit = audit
+
+    def record_pre_sql_rejection(self, reason_code: str) -> None:
+        """Registra recusa anterior ao SQL sem copiar plano, filtros ou exceção."""
+
+        if reason_code not in _PRE_SQL_REJECTION_CODES:
+            raise ValueError("motivo de recusa anterior ao SQL inválido")
+        self._audit.record(
+            QueryAuditRecord(
+                status="rejected",
+                reason_code=reason_code,
+                dialect=self._executor.dialect,
+                dictionary_version=self._dictionary.version,
+                received_sql_chars=0,
+            )
+        )
 
     def run(
         self,

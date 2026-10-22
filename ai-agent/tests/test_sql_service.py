@@ -200,6 +200,28 @@ def test_bound_filter_value_stays_data_and_never_enters_audit(service_and_audit)
     assert all("Municipio Ficticio A" not in json.dumps(item.to_dict()) for item in audit.records)
 
 
+def test_bound_values_keep_sql_order_through_cte_and_subquery(service_and_audit) -> None:
+    service, audit = service_and_audit
+    sql = (
+        "WITH mensal AS ("
+        "SELECT receita_total, municipio FROM gold_indicadores WHERE competencia = ?"
+        ") SELECT SUM(receita_total) AS receita FROM mensal "
+        "WHERE municipio = ? AND receita_total > "
+        "(SELECT MIN(receita_total) FROM gold_indicadores WHERE classe = ?) LIMIT 1"
+    )
+
+    result = service.run(
+        sql, parameters=("2025-01", "Municipio Ficticio A", "comercial")
+    )
+
+    assert result.rows == ((2500.0,),)
+    [record] = audit.records
+    assert record.status == "accepted"
+    assert record.query_template is not None
+    assert "2025-01" not in json.dumps(record.to_dict())
+    assert "Municipio Ficticio A" not in json.dumps(record.to_dict())
+
+
 def test_parameter_mismatch_is_rejected_before_executor() -> None:
     class RecordingExecutor:
         dialect = "sqlite"
@@ -225,6 +247,46 @@ def test_parameter_mismatch_is_rejected_before_executor() -> None:
 
     assert executor.calls == 0
     assert [record.status for record in audit.records] == ["rejected"] * 3
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT ? FROM gold_indicadores LIMIT 1",
+        "SELECT SUM(?) FROM gold_indicadores LIMIT 1",
+        "SELECT ?(bairro) FROM gold_indicadores LIMIT 1",
+        "SELECT bairro FROM ? LIMIT 1",
+        "SELECT bairro FROM gold_indicadores ORDER BY ? LIMIT 1",
+        "WITH mensal AS (SELECT bairro FROM gold_indicadores WHERE municipio = ?) "
+        "SELECT bairro FROM mensal ORDER BY ? LIMIT 1",
+        "WITH mensal AS (SELECT segredo FROM gold_indicadores WHERE municipio = ?) "
+        "SELECT segredo FROM mensal LIMIT 1",
+        "SELECT bairro FROM gold_indicadores WHERE EXISTS "
+        "(SELECT 1 FROM cadastro_teste WHERE cpf_cnpj = ?) LIMIT 1",
+    ],
+)
+def test_structural_placeholders_are_rejected_before_executor(sql: str) -> None:
+    class RecordingExecutor:
+        dialect = "sqlite"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def execute(self, query) -> None:
+            self.calls += 1
+            raise AssertionError("executor não deve ser chamado")
+
+    executor = RecordingExecutor()
+    audit = InMemoryAuditSink()
+    service = ReadOnlySqlService(DICTIONARY, executor, audit)
+    parameters = ("Municipio Ficticio A", "bairro") if sql.count("?") == 2 else ("bairro",)
+
+    with pytest.raises(SqlRejected):
+        service.run(sql, parameters=parameters)
+
+    assert executor.calls == 0
+    [record] = audit.records
+    assert record.status == "rejected"
 
 
 def test_prebuilt_validated_query_cannot_bypass_service_validation() -> None:

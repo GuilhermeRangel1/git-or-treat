@@ -152,7 +152,16 @@ def test_reader_rechecks_current_access_scope_before_sql_service(tmp_path, monke
         with pytest.raises(EvidenceAccessDenied):
             reader.read(approved, context)
 
-    assert audit.records == []
+    assert [record.reason_code for record in audit.records] == [
+        "access_denied",
+        "access_denied",
+    ]
+    for record in audit.records:
+        assert record.status == "rejected"
+        assert record.received_sql_chars == 0
+        assert record.plan_fingerprint is None
+        assert record.query_template is None
+        assert "Municipio Ficticio A" not in str(record.to_dict())
 
 
 def test_approved_in_filter_reads_all_requested_artificial_municipalities(tmp_path) -> None:
@@ -344,7 +353,7 @@ def test_approved_plan_preserves_no_rows_as_an_empty_result(tmp_path) -> None:
 def test_reader_rejects_unsupported_plan_before_sql_service(
     tmp_path, monkeypatch, catalog_version, changes, expected_error, expected_code
 ) -> None:
-    reader, approved, _ = _reader_with_approved_municipality_filter(
+    reader, approved, audit = _reader_with_approved_municipality_filter(
         tmp_path,
         municipality_values=("Municipio Ficticio A",),
         filter_values=("Municipio Ficticio A",),
@@ -363,3 +372,15 @@ def test_reader_rejects_unsupported_plan_before_sql_service(
 
     if expected_code is not None:
         assert error.value.code == expected_code
+    [record] = audit.records
+    assert record.status == "rejected"
+    expected_reason = {
+        EvidenceAccessDenied: "access_denied",
+        PlanCapabilityUnavailable: "unsupported_plan",
+        SqlRejected: expected_code,
+    }[expected_error]
+    assert record.reason_code == expected_reason
+    assert record.received_sql_chars == 0
+    assert record.plan_fingerprint is None
+    assert record.query_template is None
+    assert "Municipio Ficticio A" not in str(record.to_dict())

@@ -7,9 +7,10 @@ o plano antes desta borda; esta classe confere novamente os IDs e recortes que c
 import calendar
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, NoReturn
 
-from app.agent.read_plan import ReadPlanValidator
+from app.agent.read_plan import PlanCapabilityUnavailable, ReadPlanValidator
+from app.ports.evidence import EvidenceAccessDenied
 from app.schemas.access import AccessContext
 from app.schemas.domain_profile import CatalogGranularity, FilterOperator
 from app.schemas.read_plan import LogicalReadPlan, WindowKind
@@ -68,12 +69,23 @@ class SqlPlanReader:
         self._service = service
         self._validator = validator
 
+    def _reject(self, code: str, detail: str) -> NoReturn:
+        self._service.record_pre_sql_rejection(code)
+        raise SqlRejected(code, detail)
+
     def read(
         self,
         proposed_plan: LogicalReadPlan | dict[str, object],
         access_context: AccessContext | None,
     ) -> QueryResult:
-        plan = self._validator.approve(proposed_plan, access_context)
+        try:
+            plan = self._validator.approve(proposed_plan, access_context)
+        except EvidenceAccessDenied:
+            self._service.record_pre_sql_rejection("access_denied")
+            raise
+        except PlanCapabilityUnavailable:
+            self._service.record_pre_sql_rejection("unsupported_plan")
+            raise
 
         catalog = self._catalog
         metric = catalog.metrics.get(plan.metric_id)
@@ -89,7 +101,7 @@ class SqlPlanReader:
             or set(plan.dimension_ids) != {item.dimension_id for item in plan.filters}
             or plan.order is not None
         ):
-            raise SqlRejected("plan_out_of_catalog", "recorte fora do catálogo artificial")
+            self._reject("plan_out_of_catalog", "recorte fora do catálogo artificial")
 
         window = plan.window
         if (
@@ -100,7 +112,7 @@ class SqlPlanReader:
             or window.start.day != 1
             or window.end.day != calendar.monthrange(window.end.year, window.end.month)[1]
         ):
-            raise SqlRejected("unsupported_window", "janela mensal artificial indisponível")
+            self._reject("unsupported_window", "janela mensal artificial indisponível")
 
         table = f'"{catalog.table}"'
         period = f'"{catalog.period_column}"'
@@ -113,7 +125,7 @@ class SqlPlanReader:
         for item in plan.filters:
             column = catalog.dimensions.get(item.dimension_id)
             if column is None or item.dimension_id not in metric.dimension_ids:
-                raise SqlRejected("plan_out_of_catalog", "dimensão fora do catálogo artificial")
+                self._reject("plan_out_of_catalog", "dimensão fora do catálogo artificial")
             if item.operator is FilterOperator.EQ and len(item.values) == 1:
                 conditions.append(f'"{column}" = ?')
                 parameters.append(item.values[0])
@@ -122,7 +134,7 @@ class SqlPlanReader:
                 conditions.append(f'"{column}" IN ({placeholders})')
                 parameters.extend(item.values)
             else:
-                raise SqlRejected("unsupported_filter", "filtro artificial indisponível")
+                self._reject("unsupported_filter", "filtro artificial indisponível")
 
         sql = (
             "WITH plan_rows AS ("
