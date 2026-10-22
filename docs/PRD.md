@@ -457,6 +457,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — operadores declarados por métrica no catálogo SQL artificial
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. A restrição foi testada no SQLite com catálogo e registros inventados; a autorização e a execução Gold continuam pendentes.
+- Mudança observável: `SqlMetricBinding.filter_operators` declara os operadores físicos permitidos para cada métrica. O leitor aceita igualdade e `IN` somente quando o operador consta desse conjunto; uma divergência é recusada e auditada antes do serviço SQL. O catálogo não pode declarar operadores que o leitor artificial não implementa. A aprovação do plano lógico e do contexto de acesso continua necessária.
+- Arquivos e evidência: `ai-agent/app/sql/plan.py`, `ai-agent/tests/test_sql_plan_reader.py`, `ai-agent/app/sql/README.md` e `docs/services/ai-agent.md`. Os **27** testes do leitor passaram; suíte SQL selecionada: **316 passaram, 1 PostgreSQL opcional pulou**; suíte GenAI completa: **748 passaram, 2 opcionais pularam** fora do sandbox por causa do bloqueio assíncrono conhecido neste host. Ruff dos arquivos alterados passou.
+- Critérios e pendências: os testes recusam `eq` quando a métrica declara somente `in`, e o inverso, sem chamar o serviço SQL; um operador não implementado falha na construção do leitor. Grãos e agregações adicionais, transporte do contexto de acesso até `EvidenceSource`, fonte Gold e permissões reais permanecem abertos. IA-06 não está concluído.
+
 ### 2026-10-22 — IA-06 — ordenação autorizada por valor no ensaio SQL
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. A ordenação foi exercitada apenas com métricas e linhas artificiais no SQLite; não altera a situação da Gold.

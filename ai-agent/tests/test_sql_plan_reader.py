@@ -33,6 +33,9 @@ def _reader_with_approved_municipality_filter(
     reader_catalog_version: str = "v1",
     plan_limit: int = 10,
     allow_value_order: bool = False,
+    allowed_filter_operators: frozenset[FilterOperator] = frozenset(
+        {FilterOperator.EQ, FilterOperator.IN}
+    ),
 ) -> tuple[SqlPlanReader, LogicalReadPlan, InMemoryAuditSink]:
     dictionary = load_test_dictionary()
     database = build_gold_sqlite(tmp_path / "artificial.sqlite")
@@ -59,6 +62,7 @@ def _reader_with_approved_municipality_filter(
                 aggregation="sum",
                 dimension_ids=frozenset({"geography.municipality"}),
                 allow_value_order=allow_value_order,
+                filter_operators=allowed_filter_operators,
             )
         },
         dimensions={"geography.municipality": "municipio"},
@@ -311,6 +315,54 @@ def test_approved_in_filter_reads_all_requested_artificial_municipalities(tmp_pa
     assert audit.records[0].status == "accepted"
     assert "Municipio Ficticio A" not in str(audit.records[0].to_dict())
     assert "Municipio Ficticio B" not in str(audit.records[0].to_dict())
+
+
+@pytest.mark.parametrize(
+    ("requested_operator", "allowed_operator", "filter_values"),
+    [
+        (FilterOperator.EQ, FilterOperator.IN, ("Municipio Ficticio A",)),
+        (
+            FilterOperator.IN,
+            FilterOperator.EQ,
+            ("Municipio Ficticio A", "Municipio Ficticio B"),
+        ),
+    ],
+)
+def test_catalog_rejects_filter_operator_not_declared_for_metric_before_sql(
+    tmp_path, monkeypatch, requested_operator, allowed_operator, filter_values
+) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        filter_values=filter_values,
+        operator=requested_operator,
+        allowed_filter_operators=frozenset({allowed_operator}),
+    )
+
+    def fail_if_sql_service_is_called(*_args, **_kwargs):
+        raise AssertionError("operador fora do catálogo não deve gerar SQL")
+
+    monkeypatch.setattr(reader._service, "run", fail_if_sql_service_is_called)
+    with pytest.raises(SqlRejected) as error:
+        reader.read(approved, SQL_DEMO_CONTEXT)
+
+    assert error.value.code == "unsupported_filter"
+    assert len(audit.records) == 1
+    assert audit.records[0].reason_code == "unsupported_filter"
+    assert audit.records[0].received_sql_chars == 0
+
+
+def test_catalog_cannot_declare_an_operator_the_artificial_reader_cannot_compile(
+    tmp_path,
+) -> None:
+    with pytest.raises(ValueError, match="operador não implementado"):
+        _reader_with_approved_municipality_filter(
+            tmp_path,
+            municipality_values=("Municipio Ficticio A",),
+            filter_values=("Municipio Ficticio A",),
+            operator=FilterOperator.EQ,
+            allowed_filter_operators=frozenset({FilterOperator.GT}),
+        )
 
 
 def test_approved_multi_month_window_returns_ordered_monthly_totals(tmp_path) -> None:

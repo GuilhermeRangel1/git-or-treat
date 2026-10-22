@@ -28,6 +28,7 @@ class SqlMetricBinding:
     column: str
     aggregation: Literal["sum"]
     dimension_ids: frozenset[str]
+    filter_operators: frozenset[FilterOperator]
     allow_value_order: bool = False
 
 
@@ -64,6 +65,8 @@ class SqlPlanReader:
                 raise ValueError("métrica física ausente do dicionário")
             if not binding.dimension_ids <= catalog.dimensions.keys():
                 raise ValueError("dimensão lógica ausente do catálogo SQL")
+            if not binding.filter_operators <= {FilterOperator.EQ, FilterOperator.IN}:
+                raise ValueError("operador não implementado no catálogo SQL artificial")
         if any(column not in table.columns for column in catalog.dimensions.values()):
             raise ValueError("dimensão física ausente do dicionário")
         self._catalog = catalog
@@ -139,6 +142,8 @@ class SqlPlanReader:
             column = catalog.dimensions.get(item.dimension_id)
             if column is None or item.dimension_id not in metric.dimension_ids:
                 self._reject("plan_out_of_catalog", "dimensão fora do catálogo artificial")
+            if item.operator not in metric.filter_operators:
+                self._reject("unsupported_filter", "filtro artificial indisponível")
             if item.operator is FilterOperator.EQ and len(item.values) == 1:
                 conditions.append(f'"{column}" = ?')
                 parameters.append(item.values[0])
