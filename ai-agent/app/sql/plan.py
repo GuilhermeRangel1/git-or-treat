@@ -9,8 +9,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
-from pydantic import ValidationError
-
+from app.agent.read_plan import ReadPlanValidator
+from app.schemas.access import AccessContext
 from app.schemas.domain_profile import CatalogGranularity, FilterOperator
 from app.schemas.read_plan import LogicalReadPlan, WindowKind
 from app.sql.dictionary import SqlDictionary
@@ -42,10 +42,14 @@ class SqlPlanCatalog:
 
 
 class SqlPlanReader:
-    """Executa somente planos aprovados pelo chamador, dentro do catálogo artificial."""
+    """Revalida plano e escopo atuais antes de consultar o catálogo artificial."""
 
     def __init__(
-        self, catalog: SqlPlanCatalog, dictionary: SqlDictionary, service: ReadOnlySqlService
+        self,
+        catalog: SqlPlanCatalog,
+        dictionary: SqlDictionary,
+        service: ReadOnlySqlService,
+        validator: ReadPlanValidator,
     ) -> None:
         if catalog.status != "artificial" or catalog.dictionary_version != dictionary.version:
             raise ValueError("catálogo SQL artificial incompatível")
@@ -61,12 +65,14 @@ class SqlPlanReader:
             raise ValueError("dimensão física ausente do dicionário")
         self._catalog = catalog
         self._service = service
+        self._validator = validator
 
-    def read(self, approved_plan: LogicalReadPlan) -> QueryResult:
-        try:
-            plan = LogicalReadPlan.model_validate(approved_plan.model_dump(mode="python"))
-        except (AttributeError, TypeError, ValueError, ValidationError) as exc:
-            raise SqlRejected("invalid_plan", "plano lógico inválido") from exc
+    def read(
+        self,
+        proposed_plan: LogicalReadPlan | dict[str, object],
+        access_context: AccessContext | None,
+    ) -> QueryResult:
+        plan = self._validator.approve(proposed_plan, access_context)
 
         catalog = self._catalog
         metric = catalog.metrics.get(plan.metric_id)
