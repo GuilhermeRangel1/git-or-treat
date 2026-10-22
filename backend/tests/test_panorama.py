@@ -127,3 +127,17 @@ def test_history_includes_selected_partial_period(client):
     data = response.json()['data']
     assert data['serieMensal'][-1]['competencia'] == '2024-05'
     assert data['serieMensal'][-1]['receitaFaturada'] == data['metricas']['receitaFaturada']['valorAtual'] == 22000
+
+
+@pytest.mark.parametrize("comparison", ["anterior", "ano_anterior", "nenhuma"])
+def test_partial_totals_are_preserved_without_misleading_comparison(client, comparison):
+    response = client.get(f"/api/v1/panorama?competencia=2024-05&comparacao={comparison}")
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["metricas"]["receitaFaturada"]["valorAtual"] == 31000
+    assert data["periodoIncompleto"] is True
+    for metric in data["metricas"].values():
+        assert metric["valorAnterior"] is None
+        assert metric["variacaoAbsoluta"] is None
+        assert metric["variacaoPercentual"] is None
+        assert metric["baseZero"] is False

@@ -156,7 +156,9 @@ def build_panorama(
     )
 
     atual = sum_records(registros_atuais)
-    anterior = sum_records(registros_anteriores) if registros_anteriores else None
+    # Totais parciais não são comparáveis com uma competência fechada.
+    periodos_completos = panorama_fixtures.INCOMPLETE_PERIOD not in (periodo, competencia_anterior)
+    anterior = sum_records(registros_anteriores) if registros_anteriores and periodos_completos else None
 
     preco_medio_atual = (
         round(atual["receita_faturada"] / atual["energia_faturada"], 2) if atual["energia_faturada"] > 0 else 0.0
