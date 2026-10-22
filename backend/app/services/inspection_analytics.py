@@ -1,6 +1,13 @@
 from app.repositories.analytics import AnalyticsRepository
 from app.schemas.analytics import AnalyticsFilters, AnalyticsStatus
-from app.services.analytics import AnalyticsAPIError, apply_unit_filters
+from app.schemas.inspection_queue import QueueResponse, SuspicionResponse
+from app.services.analytics import (
+    DEFAULT_END,
+    DEFAULT_START,
+    AnalyticsAPIError,
+    apply_unit_filters,
+    metadata,
+)
 
 
 RULE_VERSION = "dev05-v1"
@@ -76,3 +83,52 @@ def suspicion_detail(repository: AnalyticsRepository, uc_id: str) -> dict:
     if item is None:
         raise AnalyticsAPIError(404, "not_found", "Suspeita não encontrada.")
     return item
+
+
+def build_queue_response(
+    repository: AnalyticsRepository,
+    filters: AnalyticsFilters,
+    page: int,
+    page_size: int,
+    order_by: str,
+    direction: str,
+) -> QueueResponse:
+    """Compose the product response before pagination, preserving source and scope."""
+    items, state = build_inspection_queue(repository, filters)
+    items = sort_queue(items, order_by, direction)
+    total = len(items)
+    result_metadata = metadata(repository, state, DEFAULT_START, DEFAULT_END, filters)
+    if state == "partial":
+        result_metadata.limitations.append(
+            "Há suspeitas sem estimativa demonstrativa de energia recuperável."
+        )
+    result_metadata.limitations.extend(LIMITATIONS)
+    options = {
+        key: sorted({unit[key] for unit in repository.units})
+        for key in ("municipio", "bairro", "classe", "alimentador")
+    }
+    return QueueResponse(
+        data={
+            "items": items[(page - 1) * page_size:page * page_size],
+            "filter_options": options,
+        },
+        pagination={
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": (total + page_size - 1) // page_size,
+        },
+        metadata=result_metadata,
+    )
+
+
+def build_suspicion_response(
+    repository: AnalyticsRepository, uc_id: str,
+) -> SuspicionResponse:
+    item = suspicion_detail(repository, uc_id)
+    state = "partial" if item["potential_recoverable_energy_kwh"] is None else "available"
+    result_metadata = metadata(
+        repository, state, DEFAULT_START, DEFAULT_END, AnalyticsFilters()
+    )
+    result_metadata.limitations.extend(LIMITATIONS)
+    return SuspicionResponse(data=item, metadata=result_metadata)

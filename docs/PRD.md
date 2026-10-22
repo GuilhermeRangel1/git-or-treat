@@ -972,6 +972,14 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Verificações: evidências e comandos consolidados em [validação DEV-05](plans/2026-10-22-dev05-evidence.md). Conferência da tela com API sintética real e revisão em dois eixos; ajuste de preservação de cache durante falha de atualização incluído.
 - Critérios e pendências: checklist funcional sintético implementado. Homologação da regra, referência comparável, pesos, projeção, Gold e reconciliação continuam pendentes; WEB-04 não é marcado concluído. MCP Trello não disponível nesta sessão, sincronização pendente. Responsável: Codex; revisão local de padrões e especificação, com homologação de produto pelo time pendente.
 
+### 2026-10-22 — DEV-05 — alinhamento do backend à referência DEV-02
+
+- WEB-04 permanece `Em validação`. Por solicitação da pessoa usuária, a DEV-02 foi consultada como referência de backend e visual, sem merge entre as branches.
+- Backend: as rotas da fila/detalhe delegam a composição ao serviço `inspection_analytics`, que retorna `QueueResponse`/`SuspicionResponse` tipadas, seguindo a separação rota → serviço → repositório observada no Panorama da DEV-02. Contrato, insumos, paginação e cálculo foram preservados.
+- Evidência: `backend/venv/Scripts/python.exe -m pytest -q` resultou em 119 testes aprovados e 1 ignorado; `compileall -q app tests scripts` passou. Não houve mudança de banco ou de ordens.
+- Visual: ainda não alterado nesta rodada. O Figma fornecido (`oTjmpIBgbA7OOYb9ZmMG9K`, nó `4:3`) abriu no navegador com proteção por senha; o plugin consta instalado, mas ferramentas de leitura do design não foram expostas à sessão. É necessária uma referência visual acessível ou capturas da fila e detalhe para conferir a fidelidade solicitada. Nenhuma imagem do enunciado foi adicionada.
+- Sincronização Trello permanece pendente por ausência do MCP. Arquivos: `backend/app/api/v1/endpoints/inspections.py`, `backend/app/services/inspection_analytics.py` e este registro.
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.

@@ -4,6 +4,8 @@ Data: 22/10/2026. Requisito WEB-04, dependência DEV-01. Implementação isolada
 
 ## Contrato HTTP e navegação
 
+Na revisão de 22/10/2026 inspirada no Panorama da DEV-02, as rotas ficaram responsáveis apenas pela entrada HTTP e delegação. O serviço compõe `QueueResponse` e `SuspicionResponse` tipadas, incluindo ordenação/paginação, opções e proveniência. A fonte continua no repositório analítico da DEV-01; não se introduz uma cópia da base ou dependência da branch DEV-02.
+
 `GET /api/v1/inspections/queue` mantém o envelope analítico `1.0.0` e os campos da DEV-01. Aceita `municipio`, `bairro`, `classe`, `alimentador`, `page` (a partir de 1), `page_size` (1–100), `order_by` (`priority`, `potential_recoverable_energy_kwh`, `uc_id`) e `direction` (`asc`, `desc`, padrão `desc`). O padrão permanece prioridade decrescente. Filtros desconhecidos/contraditórios e ordenação/paginação inválidas recebem 422 no envelope analítico. A nova direção explícita passa a valer para todos os campos; no contrato inicial DEV-01, energia/UC tinham direção ascendente implícita.
 
 `data.items` contém UC, território, classe, alimentador, prioridade de 0 a 1, motivo, indicadores e energia potencial em kWh (número ou `null`). `data.filter_options` acrescenta opções de município/bairro/classe/alimentador do cadastro completo, inclusive quando o recorte fica vazio. `pagination` fica na raiz; página além do total retorna lista vazia mantendo a contagem real. Fila sem suspeitas retorna `status: empty`, nunca uma conclusão de ausência de perdas.

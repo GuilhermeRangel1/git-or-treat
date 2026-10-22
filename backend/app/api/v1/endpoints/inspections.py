@@ -7,8 +7,8 @@ from app.models.operational import OrderStatus
 from app.schemas.inspection_queue import QueueResponse, SuspicionResponse
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
 from app.api.v1.analytics_route import AnalyticsRoute
-from app.services.analytics import DEFAULT_END, DEFAULT_START, filters_model, metadata
-from app.services.inspection_analytics import LIMITATIONS, build_inspection_queue, sort_queue, suspicion_detail
+from app.services.analytics import filters_model
+from app.services.inspection_analytics import build_queue_response, build_suspicion_response
 from app.schemas.inspections import OrderCreateRequest, OrderResponse, OrderUpdateRequest
 from app.services import inspections as inspection_service
 
@@ -30,26 +30,12 @@ def get_inspection_queue(
 ):
     """Read-only demonstration queue; estimates are provisional and not Gold metrics."""
     filters = filters_model(municipio, bairro, classe, alimentador)
-    items, state = build_inspection_queue(repository, filters)
-    items = sort_queue(items, order_by, direction)
-    total = len(items)
-    selected = items[(page - 1) * page_size:page * page_size]
-    pagination = {"page": page, "page_size": page_size, "total": total, "total_pages": (total + page_size - 1) // page_size}
-    result_metadata = metadata(repository, state, DEFAULT_START, DEFAULT_END, filters)
-    if state == "partial":
-        result_metadata.limitations.append("Há suspeitas sem estimativa demonstrativa de energia recuperável.")
-    result_metadata.limitations.extend(LIMITATIONS)
-    options = {key: sorted({unit[key] for unit in repository.units}) for key in ("municipio", "bairro", "classe", "alimentador")}
-    return {"data": {"items": selected, "filter_options": options}, "pagination": pagination, "metadata": result_metadata}
+    return build_queue_response(repository, filters, page, page_size, order_by, direction)
 
 
 @analytics_router.get("/queue/{uc_id}", response_model=SuspicionResponse, summary="Evidências sintéticas da suspeita")
 def get_suspicion_detail(uc_id: str, repository: AnalyticsRepository = Depends(get_analytics_repository)):
-    item = suspicion_detail(repository, uc_id)
-    state = "partial" if item["potential_recoverable_energy_kwh"] is None else "available"
-    result_metadata = metadata(repository, state, DEFAULT_START, DEFAULT_END, filters_model())
-    result_metadata.limitations.extend(LIMITATIONS)
-    return {"data": item, "metadata": result_metadata}
+    return build_suspicion_response(repository, uc_id)
 
 
 router.include_router(analytics_router)
