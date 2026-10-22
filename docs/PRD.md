@@ -457,6 +457,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — revalidação na borda SQL sintética
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. O teste cobre apenas a entrada do serviço SQL do ensaio; não comprova a autorização ou as permissões de uma Gold real.
+- Mudança observável: `ReadOnlySqlService.run` recusa e audita um `ValidatedQuery` fabricado em vez de texto SQL, antes de chamar o executor. Os executores SQLite e PostgreSQL exigem um dicionário, revalidam o SQL recebido e recusam consulta a objeto fora da lista antes da conexão. Uma versão divergente do dicionário é recusada e registrada pelo serviço. Os testes da barreira física de leitura SQLite permanecem independentes por injeção de falha apenas nos testes.
+- Arquivos e evidência: `ai-agent/app/sql/service.py`, `app/sql/executors.py`, `ai-agent/tests/test_sql_service.py`, `tests/test_sql_executors.py` e `ai-agent/app/sql/README.md`. A suíte SQL selecionada passou com **297 testes, 1 opcional pulado**; a suíte GenAI completa passou com **729 testes, 2 opcionais pulados**, executada fora do sandbox por causa do bloqueio dos testes assíncronos neste host. `python -m ruff check .`, `python -m compileall -q app tests` e `git diff --check` passaram.
+- Limite e próximo passo: revalidar SQL não comprova autorização do plano. Uma chamada direta ao executor com SQL permitido pelo dicionário ainda evita o controle de acesso e a auditoria do serviço. Fechar a composição do componente dono da consulta, cobrir CTEs e subconsultas parametrizadas e testar credencial e permissões reais antes de considerar IA-06 concluído.
+
 ### 2026-10-22 — IA-06 — correlação da auditoria SQL com plano sintético
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. A trilha ainda pertence ao ensaio isolado e não comprova execução ou autorização Gold.

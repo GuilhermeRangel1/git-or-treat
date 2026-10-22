@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from dataclasses import replace
 
 import pytest
 
@@ -8,7 +9,7 @@ from app.sql.executors import (
     QueryExecutionError,
     SqliteReadOnlyExecutor,
 )
-from app.sql.validator import ValidatedQuery, validate_sql
+from app.sql.validator import SqlRejected, ValidatedQuery, validate_sql
 from tests.sql_support import GOLD_ROWS, build_gold_sqlite, load_test_dictionary
 
 DICTIONARY = load_test_dictionary()
@@ -24,6 +25,7 @@ def sqlite_executor(path, max_rows=50, timeout_ms=2000) -> SqliteReadOnlyExecuto
         path,
         max_rows=max_rows,
         timeout_ms=timeout_ms,
+        dictionary=DICTIONARY,
         sensitive_columns=DICTIONARY.sensitive_columns,
     )
 
@@ -77,8 +79,36 @@ def test_sqlite_runs_validated_aggregate_and_matches_fixture(gold_db) -> None:
     assert result.truncated is False
 
 
+def test_sqlite_direct_executor_rejects_fabricated_query_outside_dictionary(gold_db) -> None:
+    forged = unchecked("SELECT segredo FROM interna_nao_listada LIMIT 1")
+
+    with pytest.raises(SqlRejected) as info:
+        sqlite_executor(gold_db).execute(forged)
+
+    assert info.value.code == "unknown_table"
+
+
+def test_sqlite_direct_executor_rejects_changed_sql_after_validation(gold_db) -> None:
+    approved = validate_sql("SELECT bairro FROM gold_indicadores LIMIT 1", DICTIONARY, "sqlite")
+    altered = replace(approved, sql="SELECT segredo FROM interna_nao_listada LIMIT 1")
+
+    with pytest.raises(SqlRejected) as info:
+        sqlite_executor(gold_db).execute(altered)
+
+    assert info.value.code == "unknown_table"
+
+
+def test_sqlite_direct_executor_rejects_dictionary_version_mismatch(gold_db) -> None:
+    approved = validate_sql("SELECT bairro FROM gold_indicadores LIMIT 1", DICTIONARY, "sqlite")
+
+    with pytest.raises(SqlRejected) as info:
+        sqlite_executor(gold_db).execute(replace(approved, dictionary_version="versao-antiga"))
+
+    assert info.value.code == "invalid_validated_query"
+
+
 def test_sqlite_executor_caps_rows_and_flags_truncation(gold_db) -> None:
-    query = unchecked("SELECT bairro FROM gold_indicadores")
+    query = validate_sql("SELECT bairro FROM gold_indicadores", DICTIONARY, "sqlite")
 
     result = sqlite_executor(gold_db, max_rows=3).execute(query)
 
@@ -98,7 +128,11 @@ def test_sqlite_executor_caps_rows_and_flags_truncation(gold_db) -> None:
         "ATTACH DATABASE ':memory:' AS outro",
     ],
 )
-def test_sqlite_executor_blocks_writes_even_without_validator(gold_db, sql: str) -> None:
+def test_sqlite_executor_blocks_writes_even_if_validation_is_bypassed(
+    gold_db, sql: str, monkeypatch
+) -> None:
+    # Falha injetada somente no teste: prova a barreira do banco independentemente da AST.
+    monkeypatch.setattr("app.sql.executors._require_validated_query", lambda *_: None)
     with pytest.raises(QueryExecutionError) as info:
         sqlite_executor(gold_db).execute(unchecked(sql))
 
@@ -106,7 +140,8 @@ def test_sqlite_executor_blocks_writes_even_without_validator(gold_db, sql: str)
     assert count_rows(gold_db) == len(GOLD_ROWS)
 
 
-def test_sqlite_executor_rejects_multiple_statements(gold_db) -> None:
+def test_sqlite_executor_rejects_multiple_statements(gold_db, monkeypatch) -> None:
+    monkeypatch.setattr("app.sql.executors._require_validated_query", lambda *_: None)
     with pytest.raises(QueryExecutionError):
         sqlite_executor(gold_db).execute(
             unchecked("SELECT bairro FROM gold_indicadores; DELETE FROM gold_indicadores")
@@ -115,12 +150,14 @@ def test_sqlite_executor_rejects_multiple_statements(gold_db) -> None:
     assert count_rows(gold_db) == len(GOLD_ROWS)
 
 
-def test_sqlite_authorizer_denies_sensitive_columns(gold_db) -> None:
+def test_sqlite_authorizer_denies_sensitive_columns(gold_db, monkeypatch) -> None:
+    monkeypatch.setattr("app.sql.executors._require_validated_query", lambda *_: None)
     with pytest.raises(QueryExecutionError):
         sqlite_executor(gold_db).execute(unchecked("SELECT cpf_cnpj FROM cadastro_teste"))
 
 
-def test_sqlite_executor_times_out(gold_db) -> None:
+def test_sqlite_executor_times_out(gold_db, monkeypatch) -> None:
+    monkeypatch.setattr("app.sql.executors._require_validated_query", lambda *_: None)
     # Produto cartesiano de 8^10 linhas: sem recursão, só lento.
     tables = ", ".join(f"gold_indicadores AS t{i}" for i in range(10))
     slow = unchecked(f"SELECT COUNT(*) FROM {tables}")
@@ -131,7 +168,8 @@ def test_sqlite_executor_times_out(gold_db) -> None:
     assert info.value.kind == "timeout"
 
 
-def test_sqlite_authorizer_denies_recursive_cte(gold_db) -> None:
+def test_sqlite_authorizer_denies_recursive_cte(gold_db, monkeypatch) -> None:
+    monkeypatch.setattr("app.sql.executors._require_validated_query", lambda *_: None)
     recursive = unchecked(
         "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r LIMIT 3) "
         "SELECT COUNT(*) FROM r"
@@ -214,9 +252,28 @@ def pg_query() -> ValidatedQuery:
     )
 
 
+def test_postgres_direct_executor_rejects_fabricated_query_before_connecting() -> None:
+    connections = 0
+
+    def connect():
+        nonlocal connections
+        connections += 1
+        raise AssertionError("não deve conectar")
+
+    executor = PostgresReadOnlyExecutor(connect, max_rows=5, timeout_ms=1000, dictionary=DICTIONARY)
+
+    with pytest.raises(SqlRejected) as info:
+        executor.execute(unchecked("SELECT segredo FROM interna_nao_listada LIMIT 1", "postgres"))
+
+    assert info.value.code == "unknown_table"
+    assert connections == 0
+
+
 def test_postgres_uses_read_only_transaction_timeout_and_rollback() -> None:
     connection = FakeConnection(rows=[("A", 1.0), ("B", 2.0)])
-    executor = PostgresReadOnlyExecutor(lambda: connection, max_rows=10, timeout_ms=1500)
+    executor = PostgresReadOnlyExecutor(
+        lambda: connection, max_rows=10, timeout_ms=1500, dictionary=DICTIONARY
+    )
     query = pg_query()
 
     result = executor.execute(query)
@@ -234,7 +291,9 @@ def test_postgres_uses_read_only_transaction_timeout_and_rollback() -> None:
 
 def test_postgres_caps_rows() -> None:
     connection = FakeConnection(rows=[("A", float(i)) for i in range(20)])
-    executor = PostgresReadOnlyExecutor(lambda: connection, max_rows=5, timeout_ms=1000)
+    executor = PostgresReadOnlyExecutor(
+        lambda: connection, max_rows=5, timeout_ms=1000, dictionary=DICTIONARY
+    )
 
     result = executor.execute(pg_query())
 
@@ -245,7 +304,9 @@ def test_postgres_caps_rows() -> None:
 def test_postgres_timeout_is_reported_and_rolled_back() -> None:
     query = pg_query()
     connection = FakeConnection(error=CanceledError("canceling statement"), target_sql=query.sql)
-    executor = PostgresReadOnlyExecutor(lambda: connection, max_rows=5, timeout_ms=1000)
+    executor = PostgresReadOnlyExecutor(
+        lambda: connection, max_rows=5, timeout_ms=1000, dictionary=DICTIONARY
+    )
 
     with pytest.raises(QueryExecutionError) as info:
         executor.execute(query)
@@ -260,7 +321,9 @@ def test_postgres_database_error_hides_message() -> None:
     connection = FakeConnection(
         error=RuntimeError("valor sensível 000.000.000-00"), target_sql=query.sql
     )
-    executor = PostgresReadOnlyExecutor(lambda: connection, max_rows=5, timeout_ms=1000)
+    executor = PostgresReadOnlyExecutor(
+        lambda: connection, max_rows=5, timeout_ms=1000, dictionary=DICTIONARY
+    )
 
     with pytest.raises(QueryExecutionError) as info:
         executor.execute(query)
@@ -274,7 +337,7 @@ def test_postgres_connection_failure() -> None:
     def refuse():
         raise OSError("sem rede")
 
-    executor = PostgresReadOnlyExecutor(refuse, max_rows=5, timeout_ms=1000)
+    executor = PostgresReadOnlyExecutor(refuse, max_rows=5, timeout_ms=1000, dictionary=DICTIONARY)
 
     with pytest.raises(QueryExecutionError) as info:
         executor.execute(pg_query())
@@ -286,9 +349,10 @@ def test_postgres_connection_failure() -> None:
     not os.environ.get("GENAI_TEST_POSTGRES_DSN"),
     reason="defina GENAI_TEST_POSTGRES_DSN para testar contra um PostgreSQL real",
 )
-def test_postgres_real_server_refuses_write_in_read_only_transaction() -> None:
+def test_postgres_real_server_refuses_write_in_read_only_transaction(monkeypatch) -> None:
+    monkeypatch.setattr("app.sql.executors._require_validated_query", lambda *_: None)
     executor = PostgresReadOnlyExecutor.from_dsn(
-        os.environ["GENAI_TEST_POSTGRES_DSN"], max_rows=5, timeout_ms=1000
+        os.environ["GENAI_TEST_POSTGRES_DSN"], max_rows=5, timeout_ms=1000, dictionary=DICTIONARY
     )
 
     with pytest.raises(QueryExecutionError):

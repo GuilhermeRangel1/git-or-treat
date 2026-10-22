@@ -33,13 +33,15 @@ class ReadOnlySqlService:
         base = {
             "dialect": self._executor.dialect,
             "dictionary_version": self._dictionary.version,
-            "received_sql_chars": len(sql),
+            "received_sql_chars": len(sql) if isinstance(sql, str) else 0,
             "plan_fingerprint": (
                 audit_context.plan_fingerprint if audit_context is not None else None
             ),
             "catalog_version": audit_context.catalog_version if audit_context is not None else None,
         }
         try:
+            if not isinstance(sql, str):
+                raise SqlRejected("invalid_sql_input", "consulta precisa ser texto SQL")
             query = validate_sql(sql, self._dictionary, self._executor.dialect, parameters)
         except SqlRejected as exc:
             self._audit.record(QueryAuditRecord(status="rejected", reason_code=exc.code, **base))
@@ -57,6 +59,16 @@ class ReadOnlySqlService:
         started = time.perf_counter()
         try:
             result = self._executor.execute(query)
+        except SqlRejected as exc:
+            self._audit.record(
+                QueryAuditRecord(
+                    status="rejected",
+                    reason_code=exc.code,
+                    duration_ms=_elapsed_ms(started),
+                    **approved,
+                )
+            )
+            raise
         except QueryExecutionError as exc:
             self._audit.record(
                 QueryAuditRecord(

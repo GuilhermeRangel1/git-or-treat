@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+from dataclasses import replace
 
 import pytest
 
@@ -13,7 +14,7 @@ from app.sql.audit import (
 )
 from app.sql.executors import QueryExecutionError, SqliteReadOnlyExecutor
 from app.sql.service import ReadOnlySqlService
-from app.sql.validator import SqlRejected
+from app.sql.validator import SqlRejected, ValidatedQuery
 from tests.sql_support import build_gold_sqlite, load_test_dictionary
 
 DICTIONARY = load_test_dictionary()
@@ -36,6 +37,7 @@ def service_and_audit(tmp_path):
         path,
         max_rows=DICTIONARY.limits.max_rows,
         timeout_ms=DICTIONARY.limits.timeout_ms,
+        dictionary=DICTIONARY,
         sensitive_columns=DICTIONARY.sensitive_columns,
     )
     audit = InMemoryAuditSink()
@@ -145,7 +147,7 @@ def test_rejected_query_is_audited_without_received_text(service_and_audit) -> N
 
 def test_failed_execution_is_audited(tmp_path) -> None:
     path = build_gold_sqlite(tmp_path / "gold_teste.sqlite")
-    executor = SqliteReadOnlyExecutor(path, max_rows=10, timeout_ms=1000)
+    executor = SqliteReadOnlyExecutor(path, max_rows=10, timeout_ms=1000, dictionary=DICTIONARY)
     audit = InMemoryAuditSink()
     service = ReadOnlySqlService(DICTIONARY, executor, audit)
     # O dicionário promete uma tabela que o banco não tem: falha de execução, não recusa.
@@ -223,6 +225,64 @@ def test_parameter_mismatch_is_rejected_before_executor() -> None:
 
     assert executor.calls == 0
     assert [record.status for record in audit.records] == ["rejected"] * 3
+
+
+def test_prebuilt_validated_query_cannot_bypass_service_validation() -> None:
+    class RecordingExecutor:
+        dialect = "sqlite"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def execute(self, query) -> None:
+            self.calls += 1
+            raise AssertionError("executor não deve ser chamado")
+
+    executor = RecordingExecutor()
+    audit = InMemoryAuditSink()
+    service = ReadOnlySqlService(DICTIONARY, executor, audit)
+    forged = ValidatedQuery(
+        sql="SELECT segredo FROM interna_nao_listada LIMIT 1",
+        sql_template="SELECT segredo FROM interna_nao_listada LIMIT 1",
+        dialect="sqlite",
+        tables=("gold_indicadores",),
+        dictionary_version=DICTIONARY.version,
+        applied_limit=1,
+        original_limit=1,
+        limit_adjusted=False,
+    )
+
+    with pytest.raises(SqlRejected) as info:
+        service.run(forged)  # type: ignore[arg-type]
+
+    assert info.value.code == "invalid_sql_input"
+    assert executor.calls == 0
+    [record] = audit.records
+    assert record.status == "rejected"
+    assert record.reason_code == "invalid_sql_input"
+    assert record.received_sql_chars == 0
+    assert "interna_nao_listada" not in json.dumps(record.to_dict())
+
+
+def test_executor_dictionary_mismatch_is_audited_before_database_access(tmp_path) -> None:
+    path = build_gold_sqlite(tmp_path / "gold_teste.sqlite")
+    executor = SqliteReadOnlyExecutor(
+        path,
+        max_rows=10,
+        timeout_ms=1000,
+        dictionary=replace(DICTIONARY, version="outra-versao"),
+    )
+    audit = InMemoryAuditSink()
+    service = ReadOnlySqlService(DICTIONARY, executor, audit)
+
+    with pytest.raises(SqlRejected) as info:
+        service.run("SELECT bairro FROM gold_indicadores LIMIT 1")
+
+    assert info.value.code == "invalid_validated_query"
+    [record] = audit.records
+    assert record.status == "rejected"
+    assert record.reason_code == "invalid_validated_query"
+    assert record.row_count is None
 
 
 def test_logging_sink_writes_one_json_line(caplog) -> None:

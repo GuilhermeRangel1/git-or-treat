@@ -9,12 +9,14 @@ Ensaio da borda SQL (IA-06): valida uma consulta contra um dicionário, executa 
 | `dictionary.toml` | Lista branca **provisória**: tabelas, colunas e tipos, funções, tipos de `CAST`, colunas sensíveis, prefixos reservados e limites. |
 | `dictionary.py` | `load_dictionary(path)` gera um `SqlDictionary` imutável e recusa arquivo contraditório (coluna permitida e sensível ao mesmo tempo, identificador fora de `[a-z_][a-z0-9_]*`, prefixo reservado, limite não positivo). |
 | `validator.py` | `validate_sql(sql, dictionary, dialect)` → `ValidatedQuery`, ou `SqlRejected(code, detail)`. |
-| `executors.py` | `SqliteReadOnlyExecutor` e `PostgresReadOnlyExecutor`; aceitam somente `ValidatedQuery`. |
+| `executors.py` | `SqliteReadOnlyExecutor` e `PostgresReadOnlyExecutor`; exigem dicionário e revalidam o SQL de cada `ValidatedQuery` antes de conectar. |
 | `audit.py` | `QueryAuditRecord`, `InMemoryAuditSink` (testes) e `LoggingAuditSink` (uma linha JSON no logger `app.sql.audit`). |
 | `service.py` | `ReadOnlySqlService.run(sql, parameters=())`: valida → executa → audita (`accepted`, `rejected` ou `failed`). |
 | `plan.py` | Catálogo físico injetado e leitor do recorte artificial: plano proposto e contexto atual → autorização pelo validador injetado → janela de meses completos e filtros de igualdade ou `IN` parametrizados → totais mensais em ordem cronológica, com limite e detecção de truncamento por CTE. |
 
 `dictionary.toml` e `tests/fixtures/sql_dictionary_test.toml` contêm nomes provisórios. Renomear uma tabela no validador isolado depende do dicionário, conforme `tests/test_sql_dictionary.py`; a integração Gold exigirá também decidir o dono da consulta, homologar métrica, grão, unidades, permissões, credencial e reconciliação. O leitor de planos não tem tabela padrão: recebe um catálogo artificial explícito.
+
+`ReadOnlySqlService.run` é a borda de validação SQL do ensaio: recebe texto, valida e audita antes de chamar o executor. Um `ValidatedQuery` montado manualmente como entrada é recusado e auditado, sem execução. Os executores exigem o mesmo tipo de dicionário e revalidam o SQL recebido; uma instância fabricada que mencione objeto fora da lista permitida é recusada antes da conexão. A revalidação não comprova que houve aprovação de um `LogicalReadPlan`: uma chamada direta ao executor ainda evita a auditoria do serviço e a política de acesso do leitor. O tipo Python não é credencial de autorização. A integração real deve manter a execução atrás do componente dono da consulta e usar permissões de banco restritas.
 
 O caminho parametrizado atual aceita placeholders posicionais `?` somente no dialeto SQLite e em predicados de valor, com quantidade e tipos conferidos antes da execução. No `SqlPlanReader`, o recorte demonstrativo permite filtros de igualdade e `IN` para o município mapeado no catálogo artificial. Outras dimensões, operadores, agregações e PostgreSQL parametrizado continuam fora deste ensaio.
 
@@ -49,8 +51,8 @@ Tudo funciona como lista branca: o que não estiver no dicionário é recusado. 
 
 ## Executores
 
-- **SQLite:** abre `file:...?mode=ro` com `uri=True` e `PRAGMA query_only = ON`. Um autorizador permite apenas `SELECT`, `READ` e `FUNCTION` e nega a leitura de colunas sensíveis, o que bloqueia também `WITH RECURSIVE`, `ATTACH` e `PRAGMA`. O timeout usa `set_progress_handler`, e o teto de linhas usa `fetchmany(max_rows + 1)`, que marca `truncated`.
-- **PostgreSQL:** executa `SET TRANSACTION READ ONLY` e `set_config('statement_timeout', ..., true)` (válido só na transação), roda a consulta com `prepare=True` (o protocolo estendido não aceita várias instruções) e faz `fetchmany(max_rows + 1)` seguido de `ROLLBACK`. `57014` vira `timeout`. Instale o extra opcional `postgres`. **A credencial do DSN também precisa ser de um papel somente leitura**, com `SELECT` apenas nas tabelas Gold: a transação read-only é defesa em profundidade, não substitui permissão no banco.
+- **SQLite:** revalida a consulta contra o dicionário e abre `file:...?mode=ro` com `uri=True` e `PRAGMA query_only = ON`. Um autorizador permite apenas `SELECT`, `READ` e `FUNCTION` e nega a leitura de colunas sensíveis declaradas no dicionário, o que bloqueia também `WITH RECURSIVE`, `ATTACH` e `PRAGMA`. O timeout usa `set_progress_handler`, e o teto de linhas usa `fetchmany(max_rows + 1)`, que marca `truncated`.
+- **PostgreSQL:** revalida a consulta contra o dicionário antes de conectar, executa `SET TRANSACTION READ ONLY` e `set_config('statement_timeout', ..., true)` (válido só na transação), roda a consulta com `prepare=True` (o protocolo estendido não aceita várias instruções) e faz `fetchmany(max_rows + 1)` seguido de `ROLLBACK`. `57014` vira `timeout`. Instale o extra opcional `postgres`. **A credencial do DSN também precisa ser de um papel somente leitura**, com `SELECT` apenas nas tabelas Gold: a transação read-only é defesa em profundidade, não substitui permissão no banco.
 - Erros viram `QueryExecutionError(kind, error_type)` (`timeout`, `database_error`, `connection_error`) sem a mensagem do banco, que pode conter valores.
 
 ## Auditoria

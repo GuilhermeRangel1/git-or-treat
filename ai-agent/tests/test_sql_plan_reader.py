@@ -39,6 +39,7 @@ def _reader_with_approved_municipality_filter(
         database,
         max_rows=dictionary.limits.max_rows,
         timeout_ms=dictionary.limits.timeout_ms,
+        dictionary=dictionary,
     )
     audit = InMemoryAuditSink()
     service = ReadOnlySqlService(dictionary, executor, audit)

@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from app.sql.validator import ValidatedQuery
+from app.sql.dictionary import SqlDictionary
+from app.sql.validator import SqlRejected, ValidatedQuery, validate_sql
 
 _PROGRESS_STEPS = 1_000
 
@@ -59,6 +60,7 @@ class SqliteReadOnlyExecutor:
         database_path: Path | str,
         max_rows: int,
         timeout_ms: int,
+        dictionary: SqlDictionary,
         sensitive_columns: frozenset[str] = frozenset(),
     ) -> None:
         path = Path(database_path).resolve()
@@ -67,10 +69,13 @@ class SqliteReadOnlyExecutor:
         self._uri = f"{path.as_uri()}?mode=ro"
         self._max_rows = max_rows
         self._timeout_ms = timeout_ms
-        self._sensitive = frozenset(c.casefold() for c in sensitive_columns)
+        self._dictionary = dictionary
+        self._sensitive = frozenset(
+            c.casefold() for c in dictionary.sensitive_columns | sensitive_columns
+        )
 
     def execute(self, query: ValidatedQuery) -> QueryResult:
-        _require_dialect(query, self.dialect)
+        _require_validated_query(query, self.dialect, self._dictionary)
         connection = sqlite3.connect(self._uri, uri=True)
         try:
             connection.execute("PRAGMA query_only = ON")
@@ -108,13 +113,18 @@ class PostgresReadOnlyExecutor:
 
     dialect = "postgres"
 
-    def __init__(self, connect: Callable[[], Any], max_rows: int, timeout_ms: int) -> None:
+    def __init__(
+        self, connect: Callable[[], Any], max_rows: int, timeout_ms: int, dictionary: SqlDictionary
+    ) -> None:
         self._connect = connect
         self._max_rows = max_rows
         self._timeout_ms = timeout_ms
+        self._dictionary = dictionary
 
     @classmethod
-    def from_dsn(cls, dsn: str, max_rows: int, timeout_ms: int) -> "PostgresReadOnlyExecutor":
+    def from_dsn(
+        cls, dsn: str, max_rows: int, timeout_ms: int, dictionary: SqlDictionary
+    ) -> "PostgresReadOnlyExecutor":
         import psycopg  # extra opcional "postgres"
 
         connect_timeout = max(1, timeout_ms // 1000)
@@ -122,10 +132,11 @@ class PostgresReadOnlyExecutor:
             lambda: psycopg.connect(dsn, autocommit=False, connect_timeout=connect_timeout),
             max_rows=max_rows,
             timeout_ms=timeout_ms,
+            dictionary=dictionary,
         )
 
     def execute(self, query: ValidatedQuery) -> QueryResult:
-        _require_dialect(query, self.dialect)
+        _require_validated_query(query, self.dialect, self._dictionary)
         try:
             connection = self._connect()
         except Exception as exc:
@@ -158,11 +169,21 @@ class PostgresReadOnlyExecutor:
         return _result(columns, rows, self._max_rows)
 
 
-def _require_dialect(query: ValidatedQuery, dialect: str) -> None:
+def _require_validated_query(
+    query: ValidatedQuery, dialect: str, dictionary: SqlDictionary
+) -> None:
     if not isinstance(query, ValidatedQuery):
         raise TypeError("o executor aceita somente ValidatedQuery")
     if query.dialect != dialect:
         raise ValueError(f"consulta validada para {query.dialect}, executor {dialect}")
+    approved = validate_sql(query.sql, dictionary, dialect, query.parameters)
+    if (
+        query.sql != approved.sql
+        or query.tables != approved.tables
+        or query.dictionary_version != dictionary.version
+        or query.applied_limit != approved.applied_limit
+    ):
+        raise SqlRejected("invalid_validated_query", "consulta não corresponde à validação atual")
 
 
 def _result(columns: tuple[str, ...], rows: Sequence[Sequence[Any]], max_rows: int) -> QueryResult:
