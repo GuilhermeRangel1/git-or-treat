@@ -104,13 +104,18 @@ class SqlPlanReader:
             window.end.strftime("%Y-%m"),
         ]
         for item in plan.filters:
-            if item.operator is not FilterOperator.EQ or len(item.values) != 1:
-                raise SqlRejected("unsupported_filter", "filtro artificial indisponível")
             column = catalog.dimensions.get(item.dimension_id)
             if column is None or item.dimension_id not in metric.dimension_ids:
                 raise SqlRejected("plan_out_of_catalog", "dimensão fora do catálogo artificial")
-            conditions.append(f'"{column}" = ?')
-            parameters.append(item.values[0])
+            if item.operator is FilterOperator.EQ and len(item.values) == 1:
+                conditions.append(f'"{column}" = ?')
+                parameters.append(item.values[0])
+            elif item.operator is FilterOperator.IN and len(item.values) >= 2:
+                placeholders = ", ".join("?" for _ in item.values)
+                conditions.append(f'"{column}" IN ({placeholders})')
+                parameters.extend(item.values)
+            else:
+                raise SqlRejected("unsupported_filter", "filtro artificial indisponível")
 
         sql = (
             f"SELECT {period} AS period, SUM({measure}) AS value FROM {table} "

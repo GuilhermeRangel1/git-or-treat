@@ -12,11 +12,11 @@ Ensaio da borda SQL (IA-06): valida uma consulta contra um dicionário, executa 
 | `executors.py` | `SqliteReadOnlyExecutor` e `PostgresReadOnlyExecutor`; aceitam somente `ValidatedQuery`. |
 | `audit.py` | `QueryAuditRecord`, `InMemoryAuditSink` (testes) e `LoggingAuditSink` (uma linha JSON no logger `app.sql.audit`). |
 | `service.py` | `ReadOnlySqlService.run(sql, parameters=())`: valida → executa → audita (`accepted`, `rejected` ou `failed`). |
-| `plan.py` | Catálogo físico injetado e leitor do recorte artificial: plano aprovado → mês/filtro de igualdade parametrizados → resultado tabular. |
+| `plan.py` | Catálogo físico injetado e leitor do recorte artificial: plano aprovado → mês/filtros de igualdade ou `IN` parametrizados → resultado tabular. |
 
 `dictionary.toml` e `tests/fixtures/sql_dictionary_test.toml` contêm nomes provisórios. Renomear uma tabela no validador isolado depende do dicionário, conforme `tests/test_sql_dictionary.py`; a integração Gold exigirá também decidir o dono da consulta, homologar métrica, grão, unidades, permissões, credencial e reconciliação. O leitor de planos não tem tabela padrão: recebe um catálogo artificial explícito.
 
-O caminho parametrizado atual aceita placeholders posicionais `?` somente no dialeto SQLite e em predicados de valor, com quantidade e tipos conferidos antes da execução. O caminho legado de SQL textual sem parâmetros continua isolado. A expansão para `IN`, outras agregações e PostgreSQL parametrizado ainda está aberta.
+O caminho parametrizado atual aceita placeholders posicionais `?` somente no dialeto SQLite e em predicados de valor, com quantidade e tipos conferidos antes da execução. No `SqlPlanReader`, o recorte demonstrativo permite filtros de igualdade e `IN` para o município mapeado no catálogo artificial. Outras dimensões, operadores, agregações e PostgreSQL parametrizado continuam fora deste ensaio.
 
 ## Regras do validador
 

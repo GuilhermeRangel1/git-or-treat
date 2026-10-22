@@ -6,7 +6,7 @@ from app.agent.access import ReadAccessPolicy
 from app.agent.read_plan import ReadPlanValidator
 from app.api.access import demo_access_context
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
-from app.schemas.domain_profile import DimensionValue, DomainProfile
+from app.schemas.domain_profile import DimensionValue, DomainProfile, FilterOperator
 from app.schemas.read_plan import LogicalReadPlan, ReadFilter, ReadWindow, WindowKind
 from app.sql.audit import InMemoryAuditSink
 from app.sql.executors import SqliteReadOnlyExecutor
@@ -15,7 +15,10 @@ from app.sql.service import ReadOnlySqlService
 from tests.sql_support import build_gold_sqlite, load_test_dictionary
 
 
-def test_approved_plan_reads_only_the_requested_artificial_month_and_municipality(tmp_path) -> None:
+def _reader_with_approved_municipality_filter(
+    tmp_path, *, municipality_values: tuple[str, ...], filter_values: tuple[str, ...],
+    operator: FilterOperator,
+) -> tuple[SqlPlanReader, LogicalReadPlan, InMemoryAuditSink]:
     dictionary = load_test_dictionary()
     database = build_gold_sqlite(tmp_path / "artificial.sqlite")
     executor = SqliteReadOnlyExecutor(
@@ -45,7 +48,7 @@ def test_approved_plan_reads_only_the_requested_artificial_month_and_municipalit
     )
     profile_data = GRID360_DEMO_PROFILE.model_dump(mode="python")
     profile_data["dimensions"][0]["values"] = [
-        DimensionValue(value="Municipio Ficticio A", aliases=("Municipio Ficticio A",))
+        DimensionValue(value=value, aliases=(value,)) for value in municipality_values
     ]
     profile = DomainProfile.model_validate(profile_data)
     proposed = LogicalReadPlan(
@@ -66,8 +69,8 @@ def test_approved_plan_reads_only_the_requested_artificial_month_and_municipalit
         filters=(
             ReadFilter(
                 dimension_id="geography.municipality",
-                operator="eq",
-                values=("Municipio Ficticio A",),
+                operator=operator,
+                values=filter_values,
             ),
         ),
         limit=10,
@@ -77,11 +80,42 @@ def test_approved_plan_reads_only_the_requested_artificial_month_and_municipalit
         proposed,
         demo_access_context(profile, "0" * 32, "synthetic.sql"),
     )
+    reader = SqlPlanReader(catalog, dictionary, service)
+    return reader, approved, audit
 
-    result = SqlPlanReader(catalog, dictionary, service).read(approved)
+
+def test_approved_plan_reads_only_the_requested_artificial_month_and_municipality(
+    tmp_path,
+) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+
+    result = reader.read(approved)
 
     assert result.columns == ("period", "value")
     assert result.rows == (("2025-01", 3500.5),)
     assert len(audit.records) == 1
     assert audit.records[0].status == "accepted"
     assert "Municipio Ficticio A" not in str(audit.records[0].to_dict())
+
+
+def test_approved_in_filter_reads_all_requested_artificial_municipalities(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        filter_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        operator=FilterOperator.IN,
+    )
+
+    result = reader.read(approved)
+
+    assert result.columns == ("period", "value")
+    assert result.rows == (("2025-01", 4300.75),)
+    assert len(audit.records) == 1
+    assert audit.records[0].status == "accepted"
+    assert "Municipio Ficticio A" not in str(audit.records[0].to_dict())
+    assert "Municipio Ficticio B" not in str(audit.records[0].to_dict())
