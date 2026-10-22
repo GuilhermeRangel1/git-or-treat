@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import AppProviders from "./providers";
@@ -57,6 +57,10 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas", async () => {
       "aria-current",
       "page",
     );
+    if (name === "Receita") {
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+      expect(String(fetchSpy.mock.calls[0][0])).toContain("/api/v1/revenue?");
+    }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
   // O Panorama consulta /api/v1/panorama para carregar métricas; as outras 6 áreas continuam sem consultas

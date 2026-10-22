@@ -6,7 +6,13 @@ Use `frontend/src/styles/tokens.css` e seu `@theme inline` como ponte entre vari
 
 A direção visual aprovada usa cacau, goiaba e pistache; Manrope, DM Sans e IBM Plex Mono. Consulte o frame e os tokens para os valores reais. Não substitua cores por aliases de outro significado para satisfazer lint. Quando faltar um papel semântico necessário, defina-o conscientemente nos dois temas e conecte-o ao Tailwind.
 
-O projeto usa Tailwind 4 com Vite; não copie instalação/configuração de Tailwind 3 por hábito. Mantenha CSS de efeitos específicos junto ao componente quando isso tornar o efeito legível. Valores arbitrários são possíveis para geometria específica do design; repetição de um valor de identidade pode indicar token ausente.
+O projeto usa Tailwind 4 com Vite; não copie instalação/configuração de Tailwind 3 por hábito. Valores arbitrários são possíveis para geometria específica do design; repetição de um valor de identidade pode indicar token ausente.
+
+## Organização dos estilos
+
+Use utilitários Tailwind com os tokens existentes para a estilização usual dos componentes. Mantenha CSS específico próximo ao componente responsável, como `revenue-series.css` junto a `RevenueSeries.tsx`; limite os seletores ao componente para evitar efeitos sobre outras funcionalidades. Reserve `src/styles/` para estilos globais, tokens e definições compartilhadas.
+
+Não crie `styles/` em cada feature por obrigação. Separe estilos do JSX quando isso melhorar a clareza ou a manutenção, como em animações e efeitos mais complexos; a separação não é um fim estético em si.
 
 ## Classes completas
 
