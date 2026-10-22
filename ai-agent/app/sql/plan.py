@@ -118,8 +118,22 @@ class SqlPlanReader:
                 raise SqlRejected("unsupported_filter", "filtro artificial indisponível")
 
         sql = (
+            "WITH plan_rows AS ("
             f"SELECT {period} AS period, SUM({measure}) AS value FROM {table} "
-            f"WHERE {' AND '.join(conditions)} GROUP BY {period} "
-            f"ORDER BY {period} ASC LIMIT {plan.limit}"
+            f"WHERE {' AND '.join(conditions)} GROUP BY {period}) "
+            "SELECT period, value, (SELECT COUNT(*) FROM plan_rows) AS total_rows "
+            f"FROM plan_rows ORDER BY period ASC LIMIT {plan.limit}"
         )
-        return self._service.run(sql, tuple(parameters))
+        result = self._service.run(sql, tuple(parameters))
+        if result.columns != ("period", "value", "total_rows") or any(
+            len(row) != 3 for row in result.rows
+        ):
+            raise SqlRejected("invalid_result", "resultado artificial fora do contrato")
+        total_rows = result.rows[0][2] if result.rows else 0
+        if type(total_rows) is not int or total_rows < result.row_count:
+            raise SqlRejected("invalid_result", "contagem do resultado artificial inválida")
+        return QueryResult(
+            columns=("period", "value"),
+            rows=tuple((row[0], row[1]) for row in result.rows[: plan.limit]),
+            truncated=result.truncated or total_rows > result.row_count,
+        )

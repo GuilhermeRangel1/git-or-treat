@@ -1,6 +1,6 @@
 # Camada SQL somente leitura
 
-Ensaio da borda SQL (IA-06): valida uma consulta contra um dicionário, executa **somente o SQL regenerado** em um executor de leitura e audita a tentativa. `SqlPlanReader` também traduz um `LogicalReadPlan` previamente aprovado para uma agregação mensal parametrizada no SQLite artificial. Esse leitor ainda não está ligado ao planner da aplicação, aos insights nem aos providers; não há Gold real. Isto não conclui IA-01, IA-03 nem IA-06 no PRD.
+Ensaio da borda SQL (IA-06): valida uma consulta contra um dicionário, executa **somente o SQL regenerado** em um executor de leitura e audita a tentativa. `SqlPlanReader` também traduz um `LogicalReadPlan` previamente aprovado para uma agregação mensal parametrizada no SQLite artificial, incluindo janelas com vários meses completos e uma linha de resultado por competência. Uma CTE conta os grupos antes do limite, permitindo sinalizar truncamento mesmo quando o teto do serviço SQL é igual ao limite do plano; somente até o limite autorizado é devolvido. Os testes mantêm zero como valor numérico e ausência de correspondências como conjunto vazio. Esse leitor ainda não está ligado ao planner da aplicação, aos insights nem aos providers; não há Gold real. Isto não conclui IA-01, IA-03 nem IA-06 no PRD.
 
 ## Arquivos
 
@@ -12,7 +12,7 @@ Ensaio da borda SQL (IA-06): valida uma consulta contra um dicionário, executa 
 | `executors.py` | `SqliteReadOnlyExecutor` e `PostgresReadOnlyExecutor`; aceitam somente `ValidatedQuery`. |
 | `audit.py` | `QueryAuditRecord`, `InMemoryAuditSink` (testes) e `LoggingAuditSink` (uma linha JSON no logger `app.sql.audit`). |
 | `service.py` | `ReadOnlySqlService.run(sql, parameters=())`: valida → executa → audita (`accepted`, `rejected` ou `failed`). |
-| `plan.py` | Catálogo físico injetado e leitor do recorte artificial: plano aprovado → mês/filtros de igualdade ou `IN` parametrizados → resultado tabular. |
+| `plan.py` | Catálogo físico injetado e leitor do recorte artificial: plano aprovado → janela de meses completos e filtros de igualdade ou `IN` parametrizados → totais mensais em ordem cronológica, com limite e detecção de truncamento por CTE. |
 
 `dictionary.toml` e `tests/fixtures/sql_dictionary_test.toml` contêm nomes provisórios. Renomear uma tabela no validador isolado depende do dicionário, conforme `tests/test_sql_dictionary.py`; a integração Gold exigirá também decidir o dono da consulta, homologar métrica, grão, unidades, permissões, credencial e reconciliação. O leitor de planos não tem tabela padrão: recebe um catálogo artificial explícito.
 
@@ -74,6 +74,7 @@ O registro **não** guarda linhas de resultado, a pergunta da pessoa nem o texto
 - O dicionário é provisório e não vem de `docs/data-dictionary.md`. Tipos e nomes precisam ser confirmados com a Gold.
 - A lista branca de funções é deliberadamente pequena. Funções de janela, datas e strings adicionais precisam ser incluídas no TOML com teste.
 - Um nome de tabela em `CTE`/alias que coincida com o nome de uma coluna é recusado mesmo quando seria inofensivo.
+- `SqlPlanReader.read` confia que o chamador passou um plano aprovado por `ReadPlanValidator`; `LogicalReadPlan` não codifica a aprovação no tipo. O leitor não é, sozinho, uma fronteira de autorização, e essa composição ainda não foi ligada ao planner.
 - Não há teste contra um PostgreSQL real no gate local: o teste de integração roda só com `GENAI_TEST_POSTGRES_DSN` definido. Os demais usam uma conexão falsa que confere as instruções emitidas.
 - O leitor de plano ainda não implementa a porta `EvidenceSource` nem compõe resposta ao usuário. Ele exige plano aprovado pelo chamador e valida novamente apenas o recorte que este catálogo físico consegue executar.
 
@@ -83,6 +84,6 @@ Dentro de `ai-agent/`:
 
 ```powershell
 python -m pip install -e ".[dev,postgres]"
-python -m pytest -q tests/test_sql_validator.py tests/test_sql_executors.py tests/test_sql_service.py tests/test_sql_dictionary.py
+python -m pytest -q tests/test_sql_validator.py tests/test_sql_executors.py tests/test_sql_service.py tests/test_sql_dictionary.py tests/test_sql_plan_reader.py
 python -m ruff check .
 ```

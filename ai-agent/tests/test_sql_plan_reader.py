@@ -1,23 +1,34 @@
 """Plano autorizado até o resultado em banco temporário inteiramente artificial."""
 
+import sqlite3
 from datetime import date
+
+import pytest
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.read_plan import ReadPlanValidator
 from app.api.access import demo_access_context
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.schemas.domain_profile import DimensionValue, DomainProfile, FilterOperator
-from app.schemas.read_plan import LogicalReadPlan, ReadFilter, ReadWindow, WindowKind
+from app.schemas.read_plan import LogicalReadPlan, ReadFilter, ReadOrder, ReadWindow, WindowKind
 from app.sql.audit import InMemoryAuditSink
 from app.sql.executors import SqliteReadOnlyExecutor
 from app.sql.plan import SqlMetricBinding, SqlPlanCatalog, SqlPlanReader
 from app.sql.service import ReadOnlySqlService
+from app.sql.validator import SqlRejected
 from tests.sql_support import build_gold_sqlite, load_test_dictionary
 
 
 def _reader_with_approved_municipality_filter(
-    tmp_path, *, municipality_values: tuple[str, ...], filter_values: tuple[str, ...],
+    tmp_path,
+    *,
+    municipality_values: tuple[str, ...],
+    filter_values: tuple[str, ...],
     operator: FilterOperator,
+    window_start: date = date(2025, 1, 1),
+    window_end: date = date(2025, 1, 31),
+    reader_catalog_version: str = "v1",
+    plan_limit: int = 10,
 ) -> tuple[SqlPlanReader, LogicalReadPlan, InMemoryAuditSink]:
     dictionary = load_test_dictionary()
     database = build_gold_sqlite(tmp_path / "artificial.sqlite")
@@ -31,7 +42,7 @@ def _reader_with_approved_municipality_filter(
     catalog = SqlPlanCatalog(
         profile_id="v-energy-grid-360-demo",
         source_id="synthetic.sql",
-        version="v1",
+        version=reader_catalog_version,
         dictionary_version=dictionary.version,
         table="gold_indicadores",
         period_column="competencia",
@@ -62,8 +73,8 @@ def _reader_with_approved_municipality_filter(
         unit="unidades fictícias",
         window=ReadWindow(
             kind=WindowKind.BOUNDED,
-            start=date(2025, 1, 1),
-            end=date(2025, 1, 31),
+            start=window_start,
+            end=window_end,
             granularity="month",
         ),
         filters=(
@@ -73,7 +84,7 @@ def _reader_with_approved_municipality_filter(
                 values=filter_values,
             ),
         ),
-        limit=10,
+        limit=plan_limit,
     )
     policy = ReadAccessPolicy(profile, "synthetic.sql")
     approved = ReadPlanValidator(profile, "synthetic.sql", policy).approve(
@@ -119,3 +130,186 @@ def test_approved_in_filter_reads_all_requested_artificial_municipalities(tmp_pa
     assert audit.records[0].status == "accepted"
     assert "Municipio Ficticio A" not in str(audit.records[0].to_dict())
     assert "Municipio Ficticio B" not in str(audit.records[0].to_dict())
+
+
+def test_approved_multi_month_window_returns_ordered_monthly_totals(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+        window_start=date(2025, 1, 1),
+        window_end=date(2025, 3, 31),
+        plan_limit=3,
+    )
+
+    result = reader.read(approved)
+
+    assert result.columns == ("period", "value")
+    assert result.rows == (
+        ("2025-01", 3500.5),
+        ("2025-02", 3600.75),
+        ("2025-03", 970.1),
+    )
+    assert result.truncated is False
+    assert len(audit.records) == 1
+    assert audit.records[0].status == "accepted"
+
+
+def test_plan_limit_truncates_the_result_and_reports_that_more_rows_exist(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+        window_start=date(2025, 1, 1),
+        window_end=date(2025, 3, 31),
+        plan_limit=2,
+    )
+
+    result = reader.read(approved)
+
+    assert result.rows == (("2025-01", 3500.5), ("2025-02", 3600.75))
+    assert result.truncated is True
+    assert audit.records[0].status == "accepted"
+
+
+def test_plan_limit_detects_truncation_at_the_sql_service_row_cap(tmp_path) -> None:
+    reader, approved, _ = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+        window_start=date(2025, 1, 1),
+        window_end=date(2029, 3, 31),
+        plan_limit=50,
+    )
+    with sqlite3.connect(tmp_path / "artificial.sqlite") as connection:
+        connection.executemany(
+            "INSERT INTO gold_indicadores VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    f"{2025 + offset // 12:04d}-{offset % 12 + 1:02d}",
+                    "Municipio Ficticio A",
+                    "Bairro Sintetico",
+                    "residencial",
+                    1,
+                    1,
+                    1,
+                )
+                for offset in range(3, 51)
+            ],
+        )
+
+    result = reader.read(approved)
+
+    assert result.row_count == 50
+    assert result.rows[0] == ("2025-01", 3500.5)
+    assert result.rows[-1] == ("2029-02", 1.0)
+    assert result.truncated is True
+
+
+def test_approved_plan_preserves_a_legitimate_zero_value(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio Zero",),
+        filter_values=("Municipio Ficticio Zero",),
+        operator=FilterOperator.EQ,
+    )
+    with sqlite3.connect(tmp_path / "artificial.sqlite") as connection:
+        connection.execute(
+            "INSERT INTO gold_indicadores VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("2025-01", "Municipio Ficticio Zero", "Bairro Zero", "residencial", 0, 0, 1),
+        )
+
+    result = reader.read(approved)
+
+    assert result.rows == (("2025-01", 0.0),)
+    assert audit.records[0].status == "accepted"
+
+
+def test_approved_plan_preserves_no_rows_as_an_empty_result(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Sem Registros",),
+        filter_values=("Municipio Sem Registros",),
+        operator=FilterOperator.EQ,
+    )
+
+    result = reader.read(approved)
+
+    assert result.rows == ()
+    assert audit.records[0].status == "accepted"
+
+
+@pytest.mark.parametrize(
+    ("catalog_version", "changes", "expected_code"),
+    [
+        pytest.param("v1", {"profile_id": "other-profile"}, "plan_out_of_catalog", id="profile"),
+        pytest.param("v1", {"source_id": "other-source"}, "plan_out_of_catalog", id="source"),
+        pytest.param("v2", {}, "plan_out_of_catalog", id="catalog-version"),
+        pytest.param("v1", {"metric_id": "billing.unknown"}, "plan_out_of_catalog", id="metric"),
+        pytest.param(
+            "v1",
+            {
+                "dimension_ids": ("classification.consumer_class",),
+                "filters": (
+                    ReadFilter(
+                        dimension_id="classification.consumer_class",
+                        operator=FilterOperator.EQ,
+                        values=("residential",),
+                    ),
+                ),
+            },
+            "plan_out_of_catalog",
+            id="metric-dimension-combination",
+        ),
+        pytest.param(
+            "v1",
+            {"window": ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase="último mês")},
+            "unsupported_window",
+            id="unmapped-period-phrase",
+        ),
+        pytest.param(
+            "v1",
+            {"order": ReadOrder(field_id="billing.revenue", direction="desc")},
+            "plan_out_of_catalog",
+            id="unsupported-order",
+        ),
+        pytest.param(
+            "v1",
+            {
+                "filters": (
+                    ReadFilter(
+                        dimension_id="geography.municipality",
+                        operator=FilterOperator.NE,
+                        values=("Municipio Ficticio A",),
+                    ),
+                ),
+            },
+            "unsupported_filter",
+            id="unsupported-filter-operator",
+        ),
+    ],
+)
+def test_reader_rejects_unsupported_plan_before_sql_service(
+    tmp_path, monkeypatch, catalog_version, changes, expected_code
+) -> None:
+    reader, approved, _ = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+        reader_catalog_version=catalog_version,
+    )
+
+    def fail_if_sql_service_is_called(*_args, **_kwargs):
+        raise AssertionError("plano recusado não deve chegar ao serviço SQL")
+
+    monkeypatch.setattr(reader._service, "run", fail_if_sql_service_is_called)
+    unsupported_plan = approved.model_copy(update=changes)
+
+    with pytest.raises(SqlRejected) as error:
+        reader.read(unsupported_plan)
+
+    assert error.value.code == expected_code
