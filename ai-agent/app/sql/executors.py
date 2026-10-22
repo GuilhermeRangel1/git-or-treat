@@ -80,7 +80,7 @@ class SqliteReadOnlyExecutor:
                 lambda: int(time.monotonic() > deadline), _PROGRESS_STEPS
             )
             try:
-                cursor = connection.execute(query.sql)
+                cursor = connection.execute(query.sql, query.parameters)
                 rows = cursor.fetchmany(self._max_rows + 1)
             except sqlite3.Error as exc:
                 if time.monotonic() > deadline:
@@ -138,7 +138,7 @@ class PostgresReadOnlyExecutor:
                     (str(self._timeout_ms),),
                 )
                 # prepare=True usa o protocolo estendido, que não aceita várias instruções.
-                cursor.execute(query.sql, prepare=True)
+                cursor.execute(query.sql, query.parameters or None, prepare=True)
                 rows = cursor.fetchmany(self._max_rows + 1)
                 columns = tuple(d[0] for d in cursor.description or ())
         except QueryExecutionError:

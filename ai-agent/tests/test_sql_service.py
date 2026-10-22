@@ -119,6 +119,48 @@ def test_attack_never_reaches_executor(service_and_audit) -> None:
     assert service.run("SELECT COUNT(*) AS n FROM gold_indicadores").rows == ((8,),)
 
 
+def test_bound_filter_value_stays_data_and_never_enters_audit(service_and_audit) -> None:
+    service, audit = service_and_audit
+    template = (
+        "SELECT SUM(receita_total) AS receita FROM gold_indicadores "
+        "WHERE municipio = ? AND competencia = ? LIMIT 1"
+    )
+
+    valid = service.run(template, parameters=("Municipio Ficticio A", "2025-01"))
+    malicious = service.run(template, parameters=("Municipio Ficticio A' OR 1=1 --", "2025-01"))
+
+    assert valid.rows == ((3500.5,),)
+    assert malicious.rows == ((None,),)
+    assert all("Municipio Ficticio A" not in json.dumps(item.to_dict()) for item in audit.records)
+
+
+def test_parameter_mismatch_is_rejected_before_executor() -> None:
+    class RecordingExecutor:
+        dialect = "sqlite"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def execute(self, query) -> None:
+            self.calls += 1
+            raise AssertionError("executor não deve ser chamado")
+
+    executor = RecordingExecutor()
+    audit = InMemoryAuditSink()
+    service = ReadOnlySqlService(DICTIONARY, executor, audit)
+
+    for sql, parameters in (
+        ("SELECT bairro FROM gold_indicadores WHERE municipio = ? LIMIT 1", ()),
+        ("SELECT bairro FROM gold_indicadores WHERE municipio = ? LIMIT 1", ("A", "B")),
+        ("SELECT ? FROM gold_indicadores LIMIT 1", ("bairro",)),
+    ):
+        with pytest.raises(SqlRejected):
+            service.run(sql, parameters=parameters)
+
+    assert executor.calls == 0
+    assert [record.status for record in audit.records] == ["rejected"] * 3
+
+
 def test_logging_sink_writes_one_json_line(caplog) -> None:
     record = QueryAuditRecord(
         status="rejected",

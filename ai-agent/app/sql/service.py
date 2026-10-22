@@ -19,7 +19,9 @@ class ReadOnlySqlService:
         self._executor = executor
         self._audit = audit
 
-    def run(self, sql: str) -> QueryResult:
+    def run(
+        self, sql: str, parameters: tuple[str | int | float | bool, ...] = ()
+    ) -> QueryResult:
         """Executa uma consulta gerada; levanta SqlRejected ou QueryExecutionError após auditar."""
 
         base = {
@@ -29,7 +31,7 @@ class ReadOnlySqlService:
             "received_sql_chars": len(sql),
         }
         try:
-            query = validate_sql(sql, self._dictionary, self._executor.dialect)
+            query = validate_sql(sql, self._dictionary, self._executor.dialect, parameters)
         except SqlRejected as exc:
             self._audit.record(QueryAuditRecord(status="rejected", reason_code=exc.code, **base))
             raise

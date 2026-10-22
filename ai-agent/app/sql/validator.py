@@ -6,6 +6,7 @@ e devolve o SQL regenerado dessa árvore qualificada.
 """
 
 from dataclasses import dataclass
+from math import isfinite
 from typing import Literal
 
 import sqlglot
@@ -56,7 +57,6 @@ _FORBIDDEN_NODES: tuple[type[exp.Expression], ...] = (
     exp.Lateral,
     exp.Unnest,
     exp.Values,
-    exp.Placeholder,
     exp.Parameter,
     exp.SessionParameter,
     exp.Dot,
@@ -101,9 +101,15 @@ class ValidatedQuery:
     applied_limit: int
     original_limit: int | None
     limit_adjusted: bool
+    parameters: tuple[str | int | float | bool, ...] = ()
 
 
-def validate_sql(sql: str, dictionary: SqlDictionary, dialect: Dialect) -> ValidatedQuery:
+def validate_sql(
+    sql: str,
+    dictionary: SqlDictionary,
+    dialect: Dialect,
+    parameters: tuple[str | int | float | bool, ...] = (),
+) -> ValidatedQuery:
     if dialect not in SUPPORTED_DIALECTS:
         raise ValueError(f"dialeto não suportado: {dialect}")
     if not sql or not sql.strip():
@@ -118,6 +124,7 @@ def validate_sql(sql: str, dictionary: SqlDictionary, dialect: Dialect) -> Valid
         raise SqlRejected("not_select", f"somente SELECT/WITH é permitido, recebido {root.key}")
 
     try:
+        _check_placeholders(root, parameters, dialect)
         _check_forbidden_nodes(root)
         cte_names = _check_ctes(root, dictionary)
         _check_identifiers(root, dictionary)
@@ -130,6 +137,8 @@ def validate_sql(sql: str, dictionary: SqlDictionary, dialect: Dialect) -> Valid
         qualified = _qualify(root, dictionary, dialect)
         _check_resolved_columns(qualified, dictionary)
         applied, original, adjusted = _apply_limit(qualified, dictionary.limits.max_rows)
+        if sum(1 for _ in qualified.find_all(exp.Placeholder)) != len(parameters):
+            raise SqlRejected("invalid_parameters", "parâmetros alterados na validação")
     except SqlRejected:
         raise
     except Exception as exc:
@@ -144,7 +153,35 @@ def validate_sql(sql: str, dictionary: SqlDictionary, dialect: Dialect) -> Valid
         applied_limit=applied,
         original_limit=original,
         limit_adjusted=adjusted,
+        parameters=parameters,
     )
+
+
+def _check_placeholders(
+    root: exp.Expression,
+    parameters: tuple[str | int | float | bool, ...],
+    dialect: Dialect,
+) -> None:
+    if not isinstance(parameters, tuple) or len(parameters) > 100:
+        raise SqlRejected("invalid_parameters", "conjunto de parâmetros inválido")
+    if any(
+        type(value) not in (str, int, float, bool)
+        or (type(value) is float and not isfinite(value))
+        or (type(value) is str and len(value) > 120)
+        for value in parameters
+    ):
+        raise SqlRejected("invalid_parameters", "valor de parâmetro inválido")
+    placeholders = list(root.find_all(exp.Placeholder))
+    if len(placeholders) != len(parameters):
+        raise SqlRejected("invalid_parameters", "quantidade de parâmetros incompatível")
+    if placeholders and dialect != "sqlite":
+        raise SqlRejected("invalid_parameters", "parâmetros deste dialeto ainda não validados")
+    for placeholder in placeholders:
+        if placeholder.this is not None or not isinstance(
+            placeholder.parent,
+            (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE, exp.In, exp.Between),
+        ):
+            raise SqlRejected("invalid_parameters", "parâmetro fora de predicado de valor")
 
 
 def _parse_single(sql: str, dialect: Dialect) -> exp.Expression:
