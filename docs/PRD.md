@@ -989,6 +989,14 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Validação: 85 testes frontend aprovados; 120 backend aprovados e 1 ignorado. Lint, formatação, fronteiras e build aprovados. Conferência com API real em desktop/mobile e claro/escuro; revisão local de padrões e especificação sem bloqueadores. Detalhes em [evidência DEV-05](plans/2026-10-22-dev05-evidence.md).
 - Pendências: homologação de produto pelo time, validação dos critérios reais com a Gold e sincronização Trello, cujo MCP não está disponível. WEB-05/ordens continua fora desta entrega de fila WEB-04.
 
+### 2026-10-22 — DEV-05 — telas grandes e inicialização da demonstração
+
+- WEB-04 continua `Em validação`; correção visual relacionada a WEB-07 sem concluir o conjunto de filtros do produto. A pessoa usuária apontou largura insuficiente em monitores grandes e dificuldade para visualizar os dados sintéticos.
+- Causa de layout: `AppLayout` e `Header` ainda usavam limite de 1184 px da base anterior. Ambos foram alinhados ao padrão responsivo do Panorama em DEV-02 (teto 1920 px, centralização e margens adaptativas), sem incorporar a branch.
+- Execução: `scripts/start-inspection-demo.ps1` inicia API sintética e Vite em segundo plano, verifica o contrato e informa o endereço da fila. Configura fonte/URL/CORS nos processos, preserva `.env`, registra logs/PIDs locais e não encerra serviços que já ocupam as portas. A demonstração compatível em 5185/8055 é reconhecida ao reexecutar.
+- Evidência: fila real da API mostrou duas UCs, prioridade máxima 0,92 e energia 45 kWh para UC-1004; ausência permanece explícita para UC-1002. Layout conferido em 1440, 1920, 2560 e 390 px. Inicialização nova testada em 5195/8065; instâncias temporárias encerradas após a conferência, preservando 5185/8055. Frontend: 85 testes aprovados, lint/fronteiras/formatação/build aprovados; o ajuste não altera backend nem dados. Ver [evidência DEV-05](plans/2026-10-22-dev05-evidence.md) e comando em [frontend/README](../frontend/README.md).
+- Pendências: homologação e Gold permanecem abertas. Trello sem MCP nesta sessão. Responsável: Codex; conferência funcional local, revisão de produto pelo time pendente.
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.

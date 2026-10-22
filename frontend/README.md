@@ -37,7 +37,19 @@ Se um checkout existente ainda contiver CRLF, execute `npm run format` e depois 
 
 Verificado com Prettier 3.9.10, conforme o lockfile. Referências: [opção de finais de linha do Prettier](https://prettier.io/docs/options#end-of-line) e [atributos de texto e EOL do Git](https://git-scm.com/docs/gitattributes#_eol).
 
-## Escopo visual atual
+## Abrir a fila DEV-05 com dados sintéticos no Windows
+
+Na raiz do repositório, com `backend/venv` preparado e dependências do frontend instaladas:
+
+```powershell
+.\scripts\start-inspection-demo.ps1
+```
+
+O comando inicia API em `127.0.0.1:8055` e frontend em `127.0.0.1:5185`, em segundo plano, e verifica o contrato da fila antes de informar sucesso. Abra **http://127.0.0.1:5185/inspecoes**. A fonte sintética e a URL da API são configuradas explicitamente nos processos, sem editar `.env`. Logs/PIDs ficam em `work/dev05-demo/`, ignorado pelo Git. A demo usa SQLite em memória e não mantém ordens persistentes. Reexecutar reconhece a mesma demo saudável; se as portas pertencerem a outros serviços, o comando recusa substituí-los. É possível escolher `-BackendPort` e `-FrontendPort`.
+
+Na revisão DEV-05 de 22/10/2026, cabeçalho e conteúdo passaram a compartilhar largura fluida centralizada até 1920 px, como o Panorama da DEV-02, com espaçamento adaptativo. O ajuste foi aplicado aos componentes de layout, sem merge de branches.
+
+## Fundação visual inicial
 
 Branch `feat/visual-frontend`, renomeada de `refactor/arquitetura-frontend`. A [referência Figma](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K?node-id=15-164) orienta a sidebar de 224 px e o cabeçalho do Panorama. O rodapé demonstrativo e a linha de dados sintéticos foram retirados conforme pedido. O Panorama termina antes dos filtros. As demais páginas mostram apenas os títulos, subtítulos e rótulos superiores do protótipo; o Assistente tem apenas o painel central de abertura, sem exemplos, envio ou funcionamento de chat.
 

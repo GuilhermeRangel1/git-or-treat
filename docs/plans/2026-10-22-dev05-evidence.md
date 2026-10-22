@@ -73,4 +73,16 @@ Conferência no navegador com backend sintético em 8055 e Vite em 5185: temas c
 
 Quality gate compartilhado executado na raiz com entrada `cwd` do projeto e `hook_event_name: Stop`, usando `backend/venv/Scripts/python.exe .hooks/quality_gate.py`. Primeira passada apontou somente formatação do último ajuste do cabeçalho; corrigida com Prettier. Segunda passada terminou com código 0 e saída `{}`. Skills e hooks foram consultados, sem mudanças em sua configuração. `git diff --check` também passou.
 
+## Correção de telas grandes e startup — 22/10/2026
+
+`AppLayout` e `Header` tinham `lg:max-w-[1184px]`. A correção reutiliza as classes responsivas observadas em `origin/dev02`, com teto de 1920 px, centralização e padding adaptativo, sem merge. No navegador com API real: em 1920 px, conteúdo com cerca de 1681 px de largura; em 2560 px, conteúdo de 1920 px centrado em x=432; em 1440 px, cerca de 1201 px; mobile 390 px com conteúdo de cerca de 375 px, descontando scrollbar. `scrollWidth` do documento não excedeu a largura da janela. A fila retornou duas UCs e exibiu 45 kWh para UC-1004 e estimativa indisponível para UC-1002.
+
+As portas 5173/8000 e 5185/8055 já tinham processos ativos; não foram substituídos. A confirmação de ausência de listeners feita dentro do sandbox não refletia os processos externos; a verificação com permissão confirmou a demo compatível em 5185/8055. O endereço conferido é `http://127.0.0.1:5185/inspecoes`; não se atribui a ausência reportada pela pessoa usuária a uma causa não reproduzida em seu navegador.
+
+`scripts/start-inspection-demo.ps1` foi testado primeiro com a demo existente (identificou fonte sintética, resumo e URL de API no cliente Vite), depois com portas livres 8065/5195. Iniciou os dois serviços ocultos, confirmou API/frontend e gravou PIDs/logs somente em `work/dev05-demo/`. As instâncias temporárias 8065/5195 foram encerradas após verificar os comandos dos processos; os serviços da demo principal permaneceram ativos. O script preserva variáveis do processo chamador, não edita `.env` e recusa portas ocupadas por serviços que não consegue reconhecer. Foi testada a inicialização funcional; o script não instala dependências nem altera permissões do sistema.
+
+Verificações frontend: 85 testes aprovados; lint, fronteiras, formatação e build aprovados. A alteração de classes não introduz regra de negócio ou mudança de contrato. O viewport de teste foi restaurado após a conferência. Dados continuam sintéticos; não houve verificação Gold.
+
+Quality gate compartilhado novamente aprovado (código 0, saída `{}`) após corrigir também o cabeçalho. Em 2560 px, cabeçalho e conteúdo mediram 1920 px, ambos em x=432; a largura do documento foi 2560 px, sem transbordamento horizontal da página.
+
 Quality gate compartilhado executado na raiz com entrada `cwd` do projeto e `hook_event_name: Stop`, usando `backend/venv/Scripts/python.exe .hooks/quality_gate.py`. Primeira passada apontou somente formatação do último ajuste do cabeçalho; corrigida com Prettier. Segunda passada terminou com código 0 e saída `{}`. Skills e hooks foram consultados, sem mudanças em sua configuração. `git diff --check` também passou.
