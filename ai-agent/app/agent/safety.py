@@ -1,11 +1,12 @@
 """Bloqueios determinísticos anteriores à interpretação e a qualquer ferramenta.
 
 As regras operam sobre o texto normalizado (NFKC, com letras cirílicas e gregas
-parecidas trocadas pelas latinas, em minúsculas, sem acentos, sem comentários SQL de
-bloco, com cada sequência de espaços, tabs e quebras de linha reduzida a um
-separador e com letras isoladas em sequência juntadas). Os caracteres invisíveis são
-avaliados de duas formas, removidos e trocados por espaço, e a pergunta é recusada
-se qualquer das duas versões casar com uma regra. Quase
+parecidas trocadas pelas latinas, em minúsculas, sem acentos, com cada sequência de
+espaços, tabs e quebras de linha reduzida a um separador e com letras isoladas em
+sequência juntadas). Os caracteres invisíveis são avaliados de duas formas, removidos
+e trocados por espaço, e os comentários SQL de bloco fechados também, removidos
+inteiros e com o conteúdo mantido; a pergunta é recusada se qualquer das versões
+casar com uma regra. Quase
 todas as regras leem o texto em uma linha só, então as janelas entre termos e os
 espaços dos padrões atravessam quebras de linha; só os marcadores de papel leem o
 texto com as quebras mantidas. Todas as janelas entre termos são limitadas
@@ -33,7 +34,6 @@ OUT_OF_SCOPE_RULE = "out_of_scope"
 _INVISIBLE = re.compile(
     "[\u00ad\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\U000e0000-\U000e007f]"
 )
-_SQL_BLOCK_COMMENT = re.compile(r"/\*.{0,200}?\*/", re.DOTALL)
 # Lista curta e explícita de letras cirílicas e gregas que imitam latinas.
 _HOMOGLYPHS = str.maketrans(
     {
@@ -77,12 +77,34 @@ def _collapse_whitespace(match: re.Match[str]) -> str:
     return "\n" if _LINE_BREAKS.intersection(match.group()) else " "
 
 
-def _normalize(value: str, *, invisible: str = "") -> _NormalizedText:
+def _replace_block_comments(text: str, *, keep_content: bool) -> str:
+    """Troca cada comentário `/* … */` fechado por espaço, ou só os marcadores.
+
+    Percorre o texto uma vez, sem regex, e não limita o tamanho do comentário. O
+    `*/` só é procurado depois do `/*` inicial, então `/*/` não fecha sozinho. Um
+    `/*` sem `*/` depois não é comentário e o resto do texto fica como está.
+    """
+    parts: list[str] = []
+    start = 0
+    while (opening := text.find("/*", start)) >= 0:
+        closing = text.find("*/", opening + 2)
+        if closing < 0:
+            break
+        parts.append(text[start:opening])
+        parts.append(f" {text[opening + 2:closing]} " if keep_content else " ")
+        start = closing + 2
+    parts.append(text[start:])
+    return "".join(parts)
+
+
+def _normalize(
+    value: str, *, invisible: str = "", keep_comments: bool = False
+) -> _NormalizedText:
     visible = _INVISIBLE.sub(invisible, unicodedata.normalize("NFKC", value))
     latin = visible.translate(_HOMOGLYPHS)
     decomposed = unicodedata.normalize("NFD", latin.casefold())
     text = "".join(char for char in decomposed if not unicodedata.combining(char))
-    text = _SQL_BLOCK_COMMENT.sub(" ", text)
+    text = _replace_block_comments(text, keep_content=keep_comments)
     text = _SPACED_LETTERS.sub(lambda match: re.sub(r"[\s.-]", "", match.group()), text)
     text = _WHITESPACE.sub(_collapse_whitespace, text)
     return _NormalizedText(flat=text.replace("\n", " "), lines=text)
@@ -424,9 +446,15 @@ class QuestionSafetyGate:
         if removed.flat.strip() in _SERVICE_MESSAGES:
             return None
         # Invisível dentro da palavra ("dr​op") só casa removido; no lugar do
-        # espaço ("Apague​os registros") só casa trocado por espaço.
-        spaced = _normalize(question, invisible=" ")
-        versions = (removed,) if spaced == removed else (removed, spaced)
+        # espaço ("Apague​os registros") só casa trocado por espaço. Comentário no
+        # meio do comando ("DROP/* … */TABLE") só casa removido; o que vai dentro
+        # dele ("/* apague os registros */") só casa mantido, porque o modelo recebe
+        # a pergunta inteira.
+        versions = [removed]
+        for invisible, keep_comments in (("", True), (" ", False), (" ", True)):
+            version = _normalize(question, invisible=invisible, keep_comments=keep_comments)
+            if version not in versions:
+                versions.append(version)
         for rule in _SECURITY_RULES:
             if any(rule.matches(version) for version in versions):
                 return rule.name

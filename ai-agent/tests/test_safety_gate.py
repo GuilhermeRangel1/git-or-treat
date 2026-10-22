@@ -156,6 +156,22 @@ def test_normalization_removes_disguises(disguised: str) -> None:
     assert GATE.matched_rule(disguised) == GATE.matched_rule("drop table x") == "sql_command"
 
 
+@pytest.mark.parametrize("length", [201, 1_000])
+@pytest.mark.parametrize(
+    ("before", "after", "expected"),
+    [
+        ("DROP", "TABLE clientes", "sql_command"),
+        ("Apague", "os registros", "write_destructive"),
+    ],
+)
+def test_long_block_comment_does_not_hide_command(
+    before: str, after: str, expected: str, length: int
+) -> None:
+    # Regressão da revisão do PR #34: comentários com mais de 200 caracteres não
+    # eram removidos e separavam o verbo do alvo.
+    assert GATE.matched_rule(f"{before}/*{'x' * length}*/{after}") == expected
+
+
 @pytest.mark.parametrize(
     "question",
     [
@@ -218,6 +234,18 @@ def test_long_adversarial_inputs_are_evaluated_quickly() -> None:
         ZERO_WIDTH_SPACE * 20_000,
         (("apague" + ZERO_WIDTH_SPACE) * 143)[:MAX_QUESTION_LENGTH],
         (("apague" + ZERO_WIDTH_SPACE) * 2_858)[:20_000],
+        # Comentários de bloco avaliados removidos e com o conteúdo mantido.
+        *(
+            sample[:length]
+            for length in (MAX_QUESTION_LENGTH, 20_000)
+            for sample in (
+                "/*" * 10_000,
+                "/*" + "x" * 20_000,
+                "/**/" * 5_000,
+                "/*/" * 6_667,
+                ("/*" + "x" * 190) * 105,
+            )
+        ),
         # Tamanho máximo aceito pela API, com e sem regra casando.
         ("Qual o consumo por município? " * 40)[:MAX_QUESTION_LENGTH],
         ("apague o " + "x " * 500)[:MAX_QUESTION_LENGTH],
