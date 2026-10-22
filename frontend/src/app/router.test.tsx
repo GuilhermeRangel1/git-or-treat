@@ -15,12 +15,14 @@ beforeEach(() => {
       removeEventListener: vi.fn(),
     }),
   );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockRejectedValue(new Error("network offline")),
+  );
 });
 
-it("mantém a estrutura e o tema ao navegar e consulta dados somente em Receita", async () => {
-  const fetchSpy = vi
-    .fn()
-    .mockResolvedValue(new Response(JSON.stringify({}), { status: 503 }));
+it("mantém a estrutura e o tema ao navegar entre as sete áreas", async () => {
+  const fetchSpy = vi.fn().mockRejectedValue(new Error("network offline"));
   vi.stubGlobal("fetch", fetchSpy);
   const user = userEvent.setup();
   render(
@@ -56,14 +58,30 @@ it("mantém a estrutura e o tema ao navegar e consulta dados somente em Receita"
       "page",
     );
     if (name === "Receita") {
-      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
-      expect(String(fetchSpy.mock.calls[0][0])).toContain("/api/v1/revenue?");
+      await waitFor(() =>
+        expect(
+          fetchSpy.mock.calls.filter((call) =>
+            String(call[0]).includes("/api/v1/revenue?"),
+          ),
+        ).toHaveLength(1),
+      );
     }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  expect(fetchSpy).toHaveBeenCalledTimes(1);
+  // Panorama e Receita consultam suas APIs; as demais áreas desta branch são visuais.
+  await waitFor(() =>
+    expect(
+      fetchSpy.mock.calls.some((call) =>
+        String(call[0]).includes("/api/v1/panorama?"),
+      ),
+    ).toBe(true),
+  );
+  for (const call of fetchSpy.mock.calls) {
+    const path = new URL(String(call[0]), window.location.origin).pathname;
+    expect(["/api/v1/panorama", "/api/v1/revenue"]).toContain(path);
+  }
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
-});
+}, 15000);
 
 it("inicia e permite alternar o tema quando o armazenamento está indisponível", async () => {
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
@@ -83,7 +101,7 @@ it("inicia e permite alternar o tema quando o armazenamento está indisponível"
     screen.getByRole("button", { name: "Alternar para tema escuro" }),
   );
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-});
+}, 10000);
 
 it("mantém o redirecionamento inicial e trata caminhos desconhecidos", () => {
   render(

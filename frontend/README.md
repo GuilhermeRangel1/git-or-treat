@@ -15,7 +15,7 @@ npm run dev
 
 O ambiente de CI usa Node.js 22; use uma versão compatível com os requisitos declarados pelo Vite instalado. O Docker de desenvolvimento está disponível em `Dockerfile.dev`.
 
-Abrir as páginas de produto não exige API. A rota de diagnóstico `/dev/contratos` existe somente durante o desenvolvimento e consulta `/api/v1/kpis` por meio do cliente HTTP compartilhado. Em desenvolvimento há fallback para `http://localhost:8000`; para outro servidor, copie `.env.example` para `.env.local` e configure `VITE_API_URL`. Essa URL é pública; credenciais não pertencem a variáveis `VITE_*`.
+O Panorama exige a API para exibir os indicadores; as demais páginas ainda estão no escopo visual. A rota de diagnóstico `/dev/contratos` existe somente durante o desenvolvimento e consulta `/api/v1/kpis` por meio do cliente HTTP compartilhado. Em desenvolvimento, sem `VITE_API_URL`, as consultas usam a origem do portal e o proxy `/api` do Vite, cujo destino padrão é `http://127.0.0.1:8000`. No Docker, `API_PROXY_TARGET=http://backend:8000` configura esse destino no servidor; `DEV_USE_POLLING=true` atualiza os arquivos do volume Windows. Para outro servidor, configure `VITE_API_URL`; em produção essa variável continua obrigatória (use `/` somente quando houver proxy no servidor publicado). Essa URL é pública; credenciais não pertencem a variáveis `VITE_*`.
 
 ## Verificar
 

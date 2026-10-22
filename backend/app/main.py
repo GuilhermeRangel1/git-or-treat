@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.db.base import Base
@@ -8,6 +9,8 @@ from app.core.database import engine
 from app.api.v1.router import api_router
 from app.repositories.analytics import AnalyticsSourceUnavailable
 from app.services.analytics import AnalyticsAPIError
+from app.middleware.request_limits import RequestLimitsMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 
 
 @asynccontextmanager
@@ -55,6 +58,10 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+app.add_middleware(RequestLimitsMiddleware)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.BACKEND_ALLOWED_HOSTS)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Roteador central v1
 app.include_router(api_router, prefix=settings.API_V1_STR)

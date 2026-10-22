@@ -67,6 +67,16 @@ $env:ANALYTICS_SOURCE = "synthetic"
 uvicorn app.main:app --reload --port 8000
 ```
 
+## Acesso às ordens e limites de entrada
+
+As rotas `/api/v1/inspections/orders` agora ficam bloqueadas sem autenticação de serviço. Configure no servidor `ORDERS_READ_TOKEN` e/ou `ORDERS_WRITE_TOKEN`, usando valores aleatórios distintos com pelo menos 32 caracteres. Leitor somente lista; escritor lista/cria/altera. O Swagger oferece o esquema `OrdersServiceToken` em Authorize. Não coloque esses valores em `VITE_*`, URLs, commits ou código frontend. Eles não são login de usuário; a futura UI operacional precisa de sessão/BFF ou identidade própria. Sem configuração, o Panorama sintético continua funcionando e ordens permanecem fechadas.
+
+Para criar cada valor, execute localmente `python -c "import secrets; print(secrets.token_urlsafe(32))"` e armazene apenas em configuração privada. A alteração requer reiniciar/recriar o backend. Em produção, use HTTPS e rotacione as credenciais.
+
+Entradas operacionais têm limites de tamanho; IDs de ordem são positivos até 2^63−1. JSON usa UTF-8, corpo até 64 KiB e até 32 níveis. Rejeições são 400/413/422. PENDENTE pode iniciar/cancelar; EM_ANDAMENTO pode concluir/cancelar; ordens encerradas não reabrem e conclusão exige resultado. Veja [ADR-0007](../docs/decisions/0007-contencao-seguranca-ordens-e-entradas.md) para detalhes e limites.
+
+`BACKEND_ALLOWED_HOSTS` aceita lista JSON ou nomes separados por vírgulas. Configure os hosts reais do ingresso em produção; a lista padrão atende localhost/127.0.0.1, proxy backend e testes. Não use wildcard como configuração de implantação.
+
 ## Verificações
 
 ### Imagem Docker

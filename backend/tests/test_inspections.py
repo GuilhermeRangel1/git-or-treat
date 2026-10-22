@@ -1,4 +1,5 @@
 import pytest
+from pydantic import SecretStr
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
@@ -9,6 +10,14 @@ from app.models.operational import OrderStatus
 from app.schemas.inspections import OrderCreateRequest, OrderUpdateRequest
 from app.services import inspections as inspection_service
 from tests.conftest import TestingSessionLocal, test_engine
+
+
+@pytest.fixture(autouse=True)
+def order_writer(client, monkeypatch):
+    token = "isolated-writer-" + "x" * 32
+    monkeypatch.setattr("app.core.config.settings.ORDERS_WRITE_TOKEN", SecretStr(token))
+    monkeypatch.setattr("app.core.config.settings.ORDERS_READ_TOKEN", None)
+    client.headers["Authorization"] = "Bearer " + token
 
 
 def test_order_creation_persists_and_keeps_existing_response_contract(client):

@@ -8,6 +8,7 @@ def synthetic_source(monkeypatch):
 
 @pytest.mark.parametrize("path", [
     "/api/v1/kpis",
+    "/api/v1/panorama",
     "/api/v1/revenue",
     "/api/v1/ucs",
     "/api/v1/ucs/{uc_id}",
