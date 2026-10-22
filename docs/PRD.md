@@ -457,6 +457,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — ordenação autorizada por valor no ensaio SQL
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. A ordenação foi exercitada apenas com métricas e linhas artificiais no SQLite; não altera a situação da Gold.
+- Mudança observável: `SqlMetricBinding` declara se a métrica do catálogo artificial permite ordenar pelo valor agregado. Somente `ReadOrder` com o ID dessa métrica pode selecionar ordem ascendente ou descendente; a consulta usa o alias agregado já validado, antes do limite, com período e categoria para desempate. O comportamento cronológico existente continua sendo o padrão, e ordenação não liberada segue recusada antes do serviço SQL.
+- Arquivos e evidência: `ai-agent/app/sql/plan.py`, `ai-agent/tests/test_sql_plan_reader.py`, `ai-agent/app/sql/README.md` e `docs/services/ai-agent.md`. Em `ai-agent/`, os **24** testes do leitor passaram; suíte SQL selecionada: **313 passaram, 1 PostgreSQL opcional pulou**; `python -m pytest -q --basetemp .pytest-tmp-value-order-full --tb=short`: **745 passaram, 2 opcionais pularam** fora do sandbox por causa do bloqueio assíncrono conhecido neste host. Ruff dos arquivos alterados passou.
+- Critérios e pendências: para o município fictício A, a ordenação decrescente escolhe fevereiro (**3600,75**) antes de janeiro (**3500,5**) e sinaliza o terceiro mês truncado; com agrupamento, a ordenação crescente coloca o município fictício B (**800,25**) antes de A (**3500,5**) em janeiro. Identidade, semântica e execução Gold, contexto de acesso na porta `EvidenceSource` e demais capacidades de ordenação continuam pendentes. IA-06 não está concluído.
+
 ### 2026-10-22 — IA-06 — agrupamento explícito no plano lógico do ensaio SQL
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. A alteração remove uma interpretação ambígua no ensaio com SQLite artificial; não integra a Gold.

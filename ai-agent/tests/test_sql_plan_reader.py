@@ -32,6 +32,7 @@ def _reader_with_approved_municipality_filter(
     window_end: date = date(2025, 1, 31),
     reader_catalog_version: str = "v1",
     plan_limit: int = 10,
+    allow_value_order: bool = False,
 ) -> tuple[SqlPlanReader, LogicalReadPlan, InMemoryAuditSink]:
     dictionary = load_test_dictionary()
     database = build_gold_sqlite(tmp_path / "artificial.sqlite")
@@ -57,6 +58,7 @@ def _reader_with_approved_municipality_filter(
                 column="receita_total",
                 aggregation="sum",
                 dimension_ids=frozenset({"geography.municipality"}),
+                allow_value_order=allow_value_order,
             )
         },
         dimensions={"geography.municipality": "municipio"},
@@ -333,6 +335,53 @@ def test_approved_multi_month_window_returns_ordered_monthly_totals(tmp_path) ->
     assert result.truncated is False
     assert len(audit.records) == 1
     assert audit.records[0].status == "accepted"
+
+
+def test_catalog_approved_value_order_selects_highest_artificial_months(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+        window_end=date(2025, 3, 31),
+        plan_limit=2,
+        allow_value_order=True,
+    )
+    ordered = approved.model_copy(
+        update={"order": ReadOrder(field_id="billing.revenue", direction="desc")}
+    )
+
+    result = reader.read(ordered, SQL_DEMO_CONTEXT)
+
+    assert result.rows == (("2025-02", 3600.75), ("2025-01", 3500.5))
+    assert result.truncated is True
+    assert len(audit.records) == 1
+    assert audit.records[0].status == "accepted"
+
+
+def test_catalog_approved_value_order_sorts_artificial_groups(tmp_path) -> None:
+    reader, approved, _ = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+        allow_value_order=True,
+    )
+    ordered = approved.model_copy(
+        update={
+            "filters": (),
+            "group_by_dimension_ids": ("geography.municipality",),
+            "order": ReadOrder(field_id="billing.revenue", direction="asc"),
+        }
+    )
+
+    result = reader.read(ordered, SQL_DEMO_CONTEXT)
+
+    assert result.rows == (
+        ("2025-01", "Municipio Ficticio B", 800.25),
+        ("2025-01", "Municipio Ficticio A", 3500.5),
+    )
+    assert result.truncated is False
 
 
 def test_plan_limit_truncates_the_result_and_reports_that_more_rows_exist(tmp_path) -> None:

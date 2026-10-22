@@ -28,6 +28,7 @@ class SqlMetricBinding:
     column: str
     aggregation: Literal["sum"]
     dimension_ids: frozenset[str]
+    allow_value_order: bool = False
 
 
 @dataclass(frozen=True)
@@ -104,7 +105,10 @@ class SqlPlanReader:
             or not set(plan.dimension_ids) <= metric.dimension_ids
             or set(plan.dimension_ids) != covered_dimensions
             or len(grouped_dimensions) > 1
-            or plan.order is not None
+            or (
+                plan.order is not None
+                and (not metric.allow_value_order or plan.order.field_id != plan.metric_id)
+            )
         ):
             self._reject("plan_out_of_catalog", "recorte fora do catálogo artificial")
 
@@ -149,6 +153,11 @@ class SqlPlanReader:
         category_group = f', "{group_column}"' if group_column else ""
         category_select = ", category" if group_column else ""
         category_order = ", category ASC" if group_column else ""
+        ordering = (
+            f"value {plan.order.direction.value.upper()}, period ASC{category_order}"
+            if plan.order is not None
+            else f"period ASC{category_order}"
+        )
         sql = (
             "WITH plan_rows AS ("
             f"SELECT {period} AS period{category_projection}, "
@@ -156,7 +165,7 @@ class SqlPlanReader:
             f"WHERE {' AND '.join(conditions)} GROUP BY {period}{category_group}) "
             f"SELECT period{category_select}, value, "
             "(SELECT COUNT(*) FROM plan_rows) AS total_rows "
-            f"FROM plan_rows ORDER BY period ASC{category_order} LIMIT {plan.limit}"
+            f"FROM plan_rows ORDER BY {ordering} LIMIT {plan.limit}"
         )
         result = self._service.run(
             sql,
