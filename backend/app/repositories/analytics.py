@@ -17,6 +17,16 @@ class MonthlyCoverage:
     end: str
 
 
+@dataclass(frozen=True)
+class RevenueCoverage:
+    """Explicit monthly coverage for each independent revenue measure."""
+
+    billed_amount: frozenset[str]
+    billed_energy_kwh: frozenset[str]
+    paid_amount: frozenset[str]
+    measured_energy_kwh: frozenset[str]
+
+
 class AnalyticsRepository(Protocol):
     units: list[dict]
     invoices: list[dict]
@@ -33,6 +43,7 @@ class AnalyticsRepository(Protocol):
     source_updated_at: str
     source_limitations: list[str]
     continuity_coverage: MonthlyCoverage | None
+    revenue_coverage: RevenueCoverage
 
 
 class SyntheticAnalyticsRepository:
@@ -55,6 +66,12 @@ class SyntheticAnalyticsRepository:
     continuity_coverage: MonthlyCoverage | None = MonthlyCoverage(
         start=fixtures.CONTINUITY_COVERAGE_START,
         end=fixtures.CONTINUITY_COVERAGE_END,
+    )
+    revenue_coverage: RevenueCoverage = RevenueCoverage(
+        billed_amount=frozenset(fixtures.REVENUE_BILLED_AMOUNT_COVERAGE),
+        billed_energy_kwh=frozenset(fixtures.REVENUE_BILLED_ENERGY_COVERAGE),
+        paid_amount=frozenset(fixtures.REVENUE_PAID_AMOUNT_COVERAGE),
+        measured_energy_kwh=frozenset(fixtures.REVENUE_MEASURED_ENERGY_COVERAGE),
     )
 
 

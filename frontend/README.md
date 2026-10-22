@@ -29,6 +29,14 @@ npm run build
 
 `npm run format` aplica formatação e `npm run test:watch` acompanha os testes durante o desenvolvimento. As verificações também são executadas na CI.
 
+### Finais de linha no Windows
+
+O frontend usa LF: `.prettierrc.json` define `endOfLine: "lf"` e a regra `/frontend/** text=auto eol=lf` em `../.gitattributes` impede que um novo checkout converta esses arquivos para CRLF, mesmo com `core.autocrlf=true`. Não é necessário alterar a configuração global do Git. Arquivos binários continuam sujeitos à detecção automática do Git.
+
+Se um checkout existente ainda contiver CRLF, execute `npm run format` e depois `npm run format:check`. Revise o diff antes de commitar; normalização de finais de linha não deve introduzir mudanças funcionais. Não use limpeza ou checkout forçado para isso quando houver trabalho local.
+
+Verificado com Prettier 3.9.10, conforme o lockfile. Referências: [opção de finais de linha do Prettier](https://prettier.io/docs/options#end-of-line) e [atributos de texto e EOL do Git](https://git-scm.com/docs/gitattributes#_eol).
+
 ## Escopo visual atual
 
 Branch `feat/visual-frontend`, renomeada de `refactor/arquitetura-frontend`. A [referência Figma](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K?node-id=15-164) orienta a sidebar de 224 px e o cabeçalho do Panorama. O rodapé demonstrativo e a linha de dados sintéticos foram retirados conforme pedido. O Panorama termina antes dos filtros. As demais páginas mostram apenas os títulos, subtítulos e rótulos superiores do protótipo; o Assistente tem apenas o painel central de abertura, sem exemplos, envio ou funcionamento de chat.
