@@ -1,0 +1,68 @@
+# Dicionário PROVISÓRIO da camada SQL somente leitura.
+#
+# As tabelas e colunas abaixo são hipóteses de trabalho até a Gold ser publicada e
+# docs/data-dictionary.md registrar os nomes reais. A integração Gold também requer
+# catálogo semântico, contrato, permissões e reconciliação aprovados.
+#
+# Lista branca: qualquer tabela, coluna, função ou tipo de CAST ausente daqui é recusado.
+
+version = "0.2.0-provisorio"
+status = "provisorio"
+
+[limits]
+# Teto de linhas devolvidas; LIMIT ausente ou maior é ajustado para este valor.
+max_rows = 500
+# Teto total de referências a tabelas, contando autojunções e origens em subconsultas/CTEs.
+max_tables = 5
+timeout_ms = 5000
+max_sql_chars = 4000
+
+[policy]
+# Nomes canônicos do sqlglot em minúsculas (ex.: substr é registrado como substring).
+allowed_functions = [
+    "count",
+    "sum",
+    "avg",
+    "min",
+    "max",
+    "round",
+    "abs",
+    "coalesce",
+    "nullif",
+    "lower",
+    "upper",
+]
+# Tipos de DataType do sqlglot permitidos em CAST.
+allowed_cast_types = ["int", "bigint", "smallint", "decimal", "double", "float", "text", "varchar", "date"]
+# Recusadas em qualquer identificador (coluna, alias, CTE), mesmo entre aspas ou em maiúsculas.
+sensitive_columns = [
+    "cpf_cnpj",
+    "cpf",
+    "cnpj",
+    "nome_titular",
+    "nome_cliente",
+    "email",
+    "telefone",
+    "celular",
+    "endereco",
+    "logradouro",
+    "numero_endereco",
+    "complemento",
+    "cep",
+    "data_nascimento",
+    "rg",
+]
+# Prefixos de objetos internos do banco; nenhum identificador pode começar com eles.
+reserved_prefixes = ["pg_", "sqlite_", "information_schema"]
+
+[tables.gold_indicadores]
+description = "Indicadores mensais agregados por município, bairro e classe (provisório)."
+
+[tables.gold_indicadores.columns]
+competencia = "text"
+municipio = "text"
+bairro = "text"
+classe = "text"
+receita_total = "decimal"
+energia_consumida_kwh = "decimal"
+ucs_ativas = "int"

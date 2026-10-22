@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
+from app.schemas.access import AccessContext
 from app.schemas.evidence import EvidenceLookupResult
 
 if TYPE_CHECKING:
@@ -25,4 +26,6 @@ class EvidenceAccessDenied(Exception):
 class EvidenceSource(Protocol):
     """Fonte async: use I/O assíncrono ou delegue operações bloqueantes."""
 
-    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult: ...
+    async def retrieve(
+        self, plan: LogicalReadPlan, access_context: AccessContext
+    ) -> EvidenceLookupResult: ...

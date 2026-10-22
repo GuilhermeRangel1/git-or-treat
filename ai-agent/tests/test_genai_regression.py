@@ -38,11 +38,11 @@ class RecordingEvidenceSource:
         self.plans: list[LogicalReadPlan] = []
         self.fail = fail
 
-    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
+    async def retrieve(self, plan: LogicalReadPlan, access_context) -> EvidenceLookupResult:
         self.plans.append(plan)
         if self.fail:
             raise EvidenceToolUnavailable("private source detail")
-        return await self.delegate.retrieve(plan)
+        return await self.delegate.retrieve(plan, access_context)
 
 
 class CaseModelAdapter:

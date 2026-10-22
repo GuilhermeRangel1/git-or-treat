@@ -170,6 +170,8 @@ class QuestionAnalysisPlanner:
         """Ponto único de validação, inclusive para planos propostos futuramente por LLM."""
 
         try:
+            if access_context is None:
+                raise EvidenceAccessDenied("Contexto de acesso ausente.")
             approved = self._plan_validator.approve(proposed, access_context)
         except EvidenceAccessDenied:
             if trace is not None:
@@ -184,9 +186,11 @@ class QuestionAnalysisPlanner:
             trace.emit(EventStage.SOURCE, EventCode.STARTED, EventOutcome.STARTED)
         try:
             evidence_result = (
-                await budget.source(lambda: self._evidence_source.retrieve(approved))
+                await budget.source(
+                    lambda: self._evidence_source.retrieve(approved, access_context)
+                )
                 if budget is not None
-                else await self._evidence_source.retrieve(approved)
+                else await self._evidence_source.retrieve(approved, access_context)
             )
             if not isinstance(evidence_result, EvidenceLookupResult):
                 raise TypeError("Evidence source returned an unsupported result type.")

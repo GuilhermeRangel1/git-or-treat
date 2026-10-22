@@ -108,6 +108,7 @@ class LogicalReadPlan(BaseModel):
     domain_id: LogicalIdentifier
     metric_id: LogicalIdentifier
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
+    group_by_dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
     unit: PlanUnit
     window: ReadWindow
     filters: tuple[ReadFilter, ...] = Field(default=(), max_length=20)
@@ -126,6 +127,10 @@ class LogicalReadPlan(BaseModel):
     def require_consistent_dimensions(self) -> Self:
         if len(self.dimension_ids) != len(set(self.dimension_ids)):
             raise ValueError("dimensão repetida no plano")
+        if len(self.group_by_dimension_ids) != len(set(self.group_by_dimension_ids)):
+            raise ValueError("dimensão repetida no agrupamento")
+        if not set(self.group_by_dimension_ids) <= set(self.dimension_ids):
+            raise ValueError("agrupamento exige dimensão declarada no plano")
         filter_ids = [item.dimension_id for item in self.filters]
         if len(filter_ids) != len(set(filter_ids)):
             raise ValueError("filtro repetido no plano")

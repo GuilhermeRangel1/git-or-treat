@@ -38,17 +38,17 @@ class RecordingModelAdapter(FakeModelAdapter):
 
 
 class FailingScenarioTool:
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, _access_context):
         raise EvidenceToolUnavailable("internal source detail")
 
 
 class DeniedScenarioTool:
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, _access_context):
         raise EvidenceAccessDenied("private authorization policy detail")
 
 
 class InvalidEvidenceScenarioTool:
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, _access_context):
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
@@ -63,9 +63,9 @@ class CountingScenarioTool:
         self.calls = 0
         self.delegate = SyntheticScenarioTool()
 
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, access_context):
         self.calls += 1
-        return await self.delegate.retrieve(intent)
+        return await self.delegate.retrieve(intent, access_context)
 
 
 class RecordingScenarioTool:
@@ -73,9 +73,9 @@ class RecordingScenarioTool:
         self.requests = []
         self.delegate = SyntheticScenarioTool()
 
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, access_context):
         self.requests.append(intent)
-        return await self.delegate.retrieve(intent)
+        return await self.delegate.retrieve(intent, access_context)
 
 
 class InvalidModelAdapter:
@@ -84,7 +84,7 @@ class InvalidModelAdapter:
 
 
 class LargeCountScenarioTool:
-    async def retrieve(self, plan: LogicalReadPlan):
+    async def retrieve(self, plan: LogicalReadPlan, _access_context):
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
@@ -534,7 +534,7 @@ def test_untrusted_assistant_history_is_not_allowed_to_override_safety_rules() -
 
 
 class UnexpectedFailureScenarioTool:
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, _access_context):
         raise RuntimeError("source-secret-marker-42")
 
 
