@@ -6,9 +6,10 @@ from datetime import date
 import pytest
 
 from app.agent.access import ReadAccessPolicy
+from app.agent.evidence_guard import EvidenceGuard
 from app.agent.read_plan import PlanCapabilityUnavailable, ReadPlanValidator
 from app.api.access import demo_access_context
-from app.ports.evidence import EvidenceAccessDenied
+from app.ports.evidence import EvidenceAccessDenied, EvidenceContractInvalid
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.schemas.domain_profile import (
     CatalogGranularity,
@@ -18,13 +19,16 @@ from app.schemas.domain_profile import (
 )
 from app.schemas.read_plan import LogicalReadPlan, ReadFilter, ReadOrder, ReadWindow, WindowKind
 from app.sql.audit import InMemoryAuditSink
-from app.sql.executors import SqliteReadOnlyExecutor
+from app.sql.evidence import project_artificial_sql_evidence
+from app.sql.executors import QueryResult, SqliteReadOnlyExecutor
 from app.sql.plan import SqlMetricBinding, SqlPlanCatalog, SqlPlanReader
 from app.sql.service import ReadOnlySqlService
 from app.sql.validator import SqlRejected
 from tests.sql_support import build_gold_sqlite, load_test_dictionary
 
 SQL_DEMO_CONTEXT = demo_access_context(GRID360_DEMO_PROFILE, "0" * 32, "synthetic.sql")
+SQL_DEMO_LIMITATION = GRID360_DEMO_PROFILE.metrics[0].limitation_texts[0]
+SQL_TRUNCATION_LIMITATION = "Resultado artificial limitado às primeiras observações."
 
 
 def _reader_with_approved_municipality_filter(
@@ -676,3 +680,155 @@ def test_reader_rejects_unsupported_plan_before_sql_service(
     assert record.plan_fingerprint is None
     assert record.query_template is None
     assert "Municipio Ficticio A" not in str(record.to_dict())
+
+
+def test_grouped_sql_result_becomes_guarded_artificial_evidence(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    grouped = approved.model_copy(
+        update={"filters": (), "group_by_dimension_ids": ("geography.municipality",)}
+    )
+    result = reader.read(grouped, SQL_DEMO_CONTEXT)
+    evidence = project_artificial_sql_evidence(
+        grouped, result, demo_limitation=SQL_DEMO_LIMITATION
+    )
+
+    profile_data = GRID360_DEMO_PROFILE.model_dump(mode="python")
+    profile_data["dimensions"][0]["values"] = [
+        DimensionValue(value=value, aliases=(value,))
+        for value in ("Municipio Ficticio A", "Municipio Ficticio B")
+    ]
+    profile_data["metrics"][0]["evidence_fields"] = [
+        {"name": "value", "role": "measure", "value_type": "number", "sensitivity": "internal"},
+        {"name": "unit", "role": "unit", "value_type": "string", "sensitivity": "internal"},
+        {"name": "period", "role": "period", "value_type": "date", "sensitivity": "internal"},
+        {
+            "name": "category", "role": "dimension",
+            "dimension_id": "geography.municipality",
+            "value_type": "string", "sensitivity": "internal",
+        },
+    ]
+    safe = EvidenceGuard(DomainProfile.model_validate(profile_data)).validate(grouped, evidence)
+
+    assert safe.evidence is not None
+    assert safe.evidence.reference.is_demo is True
+    assert safe.evidence.records == [
+        {
+            "observation_id": "row_1", "period": "2025-01", "value": 3500.5,
+            "unit": "unidades fictícias",
+            "dimensions": {"geography.municipality": "Municipio Ficticio A"},
+        },
+        {
+            "observation_id": "row_2", "period": "2025-01", "value": 800.25,
+            "unit": "unidades fictícias",
+            "dimensions": {"geography.municipality": "Municipio Ficticio B"},
+        },
+    ]
+    assert safe.evidence.provenance is not None
+    assert safe.evidence.provenance.plan_fingerprint == grouped.fingerprint()
+    assert len(audit.records) == 1 and audit.records[0].status == "accepted"
+
+
+def test_artificial_sql_projection_distinguishes_zero_from_no_evidence(tmp_path) -> None:
+    zero_path = tmp_path / "zero"
+    zero_path.mkdir()
+    zero_reader, zero_plan, _ = _reader_with_approved_municipality_filter(
+        zero_path,
+        municipality_values=("Municipio Ficticio Zero",),
+        filter_values=("Municipio Ficticio Zero",),
+        operator=FilterOperator.EQ,
+    )
+    with sqlite3.connect(zero_path / "artificial.sqlite") as connection:
+        connection.execute(
+            "INSERT INTO gold_indicadores VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("2025-01", "Municipio Ficticio Zero", "Bairro Zero", "residencial", 0, 0, 1),
+        )
+    zero = project_artificial_sql_evidence(
+        zero_plan, zero_reader.read(zero_plan, SQL_DEMO_CONTEXT),
+        demo_limitation=SQL_DEMO_LIMITATION,
+    )
+
+    empty_path = tmp_path / "empty"
+    empty_path.mkdir()
+    empty_reader, empty_plan, _ = _reader_with_approved_municipality_filter(
+        empty_path,
+        municipality_values=("Municipio Sem Registros",),
+        filter_values=("Municipio Sem Registros",),
+        operator=FilterOperator.EQ,
+    )
+    absent = project_artificial_sql_evidence(
+        empty_plan, empty_reader.read(empty_plan, SQL_DEMO_CONTEXT),
+        demo_limitation=SQL_DEMO_LIMITATION,
+    )
+
+    assert zero.status.value == "available"
+    assert zero.evidence is not None
+    assert zero.evidence.records == [
+        {"period": "2025-01", "value": 0.0, "unit": "unidades fictícias"}
+    ]
+    assert absent.status.value == "no_evidence"
+    assert absent.evidence is None
+
+
+def test_truncated_sql_evidence_requires_an_explicit_limitation(tmp_path) -> None:
+    reader, approved, _ = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+        window_end=date(2025, 3, 31),
+        plan_limit=1,
+    )
+    result = reader.read(approved, SQL_DEMO_CONTEXT)
+    assert result.truncated is True
+
+    with pytest.raises(EvidenceContractInvalid):
+        project_artificial_sql_evidence(approved, result, demo_limitation=SQL_DEMO_LIMITATION)
+    projected = project_artificial_sql_evidence(
+        approved, result, demo_limitation=SQL_DEMO_LIMITATION,
+        truncation_limitation=SQL_TRUNCATION_LIMITATION,
+    )
+    assert projected.limitations == [SQL_DEMO_LIMITATION, SQL_TRUNCATION_LIMITATION]
+    assert projected.evidence is not None
+    assert projected.evidence.records == [
+        {"period": "2025-01", "value": 3500.5, "unit": "unidades fictícias"}
+    ]
+
+
+def test_sql_projection_rejects_a_result_outside_the_approved_window(tmp_path) -> None:
+    _, approved, _ = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    fabricated = QueryResult(
+        columns=("period", "value"), rows=(("2025-02", 3500.5),), truncated=False
+    )
+
+    with pytest.raises(EvidenceContractInvalid):
+        project_artificial_sql_evidence(
+            approved, fabricated, demo_limitation=SQL_DEMO_LIMITATION
+        )
+
+
+def test_sql_projection_cannot_mark_another_source_as_demonstration(tmp_path) -> None:
+    _, approved, _ = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A",),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    other_source = approved.model_copy(update={"source_id": "gold.production"})
+    result = QueryResult(
+        columns=("period", "value"), rows=(("2025-01", 3500.5),), truncated=False
+    )
+
+    with pytest.raises(EvidenceContractInvalid):
+        project_artificial_sql_evidence(
+            other_source, result, demo_limitation=SQL_DEMO_LIMITATION
+        )

@@ -457,6 +457,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-03/IA-06 — evidência demonstrativa a partir do leitor SQL artificial
+
+- Estado anterior → novo estado: `Pendente` → `Pendente` para ambos os requisitos. O percurso usa SQLite e valores inventados; não fundamenta uma resposta sobre a Gold real.
+- Mudança observável: `project_artificial_sql_evidence` converte o resultado do leitor autorizado em `EvidenceLookupResult` marcado `is_demo`, com período, valor, unidade, categoria agrupada, referência e proveniência do plano. Zero continua sendo número, ausência de linhas vira `no_evidence`, truncamento exige limitação explícita, período fora da janela é recusado e fonte sem ID demonstrativo não recebe essa marca. A projeção não aprova planos nem executa consultas.
+- Arquivos e evidência: `ai-agent/app/sql/evidence.py`, `ai-agent/tests/test_sql_plan_reader.py`, `ai-agent/app/sql/README.md` e `docs/services/ai-agent.md`. O teste encadeia plano autorizado → SQLite artificial → projeção → `EvidenceGuard` com perfil de teste que classifica período e município. Suíte SQL selecionada: **324 passaram, 1 teste PostgreSQL opcional pulou**; suíte GenAI completa: **756 passaram, 2 opcionais pularam** fora do sandbox pelo bloqueio assíncrono conhecido neste host. Ruff e compilação passaram.
+- Critérios e pendências: o perfil da aplicação ainda classifica somente `value` e `unit`; a porta `EvidenceSource.retrieve(plan)` ainda não transporta o contexto de acesso necessário ao leitor. A projeção não está ligada ao planner, endpoint ou fonte Gold. Classificação do perfil, composição segura, contrato Gold e validação com dados reais permanecem abertos.
+
 ### 2026-10-22 — IA-06 — grão e agregação explícitos no catálogo SQL artificial
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. O ensaio continua restrito a registros inventados em SQLite, sem execução ou fórmula Gold.
