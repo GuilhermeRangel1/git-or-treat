@@ -68,9 +68,9 @@ Tudo funciona como lista branca: o que não estiver no dicionário é recusado. 
 
 ## Auditoria
 
-Cada chamada a `ReadOnlySqlService.run` gera um `QueryAuditRecord` com: id, horário UTC, status, código do motivo, dialeto, versão do dicionário e tamanho do SQL recebido. Quando a chamada parte de `SqlPlanReader`, o registro também contém o fingerprint do plano revalidado e a versão do catálogo artificial. Após aprovação do SQL, registra o template normalizado da consulta, com literais substituídos por `?`, aliases livres generalizados e o SHA-256 desse template, tabelas, limites original/aplicado e se houve ajuste, número de linhas, truncamento, duração e classe do erro. Chamadas diretas ao serviço SQL deixam a identificação do plano e do catálogo vazia; esses campos não conferem autorização por si só.
+Cada chamada a `ReadOnlySqlService.run` gera um `QueryAuditRecord` com: id, horário UTC, status, código do motivo, dialeto, versão do dicionário e tamanho do SQL recebido. Quando a chamada parte de `SqlPlanReader`, o registro também contém o fingerprint do plano revalidado, a versão do catálogo artificial e o `correlation_id` do contexto de acesso da chamada. Após aprovação do SQL, registra o template normalizado da consulta, com literais substituídos por `?`, aliases livres generalizados e o SHA-256 desse template, tabelas, limites original/aplicado e se houve ajuste, número de linhas, truncamento, duração e classe do erro. Chamadas diretas ao serviço SQL deixam a identificação do plano, do catálogo e da requisição vazia; esses campos não conferem autorização por si só.
 
-Se o leitor recusar o plano **antes** de montar SQL, ele pede ao serviço um registro `rejected` com código fixo (`access_denied`, `unsupported_plan`, `plan_out_of_catalog`, `unsupported_window` ou `unsupported_filter`), dialeto e versão do dicionário. Esse registro não contém SQL, template, impressão do plano, filtros, texto da pergunta ou detalhes da exceção; `received_sql_chars` é zero. A recusa não chama `ReadOnlySqlService.run` nem o executor, e cada tentativa gera um registro. Ainda não existe correlação externa segura entre essa recusa e uma requisição do portal.
+Se o leitor recusar o plano **antes** de montar SQL, ele pede ao serviço um registro `rejected` com código fixo (`access_denied`, `unsupported_plan`, `plan_out_of_catalog`, `unsupported_window` ou `unsupported_filter`), dialeto, versão do dicionário e `correlation_id` quando há contexto de acesso. Esse registro não contém SQL, template, impressão do plano, filtros, texto da pergunta ou detalhes da exceção; `received_sql_chars` é zero. A recusa não chama `ReadOnlySqlService.run` nem o executor, e cada tentativa gera um registro. O identificador não está ligado à requisição do portal no ensaio atual, que compõe a fonte apenas em teste direto.
 
 O registro **não** guarda linhas de resultado, a pergunta da pessoa, o texto SQL recebido ou um hash do SQL bruto. Consultas rejeitadas pelo serviço SQL registram metadados do plano quando fornecidos e o motivo, sem template nem fingerprint do SQL recebido. Em consultas aprovadas ou com falha na execução, o template derivado da AST aprovada omite valores literais. O SQL completo não entra na auditoria. O fingerprint do plano é um hash estável que inclui filtros no seu cálculo: não é anonimização e não deve ser considerado proteção suficiente para dados reais de baixa cardinalidade. Retenção, acesso, destino durável e estratégia de correlação para produção ainda precisam de decisão.
 
@@ -91,14 +91,35 @@ O registro **não** guarda linhas de resultado, a pergunta da pessoa, o texto SQ
 - Um nome de tabela em `CTE`/alias que coincida com o nome de uma coluna é recusado mesmo quando seria inofensivo.
 - `SqlPlanReader.read` exige o contexto de acesso e reaplica o `ReadPlanValidator` injetado antes de chamar o serviço SQL; contexto ausente ou escopo revogado impede a consulta. A fonte foi composta com o planner apenas em teste direto; identidade e permissões reais do banco não foram comprovadas.
 - Não há teste contra um PostgreSQL real no gate local: o teste de integração roda só com `GENAI_TEST_POSTGRES_DSN` definido. Os demais usam uma conexão falsa que confere as instruções emitidas.
-- `SqlArtificialEvidenceSource` implementa a porta `EvidenceSource` sobre o leitor, mas ainda não compõe uma resposta HTTP ao usuário. O leitor reaplica a política de acesso com o contexto atual e valida o recorte do catálogo físico. Recusas anteriores ao SQL geram registros mínimos, sem filtro nem correlação externa; retenção e ligação segura à requisição dependem da composição de produção.
+- `SqlArtificialEvidenceSource` implementa a porta `EvidenceSource` sobre o leitor, mas ainda não compõe uma resposta HTTP ao usuário. O leitor reaplica a política de acesso com o contexto atual e valida o recorte do catálogo físico. Recusas anteriores ao SQL geram registros mínimos, com correlação do contexto quando presente e sem filtro; retenção e ligação à requisição do portal dependem da composição da aplicação.
 
 ## Verificar
 
+O recorte aprovado usa `SqlPlanCatalog` artificial `v1`, dicionário de teste
+carregado de `tests/fixtures/sql_dictionary_test.toml`, `sqlglot` 30.24.0 e
+dialeto SQLite com parâmetros posicionais `?`. Os testes constroem um banco
+temporário com registros inventados; não requerem Gold nem DSN PostgreSQL.
 Dentro de `ai-agent/`:
 
 ```powershell
 python -m pip install -e ".[dev,postgres]"
 python -m pytest -q tests/test_sql_validator.py tests/test_sql_executors.py tests/test_sql_service.py tests/test_sql_dictionary.py tests/test_sql_plan_reader.py
+python -m pytest -q --tb=short
 python -m ruff check .
 ```
+
+Na execução de 22/10/2026, a seleção SQL passou com **329 testes** e
+**1 teste PostgreSQL opcional pulado**; a suíte GenAI completa passou com
+**761 testes** e **2 opcionais pulados**. A execução completa ocorreu fora das
+restrições do sandbox deste host, com `--basetemp` apontando para uma pasta
+temporária gravável. Ruff e compilação também passaram nessa execução.
+
+O resultado artificial fixado nos testes inclui **3500,5 unidades fictícias**
+para janeiro de 2025 no município fictício A, **800,25** para o município B
+no mesmo mês, `0` como valor legítimo e lista vazia quando não há linhas.
+Três meses no município A produzem **3500,5**, **3600,75** e **970,1**, nessa
+ordem; limite 2 devolve duas linhas e indica truncamento. O filtro `IN` usa
+valores vinculados, e tentativas de escrita, objetos proibidos ou escopo
+revogado são recusados antes de executar. Esses números verificam somente a
+mecânica do ensaio: a API ainda usa a fixture e nenhuma resposta foi
+reconciliada com Gold.

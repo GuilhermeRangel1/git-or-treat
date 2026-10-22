@@ -297,6 +297,7 @@ def test_approved_plan_is_correlated_with_sql_audit_without_filter_values(tmp_pa
     assert result.rows == (("2025-01", 3500.5),)
     [record] = audit.records
     assert record.plan_fingerprint == approved.fingerprint()
+    assert record.correlation_id == SQL_DEMO_CONTEXT.correlation_id
     assert record.catalog_version == approved.catalog_version == "v1"
     assert record.dictionary_version == "teste-1"
     assert "Municipio Ficticio A" not in str(record.to_dict())
@@ -309,7 +310,9 @@ def test_reader_rechecks_current_access_scope_before_sql_service(tmp_path, monke
         filter_values=("Municipio Ficticio A",),
         operator=FilterOperator.EQ,
     )
-    restricted = SQL_DEMO_CONTEXT.model_copy(update={"allowed_metric_ids": frozenset()})
+    restricted = SQL_DEMO_CONTEXT.model_copy(
+        update={"allowed_metric_ids": frozenset(), "correlation_id": "1" * 32}
+    )
 
     def fail_if_sql_service_is_called(*_args, **_kwargs):
         raise AssertionError("acesso negado não deve chamar o serviço SQL")
@@ -324,6 +327,7 @@ def test_reader_rechecks_current_access_scope_before_sql_service(tmp_path, monke
         "access_denied",
         "access_denied",
     ]
+    assert [record.correlation_id for record in audit.records] == ["1" * 32, None]
     for record in audit.records:
         assert record.status == "rejected"
         assert record.received_sql_chars == 0

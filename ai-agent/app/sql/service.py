@@ -2,7 +2,13 @@
 
 import time
 
-from app.sql.audit import AuditSink, QueryAuditRecord, SqlAuditContext, template_fingerprint
+from app.sql.audit import (
+    AuditSink,
+    QueryAuditRecord,
+    SqlAuditContext,
+    template_fingerprint,
+    validate_correlation_id,
+)
 from app.sql.dictionary import SqlDictionary
 from app.sql.executors import QueryExecutionError, QueryResult, ReadOnlyExecutor
 from app.sql.validator import SqlRejected, validate_sql
@@ -29,11 +35,14 @@ class ReadOnlySqlService:
         self._executor = executor
         self._audit = audit
 
-    def record_pre_sql_rejection(self, reason_code: str) -> None:
+    def record_pre_sql_rejection(
+        self, reason_code: str, *, correlation_id: str | None = None
+    ) -> None:
         """Registra recusa anterior ao SQL sem copiar plano, filtros ou exceção."""
 
         if reason_code not in _PRE_SQL_REJECTION_CODES:
             raise ValueError("motivo de recusa anterior ao SQL inválido")
+        validate_correlation_id(correlation_id)
         self._audit.record(
             QueryAuditRecord(
                 status="rejected",
@@ -41,6 +50,7 @@ class ReadOnlySqlService:
                 dialect=self._executor.dialect,
                 dictionary_version=self._dictionary.version,
                 received_sql_chars=0,
+                correlation_id=correlation_id,
             )
         )
 
@@ -63,6 +73,7 @@ class ReadOnlySqlService:
                 audit_context.plan_fingerprint if audit_context is not None else None
             ),
             "catalog_version": audit_context.catalog_version if audit_context is not None else None,
+            "correlation_id": audit_context.correlation_id if audit_context is not None else None,
         }
         try:
             if not isinstance(sql, str):

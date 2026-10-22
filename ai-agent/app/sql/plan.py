@@ -78,8 +78,8 @@ class SqlPlanReader:
         self._service = service
         self._validator = validator
 
-    def _reject(self, code: str, detail: str) -> NoReturn:
-        self._service.record_pre_sql_rejection(code)
+    def _reject(self, code: str, detail: str, correlation_id: str | None) -> NoReturn:
+        self._service.record_pre_sql_rejection(code, correlation_id=correlation_id)
         raise SqlRejected(code, detail)
 
     def read(
@@ -87,21 +87,30 @@ class SqlPlanReader:
         proposed_plan: LogicalReadPlan | dict[str, object],
         access_context: AccessContext | None,
     ) -> QueryResult:
+        correlation_id = (
+            access_context.correlation_id
+            if isinstance(access_context, AccessContext)
+            else None
+        )
         try:
             plan = self._validator.approve(proposed_plan, access_context)
         except EvidenceAccessDenied:
-            self._service.record_pre_sql_rejection("access_denied")
+            self._service.record_pre_sql_rejection(
+                "access_denied",
+                correlation_id=correlation_id,
+            )
             raise
         except PlanCapabilityUnavailable:
-            self._service.record_pre_sql_rejection("unsupported_plan")
+            self._service.record_pre_sql_rejection(
+                "unsupported_plan",
+                correlation_id=correlation_id,
+            )
             raise
 
         catalog = self._catalog
         metric = catalog.metrics.get(plan.metric_id)
         grouped_dimensions = set(plan.group_by_dimension_ids)
-        covered_dimensions = grouped_dimensions | {
-            item.dimension_id for item in plan.filters
-        }
+        covered_dimensions = grouped_dimensions | {item.dimension_id for item in plan.filters}
         if (
             plan.operation != "read"
             or plan.profile_id != catalog.profile_id
@@ -118,7 +127,9 @@ class SqlPlanReader:
                 and (not metric.allow_value_order or plan.order.field_id != plan.metric_id)
             )
         ):
-            self._reject("plan_out_of_catalog", "recorte fora do catálogo artificial")
+            self._reject(
+                "plan_out_of_catalog", "recorte fora do catálogo artificial", correlation_id
+            )
 
         window = plan.window
         if (
@@ -129,7 +140,9 @@ class SqlPlanReader:
             or window.start.day != 1
             or window.end.day != calendar.monthrange(window.end.year, window.end.month)[1]
         ):
-            self._reject("unsupported_window", "janela mensal artificial indisponível")
+            self._reject(
+                "unsupported_window", "janela mensal artificial indisponível", correlation_id
+            )
 
         table = f'"{catalog.table}"'
         period = f'"{catalog.period_column}"'
@@ -137,7 +150,9 @@ class SqlPlanReader:
         group_id = next(iter(grouped_dimensions), None)
         group_column = catalog.dimensions.get(group_id) if group_id is not None else None
         if group_id is not None and group_column is None:
-            self._reject("plan_out_of_catalog", "dimensão fora do catálogo artificial")
+            self._reject(
+                "plan_out_of_catalog", "dimensão fora do catálogo artificial", correlation_id
+            )
         conditions = [f"{period} BETWEEN ? AND ?"]
         parameters: list[str | int | float | bool] = [
             window.start.strftime("%Y-%m"),
@@ -146,9 +161,11 @@ class SqlPlanReader:
         for item in plan.filters:
             column = catalog.dimensions.get(item.dimension_id)
             if column is None or item.dimension_id not in metric.dimension_ids:
-                self._reject("plan_out_of_catalog", "dimensão fora do catálogo artificial")
+                self._reject(
+                    "plan_out_of_catalog", "dimensão fora do catálogo artificial", correlation_id
+                )
             if item.operator not in metric.filter_operators:
-                self._reject("unsupported_filter", "filtro artificial indisponível")
+                self._reject("unsupported_filter", "filtro artificial indisponível", correlation_id)
             if item.operator is FilterOperator.EQ and len(item.values) == 1:
                 conditions.append(f'"{column}" = ?')
                 parameters.append(item.values[0])
@@ -157,7 +174,7 @@ class SqlPlanReader:
                 conditions.append(f'"{column}" IN ({placeholders})')
                 parameters.extend(item.values)
             else:
-                self._reject("unsupported_filter", "filtro artificial indisponível")
+                self._reject("unsupported_filter", "filtro artificial indisponível", correlation_id)
 
         category_projection = f', "{group_column}" AS category' if group_column else ""
         category_group = f', "{group_column}"' if group_column else ""
@@ -181,7 +198,9 @@ class SqlPlanReader:
             sql,
             tuple(parameters),
             audit_context=SqlAuditContext(
-                plan_fingerprint=plan.fingerprint(), catalog_version=plan.catalog_version
+                plan_fingerprint=plan.fingerprint(),
+                catalog_version=plan.catalog_version,
+                correlation_id=correlation_id,
             ),
         )
         expected_columns = (

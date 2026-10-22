@@ -38,6 +38,7 @@ class SqlAuditContext:
 
     plan_fingerprint: str
     catalog_version: str
+    correlation_id: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.plan_fingerprint, str) or not re.fullmatch(
@@ -48,6 +49,15 @@ class SqlAuditContext:
             r"v[1-9][0-9]{0,2}", self.catalog_version
         ):
             raise ValueError("versão do catálogo inválida")
+        validate_correlation_id(self.correlation_id)
+
+
+def validate_correlation_id(correlation_id: str | None) -> None:
+    if correlation_id is not None and (
+        not isinstance(correlation_id, str)
+        or not re.fullmatch(r"[0-9a-f]{32}", correlation_id)
+    ):
+        raise ValueError("identificador de correlação inválido")
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,7 @@ class QueryAuditRecord:
     received_sql_chars: int
     plan_fingerprint: str | None = None
     catalog_version: str | None = None
+    correlation_id: str | None = None
     reason_code: str | None = None
     query_template: str | None = None
     query_template_sha256: str | None = None
