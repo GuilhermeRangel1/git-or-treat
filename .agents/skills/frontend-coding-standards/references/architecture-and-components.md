@@ -16,6 +16,33 @@ Não importe componentes internos de uma feature em outra. Extraia uma interface
 
 As páginas entram no layout existente; não recriam sidebar, cabeçalho global, `QueryClient` ou provedor de tema. Use os metadados das rotas para título, contexto e layout em vez de condicionais espalhadas que reconhecem caminhos literais.
 
+## Organização interna das features
+
+Organize pela coesão e responsabilidade dos arquivos. A página principal pode permanecer na raiz da feature; agrupe componentes específicos em `components/` quando a quantidade ou a complexidade tornar a navegação mais clara. Crie `hooks/`, `api/`, `types/` ou `utils/` somente quando existirem responsabilidades e arquivos suficientes para justificar a separação. Features pequenas podem continuar com estrutura plana; não precisam reproduzir a árvore de uma funcionalidade maior nem conter diretórios vazios ou camadas artificiais.
+
+Recursos exclusivos permanecem na feature. Mova para `shared/` somente recursos realmente transversais, preservando a direção dos imports acima.
+
+Exemplo de evolução possível da [feature Receita](../../../../frontend/src/features/receita/):
+
+```text
+features/receita/
+  ReceitaPage.tsx
+  ReceitaPage.test.tsx
+  contract.ts
+  revenue-filters.ts
+  useRevenue.ts
+  components/
+    RevenueSummary.tsx
+    RevenueSeries.tsx
+    RevenueSeries.test.tsx
+    revenue-series.css
+    RevenueBreakdown.tsx
+    RevenueDecomposition.tsx
+    RevenueFiltersForm.tsx
+```
+
+Esta árvore é uma recomendação ilustrativa, incluindo um possível teste específico da série; não descreve a estrutura atual nem exige reestruturar a DEV-03. Hoje esses componentes ficam na raiz de Receita. Uma extração futura deve melhorar a manutenção e preservar contratos e comportamento.
+
 ## Responsabilidades de componentes e hooks
 
 Separe quando uma unidade misturar razões independentes para mudar: formulário, transporte HTTP, tabela, diálogo ou cálculo de apresentação. Tamanho é um indício; não imponha número universal de linhas nem extraia wrappers vazios.

@@ -1,0 +1,48 @@
+.revenue-series__chart-enter {
+  animation: revenue-series-enter 420ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.revenue-series__line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: revenue-series-draw 900ms cubic-bezier(0.25, 0.7, 0.2, 1) 100ms
+    forwards;
+}
+
+.revenue-series__point {
+  cursor: crosshair;
+  outline: none;
+}
+
+.revenue-series__point:focus-visible {
+  filter: drop-shadow(0 0 4px var(--accent-goiaba));
+}
+
+@keyframes revenue-series-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes revenue-series-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revenue-series__chart-enter,
+  .revenue-series__line {
+    animation: none;
+  }
+
+  .revenue-series__line {
+    stroke-dashoffset: 0;
+  }
+}
