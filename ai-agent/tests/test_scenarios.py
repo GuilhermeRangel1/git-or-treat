@@ -1,3 +1,5 @@
+import inspect
+
 import pytest
 from pydantic import ValidationError
 
@@ -5,6 +7,7 @@ from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.scenarios import SyntheticScenario
+from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 
 def test_synthetic_catalog_covers_prd_domains_and_marks_every_result_as_demo() -> None:
@@ -61,3 +64,9 @@ def test_analysis_intent_keeps_unapproved_business_terms_as_phrases() -> None:
     assert intent.metric_phrase == "receita"
     assert intent.period_phrase == "último ano"
     assert intent.model_dump()["filters"] == {}
+
+
+def test_synthetic_source_retrieve_matches_evidence_port_keyword() -> None:
+    inspect.signature(SyntheticScenarioTool.retrieve).bind(
+        SyntheticScenarioTool(), plan=object(), access_context=object()
+    )

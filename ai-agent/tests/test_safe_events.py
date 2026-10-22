@@ -88,7 +88,7 @@ def test_success_and_refusal_events_exclude_question_and_personal_identifier() -
 
 def test_source_and_model_failures_keep_fixed_codes_and_no_exception_text(caplog) -> None:
     class BrokenSource:
-        async def retrieve(self, plan):
+        async def retrieve(self, plan, _access_context):
             raise EvidenceToolUnavailable("token=source-secret")
 
     class BrokenModel:
@@ -117,7 +117,7 @@ def test_source_and_model_failures_keep_fixed_codes_and_no_exception_text(caplog
 
 def test_cancellation_and_fallback_do_not_serialize_sensitive_content() -> None:
     class WaitingSource:
-        async def retrieve(self, plan):
+        async def retrieve(self, plan, _access_context):
             await asyncio.Event().wait()
 
     async def cancel() -> None:
