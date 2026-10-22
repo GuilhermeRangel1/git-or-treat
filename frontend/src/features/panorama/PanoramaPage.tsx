@@ -44,24 +44,6 @@ export default function PanoramaPage() {
         <PanoramaArtwork />
       </div>
 
-      {data && isValid && !isError && (
-        <div
-          aria-label="Origem e atualização"
-          className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted"
-        >
-          <span>
-            Demonstração sintética · sem reconciliação com Gold ·{" "}
-            {data.loteVersao}
-          </span>
-          <span>
-            Última atualização:{" "}
-            {new Date(data.dataAtualizacao).toLocaleDateString("pt-BR", {
-              timeZone: "UTC",
-            })}
-          </span>
-        </div>
-      )}
-
       {/* Alerta de Período Incompleto / Preliminar */}
       {isValid && data?.periodoIncompleto && (
         <ContentState

@@ -81,11 +81,6 @@ describe("PanoramaPage (WEB-01)", () => {
     });
     expect(within(main).getAllByRole("article")).toHaveLength(4);
     expect(within(extra).getAllByRole("article")).toHaveLength(4);
-    expect(
-      screen
-        .getByLabelText("Origem e atualização")
-        .compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
   });
 
   it("mostra falha da API sem substituir por números locais e permite tentar novamente", async () => {
@@ -197,6 +192,7 @@ describe("PanoramaPage (WEB-01)", () => {
     // Aguarda carga inicial
     expect(await screen.findByText(/76\.500,00/)).toBeVisible();
 
+    await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
     const municipioSelect = screen.getByLabelText("Município");
     await user.selectOptions(municipioSelect, "Recife");
 
