@@ -95,6 +95,7 @@ class ValidatedQuery:
     """SQL regenerado e aprovado; é o único formato aceito pelos executores."""
 
     sql: str
+    sql_template: str
     dialect: Dialect
     tables: tuple[str, ...]
     dictionary_version: str
@@ -139,6 +140,7 @@ def validate_sql(
         applied, original, adjusted = _apply_limit(qualified, dictionary.limits.max_rows)
         if sum(1 for _ in qualified.find_all(exp.Placeholder)) != len(parameters):
             raise SqlRejected("invalid_parameters", "parâmetros alterados na validação")
+        sql_template = _literal_free_template(qualified, dictionary, dialect)
     except SqlRejected:
         raise
     except Exception as exc:
@@ -147,6 +149,7 @@ def validate_sql(
 
     return ValidatedQuery(
         sql=qualified.sql(dialect=dialect, comments=False),
+        sql_template=sql_template,
         dialect=dialect,
         tables=tuple(sorted(tables)),
         dictionary_version=dictionary.version,
@@ -155,6 +158,36 @@ def validate_sql(
         limit_adjusted=adjusted,
         parameters=parameters,
     )
+
+
+def _literal_free_template(
+    root: exp.Expression, dictionary: SqlDictionary, dialect: Dialect
+) -> str:
+    """Normaliza valores e nomes livres para não copiar dados recebidos à auditoria."""
+
+    permitted_identifiers = set(dictionary.tables) | set(dictionary.allowed_functions)
+    permitted_identifiers |= set(dictionary.allowed_cast_types)
+    for table in dictionary.tables.values():
+        permitted_identifiers.update(table.columns)
+    aliases: dict[str, str] = {}
+
+    def normalize(node: exp.Expression) -> exp.Expression:
+        if isinstance(node, exp.Literal):
+            return exp.Placeholder()
+        if isinstance(node, exp.Identifier) and node.name.casefold() not in permitted_identifiers:
+            key = node.name.casefold()
+            if key not in aliases:
+                index = len(aliases) + 1
+                alias = f"audit_alias_{index}"
+                while alias in permitted_identifiers:
+                    index += 1
+                    alias = f"audit_alias_{index}"
+                aliases[key] = alias
+            node.set("this", aliases[key])
+        return node
+
+    template = root.copy().transform(normalize)
+    return template.sql(dialect=dialect, comments=False)
 
 
 def _check_placeholders(

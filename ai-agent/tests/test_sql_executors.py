@@ -33,6 +33,7 @@ def unchecked(sql: str, dialect: str = "sqlite") -> ValidatedQuery:
 
     return ValidatedQuery(
         sql=sql,
+        sql_template=sql,
         dialect=dialect,
         tables=(),
         dictionary_version="teste",

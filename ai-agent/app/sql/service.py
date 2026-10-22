@@ -2,7 +2,7 @@
 
 import time
 
-from app.sql.audit import AuditSink, QueryAuditRecord, fingerprint
+from app.sql.audit import AuditSink, QueryAuditRecord, template_fingerprint
 from app.sql.dictionary import SqlDictionary
 from app.sql.executors import QueryExecutionError, QueryResult, ReadOnlyExecutor
 from app.sql.validator import SqlRejected, validate_sql
@@ -27,7 +27,6 @@ class ReadOnlySqlService:
         base = {
             "dialect": self._executor.dialect,
             "dictionary_version": self._dictionary.version,
-            "received_sql_sha256": fingerprint(sql),
             "received_sql_chars": len(sql),
         }
         try:
@@ -38,7 +37,8 @@ class ReadOnlySqlService:
 
         approved = {
             **base,
-            "executed_sql": query.sql,
+            "query_template": query.sql_template,
+            "query_template_sha256": template_fingerprint(query.sql_template),
             "tables": query.tables,
             "original_limit": query.original_limit,
             "applied_limit": query.applied_limit,

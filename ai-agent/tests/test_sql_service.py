@@ -1,9 +1,15 @@
+import hashlib
 import json
 import logging
 
 import pytest
 
-from app.sql.audit import InMemoryAuditSink, LoggingAuditSink, QueryAuditRecord, fingerprint
+from app.sql.audit import (
+    InMemoryAuditSink,
+    LoggingAuditSink,
+    QueryAuditRecord,
+    template_fingerprint,
+)
 from app.sql.executors import QueryExecutionError, SqliteReadOnlyExecutor
 from app.sql.service import ReadOnlySqlService
 from app.sql.validator import SqlRejected
@@ -38,15 +44,50 @@ def test_accepted_query_is_audited_without_rows(service_and_audit) -> None:
     assert record.status == "accepted"
     assert record.row_count == result.row_count == 2
     assert record.tables == ("gold_indicadores",)
-    assert record.executed_sql is not None and record.executed_sql != sql
-    assert record.received_sql_sha256 == fingerprint(sql)
+    assert record.query_template is not None and record.query_template != sql
+    assert record.query_template_sha256 == template_fingerprint(record.query_template)
     assert record.limit_adjusted is False
     serialized = json.dumps(record.to_dict())
+    assert "Municipio Ficticio A" not in serialized
+    assert "?" in record.query_template
     for row in result.rows:
         for value in row:
             if isinstance(value, float):
                 assert str(value) not in serialized
     assert "rows" not in record.to_dict()
+
+
+def test_accepted_query_audit_keeps_template_without_filter_literals(service_and_audit) -> None:
+    service, audit = service_and_audit
+    literal = "AUDIT_PRIVATE_VALUE_73C1"
+    sql = (
+        "SELECT bairro FROM gold_indicadores "
+        f"WHERE municipio = '{literal}' LIMIT 1"
+    )
+
+    service.run(sql)
+
+    [record] = audit.records
+    serialized = json.dumps(record.to_dict())
+    assert record.query_template is not None
+    assert "?" in record.query_template
+    assert literal not in serialized
+    raw_sql_hash = hashlib.sha256(sql.encode("utf-8")).hexdigest()
+    assert raw_sql_hash not in serialized
+    assert record.query_template_sha256 == template_fingerprint(record.query_template)
+
+
+def test_accepted_query_audit_does_not_keep_user_defined_aliases(service_and_audit) -> None:
+    service, audit = service_and_audit
+    alias = "AUDIT_PRIVATE_ALIAS_91F2"
+    sql = f'SELECT bairro AS "{alias}" FROM gold_indicadores LIMIT 1'
+
+    service.run(sql)
+
+    [record] = audit.records
+    assert record.query_template is not None
+    assert alias.casefold() not in record.query_template.casefold()
+    assert alias.casefold() not in json.dumps(record.to_dict()).casefold()
 
 
 def test_limit_adjustment_is_audited(service_and_audit) -> None:
@@ -78,9 +119,12 @@ def test_rejected_query_is_audited_without_received_text(service_and_audit) -> N
     [record] = audit.records
     assert record.status == "rejected"
     assert record.reason_code == "sensitive_column"
-    assert record.executed_sql is None
+    assert record.query_template is None
+    assert record.query_template_sha256 is None
     assert record.row_count is None
-    assert "Pessoa Ficticia" not in json.dumps(record.to_dict())
+    serialized = json.dumps(record.to_dict())
+    assert "Pessoa Ficticia" not in serialized
+    assert hashlib.sha256(sql.encode("utf-8")).hexdigest() not in serialized
     assert record.received_sql_chars == len(sql)
 
 
@@ -100,7 +144,7 @@ def test_failed_execution_is_audited(tmp_path) -> None:
     assert record.status == "failed"
     assert record.reason_code == "database_error"
     assert record.error_type == "OperationalError"
-    assert record.executed_sql is not None
+    assert record.query_template is not None
     assert record.row_count is None
 
 
@@ -166,7 +210,6 @@ def test_logging_sink_writes_one_json_line(caplog) -> None:
         status="rejected",
         dialect="sqlite",
         dictionary_version="teste",
-        received_sql_sha256="abc",
         received_sql_chars=3,
         reason_code="not_select",
     )

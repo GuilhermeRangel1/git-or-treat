@@ -55,9 +55,9 @@ Tudo funciona como lista branca: o que não estiver no dicionário é recusado. 
 
 ## Auditoria
 
-Cada chamada a `ReadOnlySqlService.run` gera um `QueryAuditRecord` com: id, horário UTC, status, código do motivo, dialeto, versão do dicionário, SHA-256 e tamanho do SQL recebido, SQL executado (só se aprovado), tabelas, limites original/aplicado e se houve ajuste, número de linhas, truncamento, duração e classe do erro.
+Cada chamada a `ReadOnlySqlService.run` gera um `QueryAuditRecord` com: id, horário UTC, status, código do motivo, dialeto, versão do dicionário e tamanho do SQL recebido. Após aprovação, registra também o template normalizado da consulta, com literais substituídos por `?`, aliases livres generalizados e o SHA-256 desse template, tabelas, limites original/aplicado e se houve ajuste, número de linhas, truncamento, duração e classe do erro.
 
-O registro **não** guarda linhas de resultado, a pergunta da pessoa nem o texto do SQL recebido. O SQL recebido pode trazer literais pessoais (`WHERE nome_titular = '...'`), por isso fica só o hash. **Pendência de privacidade:** no caminho legado, o campo `executed_sql` ainda pode conter literais de filtros; não use o destino de log em dados reais até substituir esse campo por template sem valores. O percurso parametrizado do leitor guarda SQL com placeholders, sem os valores vinculados.
+O registro **não** guarda linhas de resultado, a pergunta da pessoa, o texto SQL recebido ou um hash do SQL bruto. Consultas rejeitadas registram apenas metadados e o motivo, sem fingerprint; em consultas aprovadas ou com falha na execução, o template derivado da AST aprovada omite valores literais. O SQL completo continua apenas no executor e não entra na auditoria. Essa redução protege valores de filtros, mas não define retenção, acesso ou destino durável da trilha.
 
 **Decisão em aberto:** retenção, acesso e destino durável da trilha. Até a equipe decidir, só existem os destinos em memória e de log do processo. Nenhum arquivo ou tabela de auditoria é criado.
 

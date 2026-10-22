@@ -25,10 +25,10 @@ def _new_id() -> str:
     return uuid.uuid4().hex
 
 
-def fingerprint(sql: str) -> str:
-    """Identifica o SQL recebido sem guardá-lo: ele pode conter literais pessoais."""
+def template_fingerprint(sql_template: str) -> str:
+    """Calcula a impressão de um template sanitizado, nunca do SQL com valores."""
 
-    return hashlib.sha256(sql.encode("utf-8")).hexdigest()
+    return hashlib.sha256(sql_template.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -36,10 +36,10 @@ class QueryAuditRecord:
     status: AuditStatus
     dialect: str
     dictionary_version: str
-    received_sql_sha256: str
     received_sql_chars: int
     reason_code: str | None = None
-    executed_sql: str | None = None
+    query_template: str | None = None
+    query_template_sha256: str | None = None
     tables: tuple[str, ...] = ()
     original_limit: int | None = None
     applied_limit: int | None = None
