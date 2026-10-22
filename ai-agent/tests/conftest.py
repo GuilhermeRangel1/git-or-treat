@@ -5,7 +5,8 @@ import httpx
 from app.config import Settings
 from app.main import create_app
 from app.providers.protocols import GeneratedAnswer
-from app.tools.evidence import EvidenceResult
+from app.schemas.evidence import EvidenceResult
+from app.schemas.questions import ConversationTurn
 
 
 class InProcessClient:
@@ -44,13 +45,14 @@ class FakeModelAdapter:
         self.result = result or GeneratedAnswer(
             status="answered",
             answer="Resposta de demonstração.",
+            observation_ids=("row_1",),
         )
         self.error = error
 
     async def generate(
         self,
         question: str,
-        context: list[dict[str, str]],
+        context: list[ConversationTurn],
         evidence: EvidenceResult,
     ) -> GeneratedAnswer:
         if self.error:
@@ -59,4 +61,6 @@ class FakeModelAdapter:
 
 
 def client_factory() -> InProcessClient:
-    return InProcessClient(create_app(settings=Settings(_env_file=None)))
+    return InProcessClient(
+        create_app(settings=Settings(_env_file=None, environment="local", enable_demo_access=True))
+    )

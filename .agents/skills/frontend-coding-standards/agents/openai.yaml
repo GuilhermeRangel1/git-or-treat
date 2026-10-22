@@ -1,0 +1,4 @@
+interface:
+  display_name: "Padrões de frontend"
+  short_description: "React e Tailwind alinhados ao projeto e Figma"
+  default_prompt: "Use $frontend-coding-standards para orientar esta alteração React e Tailwind conforme o projeto e o Figma."

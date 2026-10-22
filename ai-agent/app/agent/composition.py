@@ -1,0 +1,70 @@
+"""Monta os casos de uso a partir de contratos, sem importar HTTP ou adaptadores concretos."""
+
+from dataclasses import dataclass
+
+from app.agent.access import ReadAccessPolicy
+from app.agent.execution import ExecutionController
+from app.agent.insights import ScreenInsightOrchestrator
+from app.agent.interpreter import QuestionInterpreter
+from app.agent.orchestrator import QuestionOrchestrator
+from app.agent.planner import QuestionAnalysisPlanner
+from app.agent.safety import QuestionSafetyGate
+from app.ports.events import EventSink, NoopEventSink
+from app.ports.evidence import EvidenceSource
+from app.providers.protocols import ModelAdapter
+from app.providers.routing import ModelRouter, ModelTier
+from app.schemas.domain_profile import DomainProfile
+
+
+@dataclass(frozen=True)
+class CoreServices:
+    question: QuestionOrchestrator
+    insight: ScreenInsightOrchestrator
+
+
+def compose_core(
+    *,
+    profile: DomainProfile,
+    source_id: str,
+    evidence_source: EvidenceSource,
+    model_adapter: ModelAdapter,
+    model_router: ModelRouter | None = None,
+    execution_controller: ExecutionController,
+    access_policy: ReadAccessPolicy | None = None,
+    event_sink: EventSink | None = None,
+    require_durable_audit: bool = False,
+    max_rows: int = 100,
+    max_evidence_bytes: int = 16_384,
+) -> CoreServices:
+    """Usa um perfil, uma política, uma fonte e um modelo em ambos os fluxos."""
+
+    policy = access_policy if access_policy is not None else ReadAccessPolicy(profile, source_id)
+    if policy.profile != profile or policy.source_id != source_id:
+        raise ValueError("A política deve corresponder ao perfil e à fonte injetados.")
+    if model_router is not None and model_router.adapter_for(ModelTier.STRONG) is not model_adapter:
+        raise ValueError("O adaptador do nível strong deve ser o modelo compartilhado pelo core.")
+    sink = event_sink if event_sink is not None else NoopEventSink()
+    return CoreServices(
+        question=QuestionOrchestrator(
+            analysis_planner=QuestionAnalysisPlanner(
+                interpreter=QuestionInterpreter(profile=profile),
+                evidence_source=evidence_source,
+                access_policy=policy,
+                max_rows=max_rows,
+                max_evidence_bytes=max_evidence_bytes,
+            ),
+            model_adapter=model_adapter if model_router is None else None,
+            model_router=model_router,
+            safety_gate=QuestionSafetyGate(out_of_scope_terms=profile.out_of_scope_terms),
+            execution_controller=execution_controller,
+            event_sink=sink,
+            require_durable_audit=require_durable_audit,
+        ),
+        insight=ScreenInsightOrchestrator(
+            model_adapter,
+            policy,
+            execution_controller=execution_controller,
+            event_sink=sink,
+            require_durable_audit=require_durable_audit,
+        ),
+    )

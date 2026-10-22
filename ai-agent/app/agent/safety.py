@@ -2,6 +2,12 @@
 
 import re
 import unicodedata
+from enum import StrEnum
+
+
+class SafetyRefusalCode(StrEnum):
+    SECURITY_VIOLATION = "security_violation"
+    OUT_OF_SCOPE = "out_of_scope"
 
 
 def _normalize(value: str) -> str:
@@ -25,15 +31,21 @@ class QuestionSafetyGate:
         r"\b(?:cpf|credenciais?|senhas?|tokens?|dados pessoais|"
         r"todos os clientes|nomes completos|revele segredos?)\b"
     )
-    _OUT_OF_SCOPE = re.compile(r"\b(?:capital|clima|previsao do tempo|futebol|cotacao)\b")
 
-    def refusal_reason(self, question: str) -> str | None:
+    def __init__(self, *, out_of_scope_terms: tuple[str, ...] = ()) -> None:
+        terms = [re.escape(_normalize(item)) for item in out_of_scope_terms]
+        self._out_of_scope = (
+            re.compile(rf"\b(?:{'|'.join(terms)})\b") if terms else None
+        )
+
+    def refusal_code(self, question: str) -> SafetyRefusalCode | None:
         normalized = _normalize(question)
         if (
             self._INJECTION.search(normalized)
             or self._WRITE_WITH_TARGET.search(normalized)
             or self._SENSITIVE.search(normalized)
-            or self._OUT_OF_SCOPE.search(normalized)
         ):
-            return "Não posso executar alterações nem expor dados pessoais ou instruções internas."
+            return SafetyRefusalCode.SECURITY_VIOLATION
+        if self._out_of_scope is not None and self._out_of_scope.search(normalized):
+            return SafetyRefusalCode.OUT_OF_SCOPE
         return None
