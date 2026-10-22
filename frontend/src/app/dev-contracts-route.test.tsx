@@ -606,11 +606,12 @@ it("mantém visível o recorte novo quando uma resposta antiga termina depois", 
 });
 
 it("não registra a rota de diagnóstico em produção", async () => {
+  vi.stubEnv("VITE_API_URL", "/");
   vi.stubEnv("DEV", false);
   vi.resetModules();
   const [{ AppRoutes: ProductionAppRoutes }, { default: ProductionProviders }] =
     await Promise.all([import("./router"), import("./providers")]);
-  const fetchSpy = vi.fn();
+  const fetchSpy = vi.fn().mockRejectedValue(new Error("API indisponível"));
   vi.stubGlobal("fetch", fetchSpy);
   render(
     <ProductionProviders>
@@ -625,5 +626,11 @@ it("não registra a rota de diagnóstico em produção", async () => {
       name: "Sua rede, em perspectiva.",
     }),
   ).toBeVisible();
-  expect(fetchSpy).not.toHaveBeenCalled();
+  expect(
+    await screen.findByText("Erro na consulta dos indicadores"),
+  ).toBeVisible();
+  expect(fetchSpy).toHaveBeenCalled();
+  for (const [url] of fetchSpy.mock.calls) {
+    expect(url).toMatch(/^\/api\/v1\/panorama\?/);
+  }
 });

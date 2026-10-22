@@ -1,6 +1,8 @@
 # Serviço: portal web
 
-**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** fundação arquitetural preparada; sidebar, topo visual do Panorama e textos superiores das demais páginas alinhados ao Figma, com temas claro/escuro e navegação mobile. Receita possui exploração integrada à API sintética na DEV-03; Inspeções possui fila e detalhe auditável sintéticos na DEV-05. As demais jornadas de produto continuam sem integração de negócio. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
+**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros na URL, 4 KPIs principais e 4 complementares, séries e API sintética em `GET /api/v1/panorama`. Receita mantém a exploração DEV-03; Inspeções mantém fila e detalhe auditável DEV-05. As demais jornadas seguem seus estados no PRD. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos, sem substituir o contrato do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
+
+O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite, inclusive ao acessar pelo celular. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
 
 ## Arquitetura adotada
 
@@ -68,3 +70,13 @@ A revisão visual DEV-05 usa as capturas fornecidas pela pessoa usuária e acres
 O frontend consome API FastAPI; não lê o banco ou arquivos Gold diretamente. Definir contratos com backend antes de codificar componentes. Verificar ao menos uma jornada real de cada área com Gold carregada e demonstrar que os números batem com a consulta fonte. A skill `vercel-react-best-practices` é referência para performance React, não substitui os critérios do PRD. O [protótipo próprio em Figma](../design/grid360-prototype.md) orienta a interface nos dois temas; contém dados sintéticos e não valida integração, persistência ou acessibilidade de execução.
 
 Antes de declarar WEB-01 a WEB-07 concluídos, guardar evidência de uma execução com API real, filtros exercitados, caso vazio/erro e amostra reconciliada com Gold. Os diferenciais WEB-08 a WEB-10 são independentes e continuam pendentes até seus próprios critérios serem testados.
+
+### Revisão DEV-02 — 22/10/2026
+
+Filtros da URL são validados antes do envio: comparação, município e classe devem pertencer aos conjuntos demonstrativos; competência deve ser real em YYYY-MM; parâmetros repetidos são recusados. Valores inválidos permanecem na URL com erro por campo até correção ou restauração. Histórico e recarga conservam o contexto. Datas válidas sem fatos continuam sendo recortes vazios. Fonte sintética e atualização ficam no topo. Quatro KPIs principais precedem a série; os outros quatro aparecem como complementares. Filtros usam duas colunas no mobile. O gráfico mostra escala vertical (R$ mil/MWh), valores nas barras, detalhes fora da rolagem por mouse/teclado e tabela alternativa. Comparação de competência parcial é indisponível, sem exibir percentual zero; 1 GWh equivale a 1.000.000 kWh.
+
+### Faixa compacta de filtros — DEV-02, 22/10/2026
+
+A apresentação inicial dos filtros é um resumo de competência, período de comparação, território e classe, conforme as capturas do protótipo fornecidas na revisão. “Ajustar filtros” expande os controles na mesma superfície; edições são aplicadas automaticamente na URL e nos dados. Fechar ajustes ou Escape recolhe os campos; Escape retorna foco ao botão. URLs inválidas abrem os campos para correção. Desktop usa quatro colunas com ação lateral; mobile organiza o resumo em duas colunas e a ação abaixo. Os períodos e valores seguem a fixture vigente, sem trocar pelos exemplos visuais do Figma.
+
+Por solicitação da pessoa usuária nesta revisão, a linha de fonte/lote e última atualização foi retirada do topo do Panorama. A API preserva os metadados e os detalhes das métricas mantêm o lote; a origem continua sintética.

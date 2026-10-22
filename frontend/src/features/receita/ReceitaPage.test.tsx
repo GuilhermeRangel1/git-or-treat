@@ -527,7 +527,7 @@ describe("Receita", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const request = fetchMock.mock.calls[1];
-    const url = new URL(String(request[0]));
+    const url = new URL(String(request[0]), window.location.origin);
     expect(url.searchParams.get("municipio")).toBe("Olinda");
     expect(url.searchParams.get("classe")).toBe("Residencial");
     expect(url.searchParams.get("competencia_inicio")).toBe("2025-01");
@@ -540,7 +540,7 @@ describe("Receita", () => {
 
   it("preserves a URL feeder through requests, form apply, context, and cache identity", async () => {
     const fetchMock = vi.fn((request: RequestInfo | URL) => {
-      const url = new URL(String(request));
+      const url = new URL(String(request), window.location.origin);
       const filteredResponse = {
         ...response,
         metadata: {
@@ -578,9 +578,10 @@ describe("Receita", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(
-      new URL(String(fetchMock.mock.calls[0][0])).searchParams.get(
-        "alimentador",
-      ),
+      new URL(
+        String(fetchMock.mock.calls[0][0]),
+        window.location.origin,
+      ).searchParams.get("alimentador"),
     ).toBe("AL-01");
     expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
       "Alimentador",
@@ -593,7 +594,10 @@ describe("Receita", () => {
     await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    const appliedUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    const appliedUrl = new URL(
+      String(fetchMock.mock.calls[1][0]),
+      window.location.origin,
+    );
     expect(appliedUrl.searchParams.get("alimentador")).toBe("AL-01");
     expect(screen.getByLabelText("URL atual")).toHaveTextContent(
       "alimentador=AL-01",
@@ -607,9 +611,10 @@ describe("Receita", () => {
     );
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     expect(
-      new URL(String(fetchMock.mock.calls[2][0])).searchParams.get(
-        "alimentador",
-      ),
+      new URL(
+        String(fetchMock.mock.calls[2][0]),
+        window.location.origin,
+      ).searchParams.get("alimentador"),
     ).toBe("AL-02");
     expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
       "AL-02",
@@ -730,7 +735,10 @@ describe("Receita", () => {
     );
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    const url = new URL(
+      String(fetchMock.mock.calls[0][0]),
+      window.location.origin,
+    );
     expect(url.searchParams.get("municipio")).toBe("Olinda");
     expect(url.searchParams.get("classe")).toBe("Residencial");
     expect(url.searchParams.has("recorte_municipio")).toBe(false);
@@ -771,7 +779,10 @@ describe("Receita", () => {
     expect(
       await screen.findByRole("navigation", { name: "Caminho do recorte" }),
     ).toHaveTextContent("Município: Olinda");
-    const drilledUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    const drilledUrl = new URL(
+      String(fetchMock.mock.calls[1][0]),
+      window.location.origin,
+    );
     expect(drilledUrl.searchParams.get("municipio")).toBe("Olinda");
     expect(drilledUrl.searchParams.get("classe")).toBe("Residencial");
 
@@ -795,7 +806,10 @@ describe("Receita", () => {
       "recorte_",
     );
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    const totalUrl = new URL(String(fetchMock.mock.calls[2][0]));
+    const totalUrl = new URL(
+      String(fetchMock.mock.calls[2][0]),
+      window.location.origin,
+    );
     expect(totalUrl.searchParams.get("classe")).toBe("Residencial");
     expect(totalUrl.searchParams.has("municipio")).toBe(false);
   });
@@ -874,7 +888,10 @@ describe("Receita", () => {
     const location = screen.getByLabelText("URL atual");
     expect(location).toHaveTextContent("recorte_municipio=Olinda");
     expect(location).toHaveTextContent("recorte_bairro=Centro");
-    const request = new URL(String(fetchMock.mock.calls[2][0]));
+    const request = new URL(
+      String(fetchMock.mock.calls[2][0]),
+      window.location.origin,
+    );
     expect(request.searchParams.get("municipio")).toBe("Olinda");
     expect(request.searchParams.get("bairro")).toBe("Centro");
   });

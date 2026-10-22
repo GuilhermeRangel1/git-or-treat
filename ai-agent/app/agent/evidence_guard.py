@@ -153,6 +153,10 @@ class EvidenceGuard:
                     safe_row["period"] = _safe_period(row.get(field.name))
                 elif field.role is EvidenceFieldRole.DIMENSION:
                     dimension_id = field.dimension_id
+                    if field.name not in row:
+                        if dimension_id in plan.group_by_dimension_ids:
+                            raise EvidenceContractInvalid("dimensão agrupada ausente")
+                        continue
                     if dimension_id is None or dimension_id not in plan.dimension_ids:
                         raise EvidenceContractInvalid("dimensão de observação fora do plano")
                     dimension = dimensions.get(dimension_id)

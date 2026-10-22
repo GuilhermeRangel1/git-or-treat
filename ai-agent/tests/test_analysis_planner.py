@@ -17,7 +17,7 @@ class CountingScenarioTool:
     def __init__(self) -> None:
         self.calls: list[AnalysisIntent] = []
 
-    async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+    async def retrieve(self, intent: AnalysisIntent, _access_context) -> EvidenceLookupResult:
         self.calls.append(intent)
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.NO_EVIDENCE,
@@ -29,7 +29,7 @@ class InvalidSource:
     def __init__(self, result) -> None:
         self.result = result
 
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, _access_context):
         return self.result
 
 
@@ -126,7 +126,7 @@ def test_planner_revalidates_constructed_source_result_before_using_it() -> None
 
 def test_unknown_filter_is_a_clarification_not_an_empty_result() -> None:
     class ClarifyingSource:
-        async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+        async def retrieve(self, intent: AnalysisIntent, _access_context) -> EvidenceLookupResult:
             return EvidenceLookupResult(
                 status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
                 message="O filtro solicitado não está disponível neste catálogo.",
@@ -152,7 +152,7 @@ def test_async_source_can_process_concurrent_lookups() -> None:
             self.both_started = asyncio.Event()
             self.release = asyncio.Event()
 
-        async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+        async def retrieve(self, intent: AnalysisIntent, _access_context) -> EvidenceLookupResult:
             self.started += 1
             self.active += 1
             self.max_active = max(self.max_active, self.active)
@@ -199,7 +199,7 @@ def test_cancelling_planner_cancels_async_source_lookup() -> None:
             self.started = asyncio.Event()
             self.cancelled = False
 
-        async def retrieve(self, intent: AnalysisIntent) -> EvidenceLookupResult:
+        async def retrieve(self, intent: AnalysisIntent, _access_context) -> EvidenceLookupResult:
             self.started.set()
             try:
                 await asyncio.Future()

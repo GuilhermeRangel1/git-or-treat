@@ -1,4 +1,4 @@
-# ADR-0007 — Prioridade e estimativa auditáveis na fila sintética
+# ADR-0008 — Prioridade e estimativa auditáveis na fila sintética
 
 Data: 22/10/2026. Estado: adotada para a demonstração DEV-05 solicitada; critérios reais pendentes de homologação. Requisitos: WEB-04 e recorte de WEB-07.
 

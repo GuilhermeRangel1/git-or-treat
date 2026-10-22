@@ -1,6 +1,6 @@
 # DEV-05 — fila de inspeção e evidências sintéticas
 
-Data: 22/10/2026. Requisito WEB-04, dependência DEV-01. Implementação isolada em `dev05`, criada da base `origin/develop` em `54534a7`, sem incorporar DEV-02. A entrega demonstrativa não conclui a reconciliação Gold de WEB-04. Decisão: [ADR-0007](../decisions/0007-fila-de-inspecao-sintetica.md).
+Data: 22/10/2026. Requisito WEB-04, dependência DEV-01. Implementação em `dev05`, criada da base `origin/develop` em `54534a7` e posteriormente atualizada com `origin/develop` em `8bd219d`, que já contém DEV-02. A entrega demonstrativa não conclui a reconciliação Gold de WEB-04. Decisão: [ADR-0008](../decisions/0008-fila-de-inspecao-sintetica.md).
 
 ## Contrato HTTP e navegação
 

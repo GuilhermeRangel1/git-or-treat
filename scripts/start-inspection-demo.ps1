@@ -26,7 +26,12 @@ if ($occupied) {
     try {
         $existingQueue = Invoke-RestMethod "$apiUrl/api/v1/inspections/queue?page_size=1" -TimeoutSec 2
         $existingClient = Invoke-WebRequest "http://localhost:$FrontendPort/src/shared/api/client.ts" -UseBasicParsing -TimeoutSec 2
-        if ($existingQueue.metadata.source.is_demo -eq $true -and $null -ne $existingQueue.data.summary -and $existingClient.Content.Contains($apiUrl)) {
+        $compatibleFrontend = $existingClient.Content.Contains($apiUrl)
+        if (-not $compatibleFrontend) {
+            $proxiedQueue = Invoke-RestMethod "http://localhost:$FrontendPort/api/v1/inspections/queue?page_size=1" -TimeoutSec 2
+            $compatibleFrontend = $proxiedQueue.metadata.source.is_demo -eq $true -and $null -ne $proxiedQueue.data.summary
+        }
+        if ($existingQueue.metadata.source.is_demo -eq $true -and $null -ne $existingQueue.data.summary -and $compatibleFrontend) {
             Write-Host "Demo sintética já está ativa: $pageUrl"
             return
         }

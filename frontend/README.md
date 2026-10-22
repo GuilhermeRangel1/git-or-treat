@@ -15,7 +15,7 @@ npm run dev
 
 O ambiente de CI usa Node.js 22; use uma versão compatível com os requisitos declarados pelo Vite instalado. O Docker de desenvolvimento está disponível em `Dockerfile.dev`.
 
-Abrir as páginas de produto não exige API. A rota de diagnóstico `/dev/contratos` existe somente durante o desenvolvimento e consulta `/api/v1/kpis` por meio do cliente HTTP compartilhado. Em desenvolvimento há fallback para `http://localhost:8000`; para outro servidor, copie `.env.example` para `.env.local` e configure `VITE_API_URL`. Essa URL é pública; credenciais não pertencem a variáveis `VITE_*`.
+O Panorama exige a API para exibir os indicadores; as demais páginas ainda estão no escopo visual. A rota de diagnóstico `/dev/contratos` existe somente durante o desenvolvimento e consulta `/api/v1/kpis` por meio do cliente HTTP compartilhado. Em desenvolvimento, sem `VITE_API_URL`, as consultas usam a origem do portal e o proxy `/api` do Vite, cujo destino padrão é `http://127.0.0.1:8000`. No Docker, `API_PROXY_TARGET=http://backend:8000` configura esse destino no servidor; `DEV_USE_POLLING=true` atualiza os arquivos do volume Windows. Para outro servidor, configure `VITE_API_URL`; em produção essa variável continua obrigatória (use `/` somente quando houver proxy no servidor publicado). Essa URL é pública; credenciais não pertencem a variáveis `VITE_*`.
 
 ## Verificar
 
@@ -47,7 +47,7 @@ Na raiz do repositório, com `backend/venv` preparado e dependências do fronten
 
 O comando inicia API em `8000` e frontend em `5173`, em segundo plano, e verifica o contrato da fila antes de informar sucesso. Abra **http://localhost:5173/inspecoes**. A fonte sintética e a URL da API são configuradas explicitamente nos processos, sem editar `.env`. Logs/PIDs ficam em `work/dev05-demo/`, ignorado pelo Git. A demo iniciada pelo script usa SQLite em memória e não mantém ordens persistentes. Reexecutar reconhece uma demo compatível já ativa, inclusive pelo Docker; se as portas pertencerem a outros serviços, o comando recusa substituí-los. É possível escolher `-BackendPort` e `-FrontendPort`.
 
-No Docker Compose, o frontend também usa `5173`. `VITE_API_URL` é somente a origem `http://localhost:8000`, pois os consumidores já incluem `/api/v1` no caminho; adicionar o prefixo na variável duplica a rota e impede carregar os dados.
+No Docker Compose, o frontend usa `5173` e `VITE_API_URL=/`: o proxy do Vite encaminha `/api` para `http://backend:8000`. Os consumidores já incluem `/api/v1` no caminho; adicionar esse prefixo na variável duplica a rota e impede carregar os dados.
 
 Na revisão DEV-05 de 22/10/2026, cabeçalho e conteúdo passaram a compartilhar largura fluida centralizada até 1920 px, como o Panorama da DEV-02, com espaçamento adaptativo. O ajuste foi aplicado aos componentes de layout, sem merge de branches.
 

@@ -167,7 +167,7 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
       "Nenhuma suspeita neste recorte. Isso não comprova ausência de perdas.",
     ),
   ).toBeVisible();
-  const url = new URL(fetch.mock.calls.at(-1)![0]);
+  const url = new URL(fetch.mock.calls.at(-1)![0], window.location.origin);
   expect(url.searchParams.get("municipio")).toBe("Olinda");
   expect(url.searchParams.get("order_by")).toBe(
     "potential_recoverable_energy_kwh",

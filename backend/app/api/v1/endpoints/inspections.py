@@ -1,8 +1,9 @@
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.order_access import require_orders_read, require_orders_write
 from app.models.operational import OrderStatus
 from app.schemas.inspection_queue import QueueResponse, SuspicionResponse
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
@@ -45,6 +46,7 @@ router.include_router(analytics_router)
     "/orders",
     response_model=list[OrderResponse],
     summary="Listar ordens de inspeção operacionais",
+    dependencies=[Depends(require_orders_read)],
 )
 def list_orders(
     status_filter: Optional[OrderStatus] = Query(None, alias="status"),
@@ -59,6 +61,7 @@ def list_orders(
     response_model=OrderResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Criar nova ordem de inspeção",
+    dependencies=[Depends(require_orders_write)],
 )
 def create_order(payload: OrderCreateRequest, db: Session = Depends(get_db)):
     """Cria uma ordem de inspeção mantida separadamente dos dados analíticos."""
@@ -69,10 +72,16 @@ def create_order(payload: OrderCreateRequest, db: Session = Depends(get_db)):
     "/orders/{order_id}",
     response_model=OrderResponse,
     summary="Atualizar status ou resultado da ordem",
+    dependencies=[Depends(require_orders_write)],
 )
-def update_order(order_id: int, payload: OrderUpdateRequest, db: Session = Depends(get_db)):
+def update_order(payload: OrderUpdateRequest, order_id: int = Path(ge=1, le=9223372036854775807), db: Session = Depends(get_db)):
     """Atualiza o ciclo de vida ou desfecho da fiscalização."""
-    order = inspection_service.update_order(db, order_id, payload)
+    try:
+        order = inspection_service.update_order(db, order_id, payload)
+    except inspection_service.OrderConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except inspection_service.OrderResultRequiredError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if not order:
         raise HTTPException(status_code=404, detail="Ordem de inspeção não encontrada.")
     return order
