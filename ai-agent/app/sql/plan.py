@@ -89,6 +89,9 @@ class SqlPlanReader:
 
         catalog = self._catalog
         metric = catalog.metrics.get(plan.metric_id)
+        grouped_dimensions = set(plan.dimension_ids) - {
+            item.dimension_id for item in plan.filters
+        }
         if (
             plan.operation != "read"
             or plan.profile_id != catalog.profile_id
@@ -98,7 +101,7 @@ class SqlPlanReader:
             or plan.domain_id != metric.domain_id
             or plan.unit != metric.unit
             or not set(plan.dimension_ids) <= metric.dimension_ids
-            or set(plan.dimension_ids) != {item.dimension_id for item in plan.filters}
+            or len(grouped_dimensions) > 1
             or plan.order is not None
         ):
             self._reject("plan_out_of_catalog", "recorte fora do catálogo artificial")
@@ -117,6 +120,10 @@ class SqlPlanReader:
         table = f'"{catalog.table}"'
         period = f'"{catalog.period_column}"'
         measure = f'"{metric.column}"'
+        group_id = next(iter(grouped_dimensions), None)
+        group_column = catalog.dimensions.get(group_id) if group_id is not None else None
+        if group_id is not None and group_column is None:
+            self._reject("plan_out_of_catalog", "dimensão fora do catálogo artificial")
         conditions = [f"{period} BETWEEN ? AND ?"]
         parameters: list[str | int | float | bool] = [
             window.start.strftime("%Y-%m"),
@@ -136,12 +143,18 @@ class SqlPlanReader:
             else:
                 self._reject("unsupported_filter", "filtro artificial indisponível")
 
+        category_projection = f', "{group_column}" AS category' if group_column else ""
+        category_group = f', "{group_column}"' if group_column else ""
+        category_select = ", category" if group_column else ""
+        category_order = ", category ASC" if group_column else ""
         sql = (
             "WITH plan_rows AS ("
-            f"SELECT {period} AS period, SUM({measure}) AS value FROM {table} "
-            f"WHERE {' AND '.join(conditions)} GROUP BY {period}) "
-            "SELECT period, value, (SELECT COUNT(*) FROM plan_rows) AS total_rows "
-            f"FROM plan_rows ORDER BY period ASC LIMIT {plan.limit}"
+            f"SELECT {period} AS period{category_projection}, "
+            f"SUM({measure}) AS value FROM {table} "
+            f"WHERE {' AND '.join(conditions)} GROUP BY {period}{category_group}) "
+            f"SELECT period{category_select}, value, "
+            "(SELECT COUNT(*) FROM plan_rows) AS total_rows "
+            f"FROM plan_rows ORDER BY period ASC{category_order} LIMIT {plan.limit}"
         )
         result = self._service.run(
             sql,
@@ -150,15 +163,20 @@ class SqlPlanReader:
                 plan_fingerprint=plan.fingerprint(), catalog_version=plan.catalog_version
             ),
         )
-        if result.columns != ("period", "value", "total_rows") or any(
-            len(row) != 3 for row in result.rows
+        expected_columns = (
+            ("period", "category", "value", "total_rows")
+            if group_id is not None
+            else ("period", "value", "total_rows")
+        )
+        if result.columns != expected_columns or any(
+            len(row) != len(expected_columns) for row in result.rows
         ):
             raise SqlRejected("invalid_result", "resultado artificial fora do contrato")
-        total_rows = result.rows[0][2] if result.rows else 0
+        total_rows = result.rows[0][-1] if result.rows else 0
         if type(total_rows) is not int or total_rows < result.row_count:
             raise SqlRejected("invalid_result", "contagem do resultado artificial inválida")
         return QueryResult(
-            columns=("period", "value"),
-            rows=tuple((row[0], row[1]) for row in result.rows[: plan.limit]),
+            columns=("period", group_id, "value") if group_id else ("period", "value"),
+            rows=tuple(row[:-1] for row in result.rows[: plan.limit]),
             truncated=result.truncated or total_rows > result.row_count,
         )

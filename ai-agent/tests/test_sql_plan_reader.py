@@ -116,6 +116,68 @@ def test_approved_plan_reads_only_the_requested_artificial_month_and_municipalit
     assert "Municipio Ficticio A" not in str(audit.records[0].to_dict())
 
 
+def test_approved_plan_groups_artificial_revenue_by_municipality(tmp_path) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    grouped_plan = approved.model_copy(update={"filters": ()})
+
+    result = reader.read(grouped_plan, SQL_DEMO_CONTEXT)
+
+    assert result.columns == ("period", "geography.municipality", "value")
+    assert result.rows == (
+        ("2025-01", "Municipio Ficticio A", 3500.5),
+        ("2025-01", "Municipio Ficticio B", 800.25),
+    )
+    assert result.truncated is False
+    assert len(audit.records) == 1
+    assert audit.records[0].status == "accepted"
+
+
+def test_grouped_plan_orders_month_and_category_and_reports_truncation(tmp_path) -> None:
+    reader, approved, _ = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+        window_end=date(2025, 2, 28),
+        plan_limit=3,
+    )
+
+    result = reader.read(approved.model_copy(update={"filters": ()}), SQL_DEMO_CONTEXT)
+
+    assert result.rows == (
+        ("2025-01", "Municipio Ficticio A", 3500.5),
+        ("2025-01", "Municipio Ficticio B", 800.25),
+        ("2025-02", "Municipio Ficticio A", 3600.75),
+    )
+    assert result.truncated is True
+
+
+def test_grouped_plan_requires_current_dimension_access(tmp_path, monkeypatch) -> None:
+    reader, approved, audit = _reader_with_approved_municipality_filter(
+        tmp_path,
+        municipality_values=("Municipio Ficticio A", "Municipio Ficticio B"),
+        filter_values=("Municipio Ficticio A",),
+        operator=FilterOperator.EQ,
+    )
+    restricted = SQL_DEMO_CONTEXT.model_copy(update={"allowed_dimension_ids": frozenset()})
+
+    def fail_if_sql_service_is_called(*_args, **_kwargs):
+        raise AssertionError("dimensão negada não deve chamar o serviço SQL")
+
+    monkeypatch.setattr(reader._service, "run", fail_if_sql_service_is_called)
+    with pytest.raises(EvidenceAccessDenied):
+        reader.read(approved.model_copy(update={"filters": ()}), restricted)
+
+    assert len(audit.records) == 1
+    assert audit.records[0].reason_code == "access_denied"
+    assert audit.records[0].received_sql_chars == 0
+
+
 def test_approved_plan_is_correlated_with_sql_audit_without_filter_values(tmp_path) -> None:
     reader, approved, audit = _reader_with_approved_municipality_filter(
         tmp_path,

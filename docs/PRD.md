@@ -457,6 +457,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-06 — agrupamento artificial por município na borda SQL
+
+- Estado anterior → novo estado: `Pendente` → `Pendente`. Este é um ensaio isolado com dados inventados, sem consulta Gold ou identidade de produção.
+- Mudança observável: `SqlPlanReader` reaplica a autorização e, quando município está declarado no plano sem filtro, gera uma soma por competência e município. A saída usa o ID lógico da dimensão, preserva a ordem por período e categoria e sinaliza truncamento quando há mais grupos que o limite do plano. Dimensão sem escopo atual é recusada antes do serviço SQL.
+- Arquivos e evidência: `ai-agent/app/sql/plan.py`, `ai-agent/tests/test_sql_plan_reader.py`, `ai-agent/app/sql/README.md` e `docs/services/ai-agent.md`. Em `ai-agent/`, `python -m pytest -q tests/test_sql_plan_reader.py --basetemp .pytest-tmp-category-focused` — **20 passaram**; suíte SQL selecionada — **309 passaram, 1 PostgreSQL opcional pulou**; `python -m pytest -q --basetemp .pytest-tmp-category-full-escalated --tb=short` — **741 passaram, 2 opcionais pularam** fora do sandbox, que bloqueou a primeira tentativa da suíte completa. `python -m ruff check app/sql/plan.py tests/test_sql_plan_reader.py` passou.
+- Critérios e pendências: valores artificiais independentes no teste: janeiro de 2025, municípios fictícios A e B, **3500,5** e **800,25 unidades fictícias**; com janeiro e fevereiro e limite 3, o quarto grupo é detectado. Apenas uma dimensão de agrupamento e a soma mensal estão cobertas; composição com `EvidenceSource`, catálogo Gold, credencial e permissões somente leitura reais seguem pendentes. IA-06 não está concluído.
+
 ### 2026-10-22 — IA-06 — auditoria de recusa anterior ao SQL sintético
 
 - Estado anterior → novo estado: `Pendente` → `Pendente`. O registro cobre a composição artificial do plano, sem identidade ou permissão Gold real.
