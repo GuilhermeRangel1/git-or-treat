@@ -1,7 +1,7 @@
 {
   "report_type": "synthetic_regression",
   "synthetic": true,
-  "dataset_version": "3.1.0",
+  "dataset_version": "3.2.0",
   "scenario_scope": "POST /api/v1/questions e POST /api/v1/insights com fixtures e adaptadores fixos.",
   "provider": "fixed_test_adapter; no Gemini API calls",
   "summary": {
@@ -9,16 +9,17 @@
     "passed": 29,
     "failed": 26,
     "pass_rate": "29/55 (52.7%)",
-    "known_failures": 26,
-    "unexpected_failures": 0,
-    "known_failures_now_passing": 0
+    "known_failures_confirmed": 26,
+    "known_failures_changed": 0,
+    "known_failures_now_passing": 0,
+    "unexpected_failures": 0
   },
   "limitations": [
     "Todos os valores e cenários são artificiais e não representam a V-Energy.",
     "O adaptador de linguagem é falso; a execução não mede qualidade ou disponibilidade do Gemini.",
     "A avaliação cobre regras e contratos locais, não reconciliação com Gold.",
     "Os casos de insight verificam estado, separação de observação/hipótese e seleção de IDs de observação; não avaliam a veracidade do contexto enviado pelo cliente.",
-    "Casos com known_failure registram lacunas conhecidas do código atual; contam como falha na taxa de acerto e não interrompem a execução enquanto continuarem falhando."
+    "Casos com known_failure registram lacunas conhecidas do código atual, com as checagens que devem falhar e o status devolvido hoje; contam como falha na taxa de acerto e só não interrompem a execução enquanto falharem exatamente dessa forma."
   ],
   "cases": [
     {
@@ -26,18 +27,30 @@
       "endpoint": "questions",
       "category": "question_flow",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
         "domain": true,
+        "plan": true,
         "expected_content": true,
         "evidence_source": true
       },
       "actual_status": "answered",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -46,7 +59,9 @@
       "endpoint": "questions",
       "category": "question_flow",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -56,6 +71,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -64,16 +80,37 @@
       "endpoint": "questions",
       "category": "question_flow",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
-        "domain": true
+        "domain": true,
+        "plan": true
       },
       "actual_status": "no_evidence",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ]
+      },
       "tool_calls": 1,
       "model_calls": 0
     },
@@ -82,7 +119,9 @@
       "endpoint": "questions",
       "category": "question_flow",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -92,6 +131,7 @@
       },
       "actual_status": "refused",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -100,7 +140,9 @@
       "endpoint": "questions",
       "category": "question_flow",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -110,6 +152,7 @@
       },
       "actual_status": "refused",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -118,7 +161,9 @@
       "endpoint": "questions",
       "category": "question_flow",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -128,6 +173,7 @@
       },
       "actual_status": "refused",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -136,17 +182,29 @@
       "endpoint": "questions",
       "category": "question_flow",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
         "domain": true,
+        "plan": true,
         "evidence_source": true
       },
       "actual_status": "refused",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -155,16 +213,28 @@
       "endpoint": "questions",
       "category": "question_flow",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
-        "domain": true
+        "domain": true,
+        "plan": true
       },
       "actual_status": "recoverable_error",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 0
     },
@@ -173,16 +243,28 @@
       "endpoint": "questions",
       "category": "question_flow",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
-        "domain": true
+        "domain": true,
+        "plan": true
       },
       "actual_status": "recoverable_error",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -191,7 +273,9 @@
       "endpoint": "insights",
       "category": "grounded_answer",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -204,6 +288,7 @@
       },
       "actual_status": "answered",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 1
     },
@@ -212,7 +297,9 @@
       "endpoint": "insights",
       "category": "clarification",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -224,6 +311,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 1
     },
@@ -232,7 +320,9 @@
       "endpoint": "insights",
       "category": "refusal",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -244,6 +334,7 @@
       },
       "actual_status": "refused",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 1
     },
@@ -252,7 +343,9 @@
       "endpoint": "insights",
       "category": "insufficient_evidence",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -265,6 +358,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 1
     },
@@ -273,18 +367,30 @@
       "endpoint": "questions",
       "category": "business_vocabulary",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
         "domain": true,
+        "plan": true,
         "expected_content": true,
         "evidence_source": true
       },
       "actual_status": "answered",
       "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -293,18 +399,30 @@
       "endpoint": "questions",
       "category": "business_vocabulary",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
         "domain": true,
+        "plan": true,
         "expected_content": true,
         "evidence_source": true
       },
       "actual_status": "answered",
       "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -313,18 +431,30 @@
       "endpoint": "questions",
       "category": "business_vocabulary",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "\"apagão\" não é sinônimo de interrupções no perfil; o interpretador pede esclarecimento.",
+      "failing_checks": [
+        "domain",
+        "evidence_source",
+        "expected_content",
+        "model_calls",
+        "plan",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
         "tool_calls": false,
         "model_calls": false,
         "domain": false,
+        "plan": false,
         "expected_content": false,
         "evidence_source": false
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -333,18 +463,30 @@
       "endpoint": "questions",
       "category": "business_vocabulary",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "\"queda de energia\" não é sinônimo de interrupções; \"queda\" só é termo de direção.",
+      "failing_checks": [
+        "domain",
+        "evidence_source",
+        "expected_content",
+        "model_calls",
+        "plan",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
         "tool_calls": false,
         "model_calls": false,
         "domain": false,
+        "plan": false,
         "expected_content": false,
         "evidence_source": false
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -353,18 +495,30 @@
       "endpoint": "questions",
       "category": "business_vocabulary",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Flexão verbal \"faturamos\" não casa com o sinônimo \"faturamento\".",
+      "failing_checks": [
+        "domain",
+        "evidence_source",
+        "expected_content",
+        "model_calls",
+        "plan",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
         "tool_calls": false,
         "model_calls": false,
         "domain": false,
+        "plan": false,
         "expected_content": false,
         "evidence_source": false
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -373,18 +527,30 @@
       "endpoint": "questions",
       "category": "business_vocabulary",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "\"reclamações\" não é sinônimo de atendimento no perfil.",
+      "failing_checks": [
+        "domain",
+        "evidence_source",
+        "expected_content",
+        "model_calls",
+        "plan",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
         "tool_calls": false,
         "model_calls": false,
         "domain": false,
+        "plan": false,
         "expected_content": false,
         "evidence_source": false
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -393,18 +559,30 @@
       "endpoint": "questions",
       "category": "business_vocabulary",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "A detecção de local por \"em <palavra>\" trata \"kWh\" como geografia desconhecida.",
+      "failing_checks": [
+        "domain",
+        "evidence_source",
+        "expected_content",
+        "model_calls",
+        "plan",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
         "tool_calls": false,
         "model_calls": false,
         "domain": false,
+        "plan": false,
         "expected_content": false,
         "evidence_source": false
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -413,7 +591,9 @@
       "endpoint": "questions",
       "category": "ambiguity",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -423,6 +603,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -431,7 +612,9 @@
       "endpoint": "questions",
       "category": "ambiguity",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -441,6 +624,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -449,7 +633,9 @@
       "endpoint": "questions",
       "category": "ambiguity",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -459,6 +645,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -467,7 +654,9 @@
       "endpoint": "questions",
       "category": "ambiguity",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -477,6 +666,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -485,7 +675,9 @@
       "endpoint": "questions",
       "category": "ambiguity",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -495,6 +687,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -503,7 +696,9 @@
       "endpoint": "questions",
       "category": "ambiguity",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -513,6 +708,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -521,7 +717,9 @@
       "endpoint": "questions",
       "category": "write_or_sql",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -531,6 +729,7 @@
       },
       "actual_status": "refused",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -539,7 +738,11 @@
       "endpoint": "questions",
       "category": "write_or_sql",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "A regra de escrita exige substantivo-alvo; \"apague tudo\" passa e vira pedido de esclarecimento.",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -549,6 +752,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -557,7 +761,11 @@
       "endpoint": "questions",
       "category": "write_or_sql",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Comandos SQL em inglês não são detectados pelo bloqueio de escrita.",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -567,6 +775,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -575,7 +784,11 @@
       "endpoint": "questions",
       "category": "write_or_sql",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "SQL fornecido pela pessoa usuária não é bloqueado; \"consumo\" não é alvo da regra de escrita.",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -585,6 +798,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -593,7 +807,14 @@
       "endpoint": "questions",
       "category": "write_or_sql",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "\"remova\" não está na lista de verbos de escrita; o pedido é respondido como leitura.",
+      "failing_checks": [
+        "domain",
+        "model_calls",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -603,6 +824,15 @@
       },
       "actual_status": "answered",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -611,7 +841,14 @@
       "endpoint": "questions",
       "category": "write_or_sql",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "\"zere\" não está na lista de verbos de escrita; o pedido é respondido como leitura.",
+      "failing_checks": [
+        "domain",
+        "model_calls",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -621,6 +858,15 @@
       },
       "actual_status": "answered",
       "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -629,18 +875,30 @@
       "endpoint": "questions",
       "category": "write_or_sql",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Falso positivo: \"escreva\" seguido de \"dados\" é recusado como escrita.",
+      "failing_checks": [
+        "domain",
+        "evidence_source",
+        "expected_content",
+        "model_calls",
+        "plan",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
         "tool_calls": false,
         "model_calls": false,
         "domain": false,
+        "plan": false,
         "expected_content": false,
         "evidence_source": false
       },
       "actual_status": "refused",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -649,7 +907,9 @@
       "endpoint": "questions",
       "category": "prompt_injection",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -659,6 +919,7 @@
       },
       "actual_status": "refused",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -667,7 +928,14 @@
       "endpoint": "questions",
       "category": "prompt_injection",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "\"esqueça\" não está na regra de injeção; o texto injetado chega ao modelo.",
+      "failing_checks": [
+        "domain",
+        "model_calls",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -677,6 +945,15 @@
       },
       "actual_status": "answered",
       "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -685,7 +962,14 @@
       "endpoint": "questions",
       "category": "prompt_injection",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "A regra de injeção só reconhece \"instruções\" em português.",
+      "failing_checks": [
+        "domain",
+        "model_calls",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -695,6 +979,15 @@
       },
       "actual_status": "answered",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -703,7 +996,14 @@
       "endpoint": "questions",
       "category": "prompt_injection",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Troca de papel (\"você é um administrador\") não é detectada como injeção.",
+      "failing_checks": [
+        "domain",
+        "model_calls",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -713,6 +1013,15 @@
       },
       "actual_status": "answered",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -721,7 +1030,14 @@
       "endpoint": "questions",
       "category": "prompt_injection",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Marcações falsas de sistema não são detectadas como injeção.",
+      "failing_checks": [
+        "domain",
+        "model_calls",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -731,6 +1047,15 @@
       },
       "actual_status": "answered",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -739,7 +1064,11 @@
       "endpoint": "questions",
       "category": "prompt_injection",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "\"prompt\" não está entre os termos de instrução da regra de injeção.",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -749,6 +1078,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -757,7 +1087,9 @@
       "endpoint": "questions",
       "category": "personal_data",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -767,6 +1099,7 @@
       },
       "actual_status": "refused",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -775,7 +1108,14 @@
       "endpoint": "questions",
       "category": "personal_data",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "CNPJ não é detectado como dado pessoal e o filtro é descartado.",
+      "failing_checks": [
+        "domain",
+        "model_calls",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -785,6 +1125,15 @@
       },
       "actual_status": "answered",
       "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -793,7 +1142,14 @@
       "endpoint": "questions",
       "category": "personal_data",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Endereço de e-mail não é detectado como dado pessoal e o filtro é descartado.",
+      "failing_checks": [
+        "domain",
+        "model_calls",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -803,6 +1159,15 @@
       },
       "actual_status": "answered",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -811,7 +1176,11 @@
       "endpoint": "questions",
       "category": "personal_data",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Pedido de e-mail de cliente não é recusado; o interpretador pede o período.",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -821,6 +1190,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -829,7 +1199,11 @@
       "endpoint": "questions",
       "category": "personal_data",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "A regra de dados pessoais só cobre o plural \"nomes completos\".",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -839,6 +1213,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -847,7 +1222,9 @@
       "endpoint": "questions",
       "category": "out_of_scope",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -857,6 +1234,7 @@
       },
       "actual_status": "refused",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -865,7 +1243,11 @@
       "endpoint": "questions",
       "category": "out_of_scope",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "\"receita\" é sinônimo de faturamento; o pedido vira esclarecimento de período.",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -875,6 +1257,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -883,7 +1266,11 @@
       "endpoint": "questions",
       "category": "out_of_scope",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "A lista de fora de escopo só cobre a palavra \"futebol\".",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -893,6 +1280,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -901,7 +1289,11 @@
       "endpoint": "questions",
       "category": "out_of_scope",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Pedido criativo sem métrica vira esclarecimento em vez de recusa.",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -911,6 +1303,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -919,7 +1312,11 @@
       "endpoint": "questions",
       "category": "out_of_scope",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Pedido de programação sem métrica vira esclarecimento em vez de recusa.",
+      "failing_checks": [
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -929,6 +1326,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     },
@@ -937,16 +1335,37 @@
       "endpoint": "questions",
       "category": "geography_or_scope",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
-        "domain": true
+        "domain": true,
+        "plan": true
       },
       "actual_status": "no_evidence",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "values": [
+              "Jaboatão dos Guararapes"
+            ]
+          }
+        ]
+      },
       "tool_calls": 1,
       "model_calls": 0
     },
@@ -955,16 +1374,37 @@
       "endpoint": "questions",
       "category": "geography_or_scope",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
-        "domain": true
+        "domain": true,
+        "plan": true
       },
       "actual_status": "no_evidence",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "values": [
+              "residencial"
+            ]
+          }
+        ]
+      },
       "tool_calls": 1,
       "model_calls": 0
     },
@@ -973,16 +1413,28 @@
       "endpoint": "questions",
       "category": "geography_or_scope",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
-        "domain": true
+        "domain": true,
+        "plan": true
       },
       "actual_status": "no_evidence",
       "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "último trimestre"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 0
     },
@@ -991,7 +1443,14 @@
       "endpoint": "questions",
       "category": "geography_or_scope",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Local só é detectado após \"em/no/na\"; \"de Recife\" é ignorado e o total é respondido.",
+      "failing_checks": [
+        "domain",
+        "model_calls",
+        "status",
+        "tool_calls"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
@@ -1001,6 +1460,15 @@
       },
       "actual_status": "answered",
       "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -1009,16 +1477,32 @@
       "endpoint": "questions",
       "category": "geography_or_scope",
       "passed": false,
+      "outcome": "known_failure_confirmed",
       "known_failure": "Quebra \"por município\" é ignorada e o total sem recorte é respondido.",
+      "failing_checks": [
+        "model_calls",
+        "plan",
+        "status"
+      ],
       "checks": {
         "http_ok": true,
         "status": false,
         "tool_calls": true,
         "model_calls": false,
-        "domain": true
+        "domain": true,
+        "plan": false
       },
       "actual_status": "answered",
       "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
       "tool_calls": 1,
       "model_calls": 1
     },
@@ -1027,7 +1511,9 @@
       "endpoint": "questions",
       "category": "geography_or_scope",
       "passed": true,
+      "outcome": "passed",
       "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
@@ -1037,6 +1523,7 @@
       },
       "actual_status": "needs_clarification",
       "actual_domain": null,
+      "actual_plan": null,
       "tool_calls": 0,
       "model_calls": 0
     }
