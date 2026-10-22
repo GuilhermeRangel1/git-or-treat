@@ -1,8 +1,11 @@
 """Bloqueios determinísticos anteriores à interpretação e a qualquer ferramenta.
 
-As regras operam sobre o texto normalizado (NFKC, sem caracteres invisíveis, em
-minúsculas, sem acentos e sem comentários SQL de bloco). Todas as janelas entre
-termos são limitadas (`.{0,N}`) para evitar backtracking excessivo.
+As regras operam sobre o texto normalizado (NFKC, sem caracteres invisíveis, com
+letras cirílicas e gregas parecidas trocadas pelas latinas, em minúsculas, sem
+acentos, sem comentários SQL de bloco e com letras isoladas em sequência juntadas).
+Todas as janelas entre termos são limitadas (`.{0,N}`) para evitar backtracking
+excessivo. O gate é uma camada heurística: a barreira real são o planejador, a
+política de leitura, o modelo sem números livres e a camada SQL somente leitura.
 """
 
 import re
@@ -25,19 +28,50 @@ _INVISIBLE = re.compile(
     "[\u00ad\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\U000e0000-\U000e007f]"
 )
 _SQL_BLOCK_COMMENT = re.compile(r"/\*.{0,200}?\*/", re.DOTALL)
+# Lista curta e explícita de letras cirílicas e gregas que imitam latinas.
+_HOMOGLYPHS = str.maketrans(
+    {
+        chr(code): latin
+        for code, latin in (
+            # Cirílico: а е о р с х у і ј ѕ ԁ e maiúsculas.
+            (0x0430, "a"), (0x0435, "e"), (0x043E, "o"), (0x0440, "p"), (0x0441, "c"),
+            (0x0445, "x"), (0x0443, "y"), (0x0456, "i"), (0x0458, "j"), (0x0455, "s"),
+            (0x0501, "d"), (0x0410, "A"), (0x0415, "E"), (0x041E, "O"), (0x0420, "P"),
+            (0x0421, "C"), (0x0425, "X"), (0x0423, "Y"), (0x0406, "I"), (0x0408, "J"),
+            (0x0405, "S"), (0x0500, "D"),
+            # Latim "g" de script (ɡ).
+            (0x0261, "g"),
+            # Grego: ο ν α ε ρ τ υ χ e maiúsculas.
+            (0x03BF, "o"), (0x03BD, "v"), (0x03B1, "a"), (0x03B5, "e"), (0x03C1, "p"),
+            (0x03C4, "t"), (0x03C5, "u"), (0x03C7, "x"), (0x039F, "O"), (0x039D, "N"),
+            (0x0391, "A"), (0x0395, "E"), (0x03A1, "P"), (0x03A4, "T"), (0x03A5, "Y"),
+            (0x03A7, "X"),
+        )
+    }
+)
+# Quatro ou mais letras isoladas separadas por um espaço, ponto ou hífen ("d r o p",
+# "d.r.o.p"). Três letras ("a b c") e listas como "A, B e C" ficam como estão.
+_SPACED_LETTERS = re.compile(r"(?<![a-z0-9])[a-z](?:[ .-][a-z]){3,}(?![a-z0-9])")
 
 
 def _normalize(value: str) -> str:
     visible = _INVISIBLE.sub("", unicodedata.normalize("NFKC", value))
-    decomposed = unicodedata.normalize("NFD", visible.casefold())
+    latin = visible.translate(_HOMOGLYPHS)
+    decomposed = unicodedata.normalize("NFD", latin.casefold())
     text = "".join(char for char in decomposed if not unicodedata.combining(char))
-    return _SQL_BLOCK_COMMENT.sub(" ", text)
+    text = _SQL_BLOCK_COMMENT.sub(" ", text)
+    return _SPACED_LETTERS.sub(lambda match: re.sub(r"[ .-]", "", match.group()), text)
 
 
+# "Sistema" só é armazenamento quando não é a rede ("sistema elétrico").
+_SYSTEM = (
+    r"sistema(?!\s+(?:eletrico|de distribuicao|de transmissao|de energia|de medicao|"
+    r"interligado|de potencia)\b)"
+)
 # Alvos de armazenamento, em português, inglês e espanhol. "base" não conta em
 # "com base no/na/em".
 _STORAGE = (
-    r"banco|bases?(?!\s+(?:n[oa]s?|em)\b)|tabelas?|registros?|sistema|cadastros?|"
+    rf"banco|bases?(?!\s+(?:n[oa]s?|em)\b)|tabelas?|registros?|{_SYSTEM}|cadastros?|"
     r"sql|query|script|arquivos?|tables?|tablas?|databases?|db|records?|rows?"
 )
 # Destruir ou zerar também vale para os dados e métricas do domínio.
@@ -58,9 +92,15 @@ _PERSIST = (
     r"salv(?:e|ar|ando)|grav(?:e|ar|ando)|permanentemente|definitivamente|"
     r"persist\w{0,6}|commit|na (?:fonte|origem)"
 )
-# Regras ou instruções qualificadas por um assunto ("regras de arredondamento")
-# não são as instruções do agente; "do sistema" e "de segurança" continuam sendo.
-_UNQUALIFIED = r"(?!\s+d[eoa]s?\s+(?!sistema|seguranca|acesso|privacidade)\w)"
+# Regras ou instruções sobre um assunto analítico ("regras de arredondamento") não
+# são as instruções do agente. Qualquer outro qualificador ("de conduta", "do
+# sistema", "de segurança", "de negócio") continua recusado.
+_ANALYTIC_SUBJECT = (
+    r"arredondamento|calculo|agregacao|agrupamento|ordenacao|filtros?|periodos?|"
+    r"conversao|unidades?|faturamento|cobranca|tarifas?|competencia|datas?|"
+    r"formatacao de numeros?|fuso(?: horario)?"
+)
+_UNQUALIFIED = rf"(?!\s+d[eoa]s?\s+(?:{_ANALYTIC_SUBJECT})\b)"
 _INSTRUCTIONS = (
     r"instrucoes|instrucao|instrucciones|instructions?|regras|reglas|rules|politicas|"
     r"policies|diretrizes|orientacoes|restricoes|directions|guidelines|prompt"
@@ -70,6 +110,7 @@ _PERSON = (
     r"clientes?|titular(?:es)?|consumidor(?:es)?|pessoas?|moradore?s?|usuarios?|"
     r"responsave(?:l|is)|proprietarios?|dono|customers?|clients?|users?|owners?|holders?"
 )
+_RANKING = r"maior|menor|mais|menos|maiores|menores"
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,7 +228,8 @@ _SECURITY_RULES = (
         r"\b(?:prompt (?:do|de) sistema|system prompt|(?:seu|teu|your) prompt|"
         r"instrucoes (?:do sistema|internas|ocultas|iniciais)|mensagem do sistema|"
         r"regras internas)\b",
-        r"\b(?:suas|tuas|your) (?:instrucoes|instructions|diretrizes|regras|rules)\b",
+        r"\b(?:suas|tuas|your) (?:instrucoes|instructions|diretrizes|regras|rules)\b"
+        rf"{_UNQUALIFIED}",
         r"\b(?:revel(?:e|ar)|mostr(?:e|ar)|list(?:e|ar)|repit(?:a|ir)|exib(?:a|ir)|"
         r"imprim(?:a|ir)|diga|informe|reveal|show|print|repeat|tell me)\b.{0,20}"
         rf"\b(?:instrucoes|instructions|diretrizes|guidelines|regras|rules)\b{_UNQUALIFIED}",
@@ -205,7 +247,8 @@ _SECURITY_RULES = (
     ),
     _rule(
         "write_destructive",
-        r"\b(?:apag(?:ue|uem|ar)|delet(?:e|em|ar)|zer(?:e|em|a|ar)|trunc(?:a|ar)|"
+        r"\b(?:apag(?:ue|uem|ar|asse|assem)|delet(?:e|em|ar|asse|assem)|"
+        r"zer(?:e|em|a|ar|asse|assem)|trunc(?:a|ar)|"
         r"trunqu(?:e|em)|truncate|destru(?:a|ir)|sobrescrev(?:a|er)|drop(?:e|em|ar)?|"
         r"borr(?:a|e|en|ar)|erase|wipe|overwrite|destroy)\b"
         rf"(?:.{{0,50}}\b(?:{_DESTRUCTIVE_TARGET})\b|{_ENTITY_OBJECT})",
@@ -213,25 +256,31 @@ _SECURITY_RULES = (
     # Verbos que também têm uso analítico ("remova o filtro") exigem alvo de armazenamento.
     _rule(
         "write_remove",
-        r"\b(?:remov(?:a|er)|remove|exclu(?:a|ir)|elimin(?:a|e|ar)|execut(?:e|ar)|"
-        r"limp(?:e|em|ar)|apag(?:a|am)|renome(?:ie|iem|ar)|rename)\b"
+        r"\b(?:remov(?:a|am|er|esse|essem)|remove|exclu(?:a|ir|isse|issem)|elimin(?:a|e|ar)|"
+        r"execut(?:e|ar)|limp(?:e|em|ar|asse|assem)|apag(?:a|am)|renome(?:ie|iem|ar)|rename)\b"
         rf"(?:.{{0,50}}\b(?:{_STORAGE}|tudo|colunas?)\b|{_ENTITY_OBJECT})",
     ),
     # "Altere a análise com os dados de 2024" e "Update the chart with 2024 data"
     # passam; dados só contam com gravação.
     _rule(
         "write_alter",
-        r"\b(?:alter(?:e|ar)|atualiz(?:e|ar)|modifiqu(?:e)|modificar|edit(?:e|ar)|"
+        r"\b(?:alter(?:e|ar|asse|assem)|atualiz(?:e|ar|asse|assem)|modifiqu(?:e)|modificar|edit(?:e|ar)|"
         r"substitu(?:a|ir)|troqu(?:e)|trocar|corrij(?:a)|corrigir|update|alter|modify|"
         r"change)\b.{0,50}"
         rf"(?:\b(?:{_STORAGE})\b|\b(?:dados|valores?)\b.{{0,40}}\b(?:{_PERSIST})\b)",
     ),
+    # "Salve o relatório em PDF" exporta; salvar só grava dado sem alvo de exportação
+    # por perto. Alvo de armazenamento continua recusado em qualquer caso.
     _rule(
         "write_insert",
         r"\b(?:insir(?:a)|inserir|insert|grav(?:e|ar)|salv(?:e|ar)|persist(?:a|ir)|"
         r"cadastr(?:e|em|ar)|registr(?:e|em|ar))\b.{0,50}"
-        rf"\b(?:{_STORAGE}|dados|valores?|novos?|novas?|clientes?|consumidor(?:es)?|"
-        r"usuarios?)\b",
+        rf"\b(?:{_STORAGE})\b",
+        r"\b(?:insir(?:a)|inserir|insert|grav(?:e|ar)|persist(?:a|ir)|"
+        r"cadastr(?:e|em|ar)|registr(?:e|em|ar)|"
+        r"salv(?:e|ar)\b(?!.{0,30}\b(?:relatorios?|graficos?|painel|paineis|pdf|csv|xlsx|"
+        r"excel|imagem|png)\b))\b.{0,50}"
+        r"\b(?:dados|valores?|novos?|novas?|clientes?|consumidor(?:es)?|usuarios?)\b",
     ),
     # "Crie uma tabela comparativa" e "Adicione o filtro" passam.
     _rule(
@@ -253,10 +302,16 @@ _SECURITY_RULES = (
         r"\b(?:backup|export(?:e|ar)|baix(?:e|ar)|extra(?:ia|ir)|copi(?:e|ar))\b.{0,40}"
         rf"\b(?:{_STORAGE}|tudo|todos os (?:dados|registros|clientes)|dados d[oa]s? clientes?)\b",
     ),
-    # Número sem máscara só conta como documento com a palavra cpf/cnpj.
+    # Número sem máscara só conta como documento com a palavra cpf/cnpj, que casa
+    # dentro de outra palavra porque a junção de letras isoladas cola o artigo
+    # ("o c p f" vira "ocpf"). "Documento" só é pessoal quando é da pessoa
+    # ("documento de referência da tarifa" passa).
     _rule(
         "pii_document",
-        r"\b(?:cpfs?|cnpjs?)\b",
+        r"cpf|cnpj|\bc(?:\.\s?|[\s-])p(?:\.\s?|[\s-])f\b",
+        r"\bdocumentos?(?: de (?:identidade|identificacao)| pessoa(?:l|is))?\s+d[oa]s?\s+"
+        rf"(?:{_PERSON})\b",
+        r"\bdocumentos? (?:de identidade|de identificacao|pessoa(?:l|is))\b",
         r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b",
         r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b",
     ),
@@ -265,10 +320,24 @@ _SECURITY_RULES = (
         "pii_contact",
         r"\b[a-z0-9._%+-]{1,64}@[a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63}){1,5}\b",
         r"\(\d{2}\)\s?9?\d{4}-?\d{4}\b|\+55\s?\d{2}\b",
-        r"\b(?:e-?mails?|telefones?|telefonos?|celular(?:es)?|whatsapp|enderecos?|rg|"
-        r"data de nascimento|nomes? d[oa]s?|rendas?|salarios?|profiss(?:ao|oes)|correos?|"
+        r"\b(?:e-?mails?|telefones?|telefonos?|fones?|celular(?:es)?|whatsapp|zap|enderecos?|"
+        r"rg|data de nascimento|nomes? d[oa]s?|rendas?|salarios?|profiss(?:ao|oes)|correos?|"
+        r"correios? eletronicos?|numeros? de (?:contato|telefone|celular)|"
         r"direccion(?:es)?|phone(?: numbers?)?|address(?:es)?|full names?|salary|income)\b"
         rf".{{0,40}}\b(?:{_PERSON})\b",
+        # "Contato" só com determinante e pessoa ("o contato do cliente"); "quantos
+        # contatos de atendimento" e "clientes têm contato registrado" passam.
+        rf"\b(?:o|os|seu|seus|um)\s+contatos?\s+d[oa]s?\s+(?:{_PERSON})\b",
+        # Ordem inversa num pedido de lista: "liste os clientes e seus telefones".
+        # Endereço e nome só com "e"; "consumo dos clientes com endereço em X" passa.
+        r"\b(?:list(?:e|ar)|mostr(?:e|ar)|exib(?:a|ir)|trag(?:a)|traz(?:er)?|me de|passe|"
+        r"informe|show|give)\b.{0,20}"
+        rf"\b(?:{_PERSON})\b.{{0,20}}"
+        r"(?:\b(?:e|and)\s+(?:(?:seus|suas|os|as|respectivos|respectivas|their)\s+)?"
+        r"(?:e-?mails?|telefones?|fones?|celular(?:es)?|whatsapp|zap|enderecos?|nomes?|"
+        r"phones?|address(?:es)?|names?)\b|"
+        r"\b(?:com|with)\s+(?:(?:seus|suas|os|as|their)\s+)?"
+        r"(?:e-?mails?|telefones?|fones?|celular(?:es)?|whatsapp|zap|phones?)\b)",
         # Possessivo em inglês: "the customer's email".
         r"\b(?:customer|client|user|owner|holder)'s\b.{0,20}"
         r"\b(?:e-?mails?|phone|address|name|salary|income)\b",
@@ -281,10 +350,17 @@ _SECURITY_RULES = (
         rf".{{0,40}}\b(?:{_PERSON}|ucs?|unidades? consumidoras?|casas?|residencias?)\b",
         r"\bonde fica (?:a |o )?(?:casa|residencia|imovel|apartamento)\b",
     ),
+    # "Quem são os clientes com maior consumo" e "os maiores consumidores" são
+    # rankings agregados; "quem é o titular da UC" pede a identidade.
     _rule(
         "pii_identity",
         r"\b(?:dados pessoais|nomes? completos?|todos os clientes)\b",
-        rf"\bquem (?:e|sao|seria|era|eram)\b.{{0,20}}\b(?:{_PERSON})\b",
+        rf"\bdados (?:cadastrais|de cadastro)\b.{{0,15}}\b(?:{_PERSON})\b",
+        r"\bquem (?:e|sao|seria|era|eram)\s+"
+        r"(?:(?!(?:maiores|menores|principais)\b)\S{1,20}\s+){0,3}"
+        rf"(?:{_PERSON})\b(?!\s+(?:com|de|que)\s+(?:o |a )?(?:{_RANKING})\b)",
+        r"\bquem (?:mora|moram|reside|residem|vive|vivem|habita|habitam|paga|pagam)\b.{0,30}"
+        r"\b(?:ucs?|unidades? consumidoras?|casas?|residencias?|imove(?:l|is)|apartamentos?)\b",
         r"\bonde (?:mora|moram|reside|residem|vive|vivem)\b",
     ),
 )
