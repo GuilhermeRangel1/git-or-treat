@@ -1,4 +1,4 @@
-name: Qualidade do repositório
+name: CI de qualidade do repositório
 
 on:
   pull_request:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   qualidade-genai:
-    name: Qualidade do serviço GenAI
+    name: CI GenAI
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -67,7 +67,7 @@ jobs:
           retention-days: 14
 
   qualidade-backend:
-    name: Qualidade do backend
+    name: CI Backend
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -139,7 +139,7 @@ jobs:
             venergy-backend:ci python -m pytest -q
 
   qualidade-frontend:
-    name: Qualidade do frontend
+    name: CI Frontend
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -184,7 +184,7 @@ jobs:
         run: npm run build
 
   validar-documentacao-e-configuracao:
-    name: Validar documentação e configuração
+    name: CI Documentação e configuração
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -282,7 +282,7 @@ jobs:
         run: python -m compileall -q .hooks .agents/run_hook.py
 
   qualidade-docker-compose:
-    name: Smoke test do Docker Compose
+    name: CI Docker Compose
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -325,7 +325,9 @@ jobs:
                 exit 0
               fi
             fi
-            sleep 2
+            if (( attempt < 30 )); then
+              sleep 2
+            fi
           done
           cat "$response_file"
           exit 1
