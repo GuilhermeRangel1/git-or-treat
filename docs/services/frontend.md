@@ -12,6 +12,8 @@ A DEV-01 usa TanStack Query e o transporte existente na rota `/dev/contratos`, s
 
 ## Público e jornadas
 
+A DEV-03 torna Receita explorável com API sintética real, segundo [contrato 1.1.0](../contracts/revenue-dev03.md), [desenho](../design/2026-10-21-dev03-design.md) e [ADR-0006](../decisions/0006-exploracao-demonstrativa-receita.md). Filtros base e refinamentos ficam na URL; voltar ao total preserva os filtros base. A barra compacta abre um diálogo de filtros; cartões, decomposição e tabela seguem os frames claro/escuro, com série e fundamento após os recortes. JSON é validado em execução; chave da consulta e cancelamento acompanham os filtros. A demonstração compara competências extremas explicitamente e não substitui as janelas anuais ou o aceite com Gold. Veja as [evidências de revisão integrada](../plans/2026-10-21-dev03-evidence.md).
+
 O portal é interno e apoia cinco rotinas: panorama para diretoria, receita para comercial, visão UC para atendimento, fila/ordens para perdas e continuidade por alimentador para operação. O agente de IA deve estar acessível no próprio portal e gerar insight contextual em ao menos uma tela. A divisão exata em rotas/telas é decisão de produto; cada jornada precisa ser testada por perfil de usuário relevante.
 
 ## Inventário funcional mínimo

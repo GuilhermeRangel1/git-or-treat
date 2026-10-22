@@ -90,21 +90,92 @@ class RevenuePeriod(BaseModel):
     billed_energy_kwh: float | None
 
 
+class RevenueSnapshot(BaseModel):
+    competencia: str
+    billed_amount: float | None
+    billed_energy_kwh: float | None
+    observed_price_brl_per_kwh: float | None
+    billed_uc_count: int | None
+    status: AnalyticsStatus
+    limitations: list[str] = Field(default_factory=list)
+
+
+class RevenueQuality(BaseModel):
+    small_base_threshold_uc: int
+    small_base: bool
+    percent_change_eligible: bool
+    limitations: list[str] = Field(default_factory=list)
+
+
 class RevenueComparison(BaseModel):
+    initial: RevenueSnapshot
+    final: RevenueSnapshot
     billed_amount_change_brl: float | None
     billed_energy_change_kwh: float | None
     measured_energy_change_kwh: float | None
     billed_amount_change_percent: float | None
 
 
+class RevenueMetricCoverage(BaseModel):
+    status: AnalyticsStatus
+    covered_months: list[str]
+    missing_months: list[str]
+    limitations: list[str] = Field(default_factory=list)
+
+
+class RevenueCoverage(BaseModel):
+    requested_months: list[str]
+    billed_amount: RevenueMetricCoverage
+    billed_energy_kwh: RevenueMetricCoverage
+    paid_amount: RevenueMetricCoverage
+    measured_energy_kwh: RevenueMetricCoverage
+
+
 class RevenueDecomposition(BaseModel):
-    method: str
+    method: Literal["endpoint_price_volume"]
     reference_version: str
     price_effect_brl: float | None
     volume_effect_brl: float | None
     interaction_effect_brl: float | None
+    rounding_adjustment_brl: float | None
     status: AnalyticsStatus
     limitations: list[str] = Field(default_factory=list)
+
+
+class RevenueBreakdownItem(BaseModel):
+    key: str
+    label: str
+    filters: AnalyticsFilters
+    comparison: RevenueComparison
+    quality: RevenueQuality
+
+
+class RevenueReconciliation(BaseModel):
+    status: AnalyticsStatus
+    initial_known_sum_brl: float | None
+    final_known_sum_brl: float | None
+    comparable_change_sum_brl: float | None
+    non_comparable_group_count: int
+    unattributed_change_brl: float | None
+    residual_brl: float | None
+    limitations: list[str] = Field(default_factory=list)
+
+
+class RevenueBreakdown(BaseModel):
+    dimension: Literal["municipio", "bairro", "classe"]
+    items: list[RevenueBreakdownItem]
+    reconciliation: RevenueReconciliation
+
+
+class RevenueNeighborhoodOption(BaseModel):
+    municipio: str
+    bairro: str
+
+
+class RevenueFilterOptions(BaseModel):
+    municipios: list[str]
+    bairros: list[RevenueNeighborhoodOption]
+    classes: list[str]
 
 
 class RevenueData(BaseModel):
@@ -118,6 +189,10 @@ class RevenueData(BaseModel):
     series: list[RevenuePeriod]
     comparison: RevenueComparison
     price_volume: RevenueDecomposition
+    coverage: RevenueCoverage
+    quality: RevenueQuality
+    breakdown: RevenueBreakdown
+    filter_options: RevenueFilterOptions
 
 
 class RevenueResponse(BaseModel):

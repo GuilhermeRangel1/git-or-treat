@@ -19,7 +19,7 @@ def test_kpis_publish_versioned_envelope_and_reconciled_synthetic_total(client, 
     assert body["data"]["metrics"][0] == {
         "id": "billed_amount",
         "label": "Valor faturado",
-        "value": 182.0,
+        "value": 1727.0,
         "unit": "BRL",
         "status": "available",
         "limitations": [],
@@ -31,9 +31,9 @@ def test_kpis_publish_versioned_envelope_and_reconciled_synthetic_total(client, 
         "filters": {"municipio": None, "bairro": None, "classe": None, "alimentador": None},
         "source": {
             "kind": "synthetic",
-            "version": "dev01-v1",
+            "version": "dev03-v1",
             "is_demo": True,
-            "updated_at": "2026-10-20T00:00:00Z",
+            "updated_at": "2026-10-21T00:00:00Z",
         },
         "limitations": [
             "Dados sintéticos; não constituem diagnóstico da V-Energy.",
@@ -69,7 +69,7 @@ def test_zero_measurement_and_billed_amount_remain_available(client, monkeypatch
 
     assert response.status_code == 200
     metrics = {item["id"]: item for item in response.json()["data"]["metrics"]}
-    assert metrics["billed_amount"]["value"] == 0.0
+    assert metrics["billed_amount"]["value"] == 80.0
     assert metrics["billed_amount"]["status"] == "available"
     assert metrics["measured_energy_kwh"]["value"] == 10.0
     assert metrics["measured_energy_kwh"]["status"] == "available"
@@ -103,18 +103,18 @@ def test_revenue_keeps_billed_and_measured_energy_distinct(client, monkeypatch):
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["total_billed_amount"] == 182.0
-    assert data["total_paid_amount"] == 170.0
-    assert data["total_billed_energy_kwh"] == 170.0
+    assert data["total_billed_amount"] == 1727.0
+    assert data["total_paid_amount"] == 1710.0
+    assert data["total_billed_energy_kwh"] == 1585.0
     assert data["total_measured_energy_kwh"] == 407.0
-    assert data["observed_price_brl_per_kwh"] == 1.0706
+    assert data["observed_price_brl_per_kwh"] == 1.0896
     assert data["price_volume"]["interaction_effect_brl"] is not None
     assert round(
         data["price_volume"]["price_effect_brl"]
         + data["price_volume"]["volume_effect_brl"]
         + data["price_volume"]["interaction_effect_brl"],
         2,
-    ) == -18.0
+    ) == 127.0
 
 
 def test_synthetic_analytics_request_does_not_resolve_sqlalchemy_session(client, monkeypatch):
