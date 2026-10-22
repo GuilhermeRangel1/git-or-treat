@@ -37,6 +37,50 @@ def test_corpus_phrase_gets_expected_rule(item: dict) -> None:
         assert code is SafetyRefusalCode.SECURITY_VIOLATION
 
 
+WHITESPACE_VARIANTS = {
+    "todos_os_espacos_por_quebra": lambda text: text.replace(" ", "\n"),
+    "primeiro_espaco_por_quebra": lambda text: text.replace(" ", "\n", 1),
+    "espacos_duplicados": lambda text: text.replace(" ", "  "),
+    "espacos_por_tab": lambda text: text.replace(" ", "\t"),
+}
+# Variantes que mudam de resultado por razão legítima, com o resultado esperado.
+WHITESPACE_VARIANT_EXCEPTIONS = {
+    # Com cada espaço virando quebra de linha, "sistema:" passa a abrir uma linha e
+    # vira marcador de papel forjado, que é exatamente o que a regra procura.
+    ("pass--qual-o-consumo-do-sistema-residencial-ou", "todos_os_espacos_por_quebra"): (
+        "injection_markup"
+    ),
+    # A junção de letras isoladas aceita um único separador entre as letras, para que
+    # mais de um espaço marque a fronteira entre palavras ("D R O P   T A B L E").
+    # Com todos os espaços duplicados, as letras deixam de ser juntadas e o disfarce
+    # passa, como já passava antes da normalização de espaços.
+    ("sql_command--d-r-o-p-t-a-b", "espacos_duplicados"): None,
+    ("write_destructive--apague-os-r-e-g-i-s", "espacos_duplicados"): None,
+}
+
+
+@pytest.mark.parametrize("variant", WHITESPACE_VARIANTS)
+@pytest.mark.parametrize("item", CORPUS, ids=lambda item: item["id"])
+def test_whitespace_variant_keeps_corpus_outcome(item: dict, variant: str) -> None:
+    rule = GATE.matched_rule(WHITESPACE_VARIANTS[variant](item["text"]))
+
+    if (item["id"], variant) in WHITESPACE_VARIANT_EXCEPTIONS:
+        assert rule == WHITESPACE_VARIANT_EXCEPTIONS[item["id"], variant]
+    elif item["expected_rule"] is None:
+        assert rule is None
+    else:
+        # A variante pode cair em outra regra de segurança, mas continua recusada.
+        assert rule in SECURITY_RULE_NAMES
+
+
+def test_whitespace_variant_exceptions_point_to_corpus_items() -> None:
+    corpus_ids = {item["id"] for item in CORPUS}
+
+    for item_id, variant in WHITESPACE_VARIANT_EXCEPTIONS:
+        assert item_id in corpus_ids
+        assert variant in WHITESPACE_VARIANTS
+
+
 @pytest.mark.parametrize(
     "item",
     PROJECT_QUESTIONS,
@@ -139,9 +183,19 @@ def test_long_adversarial_inputs_are_evaluated_quickly() -> None:
         "a." * 10_000 + "com",
         "delete a " * 3_000 + "uc",
         "latitude " * 3_000,
+        # Quebras de linha: as janelas entre termos atravessam linhas.
+        "\n" * 20_000,
+        "a\n" * 10_000,
+        "apague\n" * 2_900,
+        "ignore\n" * 2_900,
+        "\n \t" * 6_700,
+        "sistema\n" * 2_500,
+        "d\nr\no\np\n" * 2_500,
         # Tamanho máximo aceito pela API, com e sem regra casando.
         ("Qual o consumo por município? " * 40)[:MAX_QUESTION_LENGTH],
         ("apague o " + "x " * 500)[:MAX_QUESTION_LENGTH],
+        ("apague\n" * 200)[:MAX_QUESTION_LENGTH],
+        ("Qual o consumo\npor município?\n" * 40)[:MAX_QUESTION_LENGTH],
     )
     started = time.perf_counter()
     for sample in samples:

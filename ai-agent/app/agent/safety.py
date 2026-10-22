@@ -2,10 +2,14 @@
 
 As regras operam sobre o texto normalizado (NFKC, sem caracteres invisíveis, com
 letras cirílicas e gregas parecidas trocadas pelas latinas, em minúsculas, sem
-acentos, sem comentários SQL de bloco e com letras isoladas em sequência juntadas).
-Todas as janelas entre termos são limitadas (`.{0,N}`) para evitar backtracking
-excessivo. O gate é uma camada heurística: a barreira real são o planejador, a
-política de leitura, o modelo sem números livres e a camada SQL somente leitura.
+acentos, sem comentários SQL de bloco, com cada sequência de espaços, tabs e quebras
+de linha reduzida a um separador e com letras isoladas em sequência juntadas). Quase
+todas as regras leem o texto em uma linha só, então as janelas entre termos e os
+espaços dos padrões atravessam quebras de linha; só os marcadores de papel leem o
+texto com as quebras mantidas. Todas as janelas entre termos são limitadas
+(`.{0,N}`) para evitar backtracking excessivo. O gate é uma camada heurística: a
+barreira real são o planejador, a política de leitura, o modelo sem números livres
+e a camada SQL somente leitura.
 """
 
 import re
@@ -49,18 +53,37 @@ _HOMOGLYPHS = str.maketrans(
         )
     }
 )
-# Quatro ou mais letras isoladas separadas por um espaço, ponto ou hífen ("d r o p",
-# "d.r.o.p"). Três letras ("a b c") e listas como "A, B e C" ficam como estão.
-_SPACED_LETTERS = re.compile(r"(?<![a-z0-9])[a-z](?:[ .-][a-z]){3,}(?![a-z0-9])")
+# Quatro ou mais letras isoladas separadas por um espaço (ou tab, ou quebra de linha),
+# ponto ou hífen ("d r o p", "d.r.o.p"). Três letras ("a b c") e listas como "A, B e
+# C" ficam como estão. Roda antes de reduzir os espaços, para que mais de um espaço
+# continue separando palavras ("D R O P   T A B L E").
+_SPACED_LETTERS = re.compile(r"(?<![a-z0-9])[a-z](?:[\s.-][a-z]){3,}(?![a-z0-9])")
+_WHITESPACE = re.compile(r"\s+")
+# Os mesmos separadores de linha de `str.splitlines`.
+_LINE_BREAKS = frozenset("\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029")
 
 
-def _normalize(value: str) -> str:
+@dataclass(frozen=True, slots=True)
+class _NormalizedText:
+    # Em uma linha só, para quase todas as regras.
+    flat: str
+    # Com as quebras de linha mantidas, para marcadores no início de linha.
+    lines: str
+
+
+def _collapse_whitespace(match: re.Match[str]) -> str:
+    return "\n" if _LINE_BREAKS.intersection(match.group()) else " "
+
+
+def _normalize(value: str) -> _NormalizedText:
     visible = _INVISIBLE.sub("", unicodedata.normalize("NFKC", value))
     latin = visible.translate(_HOMOGLYPHS)
     decomposed = unicodedata.normalize("NFD", latin.casefold())
     text = "".join(char for char in decomposed if not unicodedata.combining(char))
     text = _SQL_BLOCK_COMMENT.sub(" ", text)
-    return _SPACED_LETTERS.sub(lambda match: re.sub(r"[ .-]", "", match.group()), text)
+    text = _SPACED_LETTERS.sub(lambda match: re.sub(r"[\s.-]", "", match.group()), text)
+    text = _WHITESPACE.sub(_collapse_whitespace, text)
+    return _NormalizedText(flat=text.replace("\n", " "), lines=text)
 
 
 # "Sistema" só é armazenamento quando não é a rede ("sistema elétrico").
@@ -117,10 +140,16 @@ _RANKING = r"maior|menor|mais|menos|maiores|menores"
 class SafetyRule:
     name: str
     pattern: re.Pattern[str]
+    reads_lines: bool = False
+
+    def matches(self, text: _NormalizedText) -> bool:
+        return self.pattern.search(text.lines if self.reads_lines else text.flat) is not None
 
 
-def _rule(name: str, *alternatives: str) -> SafetyRule:
-    return SafetyRule(name, re.compile("|".join(alternatives)))
+def _rule(name: str, *alternatives: str, reads_lines: bool = False) -> SafetyRule:
+    # DOTALL deixa as janelas `.{0,N}` atravessarem quebras de linha também no texto
+    # com as quebras mantidas.
+    return SafetyRule(name, re.compile("|".join(alternatives), re.DOTALL), reads_lines)
 
 
 # A ordem define qual nome `matched_rule` devolve quando mais de uma regra casa.
@@ -146,12 +175,12 @@ _SECURITY_RULES = (
         r"\b(?:powershell|pwsh)\b|\bcmd(?:\.exe)?\s+/c\b|\b(?:bash|sh|zsh)\s+-c\b",
         r"\b(?:curl|wget|sudo)\s",
         r"`\s{0,3}(?:rm|ls|cat|curl|wget|bash|sh|sudo|chmod|chown|python\d?|node|"
-        r"powershell|cmd|whoami|echo|nc|kill|mv|cp|dd|mkfs)\b[^`\n]{0,80}`",
+        r"powershell|cmd|whoami|echo|nc|kill|mv|cp|dd|mkfs)\b[^`]{0,80}`",
     ),
     # Truques de injeção de SQL; "--", "or" e "and" soltos em frases normais passam.
     _rule(
         "sql_injection_trick",
-        r"['\"]\s{0,3}\b(?:or|and)\b[^=\n]{0,12}=",
+        r"['\"]\s{0,3}\b(?:or|and)\b[^=]{0,12}=",
         r"\bor\s+['\"]?(\w{1,10})['\"]?\s*=\s*['\"]?\1['\"]?(?!\w)",
         r"['\"]\s{0,3}\)?\s{0,3};\s{0,3}--",
         r"\bunion\s+(?:all\s+)?select\b",
@@ -214,7 +243,8 @@ _SECURITY_RULES = (
         r"\b(?:debug|developer|god|dan) mode\b",
         r"\bjailbreak\b",
     ),
-    # Marcadores de papel e tags de contexto forjados.
+    # Marcadores de papel e tags de contexto forjados. Lê o texto com as quebras de
+    # linha mantidas: "sistema:" só é marcador no início de uma linha.
     _rule(
         "injection_markup",
         r"\b(?:system|assistant|developer)\s*:",
@@ -222,6 +252,7 @@ _SECURITY_RULES = (
         r"</?\s*(?:contexto|context|system|sistema|instrucoes|instructions|prompt|"
         r"user|usuario|assistant|assistente|developer)\b[^<>]{0,40}>",
         r"<\|[a-z_]{1,30}\|>|\[/?(?:inst|sys|system)\]|<<\s*/?sys\s*>>",
+        reads_lines=True,
     ),
     _rule(
         "injection_reveal_prompt",
@@ -371,14 +402,16 @@ SECURITY_RULE_NAMES = tuple(rule.name for rule in _SECURITY_RULES)
 # Mensagens fixas do próprio serviço voltam no contexto como turno "assistant". Só o
 # texto idêntico é aceito: a recusa ("…expor dados pessoais ou instruções internas")
 # não carrega ataque, mas qualquer acréscimo volta a passar pelas regras.
-_SERVICE_MESSAGES = frozenset(_normalize(map_failure(code).message) for code in FailureCode)
+_SERVICE_MESSAGES = frozenset(
+    _normalize(map_failure(code).message).flat for code in FailureCode
+)
 
 
 class QuestionSafetyGate:
     """Recusa pedidos explícitos de escrita, segredos, dados pessoais e injeção de instruções."""
 
     def __init__(self, *, out_of_scope_terms: tuple[str, ...] = ()) -> None:
-        terms = [re.escape(_normalize(item)) for item in out_of_scope_terms]
+        terms = [re.escape(_normalize(item).flat) for item in out_of_scope_terms]
         self._out_of_scope = (
             re.compile(rf"\b(?:{'|'.join(terms)})\b") if terms else None
         )
@@ -386,12 +419,12 @@ class QuestionSafetyGate:
     def matched_rule(self, question: str) -> str | None:
         """Nome da primeira regra que casa; nunca devolve trecho da pergunta."""
         normalized = _normalize(question)
-        if normalized.strip() in _SERVICE_MESSAGES:
+        if normalized.flat.strip() in _SERVICE_MESSAGES:
             return None
         for rule in _SECURITY_RULES:
-            if rule.pattern.search(normalized):
+            if rule.matches(normalized):
                 return rule.name
-        if self._out_of_scope is not None and self._out_of_scope.search(normalized):
+        if self._out_of_scope is not None and self._out_of_scope.search(normalized.flat):
             return OUT_OF_SCOPE_RULE
         return None
 
