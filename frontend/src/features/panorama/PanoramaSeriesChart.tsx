@@ -5,10 +5,12 @@ import Button from "../../shared/ui/Button";
 
 interface PanoramaSeriesChartProps {
   data: MonthlyDataPoint[];
+  partialPeriod?: string;
 }
 
 export default function PanoramaSeriesChart({
   data,
+  partialPeriod,
 }: PanoramaSeriesChartProps) {
   const [viewMode, setViewMode] = useState<"financeiro" | "fisico">(
     "financeiro",
@@ -42,10 +44,18 @@ export default function PanoramaSeriesChart({
   const formatEnergy = (val: number) =>
     `${(val / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MWh`;
 
+  const formatAxis = (value: number) =>
+    (value / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  const chartWidth = Math.max(640, data.length * 112 + 80);
+  const plotHeight = 200;
+  const plotTop = 36;
+  const step = (chartWidth - 80) / data.length;
+  const active = hoveredIndex == null ? null : data[hoveredIndex];
+
   return (
     <section
       aria-labelledby={titleId}
-      className="mt-8 rounded-xl border border-border bg-surface p-5 sm:p-6 shadow-sm"
+      className="rounded-xl border border-border bg-surface p-5 sm:p-6 shadow-sm"
     >
       {/* Topo do Gráfico */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[var(--line-subtle)]">
@@ -130,74 +140,146 @@ export default function PanoramaSeriesChart({
         </span>
       </div>
 
+      {partialPeriod && (
+        <p className="mt-2 text-xs text-muted">
+          * Competência parcial: valores ainda não consolidados.
+        </p>
+      )}
+
       {/* Visualização em Gráfico de Barras SVG Responsivo */}
       {!showTable ? (
-        <div className="mt-6 relative">
+        <div className="mt-4">
+          <p className="text-xs text-muted">
+            Escala vertical: {isFinanceiro ? "R$ mil" : "MWh"}. Valores nas
+            barras na mesma unidade; passe o mouse ou use Tab para o valor
+            completo.
+          </p>
           <div
-            className="flex items-end justify-between gap-2 sm:gap-4 h-64 pt-8 pb-6 border-b border-border overflow-x-auto"
-            role="img"
-            aria-label={`Gráfico de colunas históricas de ${isFinanceiro ? "receita" : "energia"}`}
+            role="status"
+            aria-live="polite"
+            className="my-2 min-h-16 rounded-lg bg-[var(--bg-surface-hover)] p-3 text-xs text-content"
           >
-            {data.map((item, idx) => {
-              const val1 = isFinanceiro
-                ? item.receitaFaturada
-                : item.energiaFaturadaKwh;
-              const val2 = isFinanceiro
-                ? item.receitaPaga
-                : item.energiaConsumidaKwh;
-
-              const height1Pct = Math.max((val1 / maxValue) * 100, 2);
-              const height2Pct = Math.max((val2 / maxValue) * 100, 2);
-
-              const isHovered = hoveredIndex === idx;
-
-              return (
-                <div
-                  key={item.competencia}
-                  onMouseEnter={() => setHoveredIndex(idx)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                  className="flex-1 min-w-[32px] sm:min-w-[44px] flex flex-col items-center justify-end h-full group relative cursor-pointer"
-                >
-                  {/* Tooltip flutuante no hover */}
-                  {isHovered && (
-                    <div className="absolute -top-16 z-20 whitespace-nowrap rounded-lg border border-border bg-[var(--bg-surface)] p-2 text-xs shadow-md font-mono text-content">
-                      <div className="font-semibold text-brand">
-                        {item.label}
-                      </div>
-                      <div>
-                        {isFinanceiro ? "Fat: " : "Fat: "}
-                        {isFinanceiro
-                          ? formatCurrency(val1)
-                          : formatEnergy(val1)}
-                      </div>
-                      <div>
-                        {isFinanceiro ? "Pago: " : "Cons: "}
-                        {isFinanceiro
-                          ? formatCurrency(val2)
-                          : formatEnergy(val2)}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Par de Barras */}
-                  <div className="flex items-end gap-1 w-full justify-center h-full">
-                    <div
-                      style={{ height: `${height1Pct}%` }}
-                      className="w-1/2 max-w-[16px] rounded-t-sm bg-[var(--accent-goiaba)] transition-all group-hover:brightness-110"
-                    />
-                    <div
-                      style={{ height: `${height2Pct}%` }}
-                      className="w-1/2 max-w-[16px] rounded-t-sm bg-[var(--accent-pistache)] transition-all group-hover:brightness-110"
-                    />
-                  </div>
-
-                  {/* Rótulo da Competência */}
-                  <span className="mt-2 text-[11px] font-mono text-muted group-hover:text-content">
-                    {item.label}
-                  </span>
+            {active ? (
+              <>
+                <strong>
+                  {active.label}
+                  {active.competencia === partialPeriod ? " · parcial" : ""}
+                </strong>
+                <div>
+                  Faturado:{" "}
+                  {isFinanceiro
+                    ? formatCurrency(active.receitaFaturada)
+                    : formatEnergy(active.energiaFaturadaKwh)}
                 </div>
-              );
-            })}
+                <div>
+                  {isFinanceiro ? "Pago: " : "Consumido: "}
+                  {isFinanceiro
+                    ? formatCurrency(active.receitaPaga)
+                    : formatEnergy(active.energiaConsumidaKwh)}
+                </div>
+              </>
+            ) : (
+              "Selecione uma competência para consultar os valores completos."
+            )}
+          </div>
+          <div
+            className="overflow-x-auto"
+            role="region"
+            aria-label="Série histórica com rolagem horizontal"
+            tabIndex={0}
+          >
+            <svg
+              viewBox={`0 0 ${chartWidth} 280`}
+              style={{ minWidth: chartWidth }}
+              className="h-[280px] w-full"
+              aria-label={`Gráfico de colunas históricas de ${isFinanceiro ? "receita" : "energia"}`}
+            >
+              {[0, 1, 2, 3, 4].map((tick) => {
+                const y = plotTop + plotHeight - (tick * plotHeight) / 4;
+                return (
+                  <g key={tick}>
+                    <line
+                      x1={64}
+                      x2={chartWidth - 8}
+                      y1={y}
+                      y2={y}
+                      stroke="var(--line)"
+                    />
+                    <text
+                      x={56}
+                      y={y + 4}
+                      textAnchor="end"
+                      fill="var(--text-secondary)"
+                      fontSize={11}
+                    >
+                      {formatAxis((maxValue * tick) / 4)}
+                    </text>
+                  </g>
+                );
+              })}
+              {data.map((item, idx) => {
+                const val1 = isFinanceiro
+                  ? item.receitaFaturada
+                  : item.energiaFaturadaKwh;
+                const val2 = isFinanceiro
+                  ? item.receitaPaga
+                  : item.energiaConsumidaKwh;
+                const x = 80 + idx * step;
+                return (
+                  <g
+                    key={item.competencia}
+                    tabIndex={0}
+                    role="img"
+                    aria-label={`${item.label}: faturado ${isFinanceiro ? formatCurrency(val1) : formatEnergy(val1)}, ${isFinanceiro ? "pago" : "consumido"} ${isFinanceiro ? formatCurrency(val2) : formatEnergy(val2)}`}
+                    onMouseEnter={() => setHoveredIndex(idx)}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                    onFocus={() => setHoveredIndex(idx)}
+                    onBlur={() => setHoveredIndex(null)}
+                    className="focus-visible:outline-2 focus-visible:outline-brand"
+                  >
+                    {[val1, val2].map((value, series) => {
+                      const height = (value / maxValue) * plotHeight;
+                      const barX = x + series * 40;
+                      return (
+                        <g key={series}>
+                          <rect
+                            x={barX}
+                            y={plotTop + plotHeight - height}
+                            width={30}
+                            height={height}
+                            rx={2}
+                            fill={
+                              series === 0
+                                ? "var(--accent-goiaba)"
+                                : "var(--accent-pistache)"
+                            }
+                          />
+                          <text
+                            x={barX + 15}
+                            y={plotTop + plotHeight - height - 7}
+                            textAnchor="middle"
+                            fontSize={11}
+                            fill="var(--text-primary)"
+                          >
+                            {formatAxis(value)}
+                          </text>
+                        </g>
+                      );
+                    })}
+                    <text
+                      x={x + 35}
+                      y={260}
+                      textAnchor="middle"
+                      fontSize={11}
+                      fill="var(--text-secondary)"
+                    >
+                      {item.label}
+                      {item.competencia === partialPeriod ? "*" : ""}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
           </div>
         </div>
       ) : (
@@ -234,7 +316,10 @@ export default function PanoramaSeriesChart({
                     key={item.competencia}
                     className="hover:bg-[var(--bg-surface-hover)]"
                   >
-                    <td className="py-2 px-3 font-semibold">{item.label}</td>
+                    <td className="py-2 px-3 font-semibold">
+                      {item.label}
+                      {item.competencia === partialPeriod ? " · parcial" : ""}
+                    </td>
                     <td className="py-2 px-3 text-right">
                       {isFinanceiro
                         ? formatCurrency(val1)

@@ -3,10 +3,12 @@ import { apiClient } from "../api/client";
 import { decodePanorama } from "./panoramaContract";
 import type { PanoramaFilters } from "./types";
 
-export function usePanoramaData(filters: PanoramaFilters) {
+export function usePanoramaData(filters: PanoramaFilters, enabled = true) {
   return useQuery({
     queryKey: ["panorama", filters],
+    enabled,
     queryFn: async ({ signal }) => {
+      if (!enabled) throw new Error("Filtros inválidos.");
       const params = new URLSearchParams({
         competencia: filters.periodo,
         comparacao: filters.comparacao,

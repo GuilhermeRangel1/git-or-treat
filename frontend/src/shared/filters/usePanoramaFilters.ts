@@ -1,6 +1,10 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { ComparisonType, PanoramaFilters } from "../analytics/types";
+import {
+  CLASSES_DISPONIVEIS,
+  MUNICIPIOS_DISPONIVEIS,
+} from "../analytics/syntheticData";
 
 export const DEFAULT_FILTERS: PanoramaFilters = {
   periodo: "2024-04",
@@ -13,17 +17,13 @@ export function usePanoramaFilters() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters = useMemo<PanoramaFilters>(() => {
-    const periodo = searchParams.get("periodo") || DEFAULT_FILTERS.periodo;
+    const periodo = searchParams.get("periodo") ?? DEFAULT_FILTERS.periodo;
     const comparacaoParam = searchParams.get("comparacao");
-    const comparacao: ComparisonType =
-      comparacaoParam === "anterior" ||
-      comparacaoParam === "ano_anterior" ||
-      comparacaoParam === "nenhuma"
-        ? comparacaoParam
-        : DEFAULT_FILTERS.comparacao;
+    const comparacao = (comparacaoParam ??
+      DEFAULT_FILTERS.comparacao) as ComparisonType;
     const municipio =
-      searchParams.get("municipio") || DEFAULT_FILTERS.municipio;
-    const classe = searchParams.get("classe") || DEFAULT_FILTERS.classe;
+      searchParams.get("municipio") ?? DEFAULT_FILTERS.municipio;
+    const classe = searchParams.get("classe") ?? DEFAULT_FILTERS.classe;
 
     return {
       periodo,
@@ -32,6 +32,20 @@ export function usePanoramaFilters() {
       classe,
     };
   }, [searchParams]);
+
+  const errors: Partial<Record<keyof PanoramaFilters, string>> = {};
+  if (!/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(filters.periodo))
+    errors.periodo = "Informe uma competência real no formato YYYY-MM.";
+  if (!["anterior", "ano_anterior", "nenhuma"].includes(filters.comparacao))
+    errors.comparacao = "Escolha mês anterior, ano anterior ou sem comparação.";
+  if (!MUNICIPIOS_DISPONIVEIS.some((item) => item.value === filters.municipio))
+    errors.municipio = "Escolha um município da fonte demonstrativa.";
+  if (!CLASSES_DISPONIVEIS.some((item) => item.value === filters.classe))
+    errors.classe = "Escolha uma classe da fonte demonstrativa.";
+  for (const key of Object.keys(filters) as (keyof PanoramaFilters)[]) {
+    if (searchParams.getAll(key).length > 1)
+      errors[key] = "Use apenas um valor para este filtro na URL.";
+  }
 
   const setFilter = useCallback(
     <K extends keyof PanoramaFilters>(key: K, value: PanoramaFilters[K]) => {
@@ -80,5 +94,7 @@ export function usePanoramaFilters() {
     setFilter,
     resetFilters,
     hasActiveFilters,
+    errors,
+    isValid: Object.keys(errors).length === 0,
   };
 }

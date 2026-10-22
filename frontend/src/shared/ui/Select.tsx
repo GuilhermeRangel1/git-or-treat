@@ -45,6 +45,7 @@ export default function Select({
           id={id}
           disabled={disabled}
           aria-invalid={!!error}
+          aria-describedby={error || helperText ? `${id}-help` : undefined}
           className={`min-w-0 max-w-full w-full h-11 appearance-none rounded-lg border bg-surface px-3.5 pr-10 text-sm text-content transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 ${
             error
               ? "border-[var(--status-danger)] focus-visible:outline-[var(--status-danger)]"
@@ -62,6 +63,7 @@ export default function Select({
       </div>
       {(error || helperText) && (
         <span
+          id={`${id}-help`}
           className={`text-xs ${
             error ? "text-[var(--status-danger)]" : "text-muted"
           }`}

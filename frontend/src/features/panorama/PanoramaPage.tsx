@@ -7,9 +7,18 @@ import PanoramaArtwork from "./PanoramaArtwork";
 import PanoramaSeriesChart from "./PanoramaSeriesChart";
 
 export default function PanoramaPage() {
-  const { filters, setFilter, resetFilters, hasActiveFilters } =
-    usePanoramaFilters();
-  const { data, isLoading, isError, refetch } = usePanoramaData(filters);
+  const {
+    filters,
+    setFilter,
+    resetFilters,
+    hasActiveFilters,
+    errors,
+    isValid,
+  } = usePanoramaFilters();
+  const { data, isLoading, isError, refetch } = usePanoramaData(
+    filters,
+    isValid,
+  );
 
   const comparacaoLabel =
     filters.comparacao === "anterior"
@@ -35,12 +44,30 @@ export default function PanoramaPage() {
         <PanoramaArtwork />
       </div>
 
+      {data && isValid && !isError && (
+        <div
+          aria-label="Origem e atualização"
+          className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted"
+        >
+          <span>
+            Demonstração sintética · sem reconciliação com Gold ·{" "}
+            {data.loteVersao}
+          </span>
+          <span>
+            Última atualização:{" "}
+            {new Date(data.dataAtualizacao).toLocaleDateString("pt-BR", {
+              timeZone: "UTC",
+            })}
+          </span>
+        </div>
+      )}
+
       {/* Alerta de Período Incompleto / Preliminar */}
-      {data?.periodoIncompleto && (
+      {isValid && data?.periodoIncompleto && (
         <ContentState
           type="partial"
           title={`Competência ${filters.periodo} em aberto · Dados preliminares`}
-          description="Os faturamentos e medições desta competência ainda não foram consolidados pelo fechamento mensal. Os números exibidos são parciais e podem sofrer alterações até a homologação."
+          description="Os faturamentos e medições desta competência ainda não foram consolidados pelo fechamento mensal. Os números exibidos são parciais. A comparação fica indisponível até o fechamento, pois abril está completo."
         />
       )}
 
@@ -50,12 +77,22 @@ export default function PanoramaPage() {
         onFilterChange={setFilter}
         onReset={resetFilters}
         hasActiveFilters={hasActiveFilters}
+        errors={errors}
       />
+
+      {!isValid && (
+        <ContentState
+          type="error"
+          title="Filtros inválidos na URL"
+          description="Corrija os campos indicados ou restaure os filtros padrão. Nenhuma consulta foi enviada com estes filtros."
+          onResetFilters={resetFilters}
+        />
+      )}
 
       {/* Estados de Carregamento, Erro e Vazio */}
       {isLoading && <ContentState type="loading" />}
 
-      {isError && (
+      {isValid && isError && (
         <ContentState
           type="error"
           title="Erro na consulta dos indicadores"
@@ -64,7 +101,7 @@ export default function PanoramaPage() {
         />
       )}
 
-      {isVazio && !isLoading && !isError && (
+      {isValid && isVazio && !isLoading && !isError && (
         <ContentState
           type="empty"
           title="Nenhum registro para o recorte selecionado"
@@ -74,7 +111,7 @@ export default function PanoramaPage() {
       )}
 
       {/* Conteúdo Principal (Métricas e Séries) quando há dados */}
-      {data && !isVazio && !isLoading && !isError && (
+      {isValid && data && !isVazio && !isLoading && !isError && (
         <>
           {/* Grid de KPIs do Panorama (Diretoria · WEB-01) */}
           <section aria-label="Indicadores principais do Panorama">
@@ -83,68 +120,101 @@ export default function PanoramaPage() {
                 metric={data.metricas.receitaFaturada}
                 comparacaoLabel={comparacaoLabel}
                 loteVersao={data.loteVersao}
+                comparisonUnavailable={
+                  data.periodoIncompleto && filters.comparacao !== "nenhuma"
+                    ? "Comparação indisponível · período incompleto"
+                    : undefined
+                }
               />
               <MetricCard
                 metric={data.metricas.receitaPaga}
                 comparacaoLabel={comparacaoLabel}
                 loteVersao={data.loteVersao}
+                comparisonUnavailable={
+                  data.periodoIncompleto && filters.comparacao !== "nenhuma"
+                    ? "Comparação indisponível · período incompleto"
+                    : undefined
+                }
               />
               <MetricCard
                 metric={data.metricas.energiaConsumida}
                 comparacaoLabel={comparacaoLabel}
                 loteVersao={data.loteVersao}
+                comparisonUnavailable={
+                  data.periodoIncompleto && filters.comparacao !== "nenhuma"
+                    ? "Comparação indisponível · período incompleto"
+                    : undefined
+                }
               />
               <MetricCard
                 metric={data.metricas.energiaFaturada}
                 comparacaoLabel={comparacaoLabel}
                 loteVersao={data.loteVersao}
-              />
-              <MetricCard
-                metric={data.metricas.precoMedioEfetivo}
-                comparacaoLabel={comparacaoLabel}
-                loteVersao={data.loteVersao}
-              />
-              <MetricCard
-                metric={data.metricas.ucsAtivas}
-                comparacaoLabel={comparacaoLabel}
-                loteVersao={data.loteVersao}
-              />
-              <MetricCard
-                metric={data.metricas.continuidadeDec}
-                comparacaoLabel={comparacaoLabel}
-                loteVersao={data.loteVersao}
-              />
-              <MetricCard
-                metric={data.metricas.continuidadeFec}
-                comparacaoLabel={comparacaoLabel}
-                loteVersao={data.loteVersao}
+                comparisonUnavailable={
+                  data.periodoIncompleto && filters.comparacao !== "nenhuma"
+                    ? "Comparação indisponível · período incompleto"
+                    : undefined
+                }
               />
             </div>
           </section>
 
           {/* Gráfico de Séries Históricas das Competências */}
-          <PanoramaSeriesChart data={data.serieMensal} />
-
-          {/* Nota de Governança e Rastreabilidade */}
-          <footer className="mt-8 pt-4 border-t border-[var(--line-subtle)] flex flex-wrap items-center justify-between gap-3 text-xs text-muted font-mono">
-            <div>
-              <span>Fonte: </span>
-              <strong className="text-content font-medium">
-                {data.loteVersao}
-              </strong>{" "}
-              <span>· Demonstração sintética · sem reconciliação com Gold</span>
+          <PanoramaSeriesChart
+            data={data.serieMensal}
+            partialPeriod={data.periodoIncompleto ? filters.periodo : undefined}
+          />
+          <section aria-label="Indicadores complementares do Panorama">
+            <h2 className="mb-3 font-heading text-base font-semibold">
+              Indicadores complementares
+            </h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                compact
+                metric={data.metricas.precoMedioEfetivo}
+                comparacaoLabel={comparacaoLabel}
+                loteVersao={data.loteVersao}
+                comparisonUnavailable={
+                  data.periodoIncompleto && filters.comparacao !== "nenhuma"
+                    ? "Comparação indisponível · período incompleto"
+                    : undefined
+                }
+              />
+              <MetricCard
+                compact
+                metric={data.metricas.ucsAtivas}
+                comparacaoLabel={comparacaoLabel}
+                loteVersao={data.loteVersao}
+                comparisonUnavailable={
+                  data.periodoIncompleto && filters.comparacao !== "nenhuma"
+                    ? "Comparação indisponível · período incompleto"
+                    : undefined
+                }
+              />
+              <MetricCard
+                compact
+                metric={data.metricas.continuidadeDec}
+                comparacaoLabel={comparacaoLabel}
+                loteVersao={data.loteVersao}
+                comparisonUnavailable={
+                  data.periodoIncompleto && filters.comparacao !== "nenhuma"
+                    ? "Comparação indisponível · período incompleto"
+                    : undefined
+                }
+              />
+              <MetricCard
+                compact
+                metric={data.metricas.continuidadeFec}
+                comparacaoLabel={comparacaoLabel}
+                loteVersao={data.loteVersao}
+                comparisonUnavailable={
+                  data.periodoIncompleto && filters.comparacao !== "nenhuma"
+                    ? "Comparação indisponível · período incompleto"
+                    : undefined
+                }
+              />
             </div>
-            <div>
-              <span>Última atualização: </span>
-              <span className="text-content">
-                {new Date(data.dataAtualizacao).toLocaleDateString("pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })}
-              </span>
-            </div>
-          </footer>
+          </section>
         </>
       )}
     </div>

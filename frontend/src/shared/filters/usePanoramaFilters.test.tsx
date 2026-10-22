@@ -1,9 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { usePanoramaFilters } from "./usePanoramaFilters";
 
 describe("usePanoramaFilters", () => {
+  it("preserva inválidos ao voltar e avançar", () => {
+    const { result } = renderHook(
+      () => ({ ...usePanoramaFilters(), navigate: useNavigate() }),
+      {
+        wrapper: ({ children }) => (
+          <MemoryRouter initialEntries={["/panorama?comparacao=bad"]}>
+            {children}
+          </MemoryRouter>
+        ),
+      },
+    );
+    expect(result.current.filters.comparacao).toBe("bad");
+    expect(result.current.isValid).toBe(false);
+    act(() => result.current.setFilter("comparacao", "nenhuma"));
+    expect(result.current.isValid).toBe(true);
+    act(() => result.current.navigate(-1));
+    expect(result.current.filters.comparacao).toBe("bad");
+    expect(result.current.isValid).toBe(false);
+    act(() => result.current.navigate(1));
+    expect(result.current.filters.comparacao).toBe("nenhuma");
+    expect(result.current.isValid).toBe(true);
+  });
+
   it("carrega os valores padrão quando a URL não possui parâmetros", () => {
     const { result } = renderHook(() => usePanoramaFilters(), {
       wrapper: ({ children }) => (

@@ -645,7 +645,12 @@ export function calculateSyntheticPanorama(
 
   // Agrega valores atuais
   const atual = somarRegistros(registrosAtuais);
-  const anterior = compAnterior ? somarRegistros(registrosAnteriores) : null;
+  const anterior =
+    registrosAnteriores.length > 0 &&
+    periodo !== "2024-05" &&
+    compAnterior !== "2024-05"
+      ? somarRegistros(registrosAnteriores)
+      : null;
 
   const isIncompleto = periodo === "2024-05";
 

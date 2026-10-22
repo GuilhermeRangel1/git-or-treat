@@ -17,6 +17,7 @@ interface FilterBarProps {
   ) => void;
   onReset: () => void;
   hasActiveFilters: boolean;
+  errors?: Partial<Record<keyof PanoramaFilters, string>>;
 }
 
 const COMPARACAO_OPTIONS = [
@@ -30,13 +31,14 @@ export default function FilterBar({
   onFilterChange,
   onReset,
   hasActiveFilters,
+  errors = {},
 }: FilterBarProps) {
   return (
     <section
       aria-label="Filtros do Panorama"
-      className="rounded-xl border border-border bg-surface p-4 sm:p-5 shadow-sm"
+      className="rounded-xl border border-border bg-surface p-3 sm:p-4 shadow-sm"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--line-subtle)]">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Filter className="size-4 text-brand" />
           <h2 className="text-sm font-semibold text-content uppercase tracking-wider font-mono">
@@ -44,7 +46,9 @@ export default function FilterBar({
           </h2>
 
           {hasActiveFilters && (
-            <Badge variant="goiaba">Filtros personalizados</Badge>
+            <span className="hidden sm:inline">
+              <Badge variant="goiaba">Filtros personalizados</Badge>
+            </span>
           )}
         </div>
 
@@ -60,21 +64,43 @@ export default function FilterBar({
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Select
-          label="Período (Competência)"
+          label="Período"
+          aria-label="Período (Competência)"
           value={filters.periodo}
-          options={COMPETENCIAS_DISPONIVEIS.map((c) => ({
-            value: c.value,
-            label: c.label,
-          }))}
+          error={errors.periodo}
+          options={[
+            ...(!COMPETENCIAS_DISPONIVEIS.some(
+              (c) => c.value === filters.periodo,
+            )
+              ? [
+                  {
+                    value: filters.periodo,
+                    label: filters.periodo || "Valor vazio",
+                  },
+                ]
+              : []),
+            ...COMPETENCIAS_DISPONIVEIS.map((c) => ({
+              value: c.value,
+              label: c.label,
+            })),
+          ]}
           onChange={(e) => onFilterChange("periodo", e.target.value)}
         />
 
         <Select
           label="Comparação"
           value={filters.comparacao}
-          options={COMPARACAO_OPTIONS}
+          error={errors.comparacao}
+          options={[
+            ...(!COMPARACAO_OPTIONS.some(
+              (item) => item.value === filters.comparacao,
+            )
+              ? [{ value: filters.comparacao, label: "Comparação inválida" }]
+              : []),
+            ...COMPARACAO_OPTIONS,
+          ]}
           onChange={(e) =>
             onFilterChange("comparacao", e.target.value as ComparisonType)
           }
@@ -83,20 +109,40 @@ export default function FilterBar({
         <Select
           label="Município"
           value={filters.municipio}
-          options={MUNICIPIOS_DISPONIVEIS}
+          error={errors.municipio}
+          options={[
+            ...(!MUNICIPIOS_DISPONIVEIS.some(
+              (item) => item.value === filters.municipio,
+            )
+              ? [{ value: filters.municipio, label: "Município inválido" }]
+              : []),
+            ...MUNICIPIOS_DISPONIVEIS,
+          ]}
           onChange={(e) => onFilterChange("municipio", e.target.value)}
         />
 
         <Select
           label="Classe de Consumo"
           value={filters.classe}
-          options={CLASSES_DISPONIVEIS}
+          error={errors.classe}
+          options={[
+            ...(!CLASSES_DISPONIVEIS.some(
+              (item) => item.value === filters.classe,
+            )
+              ? [{ value: filters.classe, label: "Classe inválida" }]
+              : []),
+            ...CLASSES_DISPONIVEIS,
+          ]}
           onChange={(e) => onFilterChange("classe", e.target.value)}
         />
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted font-mono">
-        <span>Recorte aplicado:</span>
+      <div className="mt-2 flex flex-wrap items-center gap-1 text-[11px] text-muted font-mono">
+        <span>
+          {Object.keys(errors).length > 0
+            ? "Recorte informado:"
+            : "Recorte aplicado:"}
+        </span>
         <span className="font-semibold text-content">{filters.periodo}</span>
         <span>•</span>
         <span>
@@ -104,7 +150,9 @@ export default function FilterBar({
             ? "vs. Mês anterior"
             : filters.comparacao === "ano_anterior"
               ? "vs. Ano anterior"
-              : "Sem comparação"}
+              : filters.comparacao === "nenhuma"
+                ? "Sem comparação"
+                : "Comparação inválida"}
         </span>
         <span>•</span>
         <span>

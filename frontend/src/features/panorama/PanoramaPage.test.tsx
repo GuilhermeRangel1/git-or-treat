@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import TestProviders from "../../shared/test/TestProviders";
@@ -31,6 +31,61 @@ describe("PanoramaPage (WEB-01)", () => {
         return new Response(JSON.stringify({ data }));
       }),
     );
+  });
+
+  it.each([
+    "comparacao=bad",
+    "periodo=2024-13",
+    "municipio=Natal",
+    "classe=bad",
+    "periodo=",
+    "comparacao=anterior&comparacao=nenhuma",
+  ])(
+    "bloqueia consulta com URL inválida: %s e permite restaurar",
+    async (query) => {
+      render(
+        <TestProviders>
+          <MemoryRouter initialEntries={[`/panorama?${query}`]}>
+            <PanoramaPage />
+          </MemoryRouter>
+        </TestProviders>,
+      );
+      expect(screen.getByText("Filtros inválidos na URL")).toBeVisible();
+      expect(fetch).not.toHaveBeenCalled();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Restaurar filtros padrão" }),
+      );
+      expect(await screen.findByText(/76\.500,00/)).toBeVisible();
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("mantém valores parciais e separa a hierarquia dos KPIs", async () => {
+    render(
+      <TestProviders>
+        <MemoryRouter initialEntries={["/panorama?periodo=2024-05"]}>
+          <PanoramaPage />
+        </MemoryRouter>
+      </TestProviders>,
+    );
+    expect(await screen.findByText(/31\.000,00/)).toBeVisible();
+    expect(
+      screen.getAllByText("Comparação indisponível · período incompleto"),
+    ).toHaveLength(8);
+    expect(screen.queryByText("-59,48%")).not.toBeInTheDocument();
+    const main = screen.getByRole("region", {
+      name: "Indicadores principais do Panorama",
+    });
+    const extra = screen.getByRole("region", {
+      name: "Indicadores complementares do Panorama",
+    });
+    expect(within(main).getAllByRole("article")).toHaveLength(4);
+    expect(within(extra).getAllByRole("article")).toHaveLength(4);
+    expect(
+      screen
+        .getByLabelText("Origem e atualização")
+        .compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("mostra falha da API sem substituir por números locais e permite tentar novamente", async () => {

@@ -94,6 +94,13 @@ export default function ContentState({
           {description ||
             "Ocorreu uma instabilidade na consulta analítica. Seus filtros foram mantidos para nova tentativa."}
         </p>
+        {onResetFilters && (
+          <div className="mt-5">
+            <Button variant="secondary" onClick={onResetFilters}>
+              Restaurar filtros padrão
+            </Button>
+          </div>
+        )}
         {onRetry && (
           <div className="mt-5">
             <Button

@@ -7,12 +7,16 @@ interface MetricCardProps {
   metric: KpiMetric;
   comparacaoLabel?: string;
   loteVersao?: string;
+  comparisonUnavailable?: string;
+  compact?: boolean;
 }
 
 export default function MetricCard({
   metric,
   comparacaoLabel = "vs. período anterior",
   loteVersao = "Lote Gold 2024.04-sintetico-v1",
+  comparisonUnavailable,
+  compact = false,
 }: MetricCardProps) {
   const [showDetails, setShowDetails] = useState(false);
 
@@ -29,8 +33,8 @@ export default function MetricCard({
       return `R$ ${val.toFixed(2).replace(".", ",")} / kWh`;
     }
     if (unidade === "kWh") {
-      if (val >= 1000000000) {
-        return `${(val / 1000000000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} GWh`;
+      if (Math.abs(val) >= 1000000) {
+        return `${(val / 1000000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} GWh`;
       }
       return `${val.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kWh`;
     }
@@ -103,7 +107,7 @@ export default function MetricCard({
   return (
     <article
       aria-label={`${metric.nome}: ${formatValue(metric.valorAtual, metric.unidade)}`}
-      className="min-w-0 flex flex-col justify-between rounded-xl border border-border bg-surface p-5 shadow-sm transition-all hover:border-control hover:shadow-md"
+      className={`min-w-0 flex flex-col justify-between rounded-xl border border-border bg-surface shadow-sm ${compact ? "p-3" : "p-4"}`}
     >
       {/* Cabeçalho do Card */}
       <div>
@@ -129,15 +133,19 @@ export default function MetricCard({
       </div>
 
       {/* Valor Principal */}
-      <div className="my-4">
-        <div className="break-words font-heading text-2xl 2xl:text-3xl font-bold tracking-tight text-content">
+      <div className={compact ? "my-2" : "my-3"}>
+        <div
+          className={`break-words font-heading font-bold tracking-tight text-content ${compact ? "text-xl" : "text-2xl 2xl:text-3xl"}`}
+        >
           {formatValue(metric.valorAtual, metric.unidade)}
         </div>
       </div>
 
       {/* Variação e Comparação */}
       <div className="pt-3 border-t border-[var(--line-subtle)] text-xs">
-        {metric.valorAnterior != null ? (
+        {comparisonUnavailable ? (
+          <span className="text-muted">{comparisonUnavailable}</span>
+        ) : metric.valorAnterior != null ? (
           metric.baseZero ? (
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono font-medium text-xs bg-[var(--bg-surface-hover)] text-muted">
@@ -145,6 +153,8 @@ export default function MetricCard({
               </span>
               <span className="text-muted">Base anterior zero</span>
             </div>
+          ) : metric.variacaoPercentual == null ? (
+            <span className="text-muted">Comparação indisponível</span>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <span
@@ -156,7 +166,7 @@ export default function MetricCard({
                 <span>
                   {metric.variacaoPercentual != null
                     ? `${metric.variacaoPercentual > 0 ? "+" : ""}${metric.variacaoPercentual.toFixed(2).replace(".", ",")}%`
-                    : "0,00%"}
+                    : "N/D"}
                 </span>
               </span>
 

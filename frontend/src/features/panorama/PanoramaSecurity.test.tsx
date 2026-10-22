@@ -24,10 +24,9 @@ it("exibe o conteúdo hostil do filtro como texto, sem criar elementos ou execut
       </MemoryRouter>
     </TestProviders>,
   );
-  expect(
-    await screen.findByText("Erro na consulta dos indicadores"),
-  ).toBeVisible();
+  expect(await screen.findByText("Filtros inválidos na URL")).toBeVisible();
   expect(screen.getByText(attack, { exact: true })).toBeVisible();
+  expect(fetch).not.toHaveBeenCalled();
   expect(document.querySelector('img[src="x"]')).toBeNull();
   expect(alert).not.toHaveBeenCalled();
 });
