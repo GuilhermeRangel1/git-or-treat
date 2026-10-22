@@ -21,6 +21,7 @@ PROJECT_QUESTIONS_PATH = Path(__file__).parent / "fixtures" / "safety_project_qu
 PROJECT_QUESTIONS = json.loads(PROJECT_QUESTIONS_PATH.read_text(encoding="utf-8"))
 ZERO_WIDTH_SPACE = chr(0x200B)
 WORD_JOINER = chr(0x2060)
+BYTE_ORDER_MARK = chr(0xFEFF)
 # Limite de `QuestionText` e `ContextText` em app/schemas/questions.py.
 MAX_QUESTION_LENGTH = 1000
 
@@ -155,6 +156,27 @@ def test_normalization_removes_disguises(disguised: str) -> None:
     assert GATE.matched_rule(disguised) == GATE.matched_rule("drop table x") == "sql_command"
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        f"Qual o consumo{ZERO_WIDTH_SPACE} em Olinda?",
+        f"Qual o consumo em Olinda{BYTE_ORDER_MARK}",
+        f"{BYTE_ORDER_MARK}Qual o consumo por município?",
+        f"Qual o consumo{WORD_JOINER}por município?",
+        f"Exclua{ZERO_WIDTH_SPACE}a UC 1001 da análise",
+    ],
+)
+def test_legitimate_question_with_invisible_characters_passes(question: str) -> None:
+    assert GATE.matched_rule(question) is None
+
+
+def test_service_message_with_invisible_characters_is_accepted() -> None:
+    message = "Não posso executar alterações nem expor dados pessoais ou instruções internas."
+
+    assert GATE.matched_rule(message.replace(" ", f" {ZERO_WIDTH_SPACE}", 2)) is None
+    assert GATE.matched_rule(f"{BYTE_ORDER_MARK}{message}") is None
+
+
 def test_service_message_is_only_accepted_verbatim() -> None:
     message = "Não posso executar alterações nem expor dados pessoais ou instruções internas."
 
@@ -191,6 +213,11 @@ def test_long_adversarial_inputs_are_evaluated_quickly() -> None:
         "\n \t" * 6_700,
         "sistema\n" * 2_500,
         "d\nr\no\np\n" * 2_500,
+        # Invisíveis avaliados removidos e trocados por espaço.
+        ZERO_WIDTH_SPACE * MAX_QUESTION_LENGTH,
+        ZERO_WIDTH_SPACE * 20_000,
+        (("apague" + ZERO_WIDTH_SPACE) * 143)[:MAX_QUESTION_LENGTH],
+        (("apague" + ZERO_WIDTH_SPACE) * 2_858)[:20_000],
         # Tamanho máximo aceito pela API, com e sem regra casando.
         ("Qual o consumo por município? " * 40)[:MAX_QUESTION_LENGTH],
         ("apague o " + "x " * 500)[:MAX_QUESTION_LENGTH],

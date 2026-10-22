@@ -1,9 +1,11 @@
 """Bloqueios determinísticos anteriores à interpretação e a qualquer ferramenta.
 
-As regras operam sobre o texto normalizado (NFKC, sem caracteres invisíveis, com
-letras cirílicas e gregas parecidas trocadas pelas latinas, em minúsculas, sem
-acentos, sem comentários SQL de bloco, com cada sequência de espaços, tabs e quebras
-de linha reduzida a um separador e com letras isoladas em sequência juntadas). Quase
+As regras operam sobre o texto normalizado (NFKC, com letras cirílicas e gregas
+parecidas trocadas pelas latinas, em minúsculas, sem acentos, sem comentários SQL de
+bloco, com cada sequência de espaços, tabs e quebras de linha reduzida a um
+separador e com letras isoladas em sequência juntadas). Os caracteres invisíveis são
+avaliados de duas formas, removidos e trocados por espaço, e a pergunta é recusada
+se qualquer das duas versões casar com uma regra. Quase
 todas as regras leem o texto em uma linha só, então as janelas entre termos e os
 espaços dos padrões atravessam quebras de linha; só os marcadores de papel leem o
 texto com as quebras mantidas. Todas as janelas entre termos são limitadas
@@ -75,8 +77,8 @@ def _collapse_whitespace(match: re.Match[str]) -> str:
     return "\n" if _LINE_BREAKS.intersection(match.group()) else " "
 
 
-def _normalize(value: str) -> _NormalizedText:
-    visible = _INVISIBLE.sub("", unicodedata.normalize("NFKC", value))
+def _normalize(value: str, *, invisible: str = "") -> _NormalizedText:
+    visible = _INVISIBLE.sub(invisible, unicodedata.normalize("NFKC", value))
     latin = visible.translate(_HOMOGLYPHS)
     decomposed = unicodedata.normalize("NFD", latin.casefold())
     text = "".join(char for char in decomposed if not unicodedata.combining(char))
@@ -418,13 +420,19 @@ class QuestionSafetyGate:
 
     def matched_rule(self, question: str) -> str | None:
         """Nome da primeira regra que casa; nunca devolve trecho da pergunta."""
-        normalized = _normalize(question)
-        if normalized.flat.strip() in _SERVICE_MESSAGES:
+        removed = _normalize(question)
+        if removed.flat.strip() in _SERVICE_MESSAGES:
             return None
+        # Invisível dentro da palavra ("dr​op") só casa removido; no lugar do
+        # espaço ("Apague​os registros") só casa trocado por espaço.
+        spaced = _normalize(question, invisible=" ")
+        versions = (removed,) if spaced == removed else (removed, spaced)
         for rule in _SECURITY_RULES:
-            if rule.matches(normalized):
+            if any(rule.matches(version) for version in versions):
                 return rule.name
-        if self._out_of_scope is not None and self._out_of_scope.search(normalized.flat):
+        if self._out_of_scope is not None and any(
+            self._out_of_scope.search(version.flat) for version in versions
+        ):
             return OUT_OF_SCOPE_RULE
         return None
 
