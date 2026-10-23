@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
-import type { UCHistory, UCMeter, UCStatus } from "./contract";
+import type { UCHistory, UCHistoryItem, UCMeter, UCStatus } from "./contract";
 import type { UCHistorySection } from "./uc360-state";
 import { humanizeLimitation, statusLabel } from "./uc360-format";
 
@@ -36,6 +36,23 @@ const historyLabels: Record<string, string> = {
   opened_at: "Aberto em",
   category: "Categoria",
 };
+const historyColumns: Record<UCHistorySection, string[]> = {
+  consumption: ["competencia", "measured_energy_kwh", "status"],
+  invoices: [
+    "invoice_id",
+    "competencia",
+    "billed_amount",
+    "paid_amount",
+    "billed_energy_kwh",
+    "due_date",
+    "payment_date",
+    "payment_status",
+  ],
+  meters: ["meter_id", "installed_at", "removed_at"],
+  distributed_generation: ["capacity_kw", "status"],
+  interruptions: ["event_id", "competencia", "feeder_id", "duration_hours"],
+  calls: ["call_id", "opened_at", "category"],
+};
 const money = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -64,6 +81,40 @@ function historyValue(key: string, value: unknown) {
   if (["available", "empty", "partial", "unavailable"].includes(String(value)))
     return statusLabel(value as UCStatus);
   return String(value);
+}
+
+function historyRowKey(
+  section: UCHistorySection,
+  row: UCHistoryItem,
+  index: number,
+): string {
+  switch (section) {
+    case "consumption":
+      return String(row.competencia);
+    case "invoices":
+      return String(row.invoice_id);
+    case "meters":
+      return `${row.meter_id}-${row.installed_at}`;
+    case "distributed_generation":
+      return `${row.capacity_kw}-${row.status}-${index}`;
+    case "interruptions":
+      return String(row.event_id);
+    case "calls":
+      return String(row.call_id);
+  }
+}
+
+function emptyHistoryMessage(status: UCStatus) {
+  switch (status) {
+    case "empty":
+      return "A fonte confirma cobertura neste período e nenhum registro para esta unidade.";
+    case "partial":
+      return "A fonte tem cobertura parcial; os registros conhecidos podem não representar todo o período.";
+    case "unavailable":
+      return "A cobertura desta fonte não está disponível; não é possível concluir se houve registros.";
+    case "available":
+      return "A fonte está disponível, mas não retornou registros para esta consulta.";
+  }
 }
 
 export function ErrorMessage({
@@ -150,42 +201,84 @@ export function HistoryPanel({
             {history.pagination.total === 1 ? "registro" : "registros"} · fonte{" "}
             {history.metadata.source.version}
           </p>
-          {history.data.items.length ? (
+          {history.metadata.limitations.length > 0 && (
             <ul
-              className="grid gap-2 sm:grid-cols-2"
-              aria-label={`Registros de ${section ? sectionLabels[section] : "histórico"}`}
+              className="grid gap-1 text-sm text-muted"
+              aria-label="Limitações da fonte"
             >
-              {history.data.items.map((row, index) => (
-                <li
-                  key={String(
-                    row.invoice_id ??
-                      row.event_id ??
-                      row.call_id ??
-                      row.meter_id ??
-                      row.competencia ??
-                      index,
-                  )}
-                  className="rounded-lg border border-control p-3"
-                >
-                  <dl className="grid grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] gap-x-3 gap-y-2 text-sm">
-                    {Object.entries(row).map(([key, value]) => (
-                      <div className="contents" key={key}>
-                        <dt className="text-muted">
-                          {historyLabels[key] ?? key}
-                        </dt>
-                        <dd className="break-words text-content">
-                          {historyValue(key, value)}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </li>
+              {history.metadata.limitations.map((limitation) => (
+                <li key={limitation}>{humanizeLimitation(limitation)}</li>
               ))}
             </ul>
+          )}
+          {history.data.items.length > 0 && section ? (
+            <>
+              <div className="hidden overflow-x-auto rounded-lg border border-control md:block">
+                <table className="w-full border-collapse text-left text-sm">
+                  <caption className="sr-only">
+                    Histórico de {sectionLabels[section].toLowerCase()} da
+                    unidade
+                  </caption>
+                  <thead className="bg-canvas text-muted">
+                    <tr>
+                      {historyColumns[section].map((key) => (
+                        <th
+                          className="whitespace-nowrap px-3 py-2 font-semibold"
+                          key={key}
+                          scope="col"
+                        >
+                          {historyLabels[key] ?? key}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.data.items.map((row, index) => (
+                      <tr
+                        className="border-t border-control"
+                        key={historyRowKey(section, row, index)}
+                      >
+                        {historyColumns[section].map((key) => (
+                          <td
+                            className="max-w-64 break-words px-3 py-2 text-content"
+                            key={key}
+                          >
+                            {historyValue(key, row[key])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ul
+                className="grid gap-2 md:hidden"
+                aria-label={`Registros de ${sectionLabels[section]}`}
+              >
+                {history.data.items.map((row, index) => (
+                  <li
+                    key={historyRowKey(section, row, index)}
+                    className="rounded-lg border border-control p-3"
+                  >
+                    <dl className="grid grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] gap-x-3 gap-y-2 text-sm">
+                      {historyColumns[section].map((key) => (
+                        <div className="contents" key={key}>
+                          <dt className="text-muted">
+                            {historyLabels[key] ?? key}
+                          </dt>
+                          <dd className="break-words text-content">
+                            {historyValue(key, row[key])}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            </>
           ) : (
             <p className="text-sm text-muted">
-              {statusLabel(history.metadata.status)}. A cobertura é informada
-              pela fonte, não inferida da lista.
+              {emptyHistoryMessage(history.metadata.status)}
             </p>
           )}
           {history.pagination.total_pages > 1 && (
