@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Plus, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Plus } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
+import Modal from "@/shared/ui/Modal";
 import { queueQuery } from "./queue-query";
 import { useInspectionQueue, useSuspicion } from "./useInspectionQueue";
 import SuspicionDetail from "./SuspicionDetail";
@@ -34,57 +35,33 @@ function FoundationDialog({
   detail,
   open,
   onClose,
-  dialogRef,
+  triggerRef,
 }: {
   metadata: Metadata;
   detail?: NonNullable<ReturnType<typeof useSuspicion>["data"]>["data"];
   open: boolean;
   onClose: () => void;
-  dialogRef: React.RefObject<HTMLDialogElement | null>;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   return (
-    <dialog
-      ref={dialogRef}
-      aria-labelledby="foundations-title"
-      className="m-auto max-h-[min(90dvh,56rem)] w-[min(48rem,calc(100%-2rem))] overflow-y-auto rounded-xl border border-border bg-surface p-0 text-content shadow-xl backdrop:bg-black/50"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") onClose();
-      }}
-      onClose={() => {
-        if (open) onClose();
-      }}
+    <Modal
+      open={open}
+      onClose={onClose}
+      triggerRef={triggerRef}
+      title="Ver fundamentos"
+      closeLabel="Fechar fundamentos"
+      size="lg"
+      header="sticky"
     >
-      <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-5 py-4">
-        <h2
-          id="foundations-title"
-          className="font-heading text-xl font-semibold"
-        >
-          Ver fundamentos
-        </h2>
-        <button
-          type="button"
-          className={inspectionAction}
-          aria-label="Fechar fundamentos"
-          onClick={onClose}
-        >
-          <X size={18} aria-hidden="true" />
-        </button>
-      </div>
       <InspectionFoundations metadata={metadata} detail={detail} />
-    </dialog>
+    </Modal>
   );
 }
 
 export default function InspecoesPage() {
   const [params, setParams] = useSearchParams();
   const [foundationsOpen, setFoundationsOpen] = useState(false);
-  const foundationsDialogRef = useRef<HTMLDialogElement>(null);
   const foundationsTriggerRef = useRef<HTMLButtonElement>(null);
-  const restoreFocusRef = useRef(false);
 
   let parsed: ReturnType<typeof queueQuery> | null = null;
   let invalid: string | null = null;
@@ -103,28 +80,7 @@ export default function InspecoesPage() {
   const back = new URLSearchParams(params);
   back.delete("uc");
 
-  useEffect(() => {
-    const dialog = foundationsDialogRef.current;
-    if (!dialog) return;
-    if (foundationsOpen && !dialog.open) {
-      if (typeof dialog.showModal === "function") dialog.showModal();
-      else dialog.setAttribute("open", "");
-    }
-    if (!foundationsOpen && dialog.open) {
-      if (typeof dialog.close === "function") dialog.close();
-      else dialog.removeAttribute("open");
-    }
-  }, [foundationsOpen]);
-
-  useEffect(() => {
-    if (!foundationsOpen && restoreFocusRef.current) {
-      foundationsTriggerRef.current?.focus();
-      restoreFocusRef.current = false;
-    }
-  }, [foundationsOpen]);
-
   function closeFoundations() {
-    restoreFocusRef.current = true;
     setFoundationsOpen(false);
   }
 
@@ -290,7 +246,7 @@ export default function InspecoesPage() {
             }
             open={foundationsOpen}
             onClose={closeFoundations}
-            dialogRef={foundationsDialogRef}
+            triggerRef={foundationsTriggerRef}
           />
         </>
       ) : null}
