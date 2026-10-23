@@ -211,10 +211,19 @@ def test_required_audit_failure_after_request_still_blocks_source() -> None:
 def test_http_refusal_has_generated_correlation_even_without_identity() -> None:
     sink = RecordingSink()
     application = create_app(
-        settings=Settings(_env_file=None, environment="production"), event_sink=sink
+        settings=Settings(
+            _env_file=None,
+            environment="production",
+            service_api_token="s" * 32,
+        ),
+        event_sink=sink,
     )
     with InProcessClient(application) as client:
-        response = client.post("/api/v1/questions", json={"question": QUESTION})
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": QUESTION},
+            headers={"Authorization": f"Bearer {'s' * 32}"},
+        )
     assert response.json()["status"] == "refused"
     assert sink.events[-1].correlation_id == response.headers["x-correlation-id"]
     assert any(

@@ -1,5 +1,6 @@
 """Fábrica da aplicação FastAPI do serviço GenAI."""
 
+import re
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -11,7 +12,12 @@ from app.agent.execution import ExecutionController, ExecutionLimits
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.orchestrator import QuestionOrchestrator
 from app.api.access import SYNTHETIC_SOURCE_ID
-from app.api.errors import invalid_request_response, unexpected_error_response
+from app.api.errors import (
+    ServiceAuthenticationError,
+    invalid_request_response,
+    service_auth_error_response,
+    unexpected_error_response,
+)
 from app.api.routes import router
 from app.config import Settings, get_settings
 from app.ports.events import EventSink
@@ -60,16 +66,21 @@ def create_app(
 
     @application.middleware("http")
     async def add_correlation_id(request, call_next):
-        correlation_id = uuid4().hex
+        incoming_id = request.headers.get("x-correlation-id", "")
+        correlation_id = (
+            incoming_id if re.fullmatch(r"[a-f0-9]{32}", incoming_id) else uuid4().hex
+        )
         request.state.correlation_id = correlation_id
         response = await call_next(request)
         response.headers["X-Correlation-ID"] = correlation_id
         return response
 
     application.add_exception_handler(RequestValidationError, invalid_request_response)
+    application.add_exception_handler(ServiceAuthenticationError, service_auth_error_response)
     application.add_exception_handler(Exception, unexpected_error_response)
     application.state.environment = active_settings.environment
     application.state.enable_demo_access = active_settings.enable_demo_access
+    application.state.service_api_token = active_settings.service_api_token
     application.state.domain_profile = active_domain_profile
     application.state.source_id = source_id
 

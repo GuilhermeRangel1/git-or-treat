@@ -77,13 +77,17 @@ def _client(model=None) -> InProcessClient:
 def test_insight_real_mode_without_verified_identity_never_calls_model() -> None:
     model = RecordingInsightModel()
     application = create_app(
-        settings=Settings(environment="production", _env_file=None),
+        settings=Settings(environment="production", service_api_token="s" * 32, _env_file=None),
         insight_orchestrator=ScreenInsightOrchestrator(
             model, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
         ),
     )
     with InProcessClient(application) as client:
-        response = client.post("/api/v1/insights", json={"screen": _screen_context()})
+        response = client.post(
+            "/api/v1/insights",
+            json={"screen": _screen_context()},
+            headers={"Authorization": f"Bearer {'s' * 32}"},
+        )
 
     assert response.status_code == 200
     assert response.json()["status"] == "refused"

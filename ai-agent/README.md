@@ -1,6 +1,6 @@
 # Agente de IA
 
-Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; os adaptadores Gemini e Groq são opcionais e ficam desativados por padrão. As evidências ainda são sintéticas: não há integração com Gold, backend do portal ou interface. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md) e [PRD](../docs/PRD.md).
+Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; os adaptadores Gemini e Groq são opcionais e ficam desativados por padrão. O Backend tem uma rota provisória que encaminha perguntas para este serviço, mas a tela do portal ainda não a utiliza. As evidências continuam sintéticas, sem integração com Gold. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md), [contrato de chat](../docs/contracts/genai-chat-api.md) e [PRD](../docs/PRD.md).
 
 Os endpoints podem ser exercitados localmente com adaptadores simulados. Resultados sintéticos demonstram fluxo e contrato, não números reais nem requisitos concluídos no PRD.
 
@@ -20,6 +20,8 @@ Copy-Item .env.example .env
 O arquivo `.env` é local e ignorado pelo Git. Não adicione chaves ou credenciais ao `.env.example`.
 
 Por padrão, o serviço inicia sem identidade autorizada. Para testar as perguntas e insights com fixtures sintéticas, defina **ambas** `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true` no `.env` local. O modo demonstrativo concede acesso fictício às métricas não pessoais do perfil; não o habilite numa implantação com Gold ou dados reais. `GET /health` e a documentação OpenAPI funcionam sem essa opção.
+
+Na integração com o Backend, configure `GENAI_SERVICE_API_TOKEN` com o mesmo valor privado de `AI_AGENT_SERVICE_API_TOKEN` do Backend, de pelo menos 32 caracteres. O GenAI exige `Authorization: Bearer` nas rotas de perguntas e insights quando esse token está configurado. Fora do ambiente `local`, uma chamada sem token configurado falha antes da orquestração. Mesmo com token de serviço válido, o modo real continua sem identidade de pessoa usuária e recusa consultas; o token não libera acesso à Gold. Para o fluxo demonstrativo no host, use também `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true`.
 
 Para preparar o adaptador Gemini opcional, instale `python -m pip install -e ".[dev,gemini]"` e configure no `.env` `GENAI_MODEL_PROVIDER=gemini`, `GENAI_GEMINI_MODEL=gemini-3.5-flash-lite` e `GENAI_GEMINI_API_KEY`. Para tarefas que precisem de mais capacidade geral, selecione `gemini-3.6-flash` em `GENAI_GEMINI_MODEL`. O identificador `gemini-3.5-flash` foi descontinuado e é redirecionado pelo provedor para 3.6 Flash. O timeout pode ser ajustado em `GENAI_MODEL_TIMEOUT_MS` (milissegundos). O padrão do provedor continua `unavailable`; a chave não é necessária para iniciar a aplicação nem para executar os testes. Quando configurado como `gemini`, o `create_app` seleciona o adaptador pela factory e o usa nos endpoints de perguntas e insights. O adaptador só recebe pergunta/contexto e evidências fornecidas; não tem ferramentas para consultar ou alterar o banco.
 
@@ -116,6 +118,8 @@ A chamada é faturável conforme o plano da conta Groq. Use só dados sintético
 - `POST /api/v1/insights` recebe um objeto `screen` com métrica, unidade, período, filtros, observações numéricas, referência e limitações. Nesta etapa, `reference.is_demo` precisa ser `true`.
 
 Exemplo de pergunta no PowerShell:
+
+Com `GENAI_SERVICE_API_TOKEN` configurado, inclua também `-Headers @{ Authorization = "Bearer <token local>" }` na chamada direta. O exemplo abaixo pressupõe a demonstração local sem token.
 
 ```powershell
 Invoke-RestMethod -Method Post `
