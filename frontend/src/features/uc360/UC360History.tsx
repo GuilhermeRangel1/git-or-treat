@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { useRef } from "react";
+import { AlertCircle, ArrowUpRight, X } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 import type { UCHistory, UCHistoryItem, UCMeter, UCStatus } from "./contract";
 import type { UCHistorySection } from "./uc360-state";
@@ -114,6 +114,37 @@ function emptyHistoryMessage(status: UCStatus) {
       return "A cobertura desta fonte não está disponível; não é possível concluir se houve registros.";
     case "available":
       return "A fonte está disponível, mas não retornou registros para esta consulta.";
+  }
+}
+
+function coverageMessage(status: UCStatus) {
+  switch (status) {
+    case "available":
+      return "Fonte disponível para a consulta.";
+    case "empty":
+      return "A fonte confirma cobertura e nenhum registro neste recorte.";
+    case "partial":
+      return "Cobertura parcial; esta resposta pode não incluir todo o recorte.";
+    case "unavailable":
+      return "Cobertura indisponível; não é possível concluir se há registros.";
+  }
+}
+
+function currentMeterMessage(meter: UCMeter | null, status?: UCStatus) {
+  if (meter) {
+    return `Vigente no snapshot: ${meter.meter_id}, instalado em ${meter.installed_at}. Consulte o histórico para vínculos anteriores e retiradas.`;
+  }
+  switch (status) {
+    case "empty":
+      return "Nenhum medidor vigente registrado no snapshot.";
+    case "partial":
+      return "O vínculo vigente está ambíguo; não é possível escolher um medidor.";
+    case "unavailable":
+      return "A cobertura do medidor vigente está indisponível; não é possível determinar ausência.";
+    case "available":
+      return "A fonte do snapshot está disponível, mas não retornou medidor vigente.";
+    default:
+      return "O estado do medidor vigente não foi informado neste diálogo.";
   }
 }
 
@@ -314,93 +345,177 @@ export function HistoryPanel({
 export function EvidenceDialog({
   sectionStatus,
   meter,
+  currentMeterStatus,
   limitations,
   onSelectHistory,
 }: {
   sectionStatus: Record<string, UCStatus>;
   meter: UCMeter | null;
+  currentMeterStatus?: UCStatus;
   limitations: string[];
   onSelectHistory: (section: UCHistorySection) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    const dialog =
-      document.querySelector<HTMLDialogElement>("#uc-details-dialog");
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    else if (!open && dialog.open) dialog.close();
-  }, [open]);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const openDialog = () => {
+    const dialog = dialogRef.current;
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    titleRef.current?.focus();
+  };
+  const closeDialog = () => dialogRef.current?.close();
+  const selectHistory = (section: UCHistorySection) => {
+    closeDialog();
+    onSelectHistory(section);
+  };
+
+  const sourceGroups: {
+    title: string;
+    sections: UCHistorySection[];
+    note?: string;
+  }[] = [
+    {
+      title: "Consumo e leituras",
+      sections: ["consumption"],
+      note: "Mês sem leitura só é uma lacuna confirmada quando a cobertura daquela competência é conhecida; fonte indisponível não demonstra ausência.",
+    },
+    {
+      title: "Medidor",
+      sections: ["meters"],
+      note: currentMeterMessage(meter, currentMeterStatus),
+    },
+    {
+      title: "Faturas e pagamentos",
+      sections: ["invoices"],
+      note: "Valores faturados e pagos permanecem separados; pagamento é informação da fatura, não um fluxo de caixa separado.",
+    },
+    {
+      title: "Geração própria",
+      sections: ["distributed_generation"],
+      note: "O cadastro informa potência em kW; não representa energia compensada.",
+    },
+    {
+      title: "Interrupções e chamados",
+      sections: ["interruptions", "calls"],
+    },
+  ];
 
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen(true)}
-        className="min-h-11 rounded-lg bg-content px-4 text-sm text-surface"
+        onClick={openDialog}
+        className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-content px-4 text-sm text-surface"
       >
+        <ArrowUpRight size={16} aria-hidden="true" />
         Ver detalhes
       </button>
       <dialog
+        ref={dialogRef}
         id="uc-details-dialog"
         aria-labelledby="uc-details-title"
-        onCancel={() => setOpen(false)}
-        onClose={() => setOpen(false)}
-        className="m-auto w-[min(640px,calc(100%-2rem))] rounded-xl bg-surface p-5 text-content backdrop:bg-black/40"
+        onClose={() => triggerRef.current?.focus()}
+        className="m-auto h-dvh w-screen max-h-dvh max-w-none open:grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-none bg-surface p-0 text-content shadow-xl backdrop:bg-black/50 sm:h-[min(678px,calc(100dvh-32px))] sm:max-h-[min(678px,calc(100dvh-32px))] sm:w-[calc(100%-2rem)] sm:max-w-[800px] sm:rounded-xl"
       >
-        <h3
-          id="uc-details-title"
-          className="font-heading text-lg font-semibold"
-        >
-          Evidências e limites
-        </h3>
-        <p className="mt-3 text-sm text-muted">
-          Cadastro e métricas usam cobertura declarada por fonte. Uma ausência
-          conhecida é diferente de zero ou de uma fonte indisponível. Chamados
-          disponibilizam apenas identificador, abertura e categoria nesta
-          demonstração.
-        </p>
-        <h4 className="mt-4 text-sm font-semibold">Fontes da unidade</h4>
-        <ul className="mt-2 grid gap-2 text-sm">
-          {(Object.keys(sectionLabels) as UCHistorySection[]).map((section) => (
-            <li
-              key={section}
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-control pb-2"
-            >
-              <span>
-                {sectionLabels[section]} ·{" "}
-                {statusLabel(sectionStatus[section] ?? "unavailable")}
-              </span>
-              <button
-                type="button"
-                className="underline underline-offset-2"
-                onClick={() => {
-                  onSelectHistory(section);
-                  setOpen(false);
-                }}
-              >
-                Abrir histórico
-              </button>
-            </li>
-          ))}
-        </ul>
-        {meter && (
-          <p className="mt-3 text-sm">
-            Medidor vigente no snapshot: {meter.meter_id}, instalado em{" "}
-            {meter.installed_at}
-            {meter.removed_at ? `, retirado em ${meter.removed_at}` : ""}.
-          </p>
-        )}
-        <ul className="mt-3 grid gap-2 text-sm">
-          {[...new Set(limitations)].map((item, index) => (
-            <li key={`${index}-${item}`}>{humanizeLimitation(item)}</li>
-          ))}
-        </ul>
-        <form method="dialog" className="mt-4 text-right">
-          <button
-            className="min-h-10 rounded border border-control px-4"
-            onClick={() => setOpen(false)}
+        <header className="p-4 pb-2 sm:p-8 sm:pb-4">
+          <h3
+            ref={titleRef}
+            id="uc-details-title"
+            tabIndex={-1}
+            className="font-heading text-[26px] leading-8 font-semibold focus-visible:outline-2 focus-visible:outline-brand sm:text-[32px] sm:leading-10"
           >
-            Fechar
+            Histórico e fontes da UC
+          </h3>
+          <p className="mt-2 text-sm text-muted">
+            A cobertura é informada por fonte. Ausência confirmada, cobertura
+            parcial e indisponibilidade têm significados diferentes.
+          </p>
+        </header>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-8 sm:pb-4">
+          <div className="grid gap-4 sm:gap-5">
+            {sourceGroups.map((group) => (
+              <section
+                key={group.title}
+                aria-labelledby={`uc-source-${group.sections[0]}`}
+                className="grid gap-2"
+              >
+                <h4
+                  id={`uc-source-${group.sections[0]}`}
+                  className="text-sm font-semibold sm:text-base"
+                >
+                  {group.title}
+                </h4>
+                {group.note && (
+                  <p className="text-sm text-muted">{group.note}</p>
+                )}
+                <ul className="grid gap-2">
+                  {group.sections.map((section) => {
+                    const status = sectionStatus[section] ?? "unavailable";
+                    return (
+                      <li
+                        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
+                        key={section}
+                      >
+                        <div className="grid min-w-0 gap-1 text-sm">
+                          <span className="font-medium">
+                            {sectionLabels[section]} · {statusLabel(status)}
+                          </span>
+                          <span className="text-muted">
+                            {coverageMessage(status)}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="min-h-10 shrink-0 text-sm text-brand underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-brand"
+                          onClick={() => selectHistory(section)}
+                        >
+                          Abrir histórico
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+            <section
+              aria-labelledby="uc-source-limitations"
+              className="grid gap-2"
+            >
+              <h4 id="uc-source-limitations" className="text-sm font-semibold">
+                Lacunas e limitações
+              </h4>
+              {limitations.length > 0 ? (
+                <ul className="grid gap-2 text-sm text-muted">
+                  {[...new Set(limitations)].map((item) => (
+                    <li className="break-words" key={item}>
+                      {humanizeLimitation(item)}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted">
+                  O overview não declarou limitações adicionais. Consulte o
+                  estado de cobertura de cada fonte acima.
+                </p>
+              )}
+              <p className="text-sm text-muted">
+                Chamados nesta demonstração incluem apenas identificador,
+                abertura e categoria. Nenhuma lacuna deve ser interpretada como
+                valor zero ou causa da variação da conta.
+              </p>
+            </section>
+          </div>
+        </div>
+        <form method="dialog" className="bg-surface px-4 pb-4 sm:px-8 sm:pb-8">
+          <button
+            autoFocus
+            type="submit"
+            aria-label="Fechar"
+            className="inline-flex size-11 items-center justify-center rounded-full text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-brand"
+          >
+            <X size={20} aria-hidden="true" />
           </button>
         </form>
       </dialog>
