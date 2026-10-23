@@ -23,11 +23,13 @@ from app.config import Settings, get_settings
 from app.ports.events import EventSink
 from app.ports.evidence import EvidenceSource
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
+from app.profiles.grid360_sql_demo import GRID360_SQL_DEMO_PROFILE
 from app.providers.factory import build_model_adapter, build_model_router
 from app.providers.protocols import ModelAdapter
 from app.providers.routing import ModelRouter, ModelTier
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.domain_profile import DomainProfile
+from app.sql.demo import SQL_DEMO_SOURCE_ID, build_sql_demo_source
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 
@@ -49,6 +51,20 @@ def create_app(
     """Compõe a demonstração ou uma fonte externa explicitamente autorizada."""
 
     active_settings = settings or get_settings()
+    if active_settings.demo_source == "sqlite":
+        if (
+            source_mode != "demo"
+            or domain_profile is not None
+            or evidence_source is not None
+            or source_id != SYNTHETIC_SOURCE_ID
+            or active_settings.environment != "local"
+            or not active_settings.enable_demo_access
+            or active_settings.demo_sqlite_path is None
+        ):
+            raise ValueError("Fonte SQLite demonstrativa exige composição local explícita.")
+        domain_profile = GRID360_SQL_DEMO_PROFILE
+        source_id = SQL_DEMO_SOURCE_ID
+        evidence_source = build_sql_demo_source(active_settings.demo_sqlite_path)
     active_domain_profile = domain_profile or GRID360_DEMO_PROFILE
     routing_requested = active_settings.model_routing_enabled or model_router is not None
     is_synthetic_schema = (

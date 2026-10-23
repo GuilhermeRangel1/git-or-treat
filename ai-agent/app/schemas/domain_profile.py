@@ -1,6 +1,7 @@
 """Contrato tipado para vocabulário e catálogo de um domínio analítico."""
 
 import unicodedata
+from datetime import date
 from enum import StrEnum
 from typing import Annotated, Self
 
@@ -88,6 +89,23 @@ class CatalogGranularity(StrEnum):
     MONTH = "month"
     QUARTER = "quarter"
     YEAR = "year"
+
+
+class CatalogPeriodWindow(BaseModel):
+    """Janela fixa associada a uma frase aprovada do catálogo."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    phrase: CatalogPhrase
+    start: date
+    end: date
+    granularity: CatalogGranularity
+
+    @model_validator(mode="after")
+    def validate_order(self) -> Self:
+        if self.start > self.end:
+            raise ValueError("janela de catálogo invertida")
+        return self
 
 
 class DomainDefinition(BaseModel):
@@ -241,6 +259,7 @@ class DomainProfile(BaseModel):
     metrics: tuple[MetricDefinition, ...] = Field(min_length=1, max_length=200)
     dimensions: tuple[DimensionDefinition, ...] = Field(min_length=1, max_length=100)
     period_phrases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=100)
+    period_windows: tuple[CatalogPeriodWindow, ...] = Field(default=(), max_length=100)
     default_period_phrase: CatalogPhrase | None = None
     default_period_context_phrases: tuple[CatalogPhrase, ...] = Field(
         default=(),
@@ -310,6 +329,10 @@ class DomainProfile(BaseModel):
         normalized_period_phrases = [_normalize(item) for item in self.period_phrases]
         _require_unique(normalized_period_phrases, "período duplicado")
         period_phrases = set(normalized_period_phrases)
+        normalized_windows = [_normalize(item.phrase) for item in self.period_windows]
+        _require_unique(normalized_windows, "janela de período duplicada")
+        if any(phrase not in period_phrases for phrase in normalized_windows):
+            raise ValueError("janela exige frase no catálogo de períodos")
         if self.default_period_phrase is not None and (
             _normalize(self.default_period_phrase) not in period_phrases
         ):

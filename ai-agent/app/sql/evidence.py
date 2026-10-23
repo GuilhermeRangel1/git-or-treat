@@ -1,8 +1,12 @@
 """Projeta linhas do ensaio SQL em evidência explicitamente demonstrativa."""
 
 import asyncio
+import re
+from collections.abc import Mapping
 from datetime import date
+from hashlib import sha256
 from math import isfinite
+from pathlib import Path
 
 from app.agent.read_plan import PlanCapabilityUnavailable
 from app.ports.evidence import EvidenceContractInvalid, EvidenceToolUnavailable
@@ -34,14 +38,29 @@ class SqlArtificialEvidenceSource:
         *,
         demo_limitation: str,
         truncation_limitation: str,
+        demo_limitations: Mapping[str, str] | None = None,
+        source_version: str | None = None,
+        database_path: Path | None = None,
     ) -> None:
         self._reader = reader
         self._demo_limitation = demo_limitation
         self._truncation_limitation = truncation_limitation
+        self._demo_limitations = dict(demo_limitations or {})
+        self._source_version = source_version
+        self._database_path = database_path
 
     async def retrieve(
         self, plan: LogicalReadPlan, access_context: AccessContext
     ) -> EvidenceLookupResult:
+        if self._source_version is not None and self._database_path is not None:
+            try:
+                current_version = await asyncio.to_thread(
+                    lambda: sha256(self._database_path.read_bytes()).hexdigest()
+                )
+            except OSError as exc:
+                raise EvidenceToolUnavailable("Base artificial indisponível.") from exc
+            if current_version != self._source_version:
+                raise EvidenceToolUnavailable("Base artificial alterada durante o serviço.")
         try:
             result = await asyncio.to_thread(self._reader.read, plan, access_context)
         except PlanCapabilityUnavailable:
@@ -61,8 +80,9 @@ class SqlArtificialEvidenceSource:
         return project_artificial_sql_evidence(
             plan,
             result,
-            demo_limitation=self._demo_limitation,
+            demo_limitation=self._demo_limitations.get(plan.metric_id, self._demo_limitation),
             truncation_limitation=self._truncation_limitation,
+            source_version=self._source_version,
         )
 
 
@@ -72,6 +92,7 @@ def project_artificial_sql_evidence(
     *,
     demo_limitation: str,
     truncation_limitation: str | None = None,
+    source_version: str | None = None,
 ) -> EvidenceLookupResult:
     """Converte apenas a saída de um leitor autorizado; não aprova nem executa planos."""
 
@@ -83,6 +104,7 @@ def project_artificial_sql_evidence(
         or window.start is None
         or window.end is None
         or not demo_limitation.strip()
+        or (source_version is not None and not re.fullmatch(r"[0-9a-f]{64}", source_version))
     ):
         raise EvidenceContractInvalid("projeção SQL demonstrativa incompatível")
 
@@ -128,7 +150,11 @@ def project_artificial_sql_evidence(
         )
 
     reference = EvidenceReference(
-        source=plan.source_id,
+        source=(
+            f"{plan.source_id.replace('.', '_')}:{sha256(source_version.encode()).hexdigest()}"
+            if source_version is not None
+            else plan.source_id
+        ),
         description="Resultado agregado do ensaio SQL artificial.",
         is_demo=True,
     )
