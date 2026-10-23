@@ -49,6 +49,8 @@ O portal envia filtros aplicados e `loteVersao` a `POST /api/v1/ai/insights`; nu
 
 Na versão atual, o serviço só gera o contexto com a fonte sintética do Panorama; fonte não compatível falha fechada. Isso conecta o caminho da interface, mas não comprova Gold, autorização de usuário, auditoria persistida ou uma geração ao vivo de provedor. A evolução para Gold precisa revisar a métrica com o dicionário e continuar recalculando os valores no Backend.
 
+O cálculo do Panorama recebe `PanoramaRepository`: a fonte informa `incomplete_periods`, versão, atualização e limitações do lote. O serviço usa essa cobertura para impedir comparação com competências abertas e gera rótulos da série a partir da competência, sem consultar constantes da fixture. O restante do cálculo ainda espera linhas agregadas em memória com o formato demonstrativo e fórmulas provisórias; o modo de implantação `ANALYTICS_SOURCE` aceita apenas `synthetic` ou `unavailable`. Um adaptador Gold precisa homologar grão e fórmulas, oferecer filtros válidos e preservar a mesma versão do lote entre indicadores e insight antes de ser habilitado.
+
 ### Envelope conceitual de uma resposta analítica
 
 O contrato final pode variar, mas cada resposta que sustenta um número deve permitir identificar: valor e unidade; período/competências; filtros efetivamente aplicados; população/denominador; versão ou data do lote Gold; indicador de cobertura/qualidade; definição do dicionário; e estado de indisponibilidade. Expor metadados por resposta ou por um contrato comum, conforme decisão da equipe. Não inventar campos da extração para preencher o envelope.

@@ -1,5 +1,8 @@
 import pytest
 
+from app.repositories.panorama import SyntheticPanoramaRepository
+from app.services.panorama import build_panorama
+
 
 @pytest.fixture(autouse=True)
 def synthetic_source(monkeypatch):
@@ -78,6 +81,42 @@ def test_get_panorama_incomplete_period(client):
     data = response.json()["data"]
 
     assert data["periodoIncompleto"] is True
+
+
+def _build_panorama_with_coverage(incomplete_periods: set[str], competencia: str):
+    repository = SyntheticPanoramaRepository()
+    repository.incomplete_periods = frozenset(incomplete_periods)
+    return build_panorama(repository, competencia=competencia)
+
+
+def test_current_incomplete_period_comes_from_selected_repository() -> None:
+    data = _build_panorama_with_coverage({"2024-04"}, "2024-04")
+
+    assert data.periodoIncompleto is True
+    assert data.metricas["receitaFaturada"].valorAnterior is None
+
+
+def test_repository_can_mark_fixture_partial_period_as_complete() -> None:
+    data = _build_panorama_with_coverage(set(), "2024-05")
+
+    assert data.periodoIncompleto is False
+    assert data.metricas["receitaFaturada"].valorAtual == 31000.0
+    assert data.metricas["receitaFaturada"].valorAnterior == 76500.0
+
+
+def test_incomplete_comparison_period_suppresses_only_comparison() -> None:
+    data = _build_panorama_with_coverage({"2024-03"}, "2024-04")
+
+    assert data.periodoIncompleto is False
+    assert data.metricas["receitaFaturada"].valorAtual == 76500.0
+    assert data.metricas["receitaFaturada"].valorAnterior is None
+
+
+def test_unrelated_incomplete_period_does_not_suppress_comparison() -> None:
+    data = _build_panorama_with_coverage({"2024-05"}, "2024-04")
+
+    assert data.periodoIncompleto is False
+    assert data.metricas["receitaFaturada"].valorAnterior == 80000.0
 
 
 def test_get_panorama_without_comparison(client):

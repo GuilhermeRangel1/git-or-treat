@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import ClassVar, Protocol
 
 from app.core.config import settings
 from app.repositories.analytics import AnalyticsSourceUnavailable
@@ -7,6 +7,7 @@ from app.synthetic import panorama_fixtures
 
 class PanoramaRepository(Protocol):
     records: list[dict]
+    incomplete_periods: frozenset[str]
     source_kind: str
     source_version: str
     source_is_demo: bool
@@ -18,11 +19,12 @@ class SyntheticPanoramaRepository:
     """Adaptador somente leitura dos controles sintéticos do Panorama (WEB-01)."""
 
     records = panorama_fixtures.PANORAMA_RECORDS
+    incomplete_periods = frozenset({panorama_fixtures.INCOMPLETE_PERIOD})
     source_kind = "synthetic"
     source_version = panorama_fixtures.DATA_VERSION
     source_is_demo = True
     source_updated_at = panorama_fixtures.UPDATED_AT
-    source_limitations = [panorama_fixtures.DATA_LIMITATION]
+    source_limitations: ClassVar[list[str]] = [panorama_fixtures.DATA_LIMITATION]
 
 
 _synthetic_repository = SyntheticPanoramaRepository()
