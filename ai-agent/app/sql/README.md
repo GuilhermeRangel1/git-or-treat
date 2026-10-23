@@ -7,6 +7,7 @@ Ensaio da borda SQL (IA-06): valida uma consulta contra um dicionário, executa 
 | Arquivo | Papel |
 | --- | --- |
 | `dictionary.toml` | Lista branca **provisória**: tabelas, colunas e tipos, funções, tipos de `CAST`, colunas sensíveis, prefixos reservados e limites. |
+| `dictionary_gold.toml` | Lista branca das **4 tabelas reais da Gold v1** (nomes reais de colunas), com metadados semânticos de grão, chave, métricas e dimensões. Só os testes o carregam; ver a seção abaixo. |
 | `dictionary.py` | `load_dictionary(path)` gera um `SqlDictionary` imutável e recusa arquivo contraditório (coluna permitida e sensível ao mesmo tempo, identificador fora de `[a-z_][a-z0-9_]*`, prefixo reservado, limite não positivo). |
 | `validator.py` | `validate_sql(sql, dictionary, dialect)` → `ValidatedQuery`, ou `SqlRejected(code, detail)`. |
 | `executors.py` | `SqliteReadOnlyExecutor` e `PostgresReadOnlyExecutor`; exigem dicionário e revalidam o SQL de cada `ValidatedQuery` antes de conectar. |
@@ -30,6 +31,43 @@ Cada `SqlMetricBinding` declara explicitamente `filter_operators`: um plano com 
 Por padrão, os resultados seguem competência e categoria em ordem crescente. Quando `SqlMetricBinding.allow_value_order=True` no catálogo artificial e `ReadOrder.field_id` identifica a própria métrica, o leitor ordena pelo valor agregado em sentido ascendente ou descendente antes do limite; período e categoria resolvem empates. Uma ordenação não declarada no catálogo ou por outra dimensão é recusada antes do serviço SQL. Essa capacidade não implica suporte automático à ordenação de outras métricas ou de uma Gold real.
 
 Um teste pelo `ReadOnlySqlService` confirma a ordem de três valores vinculados após a qualificação de SQL que combina CTE, filtro externo e subconsulta, com resultado fictício fixo de `2500.0`. Testes de recusa pela mesma borda cobrem placeholder usado como projeção, argumento de função, nome de função, origem e ordenação; coluna não permitida em CTE e coluna sensível em subconsulta também são recusadas antes do executor. Isso verifica o percurso SQLite observado, sem ampliar o contrato do dialeto PostgreSQL.
+
+## Dicionário da Gold v1 (`dictionary_gold.toml`)
+
+Declara `diagnostico_receita`, `indicadores_dec_fec`, `fila_inspecao` e `visao_360_uc` com os nomes do dicionário de dados v1 da Engenharia de Dados (branch `origin/feat/gold`, commit `31a80e6`: `docs/dicionario_gold.md` para colunas e tipos e `tables_gold_pk` do notebook `Silver_to_gold.ipynb` para as chaves). Não substitui `dictionary.toml`, que continua sendo o catálogo artificial, e **nenhuma composição da aplicação o carrega**: a Gold ainda não está no `develop`, e credencial, permissões e reconciliação não foram homologadas.
+
+O carregador usa só `version`, `status`, `[limits]`, `[policy]` e `tables.<nome>.columns`. As demais chaves são metadados semânticos que hoje apenas os testes leem e conferem contra as colunas permitidas:
+
+| Chave | Conteúdo |
+| --- | --- |
+| `grain`, `key` | Grão em texto e chave do `tables_gold_pk` (ex.: `["id_alimentador", "competencia"]`). |
+| `period_column` | Coluna de competência `AAAA-MM`, ausente nas tabelas por UC. |
+| `metrics` | Coluna → `unit` (do v1) e `aggregation`: `sum` (somável no mesmo período), `count` ou `ratio` (razão já calculada, como `dec`, `fec`, `ticket_medio_reais_por_uc`; só pode ser lida no grão da chave). |
+| `dimensions` | Colunas para filtrar ou agrupar. |
+| `excluded_columns` | Colunas do v1 deixadas de fora; o teste exige que permitidas ∪ excluídas = snapshot do v1. |
+| `known_values` | Valores reais de `prioridade_inspecao` gerados pelo notebook (`ALTA - HISTORICO IRREGULAR`, `ALTA - CONSUMO ZERO`, `REVISAR - SEM HISTORICO DE CONSUMO`, `MEDIA - NUNCA INSPECIONADO`, `BAIXA`); o v1 cita `Alta/Média/Baixa` só como exemplo. |
+| `[concepts]` | Único lugar do mapeamento conceito → coluna por tabela, para nomes inconsistentes no v1: geração distribuída é `possuo_gd`, `possui_gd` ou `possui_geracao_solar`; classe é `classe_consumo` ou `classe`; alimentador é `id_alimentador` ou `alimentador`. Não há alias nas colunas. |
+| `relationships` | Cruzamentos autorizados. Vazio, porque o v1 não declara nenhum. |
+
+**O que fica de fora e por quê.** Colunas pessoais, **mesmo mascaradas** na Gold (`cpf_cnpj`, `nome_titular`, `logradouro`, `numero`, `cep`, `latitude`, `longitude`), e os 11 metadados de pipeline com prefixo `_` de `visao_360_uc` não estão nas colunas permitidas e aparecem em `sensitive_columns`: o validador recusa qualquer identificador com esses nomes, inclusive alias, e o autorizador do SQLite nega a leitura. Os metadados são listados um a um porque reservar o prefixo `_` recusaria os aliases que o próprio `sqlglot` gera (`_col_0`, `_q_0`) quando o executor revalida o SQL. `id_uc` continua exposto: é o código da unidade usado pelo portal, não identifica a pessoa sem as colunas excluídas.
+
+**`DEC` e `FEC`.** Na Gold as colunas têm nome em maiúsculas, mas o carregador só aceita identificadores em minúsculas. O dicionário as declara como `dec` e `fec`: SQLite e Spark resolvem nomes de coluna sem diferenciar caixa, e o mock cria `"DEC"`/`"FEC"` com o nome real. Em PostgreSQL, uma coluna criada como `"DEC"` entre aspas não casaria com `"dec"`; confirmar no deploy antes de usar o executor PostgreSQL.
+
+**Cruzamentos.** O validador **não lê** `relationships`: aceita `JOIN` entre quaisquer tabelas do dicionário cujas colunas existam, por exemplo `diagnostico_receita` com `visao_360_uc` por `municipio`, embora não tenham chave em comum (o grão de uma é competência × segmentação e o da outra é UC). Esse limite está fixado por um teste `xfail(strict=True)` em `tests/test_sql_gold_dictionary.py`. Hoje a proteção vem do leitor de planos, que gera SQL de uma única tabela; SQL textual livre continuaria aceitando o cruzamento.
+
+**Banco de teste.** `tests/gold_mock.py` cria um SQLite em arquivo temporário com as 4 tabelas, nomes e tipos do snapshot `tests/fixtures/gold_dictionary_v1_snapshot.json` (inclusive as colunas pessoais e de pipeline, para provar o bloqueio) e poucas linhas **sintéticas** e determinísticas: UCs `UC100000`..`UC100005`, competências `2026-08` e `2026-09`, municípios e classes em maiúsculas, GD `Sim`/`Não`, CPF e nome já mascarados e alimentadores `ALIM-FIC-01`/`ALIM-FIC-02`. A prioridade segue a ordem de regras do notebook.
+
+**O que a Gold v1 responde no mock.** Pelo plano de teste → SQL parametrizado → `ReadOnlySqlService` (validação e SQL regenerado) → SQLite: “receita comercial em Jaboatão” devolve R$ 960,00 em 2026-08 e R$ 680,00 em 2026-09; “DEC de um alimentador” devolve 1,5 h e 0,5 h para `ALIM-FIC-01`; “quantas UCs têm prioridade alta” devolve 2. DEC sem alimentador fixado não é somado: termina em sem evidência. “Qual bairro mais perdeu volume” e “UCs com painel solar com queda acima de 30%” terminam em **sem evidência**: o consumo mensal (`consumo_total_kwh`) só existe em `diagnostico_receita`, sem bairro nem UC; bairro e UC só existem nas tabelas por UC, com média histórica e sem competência. O leitor `SqlPlanReader` existente, sem alteração, também lê a receita por município e classe com plano lógico aprovado pelo `ReadPlanValidator`. O planejador que escolhe a tabela pelos metadados existe só no teste.
+
+### Acrescentar tabelas da Gold (issue #40)
+
+`consumo_receita_bairro` e `variacao_consumo_uc` ainda não existem e os nomes não estão congelados; não foram incluídas. Quando a Engenharia de Dados publicar o dicionário com elas:
+
+1. Atualize `tests/fixtures/gold_dictionary_v1_snapshot.json` com colunas, tipos, chave e o novo commit de origem.
+2. Acrescente `[tables.<nome>]` com `description`, `grain`, `key`, `period_column`, `dimensions`, `excluded_columns`, `[tables.<nome>.columns]` e `[tables.<nome>.metrics]`; se houver coluna de GD, classe ou alimentador, inclua-a em `[concepts]`. Atualize `version`.
+3. Acrescente as linhas sintéticas da tabela em `GOLD_ROWS` de `tests/gold_mock.py`; o DDL sai do snapshot.
+4. Revise os testes de bairro e de queda por UC em `tests/test_sql_gold_dictionary.py`: eles fixam o “sem evidência” da v1 para `consumo_total_kwh`. Escreva o plano com a métrica da nova tabela e o resultado esperado; se a nova tabela reutilizar `consumo_total_kwh`, os testes atuais falharão sozinhos.
+5. Se uma pergunta precisar cruzar a nova tabela com outra, declare o par em `relationships` e lembre que o validador ainda não impõe essa lista (seção “Cruzamentos”).
 
 ## Regras do validador
 
