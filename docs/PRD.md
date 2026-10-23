@@ -457,6 +457,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-23 — Backend — desativa o retorno fictício da consulta analítica legada
+
+- Estado: IA-06 permanece `Pendente`; a rota não executa consulta Gold nem comprova leitura segura.
+- Mudança observável: `/api/v1/ai/query` valida a entrada e devolve 503 sem lista de tabelas, registros vazios ou sucesso fictício.
+- Arquivos/evidência: endpoint, schema e testes do Backend; contratos da API, ADR-0002 e guias do Backend/GenAI atualizados para refletir a indisponibilidade.
+- Verificações: `python -m pytest -q tests/test_ai.py -vv` no Backend passou (**3 testes HTTP**). O Docker não iniciou neste host por `permission denied` ao daemon.
+
 ### 2026-10-22 — IA-05 — contrato provisório de perguntas Backend → GenAI
 
 - Estado anterior → novo estado: IA-05 `Pendente` → `Pendente`. A tela do portal ainda não chama a rota, não há identidade de usuário nem sessão persistida, e as evidências continuam artificiais.

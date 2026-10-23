@@ -53,14 +53,6 @@ class AIQueryRequest(BaseModel):
     filters: dict[str, Any] = Field(default_factory=dict)
 
 
-class AIQueryResponse(BaseModel):
-    status: str
-    intent: str
-    table: str
-    records: list[dict[str, Any]]
-    evidence: str
-
-
 class AIConversationTurn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

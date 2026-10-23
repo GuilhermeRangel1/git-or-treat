@@ -122,7 +122,7 @@ def test_large_body_rejected_even_without_content_length(client):
 def test_json_structure_characters_inside_strings_do_not_count_as_depth(client):
     payload = {"intent": "[" * 200 + '\\"' + "}" * 200, "target_table": "gold_indicadores"}
     response = client.post("/api/v1/ai/query", json=payload)
-    assert response.status_code == 200
+    assert response.status_code == 503
 
 
 def test_adversarial_content_length_does_not_overflow_integer_parser(client):
@@ -195,4 +195,4 @@ def test_invalid_unicode_and_nul_in_json_are_rejected_before_storage(client, enc
 
 def test_valid_unicode_surrogate_pair_remains_supported(client):
     response = client.post('/api/v1/ai/query', content=r'{"intent":"\ud83d\ude00","target_table":"gold_indicadores"}', headers={'Content-Type': 'application/json'})
-    assert response.status_code == 200
+    assert response.status_code == 503

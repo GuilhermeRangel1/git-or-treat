@@ -1,4 +1,4 @@
-def test_ai_query_keeps_existing_placeholder_response(client):
+def test_ai_query_cannot_report_success_without_a_gold_reader(client):
     response = client.post(
         "/api/v1/ai/query",
         json={
@@ -8,13 +8,13 @@ def test_ai_query_keeps_existing_placeholder_response(client):
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 503
     assert response.json() == {
-        "status": "success",
-        "intent": "consultar faturamento mensal",
-        "table": "gold_indicadores",
-        "records": [],
-        "evidence": "Consulta analítica somente leitura",
+        "contract_version": "v1",
+        "status": "error",
+        "correlation_id": response.headers["x-correlation-id"],
+        "message": "A consulta analítica ainda não está disponível.",
+        "error": {"code": "service_unavailable", "retryable": False},
     }
 
 
@@ -29,11 +29,12 @@ def test_ai_query_rejects_invalid_request_field_types(client):
     assert "error" not in response.json()
 
 
-def test_ai_query_keeps_existing_table_allowlist_error(client):
+def test_ai_query_does_not_advertise_an_unapproved_table_allowlist(client):
     response = client.post(
         "/api/v1/ai/query",
         json={"intent": "consulta", "target_table": "operational_inspection_orders"},
     )
 
-    assert response.status_code == 403
-    assert response.json()["detail"].startswith("Tabela não permitida para o agente.")
+    assert response.status_code == 503
+    assert "records" not in response.json()
+    assert "gold_" not in response.text
