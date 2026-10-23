@@ -1,15 +1,15 @@
 {
   "report_type": "synthetic_regression",
   "synthetic": true,
-  "dataset_version": "3.3.0",
+  "dataset_version": "3.4.0",
   "scenario_scope": "POST /api/v1/questions e POST /api/v1/insights com fixtures e adaptadores fixos.",
   "provider": "fixed_test_adapter; no Gemini API calls",
   "summary": {
-    "total": 69,
-    "passed": 65,
-    "failed": 4,
-    "pass_rate": "65/69 (94.2%)",
-    "known_failures_confirmed": 4,
+    "total": 82,
+    "passed": 79,
+    "failed": 3,
+    "pass_rate": "79/82 (96.3%)",
+    "known_failures_confirmed": 3,
     "known_failures_changed": 0,
     "known_failures_now_passing": 0,
     "unexpected_failures": 0
@@ -558,33 +558,33 @@
       "id": "vocab_consumo_em_kwh_answered",
       "endpoint": "questions",
       "category": "business_vocabulary",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "A detecção de local por \"em <palavra>\" trata \"kWh\" como geografia desconhecida.",
-      "failing_checks": [
-        "domain",
-        "evidence_source",
-        "expected_content",
-        "model_calls",
-        "plan",
-        "status",
-        "tool_calls"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
-        "tool_calls": false,
-        "model_calls": false,
-        "domain": false,
-        "plan": false,
-        "expected_content": false,
-        "evidence_source": false
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
       },
-      "actual_status": "needs_clarification",
-      "actual_domain": null,
-      "actual_plan": null,
-      "tool_calls": 0,
-      "model_calls": 0
+      "actual_status": "answered",
+      "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
     },
     {
       "id": "ambiguous_fatura_clarification",
@@ -1318,35 +1318,23 @@
       "id": "geography_unknown_without_preposition_clarification",
       "endpoint": "questions",
       "category": "geography_or_scope",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "Local só é detectado após \"em/no/na\"; \"de Recife\" é ignorado e o total é respondido.",
-      "failing_checks": [
-        "domain",
-        "model_calls",
-        "status",
-        "tool_calls"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
-        "tool_calls": false,
-        "model_calls": false,
-        "domain": false
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
       },
-      "actual_status": "answered",
-      "actual_domain": "consumption",
-      "actual_plan": {
-        "domain_id": "consumption",
-        "metric_id": "energy.consumption",
-        "dimension_ids": [],
-        "window": {
-          "phrase": "período de demonstração"
-        },
-        "filters": []
-      },
-      "tool_calls": 1,
-      "model_calls": 1
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
     },
     {
       "id": "scope_breakdown_by_municipality_no_evidence",
@@ -1354,7 +1342,7 @@
       "category": "geography_or_scope",
       "passed": false,
       "outcome": "known_failure_confirmed",
-      "known_failure": "Quebra \"por município\" é ignorada e o total sem recorte é respondido.",
+      "known_failure": "Quebra \"por município\" é ignorada e o total sem recorte é respondido. O interpretador não é o único bloqueio: AnalysisIntent não tem campo de agrupamento, o ReadPlanBuilder não preenche group_by_dimension_ids e a fonte sintética responde o total quando não há filtro.",
       "failing_checks": [
         "model_calls",
         "plan",
@@ -1535,33 +1523,33 @@
       "id": "vocab_queda_de_energia_singular_answered",
       "endpoint": "questions",
       "category": "business_vocabulary",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "\"queda\" dentro do sinônimo \"queda de energia\" também casa como termo de direção; o interpretador cria o filtro direction_phrase e o plano de leitura pede esclarecimento sem consultar a fonte.",
-      "failing_checks": [
-        "domain",
-        "evidence_source",
-        "expected_content",
-        "model_calls",
-        "plan",
-        "status",
-        "tool_calls"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
-        "tool_calls": false,
-        "model_calls": false,
-        "domain": false,
-        "plan": false,
-        "expected_content": false,
-        "evidence_source": false
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
       },
-      "actual_status": "needs_clarification",
-      "actual_domain": null,
-      "actual_plan": null,
-      "tool_calls": 0,
-      "model_calls": 0
+      "actual_status": "answered",
+      "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
     },
     {
       "id": "near_miss_receita_answered",
@@ -1812,6 +1800,401 @@
       "actual_domain": null,
       "actual_plan": null,
       "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_queda_de_luz_singular_answered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "near_miss_aumento_de_queda_de_energia_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_reducao_de_consumo_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_consumo_de_energia_answered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "near_miss_consumo_de_janeiro_asks_period",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_faturamento_de_olinda_no_evidence",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true
+      },
+      "actual_status": "no_evidence",
+      "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ]
+      },
+      "tool_calls": 1,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_consumo_em_kwh_em_olinda_no_evidence",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true
+      },
+      "actual_status": "no_evidence",
+      "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ]
+      },
+      "tool_calls": 1,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_faturamento_em_reais_answered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "near_miss_interrupcoes_em_horas_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_olinda_e_recife_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_correcao_na_verdade_no_evidence",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true
+      },
+      "actual_status": "no_evidence",
+      "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "values": [
+              "Jaboatão dos Guararapes"
+            ]
+          }
+        ]
+      },
+      "tool_calls": 1,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_falta_de_luz_por_municipio_no_evidence",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": false,
+      "outcome": "known_failure_confirmed",
+      "known_failure": "Mesma lacuna da proposta 41: a quebra \"por município\" é ignorada e o total sem recorte é respondido; o agrupamento depende de AnalysisIntent, ReadPlanBuilder e da fonte sintética.",
+      "failing_checks": [
+        "model_calls",
+        "plan",
+        "status"
+      ],
+      "checks": {
+        "http_ok": true,
+        "status": false,
+        "tool_calls": true,
+        "model_calls": false,
+        "domain": true,
+        "plan": false
+      },
+      "actual_status": "answered",
+      "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "near_miss_interrupcoes_em_olinda_por_classe_no_evidence",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": false,
+      "outcome": "known_failure_confirmed",
+      "known_failure": "Mesma lacuna da proposta 41: o filtro Olinda é aplicado, mas a quebra \"por classe\" é ignorada e não entra no plano; o status já é no_evidence por causa do filtro.",
+      "failing_checks": [
+        "plan"
+      ],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": false
+      },
+      "actual_status": "no_evidence",
+      "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ]
+      },
+      "tool_calls": 1,
       "model_calls": 0
     }
   ]

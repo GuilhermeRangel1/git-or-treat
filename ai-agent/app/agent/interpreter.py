@@ -17,6 +17,37 @@ _PERCENTAGE_THRESHOLD = re.compile(
     r"(?<!\w)(?:acima de|abaixo de|mais de|menos de)\s+\d+(?:[.,]\d+)?\s*%",
     re.IGNORECASE,
 )
+# Unidades de energia, potência e moeda nunca são locais em "em kWh" ou "em reais".
+# Tempo e percentual ficam de fora: "em horas" pede duração e "em porcentagem" pede
+# participação, e responder a contagem ou o total nesses casos seria um falso acerto.
+_UNIT_PHRASES = (
+    "Wh",
+    "kWh",
+    "MWh",
+    "GWh",
+    "kW",
+    "MW",
+    "GW",
+    "kVA",
+    "MVA",
+    "watt-hora",
+    "watts-hora",
+    "quilowatt-hora",
+    "quilowatts-hora",
+    "megawatt-hora",
+    "megawatts-hora",
+    "quilowatt",
+    "quilowatts",
+    "megawatt",
+    "megawatts",
+    "R$",
+    "real",
+    "reais",
+)
+_LOCATION_AFTER_PREPOSITION = re.compile(r"\b(?:em|no|na)\s+([\wÀ-ÿ-]+)", re.IGNORECASE)
+# Sem preposição de lugar, só a grafia de nome próprio sinaliza local: "de Recife" sim,
+# "de energia", "de janeiro" e "de 2025" não. Siglas e nomes com hífen ficam de fora.
+_PROPER_NAME_AFTER_DE = re.compile(r"(?<!\w)(?i:de)\s+([A-ZÀ-Ý][a-zà-ÿ]+)(?![\w-])")
 
 
 def _normalize(value: str) -> str:
@@ -57,6 +88,39 @@ class QuestionInterpreter:
             dimension
             for dimension in profile.dimensions
             if dimension.role is DimensionRole.CLASSIFICATION
+        )
+        # Em "queda de energia" o termo de direção nomeia o próprio evento; em "queda de
+        # consumo" ele qualifica outro sinônimo da mesma métrica e continua sendo direção.
+        self._aliases_absorbing_direction = frozenset(
+            _normalize(alias)
+            for metric, alias in self._metric_aliases
+            if _find_phrases(alias, profile.direction_terms)
+            and not any(
+                _find_phrases(alias, (other,))
+                for other in metric.aliases
+                if _normalize(other) != _normalize(alias)
+            )
+        )
+        # Palavra já usada em alguma frase do perfil ("Energia" de "falta de energia")
+        # não é tratada como nome de lugar desconhecido.
+        self._profile_words = frozenset(
+            word
+            for phrase in (
+                *(alias for _, alias in self._metric_aliases),
+                *profile.period_phrases,
+                *profile.comparison_terms,
+                *profile.direction_terms,
+                *profile.correction_terms,
+                *(
+                    alias
+                    for dimension in profile.dimensions
+                    for alias in (
+                        *dimension.aliases,
+                        *(item for value in dimension.values for item in value.aliases),
+                    )
+                ),
+            )
+            for word in re.findall(r"\w+", _normalize(phrase))
         )
 
     def interpret(
@@ -183,7 +247,15 @@ class QuestionInterpreter:
             period_phrase = base_intent.period_phrase
 
         filters: dict[str, str] = dict(base_intent.filters) if base_intent else {}
-        directions = _find_phrases(question, self._profile.direction_terms)
+        directions = [
+            direction
+            for direction in _find_phrases(question, self._profile.direction_terms)
+            if not any(
+                start <= direction[0] and direction[1] <= end
+                and _normalize(surface) in self._aliases_absorbing_direction
+                for start, end, surface in metric_hits
+            )
+        ]
         if directions:
             filters["direction_phrase"] = directions[0][2]
         threshold = _PERCENTAGE_THRESHOLD.search(question)
@@ -303,21 +375,34 @@ class QuestionInterpreter:
                     *self._profile.period_phrases,
                     *self._profile.comparison_terms,
                     *self._profile.direction_terms,
+                    *self._profile.correction_terms,
                     *(alias for _, alias in self._metric_aliases),
                     *(
                         alias
                         for dimension in self._profile.dimensions
                         for alias in dimension.aliases
                     ),
+                    *_UNIT_PHRASES,
                 ),
             ),
         ]
         recognized_spans = [(start, end) for start, end, _ in protected]
-        pattern = re.compile(r"\b(?:em|no|na)\s+([\wÀ-ÿ-]+)", re.IGNORECASE)
-        for match in pattern.finditer(question):
+        for match in _LOCATION_AFTER_PREPOSITION.finditer(question):
             start, end = match.span(1)
+            # O trecho conhecido pode começar na palavra ou na própria preposição ("na verdade").
             if not any(
-                recognized_start == start and recognized_end >= end
+                recognized_start in (start, match.start()) and recognized_end >= end
+                for recognized_start, recognized_end in recognized_spans
+            ):
+                return True
+        # Contido em qualquer trecho conhecido: "Falta de Luz" e "período de Demonstração"
+        # não são nomes de lugar.
+        for match in _PROPER_NAME_AFTER_DE.finditer(question):
+            start, end = match.span(1)
+            if _normalize(match.group(1)) in self._profile_words:
+                continue
+            if not any(
+                recognized_start <= start and end <= recognized_end
                 for recognized_start, recognized_end in recognized_spans
             ):
                 return True
