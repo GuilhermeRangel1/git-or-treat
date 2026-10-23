@@ -32,6 +32,10 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
       </MemoryRouter>
     </AppProviders>,
   );
+  await screen.findByRole("heading", {
+    level: 1,
+    name: "Sua rede, em perspectiva.",
+  });
   const sidebar = screen.getByLabelText("Menu lateral principal");
   await user.click(
     screen.getByRole("button", { name: "Alternar para tema escuro" }),
@@ -47,7 +51,7 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
   ]) {
     await user.click(screen.getByRole("link", { name }));
     expect(
-      screen.getByRole("heading", {
+      await screen.findByRole("heading", {
         level: 1,
         name: title,
       }),
@@ -110,13 +114,17 @@ it("inicia e permite alternar o tema quando o armazenamento está indisponível"
       </MemoryRouter>
     </AppProviders>,
   );
+  await screen.findByRole("heading", {
+    level: 1,
+    name: "Sua rede, em perspectiva.",
+  });
   await userEvent.click(
     screen.getByRole("button", { name: "Alternar para tema escuro" }),
   );
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
 }, 10000);
 
-it("mantém o redirecionamento inicial e trata caminhos desconhecidos", () => {
+it("mantém o redirecionamento inicial e trata caminhos desconhecidos", async () => {
   render(
     <AppProviders>
       <MemoryRouter initialEntries={["/inexistente"]}>
@@ -125,7 +133,7 @@ it("mantém o redirecionamento inicial e trata caminhos desconhecidos", () => {
     </AppProviders>,
   );
   expect(
-    screen.getByRole("heading", {
+    await screen.findByRole("heading", {
       level: 1,
       name: "Sua rede, em perspectiva.",
     }),

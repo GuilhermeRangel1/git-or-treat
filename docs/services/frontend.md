@@ -6,7 +6,7 @@ O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente
 
 ## Arquitetura adotada
 
-Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para estrutura, limites de importação, layout persistente, tema, transporte HTTP e política de estado. A primeira fatia visual cobre apenas navegação, apresentação visual do Panorama e textos superiores das demais páginas, até antes dos filtros ou conteúdo operacional.
+Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para ownership, limites de importação, layout persistente, tema, transporte HTTP, estado e carregamento por rota. Panorama, Receita, UC 360 e Inspeções têm consultas demonstrativas; Ordens, Operação e Assistente permanecem shells. A arquitetura não altera o escopo ou os estados dos requisitos no PRD.
 
 A DEV-01 usa TanStack Query e o transporte existente na rota `/dev/contratos`, somente em desenvolvimento e sem item no menu. Ela valida o contrato de indicadores em execução, consulta a API real e mostra demonstração, disponibilidade e proveniência. O build de produção exclui essa página. Veja [contratos](../contracts/analytics-api.md), [desenho](../design/2026-10-20-dev01-design.md) e [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md). A rota não implementa os dashboards ou conclui suas jornadas.
 
@@ -14,21 +14,21 @@ A DEV-01 usa TanStack Query e o transporte existente na rota `/dev/contratos`, s
 
 A DEV-03 torna Receita explorável com API sintética real, segundo [contrato 1.1.0](../contracts/revenue-dev03.md), [desenho](../design/2026-10-21-dev03-design.md) e [ADR-0008](../decisions/0008-exploracao-demonstrativa-receita.md). Filtros base e refinamentos ficam na URL; voltar ao total preserva os filtros base. A barra compacta abre um diálogo de filtros; cartões, decomposição e tabela seguem os frames claro/escuro, com série e fundamento após os recortes. JSON é validado em execução; chave da consulta e cancelamento acompanham os filtros. A demonstração compara competências extremas explicitamente e não substitui as janelas anuais ou o aceite com Gold. Veja as [evidências de revisão integrada](../plans/2026-10-21-dev03-evidence.md).
 
-A DEV-04 implementou a demonstração sintética de WEB-03 conforme [contrato UC 1.1.0](../contracts/uc360-dev04.md), [desenho](../design/2026-10-22-dev04-design.md), [plano](../plans/2026-10-22-dev04-plan.md), [evidências](../plans/2026-10-22-dev04-evidence.md) e [ADR-0009](../decisions/0009-uc360-contratos-de-consulta.md). A busca fica em `/uc-360`; selecionar um resultado abre a tela própria `/uc-360/:ucId`, conforme a parte 03 dos fluxos do Figma. Busca, competências, seção e página aplicadas ficam na URL; rascunho da busca permanece local. Links anteriores com `?uc=` continuam compatíveis. A feature valida JSON, consulta overview e histórico por seção, mostra cobertura/ausência por medida e separa fatos de hipóteses. Essa implementação não conclui o requisito antes da reconciliação Gold.
+A DEV-04 implementou a demonstração sintética de WEB-03 conforme [contrato UC 1.1.0](../contracts/uc360-dev04.md), [desenho](../design/2026-10-22-dev04-design.md), [plano](../plans/2026-10-22-dev04-plan.md), [evidências](../plans/2026-10-22-dev04-evidence.md) e [ADR-0009](../decisions/0009-uc360-contratos-de-consulta.md). A busca fica em `/uc-360`; selecionar um resultado abre a tela própria `/uc-360/:ucId`, conforme a parte 03 dos fluxos do Figma. Busca, competências, seção e página aplicadas ficam na URL; rascunho da busca e do período permanecem locais. Links anteriores com `?uc=` continuam compatíveis. A feature valida JSON, consulta overview e histórico por seção, mostra cobertura/ausência por medida e separa fatos de hipóteses. `UC360Page` coordena URL e consultas; `UC360SearchPanel` mantém busca/resultados, `UC360Detail` compõe a visão, `UC360PeriodForm` mantém o rascunho local, e `UC360SummaryMetrics`, `UC360Comparison` e `UC360Interpretation` apresentam métricas, comparação, fatos e limites. Os hooks com decoder e cancelamento permanecem em `useUC360.ts`. Essa implementação não conclui o requisito antes da reconciliação Gold.
 
 O portal é interno e apoia cinco rotinas: panorama para diretoria, receita para comercial, visão UC para atendimento, fila/ordens para perdas e continuidade por alimentador para operação. O agente de IA deve estar acessível no próprio portal e gerar insight contextual em ao menos uma tela. A divisão exata em rotas/telas é decisão de produto; cada jornada precisa ser testada por perfil de usuário relevante.
 
 ## Inventário funcional mínimo
 
-| Área | Conteúdo e ações | Requisitos |
-| --- | --- | --- |
-| Panorama | KPIs, séries, comparação entre períodos, filtros e atualização dos dados | WEB-01, WEB-07 |
-| Receita | Separar preço e volume; navegar município, bairro e classe; visualizar fundamento da variação | WEB-02, WEB-07 |
-| UC 360 | Buscar UC e reunir cliente/cadastro, consumo, faturas, medidor, GD, interrupções, chamados | WEB-03 |
+| Área      | Conteúdo e ações                                                                                                    | Requisitos                     |
+| --------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Panorama  | KPIs, séries, comparação entre períodos, filtros e atualização dos dados                                            | WEB-01, WEB-07                 |
+| Receita   | Separar preço e volume; navegar município, bairro e classe; visualizar fundamento da variação                       | WEB-02, WEB-07                 |
+| UC 360    | Buscar UC e reunir cliente/cadastro, consumo, faturas, medidor, GD, interrupções, chamados                          | WEB-03                         |
 | Inspeções | Fila com motivo/energia estimada, geração e ciclo de vida de ordens; exportar/importar se diferenciais forem feitos | WEB-04, WEB-05, WEB-08, WEB-09 |
-| Operação | DEC/FEC por alimentador, tendência e pior desempenho | WEB-06 |
-| IA | Conversa em português e insight contextual verificável | IA-04, IA-05 |
-| Acesso | Perfis e telas/ações por cargo, se diferencial for escolhido | WEB-10 |
+| Operação  | DEC/FEC por alimentador, tendência e pior desempenho                                                                | WEB-06                         |
+| IA        | Conversa em português e insight contextual verificável                                                              | IA-04, IA-05                   |
+| Acesso    | Perfis e telas/ações por cargo, se diferencial for escolhido                                                        | WEB-10                         |
 
 ### Jornadas para revisão de produto
 
@@ -52,14 +52,14 @@ Esses percursos são critérios de revisão, não uma imposição de seis rotas.
 
 ## Estados e dados que cada visualização deve tratar
 
-| Estado | Comportamento esperado |
-| --- | --- |
-| Carregando | Identificar área em atualização sem exibir número antigo como se fosse atual. |
-| Vazio legítimo | Distinguir ausência de registro para filtros escolhidos de falha na carga ou valor zero. |
-| Parcial/incompleto | Indicar quais fontes/competências faltam e quais conclusões ficam indisponíveis. |
-| Erro de API/IA | Permitir nova tentativa quando apropriado e manter os dados já válidos; mensagem sem detalhes internos. |
-| Base pequena/denominador zero | Evitar percentuais e ordenações enganosas; mostrar contagem de base e razão da indisponibilidade. |
-| Filtro alterado | Atualizar gráfico, tabela, exportação e insight contextual em conjunto ou sinalizar que um deles ainda não foi recalculado. |
+| Estado                        | Comportamento esperado                                                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Carregando                    | Identificar área em atualização sem exibir número antigo como se fosse atual.                                               |
+| Vazio legítimo                | Distinguir ausência de registro para filtros escolhidos de falha na carga ou valor zero.                                    |
+| Parcial/incompleto            | Indicar quais fontes/competências faltam e quais conclusões ficam indisponíveis.                                            |
+| Erro de API/IA                | Permitir nova tentativa quando apropriado e manter os dados já válidos; mensagem sem detalhes internos.                     |
+| Base pequena/denominador zero | Evitar percentuais e ordenações enganosas; mostrar contagem de base e razão da indisponibilidade.                           |
+| Filtro alterado               | Atualizar gráfico, tabela, exportação e insight contextual em conjunto ou sinalizar que um deles ainda não foi recalculado. |
 
 Para tabelas grandes, definir paginação/ordenação de modo consistente com a API; para visualizações, explicitar unidade, legenda, escala e descrição textual. Validar uso por teclado, foco, rótulos e contraste nas jornadas principais.
 
