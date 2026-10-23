@@ -4,6 +4,24 @@ Este diretório contém o serviço FastAPI isolado que serve de base ao agente a
 
 Os endpoints podem ser exercitados localmente com adaptadores simulados. Resultados sintéticos demonstram fluxo e contrato, não números reais nem requisitos concluídos no PRD.
 
+## Preparação para uma fonte externa
+
+`create_app(source_mode="external", ...)` exige um `DomainProfile` próprio, `source_id` não sintético, um adaptador `EvidenceSource`, um resolvedor de `AccessContext` por requisição, token interno e um `EventSink` durável com `require_durable_audit=True`. O modo demonstrativo deve estar desligado. A aplicação recusa inicialização parcial; o contrato público de perguntas continua `v1`. O resolvedor deve derivar identidade e permissões de uma autenticação verificada pelo servidor, nunca do corpo enviado pelo navegador. A política de leitura e o `EvidenceGuard` conferem o plano lógico e a proveniência devolvida pela fonte antes da geração; uma evidência marcada como demonstração é recusada no modo externo.
+
+Essa composição é apenas um ponto de extensão programático. `app.main:app`, usado pelo Docker Compose, ainda chama `create_app()` no modo padrão e usa fixtures sintéticas; não há seleção de fonte externa por variável de ambiente. O Backend encaminha pergunta, contexto transitório, token de serviço e correlação, sem identidade ou permissões da pessoa usuária. Portanto, o resolvedor externo não tem hoje um principal verificado para autorizar uma consulta Gold na jornada do portal. A rota de insight devolve `503` no modo externo: seu contrato atual aceita apenas dados sintéticos e precisa ser evoluído junto com o Backend antes de usar a Gold.
+
+Antes de instalar um adaptador Gold, aprovar o dicionário de métricas, a divisão de responsabilidade da consulta em [ADR-0002](../docs/decisions/0002-genai-gold-query-owner.md), o contrato de identidade entre serviços e as permissões de leitura; implementar a composição de implantação e o destino durável de auditoria, testar a consulta e reconciliar seus números com o mesmo recorte na Gold. O adaptador deve devolver evidência agregada com unidade, janela, filtros e referência pelo contrato `EvidenceLookupResult`. Esse contrato ainda não possui um campo próprio para versão do lote Gold; a versão e sua validação de atualidade devem entrar na revisão do contrato antes da conexão real. O endpoint de insight ainda exige contexto demonstrativo e precisa de uma evolução separada quando o Backend puder produzir observações Gold autorizadas.
+
+| Ponto de troca | Contrato que a Gold precisa cumprir |
+| --- | --- |
+| `DomainProfile` | IDs lógicos, sinônimos, grão, unidade, dimensões, valores e campos de evidência homologados pelo dicionário. |
+| `EvidenceSource.retrieve` | Receber apenas `LogicalReadPlan` aprovado e `AccessContext` atual; delegar ao dono da consulta decidido na ADR-0002; devolver agregado e proveniência validável, sem SQL ou campos sensíveis no retorno público. A versão do lote ainda exige campo e validação no contrato. |
+| `AccessContextResolver` | Obter identidade e permissões verificadas no servidor, vinculadas ao ID de correlação da requisição. O token entre serviços sozinho não prova o usuário do portal. |
+| `EventSink` | Persistir eventos mínimos sem pergunta, dados pessoais ou SQL; falha do destino impede a leitura em modo externo. |
+| Composição de implantação | Construir esses colaboradores, desligar `GENAI_ENABLE_DEMO_ACCESS` e chamar `create_app(source_mode="external", ...)`; `app.main:app` continua demonstrativo até essa composição existir. |
+
+Como teste de aceite da troca, consultar um agregado permitido e reconciliá-lo diretamente com a Gold do mesmo lote; confirmar também ausência de evidência, escopo revogado, filtro fora do catálogo, timeout e indisponibilidade da auditoria. Os testes atuais com fonte falsa verificam o contrato do núcleo, não essa reconciliação.
+
 ## Chat do portal com Docker Compose
 
 O Compose inicia o serviço GenAI junto com Backend e frontend; a porta 8001 fica somente na rede interna. Para usar o Gemini localmente, configure `ai-agent/.env` com `GENAI_ENVIRONMENT=local`, `GENAI_ENABLE_DEMO_ACCESS=true`, `GENAI_SERVICE_API_TOKEN`, `GENAI_MODEL_PROVIDER=gemini` e `GENAI_GEMINI_API_KEY`. Configure o mesmo token em `backend/.env` como `AI_AGENT_SERVICE_API_TOKEN` e a URL interna `AI_AGENT_BASE_URL=http://ai-agent:8001`. Os arquivos `.env` são privados e ignorados pelo Git.

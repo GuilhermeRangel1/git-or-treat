@@ -11,7 +11,7 @@ from app.agent.composition import compose_core
 from app.agent.execution import ExecutionController, ExecutionLimits
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.orchestrator import QuestionOrchestrator
-from app.api.access import SYNTHETIC_SOURCE_ID
+from app.api.access import SYNTHETIC_SOURCE_ID, AccessContextResolver
 from app.api.errors import (
     ServiceAuthenticationError,
     invalid_request_response,
@@ -43,8 +43,10 @@ def create_app(
     event_sink: EventSink | None = None,
     require_durable_audit: bool = False,
     source_id: str = SYNTHETIC_SOURCE_ID,
+    source_mode: str = "demo",
+    access_context_resolver: AccessContextResolver | None = None,
 ) -> FastAPI:
-    """Cria a API isolada; adaptadores reais podem ser injetados quando estiverem disponíveis."""
+    """Compõe a demonstração ou uma fonte externa explicitamente autorizada."""
 
     active_settings = settings or get_settings()
     active_domain_profile = domain_profile or GRID360_DEMO_PROFILE
@@ -57,7 +59,34 @@ def create_app(
             "O roteamento de modelos está restrito ao perfil Grid 360 demonstrativo "
             "e à fonte synthetic.fixture."
         )
-
+    if source_mode not in {"demo", "external"}:
+        raise ValueError("Modo da fonte desconhecido.")
+    if source_mode == "external":
+        if (
+            domain_profile is None
+            or evidence_source is None
+            or access_context_resolver is None
+            or domain_profile == GRID360_DEMO_PROFILE
+            or source_id.startswith("synthetic.")
+        ):
+            raise ValueError(
+                "Fonte externa exige perfil próprio, fonte e resolvedor de acesso explícitos."
+            )
+        if active_settings.enable_demo_access or active_settings.service_api_token is None:
+            raise ValueError("Fonte externa exige token interno e acesso demonstrativo desligado.")
+        if (
+            not require_durable_audit
+            or event_sink is None
+            or getattr(event_sink, "durable", False) is not True
+        ):
+            raise ValueError("Fonte externa exige auditoria durável configurada.")
+        if question_orchestrator is not None or insight_orchestrator is not None:
+            raise ValueError("Fonte externa deve ser composta pelo núcleo com a fonte declarada.")
+    else:
+        if access_context_resolver is not None:
+            raise ValueError("Resolvedor de acesso externo exige modo external.")
+        if not source_id.startswith("synthetic."):
+            raise ValueError("Modo demo exige fonte sintética explícita.")
     application = FastAPI(
         title=active_settings.service_name,
         version="0.1.0",
@@ -83,6 +112,8 @@ def create_app(
     application.state.service_api_token = active_settings.service_api_token
     application.state.domain_profile = active_domain_profile
     application.state.source_id = source_id
+    application.state.source_mode = source_mode
+    application.state.access_context_resolver = access_context_resolver
 
     execution_controller = ExecutionController(
         ExecutionLimits(

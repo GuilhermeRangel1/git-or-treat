@@ -103,7 +103,9 @@ class QuestionAnalysisPlanner:
         self._plan_validator = ReadPlanValidator(
             access_policy.profile, access_policy.source_id, access_policy, max_rows=max_rows
         )
-        self._evidence_guard = EvidenceGuard(access_policy.profile, max_bytes=max_evidence_bytes)
+        self._evidence_guard = EvidenceGuard(
+            access_policy.profile, max_bytes=max_evidence_bytes
+        )
 
     async def prepare(
         self,
