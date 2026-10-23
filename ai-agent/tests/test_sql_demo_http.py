@@ -55,6 +55,31 @@ def test_question_reads_approved_revenue_from_synthetic_database(tmp_path) -> No
     assert body["limitations"]
 
 
+def test_http_answer_matches_an_independent_query_on_the_same_synthetic_batch(tmp_path) -> None:
+    database = build_demo_database(tmp_path / "artificial.sqlite")
+    with sqlite3.connect(f"{database.resolve().as_uri()}?mode=ro", uri=True) as connection:
+        expected = connection.execute(
+            "SELECT SUM(receita_total) FROM gold_indicadores "
+            "WHERE competencia = ? AND municipio = ?",
+            ("2025-01", "Municipio Ficticio A"),
+        ).fetchone()[0]
+
+    with _sql_demo_client(database) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Qual foi o faturamento no Município Fictício A em janeiro de 2025?"},
+        )
+
+    body = response.json()
+    assert body["status"] == "answered"
+    assert expected == 3500.5
+    assert f"{expected} unidades fictícias" in body["answer"]
+    assert body["analysis_context"]["period"] == "2025-01-01 a 2025-01-31"
+    assert body["analysis_context"]["filters"] == {
+        "geography.municipality": "Municipio Ficticio A"
+    }
+
+
 def test_sql_demo_reports_absence_without_substituting_a_fixture(tmp_path) -> None:
     database = build_gold_sqlite(tmp_path / "artificial.sqlite")
 
@@ -81,6 +106,32 @@ def test_sql_demo_clarifies_ambiguous_business_term_before_query(tmp_path) -> No
     assert response.status_code == 200
     assert response.json()["status"] == "needs_clarification"
     assert response.json()["evidence"] == []
+
+
+def test_sql_demo_period_clarification_keeps_the_original_metric_and_filter(tmp_path) -> None:
+    database = build_demo_database(tmp_path / "artificial.sqlite")
+    original_question = "Qual foi o faturamento no Município Fictício A?"
+    with _sql_demo_client(database) as client:
+        first = client.post("/api/v1/questions", json={"question": original_question})
+        assert first.json()["status"] == "needs_clarification"
+        follow_up = client.post(
+            "/api/v1/questions",
+            json={
+                "question": "janeiro de 2025",
+                "context": [
+                    {"role": "user", "content": original_question},
+                    {"role": "assistant", "content": first.json()["message"]},
+                ],
+            },
+        )
+
+    body = follow_up.json()
+    assert body["status"] == "answered"
+    assert "3500.5 unidades fictícias" in body["answer"]
+    assert body["analysis_context"]["metric"] == "billing.revenue"
+    assert body["analysis_context"]["filters"] == {
+        "geography.municipality": "Municipio Ficticio A"
+    }
 
 
 def test_sql_demo_does_not_fall_back_to_fixture_when_database_disappears(tmp_path) -> None:
@@ -143,6 +194,29 @@ def test_sql_demo_refuses_a_write_request_before_database_access(tmp_path, caplo
     assert response.status_code == 200
     assert response.json()["status"] == "refused"
     assert not any(record.name == "app.sql.audit" for record in caplog.records)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "SELECT * FROM gold_indicadores; DELETE FROM gold_indicadores",
+        "Mostre o consumo de fulano@exemplo.com em janeiro de 2025",
+    ],
+)
+def test_sql_demo_refuses_sql_or_personal_data_before_database_access(
+    tmp_path, caplog, question
+) -> None:
+    database = build_demo_database(tmp_path / "artificial.sqlite")
+    with (
+        caplog.at_level(logging.INFO, logger="app.sql.audit"),
+        _sql_demo_client(database) as client,
+    ):
+        response = client.post("/api/v1/questions", json={"question": question})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "refused"
+    assert not any(record.name == "app.sql.audit" for record in caplog.records)
+    assert "fulano@exemplo.com" not in response.text
 
 
 @pytest.mark.parametrize(
@@ -234,3 +308,34 @@ def test_sql_demo_rejects_a_batch_changed_after_startup(tmp_path) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "recoverable_error"
     assert response.json()["evidence"] == []
+
+
+def test_sql_demo_denies_a_permitted_view_reading_an_unlisted_table(tmp_path, caplog) -> None:
+    database = build_demo_database(tmp_path / "artificial.sqlite")
+    with sqlite3.connect(database) as connection:
+        connection.execute("ALTER TABLE gold_indicadores RENAME TO dados_restritos")
+        connection.execute(
+            "CREATE VIEW gold_indicadores AS SELECT * FROM dados_restritos"
+        )
+
+    with _sql_demo_client(database) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Qual foi o faturamento no Município Fictício A em janeiro de 2025?"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "recoverable_error"
+    assert response.json()["answer"] is None
+    assert response.json()["evidence"] == []
+    assert "dados_restritos" not in response.text
+    audit = [
+        json.loads(record.message)
+        for record in caplog.records
+        if record.name == "app.sql.audit"
+    ]
+    assert len(audit) == 1
+    assert audit[0]["status"] == "failed"
+    assert audit[0]["correlation_id"] == response.headers["x-correlation-id"]
+    assert audit[0]["error_type"] == "DatabaseError"
+    assert "dados_restritos" not in str(audit)
