@@ -1,7 +1,7 @@
 import logging
 import hashlib
 import json
-from typing import Optional
+from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -15,7 +15,10 @@ from app.repositories.analytics import AnalyticsRepository
 from app.services.inspection_analytics import build_suspicion_response
 
 class OrderConflictError(Exception):
-    pass
+    def __init__(self, message: str, code: str = "order_conflict", order_id: int | None = None):
+        super().__init__(message)
+        self.code = code
+        self.order_id = order_id
 
 
 class OrderResultRequiredError(ValueError):
@@ -42,7 +45,23 @@ def get_order(db: Session, order_id: int) -> InspectionOrder | None:
     return db.get(InspectionOrder, order_id)
 
 
+def _active_order(db: Session, uc_id: str) -> InspectionOrder | None:
+    return db.query(InspectionOrder).filter(
+        InspectionOrder.uc_id == uc_id,
+        InspectionOrder.status.in_([OrderStatus.PENDING, OrderStatus.IN_PROGRESS]),
+    ).first()
+
+
+def _active_conflict(order: InspectionOrder) -> OrderConflictError:
+    return OrderConflictError(
+        f"Já existe ordem ativa para esta UC: {order.id}.", "active_order_exists", order.id,
+    )
+
+
 def create_order(db: Session, payload: OrderCreateRequest) -> InspectionOrder:
+    active = _active_order(db, payload.uc_id)
+    if active:
+        raise _active_conflict(active)
     order = InspectionOrder(
         uc_id=payload.uc_id, reason=payload.reason, priority=payload.priority,
         notes=payload.notes, status=OrderStatus.PENDING,
@@ -52,6 +71,12 @@ def create_order(db: Session, payload: OrderCreateRequest) -> InspectionOrder:
         db.commit()
         db.refresh(order)
         return order
+    except IntegrityError:
+        db.rollback()
+        active = _active_order(db, payload.uc_id)
+        if active:
+            raise _active_conflict(active) from None
+        raise
     except Exception:
         db.rollback()
         raise
@@ -64,37 +89,34 @@ def _fingerprint(value: dict) -> str:
 def _replay(db: Session, key: str, fingerprint: str) -> InspectionOrder | None:
     existing = db.query(InspectionOrder).filter_by(idempotency_key=key).first()
     if existing and existing.request_fingerprint != fingerprint:
-        raise OrderConflictError("Chave de idempotência já usada com outra solicitação.")
+        raise OrderConflictError("Chave de idempotência já usada com outra solicitação.", "idempotency_key_reused", existing.id)
     return existing
 
 
 def create_from_queue(
-    db: Session, repository: AnalyticsRepository, uc_id: str,
+    db: Session, repository_provider: Callable[[], AnalyticsRepository], uc_id: str,
     payload: QueueOrderCreateRequest, key: str,
 ) -> tuple[InspectionOrder, bool]:
     fingerprint = _fingerprint({"uc_id": uc_id, **payload.model_dump()})
     existing = _replay(db, key, fingerprint)
     if existing:
         return existing, False
-    snapshot = build_suspicion_response(repository, uc_id)
+    snapshot = build_suspicion_response(repository_provider(), uc_id)
     if (snapshot.metadata.source.version != payload.source_version
             or snapshot.data.rule_version != payload.rule_version):
-        raise OrderConflictError("A suspeita mudou. Atualize a fila antes de criar a ordem.")
+        raise OrderConflictError("A suspeita mudou. Atualize a fila antes de criar a ordem.", "stale_suspicion")
     reference = _fingerprint({
         "uc_id": uc_id, "source": snapshot.metadata.source.model_dump(exclude={"updated_at"}),
         "rule_version": snapshot.data.rule_version,
     })
-    active = db.query(InspectionOrder).filter(
-        InspectionOrder.suspicion_reference == reference,
-        InspectionOrder.status.in_([OrderStatus.PENDING, OrderStatus.IN_PROGRESS]),
-    ).first()
+    active = _active_order(db, uc_id)
     if active:
         # A competing request may commit after the first key lookup but before
         # this active-order query. Reconcile the key before reporting conflict.
         existing = _replay(db, key, fingerprint)
         if existing:
             return existing, False
-        raise OrderConflictError(f"Já existe ordem ativa para esta suspeita: {active.id}.")
+        raise _active_conflict(active)
     order = InspectionOrder(
         uc_id=snapshot.data.uc_id, reason=snapshot.data.reason,
         priority=payload.priority, notes=payload.notes, status=OrderStatus.PENDING,
@@ -111,12 +133,9 @@ def create_from_queue(
         existing = _replay(db, key, fingerprint)
         if existing:
             return existing, False
-        active = db.query(InspectionOrder).filter(
-            InspectionOrder.suspicion_reference == reference,
-            InspectionOrder.status.in_([OrderStatus.PENDING, OrderStatus.IN_PROGRESS]),
-        ).first()
+        active = _active_order(db, uc_id)
         if active:
-            raise OrderConflictError(f"Já existe ordem ativa para esta suspeita: {active.id}.") from None
+            raise _active_conflict(active) from None
         raise
     except Exception:
         db.rollback()

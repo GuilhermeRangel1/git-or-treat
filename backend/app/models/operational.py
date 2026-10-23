@@ -35,7 +35,7 @@ class InspectionOrder(Base, TimestampMixin):
     __table_args__ = (
         Index("idx_orders_status_priority", "status", "priority"),
         Index("uq_orders_idempotency", "idempotency_key", unique=True),
-        Index("uq_orders_active_suspicion", "suspicion_reference", unique=True,
+        Index("uq_orders_active_uc", "uc_id", unique=True,
               postgresql_where=text("status IN ('PENDING', 'IN_PROGRESS')"),
               sqlite_where=text("status IN ('PENDING', 'IN_PROGRESS')")),
     )

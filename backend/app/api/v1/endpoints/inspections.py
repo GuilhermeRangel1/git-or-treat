@@ -1,20 +1,28 @@
-from typing import Literal, Optional
+from typing import Callable, Literal, Optional
 
 from fastapi import APIRouter, Depends, Path, Query, Header, Response, HTTPException, status
 from sqlalchemy.orm import Session
+from fastapi.responses import JSONResponse
 from app.core.database import get_db
 from app.core.order_access import require_orders_read, require_orders_write
 from app.models.operational import OrderStatus
 from app.schemas.inspection_queue import QueueResponse, SuspicionResponse
-from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
+from app.repositories.analytics import AnalyticsRepository, get_analytics_repository, get_analytics_repository_provider
 from app.api.v1.analytics_route import AnalyticsRoute
 from app.services.analytics import filters_model
 from app.services.inspection_analytics import build_queue_response, build_suspicion_response
-from app.schemas.inspections import OrderCreateRequest, OrderResponse, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage
+from app.schemas.inspections import OrderCreateRequest, OrderResponse, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage, OrderConflictResponse
 from app.services import inspections as inspection_service
 
 router = APIRouter()
 analytics_router = APIRouter(route_class=AnalyticsRoute)
+
+
+def order_conflict_response(exc: inspection_service.OrderConflictError) -> JSONResponse:
+    body = OrderConflictResponse(
+        detail=str(exc), error={"code": exc.code, "message": str(exc), "order_id": exc.order_id},
+    )
+    return JSONResponse(status_code=409, content=body.model_dump())
 
 
 @analytics_router.get("/queue", response_model=QueueResponse, summary="Fila sintética de UCs com suspeita")
@@ -43,18 +51,19 @@ router.include_router(analytics_router)
 
 
 @router.post("/queue/{uc_id}/orders", response_model=OrderResponse, status_code=201,
+             responses={409: {"model": OrderConflictResponse}},
              dependencies=[Depends(require_orders_write)], summary="Criar ordem pela suspeita selecionada")
 def create_order_from_queue(
     payload: QueueOrderCreateRequest, response: Response,
     uc_id: str = Path(min_length=1, max_length=50),
     idempotency_key: str = Header(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$"),
     db: Session = Depends(get_db),
-    repository: AnalyticsRepository = Depends(get_analytics_repository),
+    repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ):
     try:
-        order, created = inspection_service.create_from_queue(db, repository, uc_id, payload, idempotency_key)
+        order, created = inspection_service.create_from_queue(db, repository_provider, uc_id, payload, idempotency_key)
     except inspection_service.OrderConflictError as exc:
-        raise HTTPException(409, str(exc)) from exc
+        return order_conflict_response(exc)
     response.status_code = 201 if created else 200
     return order
 
@@ -98,17 +107,22 @@ def list_orders(
     response_model=OrderResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Criar nova ordem de inspeção",
+    responses={409: {"model": OrderConflictResponse}},
     dependencies=[Depends(require_orders_write)],
 )
 def create_order(payload: OrderCreateRequest, db: Session = Depends(get_db)):
     """Cria uma ordem de inspeção mantida separadamente dos dados analíticos."""
-    return inspection_service.create_order(db, payload)
+    try:
+        return inspection_service.create_order(db, payload)
+    except inspection_service.OrderConflictError as exc:
+        return order_conflict_response(exc)
 
 
 @router.patch(
     "/orders/{order_id}",
     response_model=OrderResponse,
     summary="Atualizar status ou resultado da ordem",
+    responses={409: {"model": OrderConflictResponse}},
     dependencies=[Depends(require_orders_write)],
 )
 def update_order(payload: OrderUpdateRequest, order_id: int = Path(ge=1, le=9223372036854775807), db: Session = Depends(get_db)):
@@ -116,7 +130,7 @@ def update_order(payload: OrderUpdateRequest, order_id: int = Path(ge=1, le=9223
     try:
         order = inspection_service.update_order(db, order_id, payload)
     except inspection_service.OrderConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return order_conflict_response(exc)
     except inspection_service.OrderResultRequiredError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if not order:

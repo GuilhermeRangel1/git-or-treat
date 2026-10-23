@@ -66,3 +66,14 @@ class OrderResponse(OrderSummary):
 class OrderPage(BaseModel):
     items: list[OrderSummary]
     pagination: Pagination
+
+
+class OrderConflictDetail(BaseModel):
+    code: str
+    message: str
+    order_id: int | None = None
+
+
+class OrderConflictResponse(BaseModel):
+    detail: str
+    error: OrderConflictDetail

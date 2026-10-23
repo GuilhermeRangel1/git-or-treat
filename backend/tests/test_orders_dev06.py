@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.core.database import get_db
 from app.main import app
-from app.repositories.analytics import get_analytics_repository
+from app.repositories.analytics import get_analytics_repository, get_analytics_repository_provider
 from app.repositories.analytics import SyntheticAnalyticsRepository
 from tests.test_migrations import alembic_config
 from alembic import command
@@ -21,6 +21,7 @@ def orders(client, monkeypatch):
     monkeypatch.setattr("app.core.config.settings.ORDERS_WRITE_TOKEN", SecretStr(token))
     client.headers["Authorization"] = "Bearer " + token
     app.dependency_overrides[get_analytics_repository] = SyntheticAnalyticsRepository
+    app.dependency_overrides[get_analytics_repository_provider] = lambda: SyntheticAnalyticsRepository
     yield client
 
 
@@ -157,7 +158,7 @@ def test_replay_if_competing_request_commits_between_key_and_active_lookup(order
         monkeypatch.setattr(service, "build_suspicion_response", original)
         with TestingSessionLocal() as writer:
             row, created = service.create_from_queue(
-                writer, repository, uc_id, QueueOrderCreateRequest(**payload),
+                writer, lambda: repository, uc_id, QueueOrderCreateRequest(**payload),
                 "dev06-intention-0001",
             )
             assert created
@@ -168,6 +169,110 @@ def test_replay_if_competing_request_commits_between_key_and_active_lookup(order
     replay = create(orders, payload)
     assert replay.status_code == 200
     assert replay.json()["id"] == winner_ids[0]
+    assert orders.get(f"{ROOT}/orders/search").json()["pagination"]["total"] == 1
+
+
+def test_replay_never_resolves_unavailable_analytics_and_checks_access(orders, monkeypatch):
+    from app.repositories.analytics import AnalyticsSourceUnavailable
+
+    payload = request(orders)
+    created = create(orders, payload).json()
+    calls = []
+
+    def unavailable():
+        calls.append(True)
+        raise AnalyticsSourceUnavailable()
+
+    app.dependency_overrides[get_analytics_repository_provider] = lambda: unavailable
+    replay = create(orders, payload)
+    assert replay.status_code == 200 and replay.json()["id"] == created["id"]
+    assert calls == []
+    mismatch = create(orders, {**payload, "notes": "different"})
+    assert mismatch.status_code == 409
+    assert mismatch.json()["error"]["code"] == "idempotency_key_reused"
+    assert calls == []
+    fresh = create(orders, payload, key="fresh-unavailable-0001")
+    assert fresh.status_code == 503 and calls == [True]
+    orders.headers.pop("Authorization")
+    assert create(orders, payload).status_code == 401
+
+
+def test_structured_conflicts_keep_legacy_message_and_order_link(orders):
+    payload = request(orders)
+    stale = create(orders, {**payload, "rule_version": "outdated"})
+    assert stale.status_code == 409
+    assert stale.json()["error"] == {
+        "code": "stale_suspicion", "message": stale.json()["detail"], "order_id": None,
+    }
+    created = create(orders, payload).json()
+    active = create(orders, payload, key="another-intention-0001")
+    assert active.status_code == 409
+    assert active.json()["error"] == {
+        "code": "active_order_exists", "message": active.json()["detail"], "order_id": created["id"],
+    }
+
+
+def test_one_active_uc_across_versions_and_manual_creation(orders):
+    repository = SyntheticAnalyticsRepository()
+    app.dependency_overrides[get_analytics_repository_provider] = lambda: lambda: repository
+    payload = request(orders)
+    first = create(orders, payload).json()
+    repository.source_version = "new-snapshot"
+    newer = create(orders, {**payload, "source_version": "new-snapshot"}, key="another-version-0001")
+    assert newer.status_code == 409
+    assert newer.json()["error"]["order_id"] == first["id"]
+    manual = orders.post(f"{ROOT}/orders", json={"uc_id": "UC-1004", "reason": "manual"})
+    assert manual.status_code == 409
+    assert manual.json()["error"]["code"] == "active_order_exists"
+    orders.patch(f"{ROOT}/orders/{first['id']}", json={"status": "CANCELADA"})
+    assert orders.post(f"{ROOT}/orders", json={"uc_id": "UC-1004", "reason": "manual"}).status_code == 201
+    assert create(orders, {**payload, "source_version": "new-snapshot"}, key="another-version-0001").status_code == 409
+
+
+def test_failed_insert_rolls_back_key_and_allows_same_intention_retry(orders):
+    from sqlalchemy import text
+    from tests.conftest import test_engine, TestingSessionLocal
+    from app.models.operational import InspectionOrder
+
+    payload = request(orders)
+    with test_engine.begin() as conn:
+        conn.execute(text("CREATE TRIGGER dev06_fail BEFORE INSERT ON operational_inspection_orders "
+                          "BEGIN SELECT RAISE(ABORT, 'injected failure'); END"))
+    try:
+        assert create(orders, payload).status_code == 500
+    finally:
+        with test_engine.begin() as conn:
+            conn.execute(text("DROP TRIGGER dev06_fail"))
+    with TestingSessionLocal() as db:
+        assert db.query(InspectionOrder).count() == 0
+    assert create(orders, payload).status_code == 201
+    assert create(orders, payload).status_code == 200
+
+
+def test_post_commit_confirmation_failure_recovers_with_source_down(orders, monkeypatch):
+    from app.repositories.analytics import AnalyticsSourceUnavailable
+    from tests.conftest import TestingSessionLocal
+    from app.models.operational import InspectionOrder
+
+    payload = request(orders)
+    original_refresh = Session.refresh
+
+    def lost_confirmation(self, *args, **kwargs):
+        raise RuntimeError("injected confirmation failure after commit")
+
+    monkeypatch.setattr(Session, "refresh", lost_confirmation)
+    assert create(orders, payload).status_code == 500
+    monkeypatch.setattr(Session, "refresh", original_refresh)
+    with TestingSessionLocal() as db:
+        persisted = db.query(InspectionOrder).one()
+        oid = persisted.id
+
+    def unavailable():
+        raise AnalyticsSourceUnavailable()
+
+    app.dependency_overrides[get_analytics_repository_provider] = lambda: unavailable
+    replay = create(orders, payload)
+    assert replay.status_code == 200 and replay.json()["id"] == oid
     assert orders.get(f"{ROOT}/orders/search").json()["pagination"]["total"] == 1
 
 
@@ -256,8 +361,8 @@ def test_concurrent_creation_and_persistence_on_disposable_postgres(monkeypatch)
     from sqlalchemy import text
     from sqlalchemy.engine import make_url
     from app.models.operational import InspectionOrder
-    from app.schemas.inspections import QueueOrderCreateRequest
-    from app.services.inspections import create_from_queue, OrderConflictError
+    from app.schemas.inspections import QueueOrderCreateRequest, OrderCreateRequest
+    from app.services.inspections import create_from_queue, create_order, OrderConflictError
     from tests.test_migrations import migrated_database
 
     raw = os.getenv("TEST_POSTGRES_URL")
@@ -273,15 +378,23 @@ def test_concurrent_creation_and_persistence_on_disposable_postgres(monkeypatch)
             assert connection.scalar(text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")) is False
             connection.rollback()
             with migrated_database(connection):
-                for same_key in (True, False):
+                for scenario in ("same_key", "different_keys", "different_versions", "manual_queue"):
                     barrier = Barrier(2)
 
                     def attempt(worker):
                         with Session(engine) as db:
                             barrier.wait(timeout=10)
                             try:
-                                row, created = create_from_queue(db, repository, "UC-1004", payload,
-                                    f"concurrent-{same_key}-" + ("same" if same_key else str(worker)))
+                                candidate = SyntheticAnalyticsRepository()
+                                if scenario == "different_versions":
+                                    candidate.source_version = f"version-{worker}"
+                                selected = payload.model_copy(update={"source_version": candidate.source_version})
+                                if scenario == "manual_queue" and worker == 0:
+                                    row = create_order(db, OrderCreateRequest(uc_id="UC-1004", reason="manual"))
+                                    created = True
+                                else:
+                                    row, created = create_from_queue(db, lambda: candidate, "UC-1004", selected,
+                                        f"concurrent-{scenario}-" + ("same" if scenario == "same_key" else str(worker)))
                                 return row.id, created
                             except OrderConflictError:
                                 return None, False
@@ -291,11 +404,12 @@ def test_concurrent_creation_and_persistence_on_disposable_postgres(monkeypatch)
                     assert sum(created for _, created in results) == 1
                     with Session(engine) as db:
                         row = db.query(InspectionOrder).one()
-                        if same_key:
+                        if scenario == "same_key":
                             assert results[0][0] == results[1][0] == row.id
                         else:
                             assert sum(oid is None for oid, _ in results) == 1
-                        assert row.suspicion_snapshot["data"]["priority"] == .92
+                        if row.suspicion_snapshot is not None:
+                            assert row.suspicion_snapshot["data"]["priority"] == .92
                         db.delete(row)
                         db.commit()
     finally:
