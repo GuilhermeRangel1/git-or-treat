@@ -27,6 +27,24 @@
 - Quando alterar estado, critério ou evidência de um requisito do PRD, sincronize o cartão de mesmo ID no quadro Trello indicado em `docs/agents/issue-tracker.md`, se o MCP estiver conectado. O PRD continua sendo a fonte de verdade; registre no cartão o estado e o link/evidência correspondente.
 - Se houver decisão em aberto que bloqueie fidelidade dos dados ou validade do diagnóstico, registre a hipótese e sinalize o bloqueio; não invente uma resposta.
 
+## Mensagens de commit
+
+- Todo commit criado por um agente deve ter assunto e corpo descritivo em português. Use um assunto curto no padrão `<tipo>(<área>): <resumo>` e, no corpo, inclua 2 a 5 bullets que expliquem as mudanças e seus motivos.
+- Separe o corpo com uma linha em branco e inclua `Verificações:` seguido de bullets com os comandos e resultados realmente observados. Não declare uma verificação que não foi executada; se nenhuma se aplicar, informe isso e o motivo.
+- Exemplo de estrutura:
+
+  ```text
+  fix(ci): corrige lint e nomeia checks por módulo
+
+  - Usa o contador de tentativas para evitar aviso do shell e espera desnecessária.
+  - Nomeia o workflow e os checks por área para facilitar sua identificação.
+  - Atualiza as instruções operacionais com os nomes exibidos no GitHub.
+
+  Verificações:
+  - actionlint 1.7.12: passou.
+  - YAML válido e `git diff --check`: passaram.
+  ```
+
 ## Segurança e qualidade
 
 - Não commite `.env`, tokens, chaves, credenciais, arquivos brutos do case ou amostras identificáveis.

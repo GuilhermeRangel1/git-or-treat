@@ -145,7 +145,7 @@ export default function ReceitaPage() {
   })();
 
   return (
-    <div className="mt-6 grid min-w-0 w-full max-w-[1088px] gap-4">
+    <div className="mt-6 grid min-w-0 w-full gap-4">
       <div className="flex min-h-[18px] min-w-0 flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex flex-wrap items-center gap-2">
           {envelope?.metadata.source.is_demo ? (
@@ -431,13 +431,15 @@ export default function ReceitaPage() {
       {envelope ? (
         <>
           <RevenueSummary envelope={envelope} />
-          <RevenueDecomposition envelope={envelope} />
-          <RevenueBreakdown
-            envelope={envelope}
-            groupBy={parsed.groupBy}
-            onGroupByChange={applyGroupBy}
-            onExplore={exploreBreakdownItem}
-          />
+          <div className="grid min-w-0 gap-4 min-[1850px]:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+            <RevenueDecomposition envelope={envelope} />
+            <RevenueBreakdown
+              envelope={envelope}
+              groupBy={parsed.groupBy}
+              onGroupByChange={applyGroupBy}
+              onExplore={exploreBreakdownItem}
+            />
+          </div>
           <RevenueSeries envelope={envelope} />
         </>
       ) : null}

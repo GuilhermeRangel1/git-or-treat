@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "@/layouts/AppLayout";
+import UC360Page from "@/features/uc360/UC360Page";
 import { routes } from "./routes";
 
 const DevContractsPage = import.meta.env.DEV
@@ -19,6 +20,7 @@ export function AppRoutes() {
         {routes.map(({ path, Component }) => (
           <Route key={path} path={path} element={<Component />} />
         ))}
+        <Route path="/uc-360/:ucId" element={<UC360Page />} />
         <Route path="*" element={<Navigate to="/panorama" replace />} />
       </Route>
       {DevContractsPage ? (
