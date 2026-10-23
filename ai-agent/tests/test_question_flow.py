@@ -1,3 +1,5 @@
+import json
+
 from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
@@ -377,7 +379,10 @@ def test_invalid_source_result_returns_generic_recoverable_error(caplog) -> None
         "code": "invalid_upstream_response",
         "retryable": False,
     }
-    assert "101" not in response.text
+    # O correlation_id é hexadecimal aleatório e pode conter "101" por acaso.
+    public = response.json()
+    public.pop("correlation_id")
+    assert "101" not in json.dumps(public, ensure_ascii=False)
     assert model.calls == []
     assert "A fonte de evidências retornou um contrato inválido." in caplog.text
     assert "101" not in caplog.text
