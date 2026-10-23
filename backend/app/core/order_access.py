@@ -4,7 +4,7 @@ from hashlib import sha256
 from secrets import compare_digest
 
 import jwt
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import SecretStr
 
@@ -12,7 +12,7 @@ from app.core.config import settings
 
 bearer = HTTPBearer(
     auto_error=False, scheme_name="OrdersServiceToken",
-    description="Bearer OIDC individual em produção; serviço somente em desenvolvimento.",
+    description="Opcional na demo sintética local; Bearer nos modos service e oidc.",
 )
 READ = "orders:read"
 WRITE = "orders:write"
@@ -81,7 +81,17 @@ def _matches(provided: str, configured: SecretStr | None) -> bool:
     )
 
 
-def get_order_identity(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> OrderIdentity:
+def get_order_identity(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> OrderIdentity:
+    if settings.ORDERS_AUTH_MODE == "demo":
+        if settings.APP_ENV != "development" or settings.ANALYTICS_SOURCE != "synthetic":
+            raise HTTPException(503, "Demo disponível somente em desenvolvimento com dados sintéticos.")
+        # The local demo has no user identity. Reject browser cross-site requests;
+        # network isolation remains provided by the localhost bindings.
+        origin = request.headers.get("origin")
+        if (request.headers.get("sec-fetch-site") == "cross-site"
+                or origin is not None and origin not in settings.BACKEND_CORS_ORIGINS):
+            raise HTTPException(403, "Origem não permitida na demo local.")
+        return OrderIdentity("local-demo", frozenset({READ, WRITE}), "demo")
     if credentials is None:
         raise HTTPException(401, "Autenticação obrigatória.", headers={"WWW-Authenticate": "Bearer"})
     if settings.ORDERS_AUTH_MODE == "oidc":

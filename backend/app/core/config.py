@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     ORDERS_READ_TOKEN: SecretStr | None = None
     ORDERS_WRITE_TOKEN: SecretStr | None = None
     APP_ENV: Literal["development", "production"] = "development"
-    ORDERS_AUTH_MODE: Literal["service", "oidc"] = "service"
+    ORDERS_AUTH_MODE: Literal["demo", "service", "oidc"] = "service"
     OIDC_ISSUER: str | None = None
     OIDC_AUDIENCE: str | None = None
     OIDC_JWKS_URL: str | None = None
@@ -38,6 +38,8 @@ class Settings(BaseSettings):
             raise ValueError("Credenciais de leitura e escrita devem ser distintas.")
         if self.APP_ENV == "production" and self.ORDERS_AUTH_MODE != "oidc":
             raise ValueError("Produção exige autenticação individual OIDC nas ordens.")
+        if self.ORDERS_AUTH_MODE == "demo" and self.ANALYTICS_SOURCE != "synthetic":
+            raise ValueError("Modo demo exige fonte exclusivamente sintética.")
         if self.ORDERS_AUTH_MODE == "oidc":
             if tokens:
                 raise ValueError("OIDC não aceita credenciais compartilhadas de serviço em paralelo.")
