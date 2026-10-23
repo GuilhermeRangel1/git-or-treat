@@ -54,6 +54,21 @@ O exemplo `.env.example` atende à execução no host. Para executar o backend i
 
 `db` é um nome de serviço da rede Docker; não é o endereço do banco para o Python executado no Windows. `localhost` dentro do contêiner aponta para o próprio contêiner. Ao alternar os modos, confira a URL antes de migrar. Os testes HTTP substituem `DATABASE_URL` por SQLite em memória; eles passarem não comprova que a conexão da aplicação foi configurada. Confira também o health check com `database=connected` no modo escolhido.
 
+## Perguntas ao serviço GenAI
+
+`POST /api/v1/ai/questions` recebe uma pergunta e até três turnos transitórios de conversa, valida o contrato `v1` e encaminha a chamada ao serviço GenAI. O Backend devolve a resposta validada, as referências de evidência e o ID de correlação. Não consulta Gold nem salva sessões nesta rota. O contrato e os códigos de erro estão em [genai-chat-api.md](../docs/contracts/genai-chat-api.md).
+
+Para testar os dois serviços no host, use o mesmo token aleatório de pelo menos 32 caracteres nos arquivos `.env` locais, sem versioná-lo. Configure `AI_AGENT_BASE_URL=http://127.0.0.1:8001` e `AI_AGENT_SERVICE_API_TOKEN` no Backend; no GenAI, configure `GENAI_SERVICE_API_TOKEN`, `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true`. Inicie o GenAI na porta 8001 e o Backend na porta 8000. Uma chamada de exemplo:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8000/api/v1/ai/questions `
+  -ContentType 'application/json' `
+  -Body '{"contract_version":"v1","question":"Qual foi o consumo no período de demonstração?","context":[]}'
+```
+
+Sem provedor de modelo configurado, o GenAI responde com erro recuperável no envelope de negócio; isso ainda permite verificar o encaminhamento. Para obter uma resposta sintética gerada por modelo, configure um provedor no ambiente local do GenAI. O token autentica apenas os serviços entre si; não representa uma pessoa usuária ou autorização para a Gold. A tela de chat ainda não consome esta rota.
+
 ## Contratos analíticos de desenvolvimento
 
 `ANALYTICS_SOURCE` aceita `unavailable` (padrão, retorna HTTP 503 nas rotas analíticas) ou `synthetic`. Para experimentar os contratos sem conectar ao PostgreSQL, configure a opção `synthetic` no ambiente antes de iniciar a API. Um valor desconhecido impede a inicialização. `/api/v1/kpis`, `/revenue`, `/ucs`, `/ucs/{uc_id}`, `/inspections/queue` e `/operations/continuity` usam a interface `get_analytics_repository`; filas de inspeção continuam separadas das ordens operacionais persistidas.

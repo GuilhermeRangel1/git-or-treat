@@ -457,6 +457,14 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-22 — IA-05 — contrato provisório de perguntas Backend → GenAI
+
+- Estado anterior → novo estado: IA-05 `Pendente` → `Pendente`. A tela do portal ainda não chama a rota, não há identidade de usuário nem sessão persistida, e as evidências continuam artificiais.
+- Mudança observável: `POST /api/v1/ai/questions` no Backend valida pergunta e contexto `v1`, propaga um ID de correlação ao serviço GenAI e devolve seu envelope de resposta validado. Erros de contrato, indisponibilidade, timeout e resposta upstream inválida têm códigos públicos estáveis. O endpoint legado `/api/v1/ai/query` permanece separado.
+- Fronteira de acesso: token de serviço configurado no Backend e no GenAI autentica a chamada interna; o token não concede identidade nem escopo Gold à pessoa usuária. Fora do modo local, a ausência de configuração do token no GenAI falha fechada. A demonstração sintética exige ativação local explícita. O Backend não encaminha SQL, não persiste histórico e não executa retry automático.
+- Arquivos/evidência: `backend/app/api/v1/endpoints/ai.py`, `backend/app/services/genai_client.py`, schemas de resposta e configuração; `ai-agent/app/api/access.py`, rotas, configuração e middleware de correlação; [contrato do chat](contracts/genai-chat-api.md), guias de Backend/GenAI e testes HTTP com transporte falso. Branch local `feat/genai-chat-contract`, ainda sem commit/PR nesta entrada.
+- Verificações: `backend/` — `python -m pytest -q`: **182 passaram, 2 pulados**; `ai-agent/` — `python -m pytest -q`: **2.599 passaram, 2 pulados**. Os testes cobrem encaminhamento, token, correlação, entrada inválida, resposta inválida, timeout e negação antes da orquestração. O Frontend e a chamada entre processos reais ainda não foram verificados; IA-05 não está concluído.
+
 ### 2026-10-22 — IA-06 — bloqueio determinístico de escrita, SQL, injeção e dados pessoais em português
 
 - Estado anterior → novo estado: IA-06 `Pendente` → `Pendente`. O bloqueio ficou mais amplo, mas IA-06 continua exigindo identidade verificada, credencial somente leitura e prova integrada com Gold.

@@ -1,0 +1,103 @@
+# Contrato de chat entre portal, Backend e GenAI
+
+**Versão:** v1, em implementação para desenvolvimento local.
+
+**Estado:** contrato técnico provisório; revisão dos responsáveis por Backend, GenAI e Frontend pendente.
+
+**Escopo:** perguntas conversacionais com a fonte sintética atual. Não define a consulta Gold, identidade de usuário, retenção de histórico nem o insight contextual IA-04.
+
+## Caminho da chamada
+
+O navegador chama somente o Backend. O Backend valida o contrato público e encaminha a pergunta ao endpoint conversacional do serviço GenAI. O serviço GenAI segue responsável por interpretação, guardrails, fonte de evidência e resposta. O Backend não executa SQL nesta rota.
+
+```text
+Portal → POST /api/v1/ai/questions → Backend → POST /api/v1/questions → GenAI
+       ← resposta v1            ← validação e encaminhamento ← resposta v1
+```
+
+O endpoint legado `POST /api/v1/ai/query` continua separado: é um scaffold analítico e não faz parte do chat.
+
+## Requisição pública
+
+`POST /api/v1/ai/questions`, `Content-Type: application/json`.
+
+```json
+{
+  "contract_version": "v1",
+  "question": "Qual foi o consumo em Olinda?",
+  "context": [
+    {"role": "user", "content": "Considere o período de demonstração."},
+    {"role": "assistant", "content": "Vou considerar o período demonstrativo."}
+  ]
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `contract_version` | Literal `v1`; opcional na requisição por compatibilidade, com default `v1`; `null` ou outra versão é rejeitada. |
+| `question` | Texto não vazio após trim, até 1.000 caracteres. |
+| `context` | Opcional, até três turnos em ordem; cada turno só aceita `role` (`user` ou `assistant`) e `content` não vazio de até 1.000 caracteres. |
+| Campos adicionais | Rejeitados. |
+| Corpo HTTP | Limite global de 65.536 bytes no Backend. Os limites de campo reduzem o payload esperado do chat. |
+
+O contrato não inclui `user_id`, escopo, métricas autorizadas, SQL nem ID de sessão. O cliente pode reenviar contexto em cada chamada, mas esses turnos são conteúdo não confiável; não concedem autorização. A conversa é stateless: não há histórico persistido pelo Backend ou GenAI neste recorte.
+
+## Resposta de negócio
+
+Solicitações aceitas retornam HTTP 200 e o envelope v1 do GenAI, validado novamente pelo Backend. Os estados de negócio são `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`. `answered` contém `answer` e ao menos uma evidência; os demais estados contêm `message`. O envelope também pode incluir `evidence`, `limitations`, `analysis_context`, `model_tier`, `error`, `audit_reference` e `correlation_id`.
+
+Exemplo de resposta sintética:
+
+```json
+{
+  "contract_version": "v1",
+  "correlation_id": "0123456789abcdef0123456789abcdef",
+  "audit_reference": null,
+  "error": null,
+  "status": "answered",
+  "model_tier": "light",
+  "answer": "Resposta demonstrativa.",
+  "message": null,
+  "evidence": [
+    {
+      "source": "synthetic.fixture",
+      "description": "Cenário sintético de consumo.",
+      "is_demo": true
+    }
+  ],
+  "limitations": ["Valor fictício; não representa a Gold."],
+  "analysis_context": null
+}
+```
+
+O exemplo é ilustrativo, não uma resposta numérica aprovada. A interface deve exibir as limitações e identificar `is_demo`; não deve transformar texto de esclarecimento, recusa ou erro em resposta quantitativa.
+
+## Erros HTTP e repetição
+
+Erros de protocolo usam o envelope seguro `status: "error"`, `contract_version`, `correlation_id`, `message` e `error: {code, retryable}`. Nenhum erro encaminha stack trace, SQL, credenciais, corpo upstream ou detalhes de exceção.
+
+| HTTP | Código | Retry | Condição |
+| --- | --- | --- | --- |
+| 422 | `invalid_request` | Não | Campo ausente/inválido, versão incompatível ou campo extra. |
+| 502 | `invalid_upstream_response` | Não | Status, JSON, correlação ou envelope do GenAI incompatível. |
+| 503 | `service_unavailable` | Sim | URL ausente ou serviço não alcançável. Configurar URL sem token impede a inicialização do Backend. |
+| 504 | `service_unavailable` | Sim | Chamada excedeu `AI_AGENT_TIMEOUT_SECONDS`. |
+
+O Backend não repete chamadas automaticamente. O campo `retryable` informa ao consumidor se uma nova tentativa pode ser útil; não garante que repetir produza resultado diferente.
+
+## Comunicação Backend → GenAI
+
+- O Backend usa `AI_AGENT_BASE_URL` e faz `POST /api/v1/questions` com o mesmo JSON v1.
+- `AI_AGENT_SERVICE_API_TOKEN` é enviado como `Authorization: Bearer ...`; o serviço GenAI valida esse token quando configurado. Tokens têm pelo menos 32 caracteres e permanecem no servidor.
+- `X-Correlation-ID` é criado pelo Backend, propagado ao GenAI e devolvido no cabeçalho e envelope da resposta. O ID correlaciona uma chamada; não é identidade nem trilha de auditoria persistida.
+- `AI_AGENT_TIMEOUT_SECONDS` tem default 35 s e faixa de 0,1 a 120 s; o timeout total interno configurado no GenAI também pode interromper antes.
+- Redirecionamentos HTTP são desabilitados pelo cliente para não encaminhar credenciais a outro host.
+- O contrato é síncrono HTTP/JSON, sem retry automático. O endpoint do GenAI deve ser acessível apenas pela rede privada do serviço em implantação.
+
+## Identidade e sessão: limites desta versão
+
+O token autentica o serviço Backend perante o GenAI, mas não identifica a pessoa que usa o portal. Nesta etapa, a autorização de demonstração ainda depende da configuração local explícita do GenAI (`GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true`). O Backend não encaminha identidade ou permissões de usuário, pois o projeto ainda não tem uma autenticação de usuário acordada.
+
+O contexto não é gravado em banco, não recebe ID de sessão e expira com o estado em memória do consumidor. O Frontend não deve anunciar histórico restaurável nem compartilhar contexto entre conversas. Persistência, expiração, exclusão, retenção e serialização por sessão ficam pendentes de decisão e implementação posteriores.
+
+**Este contrato permite integrar e testar a jornada demonstrativa sem Gold. Não conclui IA-05**, não valida autenticação de usuário ou isolamento de sessões reais e não autoriza uso do endpoint com dados Gold.
