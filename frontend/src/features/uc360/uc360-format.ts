@@ -10,6 +10,26 @@ const limitationFieldLabels: Record<string, string> = {
   competencia: "competência",
 };
 
+const moneyFormat = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+const decimalFormat = new Intl.NumberFormat("pt-BR", {
+  maximumFractionDigits: 2,
+});
+
+export function formatUCAmount(value: number | null, unit: "BRL" | "kWh") {
+  return value === null
+    ? "Sem dado"
+    : unit === "BRL"
+      ? moneyFormat.format(value)
+      : `${decimalFormat.format(value)} kWh`;
+}
+
+export function formatUCPower(value: number) {
+  return `${decimalFormat.format(value)} kW`;
+}
+
 export function statusLabel(status: UCStatus) {
   return {
     available: "Disponível",

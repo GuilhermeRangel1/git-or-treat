@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import Button from "@/shared/ui/Button";
 import type { RevenueEnvelope } from "./contract";
 import type { RevenueBaseFilters } from "./revenue-filters";
 
@@ -175,12 +176,9 @@ export default function RevenueFiltersForm({
         </select>
       </label>
       <div className="flex items-end sm:col-span-2 lg:col-span-3">
-        <button
-          className="min-h-11 rounded-lg bg-brand px-5 text-sm font-semibold text-[var(--accent-goiaba-text)] hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-          type="submit"
-        >
+        <Button type="submit" variant="accent" size="wide">
           Aplicar filtros
-        </button>
+        </Button>
       </div>
       {errors.length > 0 ? (
         <div
