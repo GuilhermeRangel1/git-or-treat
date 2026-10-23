@@ -255,7 +255,7 @@ export default function UC360Page() {
           </ul>
         )}
         {search.data && search.data.pagination.total_pages > 1 && (
-          <div className="flex items-center gap-3 text-sm text-muted">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
             <button
               type="button"
               disabled={state.searchPage <= 1}

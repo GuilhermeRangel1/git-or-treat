@@ -189,7 +189,7 @@ export function HistoryPanel({
             </p>
           )}
           {history.pagination.total_pages > 1 && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 disabled={historyPage <= 1}
@@ -249,11 +249,15 @@ export function EvidenceDialog({
       </button>
       <dialog
         id="uc-details-dialog"
+        aria-labelledby="uc-details-title"
         onCancel={() => setOpen(false)}
         onClose={() => setOpen(false)}
         className="m-auto w-[min(640px,calc(100%-2rem))] rounded-xl bg-surface p-5 text-content backdrop:bg-black/40"
       >
-        <h3 className="font-heading text-lg font-semibold">
+        <h3
+          id="uc-details-title"
+          className="font-heading text-lg font-semibold"
+        >
           Evidências e limites
         </h3>
         <p className="mt-3 text-sm text-muted">
