@@ -207,14 +207,14 @@ def test_panorama_insight_rejects_a_batch_that_changed_since_the_screen_loaded(
 def test_panorama_insight_maps_upstream_failures_to_safe_http_errors(
     client, monkeypatch, error, status_code, error_code, retryable
 ):
-    gateway = RecordingInsightGateway(error=error)
+    gateway = RecordingInsightGateway(error=type(error)("upstream private diagnostic"))
     monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
 
     response = client.post("/api/v1/ai/insights", json=_request())
 
     assert response.status_code == status_code
     assert response.json()["error"] == {"code": error_code, "retryable": retryable}
-    assert "upstream" not in response.text
+    assert "upstream private diagnostic" not in response.text
 
 
 def test_genai_insight_client_uses_existing_contract_auth_and_correlation():

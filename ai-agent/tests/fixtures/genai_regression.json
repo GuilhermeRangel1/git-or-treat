@@ -185,7 +185,7 @@
       "model_status": "answered",
       "model_answer": "O consumo observado foi 420 kWh fictícios; investigue a distribuição no recorte.",
       "model_observation_ids": ["row_1"],
-      "expected_answer_fragment": "420 kWh fictícios",
+      "expected_answer_fragment": "Investigue a composição",
       "expected_evidence_source": "synthetic_screen:consumption",
       "expected_observation_value": 420
     },
