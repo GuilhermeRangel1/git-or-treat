@@ -72,6 +72,18 @@ def profile_data() -> dict:
     }
 
 
+def test_profile_rejects_default_period_outside_its_period_catalog() -> None:
+    with pytest.raises(ValidationError, match="período padrão precisa estar no catálogo"):
+        DomainProfile.model_validate({**profile_data(), "default_period_phrase": "próximo ano"})
+
+
+def test_profile_rejects_comparison_period_outside_its_period_catalog() -> None:
+    with pytest.raises(ValidationError, match="período de comparação precisa estar no catálogo"):
+        DomainProfile.model_validate(
+            {**profile_data(), "comparison_period_phrases": ["dois períodos"]}
+        )
+
+
 def test_profile_injection_changes_vocabulary_without_changing_interpreter() -> None:
     interpreter = QuestionInterpreter(profile=DomainProfile.model_validate(profile_data()))
 

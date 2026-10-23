@@ -43,6 +43,83 @@ def test_plural_service_synonym_maps_to_attendance_domain() -> None:
     assert result.intent.metric_phrase == "atendimentos"
 
 
+@pytest.mark.parametrize(
+    ("question", "domain", "metric", "period"),
+    [
+        (
+            "Qual é o indicador sintético de consumo no cenário de demonstração?",
+            "consumption",
+            "consumo",
+            "período de demonstração",
+        ),
+        (
+            "Compare o indicador fictício de receita entre dois períodos de demonstração.",
+            "revenue",
+            "receita",
+            "dois períodos de demonstração",
+        ),
+        (
+            "Quantas interrupções existem no cenário de demonstração?",
+            "network",
+            "interrupções",
+            "período de demonstração",
+        ),
+    ],
+)
+def test_assistant_suggestion_phrases_resolve_to_catalogued_intents(
+    question: str, domain: str, metric: str, period: str
+) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.domain == domain
+    assert result.intent.metric_phrase == metric
+    assert result.intent.period_phrase == period
+
+
+@pytest.mark.parametrize(
+    ("question", "domain", "metric"),
+    [
+        (
+            "Quanto de consumo fict\u00edcio aparece na demonstra\u00e7\u00e3o?",
+            "consumption",
+            "consumo",
+        ),
+        (
+            "Quantas interrup\u00e7\u00f5es de fornecimento aparecem na demonstra\u00e7\u00e3o?",
+            "network",
+            "interrup\u00e7\u00f5es de fornecimento",
+        ),
+        (
+            "Quantas faltas de luz existem no cen\u00e1rio sint\u00e9tico?",
+            "network",
+            "faltas de luz",
+        ),
+        (
+            "Quantas faltas de energia h\u00e1 na demonstra\u00e7\u00e3o?",
+            "network",
+            "faltas de energia",
+        ),
+        (
+            "Qual n\u00famero de chamados foi usado na demonstra\u00e7\u00e3o?",
+            "service",
+            "chamados",
+        ),
+    ],
+)
+def test_demo_questions_with_standalone_demonstration_and_plural_aliases_are_recognized(
+    question: str, domain: str, metric: str
+) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.domain == domain
+    assert result.intent.metric_phrase == metric
+    assert result.intent.period_phrase == "per\u00edodo de demonstra\u00e7\u00e3o"
+
+
 def test_asks_what_account_of_light_means_instead_of_guessing() -> None:
     result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Minha conta de luz subiu?"
@@ -72,6 +149,17 @@ def test_requests_a_comparison_baseline_instead_of_assuming_one() -> None:
     assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
     assert result.intent is None
     assert "comparação" in result.clarification_question
+
+
+def test_demo_comparison_alias_uses_the_configured_two_period_window() -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Que valores de faturamento foram usados na comparação demonstrativa?"
+    )
+
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.domain == "revenue"
+    assert result.intent.period_phrase == "dois períodos de demonstração"
 
 
 def test_correction_replaces_the_previous_geography_phrase() -> None:

@@ -66,6 +66,15 @@ _EVIDENCE_FIELDS = (
         sensitivity=CatalogSensitivity.INTERNAL,
     ),
 )
+_REVENUE_EVIDENCE_FIELDS = (
+    *_EVIDENCE_FIELDS,
+    EvidenceFieldDefinition(
+        name="period",
+        role=EvidenceFieldRole.PERIOD,
+        value_type=FilterValueType.DATE,
+        sensitivity=CatalogSensitivity.INTERNAL,
+    ),
+)
 
 GRID360_DEMO_PROFILE = DomainProfile(
     profile_id="v-energy-grid-360-demo",
@@ -100,10 +109,10 @@ GRID360_DEMO_PROFILE = DomainProfile(
             granularities=_MONTH_YEAR,
             dimension_ids=_ALL_DIMENSIONS,
             sensitivity=CatalogSensitivity.INTERNAL,
-            evidence_fields=_EVIDENCE_FIELDS,
+            evidence_fields=_REVENUE_EVIDENCE_FIELDS,
             limitation_texts=(
-                "Valores inventados; não representam faturamento, receita ou fórmula oficial "
-                "da V-Energy.",
+                "Períodos e valores inventados; não representam faturamento, receita ou fórmula "
+                "oficial da V-Energy.",
             ),
         ),
         MetricDefinition(
@@ -125,8 +134,11 @@ GRID360_DEMO_PROFILE = DomainProfile(
             domain_id="network",
             aliases=(
                 "falta de luz",
+                "faltas de luz",
                 "falta de energia",
-                "interrupção de fornecimento",
+                "faltas de energia",
+                "interrup\u00e7\u00e3o de fornecimento",
+                "interrup\u00e7\u00f5es de fornecimento",
                 "interrupção",
                 "interrupções",
             ),
@@ -157,6 +169,8 @@ GRID360_DEMO_PROFILE = DomainProfile(
     dimensions=(_GEOGRAPHY, _CUSTOMER_CLASS),
     period_phrases=(
         "período de demonstração",
+        "dois períodos de demonstração",
+        "comparação demonstrativa",
         "últimos 12 meses",
         "último ano",
         "ano passado",
@@ -166,6 +180,16 @@ GRID360_DEMO_PROFILE = DomainProfile(
         "mês passado",
         "este ano",
         "neste mês",
+    ),
+    default_period_phrase="período de demonstração",
+    comparison_period_phrases=(
+        "dois períodos de demonstração",
+        "comparação demonstrativa",
+    ),
+    non_location_phrases=(
+        "cen\u00e1rio de demonstra\u00e7\u00e3o",
+        "cen\u00e1rio sint\u00e9tico",
+        "demonstra\u00e7\u00e3o",
     ),
     comparison_terms=(
         "compare",

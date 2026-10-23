@@ -45,6 +45,9 @@ class QuestionInterpreter:
 
     def __init__(self, profile: DomainProfile) -> None:
         self._profile = profile
+        self._comparison_period_phrases = frozenset(
+            _normalize(item) for item in profile.comparison_period_phrases
+        )
         self._metric_aliases = tuple(
             (metric, alias) for metric in profile.metrics for alias in metric.aliases
         )
@@ -163,21 +166,33 @@ class QuestionInterpreter:
             base_intent.metric_phrase if base_intent else None,
         )
         periods = _find_phrases(question, self._profile.period_phrases)
+        configured_comparison_window = any(
+            _normalize(surface) in self._comparison_period_phrases
+            for _, _, surface in periods
+        )
         normalized_question = _normalize(question)
         comparison_requested = len(periods) > 1 and " entre " in f" {normalized_question} "
         comparison_requested = comparison_requested or self._has_comparison(normalized_question)
-        if not periods and base_intent is None:
+        comparison_requested = comparison_requested or configured_comparison_window
+        if not periods and base_intent is None and self._profile.default_period_phrase is None:
             return self._clarify(self._profile.clarifications.missing_period)
         if not periods and comparison_requested:
             return self._clarify(self._profile.clarifications.comparison_baseline)
-        if comparison_requested and len(periods) < 2:
+        if comparison_requested and len(periods) < 2 and not configured_comparison_window:
             return self._clarify(self._profile.clarifications.comparison_baseline)
         if len(periods) > 1 and not comparison_requested:
             return self._clarify(self._profile.clarifications.multiple_periods)
         if len(periods) > 1:
             period_phrase = question[periods[0][0] : periods[-1][1]]
         elif periods:
-            period_phrase = periods[0][2]
+            period_phrase = (
+                self._profile.comparison_period_phrases[0]
+                if configured_comparison_window
+                else periods[0][2]
+            )
+        elif base_intent is None:
+            assert self._profile.default_period_phrase is not None
+            period_phrase = self._profile.default_period_phrase
         else:
             assert base_intent is not None
             period_phrase = base_intent.period_phrase
@@ -297,6 +312,7 @@ class QuestionInterpreter:
         protected = [
             *recognized,
             *self._dimension_value_matches(question, self._classification_dimensions),
+            *_find_phrases(question, self._profile.non_location_phrases),
             *_find_phrases(
                 question,
                 (

@@ -351,9 +351,13 @@ class QuestionOrchestrator:
         numeric_mismatch = self._model_router is not None and _has_unsupported_numeric_claim(
             generated, observations
         )
-        needs_stronger = _is_ungrounded(generated, set(observations)) or numeric_mismatch
+        needs_stronger = (
+            generated.status == "refused"
+            or _is_ungrounded(generated, set(observations))
+            or numeric_mismatch
+        )
         if stronger is not None and needs_stronger:
-            # Só falhas de fundamentação ou de número escalam; erros do provedor seguem acima.
+            # Recusa ou saída sem fundamento no nível leve recebe uma tentativa forte.
             assert self._model_router is not None
             generated = await self._generate(
                 self._model_router.adapter_for(stronger),
@@ -366,6 +370,16 @@ class QuestionOrchestrator:
             if isinstance(generated, QuestionResponse):
                 return generated
             tier = stronger
+
+        if generated.status == "refused" and 0 < len(observations) <= 10:
+            # A política e o plano já foram validados antes do modelo. Se ele recusar
+            # apesar de haver poucas observações autorizadas, o serviço pode apresentá-las
+            # com seu formatador determinístico, sem reutilizar texto do modelo.
+            generated = GeneratedAnswer(
+                status="answered",
+                answer="Resposta montada a partir das observações autorizadas.",
+                observation_ids=tuple(observations),
+            )
 
         if _is_ungrounded(generated, set(observations)) or (
             self._model_router is not None
@@ -454,7 +468,10 @@ class QuestionOrchestrator:
                 if isinstance(generated_result, GeneratedAnswer)
                 else generated_result
             )
-            trace.emit(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
+            if generated.status == "refused":
+                trace.emit(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
+            else:
+                trace.emit(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
         except ModelProviderUnavailable:
             trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             return self._recoverable_error(FailureCode.MODEL_UNAVAILABLE)
