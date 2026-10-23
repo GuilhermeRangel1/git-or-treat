@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Path, Query, Header, Response, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.order_access import require_orders_read, require_orders_write
@@ -10,7 +10,7 @@ from app.repositories.analytics import AnalyticsRepository, get_analytics_reposi
 from app.api.v1.analytics_route import AnalyticsRoute
 from app.services.analytics import filters_model
 from app.services.inspection_analytics import build_queue_response, build_suspicion_response
-from app.schemas.inspections import OrderCreateRequest, OrderResponse, OrderUpdateRequest
+from app.schemas.inspections import OrderCreateRequest, OrderResponse, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage
 from app.services import inspections as inspection_service
 
 router = APIRouter()
@@ -40,6 +40,43 @@ def get_suspicion_detail(uc_id: str, repository: AnalyticsRepository = Depends(g
 
 
 router.include_router(analytics_router)
+
+
+@router.post("/queue/{uc_id}/orders", response_model=OrderResponse, status_code=201,
+             dependencies=[Depends(require_orders_write)], summary="Criar ordem pela suspeita selecionada")
+def create_order_from_queue(
+    payload: QueueOrderCreateRequest, response: Response,
+    uc_id: str = Path(min_length=1, max_length=50),
+    idempotency_key: str = Header(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$"),
+    db: Session = Depends(get_db),
+    repository: AnalyticsRepository = Depends(get_analytics_repository),
+):
+    try:
+        order, created = inspection_service.create_from_queue(db, repository, uc_id, payload, idempotency_key)
+    except inspection_service.OrderConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    response.status_code = 201 if created else 200
+    return order
+
+
+@router.get("/orders/search", response_model=OrderPage, dependencies=[Depends(require_orders_read)],
+            summary="Consultar ordens com filtros e paginação")
+def search_orders(
+    status_filter: OrderStatus | None = Query(None, alias="status"),
+    uc_id: str | None = Query(None, min_length=1, max_length=50),
+    priority: Literal["BAIXA", "MEDIA", "ALTA"] | None = None,
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    return inspection_service.search_orders(db, status_filter, uc_id, priority, page, page_size)
+
+
+@router.get("/orders/{order_id}", response_model=OrderResponse, dependencies=[Depends(require_orders_read)])
+def get_order(order_id: int = Path(ge=1, le=9223372036854775807), db: Session = Depends(get_db)):
+    order = inspection_service.get_order(db, order_id)
+    if order is None:
+        raise HTTPException(404, "Ordem de inspeção não encontrada.")
+    return order
 
 
 @router.get(

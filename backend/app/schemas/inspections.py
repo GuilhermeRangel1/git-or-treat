@@ -4,10 +4,21 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
 from app.models.operational import OrderStatus
+from app.schemas.analytics import Pagination
+from app.schemas.inspection_queue import SuspicionResponse
 
 UCIdentifier = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 OrderReason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
 OrderText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=4000)]
+
+
+class QueueOrderCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_version: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    rule_version: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    priority: Literal["BAIXA", "MEDIA", "ALTA"] = "MEDIA"
+    notes: OrderText | None = None
 
 
 class OrderCreateRequest(BaseModel):
@@ -45,3 +56,10 @@ class OrderResponse(BaseModel):
     result: str | None
     created_at: datetime
     updated_at: datetime
+    suspicion_reference: str | None = None
+    suspicion_snapshot: SuspicionResponse | None = None
+
+
+class OrderPage(BaseModel):
+    items: list[OrderResponse]
+    pagination: Pagination
