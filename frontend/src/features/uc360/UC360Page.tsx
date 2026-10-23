@@ -155,29 +155,36 @@ export default function UC360Page() {
   return (
     <div className="mt-6 grid w-full min-w-0 gap-4">
       <section
-        className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5"
+        className={`grid gap-3 rounded-xl ${state.uc ? "border border-control bg-canvas p-3" : "bg-surface p-4 sm:p-5"}`}
         aria-labelledby="uc-search-title"
       >
         <div>
           <h2
             id="uc-search-title"
-            className="font-heading text-lg font-semibold"
+            className={`font-heading font-semibold ${state.uc ? "text-sm" : "text-lg"}`}
           >
-            Buscar unidade consumidora
+            {state.uc
+              ? "Buscar outra unidade consumidora"
+              : "Buscar unidade consumidora"}
           </h2>
-          <p className="mt-1 text-sm text-muted">
-            Busque pelo número da UC informado durante o atendimento.
-          </p>
+          {!state.uc && (
+            <p className="mt-1 text-sm text-muted">
+              Busque pelo número da UC informado durante o atendimento.
+            </p>
+          )}
         </div>
-        <form className="flex flex-col gap-3 sm:flex-row" onSubmit={submit}>
+        <form
+          className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
+          onSubmit={submit}
+        >
           <label
-            className="grid flex-1 gap-1 text-sm font-medium"
+            className={`grid min-w-0 gap-1 text-sm font-medium ${state.uc ? "sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-3" : ""}`}
             htmlFor="uc-number"
           >
             Número da UC
             <input
               id="uc-number"
-              className={inputClass}
+              className={`${inputClass} ${state.uc ? "min-h-10" : ""}`}
               autoComplete="off"
               value={query}
               onChange={(event) => {
@@ -195,7 +202,7 @@ export default function UC360Page() {
             />
           </label>
           <button
-            className="inline-flex min-h-11 items-center justify-center gap-2 self-end rounded-lg bg-brand px-4 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             type="submit"
           >
             <Search size={16} aria-hidden="true" />
@@ -325,7 +332,7 @@ export default function UC360Page() {
           {selected && (
             <>
               <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end">
-                <header className="grid min-w-0 gap-1">
+                <header className="grid min-w-0 gap-1 rounded-xl border border-control bg-surface p-4 sm:p-5">
                   <p className="font-mono text-xs uppercase tracking-wide text-muted">
                     V—ENERGY / ATENDIMENTO
                   </p>
