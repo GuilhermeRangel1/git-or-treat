@@ -1,4 +1,4 @@
-# ADR-0006 — Exploração demonstrativa da receita por extremos
+# ADR-0008 — Exploração demonstrativa da receita por extremos
 
 **Data:** 2026-10-21
 

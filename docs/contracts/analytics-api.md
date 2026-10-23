@@ -1,8 +1,8 @@
 # DEV-01 — Contratos de consumo analítico
 
-> **DEV-03 verificada com fonte sintética:** a jornada Receita usa 1.1.0, conforme o [contrato de Receita](revenue-dev03.md) e as [evidências integradas](../plans/2026-10-21-dev03-evidence.md). Os demais endpoints preservam 1.0.0. A verificação demonstrativa não conclui a integração Gold.
+> **Evoluções com fonte sintética:** Receita usa o [contrato DEV-03 1.1.0](revenue-dev03.md) e Atendimento acrescenta [overview e históricos DEV-04 1.1.0](uc360-dev04.md). Busca/detalhe legados e os demais endpoints preservam 1.0.0. As verificações demonstrativas não concluem a integração Gold.
 
-**Versão:** 1.0.0 nas jornadas DEV-01, 1.1.0 em Receita conforme DEV-03 · **Fonte sintética atual:** `dev03-v1` (substitui `dev01-v1` como lote de demonstração).
+**Versão:** 1.0.0 nas jornadas DEV-01; 1.1.0 em Receita DEV-03 e nas duas novas operações de Atendimento DEV-04 · **Fonte sintética atual:** `dev03-v1` (substitui `dev01-v1` como lote de demonstração).
 **Escopo:** preparação de WEB-01 a WEB-07 e IA-01 a IA-06. As formas JSON são contratos de aplicação; não representam o esquema físico ou as fórmulas oficiais da Gold.
 
 [Desenho](../design/2026-10-20-dev01-design.md), [plano](../plans/2026-10-20-dev01-plan.md), [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md) e [PRD](../PRD.md) registram motivação, decisões e aceite. O OpenAPI servido em `/openapi.json` e `/docs` é a referência executável dos schemas e parâmetros.
@@ -36,8 +36,8 @@ Receita declara `currency_unit: BRL` e `energy_unit: kWh`; faturas também decla
 | --- | --- | --- | --- |
 | Panorama (produto) | `GET /api/v1/panorama` | Envelope de produto com oito KPIs, comparação, série mensal, filtros efetivos e estado do período | Definições oficiais, base de UCs, DEC/FEC e reconciliação do lote real |
 | Panorama (analítico) | `GET /api/v1/kpis` | Métricas com unidade, disponibilidade, contexto e origem; consulta por competências e recorte | Definições oficiais, comparação e reconciliação do lote real |
-| Receita | `GET /api/v1/revenue` | Totais, série, preço observado e contrato para decomposição; lacunas explícitas | Método preço-volume, janela comparativa e detalhamento territorial validados |
-| Atendimento | `GET /api/v1/ucs` e `GET /api/v1/ucs/{uc_id}` | Busca/listagem e cadastro, consumo, faturas, medidores, GD, interrupções e chamados | Chave/vigência real, cobertura de fontes e paginação de históricos volumosos |
+| Receita | `GET /api/v1/revenue` | Totais, série inclusiva, extremos, preço observado, decomposição e recortes demonstrativos conforme [1.1.0](revenue-dev03.md) | Método e população Gold, janelas anuais e reconciliação com lote real |
+| Atendimento | `GET /api/v1/ucs`, `GET /api/v1/ucs/{uc_id}`, `/overview` e `/history/{section}` | Busca/listagem e detalhe legados 1.0.0; comparação e seis históricos paginados 1.1.0 conforme [DEV-04](uc360-dev04.md) | Chave/vigência real, cobertura e reconciliação Gold; escala dos históricos reais |
 | Perdas | `GET /api/v1/inspections/queue` | Fila, prioridade, motivo, indicadores e estimativa demonstrativos | Regra e estimativa auditáveis sobre a Gold |
 | Ordens | `GET/POST /api/v1/inspections/orders` e `PATCH /api/v1/inspections/orders/{order_id}` | Schemas e persistência existentes, separados dos dados analíticos | Ciclo de estados, histórico, idempotência e UI nos cards DEV-06/07 |
 | Operação | `GET /api/v1/operations/continuity` | Indicadores por alimentador, denominador e lacunas | Fórmula/denominador por período conforme DE-05 e dados reais |
@@ -55,7 +55,9 @@ Parâmetros por operação:
 | `/revenue` | Janela comum e município/bairro/classe/alimentador; comparação demonstrativa usa os extremos solicitados, sem substituí-los por meses disponíveis |
 | `/ucs` | `q`, `page`, `page_size`, `order_by`; busca parcial somente no número da UC |
 | `/ucs/{uc_id}` | Identificador no caminho; histórico sintético completo de janeiro/fevereiro, sem parâmetro de janela nesta etapa |
-| `/inspections/queue` | Município/bairro/classe/alimentador, `page`, `page_size`, `order_by`; fila do snapshot sintético |
+| `/ucs/{uc_id}/overview` | Identificador canônico e janela mensal opcional `start`/`end` fornecidos juntos; comparação dos extremos e contexto com cobertura declarada |
+| `/ucs/{uc_id}/history/{section}` | Seção do enum DEV-04, mesma janela, `page`, `page_size` e `order_by` permitido por seção; ver [contrato UC](uc360-dev04.md) |
+| `/inspections/queue` | Município/bairro/classe/alimentador, `page`, `page_size`, `order_by`, `direction`; fila do snapshot sintético; [regra DEV-05 e detalhe por UC](inspection-dev05.md) |
 | `/operations/continuity` | Janela comum e `alimentador`; alias `periodo` para competência única |
 
 Filtros vazios, desconhecidos ou geografia contraditória são inválidos; combinações válidas sem fatos geram ausência explícita. A busca `q` repete seu comportamento no resultado, sem aceitar pesquisa de documento pessoal.
@@ -110,7 +112,7 @@ Os pagamentos são associados à competência da fatura, mesmo quando a data do 
 
 O preço observado acumulado é valor faturado dividido por energia faturada: 1.727 / 1.585 = 1,0896 BRL/kWh. Não equivale à tarifa homologada. A decomposição `endpoint_price_volume` compara exclusivamente os meses inicial e final solicitados: com preço `p` e energia faturada `q`, volume = `p0 × (q1 − q0)`, preço = `q0 × (p1 − p0)` e interação = `(p1 − p0) × (q1 − q0)`. Janeiro contra fevereiro resulta em +136,99, −8,53 e −1,46 BRL, somando +127 BRL com ajuste zero; o método permanece demonstrativo. Extremos ausentes, iguais, cobertura financeira incompleta ou energia faturada não positiva tornam a decomposição indisponível. Dinheiro e componentes são quantizados a centavos, preço observado a quatro casas; o [contrato DEV-03](revenue-dev03.md) fixa arredondamento, deltas publicados, ajustes, mix e reconciliação dos grupos.
 
-DEC/FEC usam eventos individuais por UC, duração em horas e denominador fixo por alimentador; ainda não implementam todas as regras de DE-05. A cobertura usa o cadastro do snapshot, sem reconstrução temporal. Prioridades, motivos e estimativas das suspeitas são valores artificiais da fixture, não resultado de um modelo ou regra validada. A potência GD permanece em kW e não é tratada como energia gerada. Essas definições precisam de revisão com a Gold.
+DEC/FEC usam eventos individuais por UC, duração em horas e denominador fixo por alimentador; ainda não implementam todas as regras de DE-05. A cobertura usa o cadastro do snapshot, sem reconstrução temporal. Desde DEV-05, prioridades e estimativas são calculadas por uma [regra sintética auditável](inspection-dev05.md), com insumos e limitações no detalhe; não são critérios validados com dados reais. A potência GD permanece em kW e não é tratada como energia gerada. Essas definições precisam de revisão com a Gold.
 
 A fonte de interrupções declara separadamente sua cobertura temporal inclusiva: janeiro a fevereiro de 2025. `coverage_ratio`, `covered_uc_count` e `coverage_status` descrevem a cobertura cadastral/espacial, não comprovam observação em qualquer competência. Uma janela totalmente fora da cobertura temporal ou uma fonte com cobertura temporal desconhecida resulta em DEC/FEC nulos e estado `unavailable`, com motivo. Uma janela parcialmente coberta retorna `partial`, calcula somente os eventos da interseção e informa o trecho observado nas limitações; `metadata.period` mantém a janela solicitada. Zero dentro de uma janela conhecida continua disponível. Se alguns alimentadores estiverem disponíveis e outros indisponíveis, o estado agregado é `partial`; se todos estiverem indisponíveis, é `unavailable`. O adaptador Gold futuro precisará declarar sua cobertura real, sem inferi-la apenas das datas dos eventos encontrados.
 
