@@ -141,6 +141,18 @@ def test_requests_a_period_when_a_quantitative_question_omits_it() -> None:
     assert "período" in result.clarification_question
 
 
+@pytest.mark.parametrize(
+    "question",
+    ["Como está o consumo?", "Me passe uma receita de bolo de cenoura."],
+)
+def test_demo_default_period_does_not_apply_without_demo_context(question: str) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+
+    assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
+    assert result.intent is None
+    assert "período" in result.clarification_question
+
+
 def test_requests_a_comparison_baseline_instead_of_assuming_one() -> None:
     result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Quanto cresceu a receita no último ano?"

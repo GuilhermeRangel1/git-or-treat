@@ -182,6 +182,11 @@ GRID360_DEMO_PROFILE = DomainProfile(
         "neste mês",
     ),
     default_period_phrase="período de demonstração",
+    default_period_context_phrases=(
+        "cenário de demonstração",
+        "cenário sintético",
+        "demonstração",
+    ),
     comparison_period_phrases=(
         "dois períodos de demonstração",
         "comparação demonstrativa",

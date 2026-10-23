@@ -166,6 +166,9 @@ class QuestionInterpreter:
             base_intent.metric_phrase if base_intent else None,
         )
         periods = _find_phrases(question, self._profile.period_phrases)
+        default_period_context_requested = bool(
+            _find_phrases(question, self._profile.default_period_context_phrases)
+        )
         configured_comparison_window = any(
             _normalize(surface) in self._comparison_period_phrases
             for _, _, surface in periods
@@ -174,7 +177,17 @@ class QuestionInterpreter:
         comparison_requested = len(periods) > 1 and " entre " in f" {normalized_question} "
         comparison_requested = comparison_requested or self._has_comparison(normalized_question)
         comparison_requested = comparison_requested or configured_comparison_window
-        if not periods and base_intent is None and self._profile.default_period_phrase is None:
+        if (
+            not periods
+            and base_intent is None
+            and (
+                self._profile.default_period_phrase is None
+                or (
+                    self._profile.default_period_context_phrases
+                    and not default_period_context_requested
+                )
+            )
+        ):
             return self._clarify(self._profile.clarifications.missing_period)
         if not periods and comparison_requested:
             return self._clarify(self._profile.clarifications.comparison_baseline)

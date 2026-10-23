@@ -242,6 +242,11 @@ class DomainProfile(BaseModel):
     dimensions: tuple[DimensionDefinition, ...] = Field(min_length=1, max_length=100)
     period_phrases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=100)
     default_period_phrase: CatalogPhrase | None = None
+    default_period_context_phrases: tuple[CatalogPhrase, ...] = Field(
+        default=(),
+        max_length=50,
+        description="Contextos que autorizam aplicar o período padrão sem uma janela explícita.",
+    )
     comparison_period_phrases: tuple[CatalogPhrase, ...] = Field(
         default=(),
         max_length=30,
@@ -309,6 +314,12 @@ class DomainProfile(BaseModel):
             _normalize(self.default_period_phrase) not in period_phrases
         ):
             raise ValueError("período padrão precisa estar no catálogo de períodos")
+        if self.default_period_context_phrases and self.default_period_phrase is None:
+            raise ValueError("contexto de período padrão exige um período padrão")
+        _require_unique(
+            [_normalize(item) for item in self.default_period_context_phrases],
+            "contexto de período padrão duplicado",
+        )
         if any(_normalize(item) not in period_phrases for item in self.comparison_period_phrases):
             raise ValueError("período de comparação precisa estar no catálogo de períodos")
         _require_unique(

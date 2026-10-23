@@ -347,6 +347,7 @@ class QuestionOrchestrator:
         if isinstance(generated, QuestionResponse):
             return generated
 
+        allow_deterministic_answer_after_refusal = generated.status == "refused"
         stronger = escalate(tier) if tier is not None else None
         numeric_mismatch = self._model_router is not None and _has_unsupported_numeric_claim(
             generated, observations
@@ -371,10 +372,13 @@ class QuestionOrchestrator:
                 return generated
             tier = stronger
 
-        if generated.status == "refused" and 0 < len(observations) <= 10:
-            # A política e o plano já foram validados antes do modelo. Se ele recusar
-            # apesar de haver poucas observações autorizadas, o serviço pode apresentá-las
-            # com seu formatador determinístico, sem reutilizar texto do modelo.
+        if (
+            generated.status == "refused"
+            and allow_deterministic_answer_after_refusal
+            and 0 < len(observations) <= 10
+        ):
+            # A recusa inicial pode ser substituída apenas por observações autorizadas.
+            # Se a primeira saída era infundada e a nova tentativa recusa, preservamos a recusa.
             generated = GeneratedAnswer(
                 status="answered",
                 answer="Resposta montada a partir das observações autorizadas.",
