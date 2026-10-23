@@ -1,0 +1,294 @@
+# Dicionário da camada SQL para as tabelas REAIS da Gold (dicionário de dados v1).
+#
+# Fonte: branch origin/feat/gold, commit 31a80e6 (22/10/2026):
+#   - colunas e tipos: docs/dicionario_gold.md;
+#   - chaves (grão): data-engineering/notebook/Silver_to_gold.ipynb, dicionário tables_gold_pk;
+#   - valores de prioridade_inspecao e regra Sim/Não de GD: mesmo notebook.
+# Snapshot conferido pelos testes: tests/fixtures/gold_dictionary_v1_snapshot.json.
+#
+# Não substitui dictionary.toml (catálogo artificial). Nenhuma composição da aplicação carrega
+# este arquivo: ele é usado pelos testes contra um SQLite sintético (tests/gold_mock.py) até a
+# Gold estar publicada, com credencial, permissões e reconciliação homologadas.
+#
+# O carregador (app/sql/dictionary.py) lê apenas version, status, [limits], [policy] e
+# tables.<nome>.columns/description. As demais chaves (grain, key, period_column, metrics,
+# dimensions, excluded_columns, known_values, [concepts], relationships) são metadados
+# semânticos: hoje só os testes os leem e conferem contra as colunas permitidas.
+#
+# Tipos: string -> text, long -> bigint, double -> double, date -> date, decimal(p,s) mantido.
+
+version = "gold-v1-31a80e6"
+status = "gold-v1-nao-homologado"
+
+# Cruzamentos entre tabelas autorizados. Vazio: o dicionário v1 não declara relacionamento.
+# ATENÇÃO: o validador atual NÃO lê esta lista. Ele aceita JOIN entre quaisquer tabelas daqui
+# (ex.: diagnostico_receita com visao_360_uc por municipio). Ver teste xfail estrito em
+# tests/test_sql_gold_dictionary.py e a seção "Cruzamentos" do README.
+relationships = []
+
+[limits]
+# Mesmos tetos do dictionary.toml; esta mudança não altera regras de limite ou timeout.
+max_rows = 500
+max_tables = 5
+timeout_ms = 5000
+max_sql_chars = 4000
+
+[policy]
+allowed_functions = [
+    "count",
+    "sum",
+    "avg",
+    "min",
+    "max",
+    "round",
+    "abs",
+    "coalesce",
+    "nullif",
+    "lower",
+    "upper",
+]
+allowed_cast_types = ["int", "bigint", "smallint", "decimal", "double", "float", "text", "varchar", "date"]
+# Recusadas em qualquer identificador, inclusive alias, e negadas pelo autorizador do SQLite.
+sensitive_columns = [
+    # Pessoais, mesmo mascaradas na Gold (decisão GenAI: não expor nem a máscara).
+    "cpf_cnpj",
+    "nome_titular",
+    "logradouro",
+    "numero",
+    "cep",
+    "latitude",
+    "longitude",
+    # Metadados de pipeline (prefixo "_"). Não são pessoais, mas não fazem parte do contrato
+    # analítico; as flags *_conflitante derivam de CPF e nome. Listados um a um porque
+    # reservar o prefixo "_" recusaria também os aliases gerados pelo sqlglot (_col_0, _q_0)
+    # na revalidação do executor.
+    "_cpf_cnpj_conflitante",
+    "_nome_titular_conflitante",
+    "_geo_invalida",
+    "_ligacao_futura",
+    "_ligacao_sentinela",
+    "_arquivo_origem",
+    "_ordem_na_origem",
+    "_lote_id",
+    "_id_registro",
+    "_data_processamento",
+    "_run_id",
+    # Genéricos herdados do dictionary.toml, sem coluna correspondente na Gold v1.
+    "cpf",
+    "cnpj",
+    "nome_cliente",
+    "email",
+    "telefone",
+    "celular",
+    "endereco",
+    "numero_endereco",
+    "complemento",
+    "data_nascimento",
+    "rg",
+]
+reserved_prefixes = ["pg_", "sqlite_", "information_schema"]
+
+# Mesmo conceito, nomes diferentes por tabela no dicionário v1. NÃO há alias nas colunas:
+# cada tabela usa o nome físico real. Quando o grupo congelar os nomes, ajuste só aqui e no
+# bloco [tables.*] afetado; os testes conferem que cada valor é coluna permitida da tabela.
+[concepts.geracao_distribuida]
+# Valores "Sim" / "Não" (o notebook preenche ausência com "Não").
+diagnostico_receita = "possuo_gd"
+visao_360_uc = "possui_gd"
+fila_inspecao = "possui_geracao_solar"
+
+[concepts.classe_consumo]
+diagnostico_receita = "classe_consumo"
+visao_360_uc = "classe"
+fila_inspecao = "classe"
+
+[concepts.alimentador]
+indicadores_dec_fec = "id_alimentador"
+visao_360_uc = "alimentador"
+fila_inspecao = "alimentador"
+
+# ---------------------------------------------------------------------------------------
+# Métricas: aggregation = "sum" (somável entre linhas do mesmo período), "count" (contagem
+# de linhas da chave) ou "ratio" (razão/média já calculada; não somar nem tirar média entre
+# linhas: ler somente no grão da chave). Unidades conforme o dicionário v1.
+# ---------------------------------------------------------------------------------------
+
+[tables.diagnostico_receita]
+description = "Receita, consumo e tarifa efetiva por competência e segmentação tarifária."
+grain = "competência × município × classe × subgrupo tarifário × bandeira × GD"
+key = ["competencia", "municipio", "classe_consumo", "subgrupo_tarifario", "bandeira_tarifaria", "possuo_gd"]
+period_column = "competencia"
+dimensions = ["municipio", "classe_consumo", "subgrupo_tarifario", "bandeira_tarifaria", "possuo_gd"]
+excluded_columns = []
+
+[tables.diagnostico_receita.columns]
+competencia = "text"
+municipio = "text"
+classe_consumo = "text"
+subgrupo_tarifario = "text"
+bandeira_tarifaria = "text"
+possuo_gd = "text"
+qtd_ucs_distintas_faturadas_no_mes = "bigint"
+soma_faturamentos_mensais = "bigint"
+consumo_total_kwh = "double"
+receita_total_reais = "decimal(38,2)"
+ticket_medio_reais_por_uc = "decimal(34,6)"
+consumo_medio_kwh_por_uc = "double"
+tarifa_media_efetiva = "double"
+
+[tables.diagnostico_receita.metrics]
+qtd_ucs_distintas_faturadas_no_mes = { unit = "UCs", aggregation = "sum" }
+soma_faturamentos_mensais = { unit = "faturamentos", aggregation = "sum" }
+consumo_total_kwh = { unit = "kWh", aggregation = "sum" }
+receita_total_reais = { unit = "R$", aggregation = "sum" }
+ticket_medio_reais_por_uc = { unit = "R$/UC", aggregation = "ratio" }
+consumo_medio_kwh_por_uc = { unit = "kWh/UC", aggregation = "ratio" }
+tarifa_media_efetiva = { unit = "R$/kWh", aggregation = "ratio" }
+
+[tables.indicadores_dec_fec]
+description = "DEC e FEC por alimentador e competência, com o município atendido."
+grain = "alimentador × competência"
+key = ["id_alimentador", "competencia"]
+period_column = "competencia"
+dimensions = ["id_alimentador", "municipio"]
+excluded_columns = []
+
+[tables.indicadores_dec_fec.columns]
+id_alimentador = "text"
+municipio = "text"
+competencia = "text"
+total_ucs_alimentador = "bigint"
+ucs_interrompidas = "bigint"
+frequencia_total_interrupcoes = "bigint"
+duracao_total_interrupcoes_horas = "double"
+# Na Gold as colunas se chamam DEC e FEC (maiúsculas). O carregador exige identificador em
+# minúsculas; SQLite e Spark resolvem nomes de coluna sem diferenciar caixa. Em PostgreSQL,
+# uma coluna criada como "DEC" entre aspas NÃO casaria com "dec": confirmar no deploy.
+dec = "double"
+fec = "double"
+
+[tables.indicadores_dec_fec.metrics]
+total_ucs_alimentador = { unit = "UCs", aggregation = "sum" }
+ucs_interrompidas = { unit = "UCs", aggregation = "sum" }
+frequencia_total_interrupcoes = { unit = "interrupções", aggregation = "sum" }
+duracao_total_interrupcoes_horas = { unit = "horas", aggregation = "sum" }
+dec = { unit = "horas", aggregation = "ratio" }
+fec = { unit = "interrupções por UC", aggregation = "ratio" }
+
+[tables.fila_inspecao]
+description = "Uma linha por UC com sinais e prioridade de inspeção de campo."
+grain = "UC"
+key = ["id_uc"]
+dimensions = [
+    "id_uc",
+    "bairro",
+    "municipio",
+    "uf",
+    "classe",
+    "subgrupo_tarifario",
+    "alimentador",
+    "status",
+    "possui_geracao_solar",
+    "prioridade_inspecao",
+]
+excluded_columns = ["cpf_cnpj", "nome_titular", "logradouro", "numero", "cep", "latitude", "longitude"]
+
+[tables.fila_inspecao.columns]
+id_uc = "text"
+bairro = "text"
+municipio = "text"
+uf = "text"
+classe = "text"
+subgrupo_tarifario = "text"
+alimentador = "text"
+data_ligacao = "date"
+status = "text"
+media_consumo_historico = "double"
+total_inspecoes_realizadas = "bigint"
+total_inspecoes_irregulares = "bigint"
+total_chamados_callcenter = "bigint"
+media_satisfacao_atendimento = "double"
+possui_geracao_solar = "text"
+prioridade_inspecao = "text"
+
+[tables.fila_inspecao.metrics]
+id_uc = { unit = "UCs", aggregation = "count" }
+media_consumo_historico = { unit = "kWh", aggregation = "ratio" }
+total_inspecoes_realizadas = { unit = "inspeções", aggregation = "sum" }
+total_inspecoes_irregulares = { unit = "inspeções", aggregation = "sum" }
+total_chamados_callcenter = { unit = "chamados", aggregation = "sum" }
+media_satisfacao_atendimento = { unit = "nota", aggregation = "ratio" }
+
+[tables.fila_inspecao.known_values]
+# Valores gerados pelo notebook. O dicionário v1 cita "Alta, Média, Baixa" só como exemplo.
+prioridade_inspecao = [
+    "ALTA - HISTORICO IRREGULAR",
+    "ALTA - CONSUMO ZERO",
+    "REVISAR - SEM HISTORICO DE CONSUMO",
+    "MEDIA - NUNCA INSPECIONADO",
+    "BAIXA",
+]
+
+[tables.visao_360_uc]
+description = "Uma linha por UC com cadastro não pessoal, atendimento, interrupções e GD."
+grain = "UC"
+key = ["id_uc"]
+dimensions = [
+    "id_uc",
+    "bairro",
+    "municipio",
+    "uf",
+    "classe",
+    "subgrupo_tarifario",
+    "alimentador",
+    "status",
+    "possui_gd",
+]
+excluded_columns = [
+    "cpf_cnpj",
+    "nome_titular",
+    "logradouro",
+    "numero",
+    "cep",
+    "latitude",
+    "longitude",
+    "_cpf_cnpj_conflitante",
+    "_nome_titular_conflitante",
+    "_geo_invalida",
+    "_ligacao_futura",
+    "_ligacao_sentinela",
+    "_arquivo_origem",
+    "_ordem_na_origem",
+    "_lote_id",
+    "_id_registro",
+    "_data_processamento",
+    "_run_id",
+]
+
+[tables.visao_360_uc.columns]
+id_uc = "text"
+bairro = "text"
+municipio = "text"
+uf = "text"
+classe = "text"
+subgrupo_tarifario = "text"
+alimentador = "text"
+data_ligacao = "date"
+status = "text"
+possui_gd = "text"
+total_chamados_callcenter = "bigint"
+media_satisfacao_atendimento = "double"
+total_interrupcoes_sofridas = "bigint"
+duracao_total_interrupcoes_horas = "double"
+media_consumo_historico = "double"
+
+[tables.visao_360_uc.metrics]
+id_uc = { unit = "UCs", aggregation = "count" }
+total_chamados_callcenter = { unit = "chamados", aggregation = "sum" }
+media_satisfacao_atendimento = { unit = "nota", aggregation = "ratio" }
+total_interrupcoes_sofridas = { unit = "interrupções", aggregation = "sum" }
+duracao_total_interrupcoes_horas = { unit = "horas", aggregation = "sum" }
+media_consumo_historico = { unit = "kWh", aggregation = "ratio" }
+
+# Issue #40 (consumo_receita_bairro, variacao_consumo_uc): ainda não existem e os nomes não
+# estão congelados. Para incluir, siga "Acrescentar tabelas da Gold" no README desta pasta.

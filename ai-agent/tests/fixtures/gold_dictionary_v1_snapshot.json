@@ -1,0 +1,116 @@
+{
+  "_source": {
+    "branch": "origin/feat/gold",
+    "commit": "31a80e6162fe123f0ae27b12ebdacc60f36aa6a3",
+    "columns_from": "docs/dicionario_gold.md",
+    "keys_from": "data-engineering/notebook/Silver_to_gold.ipynb (tables_gold_pk)",
+    "note": "Cópia dos nomes e tipos declarados no dicionário v1, sem dados. Atualize junto com o commit quando a Engenharia de Dados publicar outra versão."
+  },
+  "tables": {
+    "visao_360_uc": {
+      "key": ["id_uc"],
+      "columns": {
+        "id_uc": "string",
+        "cpf_cnpj": "string",
+        "nome_titular": "string",
+        "_cpf_cnpj_conflitante": "boolean",
+        "_nome_titular_conflitante": "boolean",
+        "logradouro": "string",
+        "numero": "string",
+        "bairro": "string",
+        "municipio": "string",
+        "uf": "string",
+        "cep": "string",
+        "classe": "string",
+        "subgrupo_tarifario": "string",
+        "alimentador": "string",
+        "data_ligacao": "date",
+        "status": "string",
+        "latitude": "double",
+        "longitude": "double",
+        "_geo_invalida": "boolean",
+        "_ligacao_futura": "boolean",
+        "_ligacao_sentinela": "boolean",
+        "_arquivo_origem": "string",
+        "_ordem_na_origem": "long",
+        "_lote_id": "string",
+        "_id_registro": "long",
+        "_data_processamento": "timestamp",
+        "_run_id": "string",
+        "possui_gd": "string",
+        "total_chamados_callcenter": "long",
+        "media_satisfacao_atendimento": "double",
+        "total_interrupcoes_sofridas": "long",
+        "duracao_total_interrupcoes_horas": "double",
+        "media_consumo_historico": "double"
+      }
+    },
+    "diagnostico_receita": {
+      "key": [
+        "competencia",
+        "municipio",
+        "classe_consumo",
+        "subgrupo_tarifario",
+        "bandeira_tarifaria",
+        "possuo_gd"
+      ],
+      "columns": {
+        "competencia": "string",
+        "municipio": "string",
+        "classe_consumo": "string",
+        "subgrupo_tarifario": "string",
+        "bandeira_tarifaria": "string",
+        "possuo_gd": "string",
+        "qtd_ucs_distintas_faturadas_no_mes": "long",
+        "soma_faturamentos_mensais": "long",
+        "consumo_total_kwh": "double",
+        "receita_total_reais": "decimal(38,2)",
+        "ticket_medio_reais_por_uc": "decimal(34,6)",
+        "consumo_medio_kwh_por_uc": "double",
+        "tarifa_media_efetiva": "double"
+      }
+    },
+    "fila_inspecao": {
+      "key": ["id_uc"],
+      "columns": {
+        "id_uc": "string",
+        "cpf_cnpj": "string",
+        "nome_titular": "string",
+        "logradouro": "string",
+        "numero": "string",
+        "bairro": "string",
+        "municipio": "string",
+        "uf": "string",
+        "cep": "string",
+        "classe": "string",
+        "subgrupo_tarifario": "string",
+        "alimentador": "string",
+        "data_ligacao": "date",
+        "status": "string",
+        "latitude": "double",
+        "longitude": "double",
+        "media_consumo_historico": "double",
+        "total_inspecoes_realizadas": "long",
+        "total_inspecoes_irregulares": "long",
+        "total_chamados_callcenter": "long",
+        "media_satisfacao_atendimento": "double",
+        "possui_geracao_solar": "string",
+        "prioridade_inspecao": "string"
+      }
+    },
+    "indicadores_dec_fec": {
+      "key": ["id_alimentador", "competencia"],
+      "columns": {
+        "id_alimentador": "string",
+        "municipio": "string",
+        "competencia": "string",
+        "total_ucs_alimentador": "long",
+        "ucs_interrompidas": "long",
+        "frequencia_total_interrupcoes": "long",
+        "duracao_total_interrupcoes_horas": "double",
+        "DEC": "double",
+        "FEC": "double"
+      }
+    }
+  }
+}
