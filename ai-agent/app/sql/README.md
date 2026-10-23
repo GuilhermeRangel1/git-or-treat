@@ -1,5 +1,7 @@
 # Camada SQL somente leitura
 
+O autorizador SQLite verifica também as tabelas e colunas físicas acessadas durante a execução. Uma visão com nome permitido não concede acesso a uma tabela fora do dicionário. Essa barreira é aplicada além da validação do SQL e do modo somente leitura.
+
 ## Uso na demonstração HTTP
 
 Com `GENAI_ENVIRONMENT=local`, `GENAI_ENABLE_DEMO_ACCESS=true`, `GENAI_DEMO_SOURCE=sqlite` e `GENAI_DEMO_SQLITE_PATH=<arquivo>`, `app.main:app` compõe o leitor como fonte de evidência da rota de perguntas. O perfil específico aceita faturamento, consumo, interrupções e chamados mensais por dois municípios fictícios em janeiro a março de 2025 e uma janela vazia em abril. A imagem Docker cria `/app/demo.sqlite` a partir de `app.sql.seed_demo`; fora do Docker, execute `python -m app.sql.seed_demo <arquivo>` explicitamente. Falha ou ausência do arquivo não devolve valores da fixture. O modo padrão ainda usa `synthetic.fixture`, e nenhum dos modos consulta Gold.
