@@ -14,7 +14,7 @@ interface MetricCardProps {
 export default function MetricCard({
   metric,
   comparacaoLabel = "vs. período anterior",
-  loteVersao = "Lote Gold 2024.04-sintetico-v1",
+  loteVersao = "panorama-sintetico-2024.04-v1",
   comparisonUnavailable,
   compact = false,
 }: MetricCardProps) {
