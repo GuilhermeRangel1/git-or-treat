@@ -58,6 +58,10 @@ describe("Assistente Grid 360", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Analisando a pergunta e consultando evidências",
     );
+    const sendButton = screen.getByRole("button", { name: "Enviar pergunta" });
+    expect(sendButton).toBeVisible();
+    expect(sendButton).toBeDisabled();
+    expect(screen.queryByText("Enviando")).not.toBeInTheDocument();
     expect(textbox).toBeDisabled();
     resolveResponse(jsonResponse(answered));
     expect(await screen.findByText(answered.answer)).toBeVisible();
@@ -76,6 +80,7 @@ describe("Assistente Grid 360", () => {
     await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
 
     expect(await screen.findByText(answered.answer)).toBeVisible();
+    expect(screen.getByText("Resposta fundamentada")).toBeVisible();
     expect(screen.getByText(/Demonstração sintética/)).toBeVisible();
     expect(screen.getByText(/Cenário artificial de consumo/)).toBeVisible();
     expect(screen.getByText(/2025-01 a 2025-02/)).toBeVisible();
@@ -119,9 +124,85 @@ describe("Assistente Grid 360", () => {
     expect(
       await screen.findByText("Qual período você quer consultar?"),
     ).toBeVisible();
+    expect(screen.getByText("Preciso de um esclarecimento")).toBeVisible();
     expect(
       screen.queryByText(/Demonstração sintética/),
     ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "refused",
+      "Solicitação recusada",
+      "Não posso responder a esse pedido.",
+      { code: "out_of_scope", retryable: false },
+    ],
+    [
+      "no_evidence",
+      "Sem evidência para esse recorte",
+      "Não há dados para esse recorte.",
+      null,
+    ],
+    [
+      "recoverable_error",
+      "Erro recuperável",
+      "A fonte está temporariamente indisponível.",
+      { code: "service_unavailable", retryable: true },
+    ],
+  ] as const)(
+    "identifica explicitamente o estado %s",
+    async (status, label, message, error) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          jsonResponse({
+            contract_version: "v1",
+            status,
+            answer: null,
+            message,
+            error,
+            evidence: [],
+            limitations: [],
+          }),
+        ),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.type(
+        screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+        "Pergunta de teste",
+      );
+      await user.keyboard("{Enter}");
+
+      expect(await screen.findByText(label)).toBeVisible();
+      expect(screen.getByText(message)).toBeVisible();
+    },
+  );
+
+  it("apresenta falha de rede e permite repetir manualmente o envio", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(jsonResponse(answered));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "Como variou o consumo?",
+    );
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByText(
+        /Não foi possível conectar ao serviço de resposta/,
+      ),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByText(answered.answer)).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("envia no máximo três turnos de contexto e mantém a conversa só em memória", async () => {
@@ -158,6 +239,10 @@ describe("Assistente Grid 360", () => {
     await user.type(textbox, "E as interrupções?");
     await user.keyboard("{Enter}");
     await screen.findByText("Há duas interrupções artificiais.");
+
+    const history = screen.getByRole("log", { name: "Histórico da conversa" });
+    expect(history).not.toContainElement(textbox);
+    expect(textbox.closest("form")).not.toBeNull();
 
     const secondRequest = JSON.parse(
       String((fetchMock.mock.calls[2] as [string, RequestInit])[1].body),

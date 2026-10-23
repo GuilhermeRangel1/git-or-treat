@@ -45,6 +45,26 @@ const SUGGESTIONS = [
   "Quantas interrupções existem no cenário de demonstração?",
 ];
 
+const RESPONSE_STATES: Record<
+  AIQuestionResponse["status"],
+  { label: string; appearance: string }
+> = {
+  answered: { label: "Resposta fundamentada", appearance: "text-content" },
+  needs_clarification: {
+    label: "Preciso de um esclarecimento",
+    appearance: "text-brand",
+  },
+  refused: { label: "Solicitação recusada", appearance: "text-danger" },
+  no_evidence: {
+    label: "Sem evidência para esse recorte",
+    appearance: "text-muted",
+  },
+  recoverable_error: {
+    label: "Erro recuperável",
+    appearance: "text-danger",
+  },
+};
+
 function responseContent(response: AIQuestionResponse) {
   return response.status === "answered" ? response.answer! : response.message!;
 }
@@ -91,8 +111,12 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
 
 function AssistantResult({ response }: { response: AIQuestionResponse }) {
   const answered = response.status === "answered";
+  const state = RESPONSE_STATES[response.status];
   return (
     <div className="mt-3 space-y-3">
+      <p className={`text-xs font-semibold ${state.appearance}`}>
+        {state.label}
+      </p>
       <p className="whitespace-pre-wrap text-sm leading-6 text-content">
         {responseContent(response)}
       </p>
@@ -451,7 +475,7 @@ export default function AssistentePage() {
             title="Enviar pergunta"
             disabled={!draft.trim() || mutation.isPending}
             isLoading={mutation.isPending}
-            loadingLabel="Enviando"
+            loadingLabel={null}
             className="size-12 rounded-xl !p-0"
           >
             {!mutation.isPending && (
