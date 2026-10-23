@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import UC360Page from "./UC360Page";
 
@@ -13,9 +13,20 @@ function renderPage(initial = "/uc-360") {
       <MemoryRouter initialEntries={[initial]}>
         <Routes>
           <Route path="/uc-360" element={<UC360Page />} />
+          <Route path="/uc-360/:ucId" element={<UC360Page />} />
         </Routes>
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
+  );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <output data-testid="location">
+      {location.pathname + location.search}
+    </output>
   );
 }
 
@@ -61,6 +72,9 @@ describe("UC 360 search flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Buscar UC" }));
     expect(await screen.findByRole("button", { name: /UC-1001/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /UC-1001/ }));
+    expect(await screen.findByText("UC UC-1001")).toBeTruthy();
+    expect(screen.queryByLabelText("Número da UC")).toBeNull();
+    expect(screen.getByTestId("location").textContent).toBe("/uc-360/UC-1001");
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/UC-1001/overview"),
@@ -70,6 +84,9 @@ describe("UC 360 search flow", () => {
     expect(
       await screen.findByText("A unidade informada não foi encontrada."),
     ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Nova busca" }));
+    expect(screen.getByLabelText("Número da UC")).toBeTruthy();
+    expect(screen.getByTestId("location").textContent).toBe("/uc-360");
   });
 
   it("blocks API calls for a duplicated URL query", async () => {
@@ -77,6 +94,21 @@ describe("UC 360 search flow", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderPage("/uc-360?q=1001&q=1002");
     expect(screen.getByRole("alert").textContent).toContain("duplicado");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("moves a legacy UC query to the detail route and preserves invalid parameters", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderPage("/uc-360?uc=UC-1001&q=one&q=two");
+    expect(await screen.findByText("UC UC-1001")).toBeTruthy();
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/uc-360/UC-1001?q=one&q=two",
+    );
+    expect(screen.getByRole("alert").textContent).toContain("duplicado");
+    expect(screen.queryByLabelText("Número da UC")).toBeNull();
+    expect(screen.queryByText(/Nenhuma UC selecionada/)).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -230,13 +262,17 @@ describe("UC 360 search flow", () => {
       },
     });
     renderPage("/uc-360?uc=UC-1001");
-    expect(await screen.findByText("0 kWh")).toBeTruthy();
-    expect(screen.getByText("R$ 105,00")).toBeTruthy();
+    expect((await screen.findAllByText("0 kWh")).length).toBeGreaterThan(0);
     expect(
-      screen.getAllByText(
-        (content) => content.includes("100 kWh") && content.includes("100%"),
-      ).length,
-    ).toBeGreaterThan(0);
+      screen.getByRole("columnheader", { name: "Competência" }),
+    ).toBeTruthy();
+    const historyDisclosure = screen
+      .getByText("Históricos por fonte")
+      .closest("details");
+    expect(historyDisclosure?.open).toBe(false);
+    expect(screen.getAllByText("R$ 105,00").length).toBeGreaterThan(0);
+    expect(screen.getByText("-100 kWh")).toBeTruthy();
+    expect(screen.getByText("-100%")).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Fatos observados" }),
     ).toBeTruthy();
@@ -245,13 +281,14 @@ describe("UC 360 search flow", () => {
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Ver detalhes" }));
     expect(
-      await screen.findByRole("heading", { name: "Fontes da unidade" }),
+      await screen.findByRole("heading", { name: "Histórico e fontes da UC" }),
     ).toBeTruthy();
     fireEvent.click(
       screen.getAllByRole("button", { name: "Abrir histórico" })[5],
     );
-    expect(await screen.findByText("CH-01")).toBeTruthy();
-    expect(screen.getByText("Chamado")).toBeTruthy();
+    expect(historyDisclosure?.open).toBe(true);
+    expect((await screen.findAllByText("CH-01")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Chamado").length).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/history/calls"),
       expect.anything(),
@@ -259,10 +296,10 @@ describe("UC 360 search flow", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Faturas e pagamentos" }),
     );
-    expect(await screen.findByText("R$ 82,00")).toBeTruthy();
-    expect(screen.getByText("R$ 70,00")).toBeTruthy();
-    expect(screen.getByText("Data do pagamento")).toBeTruthy();
-    expect(screen.getByText("75 kWh")).toBeTruthy();
+    expect((await screen.findAllByText("R$ 82,00")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("R$ 70,00").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Data do pagamento").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("75 kWh").length).toBeGreaterThan(0);
   });
 
   it("states meter and comparison gaps in plain language when the final reading is missing", async () => {
@@ -390,7 +427,7 @@ describe("UC 360 search flow", () => {
       ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Medidores" }));
-    expect(await screen.findByText("MED-004")).toBeTruthy();
+    expect((await screen.findAllByText("MED-004")).length).toBeGreaterThan(0);
     expect(screen.getByText(/1 registro · fonte dev04-v1/)).toBeTruthy();
     expect(
       fetchMock.mock.calls.some(([url]) =>
@@ -404,9 +441,9 @@ describe("UC 360 search flow", () => {
         /Não há dois valores disponíveis para comparar consumo medido/,
       ),
     ).toBeTruthy();
-    const limitation = screen.getByText(
+    const limitation = screen.getAllByText(
       /período atual: consumo medido sem leitura final/,
-    );
+    )[0];
     expect(limitation.textContent).not.toContain("measured_energy_kwh");
     expect(limitation.textContent).toContain("sem leitura final");
   });
