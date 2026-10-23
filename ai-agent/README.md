@@ -1,8 +1,14 @@
 # Agente de IA
 
-Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; os adaptadores Gemini e Groq são opcionais e ficam desativados por padrão. O Backend tem uma rota provisória que encaminha perguntas para este serviço, mas a tela do portal ainda não a utiliza. As evidências continuam sintéticas, sem integração com Gold. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md), [contrato de chat](../docs/contracts/genai-chat-api.md) e [PRD](../docs/PRD.md).
+Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; os adaptadores Gemini e Groq são opcionais. A rota `/assistente` do portal encaminha perguntas pelo Backend até este serviço. As evidências continuam sintéticas, sem integração com Gold. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md), [contrato de chat](../docs/contracts/genai-chat-api.md) e [PRD](../docs/PRD.md).
 
 Os endpoints podem ser exercitados localmente com adaptadores simulados. Resultados sintéticos demonstram fluxo e contrato, não números reais nem requisitos concluídos no PRD.
+
+## Chat do portal com Docker Compose
+
+O Compose inicia o serviço GenAI junto com Backend e frontend; a porta 8001 fica somente na rede interna. Para usar o Gemini localmente, configure `ai-agent/.env` com `GENAI_ENVIRONMENT=local`, `GENAI_ENABLE_DEMO_ACCESS=true`, `GENAI_SERVICE_API_TOKEN`, `GENAI_MODEL_PROVIDER=gemini` e `GENAI_GEMINI_API_KEY`. Configure o mesmo token em `backend/.env` como `AI_AGENT_SERVICE_API_TOKEN` e a URL interna `AI_AGENT_BASE_URL=http://ai-agent:8001`. Os arquivos `.env` são privados e ignorados pelo Git.
+
+Na raiz do repositório, execute `docker compose up --build` e abra `http://localhost:5173/assistente`. A tela chama apenas o Backend; a chave do Gemini permanece no serviço GenAI. As respostas usam cenários artificiais, mostram evidências e limitações e não representam dados da Gold. Contexto de conversa existe somente na memória da tela e é limitado a três turnos enviados por chamada.
 
 ## Preparar o ambiente local
 

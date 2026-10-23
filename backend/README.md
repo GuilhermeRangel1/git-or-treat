@@ -67,7 +67,16 @@ Invoke-RestMethod -Method Post `
   -Body '{"contract_version":"v1","question":"Qual foi o consumo no período de demonstração?","context":[]}'
 ```
 
-Sem provedor de modelo configurado, o GenAI responde com erro recuperável no envelope de negócio; isso ainda permite verificar o encaminhamento. Para obter uma resposta sintética gerada por modelo, configure um provedor no ambiente local do GenAI. O token autentica apenas os serviços entre si; não representa uma pessoa usuária ou autorização para a Gold. A tela de chat ainda não consome esta rota.
+Sem provedor de modelo configurado, o GenAI responde com erro recuperável no envelope de negócio; isso ainda permite verificar o encaminhamento. Para obter uma resposta sintética gerada por modelo, configure um provedor no ambiente local do GenAI. O token autentica apenas os serviços entre si; não representa uma pessoa usuária ou autorização para a Gold.
+
+### Chat do portal no Docker Compose
+
+A rota `/assistente` do portal envia perguntas para este endpoint. O Compose também sobe o serviço GenAI, acessível ao Backend somente na rede interna. Para ativar a demonstração local, configure nos arquivos ignorados pelo Git:
+
+- `backend/.env`: `AI_AGENT_BASE_URL=http://ai-agent:8001` e `AI_AGENT_SERVICE_API_TOKEN`;
+- `ai-agent/.env`: o mesmo `GENAI_SERVICE_API_TOKEN`, `GENAI_ENVIRONMENT=local`, `GENAI_ENABLE_DEMO_ACCESS=true`, `GENAI_MODEL_PROVIDER=gemini` e `GENAI_GEMINI_API_KEY`.
+
+Os dois tokens de serviço devem ser iguais e ter pelo menos 32 caracteres. A chave Gemini fica apenas em `ai-agent/.env`; nunca use `VITE_*` ou envie credenciais ao navegador. Com `.env.db`, `backend/.env` e `ai-agent/.env` preparados, execute `docker compose up --build` na raiz e abra `http://localhost:5173/assistente`. A conversa fica em memória no navegador e consulta somente os cenários artificiais desta versão; não usa Gold e não persiste histórico.
 
 ## Contratos analíticos de desenvolvimento
 
