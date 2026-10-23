@@ -644,6 +644,55 @@ def test_follow_up_context_is_transient_between_api_requests() -> None:
     assert without_context.json()["status"] == "needs_clarification"
 
 
+def test_unrelated_reply_to_missing_period_clarification_repeats_the_period_request() -> None:
+    tool = RecordingScenarioTool()
+    model = RecordingModelAdapter()
+    with _client(model_adapter=model, scenario_tool=tool) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={
+                "question": "consultar",
+                "context": [
+                    {"role": "user", "content": "Como está o consumo?"},
+                    {
+                        "role": "assistant",
+                        "content": GRID360_DEMO_PROFILE.clarifications.missing_period,
+                    },
+                ],
+            },
+        )
+
+    assert response.json()["status"] == "needs_clarification"
+    assert response.json()["message"] == GRID360_DEMO_PROFILE.clarifications.missing_period
+    assert tool.requests == []
+    assert model.calls == []
+
+
+def test_period_reply_to_clarification_completes_the_original_question() -> None:
+    tool = RecordingScenarioTool()
+    with _client(scenario_tool=tool) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={
+                "question": "no período de demonstração",
+                "context": [
+                    {"role": "user", "content": "Como está o consumo?"},
+                    {
+                        "role": "assistant",
+                        "content": GRID360_DEMO_PROFILE.clarifications.missing_period,
+                    },
+                ],
+            },
+        )
+
+    assert response.json()["status"] != "needs_clarification"
+    assert len(tool.requests) == 1
+    intent = tool.requests[0]
+    assert intent.domain_id == "consumption"
+    assert intent.metric_id == "energy.consumption"
+    assert intent.window.phrase == "período de demonstração"
+
+
 def test_follow_up_does_not_skip_ambiguous_latest_user_turn() -> None:
     tool = CountingScenarioTool()
     with _client(scenario_tool=tool) as client:

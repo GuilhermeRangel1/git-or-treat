@@ -67,10 +67,32 @@ class QuestionInterpreter:
         question: str,
         context: list[ConversationTurn] | None = None,
     ) -> IntentInterpretation:
-        previous_intent = self._previous_intent(context or [])
+        turns = context or []
+        pending_period_question = self._pending_period_question(turns)
+        current_question_has_metric = bool(
+            _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
+        )
+        if pending_period_question is not None and not current_question_has_metric:
+            combined_question = f"{pending_period_question} {question}"
+            return self._interpret(combined_question, None)
+
+        previous_intent = self._previous_intent(turns)
         if previous_intent is not None and not self._is_follow_up(question, previous_intent):
             previous_intent = None
         return self._interpret(question, previous_intent)
+
+    def _pending_period_question(self, context: list[ConversationTurn]) -> str | None:
+        if len(context) < 2:
+            return None
+
+        previous_user, previous_assistant = context[-2:]
+        if (
+            previous_user.role == "user"
+            and previous_assistant.role == "assistant"
+            and previous_assistant.content == self._profile.clarifications.missing_period
+        ):
+            return previous_user.content
+        return None
 
     def _is_follow_up(self, question: str, previous_intent: AnalysisIntent) -> bool:
         normalized = _normalize(question).strip()
