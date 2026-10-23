@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+import pytest
+
 from app.core.config import settings
 from app.repositories.analytics import (
     AnalyticsSourceUnavailable,
@@ -470,5 +472,61 @@ def test_search_result_with_profile_but_no_analytic_coverage_still_opens(client)
             ],
         }
         assert set(data["section_status"].values()) == {"unavailable"}
+    finally:
+        app.dependency_overrides.pop(get_analytics_repository, None)
+
+
+@pytest.mark.parametrize(
+    "measure", ["paid_amount", "billed_amount", "billed_energy_kwh"]
+)
+def test_invoice_gaps_remain_partial_on_every_page(client, measure):
+    repo = SyntheticAnalyticsRepository()
+    repo.invoices[0][measure] = None
+    app = _use_repository(repo)
+    try:
+        for page in (1, 2, 3):
+            response = client.get(
+                "/api/v1/ucs/UC-1001/history/invoices",
+                params={"page": page, "page_size": 1},
+            )
+            assert response.status_code == 200
+            body = response.json()
+            assert body["metadata"]["status"] == "partial"
+            assert any(
+                measure in message for message in body["metadata"]["limitations"]
+            )
+            assert body["pagination"]["total"] == 2
+    finally:
+        app.dependency_overrides.pop(get_analytics_repository, None)
+
+
+@pytest.mark.parametrize("missing_rows", [False, True])
+def test_no_known_consumption_is_unavailable_without_losing_months(
+    client, missing_rows
+):
+    repo = SyntheticAnalyticsRepository()
+    if missing_rows:
+        repo.readings = [row for row in repo.readings if row["uc_id"] != "UC-1001"]
+    else:
+        for row in repo.readings:
+            if row["uc_id"] == "UC-1001":
+                row["measured_energy_kwh"] = None
+    app = _use_repository(repo)
+    try:
+        response = client.get("/api/v1/ucs/UC-1001/history/consumption")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["metadata"]["status"] == "unavailable"
+        assert {row["competencia"] for row in body["data"]["items"]} == {
+            "2025-01", "2025-02"
+        }
+        assert all(
+            row["measured_energy_kwh"] is None for row in body["data"]["items"]
+        )
+        overview = client.get("/api/v1/ucs/UC-1001/overview")
+        assert overview.status_code == 200
+        assert (
+            overview.json()["data"]["section_status"]["consumption"] == "unavailable"
+        )
     finally:
         app.dependency_overrides.pop(get_analytics_repository, None)
