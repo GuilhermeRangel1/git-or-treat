@@ -19,7 +19,7 @@ Use as versões retornadas pelo detalhe, sem fixá-las no cliente. As duas vers�
 
 - 201: nova ordem PENDENTE, commit confirmado.
 - 200: mesma chave/conteúdo normalizado retorna a mesma ordem, inclusive após encerramento.
-- 409: chave reutilizada com outro conteúdo/UC, versão obsoleta ou ordem ativa para a mesma suspeita.
+- 409: chave reutilizada com outro conteúdo/UC, versão obsoleta ou ordem ativa para a mesma UC.
 - 404: UC sem suspeita. 422: entrada/header inválidos. 401/403: acesso negado. 503: fonte/acesso indisponíveis.
 
 `suspicion_reference` identifica UC + kind/version/is_demo da fonte + versão da regra por SHA-256. `updated_at` não cria nova identidade: a versão da fonte precisa identificar snapshot imutável. `suspicion_snapshot` preserva detalhe e metadados completos: motivo, sinais, pontuação, estimativa, janela, atualização e limites. Estimativa ausente continua nula. Gold e inspeções históricas XLSX não são alteradas.
@@ -28,9 +28,11 @@ O JSON persistido usa `snapshot_schema_version: "1"`, com modelo operacional ind
 
 ## Repetição e concorrência
 
-Uma ordem PENDENTE/EM_ANDAMENTO por referência da suspeita. Cancelamento/conclusão libera uma nova intenção/chave, preservando o registro anterior; repetir a chave antiga continua retornando a ordem original. A mesma UC pode ter investigação em outra versão da fonte/regra.
+Uma ordem PENDENTE/EM_ANDAMENTO por UC, conforme [ADR-0011](../decisions/0011-ordem-ativa-por-uc.md), alinhada à DEV-07. A regra cobre criações manuais e pela fila e independe da versão da fonte/regra. Cancelamento/conclusão libera nova intenção/chave, preservando o registro anterior; repetir a chave antiga continua retornando a ordem original.
 
-Índice único global da chave e índice parcial único da referência nos estados ativos (nomes persistidos PENDING/IN_PROGRESS) protegem múltiplos processos. A consulta prévia não é a garantia de exclusividade. Falha executa rollback; colisão concorrente consulta a ordem vencedora ou retorna conflito. Chaves não expiram automaticamente. O provedor analítico configurado ainda pode precisar estar disponível para resolver a dependência HTTP em um reenvio.
+Índice único global da chave e índice parcial único da UC nos estados ativos (nomes persistidos PENDING/IN_PROGRESS) protegem múltiplos processos. A consulta prévia não é a garantia de exclusividade. Falha executa rollback; colisão concorrente consulta a ordem vencedora ou retorna conflito. Chaves não expiram automaticamente. O provedor analítico é resolvido sob demanda, somente após a consulta da chave: reenvio confirmado retorna 200 mesmo com fonte indisponível; intenção nova recebe 503 sem gravar nada. Conteúdo divergente recebe 409 antes de consultar a fonte. Autorização e validação HTTP continuam obrigatórias.
+
+Conflitos preservam `detail` como string, para clientes existentes, e acrescentam `error: {code, message, order_id}`. Códigos: `idempotency_key_reused`, `stale_suspicion`, `active_order_exists`; transições existentes usam `order_conflict`. `order_id` identifica a ordem relacionada ou é nulo (exemplo: versão obsoleta). O frontend pode usar o ID para consultar `/orders/{id}` sem interpretar texto. O schema 409 é publicado no OpenAPI; criação manual e atualização também usam esse envelope.
 
 No cliente, uma chave por intenção, reutilizada após perda de resposta. Desabilitar envio em andamento e mostrar sucesso apenas depois de 200/201 com JSON validado. Navegar/recarregar gera nova intenção na UI básica; a restrição de ordem ativa continua impedindo duplicação.
 
@@ -40,13 +42,15 @@ No cliente, uma chave por intenção, reutilizada após perda de resposta. Desab
 
 `items` usa `OrderSummary`, com ID, UC, motivo, prioridade, estado, observações/resultado, timestamps e referência da suspeita; não inclui `suspicion_snapshot`. A consulta SQL seleciona somente essas colunas e conta por ID, sem carregar o JSON. Evidência completa permanece no GET por ID e nas respostas de criação/reenvio. Página além do total é devolvida antes de enviar offset ao banco, inclusive para inteiros maiores que BIGINT; mantém os totais e evita erro 500.
 
-`GET /api/v1/inspections/orders/{id}` retorna registro ou 404 independentemente da fonte analítica. Leitura exige token de leitura ou escrita. Ordens antigas têm campos novos nulos. `GET /orders` mantém lista antiga por compatibilidade; clientes novos usam `/orders/search`. `POST /orders` mantém criação manual anterior, sem vínculo analítico e fora da regra de identidade de suspeita; o portal usa exclusivamente criação pela fila.
+`GET /api/v1/inspections/orders/{id}` retorna registro ou 404 independentemente da fonte analítica. Leitura exige token de leitura ou escrita. Ordens antigas têm campos novos nulos. `GET /orders` mantém lista antiga por compatibilidade; clientes novos usam `/orders/search`. `POST /orders` mantém criação manual sem vínculo analítico, agora sujeita à mesma unicidade por UC, com 409 estruturado para repetição; o portal usa exclusivamente criação pela fila.
 
 `PATCH /orders/{id}` preserva ADR-0007: PENDENTE inicia/cancela, EM_ANDAMENTO conclui/cancela, conclusão exige resultado, estados finais não reabrem. A UI básica só cria/consulta. Snapshot de criação não substitui auditoria durável das alterações nem identidade individual de operador, ainda pendentes em WEB-05/WEB-10.
 
 ## Execução e integração do frontend
 
 Aplicar `alembic upgrade head` sobre banco existente, inclusive SQLite. Revisão `a6d060000001` acrescenta campos nulos e índices sem perder ordens antigas. Downgrade remove os novos campos/evidências: requer backup adequado fora do banco descartável.
+
+A revisão seguinte, `a6d060000002`, verifica duplicidades ativas por UC antes de substituir o índice por referência. Se encontrar duplicidades, interrompe a migração para reconciliação manual, sem apagar/cancelar ordens. Após resolver a duplicidade de acordo com a operação, reaplicar o upgrade. O histórico, snapshots e chaves existentes são preservados.
 
 API: `DATABASE_URL` persistente, `ANALYTICS_SOURCE=synthetic`, `ORDERS_WRITE_TOKEN` privado. SQLite em memória não comprova reinício.
 
@@ -70,3 +74,9 @@ Referência consultada via Figma MCP: arquivo `oTjmpIBgbA7OOYb9ZmMG9K`, frame `1
 - `python -m pytest -q` com PostgreSQL 18 descartável: **214 aprovados, sem pulados**. `python -m compileall -q app tests scripts`: aprovado. Novas regressões cobrem páginas extremas, projeção SQL sem JSON, snapshots legados após evolução do DTO analítico e interleaving concorrente.
 - Frontend integrado: **130 testes em 17 arquivos**, lint, fronteiras (89 arquivos), build/tipos e format:check aprovados. A tela básica continua usando os mesmos campos do resumo. `git diff --check` aprovado.
 - Context7: [seleção de colunas no SQLAlchemy](https://docs.sqlalchemy.org/en/20/orm/queryguide/select.html#selecting-individual-attributes). Revisões de padrões e requisitos não identificaram bloqueadores nos ajustes; reconciliação Gold e revisão humana permanecem pendentes.
+
+### Recuperação e alinhamento operacional — 23/10/2026
+
+- `python -m pytest -q`, PostgreSQL 18 descartável: **221 aprovados, sem pulados**; compileall aprovado. Novas regressões: fonte indisponível sem sequer resolver o provedor em replay; conflito estruturado; unicidade entre versões e criação manual; falha de inserção com rollback da chave; falha em `refresh` após commit com recuperação por reenvio; migração com duplicidades preservadas em SQLite e PostgreSQL.
+- Concorrência PostgreSQL também cobre duas versões da fonte e disputa entre criação manual e pela fila. O índice arbitra uma única ordem ativa por UC. Downgrade/upgrade e drift entre migração/modelos aprovados.
+- Frontend: **130 aprovados em 17 arquivos**, build/tipos, lint, fronteiras (89 arquivos) e format:check aprovados. `detail` textual preservado; nenhum ajuste visual necessário.
