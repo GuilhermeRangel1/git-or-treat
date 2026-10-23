@@ -58,7 +58,7 @@ def _active_conflict(order: InspectionOrder) -> OrderConflictError:
     )
 
 
-def create_order(db: Session, payload: OrderCreateRequest) -> InspectionOrder:
+def create_order(db: Session, payload: OrderCreateRequest, *, actor: str = "orders-writer") -> InspectionOrder:
     active = _active_order(db, payload.uc_id)
     if active:
         raise _active_conflict(active)
@@ -70,6 +70,7 @@ def create_order(db: Session, payload: OrderCreateRequest) -> InspectionOrder:
     try:
         db.commit()
         db.refresh(order)
+        logger.info("inspection_order_created", extra={"order_id": order.id, "actor": actor})
         return order
     except IntegrityError:
         db.rollback()
@@ -95,7 +96,7 @@ def _replay(db: Session, key: str, fingerprint: str) -> InspectionOrder | None:
 
 def create_from_queue(
     db: Session, repository_provider: Callable[[], AnalyticsRepository], uc_id: str,
-    payload: QueueOrderCreateRequest, key: str,
+    payload: QueueOrderCreateRequest, key: str, *, actor: str = "orders-writer",
 ) -> tuple[InspectionOrder, bool]:
     fingerprint = _fingerprint({"uc_id": uc_id, **payload.model_dump()})
     existing = _replay(db, key, fingerprint)
@@ -141,6 +142,7 @@ def create_from_queue(
         db.rollback()
         raise
     db.refresh(order)
+    logger.info("inspection_order_created", extra={"order_id": order.id, "actor": actor})
     return order, True
 
 
@@ -169,7 +171,7 @@ def search_orders(db: Session, status_filter: OrderStatus | None, uc_id: str | N
     })
 
 
-def update_order(db: Session, order_id: int, payload: OrderUpdateRequest) -> Optional[InspectionOrder]:
+def update_order(db: Session, order_id: int, payload: OrderUpdateRequest, *, actor: str = "orders-writer") -> Optional[InspectionOrder]:
     order = db.query(InspectionOrder).filter(InspectionOrder.id == order_id).first()
     if not order:
         return None
@@ -202,6 +204,6 @@ def update_order(db: Session, order_id: int, payload: OrderUpdateRequest) -> Opt
     if target != previous:
         logger.info("inspection_order_status_changed", extra={
             "order_id": order_id, "previous_status": previous.value,
-            "new_status": target.value, "actor": "orders-writer",
+            "new_status": target.value, "actor": actor,
         })
     return order

@@ -1,4 +1,5 @@
-from typing import List, Union
+from typing import List, Literal, Union
+from urllib.parse import urlsplit
 from pydantic import AnyHttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
@@ -22,6 +23,11 @@ class Settings(BaseSettings):
 
     ORDERS_READ_TOKEN: SecretStr | None = None
     ORDERS_WRITE_TOKEN: SecretStr | None = None
+    APP_ENV: Literal["development", "production"] = "development"
+    ORDERS_AUTH_MODE: Literal["service", "oidc"] = "service"
+    OIDC_ISSUER: str | None = None
+    OIDC_AUDIENCE: str | None = None
+    OIDC_JWKS_URL: str | None = None
 
     @model_validator(mode="after")
     def validate_order_tokens(self):
@@ -30,6 +36,18 @@ class Settings(BaseSettings):
             raise ValueError("Credenciais de ordens devem ter ao menos 32 caracteres.")
         if len(tokens) == 2 and tokens[0] == tokens[1]:
             raise ValueError("Credenciais de leitura e escrita devem ser distintas.")
+        if self.APP_ENV == "production" and self.ORDERS_AUTH_MODE != "oidc":
+            raise ValueError("Produção exige autenticação individual OIDC nas ordens.")
+        if self.ORDERS_AUTH_MODE == "oidc":
+            if tokens:
+                raise ValueError("OIDC não aceita credenciais compartilhadas de serviço em paralelo.")
+            if not self.OIDC_AUDIENCE or not self.OIDC_AUDIENCE.strip():
+                raise ValueError("Configure a audiência OIDC da API.")
+            for value in (self.OIDC_ISSUER, self.OIDC_JWKS_URL):
+                parsed = urlsplit(value or "")
+                if (parsed.scheme != "https" or not parsed.hostname or parsed.username
+                        or parsed.password or parsed.query or parsed.fragment):
+                    raise ValueError("Emissor e JWKS OIDC devem ser URLs HTTPS explícitas, sem credenciais ou parâmetros.")
         return self
 
     # Database (PostgreSQL com driver psycopg 3)

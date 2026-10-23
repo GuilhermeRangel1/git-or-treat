@@ -77,3 +77,9 @@ class OrderConflictDetail(BaseModel):
 class OrderConflictResponse(BaseModel):
     detail: str
     error: OrderConflictDetail
+
+
+class OrderAccessResponse(BaseModel):
+    actor: str
+    auth_mode: Literal["service", "oidc"]
+    permissions: list[Literal["orders:read", "orders:write"]]
