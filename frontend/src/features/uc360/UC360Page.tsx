@@ -57,15 +57,15 @@ function Metric({
       ? "Percentual indisponível"
       : `${change.percent_change > 0 ? "+" : ""}${decimal.format(change.percent_change)}%`;
   return (
-    <article className="grid min-h-40 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
+    <article className="grid min-w-0 min-h-40 content-center gap-2 rounded-xl bg-surface px-3 py-4 text-center sm:px-4 sm:py-5">
       <h3 className="text-sm text-muted">{title}</h3>
-      <p className="font-heading text-3xl font-semibold text-content">
+      <p className="break-words font-heading text-xl font-semibold text-content sm:text-2xl xl:text-3xl">
         {amount(current.value, unit)}
       </p>
       <p className="text-xs text-muted">
         Anterior: {amount(before.value, unit)}
       </p>
-      <p className="text-sm font-medium text-content">
+      <p className="break-words text-xs font-medium text-content sm:text-sm">
         {delta} · {percent}
       </p>
       <p className="text-xs text-muted">
@@ -410,9 +410,15 @@ export default function UC360Page() {
                 </p>
               )}
               <section
-                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-                aria-label="Comparação do período"
+                className="grid grid-cols-2 gap-3 xl:grid-cols-4"
+                aria-labelledby="uc-comparison-title"
               >
+                <h3
+                  id="uc-comparison-title"
+                  className="col-span-full font-heading text-lg font-semibold text-content"
+                >
+                  Comparação entre competências
+                </h3>
                 <Metric
                   title="Consumo medido"
                   current={selected.comparison.final.measured_energy_kwh}
@@ -450,12 +456,71 @@ export default function UC360Page() {
                   period={selected.comparison.final.competencia}
                 />
               </section>
-              <p className="rounded-lg bg-surface p-3 text-sm text-content">
-                Faturas em aberto na janela:{" "}
-                {selected.open_invoices.count ?? "Sem dado"} ·{" "}
-                {statusLabel(selected.open_invoices.status)}. Pagamentos
-                vinculados às faturas não representam caixa por competência.
-              </p>
+              <section
+                className="grid gap-3"
+                aria-labelledby="uc-additional-indicators-title"
+              >
+                <h3
+                  id="uc-additional-indicators-title"
+                  className="font-heading text-lg font-semibold text-content"
+                >
+                  Outros indicadores da unidade
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <article className="grid min-w-0 content-center gap-2 rounded-xl border border-control bg-surface p-3 sm:p-4">
+                    <h4 className="text-sm text-muted">Faturas em aberto</h4>
+                    <p className="break-words font-heading text-xl font-semibold text-content sm:text-2xl">
+                      {selected.open_invoices.count ?? "Sem dado"}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {selected.period.start} a {selected.period.end} ·{" "}
+                      {statusLabel(selected.open_invoices.status)}
+                    </p>
+                    <p className="text-xs text-muted">
+                      Contagem por competência; saldo e atraso não calculados.
+                    </p>
+                    {selected.open_invoices.limitations.length > 0 && (
+                      <p className="text-xs text-muted">
+                        {selected.open_invoices.limitations
+                          .map(humanizeLimitation)
+                          .join(" ")}
+                      </p>
+                    )}
+                  </article>
+                  <article className="grid min-w-0 content-center gap-2 rounded-xl border border-control bg-surface p-3 sm:p-4">
+                    <h4 className="text-sm text-muted">Geração distribuída</h4>
+                    {selected.distributed_generation.items.length > 0 ? (
+                      <p className="break-words font-heading text-lg font-semibold text-content sm:text-xl">
+                        {selected.distributed_generation.items
+                          .map(
+                            (item) => `${decimal.format(item.capacity_kw)} kW`,
+                          )
+                          .join(" · ")}
+                      </p>
+                    ) : (
+                      <p className="font-heading text-xl font-semibold text-content sm:text-2xl">
+                        {selected.distributed_generation.status === "empty"
+                          ? "Sem cadastro"
+                          : "Sem dado"}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted">
+                      {statusLabel(selected.distributed_generation.status)} ·
+                      cadastro no snapshot
+                    </p>
+                    <p className="text-xs text-muted">
+                      Potência em kW; não representa energia compensada.
+                    </p>
+                    {selected.distributed_generation.limitations.length > 0 && (
+                      <p className="text-xs text-muted">
+                        {selected.distributed_generation.limitations
+                          .map(humanizeLimitation)
+                          .join(" ")}
+                      </p>
+                    )}
+                  </article>
+                </div>
+              </section>
               <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.85fr)] 2xl:items-start">
                 <HistoryPanel
                   section={state.section || null}
