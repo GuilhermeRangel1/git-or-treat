@@ -69,6 +69,8 @@ uvicorn app.main:app --reload --port 8000
 
 ## Acesso às ordens e limites de entrada
 
+DEV-06: [contrato de criação pela fila e consulta paginada](../docs/contracts/inspection-orders-dev06.md). Aplicar `alembic upgrade head` antes de iniciar sobre banco existente. O portal básico usa `POST /inspections/queue/{uc_id}/orders` com `Idempotency-Key` e versões do detalhe; consulta por `/inspections/orders/search` e `/inspections/orders/{id}`. O prefixo completo é `/api/v1`. O proxy Vite de desenvolvimento recebe `ORDERS_DEV_PROXY_TOKEN` no servidor, com `VITE_API_URL=/`; produção continua dependendo de identidade/BFF próprios.
+
 As rotas `/api/v1/inspections/orders` agora ficam bloqueadas sem autenticação de serviço. Configure no servidor `ORDERS_READ_TOKEN` e/ou `ORDERS_WRITE_TOKEN`, usando valores aleatórios distintos com pelo menos 32 caracteres. Leitor somente lista; escritor lista/cria/altera. O Swagger oferece o esquema `OrdersServiceToken` em Authorize. Não coloque esses valores em `VITE_*`, URLs, commits ou código frontend. Eles não são login de usuário; a futura UI operacional precisa de sessão/BFF ou identidade própria. Sem configuração, o Panorama sintético continua funcionando e ordens permanecem fechadas.
 
 Para criar cada valor, execute localmente `python -c "import secrets; print(secrets.token_urlsafe(32))"` e armazene apenas em configuração privada. A alteração requer reiniciar/recriar o backend. Em produção, use HTTPS e rotacione as credenciais.

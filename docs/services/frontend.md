@@ -6,6 +6,8 @@ O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente
 
 ## Arquitetura adotada
 
+A DEV-06 acrescenta criação no detalhe da suspeita e consulta básica em `/ordens`, com UC/estado/página na URL. Sucesso exige confirmação do servidor e reenvio reutiliza a chave da intenção. O proxy Vite pode receber `ORDERS_DEV_PROXY_TOKEN` somente no processo servidor; nenhum token deve entrar em `VITE_*`. Interface simples por decisão da pessoa usuária, para a pessoa responsável pelo frontend continuar o acabamento e as ações. Veja [contrato e evidências DEV-06](../contracts/inspection-orders-dev06.md).
+
 Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para estrutura, limites de importação, layout persistente, tema, transporte HTTP e política de estado. A primeira fatia visual cobre apenas navegação, apresentação visual do Panorama e textos superiores das demais páginas, até antes dos filtros ou conteúdo operacional.
 
 A DEV-01 usa TanStack Query e o transporte existente na rota `/dev/contratos`, somente em desenvolvimento e sem item no menu. Ela valida o contrato de indicadores em execução, consulta a API real e mostra demonstração, disponibilidade e proveniência. O build de produção exclui essa página. Veja [contratos](../contracts/analytics-api.md), [desenho](../design/2026-10-20-dev01-design.md) e [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md). A rota não implementa os dashboards ou conclui suas jornadas.
