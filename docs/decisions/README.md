@@ -10,3 +10,5 @@ Registre aqui escolhas que alterem contratos, métricas, banco, frameworks, priv
 - [ADR-0006 — Contrato de produto do Panorama em rota própria](0006-panorama-fonte-produto-e-contrato-dev01.md): aprovada em 21/10/2026 para publicar a WEB-01 em `GET /api/v1/panorama`, preservando o contrato analítico da DEV-01 em `GET /api/v1/kpis`.
 
 - [ADR-0007 — Contenção de segurança das ordens e entradas](0007-contencao-seguranca-ordens-e-entradas.md): política conservadora implementada na correção de 21/10/2026; revisão do time pendente.
+- [ADR-0008 — Exploração demonstrativa da receita por extremos](0008-exploracao-demonstrativa-receita.md): aprovada para DEV-03 em 21/10/2026; cobertura explícita, base pequena, preço observado e reconciliação, sem substituir a definição Gold ou as janelas anuais finais.
+- [ADR-0009 — Consulta da UC em resumo e históricos independentes](0009-uc360-contratos-de-consulta.md): aprovada para a demonstração DEV-04 em 22/10/2026; comparação e paginação sem quebrar contratos DEV-01, com cobertura por UC/fonte/medida.

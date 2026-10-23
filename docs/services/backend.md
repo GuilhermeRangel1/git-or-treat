@@ -22,7 +22,9 @@ A revisão Alembic `7c4a2b1e9d60` acrescenta defaults de inserção do servidor 
 
 ## Requisitos de produto e contratos ainda pendentes
 
-DEV-03 implementada e verificada com fonte sintética: Receita usa o [contrato 1.1.0](../contracts/revenue-dev03.md), com snapshots dos extremos, cobertura financeira explícita, contagem de UCs, recortes e controles de reconciliação. As regras ficam em `app/services/revenue_analytics.py`, com repositório injetável e cálculos Decimal. A [ADR-0006](../decisions/0006-exploracao-demonstrativa-receita.md) registra as decisões provisórias; demais jornadas preservam seus contratos e as operações continuam separadas. Consulte [comandos, controles e pendências](../plans/2026-10-21-dev03-evidence.md). O método demonstrativo não homologa métricas Gold.
+DEV-03 implementada e verificada com fonte sintética: Receita usa o [contrato 1.1.0](../contracts/revenue-dev03.md), com snapshots dos extremos, cobertura financeira explícita, contagem de UCs, recortes e controles de reconciliação. As regras ficam em `app/services/revenue_analytics.py`, com repositório injetável e cálculos Decimal. A [ADR-0008](../decisions/0008-exploracao-demonstrativa-receita.md) registra as decisões provisórias; demais jornadas preservam seus contratos e as operações continuam separadas. Consulte [comandos, controles e pendências](../plans/2026-10-21-dev03-evidence.md). O método demonstrativo não homologa métricas Gold.
+
+A DEV-04 implementa demonstrativamente WEB-03 segundo [contrato UC 1.1.0](../contracts/uc360-dev04.md), [plano](../plans/2026-10-22-dev04-plan.md) e [ADR-0009](../decisions/0009-uc360-contratos-de-consulta.md). Busca e detalhe DEV-01 preservam 1.0.0; overview e históricos por seção acrescentam comparação e paginação. Cobertura da UC por fonte, medida e período/snapshot é independente da presença de linhas. O serviço é responsável por comparação e resumo do universo filtrado; o repositório delimita acesso/paginação. Integração Gold, chaves reais e reconciliação continuam pendentes.
 
 | Domínio | Operações necessárias | Condições de aceite |
 | --- | --- | --- |
