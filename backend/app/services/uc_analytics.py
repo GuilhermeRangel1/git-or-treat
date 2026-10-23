@@ -515,6 +515,12 @@ def build_uc_overview(
             readings_by_month: dict[str, list[dict]] = {}
             for row in found:
                 readings_by_month.setdefault(row["competencia"], []).append(row)
+            if not any(
+                len(rows) == 1 and rows[0].get("measured_energy_kwh") is not None
+                for rows in readings_by_month.values()
+            ):
+                statuses[section] = "unavailable"
+                continue
             incomplete = any(
                 len(readings_by_month.get(month, [])) != 1
                 or readings_by_month[month][0].get("measured_energy_kwh") is None
@@ -653,7 +659,9 @@ def build_uc_history(
             measure: set(measure_months)
             for measure, (measure_months, _) in invoice_measure_coverage.items()
         }
-        months = sorted(set().union(*covered_months_by_measure.values()))
+        # Invoice history is bounded by billed-amount coverage; other measures
+        # remain independently nullable within that invoice population.
+        months = sorted(covered_months_by_measure["billed_amount"])
         full = all(measure_full for _, measure_full in invoice_measure_coverage.values())
     else:
         coverage_key = {
@@ -694,7 +702,7 @@ def build_uc_history(
         ]
         status: AnalyticsStatus = (
             "unavailable"
-            if not months
+            if not any(r["status"] == "available" for r in rows)
             else (
                 "partial"
                 if not full or any(r["status"] != "available" for r in rows)
@@ -750,12 +758,17 @@ def build_uc_history(
                         row[measure] = None
         if monthly:
             if section == "invoices":
+                missing_measures = [
+                    measure
+                    for measure in invoice_measure_coverage
+                    if any(row[measure] is None for row in rows)
+                ]
                 status = (
                     "unavailable"
                     if not months
                     else (
                         "partial"
-                        if not full
+                        if not full or missing_measures
                         else ("available" if rows else "empty")
                     )
                 )
@@ -764,6 +777,10 @@ def build_uc_history(
                     for measure, (_, measure_full) in invoice_measure_coverage.items()
                     if not measure_full
                 ]
+                limitations.extend(
+                    f"Há faturas sem valor de {measure}; histórico incompleto."
+                    for measure in missing_measures
+                )
             else:
                 status = (
                     "unavailable"
