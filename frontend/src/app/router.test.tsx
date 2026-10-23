@@ -68,7 +68,7 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas", async () => {
     }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  // Panorama e Receita consultam suas APIs; as demais áreas desta branch são visuais.
+  // Panorama e Receita consultam APIs na abertura; o chat só envia após ação da pessoa.
   await waitFor(() =>
     expect(
       fetchSpy.mock.calls.some((call) =>

@@ -1,12 +1,12 @@
 # Serviço: portal web
 
-**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros sincronizados na URL, 4 KPIs principais e 4 complementares, distinção faturado/pago e consumido/faturado, séries temporais e controles demonstrativos da base sintética publicada em `GET /api/v1/panorama`. As outras seis áreas permanecem na primeira fatia visual, aguardando suas respectivas jornadas. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos com API sintética real, sem alterar o contrato de produto do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
+**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros sincronizados na URL, 4 KPIs principais e 4 complementares, distinção faturado/pago e consumido/faturado, séries temporais e controles demonstrativos da base sintética publicada em `GET /api/v1/panorama`. A tela Assistente envia perguntas ao Backend pelo contrato v1 e apresenta estados de resposta, evidências e limitações dos cenários artificiais. IA-05 permanece pendente de revisão e evidência integrada reproduzível; não há Gold, autenticação de usuário ou histórico persistido. As demais áreas avançam por fatias próprias. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos com API sintética real, sem alterar o contrato de produto do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
 
 O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite, inclusive ao acessar pelo celular. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
 
 ## Arquitetura adotada
 
-Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para estrutura, limites de importação, layout persistente, tema, transporte HTTP e política de estado. A primeira fatia visual cobre apenas navegação, apresentação visual do Panorama e textos superiores das demais páginas, até antes dos filtros ou conteúdo operacional.
+Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para estrutura, limites de importação, layout persistente, tema, transporte HTTP e política de estado. A primeira fatia visual cobriu navegação, apresentação do Panorama e textos superiores das outras páginas. O Assistente recebeu desde então uma integração demonstrativa descrita abaixo.
 
 A DEV-01 usa TanStack Query e o transporte existente na rota `/dev/contratos`, somente em desenvolvimento e sem item no menu. Ela valida o contrato de indicadores em execução, consulta a API real e mostra demonstração, disponibilidade e proveniência. O build de produção exclui essa página. Veja [contratos](../contracts/analytics-api.md), [desenho](../design/2026-10-20-dev01-design.md) e [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md). A rota não implementa os dashboards ou conclui suas jornadas.
 
@@ -66,6 +66,12 @@ Para tabelas grandes, definir paginação/ordenação de modo consistente com a 
 O frontend consome API FastAPI; não lê o banco ou arquivos Gold diretamente. Definir contratos com backend antes de codificar componentes. Verificar ao menos uma jornada real de cada área com Gold carregada e demonstrar que os números batem com a consulta fonte. A skill `vercel-react-best-practices` é referência para performance React, não substitui os critérios do PRD. O [protótipo próprio em Figma](../design/grid360-prototype.md) orienta a interface nos dois temas; contém dados sintéticos e não valida integração, persistência ou acessibilidade de execução.
 
 Antes de declarar WEB-01 a WEB-07 concluídos, guardar evidência de uma execução com API real, filtros exercitados, caso vazio/erro e amostra reconciliada com Gold. Os diferenciais WEB-08 a WEB-10 são independentes e continuam pendentes até seus próprios critérios serem testados.
+
+### Assistente — integração conversacional demonstrativa
+
+A rota `/assistente` envia `contract_version=v1`, a pergunta e até três turnos recentes a `POST /api/v1/ai/questions`. O navegador chama somente o Backend; a chave e a configuração do Gemini permanecem no serviço GenAI. A tela valida o envelope recebido em execução e distingue resposta fundamentada, esclarecimento, recusa, ausência de evidência e falha recuperável. Respostas mostram referência, descrição, marcação sintética, limitações e recorte declarado. A conversa e seu contexto ficam apenas na memória do componente e podem ser apagados com “Nova conversa”. Erros HTTP não são repetidos automaticamente; o botão manual só aparece quando o envelope válido permite retry.
+
+O `docker-compose.yml` inicia o serviço GenAI sem publicar sua porta no host e aguarda o health check antes do Backend. Para uma chamada de modelo, as configurações privadas de Backend e GenAI precisam ser preenchidas; os arquivos `.env` seguem ignorados pelo Git. O CI usa o `.env.example` e verifica saúde do conjunto sem chave Gemini, sem chamada faturável e sem habilitar acesso demonstrativo no GenAI. A prova automática da tela usa transporte falso; a integração real depende de configuração local e continua sem acesso à Gold. Veja [contrato de chat](../contracts/genai-chat-api.md) e os READMEs de Backend e GenAI.
 
 ### Revisão DEV-02 — 22/10/2026
 

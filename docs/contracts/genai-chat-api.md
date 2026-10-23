@@ -2,7 +2,7 @@
 
 **Versão:** v1, em implementação para desenvolvimento local.
 
-**Estado:** contrato técnico provisório; revisão dos responsáveis por Backend, GenAI e Frontend pendente.
+**Estado:** contrato técnico provisório integrado no portal para desenvolvimento local; revisão dos responsáveis por Backend, GenAI e Frontend pendente.
 
 **Escopo:** perguntas conversacionais com a fonte sintética atual. Não define a consulta Gold, identidade de usuário, retenção de histórico nem o insight contextual IA-04.
 
@@ -16,6 +16,8 @@ Portal → POST /api/v1/ai/questions → Backend → POST /api/v1/questions → 
 ```
 
 O endpoint legado `POST /api/v1/ai/query` continua separado: é um scaffold analítico e não faz parte do chat.
+
+O cliente do portal mantém as mensagens na memória da página e envia no máximo três turnos anteriores junto da nova pergunta. Não há armazenamento em `localStorage`, sessão no Backend ou restauração após recarregar. O contexto é não confiável e não concede identidade ou permissão. O navegador não chama o GenAI diretamente e não recebe credenciais de serviço ou a chave do Gemini.
 
 ## Requisição pública
 
@@ -84,6 +86,8 @@ Erros de protocolo usam o envelope seguro `status: "error"`, `contract_version`,
 | 504 | `service_unavailable` | Sim | Chamada excedeu `AI_AGENT_TIMEOUT_SECONDS`. |
 
 O Backend não repete chamadas automaticamente. O campo `retryable` informa ao consumidor se uma nova tentativa pode ser útil; não garante que repetir produza resultado diferente.
+
+O portal valida o envelope v1 em tempo de execução antes de mostrar o conteúdo. Para HTTP com erro válido, a mensagem pública e `retryable` orientam a tela; falha de rede permite ação manual de repetição, sem repetição automática. Respostas são renderizadas como texto, sem interpretar HTML ou Markdown recebido do modelo. O estado de esclarecimento, recusa, ausência e erro não é apresentado como resposta quantitativa.
 
 ## Comunicação Backend → GenAI
 

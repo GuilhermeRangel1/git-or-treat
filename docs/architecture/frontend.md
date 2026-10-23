@@ -14,9 +14,9 @@ A fatia inicial abaixo é histórica. O Panorama agora consulta exclusivamente `
 
 A fundação arquitetural foi concluída antes da etapa visual. A primeira fatia visual autorizada reproduz a sidebar e o topo do Panorama nos temas claro/escuro, com navegação mobile. O conteúdo do Panorama termina antes dos filtros: título, subtítulo e decoração SVG com movimento finito. A sidebar não inclui o rodapé demonstrativo; a linha de dados sintéticos e atualização ilustrativa também foi omitida.
 
-Os títulos e subtítulos de Receita, UC 360, Inspeções, Ordens, Operação e Assistente também seguem os frames originais do Figma nos dois temas. Os rótulos superiores de UC 360 e Inspeções são Atendimento e Perdas; os nomes da navegação permanecem os mesmos. No Assistente, a abertura textual fica em um painel central de até 960 px, com superfície, borda e raio de 20 px do protótipo; não há exemplos, campo de envio ou funcionamento de chat. `title` e `section` nos metadados de rota distinguem título de página, contexto superior e rótulo do menu. O metadado `layout: "conversation"` seleciona as medidas próprias do Assistente: área desktop com margens de 32 px e cabeçalho de 48 px; painel 960 × 800 px em x=352/y=104 no viewport 1440 × 1024. No mobile 390 × 844, o painel mede 358 × 752 px em x=16/y=76. A altura de 800 px é um teto no desktop: o painel encolhe em janelas menores. A rota usa a altura dinâmica da janela (`100dvh`), cabeçalho sem encolhimento e conteúdo flexível com `min-height: 0`; somente o histórico tem rolagem. O futuro compositor deve ser um irmão do histórico, sem encolhimento, para ficar visível no rodapé do painel. Não há campo de prompt nesta etapa. Em janelas com altura de até 480 px, o cabeçalho interno do Assistente elimina o espaço reservado para preservar área de histórico. As outras rotas mantêm rolagem normal de página.
+Os títulos e subtítulos de Receita, UC 360, Inspeções, Ordens, Operação e Assistente seguem os frames originais do Figma nos dois temas. Os rótulos superiores de UC 360 e Inspeções são Atendimento e Perdas; os nomes da navegação permanecem os mesmos. O Assistente usa um painel central de até 960 px, com superfície, borda e raio de 20 px. `title` e `section` nos metadados de rota distinguem título de página, contexto superior e rótulo do menu. O metadado `layout: "conversation"` seleciona as medidas próprias do Assistente: área desktop com margens de 32 px e cabeçalho de 48 px; painel 960 × 800 px em x=352/y=104 no viewport 1440 × 1024. No mobile 390 × 844, o painel mede 358 × 752 px em x=16/y=76. A altura de 800 px é um teto no desktop: o painel encolhe em janelas menores. A rota usa a altura dinâmica da janela (`100dvh`), cabeçalho sem encolhimento e conteúdo flexível com `min-height: 0`; somente o histórico tem rolagem. O compositor fica fixo no rodapé do painel. Em janelas com altura de até 480 px, o cabeçalho interno do Assistente reduz o espaço reservado para preservar área de conversa. As outras rotas mantêm rolagem normal de página.
 
-As demais funcionalidades permanecem sem conteúdo de negócio. Não há filtros, KPIs, gráficos, dados mockados, consultas, formulários operacionais ou chat. A entrega prepara a interface; não conclui requisitos funcionais do PRD.
+O Assistente implementa o chat demonstrativo descrito abaixo. As demais áreas ainda não têm todos os filtros, gráficos ou formulários operacionais do PRD; a interface visual e dados sintéticos não concluem requisitos de integração com Gold.
 
 ## Estrutura e direção das dependências
 
@@ -73,7 +73,7 @@ Referências consultadas via Figma MCP em 18/10/2026: [Panorama desktop claro](h
 | Tema | Provedor compartilhado e preferência local. |
 | Mensagens e envio do assistente | Estado próprio do módulo, com retenção e contexto acordados com backend/IA. |
 
-Além dos provedores de tema e cache, há controles locais de navegação e aparência. Ainda não há filtros, hooks de domínio, histórico de chat ou estado operacional. O QueryClient é estável por montagem dos provedores; retries automáticos de consultas e mutações ficam desativados por padrão. Cada funcionalidade deverá escolher atualização, expiração e tentativas com base em seu contrato. Nenhum provedor dispara requisições.
+Além dos provedores de tema e cache, há controles locais de navegação e aparência. O chat mantém mensagens e contexto em estado React enquanto a página está aberta; não usa `localStorage`, sessão persistida ou histórico compartilhado. O QueryClient é estável por montagem dos provedores; retries automáticos de consultas e mutações ficam desativados por padrão. O chat oferece repetição manual somente quando o erro HTTP validado indica `retryable=true`.
 
 ## Fronteira HTTP e contratos
 
@@ -91,7 +91,9 @@ O [catálogo de contratos](../contracts/analytics-api.md) descreve versão, disp
 
 `VITE_API_URL` é pública e não recebe credenciais. Em desenvolvimento, a ausência da variável usa a origem do portal; o proxy `/api` encaminha ao destino definido por `API_PROXY_TARGET` (padrão `http://127.0.0.1:8000`, `http://backend:8000` no Docker). Fora de desenvolvimento, a URL continua exigindo configuração explícita. O Panorama consulta sua API; as demais páginas mantêm o escopo visual.
 
-As próximas integrações devem preservar unidade, período, filtros, atualização, qualidade e indisponibilidade. Ausência não vira zero. Fórmulas oficiais, segurança, transições e idempotência permanecem responsabilidades do backend/Gold. A interface deverá refletir confirmação do servidor e vincular o insight ao mesmo recorte aplicado, sem apresentar resposta antiga como interpretação nova.
+O chat chama `POST /api/v1/ai/questions` pelo transporte compartilhado, valida o envelope v1 em execução e apresenta estado, evidências, marcação de demonstração, recorte e limitações. Contexto não confiável contém somente até três turnos anteriores e serve à continuidade linguística; não é identidade ou autorização. Erros de protocolo e rede são separados dos estados de negócio, e a UI não tenta novamente automaticamente. As chamadas passam pelo Backend; a chave Gemini permanece no serviço GenAI. Nesta versão, os valores são artificiais e não há Gold. As demais integrações devem preservar unidade, período, filtros, atualização, qualidade e indisponibilidade. Ausência não vira zero. Fórmulas oficiais, segurança, transições e idempotência permanecem responsabilidades do Backend/Gold.
+
+O chat não persiste histórico e sua limpeza remove o conteúdo da memória da tela. A aplicação não interpreta Markdown/HTML do modelo: respostas são renderizadas como texto. A apresentação de evidência é derivada exclusivamente do envelope validado pelo serviço; não cria valores ou gráficos no cliente.
 
 ## Responsividade do Panorama — 21/10/2026
 
@@ -101,7 +103,7 @@ Cabeçalho e conteúdo analítico compartilham largura fluida até 1920 px, cent
 
 TypeScript estrito, Oxlint, Prettier, verificação de fronteiras e Vitest/Testing Library estão disponíveis em scripts do [package.json](../../frontend/package.json) e executados na CI.
 
-Os testes atuais verificam a fronteira HTTP, cancelamento, configuração, navegação entre sete áreas, persistência da estrutura e do tema e falha do armazenamento. A primeira fatia visual também é conferida em Chrome headless nos dois temas, em desktop e mobile, incluindo ausência de requisições de negócio e comportamento do menu. Esses testes não exercitam Gold, jornadas de negócio ou acessibilidade completa. As dimensões principais são comparadas ao Figma; a reprodução se limita à fatia autorizada.
+Os testes verificam a fronteira HTTP e o contrato do chat, digitação/envio, resposta com evidência, esclarecimento, contexto limitado, limpeza da conversa, estado de carregamento e repetição manual de erro recuperável. Também cobrem cancelamento, configuração, navegação, tema e armazenamento. Esses testes usam transporte falso e não comprovam chamada real ao Gemini, Gold ou acessibilidade completa. A revisão visual ainda deve comparar o chat com os frames do Figma em desktop, mobile e nos dois temas.
 
 ## Referências consultadas em 18/10/2026
 
