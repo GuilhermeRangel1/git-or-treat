@@ -62,6 +62,10 @@ Os testes HTTP em `backend/tests/test_inspection_queue_dev05.py` usam o serviço
 
 ## Adaptação futura
 
+### Clareza do detalhe — 22/10/2026
+
+O detalhe apresenta referência hipotética e consumo observado em barras com escala comum em kWh/mês, acompanhadas de valores textuais e do período descrito em `estimate_evidence.reference`. Ausência não recebe barra nem vira zero; zero conhecido continua explícito. A soma dos pesos recebidos e a pontuação da API aparecem juntas, com teto 1, explicação da ordenação padrão e desempate. Não se calcula posição numérica sem o recorte completo, nem se altera regra, contrato HTTP ou estimativa. React 19.2.8 consultado via Context7; sem dependências adicionais.
+
 Com a Gold disponível, homologar critérios de entrada na fila, sinais, referência comparável, sazonalidade, GD, medidores, cobertura temporal, horizonte, unidade, pesos e desempate com perdas/engenharia. Versionar a nova regra, substituir a referência hipotética e reconciliar amostras independentes antes de habilitar dados reais. Ordens e resultados de campo continuam no escopo DEV-06/WEB-05.
 
 Context7 foi tentado em 22/10/2026 e retornou falha de conexão. A integração reutiliza React Router 7 e TanStack Query 5 existentes, sem novas dependências; cancelamento foi conferido na [documentação oficial TanStack Query v5](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation).

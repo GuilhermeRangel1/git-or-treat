@@ -137,6 +137,17 @@ it("abre evidências reproduzíveis e volta preservando a página e os filtros",
   ).toBeVisible();
   expect(screen.getByText("0,92 / 1")).toBeVisible();
   expect(screen.getByText("max(0; 90 − 45) × 1 = 45 kWh")).toBeVisible();
+  const comparison = screen.getByRole("region", {
+    name: "Comparativo de consumo",
+  });
+  expect(within(comparison).getByText("90 kWh/mês")).toBeVisible();
+  expect(within(comparison).getByText("45 kWh/mês")).toBeVisible();
+  expect(screen.getByLabelText("Composição da prioridade")).toHaveTextContent(
+    "min(1; 0,6 + 0,32) = 0,92",
+  );
+  expect(
+    screen.getByRole("heading", { name: "O que define a posição na fila" }),
+  ).toBeVisible();
   await user.click(screen.getByRole("link", { name: "Voltar à fila" }));
   expect(await screen.findByText("Página 2 de 2")).toBeVisible();
   expect(screen.getByLabelText("URL atual")).toHaveTextContent(

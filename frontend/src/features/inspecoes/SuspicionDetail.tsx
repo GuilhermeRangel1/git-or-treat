@@ -2,6 +2,7 @@ import type { DetailEnvelope } from "./contract";
 import { energy, formatNumber } from "./format";
 import { ShieldAlert, Zap, ListChecks } from "lucide-react";
 import PriorityScore from "./PriorityScore";
+import ConsumptionComparison from "./ConsumptionComparison";
 
 export default function SuspicionDetail({
   data,
@@ -93,6 +94,22 @@ export default function SuspicionDetail({
               </li>
             ))}
           </ul>
+          <p
+            className="mt-4 rounded-lg bg-canvas p-3 font-mono text-sm"
+            aria-label="Composição da prioridade"
+          >
+            min(1;{" "}
+            {data.signals
+              .map((signal) => formatNumber(signal.weight))
+              .join(" + ") || "0"}
+            ) = {formatNumber(data.priority)}
+          </p>
+          <h4 className="mt-5 font-semibold">O que define a posição na fila</h4>
+          <p className="mt-2 text-sm text-muted">
+            Na ordenação padrão, as maiores pontuações aparecem primeiro dentro
+            do recorte filtrado. Alterar os filtros ou a ordenação pode mudar a
+            posição desta UC.
+          </p>
           <p className="mt-2 text-sm text-muted">
             Desempate: maior estimativa disponível, depois número da UC em ordem
             crescente. Estimativas ausentes ficam por último.
@@ -109,6 +126,7 @@ export default function SuspicionDetail({
           <p className="mt-2 font-heading text-2xl font-semibold text-brand">
             {energy(data.potential_recoverable_energy_kwh)}
           </p>
+          <ConsumptionComparison evidence={evidence} />
           <dl className="mt-5 grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-muted">Referência mensal hipotética</dt>
