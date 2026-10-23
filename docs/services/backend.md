@@ -22,7 +22,9 @@ A revisão Alembic `7c4a2b1e9d60` acrescenta defaults de inserção do servidor 
 
 ## Requisitos de produto e contratos ainda pendentes
 
-DEV-03 implementada e verificada com fonte sintética: Receita usa o [contrato 1.1.0](../contracts/revenue-dev03.md), com snapshots dos extremos, cobertura financeira explícita, contagem de UCs, recortes e controles de reconciliação. As regras ficam em `app/services/revenue_analytics.py`, com repositório injetável e cálculos Decimal. A [ADR-0006](../decisions/0006-exploracao-demonstrativa-receita.md) registra as decisões provisórias; demais jornadas preservam seus contratos e as operações continuam separadas. Consulte [comandos, controles e pendências](../plans/2026-10-21-dev03-evidence.md). O método demonstrativo não homologa métricas Gold.
+DEV-03 implementada e verificada com fonte sintética: Receita usa o [contrato 1.1.0](../contracts/revenue-dev03.md), com snapshots dos extremos, cobertura financeira explícita, contagem de UCs, recortes e controles de reconciliação. As regras ficam em `app/services/revenue_analytics.py`, com repositório injetável e cálculos Decimal. A [ADR-0008](../decisions/0008-exploracao-demonstrativa-receita.md) registra as decisões provisórias; demais jornadas preservam seus contratos e as operações continuam separadas. Consulte [comandos, controles e pendências](../plans/2026-10-21-dev03-evidence.md). O método demonstrativo não homologa métricas Gold.
+
+A DEV-04 implementa demonstrativamente WEB-03 segundo [contrato UC 1.1.0](../contracts/uc360-dev04.md), [plano](../plans/2026-10-22-dev04-plan.md) e [ADR-0009](../decisions/0009-uc360-contratos-de-consulta.md). Busca e detalhe DEV-01 preservam 1.0.0; overview e históricos por seção acrescentam comparação e paginação. Cobertura da UC por fonte, medida e período/snapshot é independente da presença de linhas. O serviço é responsável por comparação e resumo do universo filtrado; o repositório delimita acesso/paginação. Integração Gold, chaves reais e reconciliação continuam pendentes.
 
 | Domínio | Operações necessárias | Condições de aceite |
 | --- | --- | --- |
@@ -77,6 +79,8 @@ A API limita corpos a 64 KiB e JSON UTF-8 a 32 níveis, valida hosts e inclui he
 O script `backend/scripts/load_gold.py` é um esqueleto: não carrega linhas CSV nem garante idempotência. Quando a ingestão for implementada, registrar lote, esquema e contagens por tabela; só disponibilizar consultas após validar consistência entre tabelas. A segunda execução do mesmo lote deve produzir os mesmos totais. Alterações na fórmula Gold exigem atualização coordenada do dicionário, API, portal, IA e diagnóstico. Testar o mesmo recorte no Databricks, banco local e resposta da API. Se o banco escolhido não suportar separação robusta de permissões, documentar controles compensatórios para o agente de IA antes de afirmar que consultas são somente leitura.
 
 ## Qualidade
+
+Para DEV-05/WEB-04, o serviço `inspection_analytics` calcula apenas a [regra sintética versionada](../contracts/inspection-dev05.md). A fila aceita direção explícita e retorna opções de filtros; `/api/v1/inspections/queue/{uc_id}` expõe os insumos e limites da prioridade/projeção. Não há gravação, alteração de ordens ou migração. A regra demonstrativa recusa fonte não demonstrativa até homologação dos critérios reais.
 
 Testar filtros combinados, estados vazios, UC inexistente, IDs inválidos, paginação, ordenação, idempotência da carga e transições das ordens. Quando houver alterações em métrica, fazer teste de contrato com amostra Gold reconciliada. Se PostgreSQL for escolhido, consultar a skill local `supabase-postgres-best-practices`; isso não impõe uso da plataforma Supabase.
 
