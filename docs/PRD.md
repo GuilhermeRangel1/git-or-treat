@@ -1247,6 +1247,13 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Verificações: fronteiras em 72 arquivos, Prettier da feature e `format:check` global, lint, 117 testes frontend em 14 arquivos, build TypeScript/Vite e `git diff --check` passaram após o merge. Em Chromium, viewports efetivos de 640 e 320 px não mostraram transbordamento horizontal; o diálogo em 320 px coube na viewport e manteve rolagem vertical. A emulação de viewport não substitui uma auditoria com zoom nativo ou leitor de tela.
 - Dados e limites: somente fixtures sintéticas. O dicionário Gold ainda não contém campos reais; Python 3.12 e PostgreSQL não foram executados nesta rodada porque o ambiente Python não está funcional e o Docker daemon não está ativo. Revisor: agente principal, após implementação por dois subagentes GPT-6 Luna/high.
 
+### 2026-10-22 — WEB-02 e WEB-03 — adaptação das páginas Receita e UC 360 a telas grandes
+
+- Estado: WEB-02 e WEB-03 permanecem `Pendente`; esta mudança é de apresentação e não altera contratos ou reconciliação Gold.
+- Mudança observável: Receita e UC 360 usam a largura disponível do `AppLayout`, limitada a 1920 px. Em Receita, cartões seguem 1/2/4 colunas e decomposição/tabela ficam lado a lado quando ambas têm espaço; em UC 360, cadastro/filtros e histórico/contexto ocupam duas colunas em `2xl`. Arquivos alterados em `frontend/src/features/receita/` e `frontend/src/features/uc360/UC360Page.tsx`.
+- Verificações: teste da Receita 32/32 e suíte frontend 117/117; lint, fronteiras em 72 arquivos, build, Prettier dos arquivos alterados e `format:check` global aprovados. Receita foi inspecionada em Chromium claro a 390, 1440 e 1920 px, sem transbordamento horizontal; em 1920 px a tabela tinha 909 px úteis sem rolagem interna. A sessão de navegador ficou bloqueada durante a inspeção da UC 360; sua distribuição larga foi revisada no código, com build e testes aprovados.
+- Dados e limites: apenas fonte sintética. Revisor: agente principal, após implementação separada por dois subagentes GPT-6 Luna/high. Revisão visual da UC 360 em telas grandes e reconciliação Gold permanecem abertas.
+
 ## 15. Conferência de cobertura do enunciado por página
 
 Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localizar onde cada ponto entrou no PRD e a perceber omissões quando o case for revisitado. O texto acima continua sendo a especificação; a matriz não cria requisitos novos. Páginas se referem às dez imagens fornecidas pela pessoa usuária, que não são versionadas.

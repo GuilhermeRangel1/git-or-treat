@@ -93,7 +93,7 @@ export default function RevenueSummary({
       <h2 id="revenue-summary-title" className="sr-only">
         Resumo da receita
       </h2>
-      <div className="mt-2 grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Valor faturado"
           value={money(final.billed_amount)}

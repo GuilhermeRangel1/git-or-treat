@@ -153,7 +153,7 @@ export default function UC360Page() {
       ? "Busca inválida. Use de 1 a 100 caracteres."
       : "Não foi possível buscar unidades.";
   return (
-    <div className="mt-6 grid min-w-0 max-w-[980px] gap-4">
+    <div className="mt-6 grid w-full min-w-0 gap-4">
       <section
         className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5"
         aria-labelledby="uc-search-title"
@@ -324,77 +324,79 @@ export default function UC360Page() {
           )}
           {selected && (
             <>
-              <header className="grid gap-1">
-                <p className="font-mono text-xs uppercase tracking-wide text-muted">
-                  V—ENERGY / ATENDIMENTO
-                </p>
-                <h2 className="font-heading text-2xl font-semibold text-content">
-                  {selected.profile.uc_id}
-                </h2>
-                <p className="text-sm text-muted">
-                  {selected.profile.customer_name ??
-                    "Cliente sem nome registrado"}{" "}
-                  · {selected.profile.municipio} / {selected.profile.bairro} ·{" "}
-                  {selected.profile.classe}
-                </p>
-                <p className="text-xs text-muted">
-                  {overview.data!.metadata.source.is_demo
-                    ? "Demonstração · dados sintéticos"
-                    : "Dados da fonte"}{" "}
-                  · atualização {overview.data!.metadata.source.updated_at}
-                </p>
-              </header>
-              <form
-                onSubmit={submitPeriod}
-                className="flex flex-wrap items-end gap-3 rounded-xl bg-surface p-4"
-              >
-                <label className="grid gap-1 text-xs text-muted">
-                  Início
-                  <input
-                    className={inputClass}
-                    aria-label="Competência inicial"
-                    type="month"
-                    value={startDraft}
-                    onChange={(event) =>
-                      setPeriodDraft({
-                        applied: periodKey,
-                        start: event.target.value,
-                        end: endDraft,
-                      })
-                    }
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-muted">
-                  Fim
-                  <input
-                    className={inputClass}
-                    aria-label="Competência final"
-                    type="month"
-                    value={endDraft}
-                    onChange={(event) =>
-                      setPeriodDraft({
-                        applied: periodKey,
-                        start: startDraft,
-                        end: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <button
-                  className="min-h-11 rounded-lg border border-control px-4 text-sm text-content focus-visible:outline-2 focus-visible:outline-brand"
-                  type="submit"
+              <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end">
+                <header className="grid min-w-0 gap-1">
+                  <p className="font-mono text-xs uppercase tracking-wide text-muted">
+                    V—ENERGY / ATENDIMENTO
+                  </p>
+                  <h2 className="font-heading text-2xl font-semibold text-content">
+                    {selected.profile.uc_id}
+                  </h2>
+                  <p className="text-sm text-muted">
+                    {selected.profile.customer_name ??
+                      "Cliente sem nome registrado"}{" "}
+                    · {selected.profile.municipio} / {selected.profile.bairro} ·{" "}
+                    {selected.profile.classe}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {overview.data!.metadata.source.is_demo
+                      ? "Demonstração · dados sintéticos"
+                      : "Dados da fonte"}{" "}
+                    · atualização {overview.data!.metadata.source.updated_at}
+                  </p>
+                </header>
+                <form
+                  onSubmit={submitPeriod}
+                  className="flex flex-wrap items-end gap-3 rounded-xl bg-surface p-4 2xl:justify-end"
                 >
-                  Aplicar período
-                </button>
-                <span className="text-xs text-muted">
-                  Período: {selected.period.start} a {selected.period.end}
-                </span>
-                {periodValidation && (
-                  <span className="w-full text-sm text-danger" role="alert">
-                    {periodValidation}
+                  <label className="grid gap-1 text-xs text-muted">
+                    Início
+                    <input
+                      className={inputClass}
+                      aria-label="Competência inicial"
+                      type="month"
+                      value={startDraft}
+                      onChange={(event) =>
+                        setPeriodDraft({
+                          applied: periodKey,
+                          start: event.target.value,
+                          end: endDraft,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs text-muted">
+                    Fim
+                    <input
+                      className={inputClass}
+                      aria-label="Competência final"
+                      type="month"
+                      value={endDraft}
+                      onChange={(event) =>
+                        setPeriodDraft({
+                          applied: periodKey,
+                          start: startDraft,
+                          end: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <button
+                    className="min-h-11 rounded-lg border border-control px-4 text-sm text-content focus-visible:outline-2 focus-visible:outline-brand"
+                    type="submit"
+                  >
+                    Aplicar período
+                  </button>
+                  <span className="text-xs text-muted">
+                    Período: {selected.period.start} a {selected.period.end}
                   </span>
-                )}
-              </form>
+                  {periodValidation && (
+                    <span className="w-full text-sm text-danger" role="alert">
+                      {periodValidation}
+                    </span>
+                  )}
+                </form>
+              </div>
               {overview.isFetching && !overview.isPending && (
                 <p role="status" className="text-sm text-muted">
                   Atualizando período…
@@ -447,98 +449,103 @@ export default function UC360Page() {
                 {statusLabel(selected.open_invoices.status)}. Pagamentos
                 vinculados às faturas não representam caixa por competência.
               </p>
-              <HistoryPanel
-                section={state.section || null}
-                history={history.data}
-                pending={history.isPending}
-                error={history.error}
-                historyPage={state.historyPage}
-                onRetry={() => void history.refetch()}
-                onSelectSection={(section) =>
-                  setParams(selectUCHistory(params, section))
-                }
-                onPageChange={(page) => {
-                  const next = new URLSearchParams(params);
-                  next.set("history_page", String(page));
-                  setParams(next);
-                }}
-              />
-              <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
-                <h3 className="font-heading text-lg font-semibold">
-                  Contexto da unidade
-                </h3>
-                <p className="text-sm text-muted">
-                  Fontes reunidas na mesma jornada, com ausências explícitas.
-                  Medição menor e faturamento maior, quando observados, não
-                  identificam por si só a causa da conta.
-                </p>
-                <ul className="grid gap-1 text-sm text-content">
-                  <li>
-                    {selected.current_meter.item ? (
-                      <>Medidor: {selected.current_meter.item.meter_id}</>
-                    ) : selected.current_meter.status === "empty" ? (
-                      "Nenhum medidor vigente no snapshot; consulte o histórico de medidores"
-                    ) : (
-                      <>Medidor: {statusLabel(selected.current_meter.status)}</>
-                    )}
-                    {selected.current_meter.item?.removed_at
-                      ? ` · retirado em ${selected.current_meter.item.removed_at}`
-                      : ""}
-                    .
-                  </li>
-                  <li>
-                    Geração própria:{" "}
-                    {selected.distributed_generation.items.length
-                      ? selected.distributed_generation.items
-                          .map(
-                            (item) => `${decimal.format(item.capacity_kw)} kW`,
-                          )
-                          .join(", ")
-                      : statusLabel(selected.distributed_generation.status)}
-                    . Potência não representa energia compensada.
-                  </li>
-                  <li>
-                    Interrupções:{" "}
-                    {statusLabel(
-                      selected.section_status.interruptions ?? "unavailable",
-                    )}
-                    .
-                  </li>
-                  <li>
-                    Chamados:{" "}
-                    {statusLabel(
-                      selected.section_status.calls ?? "unavailable",
-                    )}
-                    .
-                  </li>
-                </ul>
-                <div className="flex flex-wrap gap-2">
-                  <EvidenceDialog
-                    sectionStatus={selected.section_status}
-                    meter={selected.current_meter.item}
-                    limitations={[
-                      ...new Set([
-                        ...overview.data!.metadata.limitations,
-                        ...selected.current_meter.limitations,
-                        ...selected.distributed_generation.limitations,
-                      ]),
-                    ]}
-                    onSelectHistory={(section) =>
-                      setParams(selectUCHistory(params, section))
-                    }
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQueryDraft({ applied: state.q, value: "" });
-                      setParams(applyUCSearch(params, ""));
-                    }}
-                    className="min-h-11 rounded-lg border border-control px-4 text-sm text-content"
-                  >
-                    Nova busca
-                  </button>
-                </div>
-              </section>
+              <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.85fr)] 2xl:items-start">
+                <HistoryPanel
+                  section={state.section || null}
+                  history={history.data}
+                  pending={history.isPending}
+                  error={history.error}
+                  historyPage={state.historyPage}
+                  onRetry={() => void history.refetch()}
+                  onSelectSection={(section) =>
+                    setParams(selectUCHistory(params, section))
+                  }
+                  onPageChange={(page) => {
+                    const next = new URLSearchParams(params);
+                    next.set("history_page", String(page));
+                    setParams(next);
+                  }}
+                />
+                <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
+                  <h3 className="font-heading text-lg font-semibold">
+                    Contexto da unidade
+                  </h3>
+                  <p className="text-sm text-muted">
+                    Fontes reunidas na mesma jornada, com ausências explícitas.
+                    Medição menor e faturamento maior, quando observados, não
+                    identificam por si só a causa da conta.
+                  </p>
+                  <ul className="grid gap-1 text-sm text-content">
+                    <li>
+                      {selected.current_meter.item ? (
+                        <>Medidor: {selected.current_meter.item.meter_id}</>
+                      ) : selected.current_meter.status === "empty" ? (
+                        "Nenhum medidor vigente no snapshot; consulte o histórico de medidores"
+                      ) : (
+                        <>
+                          Medidor: {statusLabel(selected.current_meter.status)}
+                        </>
+                      )}
+                      {selected.current_meter.item?.removed_at
+                        ? ` · retirado em ${selected.current_meter.item.removed_at}`
+                        : ""}
+                      .
+                    </li>
+                    <li>
+                      Geração própria:{" "}
+                      {selected.distributed_generation.items.length
+                        ? selected.distributed_generation.items
+                            .map(
+                              (item) =>
+                                `${decimal.format(item.capacity_kw)} kW`,
+                            )
+                            .join(", ")
+                        : statusLabel(selected.distributed_generation.status)}
+                      . Potência não representa energia compensada.
+                    </li>
+                    <li>
+                      Interrupções:{" "}
+                      {statusLabel(
+                        selected.section_status.interruptions ?? "unavailable",
+                      )}
+                      .
+                    </li>
+                    <li>
+                      Chamados:{" "}
+                      {statusLabel(
+                        selected.section_status.calls ?? "unavailable",
+                      )}
+                      .
+                    </li>
+                  </ul>
+                  <div className="flex flex-wrap gap-2">
+                    <EvidenceDialog
+                      sectionStatus={selected.section_status}
+                      meter={selected.current_meter.item}
+                      limitations={[
+                        ...new Set([
+                          ...overview.data!.metadata.limitations,
+                          ...selected.current_meter.limitations,
+                          ...selected.distributed_generation.limitations,
+                        ]),
+                      ]}
+                      onSelectHistory={(section) =>
+                        setParams(selectUCHistory(params, section))
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQueryDraft({ applied: state.q, value: "" });
+                        setParams(applyUCSearch(params, ""));
+                      }}
+                      className="min-h-11 rounded-lg border border-control px-4 text-sm text-content"
+                    >
+                      Nova busca
+                    </button>
+                  </div>
+                </section>
+              </div>
               <section className="grid gap-3 sm:grid-cols-2">
                 <article className="rounded-xl border border-control bg-surface p-4">
                   <h3 className="font-heading font-semibold">
