@@ -2,7 +2,7 @@
 
 **Data:** 21/10/2026. **Escopo:** exploração demonstrativa de Receita, WEB-02/WEB-07 e suporte a ENT-01. **Branch:** `dev03`, base `ebccc238bcec502bfa7a1b36ff32e01b0c6c4567`; revisão da árvore de trabalho, incluindo arquivos novos, antes do commit desta entrega.
 
-Dois implementadores GPT-6 Luna/high trabalharam em backend e frontend. Esta sessão revisou requisitos e padrões das skills locais `backend-coding-standards`, `frontend-coding-standards`, `tdd` e `code-review`. [Desenho](../design/2026-10-21-dev03-design.md), [plano](2026-10-21-dev03-plan.md), [contrato](../contracts/revenue-dev03.md) e [ADR-0006](../decisions/0006-exploracao-demonstrativa-receita.md) fixam as definições provisórias. Nenhum dado real foi utilizado.
+Dois implementadores GPT-6 Luna/high trabalharam em backend e frontend. Esta sessão revisou requisitos e padrões das skills locais `backend-coding-standards`, `frontend-coding-standards`, `tdd` e `code-review`. [Desenho](../design/2026-10-21-dev03-design.md), [plano](2026-10-21-dev03-plan.md), [contrato](../contracts/revenue-dev03.md) e [ADR-0008](../decisions/0008-exploracao-demonstrativa-receita.md) fixam as definições provisórias. Nenhum dado real foi utilizado.
 
 ## Verificações executadas
 
@@ -113,7 +113,7 @@ Verificações: `git check-attr text eol` confirmou `text: auto` e `eol: lf`; `g
 
 ### Feedback — receita independente da disponibilidade energética
 
-Confirmado o bloqueio indevido: a comparação financeira exigia simultaneamente cobertura de valor e energia faturados. Agora `revenue_analytics.py` usa disponibilidade de valor para delta BRL/percentual e de energia para delta kWh. Preço observado e decomposição exigem as bases comparáveis correspondentes; a reconciliação em BRL pode fechar mesmo com snapshot parcial por energia. A classificação geral do envelope permanece compatível com o controle B4. Contrato, desenho e ADR-0006 registram essa correção coordenada.
+Confirmado o bloqueio indevido: a comparação financeira exigia simultaneamente cobertura de valor e energia faturados. Agora `revenue_analytics.py` usa disponibilidade de valor para delta BRL/percentual e de energia para delta kWh. Preço observado e decomposição exigem as bases comparáveis correspondentes; a reconciliação em BRL pode fechar mesmo com snapshot parcial por energia. A classificação geral do envelope permanece compatível com o controle B4. Contrato, desenho e ADR-0008 registram essa correção coordenada.
 
 Os novos controles HTTP verificam: cobertura energética ausente apesar de valores observados; energia nula com cobertura declarada; lacuna energética intermediária com preços extremos conhecidos; receita incompleta com energia completa. BRL 500 → 550 mantém delta +50 e +10%, com reconciliação financeira `available` e energia/preço-volume indisponíveis. Janela com lacuna energética intermediária mantém delta financeiro +150 (+30%) e preços por extremo 1,0000 → 1,0833, sem inventar delta energético ou preço acumulado comparável.
 

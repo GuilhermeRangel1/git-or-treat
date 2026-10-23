@@ -36,7 +36,7 @@ export default function AppLayout({ navigation }: { navigation: NavItem[] }) {
           className={
             conversationLayout
               ? "flex min-h-0 w-full flex-1 flex-col px-4 pt-3 pb-4 lg:px-8 lg:pt-6 lg:pb-8"
-              : "w-full px-4 pt-5 pb-8 lg:max-w-[1184px] lg:px-12 lg:pt-6 lg:pb-12"
+              : "mx-auto w-full max-w-[1920px] px-4 pt-5 pb-8 sm:px-6 lg:px-8 lg:pt-6 lg:pb-12 xl:px-12"
           }
         >
           {!current?.contentHeading && (

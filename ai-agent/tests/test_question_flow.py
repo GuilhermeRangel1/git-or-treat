@@ -1,3 +1,5 @@
+import json
+
 from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
@@ -36,17 +38,17 @@ class RecordingModelAdapter(FakeModelAdapter):
 
 
 class FailingScenarioTool:
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, _access_context):
         raise EvidenceToolUnavailable("internal source detail")
 
 
 class DeniedScenarioTool:
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, _access_context):
         raise EvidenceAccessDenied("private authorization policy detail")
 
 
 class InvalidEvidenceScenarioTool:
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, _access_context):
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
@@ -61,9 +63,9 @@ class CountingScenarioTool:
         self.calls = 0
         self.delegate = SyntheticScenarioTool()
 
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, access_context):
         self.calls += 1
-        return await self.delegate.retrieve(intent)
+        return await self.delegate.retrieve(intent, access_context)
 
 
 class RecordingScenarioTool:
@@ -71,9 +73,9 @@ class RecordingScenarioTool:
         self.requests = []
         self.delegate = SyntheticScenarioTool()
 
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, access_context):
         self.requests.append(intent)
-        return await self.delegate.retrieve(intent)
+        return await self.delegate.retrieve(intent, access_context)
 
 
 class InvalidModelAdapter:
@@ -82,7 +84,7 @@ class InvalidModelAdapter:
 
 
 class LargeCountScenarioTool:
-    async def retrieve(self, plan: LogicalReadPlan):
+    async def retrieve(self, plan: LogicalReadPlan, _access_context):
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(
@@ -377,7 +379,10 @@ def test_invalid_source_result_returns_generic_recoverable_error(caplog) -> None
         "code": "invalid_upstream_response",
         "retryable": False,
     }
-    assert "101" not in response.text
+    # O correlation_id é hexadecimal aleatório e pode conter "101" por acaso.
+    public = response.json()
+    public.pop("correlation_id")
+    assert "101" not in json.dumps(public, ensure_ascii=False)
     assert model.calls == []
     assert "A fonte de evidências retornou um contrato inválido." in caplog.text
     assert "101" not in caplog.text
@@ -529,7 +534,7 @@ def test_untrusted_assistant_history_is_not_allowed_to_override_safety_rules() -
 
 
 class UnexpectedFailureScenarioTool:
-    async def retrieve(self, intent: AnalysisIntent):
+    async def retrieve(self, intent: AnalysisIntent, _access_context):
         raise RuntimeError("source-secret-marker-42")
 
 

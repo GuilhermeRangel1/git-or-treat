@@ -4,7 +4,7 @@
 
 ## Escopo entregue
 
-- API: busca legada da DEV-01 preservada; novos `GET /api/v1/ucs/{uc_id}/overview` e `GET /api/v1/ucs/{uc_id}/history/{section}` com comparação mensal, seis históricos, paginação e cobertura sintética declarada por UC/fonte/medida. `docs/contracts/uc360-dev04.md` e ADR-0007 registram a semântica.
+- API: busca legada da DEV-01 preservada; novos `GET /api/v1/ucs/{uc_id}/overview` e `GET /api/v1/ucs/{uc_id}/history/{section}` com comparação mensal, seis históricos, paginação e cobertura sintética declarada por UC/fonte/medida. `docs/contracts/uc360-dev04.md` e ADR-0009 registram a semântica.
 - Portal: busca editável, seleção explícita, URL de UC/período/seção/página, quatro indicadores comparativos, histórico de consumo/faturas/pagamentos/medidores/GD/interrupções/chamados, contexto e distinção entre fatos e hipóteses. A fonte sintética é identificada na tela.
 - Arquivos de produto: `backend/app/api/v1/endpoints/ucs.py`, `backend/app/repositories/analytics.py`, `backend/app/schemas/uc360.py`, `backend/app/services/uc_analytics.py`, `backend/tests/test_uc360_dev04.py` e nove arquivos em `frontend/src/features/uc360/`. O histórico e o diálogo ficaram em `UC360History.tsx`, com regras de apresentação compartilhadas na feature em `uc360-format.ts`. Não houve commit, PR ou merge nesta revisão.
 

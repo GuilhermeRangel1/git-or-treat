@@ -1,4 +1,4 @@
-# ADR-0007 — Consulta da UC em resumo e históricos independentes
+# ADR-0009 — Consulta da UC em resumo e históricos independentes
 
 **Data:** 2026-10-22
 

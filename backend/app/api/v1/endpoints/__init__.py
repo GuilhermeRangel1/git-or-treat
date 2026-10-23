@@ -2,6 +2,7 @@
 from app.api.v1.endpoints import (
     health,
     kpis,
+    panorama,
     revenue,
     ucs,
     inspections,
@@ -12,6 +13,7 @@ from app.api.v1.endpoints import (
 __all__ = [
     "health",
     "kpis",
+    "panorama",
     "revenue",
     "ucs",
     "inspections",
