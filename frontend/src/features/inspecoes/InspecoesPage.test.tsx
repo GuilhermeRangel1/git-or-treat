@@ -109,6 +109,11 @@ function mount(
 function respond(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status });
 }
+async function firstEvidenceLink() {
+  return (
+    await screen.findAllByRole("link", { name: "Ver evidência de UC-1004" })
+  )[0];
+}
 beforeEach(() => {
   vi.restoreAllMocks();
 });
@@ -124,18 +129,24 @@ it("abre evidências reproduzíveis e volta preservando a página e os filtros",
   vi.stubGlobal("fetch", fetch);
   const user = userEvent.setup();
   mount("/inspecoes?municipio=Recife&page_size=1&page=2");
-  expect(
-    await screen.findByRole("link", { name: "Ver evidências de UC-1004" }),
-  ).toBeVisible();
+  expect(await firstEvidenceLink()).toBeVisible();
   await user.click(
-    screen.getByRole("link", { name: "Ver evidências de UC-1004" }),
+    (
+      await screen.findAllByRole("link", { name: "Ver evidência de UC-1004" })
+    )[0],
   );
+  expect(await screen.findByText("O que motivou a investigação")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Criar ordem" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Ver fundamentos" }));
   expect(
     await screen.findByRole("heading", {
       name: "Como a prioridade foi calculada",
     }),
   ).toBeVisible();
-  expect(screen.getByText("0,92 / 1")).toBeVisible();
+  expect(
+    screen.getByText(/Atualizado em 21\/10\/2026, 00:00:00 UTC/),
+  ).toBeVisible();
+  expect(screen.getAllByText("0,92 / 1")).toHaveLength(1);
   expect(screen.getByText("max(0; 90 − 45) × 1 = 45 kWh")).toBeVisible();
   const comparison = screen.getByRole("region", {
     name: "Comparativo de consumo",
@@ -149,7 +160,7 @@ it("abre evidências reproduzíveis e volta preservando a página e os filtros",
     screen.getByRole("heading", { name: "O que define a posição na fila" }),
   ).toBeVisible();
   await user.click(screen.getByRole("link", { name: "Voltar à fila" }));
-  expect(await screen.findByText("Página 2 de 2")).toBeVisible();
+  expect(await screen.findByText(/Página 2 de 2/)).toBeVisible();
   expect(screen.getByLabelText("URL atual")).toHaveTextContent(
     "municipio=Recife&page_size=1&page=2",
   );
@@ -164,15 +175,22 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   vi.stubGlobal("fetch", fetch);
   const user = userEvent.setup();
   mount();
-  await screen.findByRole("link", { name: "Ver evidências de UC-1004" });
-  await user.click(screen.getByText("Ajustar filtros"));
+  await firstEvidenceLink();
+  expect(screen.getByText("jan/2025 – fev/2025")).toBeVisible();
+  expect(screen.getByText("Não aplicada")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
   await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
   await user.selectOptions(
     screen.getByLabelText("Ordenar por"),
     "potential_recoverable_energy_kwh",
   );
+  await user.selectOptions(screen.getByLabelText("Ordenar por"), "uc_id");
   await user.selectOptions(screen.getByLabelText("Direção"), "asc");
-  await user.click(screen.getByRole("button", { name: "Aplicar" }));
+  await user.selectOptions(screen.getByLabelText("Direção"), "desc");
+  await user.selectOptions(screen.getByLabelText("Direção"), "asc");
+  await user.selectOptions(screen.getByLabelText("UCs por página"), "20");
+  await user.selectOptions(screen.getByLabelText("UCs por página"), "50");
+  await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
   expect(
     await screen.findByText(
       "Nenhuma suspeita neste recorte. Isso não comprova ausência de perdas.",
@@ -180,11 +198,43 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   ).toBeVisible();
   const url = new URL(fetch.mock.calls.at(-1)![0], window.location.origin);
   expect(url.searchParams.get("municipio")).toBe("Olinda");
-  expect(url.searchParams.get("order_by")).toBe(
-    "potential_recoverable_energy_kwh",
-  );
+  expect(url.searchParams.get("order_by")).toBe("uc_id");
   expect(url.searchParams.get("direction")).toBe("asc");
+  expect(url.searchParams.get("page_size")).toBe("50");
   expect(url.searchParams.get("page")).toBe("1");
+});
+
+it("mostra e remove o alimentador ativo no resumo e na consulta", async () => {
+  const fetch = vi.fn().mockResolvedValue(respond(envelope()));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount();
+  await firstEvidenceLink();
+
+  await user.click(screen.getByRole("button", { name: /Ajustar filtros/ }));
+  await user.selectOptions(screen.getByLabelText("Alimentador"), "AL-03");
+  await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+
+  expect(await screen.findByText("Alimentador: AL-03")).toBeVisible();
+  await waitFor(() => {
+    const request = new URL(
+      fetch.mock.calls.at(-1)![0],
+      window.location.origin,
+    );
+    expect(request.searchParams.get("alimentador")).toBe("AL-03");
+  });
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "alimentador=AL-03",
+  );
+
+  await user.click(screen.getByRole("button", { name: /Ajustar filtros/ }));
+  await user.click(screen.getByRole("button", { name: "Limpar filtros" }));
+  await waitFor(() => {
+    expect(screen.getByLabelText("URL atual")).not.toHaveTextContent(
+      "alimentador=",
+    );
+  });
+  expect(screen.queryByText("Alimentador: AL-03")).not.toBeInTheDocument();
 });
 
 it("pagina pelo servidor e mantém estimativa ausente distinta de zero", async () => {
@@ -200,16 +250,69 @@ it("pagina pelo servidor e mantém estimativa ausente distinta de zero", async (
   vi.stubGlobal("fetch", fetch);
   const user = userEvent.setup();
   mount("/inspecoes?page_size=1");
-  await screen.findByText("Página 1 de 2");
+  await screen.findByText(/Página 1 de 2/);
   await user.click(screen.getByRole("button", { name: "Próxima" }));
-  expect(await screen.findByText("Página 2 de 2")).toBeVisible();
-  expect(screen.getByText("Estimativa indisponível")).toBeVisible();
-  const summary = within(
-    screen.getByRole("region", { name: "Resumo do recorte da fila" }),
-  );
-  expect(summary.getByText("0,92 / 1")).toBeVisible();
-  expect(summary.getByText("1 de 2")).toBeVisible();
+  expect(await screen.findByText(/Página 2 de 2/)).toBeVisible();
+  expect(screen.getAllByText("Estimativa indisponível")).toHaveLength(2);
+  expect(
+    screen.queryByRole("region", { name: "Resumo do recorte da fila" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Ver fundamentos" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+});
+
+it("mantém filtros como rascunho no diálogo e fecha com Escape devolvendo foco", async () => {
+  const fetch = vi.fn().mockResolvedValue(respond(envelope()));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes?municipio=Recife&page=3");
+  await screen.findByRole("button", { name: /Ajustar filtros/ });
+  const trigger = screen.getByRole("button", { name: /Ajustar filtros/ });
+  await user.click(trigger);
+  const dialog = screen.getByRole("dialog", {
+    name: "Ajustar filtros",
+  });
+  await user.selectOptions(
+    within(dialog).getByLabelText("Município"),
+    "Olinda",
+  );
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(dialog).not.toBeVisible());
+  expect(trigger).toHaveFocus();
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "municipio=Recife&page=3",
+  );
+  await user.click(trigger);
+  expect(
+    within(screen.getByRole("dialog")).getByLabelText("Município"),
+  ).toHaveValue("Recife");
+});
+
+it("apresenta os cinco campos da fila e registros mobile sem faixa de prioridade inventada", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(envelope())));
+  mount();
+  expect(
+    await screen.findByRole("table", { name: /Suspeitas/ }),
+  ).toBeInTheDocument();
+  for (const heading of [
+    "UC / prioridade",
+    "Motivo da suspeita",
+    "Indicador usado",
+    "Energia estimada",
+    "Ação",
+  ]) {
+    expect(
+      screen.getByRole("columnheader", { name: heading }),
+    ).toBeInTheDocument();
+  }
+  const mobileCard = screen.getByRole("article", { name: "Suspeita UC-1004" });
+  expect(
+    within(mobileCard).getByText("Lacuna de leitura e medidor retirado"),
+  ).toBeVisible();
+  expect(
+    within(mobileCard).getByText("Lacuna de leitura · Medidor retirado"),
+  ).toBeVisible();
+  expect(screen.queryByText(/Alta|Média/)).not.toBeInTheDocument();
 });
 
 it("mostra carregamento, erro e nova tentativa sem apresentar a falha como fila vazia", async () => {
@@ -235,9 +338,7 @@ it("mostra carregamento, erro e nova tentativa sem apresentar a falha como fila 
   await userEvent.click(
     screen.getByRole("button", { name: "Tentar novamente" }),
   );
-  expect(
-    await screen.findByRole("link", { name: "Ver evidências de UC-1004" }),
-  ).toBeVisible();
+  expect(await firstEvidenceLink()).toBeVisible();
 });
 
 it("avisa atualização em segundo plano e preserva a última consulta quando ela falha", async () => {
@@ -256,7 +357,7 @@ it("avisa atualização em segundo plano e preserva a última consulta quando el
     defaultOptions: { queries: { retry: false } },
   });
   mount("/inspecoes", client);
-  await screen.findByRole("link", { name: "Ver evidências de UC-1004" });
+  await firstEvidenceLink();
   void client.invalidateQueries();
   expect(
     await screen.findByText(
@@ -264,7 +365,9 @@ it("avisa atualização em segundo plano e preserva a última consulta quando el
     ),
   ).toBeVisible();
   expect(
-    screen.getByRole("link", { name: "Ver evidências de UC-1004" }),
+    (
+      await screen.findAllByRole("link", { name: "Ver evidência de UC-1004" })
+    )[0],
   ).toBeVisible();
   await waitFor(() => expect(release).toBeDefined());
   release!(respond({}, 503));
@@ -272,16 +375,30 @@ it("avisa atualização em segundo plano e preserva a última consulta quando el
     "Exibindo a última consulta válida",
   );
   expect(
-    screen.getByRole("link", { name: "Ver evidências de UC-1004" }),
+    (
+      await screen.findAllByRole("link", { name: "Ver evidência de UC-1004" })
+    )[0],
   ).toBeVisible();
 });
 
 it("aceita link direto e informa suspeita inexistente", async () => {
-  const fetch = vi.fn().mockResolvedValue(respond({}, 404));
+  const fetch = vi
+    .fn()
+    .mockImplementation((url: string) =>
+      url.includes("/queue/UC-9999")
+        ? respond({}, 404)
+        : respond(envelope([item], 2, 1, 2)),
+    );
   vi.stubGlobal("fetch", fetch);
-  mount("/inspecoes?uc=UC-9999");
+  const user = userEvent.setup();
+  mount("/inspecoes?municipio=Recife&page_size=1&page=2&uc=UC-9999");
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Suspeita não encontrada",
+  );
+  await user.click(screen.getByRole("link", { name: "Voltar à fila" }));
+  expect(await firstEvidenceLink()).toBeVisible();
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "municipio=Recife&page_size=1&page=2",
   );
   expect(fetch.mock.calls[0][0]).toContain("/queue/UC-9999");
 });

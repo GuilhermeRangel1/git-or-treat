@@ -8,7 +8,13 @@ Em 21/10/2026, a DEV-03 acrescentou exploração funcional demonstrativa em `fea
 
 ## Panorama integrado — 21/10/2026
 
-A fatia inicial abaixo é histórica. O Panorama agora consulta exclusivamente `GET /api/v1/panorama`, com oito KPIs, série mensal, filtros na URL, validação JSON e cancelamento. Não há fallback local em falhas da API. A fonte é sintética explicitamente habilitada no backend; WEB-01 segue em validação até reconciliação com Gold. As demais jornadas continuam no escopo visual descrito abaixo.
+A fatia inicial abaixo é histórica. O Panorama agora consulta exclusivamente `GET /api/v1/panorama`, com oito KPIs, série mensal, filtros na URL, validação JSON e cancelamento. Não há fallback local em falhas da API. A fonte é sintética explicitamente habilitada no backend; WEB-01 segue em validação até reconciliação com Gold. Receita, UC 360 e Inspeções também têm fatias demonstrativas integradas, descritas nos respectivos guias; as demais jornadas ainda seguem no escopo visual descrito abaixo.
+
+## Inspeções integradas — DEV-05, 23/10/2026
+
+`features/inspecoes` consulta a API sintética por TanStack Query e mantém filtros aplicados, ordenação/direção, paginação e UC selecionada na URL; o formulário de filtros guarda apenas o rascunho local até aplicar. A tela da fila usa cinco colunas em desktop e registros empilhados em mobile, sem tabela horizontal. Não apresenta cartões de resumo nem faixas textuais alta/média. Valores de prioridade, sinais e energia são os campos numéricos/rotulados da API.
+
+O modal de filtros segue a composição compartilhada de Receita: rascunho, aplicar, cancelar, Escape e retorno de foco ao acionador. O fundamento é um diálogo separado que expõe sinais/pesos, regra, ordenação/desempate, fórmula e insumos da energia, `ConsumptionComparison`, proveniência e limitações. O detalhe preserva o recorte ao voltar à fila; `Criar ordem` é visualmente presente e desabilitada, pois a operação pertence à WEB-05. A janela sintética é janeiro–fevereiro de 2025 e não exibe comparação anual. Claro/escuro usam tokens existentes. Testes, lint, fronteiras, formatação e build passaram; a jornada principal foi conferida no navegador com API HTTP local e fonte sintética. Capturas da fila/detalhe em claro/escuro e 390–2560 px não tiveram overflow horizontal. Estilos computados acordados de Receita/Inspeções são iguais; modal mobile passou nos dois temas; reflow em 720×512 não teve overflow. Não foi testado zoom nativo a 200%. WEB-04 permanece em validação até reconciliação com Gold.
 
 ## Limite da entrega
 

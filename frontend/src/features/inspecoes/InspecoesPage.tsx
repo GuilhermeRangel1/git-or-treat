@@ -1,47 +1,93 @@
-import { ArrowLeft, Info, Clock3 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Plus, X } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
 import { queueQuery } from "./queue-query";
 import { useInspectionQueue, useSuspicion } from "./useInspectionQueue";
 import SuspicionDetail from "./SuspicionDetail";
+import InspectionFoundations from "./InspectionFoundations";
 import InspectionFilters from "./InspectionFilters";
 import InspectionQueue from "./InspectionQueue";
-import QueueOverview from "./QueueOverview";
-import { inspectionAction } from "./inspection-ui";
+import { inspectionAction, inspectionPrimary } from "./inspection-ui";
 import type { Metadata } from "./contract";
 
-function Provenance({ metadata }: { metadata: Metadata }) {
+function DemonstrationLine({ metadata }: { metadata: Metadata }) {
   return (
-    <details className="text-xs text-muted" aria-label="Contexto da evidência">
-      <summary className="w-fit cursor-pointer rounded py-2 underline decoration-border underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand">
-        Fonte, atualização e limitações
-      </summary>
-      <div className="mt-2 space-y-2 rounded-xl border border-border bg-surface p-4 leading-5">
-        <p>
-          {metadata.source.is_demo
-            ? "Demonstração com dados sintéticos"
-            : "Fonte analítica"}{" "}
-          · {metadata.source.kind} · {metadata.source.version}
-        </p>
-        <p>
-          Janela da evidência: {metadata.period.start} a {metadata.period.end} ·
-          Energia em kWh · Atualizado em{" "}
-          {new Date(metadata.source.updated_at).toLocaleString("pt-BR")}
-        </p>
-        <ul className="list-disc space-y-1 pl-4">
-          {metadata.limitations.map((text) => (
-            <li key={text}>{text}</li>
-          ))}
-        </ul>
+    <p className="text-xs leading-[18px] text-muted">
+      {metadata.source.is_demo
+        ? "Demonstração · dados sintéticos"
+        : "Fonte analítica"}
+      {" · atualização ilustrativa: "}
+      {new Intl.DateTimeFormat("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "UTC",
+      }).format(new Date(metadata.source.updated_at))}
+      {metadata.status === "partial" ? " · cobertura parcial" : null}
+    </p>
+  );
+}
+
+function FoundationDialog({
+  metadata,
+  detail,
+  open,
+  onClose,
+  dialogRef,
+}: {
+  metadata: Metadata;
+  detail?: NonNullable<ReturnType<typeof useSuspicion>["data"]>["data"];
+  open: boolean;
+  onClose: () => void;
+  dialogRef: React.RefObject<HTMLDialogElement | null>;
+}) {
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="foundations-title"
+      className="m-auto max-h-[min(90dvh,56rem)] w-[min(48rem,calc(100%-2rem))] overflow-y-auto rounded-xl border border-border bg-surface p-0 text-content shadow-xl backdrop:bg-black/50"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose();
+      }}
+      onClose={() => {
+        if (open) onClose();
+      }}
+    >
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-5 py-4">
+        <h2
+          id="foundations-title"
+          className="font-heading text-xl font-semibold"
+        >
+          Ver fundamentos
+        </h2>
+        <button
+          type="button"
+          className={inspectionAction}
+          aria-label="Fechar fundamentos"
+          onClick={onClose}
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
       </div>
-    </details>
+      <InspectionFoundations metadata={metadata} detail={detail} />
+    </dialog>
   );
 }
 
 export default function InspecoesPage() {
   const [params, setParams] = useSearchParams();
-  let parsed: ReturnType<typeof queueQuery> | null = null,
-    invalid: string | null = null;
+  const [foundationsOpen, setFoundationsOpen] = useState(false);
+  const foundationsDialogRef = useRef<HTMLDialogElement>(null);
+  const foundationsTriggerRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef(false);
+
+  let parsed: ReturnType<typeof queueQuery> | null = null;
+  let invalid: string | null = null;
   try {
     parsed = queueQuery(params);
   } catch (error) {
@@ -57,9 +103,34 @@ export default function InspecoesPage() {
   const back = new URLSearchParams(params);
   back.delete("uc");
 
+  useEffect(() => {
+    const dialog = foundationsDialogRef.current;
+    if (!dialog) return;
+    if (foundationsOpen && !dialog.open) {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    }
+    if (!foundationsOpen && dialog.open) {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    }
+  }, [foundationsOpen]);
+
+  useEffect(() => {
+    if (!foundationsOpen && restoreFocusRef.current) {
+      foundationsTriggerRef.current?.focus();
+      restoreFocusRef.current = false;
+    }
+  }, [foundationsOpen]);
+
+  function closeFoundations() {
+    restoreFocusRef.current = true;
+    setFoundationsOpen(false);
+  }
+
   return (
-    <div className="space-y-5 pb-3">
-      <header className="mb-6 flex w-full flex-col gap-2 lg:max-w-[810px]">
+    <div className="space-y-5 pb-6 lg:space-y-6">
+      <header className="flex w-full flex-col gap-2 lg:max-w-[810px]">
         <h1 className="font-heading text-[26px] leading-[34px] font-semibold lg:w-fit lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
           {parsed?.detail
             ? "Uma suspeita, com fundamento."
@@ -67,29 +138,14 @@ export default function InspecoesPage() {
         </h1>
         <p className="text-sm leading-[22px] text-muted">
           {parsed?.detail
-            ? `${parsed.detail} · Confira os sinais e os limites da evidência antes de encaminhar a inspeção.`
+            ? `${parsed.detail} · Prioridade ${detail.data ? detail.data.data.priority.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "consultando"} neste cenário demonstrativo.`
             : "Uma fila explicável para orientar a investigação de perdas. Suspeita não é fraude comprovada."}
         </p>
       </header>
-      {parsed?.detail && (
-        <Link className={inspectionAction} to={`?${back}`}>
-          <ArrowLeft size={16} aria-hidden="true" />
-          Voltar à fila
-        </Link>
-      )}
-      {metadata && (
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-          <span className="rounded-md bg-selected px-2 py-1 font-mono">
-            {metadata.source.is_demo ? "DADOS SINTÉTICOS" : "FONTE ANALÍTICA"}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Clock3 size={13} aria-hidden="true" />
-            Atualização:{" "}
-            {new Date(metadata.source.updated_at).toLocaleDateString("pt-BR")}
-          </span>
-        </p>
-      )}
-      {invalid && (
+
+      {metadata ? <DemonstrationLine metadata={metadata} /> : null}
+
+      {invalid ? (
         <div
           role="alert"
           className="rounded-xl border border-border bg-surface p-5"
@@ -102,8 +158,9 @@ export default function InspecoesPage() {
             Limpar filtros
           </button>
         </div>
-      )}
-      {!invalid && !parsed?.detail && (
+      ) : null}
+
+      {!invalid && !parsed?.detail ? (
         <InspectionFilters
           params={params}
           request={parsed?.request ?? ""}
@@ -111,8 +168,9 @@ export default function InspecoesPage() {
           metadata={metadata}
           onChange={setParams}
         />
-      )}
-      {!invalid && active.isPending && (
+      ) : null}
+
+      {!invalid && active.isPending ? (
         <div
           role="status"
           className="rounded-xl border border-border bg-surface px-5 py-10 text-sm text-muted"
@@ -120,8 +178,8 @@ export default function InspecoesPage() {
           Carregando{" "}
           {parsed?.detail ? "evidências da suspeita" : "fila de inspeção"}…
         </div>
-      )}
-      {!invalid && active.isError && (
+      ) : null}
+      {!invalid && active.isError ? (
         <div
           role="alert"
           className="rounded-xl border border-border bg-surface p-5"
@@ -140,51 +198,102 @@ export default function InspecoesPage() {
             Tentar novamente
           </button>
         </div>
-      )}
-      {!invalid && active.isFetching && !active.isPending && (
+      ) : null}
+      {!invalid && active.isFetching && !active.isPending ? (
         <p role="status" className="text-sm text-muted">
           Atualizando evidências; exibindo a última consulta válida.
         </p>
-      )}
-      {!invalid && active.data && (
+      ) : null}
+
+      {!invalid && parsed?.detail && !active.data ? (
+        <Link className={inspectionAction} to={`?${back}`}>
+          <ArrowLeft size={16} aria-hidden="true" />
+          Voltar à fila
+        </Link>
+      ) : null}
+
+      {!invalid && active.data && metadata ? (
         <>
           {parsed?.detail && detail.data ? (
-            <SuspicionDetail data={detail.data.data} />
-          ) : (
-            queue.data && (
-              <>
-                <QueueOverview summary={queue.data.data.summary} />
-                <InspectionQueue
-                  result={queue.data}
-                  params={params}
-                  onChange={setParams}
-                />
-                <aside
-                  className="flex gap-3 rounded-lg border border-border bg-selected/40 px-4 py-3 text-sm"
-                  aria-label="Limites da priorização"
+            <>
+              <SuspicionDetail data={detail.data.data} metadata={metadata} />
+              <div className="flex w-full flex-col items-stretch gap-5 lg:max-w-[180px] lg:gap-6">
+                <button
+                  type="button"
+                  disabled
+                  aria-describedby="create-order-unavailable"
+                  className={`${inspectionPrimary} w-full disabled:cursor-not-allowed disabled:opacity-60`}
                 >
-                  <Info
-                    size={18}
-                    aria-hidden="true"
-                    className="mt-0.5 shrink-0 text-brand"
-                  />
-                  <div>
-                    <p className="font-medium">
-                      Priorize a investigação, confira o fundamento.
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      Pontuações e estimativas são sintéticas. Suspeita não
-                      confirma irregularidade; a inspeção precisa verificar o
-                      contexto.
-                    </p>
-                  </div>
-                </aside>
-              </>
-            )
-          )}
-          {metadata && <Provenance metadata={metadata} />}
+                  <Plus size={16} aria-hidden="true" />
+                  Criar ordem
+                </button>
+                <Link className={inspectionAction} to={`?${back}`}>
+                  <ArrowLeft size={16} aria-hidden="true" />
+                  Voltar à fila
+                </Link>
+              </div>
+              <p
+                id="create-order-unavailable"
+                className="text-xs leading-5 text-muted"
+              >
+                A criação de ordens estará disponível na jornada WEB-05.
+              </p>
+            </>
+          ) : queue.data ? (
+            <>
+              <aside
+                className="flex flex-col items-start justify-center gap-1 rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
+                aria-label="Prioridade demonstrativa"
+              >
+                <div>
+                  <p className="text-sm font-semibold">
+                    Prioridade demonstrativa
+                  </p>
+                  <p className="mt-1 text-sm leading-[22px]">
+                    Motivos e estimativas são sintéticos. Critério final de
+                    priorização e energia recuperável dependem de validação com
+                    as fontes.
+                  </p>
+                </div>
+              </aside>
+              <InspectionQueue
+                result={queue.data}
+                params={params}
+                onChange={setParams}
+              />
+            </>
+          ) : null}
+
+          <footer className="flex flex-col items-stretch gap-2 text-xs text-muted sm:flex-row sm:items-center sm:gap-4">
+            <p className="w-full sm:max-w-[600px]">
+              Fonte:{" "}
+              {metadata.source.is_demo
+                ? "cenário sintético"
+                : metadata.source.kind}
+              . Nenhuma consulta à Gold.
+            </p>
+            <button
+              ref={foundationsTriggerRef}
+              type="button"
+              className="inline-flex min-h-11 w-full items-center justify-center px-1 text-sm font-medium text-content underline decoration-border underline-offset-4 hover:decoration-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:w-auto sm:justify-start"
+              onClick={() => setFoundationsOpen(true)}
+            >
+              <span className="mx-auto inline-flex items-center gap-1 sm:mx-0">
+                Ver fundamentos <ArrowRight size={14} aria-hidden="true" />
+              </span>
+            </button>
+          </footer>
+          <FoundationDialog
+            metadata={metadata}
+            detail={
+              parsed?.detail && detail.data ? detail.data.data : undefined
+            }
+            open={foundationsOpen}
+            onClose={closeFoundations}
+            dialogRef={foundationsDialogRef}
+          />
         </>
-      )}
+      ) : null}
     </div>
   );
 }
