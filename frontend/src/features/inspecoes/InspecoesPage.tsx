@@ -4,6 +4,7 @@ import { ApiError } from "@/shared/api/client";
 import { queueQuery } from "./queue-query";
 import { useInspectionQueue, useSuspicion } from "./useInspectionQueue";
 import SuspicionDetail from "./SuspicionDetail";
+import CreateOrder from "./CreateOrder";
 import InspectionFilters from "./InspectionFilters";
 import InspectionQueue from "./InspectionQueue";
 import QueueOverview from "./QueueOverview";
@@ -149,7 +150,16 @@ export default function InspecoesPage() {
       {!invalid && active.data && (
         <>
           {parsed?.detail && detail.data ? (
-            <SuspicionDetail data={detail.data.data} />
+            <>
+              <SuspicionDetail data={detail.data.data} />
+              <CreateOrder
+                key={`${detail.data.data.uc_id}:${detail.data.metadata.source.version}:${detail.data.data.rule_version}`}
+                uc={detail.data.data.uc_id}
+                sourceVersion={detail.data.metadata.source.version}
+                ruleVersion={detail.data.data.rule_version}
+                disabled={detail.isFetching || detail.isError}
+              />
+            </>
           ) : (
             queue.data && (
               <>

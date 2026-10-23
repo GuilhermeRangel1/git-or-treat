@@ -91,6 +91,7 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
       "/api/v1/panorama",
       "/api/v1/revenue",
       "/api/v1/inspections/queue",
+      "/api/v1/inspections/orders/search",
     ]).toContain(path);
   }
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
