@@ -1,15 +1,15 @@
 {
   "report_type": "synthetic_regression",
   "synthetic": true,
-  "dataset_version": "3.2.0",
+  "dataset_version": "3.3.0",
   "scenario_scope": "POST /api/v1/questions e POST /api/v1/insights com fixtures e adaptadores fixos.",
   "provider": "fixed_test_adapter; no Gemini API calls",
   "summary": {
-    "total": 55,
-    "passed": 44,
-    "failed": 11,
-    "pass_rate": "44/55 (80.0%)",
-    "known_failures_confirmed": 11,
+    "total": 69,
+    "passed": 65,
+    "failed": 4,
+    "pass_rate": "65/69 (94.2%)",
+    "known_failures_confirmed": 4,
     "known_failures_changed": 0,
     "known_failures_now_passing": 0,
     "unexpected_failures": 0
@@ -430,129 +430,129 @@
       "id": "vocab_apagao_answered",
       "endpoint": "questions",
       "category": "business_vocabulary",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "\"apagão\" não é sinônimo de interrupções no perfil; o interpretador pede esclarecimento.",
-      "failing_checks": [
-        "domain",
-        "evidence_source",
-        "expected_content",
-        "model_calls",
-        "plan",
-        "status",
-        "tool_calls"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
-        "tool_calls": false,
-        "model_calls": false,
-        "domain": false,
-        "plan": false,
-        "expected_content": false,
-        "evidence_source": false
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
       },
-      "actual_status": "needs_clarification",
-      "actual_domain": null,
-      "actual_plan": null,
-      "tool_calls": 0,
-      "model_calls": 0
+      "actual_status": "answered",
+      "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
     },
     {
       "id": "vocab_quedas_de_energia_answered",
       "endpoint": "questions",
       "category": "business_vocabulary",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "\"queda de energia\" não é sinônimo de interrupções; \"queda\" só é termo de direção.",
-      "failing_checks": [
-        "domain",
-        "evidence_source",
-        "expected_content",
-        "model_calls",
-        "plan",
-        "status",
-        "tool_calls"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
-        "tool_calls": false,
-        "model_calls": false,
-        "domain": false,
-        "plan": false,
-        "expected_content": false,
-        "evidence_source": false
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
       },
-      "actual_status": "needs_clarification",
-      "actual_domain": null,
-      "actual_plan": null,
-      "tool_calls": 0,
-      "model_calls": 0
+      "actual_status": "answered",
+      "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
     },
     {
       "id": "vocab_faturamos_answered",
       "endpoint": "questions",
       "category": "business_vocabulary",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "Flexão verbal \"faturamos\" não casa com o sinônimo \"faturamento\".",
-      "failing_checks": [
-        "domain",
-        "evidence_source",
-        "expected_content",
-        "model_calls",
-        "plan",
-        "status",
-        "tool_calls"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
-        "tool_calls": false,
-        "model_calls": false,
-        "domain": false,
-        "plan": false,
-        "expected_content": false,
-        "evidence_source": false
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
       },
-      "actual_status": "needs_clarification",
-      "actual_domain": null,
-      "actual_plan": null,
-      "tool_calls": 0,
-      "model_calls": 0
+      "actual_status": "answered",
+      "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
     },
     {
       "id": "vocab_reclamacoes_answered",
       "endpoint": "questions",
       "category": "business_vocabulary",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "\"reclamações\" não é sinônimo de atendimento no perfil.",
-      "failing_checks": [
-        "domain",
-        "evidence_source",
-        "expected_content",
-        "model_calls",
-        "plan",
-        "status",
-        "tool_calls"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
-        "tool_calls": false,
-        "model_calls": false,
-        "domain": false,
-        "plan": false,
-        "expected_content": false,
-        "evidence_source": false
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
       },
-      "actual_status": "needs_clarification",
-      "actual_domain": null,
-      "actual_plan": null,
-      "tool_calls": 0,
-      "model_calls": 0
+      "actual_status": "answered",
+      "actual_domain": "service",
+      "actual_plan": {
+        "domain_id": "service",
+        "metric_id": "service.attendance",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
     },
     {
       "id": "vocab_consumo_em_kwh_answered",
@@ -1126,20 +1126,18 @@
       "id": "out_of_scope_cake_recipe_refused",
       "endpoint": "questions",
       "category": "out_of_scope",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "\"receita\" é sinônimo de faturamento; o pedido vira esclarecimento de período.",
-      "failing_checks": [
-        "status"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
+        "status": true,
         "tool_calls": true,
         "model_calls": true,
         "domain": true
       },
-      "actual_status": "needs_clarification",
+      "actual_status": "refused",
       "actual_domain": null,
       "actual_plan": null,
       "tool_calls": 0,
@@ -1149,20 +1147,18 @@
       "id": "out_of_scope_football_match_refused",
       "endpoint": "questions",
       "category": "out_of_scope",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "A lista de fora de escopo só cobre a palavra \"futebol\".",
-      "failing_checks": [
-        "status"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
+        "status": true,
         "tool_calls": true,
         "model_calls": true,
         "domain": true
       },
-      "actual_status": "needs_clarification",
+      "actual_status": "refused",
       "actual_domain": null,
       "actual_plan": null,
       "tool_calls": 0,
@@ -1172,20 +1168,18 @@
       "id": "out_of_scope_poem_refused",
       "endpoint": "questions",
       "category": "out_of_scope",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "Pedido criativo sem métrica vira esclarecimento em vez de recusa.",
-      "failing_checks": [
-        "status"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
+        "status": true,
         "tool_calls": true,
         "model_calls": true,
         "domain": true
       },
-      "actual_status": "needs_clarification",
+      "actual_status": "refused",
       "actual_domain": null,
       "actual_plan": null,
       "tool_calls": 0,
@@ -1195,20 +1189,18 @@
       "id": "out_of_scope_python_code_refused",
       "endpoint": "questions",
       "category": "out_of_scope",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "Pedido de programação sem métrica vira esclarecimento em vez de recusa.",
-      "failing_checks": [
-        "status"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
-        "status": false,
+        "status": true,
         "tool_calls": true,
         "model_calls": true,
         "domain": true
       },
-      "actual_status": "needs_clarification",
+      "actual_status": "refused",
       "actual_domain": null,
       "actual_plan": null,
       "tool_calls": 0,
@@ -1394,6 +1386,417 @@
       "id": "scope_year_period_clarification",
       "endpoint": "questions",
       "category": "geography_or_scope",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "vocab_apagoes_answered",
+      "endpoint": "questions",
+      "category": "business_vocabulary",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "vocab_quedas_de_luz_answered",
+      "endpoint": "questions",
+      "category": "business_vocabulary",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "vocab_faturou_answered",
+      "endpoint": "questions",
+      "category": "business_vocabulary",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "vocab_reclamacao_singular_answered",
+      "endpoint": "questions",
+      "category": "business_vocabulary",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "service",
+      "actual_plan": {
+        "domain_id": "service",
+        "metric_id": "service.attendance",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "vocab_queda_de_energia_singular_answered",
+      "endpoint": "questions",
+      "category": "business_vocabulary",
+      "passed": false,
+      "outcome": "known_failure_confirmed",
+      "known_failure": "\"queda\" dentro do sinônimo \"queda de energia\" também casa como termo de direção; o interpretador cria o filtro direction_phrase e o plano de leitura pede esclarecimento sem consultar a fonte.",
+      "failing_checks": [
+        "domain",
+        "evidence_source",
+        "expected_content",
+        "model_calls",
+        "plan",
+        "status",
+        "tool_calls"
+      ],
+      "checks": {
+        "http_ok": true,
+        "status": false,
+        "tool_calls": false,
+        "model_calls": false,
+        "domain": false,
+        "plan": false,
+        "expected_content": false,
+        "evidence_source": false
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_receita_answered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "near_miss_receita_comercial_no_evidence",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true
+      },
+      "actual_status": "no_evidence",
+      "actual_domain": "revenue",
+      "actual_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "values": [
+              "comercial"
+            ]
+          }
+        ]
+      },
+      "tool_calls": 1,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_queda_de_consumo_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_falta_de_luz_answered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "network",
+      "actual_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "near_miss_atendimentos_answered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "service",
+      "actual_plan": {
+        "domain_id": "service",
+        "metric_id": "service.attendance",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "near_miss_reclamacoes_de_atendimento_answered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "service",
+      "actual_plan": {
+        "domain_id": "service",
+        "metric_id": "service.attendance",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "near_miss_reclamacoes_e_queda_de_energia_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_codigo_da_uc_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_programacao_desligamentos_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
       "passed": true,
       "outcome": "passed",
       "known_failure": null,

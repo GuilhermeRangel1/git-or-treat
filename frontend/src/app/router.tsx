@@ -1,7 +1,13 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+} from "react-router-dom";
 import AppLayout from "@/layouts/AppLayout";
-import { routes } from "./routes";
+import { routes, UC360Page } from "./routes";
 
 const DevContractsPage = import.meta.env.DEV
   ? lazy(() =>
@@ -15,11 +21,20 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<AppLayout navigation={routes} />}>
-        <Route index element={<Navigate to="/panorama" replace />} />
-        {routes.map(({ path, Component }) => (
-          <Route key={path} path={path} element={<Component />} />
-        ))}
-        <Route path="*" element={<Navigate to="/panorama" replace />} />
+        <Route
+          element={
+            <Suspense fallback={<p role="status">Carregando página…</p>}>
+              <Outlet />
+            </Suspense>
+          }
+        >
+          <Route index element={<Navigate to="/panorama" replace />} />
+          {routes.map(({ path, Component }) => (
+            <Route key={path} path={path} element={<Component />} />
+          ))}
+          <Route path="/uc-360/:ucId" element={<UC360Page />} />
+          <Route path="*" element={<Navigate to="/panorama" replace />} />
+        </Route>
       </Route>
       {DevContractsPage ? (
         <Route

@@ -34,7 +34,7 @@ export default function RevenueDecomposition({
   return (
     <section
       aria-labelledby="revenue-decomposition-title"
-      className="mt-2 min-h-[368px] min-w-0 rounded-xl bg-surface p-5 sm:p-6"
+      className="min-h-[368px] min-w-0 rounded-xl bg-surface p-5 sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

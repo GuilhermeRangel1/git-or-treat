@@ -1,5 +1,5 @@
 {
-  "dataset_version": "3.2.0",
+  "dataset_version": "3.3.0",
   "synthetic": true,
   "scenario_scope": "POST /api/v1/questions e POST /api/v1/insights com fixtures e adaptadores fixos.",
   "limitations": [
@@ -296,12 +296,7 @@
       "model_answer": "Foram registradas 2 ocorrências fictícias de interrupção.",
       "model_observation_ids": ["row_1"],
       "expected_answer_fragment": "2 ocorrências fictícias",
-      "expected_evidence_source": "synthetic.fixture",
-      "known_failure": {
-        "reason": "\"apagão\" não é sinônimo de interrupções no perfil; o interpretador pede esclarecimento.",
-        "failing_checks": ["domain", "evidence_source", "expected_content", "model_calls", "plan", "status", "tool_calls"],
-        "actual_status": "needs_clarification"
-      }
+      "expected_evidence_source": "synthetic.fixture"
     },
     {
       "id": "vocab_quedas_de_energia_answered",
@@ -323,12 +318,7 @@
       "model_answer": "Foram registradas 2 ocorrências fictícias de interrupção.",
       "model_observation_ids": ["row_1"],
       "expected_answer_fragment": "2 ocorrências fictícias",
-      "expected_evidence_source": "synthetic.fixture",
-      "known_failure": {
-        "reason": "\"queda de energia\" não é sinônimo de interrupções; \"queda\" só é termo de direção.",
-        "failing_checks": ["domain", "evidence_source", "expected_content", "model_calls", "plan", "status", "tool_calls"],
-        "actual_status": "needs_clarification"
-      }
+      "expected_evidence_source": "synthetic.fixture"
     },
     {
       "id": "vocab_faturamos_answered",
@@ -350,12 +340,7 @@
       "model_answer": "O faturamento demonstrativo foi 100 unidades fictícias.",
       "model_observation_ids": ["row_1"],
       "expected_answer_fragment": "100 unidades fictícias",
-      "expected_evidence_source": "synthetic.fixture",
-      "known_failure": {
-        "reason": "Flexão verbal \"faturamos\" não casa com o sinônimo \"faturamento\".",
-        "failing_checks": ["domain", "evidence_source", "expected_content", "model_calls", "plan", "status", "tool_calls"],
-        "actual_status": "needs_clarification"
-      }
+      "expected_evidence_source": "synthetic.fixture"
     },
     {
       "id": "vocab_reclamacoes_answered",
@@ -377,12 +362,7 @@
       "model_answer": "Foi registrado 1 atendimento fictício.",
       "model_observation_ids": ["row_1"],
       "expected_answer_fragment": "1 atendimento fictício",
-      "expected_evidence_source": "synthetic.fixture",
-      "known_failure": {
-        "reason": "\"reclamações\" não é sinônimo de atendimento no perfil.",
-        "failing_checks": ["domain", "evidence_source", "expected_content", "model_calls", "plan", "status", "tool_calls"],
-        "actual_status": "needs_clarification"
-      }
+      "expected_evidence_source": "synthetic.fixture"
     },
     {
       "id": "vocab_consumo_em_kwh_answered",
@@ -705,12 +685,7 @@
       "expected_domain": null,
       "expected_status": "refused",
       "expected_tool_calls": 0,
-      "expected_model_calls": 0,
-      "known_failure": {
-        "reason": "\"receita\" é sinônimo de faturamento; o pedido vira esclarecimento de período.",
-        "failing_checks": ["status"],
-        "actual_status": "needs_clarification"
-      }
+      "expected_model_calls": 0
     },
     {
       "id": "out_of_scope_football_match_refused",
@@ -720,12 +695,7 @@
       "expected_domain": null,
       "expected_status": "refused",
       "expected_tool_calls": 0,
-      "expected_model_calls": 0,
-      "known_failure": {
-        "reason": "A lista de fora de escopo só cobre a palavra \"futebol\".",
-        "failing_checks": ["status"],
-        "actual_status": "needs_clarification"
-      }
+      "expected_model_calls": 0
     },
     {
       "id": "out_of_scope_poem_refused",
@@ -735,12 +705,7 @@
       "expected_domain": null,
       "expected_status": "refused",
       "expected_tool_calls": 0,
-      "expected_model_calls": 0,
-      "known_failure": {
-        "reason": "Pedido criativo sem métrica vira esclarecimento em vez de recusa.",
-        "failing_checks": ["status"],
-        "actual_status": "needs_clarification"
-      }
+      "expected_model_calls": 0
     },
     {
       "id": "out_of_scope_python_code_refused",
@@ -750,12 +715,7 @@
       "expected_domain": null,
       "expected_status": "refused",
       "expected_tool_calls": 0,
-      "expected_model_calls": 0,
-      "known_failure": {
-        "reason": "Pedido de programação sem métrica vira esclarecimento em vez de recusa.",
-        "failing_checks": ["status"],
-        "actual_status": "needs_clarification"
-      }
+      "expected_model_calls": 0
     },
     {
       "id": "geography_known_municipality_no_evidence",
@@ -856,6 +816,266 @@
       "category": "geography_or_scope",
       "proposal_number": 42,
       "question": "Qual foi o consumo em 2024?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0
+    },
+    {
+      "id": "vocab_apagoes_answered",
+      "category": "business_vocabulary",
+      "proposal_number": 43,
+      "question": "Quantos apagões ocorreram no período de demonstração?",
+      "expected_domain": "network",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "Foram registradas 2 ocorrências fictícias de interrupção.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "2 ocorrências fictícias",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "vocab_quedas_de_luz_answered",
+      "category": "business_vocabulary",
+      "proposal_number": 44,
+      "question": "Quantas quedas de luz ocorreram no período de demonstração?",
+      "expected_domain": "network",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "Foram registradas 2 ocorrências fictícias de interrupção.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "2 ocorrências fictícias",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "vocab_faturou_answered",
+      "category": "business_vocabulary",
+      "proposal_number": 45,
+      "question": "Quanto a empresa faturou no período de demonstração?",
+      "expected_domain": "revenue",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "O faturamento demonstrativo foi 100 unidades fictícias.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "100 unidades fictícias",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "vocab_reclamacao_singular_answered",
+      "category": "business_vocabulary",
+      "proposal_number": 46,
+      "question": "Houve alguma reclamação no período de demonstração?",
+      "expected_domain": "service",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "service",
+        "metric_id": "service.attendance",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "Foi registrado 1 atendimento fictício.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "1 atendimento fictício",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "vocab_queda_de_energia_singular_answered",
+      "category": "business_vocabulary",
+      "proposal_number": 47,
+      "question": "Houve queda de energia no período de demonstração?",
+      "expected_domain": "network",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "Foram registradas 2 ocorrências fictícias de interrupção.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "2 ocorrências fictícias",
+      "expected_evidence_source": "synthetic.fixture",
+      "known_failure": {
+        "reason": "\"queda\" dentro do sinônimo \"queda de energia\" também casa como termo de direção; o interpretador cria o filtro direction_phrase e o plano de leitura pede esclarecimento sem consultar a fonte.",
+        "failing_checks": ["domain", "evidence_source", "expected_content", "model_calls", "plan", "status", "tool_calls"],
+        "actual_status": "needs_clarification"
+      }
+    },
+    {
+      "id": "near_miss_receita_answered",
+      "category": "near_miss",
+      "proposal_number": 48,
+      "question": "Qual a receita no período de demonstração?",
+      "expected_domain": "revenue",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "O faturamento demonstrativo foi 100 unidades fictícias.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "100 unidades fictícias",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "near_miss_receita_comercial_no_evidence",
+      "category": "near_miss",
+      "proposal_number": 49,
+      "question": "Qual a receita comercial no período de demonstração?",
+      "expected_domain": "revenue",
+      "expected_status": "no_evidence",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 0,
+      "expected_plan": {
+        "domain_id": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["customer.consumption_class"],
+        "window": {"phrase": "período de demonstração"},
+        "filters": [{"dimension_id": "customer.consumption_class", "values": ["comercial"]}]
+      }
+    },
+    {
+      "id": "near_miss_queda_de_consumo_clarification",
+      "category": "near_miss",
+      "proposal_number": 50,
+      "question": "Qual a queda de consumo no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0
+    },
+    {
+      "id": "near_miss_falta_de_luz_answered",
+      "category": "near_miss",
+      "proposal_number": 51,
+      "question": "Houve falta de luz no período de demonstração?",
+      "expected_domain": "network",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "network",
+        "metric_id": "network.interruptions",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "Foram registradas 2 ocorrências fictícias de interrupção.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "2 ocorrências fictícias",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "near_miss_atendimentos_answered",
+      "category": "near_miss",
+      "proposal_number": 52,
+      "question": "Quantos atendimentos no período de demonstração?",
+      "expected_domain": "service",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "service",
+        "metric_id": "service.attendance",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "Foi registrado 1 atendimento fictício.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "1 atendimento fictício",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "near_miss_reclamacoes_de_atendimento_answered",
+      "category": "near_miss",
+      "proposal_number": 53,
+      "question": "Quantas reclamações de atendimento no período de demonstração?",
+      "expected_domain": "service",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "service",
+        "metric_id": "service.attendance",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "Foi registrado 1 atendimento fictício.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "1 atendimento fictício",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "near_miss_reclamacoes_e_queda_de_energia_clarification",
+      "category": "near_miss",
+      "proposal_number": 54,
+      "question": "Quantas reclamações sobre queda de energia no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0
+    },
+    {
+      "id": "near_miss_codigo_da_uc_clarification",
+      "category": "near_miss",
+      "proposal_number": 55,
+      "question": "Qual o código da UC 1001?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0
+    },
+    {
+      "id": "near_miss_programacao_desligamentos_clarification",
+      "category": "near_miss",
+      "proposal_number": 56,
+      "question": "Qual a programação de desligamentos no período de demonstração?",
       "expected_domain": null,
       "expected_status": "needs_clarification",
       "expected_tool_calls": 0,
