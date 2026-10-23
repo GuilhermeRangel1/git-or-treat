@@ -118,9 +118,9 @@ export type UCConsumptionItem = Record<string, unknown> & {
 export type UCInvoiceItem = Record<string, unknown> & {
   invoice_id: string;
   competencia: string;
-  billed_amount: number;
+  billed_amount: number | null;
   paid_amount: number | null;
-  billed_energy_kwh: number;
+  billed_energy_kwh: number | null;
   due_date: string | null;
   payment_date: string | null;
   payment_status: "paid" | "partial" | "unpaid" | "unknown";
@@ -457,16 +457,25 @@ export function decodeUCHistory(
       case "consumption":
         text("competencia");
         month(item.competencia, `items[${index}].competencia`);
-        nullableNumber("measured_energy_kwh");
-        state(item.status, `items[${index}].status`);
+        const measuredEnergy = nullableNumber("measured_energy_kwh");
+        const consumptionStatus = state(item.status, `items[${index}].status`);
+        if (
+          (consumptionStatus === "available" && measuredEnergy === null) ||
+          ((consumptionStatus === "partial" ||
+            consumptionStatus === "unavailable") &&
+            measuredEnergy !== null)
+        )
+          throw new UCContractError(
+            `items[${index}] tem status incompatível com measured_energy_kwh.`,
+          );
         break;
       case "invoices":
         text("invoice_id");
         text("competencia");
         month(item.competencia, `items[${index}].competencia`);
-        number("billed_amount");
+        nullableNumber("billed_amount");
         nullableNumber("paid_amount");
-        number("billed_energy_kwh");
+        nullableNumber("billed_energy_kwh");
         if (
           !["paid", "partial", "unpaid", "unknown"].includes(
             text("payment_status"),
