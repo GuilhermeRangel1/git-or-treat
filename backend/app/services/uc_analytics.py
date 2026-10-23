@@ -640,17 +640,33 @@ def build_uc_history(
         "interruptions": repository.interruptions,
         "calls": repository.calls,
     }
-    coverage_key = {
-        "consumption": "measured_energy_kwh",
-        "invoices": "billed_amount",
-    }.get(section, section)
     monthly = section not in {"meters", "distributed_generation"}
-    coverage = (
-        repository.uc_monthly_coverage if monthly else repository.uc_snapshot_coverage
-    ).get(coverage_key)
-    months, full = (
-        _coverage_months(coverage, uc_id, start, end) if monthly else ([], False)
-    )
+    coverage = None
+    if section == "invoices":
+        invoice_measure_coverage = {
+            measure: _coverage_months(
+                repository.uc_monthly_coverage.get(measure), uc_id, start, end
+            )
+            for measure in ("billed_amount", "billed_energy_kwh", "paid_amount")
+        }
+        covered_months_by_measure = {
+            measure: set(measure_months)
+            for measure, (measure_months, _) in invoice_measure_coverage.items()
+        }
+        months = sorted(set().union(*covered_months_by_measure.values()))
+        full = all(measure_full for _, measure_full in invoice_measure_coverage.values())
+    else:
+        coverage_key = {
+            "consumption": "measured_energy_kwh",
+        }.get(section, section)
+        coverage = (
+            repository.uc_monthly_coverage
+            if monthly
+            else repository.uc_snapshot_coverage
+        ).get(coverage_key)
+        months, full = (
+            _coverage_months(coverage, uc_id, start, end) if monthly else ([], False)
+        )
     snapshot_known = not monthly and coverage is not None and uc_id in coverage.uc_ids
     if section == "consumption":
         by_month: dict[str, list[dict]] = {}
@@ -726,19 +742,41 @@ def build_uc_history(
             "calls": ("call_id", "opened_at", "category"),
         }[section]
         rows = [{k: r.get(k) for k in keys} for r in rows]
+        if section == "invoices":
+            for row in rows:
+                month = row["competencia"]
+                for measure, covered_months in covered_months_by_measure.items():
+                    if month not in covered_months:
+                        row[measure] = None
         if monthly:
-            status = (
-                "unavailable"
-                if not months
-                else ("partial" if not full else ("available" if rows else "empty"))
-            )
-            limitations = (
-                []
-                if full
-                else [
-                    f"Cobertura de {section} desconhecida ou incompleta para a janela."
+            if section == "invoices":
+                status = (
+                    "unavailable"
+                    if not months
+                    else (
+                        "partial"
+                        if not full
+                        else ("available" if rows else "empty")
+                    )
+                )
+                limitations = [
+                    f"Cobertura de {measure} desconhecida ou incompleta para a janela."
+                    for measure, (_, measure_full) in invoice_measure_coverage.items()
+                    if not measure_full
                 ]
-            )
+            else:
+                status = (
+                    "unavailable"
+                    if not months
+                    else ("partial" if not full else ("available" if rows else "empty"))
+                )
+                limitations = (
+                    []
+                    if full
+                    else [
+                        f"Cobertura de {section} desconhecida ou incompleta para a janela."
+                    ]
+                )
         else:
             status = (
                 "unavailable"

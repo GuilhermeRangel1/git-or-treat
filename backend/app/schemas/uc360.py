@@ -173,7 +173,8 @@ class UCConsumptionHistoryItem(BaseModel):
 
 
 class UCInvoiceHistoryItem(InvoiceDetail):
-    pass
+    billed_amount: float | None
+    billed_energy_kwh: float | None
 
 
 class UCMeterHistoryItem(MeterDetail):
