@@ -4,7 +4,7 @@
 
 ## Criação pela fila
 
-`POST /api/v1/inspections/queue/{uc_id}/orders`, Bearer de escrita e header obrigatório `Idempotency-Key`: 16–128 caracteres alfanuméricos ASCII, `_` ou `-`.
+`POST /api/v1/inspections/queue/{uc_id}/orders`, Bearer com permissão de escrita e header obrigatório `Idempotency-Key`: 16–128 caracteres alfanuméricos ASCII, `_` ou `-`. Autenticação individual, scopes e contrato para o frontend: [guia de entrega](inspection-auth-handoff.md).
 
 ```json
 {
@@ -54,7 +54,7 @@ A revisão seguinte, `a6d060000002`, verifica duplicidades ativas por UC antes d
 
 API: `DATABASE_URL` persistente, `ANALYTICS_SOURCE=synthetic`, `ORDERS_WRITE_TOKEN` privado. SQLite em memória não comprova reinício.
 
-Vite: `ORDERS_DEV_PROXY_TOKEN` no ambiente do servidor com o mesmo valor do token da API; `API_PROXY_TARGET` com endereço da API; `VITE_API_URL=/`. Proxy injeta Bearer somente nas rotas operacionais e requisições de mesma origem. Token não entra em `VITE_*`, bundle ou armazenamento do navegador. Desenvolvimento interno apenas; produção precisa de sessão/BFF/identidade própria. No Compose, passe explicitamente `ORDERS_DEV_PROXY_TOKEN` ao serviço frontend; não carregue todas as credenciais do backend nele. Sem token, a UI recebe erro e a API permanece fechada.
+Vite: `API_PROXY_TARGET` com endereço da API e `VITE_API_URL=/`. O proxy não injeta credenciais; `ORDERS_DEV_PROXY_TOKEN` não tem mais efeito. O cliente deve enviar Bearer individual conforme [guia de autenticação](inspection-auth-handoff.md). A tela básica recebe 401 até o frontend integrar esse envio/login. Credenciais de serviço ficam exclusivas de CLI/Swagger em desenvolvimento; não entram em `VITE_*`, bundle ou armazenamento do navegador. Compose publica as três portas somente em localhost.
 
 Referência consultada via Figma MCP: arquivo `oTjmpIBgbA7OOYb9ZmMG9K`, frame `16:640` (Ordens desktop claro), com ordem, UC, estado, resultado e ação. Conforme pedido, shell/tokens preservados e tela simplificada, sem reprodução integral ou redesenho da DEV-05.
 

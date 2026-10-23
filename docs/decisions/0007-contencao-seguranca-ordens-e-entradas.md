@@ -2,6 +2,8 @@
 
 **Data:** 21/10/2026. **Estado:** política conservadora implementada no pedido de correção; revisão do time pendente. **IDs:** WEB-01, WEB-05, WEB-10 e WEB-11. Não conclui os critérios funcionais ou o sistema de perfis.
 
+**Atualização em 23/10/2026:** a [ADR-0012](0012-autenticacao-individual-das-ordens.md) complementa esta política: produção exige identidade individual OIDC, e credenciais compartilhadas ficam restritas a desenvolvimento por CLI/Swagger. O texto abaixo registra a contenção original e seus limites naquela data.
+
 ## Contexto e alternativas
 
 A auditoria local comprovou escritas anônimas em ordens, reabertura sem política, dados incompatíveis com o esquema e erros internos por IDs ou JSON extremo. Ainda não há provedor de identidade, usuários ou associação de cada ordem a um proprietário. Manter as rotas abertas conserva a vulnerabilidade; criar agora um login completo inventaria cadastro e regras de WEB-10. A alternativa adotada é bloquear por padrão e habilitar clientes de serviço com escopo explícito.

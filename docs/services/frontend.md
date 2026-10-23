@@ -2,11 +2,11 @@
 
 **Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros na URL, 4 KPIs principais e 4 complementares, séries e API sintética em `GET /api/v1/panorama`. Receita mantém a exploração DEV-03; Inspeções mantém fila e detalhe auditável DEV-05. As demais jornadas seguem seus estados no PRD. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos, sem substituir o contrato do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
 
-O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite, inclusive ao acessar pelo celular. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
+O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite. As portas são publicadas somente em localhost por segurança; acesso de outro dispositivo exige ingresso configurado deliberadamente. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
 
 ## Arquitetura adotada
 
-A DEV-06 acrescenta criação no detalhe da suspeita e consulta básica em `/ordens`, com UC/estado/página na URL. Sucesso exige confirmação do servidor e reenvio reutiliza a chave da intenção. O proxy Vite pode receber `ORDERS_DEV_PROXY_TOKEN` somente no processo servidor; nenhum token deve entrar em `VITE_*`. Interface simples por decisão da pessoa usuária, para a pessoa responsável pelo frontend continuar o acabamento e as ações. Veja [contrato e evidências DEV-06](../contracts/inspection-orders-dev06.md).
+A DEV-06 acrescenta criação no detalhe da suspeita e consulta básica em `/ordens`, com UC/estado/página na URL. Sucesso exige confirmação do servidor e reenvio reutiliza a chave da intenção. O proxy Vite não injeta credenciais, e `ORDERS_DEV_PROXY_TOKEN` não tem mais efeito: a UI recebe 401 até integrar login/envio de Bearer individual. Interface simples por decisão da pessoa usuária, para outra pessoa continuar acabamento, ações e autenticação. Veja [contrato DEV-06](../contracts/inspection-orders-dev06.md) e [guia de entrega da autenticação](../contracts/inspection-auth-handoff.md).
 
 Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para estrutura, limites de importação, layout persistente, tema, transporte HTTP e política de estado. A primeira fatia visual cobre apenas navegação, apresentação visual do Panorama e textos superiores das demais páginas, até antes dos filtros ou conteúdo operacional.
 
