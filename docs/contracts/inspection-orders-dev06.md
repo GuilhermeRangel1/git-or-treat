@@ -24,6 +24,8 @@ Use as versões retornadas pelo detalhe, sem fixá-las no cliente. As duas vers�
 
 `suspicion_reference` identifica UC + kind/version/is_demo da fonte + versão da regra por SHA-256. `updated_at` não cria nova identidade: a versão da fonte precisa identificar snapshot imutável. `suspicion_snapshot` preserva detalhe e metadados completos: motivo, sinais, pontuação, estimativa, janela, atualização e limites. Estimativa ausente continua nula. Gold e inspeções históricas XLSX não são alteradas.
 
+O JSON persistido usa `snapshot_schema_version: "1"`, com modelo operacional independente de `SuspicionResponse`. Registros anteriores sem esse campo são lidos como versão 1, sem reescrever o banco. Campos adicionais da evidência e metadados JSON são preservados; acrescentar campos obrigatórios ao contrato analítico não invalida o histórico. Uma futura versão do snapshot deve ter adaptador explícito; não alterar silenciosamente o significado de v1. Não há nova migração SQL: o versionamento vive no JSON existente.
+
 ## Repetição e concorrência
 
 Uma ordem PENDENTE/EM_ANDAMENTO por referência da suspeita. Cancelamento/conclusão libera uma nova intenção/chave, preservando o registro anterior; repetir a chave antiga continua retornando a ordem original. A mesma UC pode ter investigação em outra versão da fonte/regra.
@@ -35,6 +37,8 @@ No cliente, uma chave por intenção, reutilizada após perda de resposta. Desab
 ## Consulta e compatibilidade
 
 `GET /api/v1/inspections/orders/search`: filtros AND por `status` (PENDENTE/EM_ANDAMENTO/CONCLUIDA/CANCELADA), `uc_id` exato e `priority`; `page >= 1`, `page_size` de 1 a 100 (padrão 20). Retorna `{items, pagination: {page, page_size, total, total_pages}}`. Ordenação `created_at DESC, id DESC`. Contagem do recorte completo; página além do total tem itens vazios. Paginação por offset pode mudar se houver gravações entre consultas.
+
+`items` usa `OrderSummary`, com ID, UC, motivo, prioridade, estado, observações/resultado, timestamps e referência da suspeita; não inclui `suspicion_snapshot`. A consulta SQL seleciona somente essas colunas e conta por ID, sem carregar o JSON. Evidência completa permanece no GET por ID e nas respostas de criação/reenvio. Página além do total é devolvida antes de enviar offset ao banco, inclusive para inteiros maiores que BIGINT; mantém os totais e evita erro 500.
 
 `GET /api/v1/inspections/orders/{id}` retorna registro ou 404 independentemente da fonte analítica. Leitura exige token de leitura ou escrita. Ordens antigas têm campos novos nulos. `GET /orders` mantém lista antiga por compatibilidade; clientes novos usam `/orders/search`. `POST /orders` mantém criação manual anterior, sem vínculo analítico e fora da regra de identidade de suspeita; o portal usa exclusivamente criação pela fila.
 
@@ -58,3 +62,11 @@ Referência consultada via Figma MCP: arquivo `oTjmpIBgbA7OOYb9ZmMG9K`, frame `1
 - Controle independente UC-1004: snapshot persiste pontuação 0,92 e estimativa 45 kWh, UC e motivo da fila; nova conexão/processo preserva registro. Banco PostgreSQL criado apenas em `work/dev06`, sem tocar em banco operacional existente.
 - Pendências: Gold/homologação, acabamento visual, auditoria de alterações e revisão humana. Aceite automatizado DEV-06 não conclui WEB-05 inteiro.
 - Navegador com API real: detalhe UC-1004 → criar → confirmação da ordem 1 → acompanhar → recarregar `/ordens?uc_id=UC-1004`; registro preservado, motivo e referência visíveis. Captura local `dev06-orders.png` fora do repositório. Sem reprodução visual integral do Figma; modo escuro desktop conferido.
+
+### Revisão integrada com develop — 23/10/2026
+
+- Integração de `origin/develop` em `e6c5423`: preservados contratos UC/Receita e fila; conflitos documentais resolvidos, decisão da fila renumerada para ADR-0010. A develop não foi alterada.
+- Corrigida também a janela concorrente entre a primeira consulta da chave e a consulta de ordem ativa: antes de emitir conflito, o serviço reconcilia novamente a chave e retorna 200 para conteúdo idêntico. O teste determinístico confirma criação pelo outro trabalhador nesse intervalo, sem transformar reenvio válido em 409.
+- `python -m pytest -q` com PostgreSQL 18 descartável: **214 aprovados, sem pulados**. `python -m compileall -q app tests scripts`: aprovado. Novas regressões cobrem páginas extremas, projeção SQL sem JSON, snapshots legados após evolução do DTO analítico e interleaving concorrente.
+- Frontend integrado: **130 testes em 17 arquivos**, lint, fronteiras (89 arquivos), build/tipos e format:check aprovados. A tela básica continua usando os mesmos campos do resumo. `git diff --check` aprovado.
+- Context7: [seleção de colunas no SQLAlchemy](https://docs.sqlalchemy.org/en/20/orm/queryguide/select.html#selecting-individual-attributes). Revisões de padrões e requisitos não identificaram bloqueadores nos ajustes; reconciliação Gold e revisão humana permanecem pendentes.

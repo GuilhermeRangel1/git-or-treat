@@ -82,6 +82,95 @@ def test_paginated_listing_filters_totals_and_access(orders):
     assert orders.get(f"{ROOT}/orders/search").status_code == 401
 
 
+def test_pages_beyond_total_never_send_oversized_offsets_to_database(orders):
+    create(orders)
+    for page in (2, 9223372036854775808, 10 ** 100):
+        response = orders.get(f"{ROOT}/orders/search?page={page}&page_size=100")
+        assert response.status_code == 200
+        assert response.json()["items"] == []
+        assert response.json()["pagination"] == {
+            "page": page, "page_size": 100, "total": 1, "total_pages": 1,
+        }
+
+
+def test_search_projects_summary_without_loading_snapshot(orders):
+    from sqlalchemy import event
+    from tests.conftest import test_engine
+
+    order = create(orders).json()
+    statements = []
+
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(test_engine, "before_cursor_execute", capture)
+    try:
+        response = orders.get(f"{ROOT}/orders/search")
+    finally:
+        event.remove(test_engine, "before_cursor_execute", capture)
+    assert response.status_code == 200
+    summary = response.json()["items"][0]
+    assert summary["id"] == order["id"]
+    assert summary["suspicion_reference"] == order["suspicion_reference"]
+    assert "suspicion_snapshot" not in summary
+    assert statements and all("suspicion_snapshot" not in sql for sql in statements)
+    assert orders.get(f"{ROOT}/orders/{order['id']}").json()["suspicion_snapshot"]
+
+
+def test_legacy_snapshot_survives_evolving_live_analytical_contract(orders):
+    from pydantic import create_model, ValidationError
+    from app.models.operational import InspectionOrder
+    from app.schemas.inspection_queue import SuspicionResponse
+    from tests.conftest import TestingSessionLocal
+
+    created = create(orders).json()
+    assert created["suspicion_snapshot"]["snapshot_schema_version"] == "1"
+    legacy = created["suspicion_snapshot"].copy()
+    legacy.pop("snapshot_schema_version")
+    # Simulate a future required field that old analytical JSON cannot supply.
+    future_contract = create_model("FutureSuspicion", __base__=SuspicionResponse, new_field=(str, ...))
+    with pytest.raises(ValidationError):
+        future_contract.model_validate(legacy)
+    with TestingSessionLocal() as db:
+        row = db.get(InspectionOrder, created["id"])
+        row.suspicion_snapshot = legacy
+        db.commit()
+    persisted = orders.get(f"{ROOT}/orders/{created['id']}")
+    assert persisted.status_code == 200
+    assert persisted.json()["suspicion_snapshot"] == created["suspicion_snapshot"]
+    assert create(orders).status_code == 200
+    assert orders.get(f"{ROOT}/orders").status_code == 200
+
+
+def test_replay_if_competing_request_commits_between_key_and_active_lookup(orders, monkeypatch):
+    from app.services import inspections as service
+    from app.schemas.inspections import QueueOrderCreateRequest
+    from tests.conftest import TestingSessionLocal
+
+    payload = request(orders)
+    original = service.build_suspicion_response
+    winner_ids = []
+
+    def commit_competitor(repository, uc_id):
+        # Deterministic interleaving: the outer request has already missed its
+        # key; another worker commits before the outer active-order lookup.
+        monkeypatch.setattr(service, "build_suspicion_response", original)
+        with TestingSessionLocal() as writer:
+            row, created = service.create_from_queue(
+                writer, repository, uc_id, QueueOrderCreateRequest(**payload),
+                "dev06-intention-0001",
+            )
+            assert created
+            winner_ids.append(row.id)
+        return original(repository, uc_id)
+
+    monkeypatch.setattr(service, "build_suspicion_response", commit_competitor)
+    replay = create(orders, payload)
+    assert replay.status_code == 200
+    assert replay.json()["id"] == winner_ids[0]
+    assert orders.get(f"{ROOT}/orders/search").json()["pagination"]["total"] == 1
+
+
 def test_record_and_idempotency_survive_engine_and_http_client_restart(orders, tmp_path):
     url = f"sqlite:///{(tmp_path / 'restart.db').as_posix()}"
     engine = create_engine(url, connect_args={"check_same_thread": False})

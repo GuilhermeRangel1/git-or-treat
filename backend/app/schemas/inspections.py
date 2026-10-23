@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
 from app.models.operational import OrderStatus
 from app.schemas.analytics import Pagination
-from app.schemas.inspection_queue import SuspicionResponse
+from app.schemas.order_snapshot import OrderSnapshotV1
 
 UCIdentifier = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 OrderReason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
@@ -44,7 +44,7 @@ class OrderUpdateRequest(BaseModel):
         return self
 
 
-class OrderResponse(BaseModel):
+class OrderSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -57,9 +57,12 @@ class OrderResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     suspicion_reference: str | None = None
-    suspicion_snapshot: SuspicionResponse | None = None
+
+
+class OrderResponse(OrderSummary):
+    suspicion_snapshot: OrderSnapshotV1 | None = None
 
 
 class OrderPage(BaseModel):
-    items: list[OrderResponse]
+    items: list[OrderSummary]
     pagination: Pagination

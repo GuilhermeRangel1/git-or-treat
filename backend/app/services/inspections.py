@@ -5,9 +5,12 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 
 from app.models.operational import InspectionOrder, OrderStatus
 from app.schemas.inspections import OrderCreateRequest, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage
+from app.schemas.order_snapshot import OrderSnapshotV1
+from app.schemas.inspections import OrderSummary
 from app.repositories.analytics import AnalyticsRepository
 from app.services.inspection_analytics import build_suspicion_response
 
@@ -86,11 +89,17 @@ def create_from_queue(
         InspectionOrder.status.in_([OrderStatus.PENDING, OrderStatus.IN_PROGRESS]),
     ).first()
     if active:
+        # A competing request may commit after the first key lookup but before
+        # this active-order query. Reconcile the key before reporting conflict.
+        existing = _replay(db, key, fingerprint)
+        if existing:
+            return existing, False
         raise OrderConflictError(f"Já existe ordem ativa para esta suspeita: {active.id}.")
     order = InspectionOrder(
         uc_id=snapshot.data.uc_id, reason=snapshot.data.reason,
         priority=payload.priority, notes=payload.notes, status=OrderStatus.PENDING,
-        suspicion_reference=reference, suspicion_snapshot=snapshot.model_dump(mode="json"),
+        suspicion_reference=reference,
+        suspicion_snapshot=OrderSnapshotV1.model_validate(snapshot.model_dump(mode="json")).model_dump(mode="json"),
         idempotency_key=key, request_fingerprint=fingerprint,
     )
     db.add(order)
@@ -125,8 +134,16 @@ def search_orders(db: Session, status_filter: OrderStatus | None, uc_id: str | N
         query = query.filter(InspectionOrder.uc_id == uc_id)
     if priority:
         query = query.filter(InspectionOrder.priority == priority)
-    total = query.count()
-    items = query.order_by(InspectionOrder.created_at.desc(), InspectionOrder.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    total = query.with_entities(func.count(InspectionOrder.id)).scalar()
+    offset = (page - 1) * page_size
+    items = []
+    if offset < total:
+        # Project only summary columns; do not fetch or deserialize historical JSON.
+        columns = [getattr(InspectionOrder, name) for name in OrderSummary.model_fields]
+        rows = query.with_entities(*columns).order_by(
+            InspectionOrder.created_at.desc(), InspectionOrder.id.desc(),
+        ).offset(offset).limit(page_size).all()
+        items = [OrderSummary.model_validate(row) for row in rows]
     return OrderPage(items=items, pagination={
         "page": page, "page_size": page_size, "total": total,
         "total_pages": (total + page_size - 1) // page_size,
