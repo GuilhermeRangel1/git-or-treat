@@ -1,6 +1,6 @@
 # Serviço: portal web
 
-**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros sincronizados na URL, 4 KPIs principais e 4 complementares, distinção faturado/pago e consumido/faturado, séries temporais e controles demonstrativos da base sintética publicada em `GET /api/v1/panorama`. As outras seis áreas permanecem na primeira fatia visual, aguardando suas respectivas jornadas. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos com API sintética real, sem alterar o contrato de produto do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
+**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros na URL, 4 KPIs principais e 4 complementares, séries e API sintética em `GET /api/v1/panorama`. Receita mantém a exploração DEV-03; Inspeções mantém fila e detalhe auditável DEV-05. As demais jornadas seguem seus estados no PRD. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos, sem substituir o contrato do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
 
 O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite, inclusive ao acessar pelo celular. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
 
@@ -64,6 +64,10 @@ Esses percursos são critérios de revisão, não uma imposição de seis rotas.
 Para tabelas grandes, definir paginação/ordenação de modo consistente com a API; para visualizações, explicitar unidade, legenda, escala e descrição textual. Validar uso por teclado, foco, rótulos e contraste nas jornadas principais.
 
 ## Integração e aceitação
+
+A DEV-05 implementa a jornada demonstrativa de perdas em `/inspecoes`, com consulta real ao backend sintético, filtros/página/ordenação na URL e detalhe de evidências com retorno ao mesmo recorte. A [regra de prioridade, estimativa e desempate](../contracts/inspection-dev05.md) expõe insumos, ausência e limitações; não confirma irregularidade. A regra real, a Gold e as ordens de WEB-05 continuam pendentes. Dados cacheados podem permanecer durante atualização ou falha somente com aviso explícito.
+
+A revisão visual DEV-05 usa as capturas fornecidas pela pessoa usuária e acrescenta filtros recolhíveis, resumo do recorte completo, sinais na fila e barras de pontuação, com detalhe próprio em cartões. O backend fornece o resumo e os rótulos/pesos dos sinais antes de paginar; a interface não recalcula prioridade nem confunde os totais com a página atual. O cabeçalho da rota distingue fila e detalhe; os temas usam os mesmos tokens e a tabela mobile oferece rolagem focável.
 
 O frontend consome API FastAPI; não lê o banco ou arquivos Gold diretamente. Definir contratos com backend antes de codificar componentes. Verificar ao menos uma jornada real de cada área com Gold carregada e demonstrar que os números batem com a consulta fonte. A skill `vercel-react-best-practices` é referência para performance React, não substitui os critérios do PRD. O [protótipo próprio em Figma](../design/grid360-prototype.md) orienta a interface nos dois temas; contém dados sintéticos e não valida integração, persistência ou acessibilidade de execução.
 

@@ -21,7 +21,7 @@ beforeEach(() => {
   );
 });
 
-it("mantém a estrutura e o tema ao navegar entre as sete áreas", async () => {
+it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implementadas", async () => {
   const fetchSpy = vi.fn().mockRejectedValue(new Error("network offline"));
   vi.stubGlobal("fetch", fetchSpy);
   const user = userEvent.setup();
@@ -66,9 +66,18 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas", async () => {
         ).toHaveLength(1),
       );
     }
+    if (name === "Inspeções") {
+      await waitFor(() =>
+        expect(
+          fetchSpy.mock.calls.some((call) =>
+            String(call[0]).includes("/api/v1/inspections/queue?"),
+          ),
+        ).toBe(true),
+      );
+    }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  // Panorama e Receita consultam suas APIs; as demais áreas desta branch são visuais.
+  // As três jornadas integradas podem consultar dados; as demais permanecem visuais.
   await waitFor(() =>
     expect(
       fetchSpy.mock.calls.some((call) =>
@@ -78,7 +87,11 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas", async () => {
   );
   for (const call of fetchSpy.mock.calls) {
     const path = new URL(String(call[0]), window.location.origin).pathname;
-    expect(["/api/v1/panorama", "/api/v1/revenue"]).toContain(path);
+    expect([
+      "/api/v1/panorama",
+      "/api/v1/revenue",
+      "/api/v1/inspections/queue",
+    ]).toContain(path);
   }
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
 }, 15000);

@@ -43,6 +43,8 @@ frontend/src/
 
 ## Composição, navegação e tema
 
+Em 22/10/2026, a correção responsiva DEV-05 alinhou `AppLayout` e `Header` ao padrão já presente no Panorama da DEV-02: largura disponível com teto de 1920 px, centralização e padding progressivo (`px-4`, `sm:px-6`, `lg:px-8`, `xl:px-12`). O limite anterior de 1184 px deixava a fila concentrada à esquerda em monitores largos. O layout de conversa mantém seu tratamento próprio. O cabeçalho global acompanha as margens do conteúdo. A correção foi conferida em 1440, 1920, 2560 e 390 px, sem merge da DEV-02.
+
 `app/routes.ts` é o registro de caminhos, rótulos, metadados, ícones Lucide e componentes de entrada. `app/router.tsx` monta as rotas filhas em `AppLayout` com `Outlet`. A estrutura e seus estados locais permanecem montados ao navegar. Raiz e caminhos desconhecidos preservam o redirecionamento para Panorama.
 
 As páginas não recriam sidebar, cabeçalho global ou provedores. O metadado `contentHeading` permite que Panorama e Assistente forneçam sua própria apresentação sem acoplar o layout à funcionalidade. O menu mobile usa `dialog` nativo, fecha ao navegar ou passar para desktop e oferece fechamento por botão e Escape, com retorno de foco ao acionador. Os metadados do assistente referenciam IA-05, acesso ao agente no portal. Os demais estados do agente continuam trabalho futuro.

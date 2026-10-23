@@ -51,6 +51,7 @@ export const routes = [
   },
   {
     path: "/inspecoes",
+    contentHeading: true,
     label: "Inspeções",
     title: "Priorize a próxima inspeção.",
     section: "Perdas",
