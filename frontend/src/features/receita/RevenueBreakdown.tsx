@@ -57,7 +57,7 @@ export default function RevenueBreakdown({
   return (
     <section
       aria-label="Decomposição por recorte"
-      className="mt-2 min-w-0 rounded-xl bg-surface p-4"
+      className="min-w-0 rounded-xl bg-surface p-4"
     >
       {breakdown.items.length === 0 ? (
         <p className="py-4 text-sm text-muted">
