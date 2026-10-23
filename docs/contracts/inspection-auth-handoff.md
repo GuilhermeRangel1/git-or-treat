@@ -4,7 +4,11 @@
 
 ## Estado da entrega
 
-O backend valida tokens individuais OIDC, aplica permissões de leitura/escrita e identifica o operador nos eventos de criação/transição. O proxy não cria credenciais nem autentica usuários. **A tela básica existente recebe 401 até a pessoa responsável pelo frontend integrar login e envio de Bearer.** Esse comportamento é esperado; não restaurar a injeção automática para contorná-lo.
+**Login não é obrigatório na DEV-06.** No Compose local, o modo `demo` permite criar e consultar ordens sem Bearer. Fora do Compose, configure `APP_ENV=development`, `ANALYTICS_SOURCE=synthetic` e `ORDERS_AUTH_MODE=demo` no backend e mantenha API/frontend em localhost. Reinicie a API após alterar essas variáveis. Não é necessário integrar login para continuar o frontend.
+
+O modo demo só aceita fonte sintética e desenvolvimento; produção recusa essa configuração. O ator `local-demo` identifica a execução demonstrativa, não uma pessoa. Requisições de navegador com origem não permitida ou `Sec-Fetch-Site: cross-site` são recusadas. A contenção de rede depende das portas locais; esse modo não deve ser publicado na rede ou usado com dados reais. O proxy continua sem injetar credenciais. A decisão de escopo está na atualização da ADR-0012.
+
+As seções OIDC abaixo documentam a preparação opcional para uma etapa futura, sem exigir sua integração nesta entrega.
 
 Não há cadastro de usuário/senha ou endpoint de login inventado na API. Login, emissão e renovação de tokens pertencem ao provedor OIDC escolhido pela equipe. A configuração real desse provedor e o ingresso HTTPS são tarefas de implantação. Os testes usam chaves RSA efêmeras e identidades artificiais; não afirmam integração com uma conta real de SSO.
 
@@ -33,7 +37,7 @@ Não usar ID token como substituto do token de acesso desta API. Revogar usuári
 
 Para desenvolvimento por CLI/Swagger, `APP_ENV=development` e `ORDERS_AUTH_MODE=service` preservam as credenciais de serviço de leitura/escrita existentes, com ao menos 32 caracteres e valores distintos. **Não enviá-las ao frontend.** Sem credencial válida, as ordens continuam fechadas.
 
-## Integração no frontend
+## Integração futura no frontend com OIDC
 
 1. Integrar o cliente oficial do provedor OIDC, com fluxo de login apropriado à aplicação (por exemplo, Authorization Code com PKCE). Um BFF pode manter a sessão no servidor e encaminhar o token individual; ele não faz parte desta entrega.
 2. Enviar `Authorization: Bearer <access_token>` no transporte das rotas de ordens. O proxy Vite encaminha o header recebido e não o substitui. `ORDERS_DEV_PROXY_TOKEN` deixou de ter efeito; removê-lo da configuração antiga.
@@ -52,11 +56,11 @@ O ator é derivado pelo servidor de emissor + subject, sem expor nome/email. Nã
 4. Exibir ações conforme permissões; a API continua aplicando o controle independentemente de botões ocultos. Ao trocar usuário/logout, limpar credenciais e caches remotos do usuário anterior; incluir a identidade nas chaves de consulta. Não gravar credenciais de serviço, tokens ou perfis em fixtures, logs ou bundle.
 5. Na criação, gerar uma chave de idempotência por intenção, preservar corpo/chave em reenvios e mostrar sucesso apenas após 200/201. Se precisar renovar o token após 401, não trocar a chave nem o conteúdo da intenção. 409 inclui dados estruturados para abrir a ordem existente.
 
-Sem autenticação individual integrada, manter estado de acesso negado; não mostrar criação simulada ou sucesso local. A implementação visual fica com a pessoa responsável pelo frontend.
+Nos modos autenticados, manter estado de acesso negado quando faltar credencial. Na demo local, usar as respostas reais do servidor, sem login e sem simular sucesso. A implementação visual fica com a pessoa responsável pelo frontend.
 
 ## Rotas e erros
 
-Leitura: `/inspections/orders`, `/orders/search` e `/orders/{id}` exigem `orders:read` ou `orders:write`. Criação manual, criação em `/inspections/queue/{uc_id}/orders` e atualização exigem `orders:write`. Todas têm prefixo `/api/v1`. `/inspections/access` exige identidade válida; não consulta a fonte analítica.
+Nos modos autenticados, leitura exige `orders:read` ou `orders:write` e criação/atualização exigem `orders:write`. Na demo, essas permissões são locais e dispensam Bearer. Todas as rotas têm prefixo `/api/v1/inspections`. `/access` retorna `auth_mode=demo` e ator `local-demo` nessa configuração; não consulta a fonte analítica.
 
 - 401: Bearer ausente/inválido/expirado, assinatura, emissor, audiência ou chave não aceitos. Autenticar/renovar no provedor.
 - 403: identidade válida sem permissão para a ação. Não repetir como erro transitório.

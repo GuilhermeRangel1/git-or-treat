@@ -2,7 +2,13 @@
 
 **Data:** 2026-10-23
 
-**Estado:** adotada no pedido de correção de segurança e entrega do backend para integração pelo frontend
+**Estado:** revisada por solicitação explícita da pessoa usuária: login não é obrigatório na DEV-06
+
+## Revisão de escopo — 23/10/2026
+
+A exigência de login na tela básica descrita originalmente abaixo foi retirada. A DEV-06 deve permitir criação e consulta locais sem login. O modo explícito `demo` concede leitura/escrita somente com `APP_ENV=development` e `ANALYTICS_SOURCE=synthetic`; configurações incompatíveis são recusadas. Compose e script de demonstração selecionam esse modo. O ator é `local-demo`, sem alegação de identidade individual. Portas continuam em localhost, sem injeção de tokens pelo proxy; o servidor recusa origens de navegador não permitidas e requisições cross-site. O modo não é adequado a publicação externa ou dados reais. Não há alteração na persistência, idempotência ou validações das ordens.
+
+OIDC permanece disponível como preparação opcional para uma etapa futura. Sua integração não bloqueia a entrega do backend ou o trabalho da pessoa responsável pelo frontend. Esta revisão prevalece sobre os trechos históricos abaixo que exigiam 401 até integrar login.
 
 **IDs do PRD afetados:** WEB-05 e preparação parcial de WEB-10
 

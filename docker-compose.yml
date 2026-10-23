@@ -21,6 +21,8 @@
       - backend/.env
     environment:
       ANALYTICS_SOURCE: ${ANALYTICS_SOURCE:-synthetic}
+      APP_ENV: development
+      ORDERS_AUTH_MODE: ${ORDERS_AUTH_MODE:-demo}
     depends_on:
       db:
         condition: service_healthy

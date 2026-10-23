@@ -54,7 +54,7 @@ A revisão seguinte, `a6d060000002`, verifica duplicidades ativas por UC antes d
 
 API: `DATABASE_URL` persistente, `ANALYTICS_SOURCE=synthetic`, `ORDERS_WRITE_TOKEN` privado. SQLite em memória não comprova reinício.
 
-Vite: `API_PROXY_TARGET` com endereço da API e `VITE_API_URL=/`. O proxy não injeta credenciais; `ORDERS_DEV_PROXY_TOKEN` não tem mais efeito. O cliente deve enviar Bearer individual conforme [guia de autenticação](inspection-auth-handoff.md). A tela básica recebe 401 até o frontend integrar esse envio/login. Credenciais de serviço ficam exclusivas de CLI/Swagger em desenvolvimento; não entram em `VITE_*`, bundle ou armazenamento do navegador. Compose publica as três portas somente em localhost.
+Vite: `API_PROXY_TARGET` com endereço da API e `VITE_API_URL=/`. O proxy não injeta credenciais; `ORDERS_DEV_PROXY_TOKEN` não tem mais efeito. No Compose local, `ORDERS_AUTH_MODE=demo` permite criar e consultar sem login, somente em desenvolvimento com fonte sintética. Para execução fora do Compose, configure também `APP_ENV=development` e `ANALYTICS_SOURCE=synthetic` e reinicie a API. OIDC fica como integração futura opcional, conforme [guia de entrega](inspection-auth-handoff.md). Credenciais de serviço ficam exclusivas de CLI/Swagger em desenvolvimento; não entram em `VITE_*`, bundle ou armazenamento do navegador. Compose publica as três portas somente em localhost.
 
 Referência consultada via Figma MCP: arquivo `oTjmpIBgbA7OOYb9ZmMG9K`, frame `16:640` (Ordens desktop claro), com ordem, UC, estado, resultado e ação. Conforme pedido, shell/tokens preservados e tela simplificada, sem reprodução integral ou redesenho da DEV-05.
 
