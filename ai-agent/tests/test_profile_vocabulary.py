@@ -138,16 +138,15 @@ def test_consumption_drop_keeps_consumption_with_direction() -> None:
         "Houve queda de luz no período de demonstração?",
     ],
 )
-def test_singular_power_drop_alias_still_carries_direction_filter(question: str) -> None:
-    # Limitação conhecida do interpretador: "queda" dentro do sinônimo também casa
-    # como termo de direção. O plural ("quedas") não casa. Ver o caso
+def test_singular_power_drop_alias_does_not_carry_direction_filter(question: str) -> None:
+    # "queda" dentro do sinônimo nomeia o evento, não uma direção. Ver o caso
     # vocab_queda_de_energia_singular_answered em fixtures/genai_regression.json.
     result = INTERPRETER.interpret(question)
 
     assert result.status is InterpretationStatus.READY
     assert result.intent is not None
     assert result.intent.metric_id == "network.interruptions"
-    assert result.intent.filters == {"direction_phrase": "queda"}
+    assert result.intent.filters == {}
 
 
 def test_complaints_about_power_drops_ask_which_domain() -> None:
