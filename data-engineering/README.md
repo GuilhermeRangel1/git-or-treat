@@ -75,9 +75,14 @@ Conflitos de CPF/CNPJ ou nome de titular ficam nulos e sinalizados na UC. Data f
   em R$ (faturas) e kWh (leituras), e ponta a ponta com os rejeitados do parse da Bronze.
 - Se qualquer invariante falhar, o notebook **falha** e não troca o ponteiro de publicação. A Gold deve consultar
   `silver_publicada.*` e conferir que `silver.controle_publicacao` aponta para execução `CONCLUIDO` do lote desejado.
-- Estado: executada no Databricks com o dataset real em 21/10/2026 (run `20261021T101818Z_223235ca`, `CONCLUIDO`);
-  essa execução precede as alterações atuais e não as valida. Falta executar a versão atual no lote real e analisar
-  o diagnóstico C por arquivo. O Workflow permanece inalterado, conforme `43c2e590`.
+- Estado: a versão atual foi executada no Databricks com o dataset real em 24/10/2026 (run
+  `20261024T035426Z_c5ba30e0`, lote Bronze `20261021T223955Z_f875fb45`, `CONCLUIDO`, 0 falhas de invariante, 19 min 25 s).
+  A evidência de qualidade (bairros, cronologia de datas, classes, valores impossíveis e amostra independente) está
+  registrada no PRD (entrada de 24/10/2026) e pode ser reproduzida com o roteiro somente leitura `validacao_silver_v1`.
+  O Job `v-energy-grid-360` já tem as quatro tarefas montadas (Landing_to_Bronze, Bronze_perfilamento, Bronze_to_Silver
+  e Silver_to_gold), mas a tarefa Gold ainda aponta para uma versão antiga e será trocada pela versão final antes do run
+  completo. O YAML versionado ainda reflete só as duas tarefas da Bronze e será exportado depois desse run.
+  DE-02 e DE-03 permanecem em validação até o run final.
   Decisões D46–D60 e §11.2–11.4 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
 
 ## Executar no Databricks

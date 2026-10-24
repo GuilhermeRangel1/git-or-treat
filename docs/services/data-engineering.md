@@ -1,6 +1,6 @@
 # Serviço: engenharia de dados
 
-**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. A Silver (`Bronze_to_Silver.ipynb`) foi executada em 21/10/2026 (`CONCLUIDO`, 0 falhas), mas essa execução corresponde à versão anterior e não valida as alterações atuais. O Workflow permanece com as duas tarefas da Bronze encadeadas; a Silver ainda não está encadeada. Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
+**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. A Silver (`Bronze_to_Silver.ipynb`) foi executada em 24/10/2026 (run `20261024T035426Z_c5ba30e0`, `CONCLUIDO`, 0 falhas), com a evidência de qualidade registrada no PRD. O Job `v-energy-grid-360` tem as quatro tarefas montadas (Bronze, perfil, Silver e Gold), mas a tarefa Gold ainda usa uma versão antiga e o run completo só será feito com a Gold final. A Gold está em desenvolvimento (`feat/gold`) e a exportação CSV ainda não faz parte do Job. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
 
 ## Responsabilidade
 

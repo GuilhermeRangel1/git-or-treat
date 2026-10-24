@@ -465,6 +465,20 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-24 — DE-02/DE-03 — execução da Silver revisada e evidência de qualidade
+
+- Estado anterior → novo estado: DE-02 `Em validação` → `Em validação`; DE-03 `Em validação` → `Em validação`. A versão revisada da Silver foi executada no Databricks e a evidência abaixo foi reproduzida por roteiro somente leitura. Os requisitos seguem em validação até o run final do Job (Bronze → Silver → Gold) e a revisão humana.
+- Execução: Silver `20261024T035426Z_c5ba30e0`, `CONCLUIDO`, 0 falhas de invariante, 19 min 25 s, sobre o lote Bronze `20261021T223955Z_f875fb45`. Inclui o reparo de encoding do `bairro` (commit `5679271`). O run anterior (`20261021T225547Z_b8bccba8`) foi preservado em `silver_hist`.
+- Evidência de qualidade (roteiro `validacao_silver_v1`, somente leitura, 32 verificações, 0 falhas):
+  - Bairros: 356 UCs tinham `bairro` com UTF-8 lido como Latin-1 (59 grafias) e foram reparadas antes da padronização. Depois: 0 nomes com encoding suspeito em bairro, município e logradouro; bairros distintos 332 → 272. Nenhum mapeamento de grafias foi aplicado, porque não há fonte de referência. Amostra independente: 25 UCs sorteadas, comparando Bronze e Silver, todas corretas.
+  - Cronologia: 0 violações em instalação ≤ retirada (6.132 medidores comparáveis), manutenção ≥ instalação, emissão ≤ vencimento, pagamento ≥ emissão, abertura ≤ encerramento (ocorrências) e abertura ≤ fechamento (atendimentos). Só os registros aceitos foram comparados: 1.381 medidores com data de instalação ambígua estão em quarentena, por decisão registrada (D36, D52, D53).
+  - Classes: a Silver guarda o nome da classe (RESIDENCIAL, RURAL, COMERCIAL, PODER PUBLICO, INDUSTRIAL). Nenhuma UC real ficou fora desse domínio. Mapeamento do glossário (§3) para os códigos do case: RESIDENCIAL = B1, RURAL = B2, COMERCIAL e PODER PUBLICO = B3, INDUSTRIAL = A4. A receita das faturas aceitas com leitura bate com a Gold por competência e classe, ao centavo, nas 240 combinações.
+  - Valores impossíveis: sem consumo negativo, leitura decrescente, valor de fatura negativo ou inconsistente, nota fora de 0–10, duração de ocorrência negativa ou potência de GD ≤ 0 nas tabelas publicadas (os negativos de leitura foram para a quarentena). Coordenadas: o case não define limites geográficos. Validam-se só os limites matemáticos (|lat| ≤ 90, |lon| ≤ 180), e a faixa observada (lat −8,46 a −7,70; lon −35,14 a −34,78) fica na Região Metropolitana do Recife, sem nulos e sem (0, 0). Nenhuma regra de faixa regional foi adotada.
+- Arquivos/evidência: `data-engineering/notebook/Bronze_to_Silver.ipynb`, roteiro `validacao_silver_v1` (somente leitura; localização a definir no PR #50), `data-engineering/README.md`, `docs/services/data-engineering.md` e este PRD; PR #50, branch `feat/silver`.
+- Limites: a evidência vale para o run `c5ba30e0`. O run final do Job gera outro run da Silver, e o roteiro deve ser executado de novo sobre ele. O roteiro mostra que não há violação nos dados publicados; não prova que as regras cobririam um lote futuro com defeitos novos. A cronologia não cobre registros em quarentena.
+- Responsável/revisor: execução por Júlia Tenório Calado; roteiro elaborado com assistência de IA e conferido contra o código do notebook; revisão humana pendente no PR #50.
+
+
 ### 2026-10-21 — DE-02/DE-03 — tratamento de ambiguidades na Silver
 
 - Estado anterior → novo estado: DE-02 e DE-03 permanecem `Em validação`. As regras estão implementadas, mas o requisito não pode ser concluído sem executar esta versão no lote real.
