@@ -1,34 +1,40 @@
-from typing import Optional
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.schemas.common import AnalyticalResponse, AnalyticalMetadata
+from typing import Literal
 
-router = APIRouter()
+from fastapi import APIRouter, Depends, Query, Request
+
+from app.api.v1.analytics_route import AnalyticsRoute
+from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
+from app.schemas.analytics import RevenueResponse
+from app.services.analytics import AnalyticsAPIError, filters_model, metadata, validate_period
+from app.services.revenue_analytics import build_revenue, revenue_metadata_status
+
+router = APIRouter(route_class=AnalyticsRoute)
 
 
-@router.get("", summary="Série temporal de receita e decomposição preço-volume")
+@router.get("", response_model=RevenueResponse, summary="Série de receita e decomposição demonstrativa preço-volume")
 def get_revenue_analysis(
-    competencia_inicio: Optional[str] = Query(None, description="Competência inicial (YYYY-MM)"),
-    competencia_fim: Optional[str] = Query(None, description="Competência final (YYYY-MM)"),
-    db: Session = Depends(get_db),
+    request: Request,
+    competencia_inicio: str | None = Query(None, max_length=7),
+    competencia_fim: str | None = Query(None, max_length=7),
+    municipio: str | None = Query(None, max_length=100),
+    bairro: str | None = Query(None, max_length=100),
+    classe: str | None = Query(None, max_length=100),
+    alimentador: str | None = Query(None, max_length=100),
+    group_by: Literal["municipio", "bairro", "classe"] = Query("municipio"),
+    repository: AnalyticsRepository = Depends(get_analytics_repository),
 ):
-    """
-    Retorna série histórica de receita e análise preço-volume (WEB-02).
-    """
-    return AnalyticalResponse(
-        data={
-            "faturado_total": 0.0,
-            "arrecadado_total": 0.0,
-            "preco_medio_kwh": 0.0,
-            "variacao_preco_volume": {
-                "efeito_preco": 0.0,
-                "efeito_volume": 0.0,
-            },
-            "serie_mensal": [],
-        },
-        metadata=AnalyticalMetadata(
-            periodo=f"{competencia_inicio or 'inicio'} ate {competencia_fim or 'fim'}",
-            unidade="BRL",
-        ),
-    )
+    repeated = sorted(name for name in request.query_params.keys() if len(request.query_params.getlist(name)) > 1)
+    if repeated:
+        raise AnalyticsAPIError(
+            422,
+            "invalid_query",
+            "Parâmetros escalares repetidos.",
+            [{"field": name, "message": "Informe cada parâmetro escalar uma única vez."} for name in repeated],
+        )
+    start, end = validate_period(competencia_inicio, competencia_fim)
+    filters = filters_model(municipio, bairro, classe, alimentador)
+    data = build_revenue(repository, start, end, filters, group_by=group_by)
+    state = revenue_metadata_status(data, start, end)
+    result_metadata = metadata(repository, state, start, end, filters)
+    result_metadata = result_metadata.model_copy(update={"contract_version": "1.1.0"})
+    return {"data": data, "metadata": result_metadata}

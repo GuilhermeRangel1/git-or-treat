@@ -1,34 +1,34 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.schemas.common import AnalyticalResponse, AnalyticalMetadata
 
-router = APIRouter()
+from app.api.v1.analytics_route import AnalyticsRoute
+from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
+from app.schemas.analytics import KPIResponse
+from app.services.analytics import AnalyticsAPIError, build_kpis, filters_model, metadata, validate_period
+
+router = APIRouter(route_class=AnalyticsRoute)
 
 
-@router.get("", summary="Listar indicadores agregados")
+@router.get("", response_model=KPIResponse, summary="Listar indicadores agregados")
 def get_kpis(
-    competencia: Optional[str] = Query(None, description="Competência no formato YYYY-MM"),
-    municipio: Optional[str] = Query(None, description="Filtro de município"),
-    classe: Optional[str] = Query(None, description="Classe de consumo (Residencial, Comercial, etc.)"),
-    db: Session = Depends(get_db),
+    competencia: str | None = Query(None, max_length=7),
+    competencia_inicio: str | None = Query(None, max_length=7),
+    competencia_fim: str | None = Query(None, max_length=7),
+    municipio: str | None = Query(None, max_length=100),
+    bairro: str | None = Query(None, max_length=100),
+    classe: str | None = Query(None, max_length=100),
+    alimentador: str | None = Query(None, max_length=100),
+    repository: AnalyticsRepository = Depends(get_analytics_repository),
 ):
-    """
-    Retorna métricas consolidadas (receita, consumo kWh, UCs ativas) sustentadas pela Gold.
-    """
-    # Placeholder que retorna envelope conceitual
-    filtros = {k: v for k, v in {"competencia": competencia, "municipio": municipio, "classe": classe}.items() if v}
-    return AnalyticalResponse(
-        data={
-            "receita_total": 0.0,
-            "energia_consumida_kwh": 0.0,
-            "ucs_ativas": 0,
-        },
-        metadata=AnalyticalMetadata(
-            periodo=competencia or "todas",
-            filtros_aplicados=filtros,
-            unidade="BRL / kWh / UCs",
-            qualidade_cobertura="Mock / Inicial",
-        ),
-    )
+    if competencia is not None:
+        if competencia_inicio is not None or competencia_fim is not None:
+            raise AnalyticsAPIError(422, "invalid_query", "Use a competência única ou o intervalo, sem combiná-los.", [{"field": "competencia", "message": "Parâmetro incompatível com competencia_inicio/competencia_fim."}])
+        competencia_inicio = competencia_fim = competencia
+    start, end = validate_period(competencia_inicio, competencia_fim)
+    filters = filters_model(municipio, bairro, classe, alimentador)
+    metrics, state = build_kpis(repository, start, end, filters)
+    result_metadata = metadata(repository, state, start, end, filters)
+    for item in metrics:
+        for limitation in item.limitations:
+            if limitation not in result_metadata.limitations:
+                result_metadata.limitations.append(limitation)
+    return {"data": {"metrics": metrics}, "metadata": result_metadata}

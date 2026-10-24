@@ -1,43 +1,137 @@
-from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.schemas.common import AnalyticalResponse, PaginatedResponse
+from typing import Annotated, Literal
 
-router = APIRouter()
+from fastapi import APIRouter, Depends, Query
+
+from app.api.v1.analytics_route import AnalyticsRoute
+from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
+from app.schemas.analytics import (
+    AnalyticsErrorResponse,
+    AnalyticsFilters,
+    AnalyticsListResponse,
+    UCDetailResponse,
+    UCListItem,
+)
+from app.schemas.uc360 import UCHistoryResponse, UCOverviewResponse
+from app.services.analytics import DEFAULT_END, DEFAULT_START, metadata
+from app.services.uc_analytics import (
+    build_uc_detail,
+    build_uc_history,
+    build_uc_overview,
+    build_uc_search,
+)
+
+router = APIRouter(route_class=AnalyticsRoute)
+AnalyticsRepositoryDep = Annotated[
+    AnalyticsRepository, Depends(get_analytics_repository)
+]
 
 
-@router.get("", summary="Buscar Unidades Consumidoras")
+def _uc_metadata(
+    repository, status, start: str, end: str, limitations: list[str] | None = None
+):
+    result = metadata(repository, status, start, end, AnalyticsFilters())
+    result.contract_version = "1.1.0"
+    if limitations:
+        result.limitations.extend(limitations)
+    return result
+
+
+@router.get(
+    "",
+    response_model=AnalyticsListResponse[UCListItem],
+    summary="Buscar Unidades Consumidoras por identificador",
+)
 def search_ucs(
-    q: Optional[str] = Query(None, description="Termo de busca (ID da UC, documento, etc.)"),
+    repository: AnalyticsRepositoryDep,
+    q: str | None = Query(None, max_length=100),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    order_by: str = Query("uc_id", max_length=32),
 ):
-    """Listagem com paginação e busca por UC (WEB-03)."""
-    return PaginatedResponse(
-        items=[],
-        total=0,
-        page=page,
-        page_size=page_size,
-        total_pages=0,
+    selected, pagination, state = build_uc_search(
+        repository, q, page, page_size, order_by
     )
+    return {
+        "data": {"items": selected},
+        "pagination": pagination,
+        "metadata": metadata(
+            repository, state, DEFAULT_START, DEFAULT_END, AnalyticsFilters()
+        ),
+    }
 
 
-@router.get("/{uc_id}", summary="Visão 360 da Unidade Consumidora")
-def get_uc_360(uc_id: str, db: Session = Depends(get_db)):
-    """
-    Retorna histórico completo: dados cadastrais, faturamento,
-    consumo, medidores, chamados, interrupções e status de GD.
-    """
-    # Exemplo com mock stub
-    return AnalyticalResponse(
-        data={
-            "uc_id": uc_id,
-            "status": "ATIVA",
-            "detalhes": {},
-            "historico_consumo": [],
-            "faturas": [],
-            "ocorrencias": [],
-        }
+@router.get(
+    "/{uc_id}/overview",
+    response_model=UCOverviewResponse,
+    summary="Resumo e comparação da UC",
+)
+def get_uc_overview(
+    uc_id: str,
+    repository: AnalyticsRepositoryDep,
+    start: str | None = Query(None, min_length=7, max_length=7),
+    end: str | None = Query(None, min_length=7, max_length=7),
+):
+    result = build_uc_overview(repository, uc_id, start, end)
+    period = result["data"]["period"]
+    return {
+        **result,
+        "metadata": _uc_metadata(
+            repository,
+            result["status"],
+            period["start"],
+            period["end"],
+            result["limitations"],
+        ),
+    }
+
+
+@router.get(
+    "/{uc_id}/history/{section}",
+    response_model=UCHistoryResponse,
+    summary="Histórico paginado da UC",
+)
+def get_uc_history(
+    uc_id: str,
+    section: Literal[
+        "consumption",
+        "invoices",
+        "meters",
+        "distributed_generation",
+        "interruptions",
+        "calls",
+    ],
+    repository: AnalyticsRepositoryDep,
+    start: str | None = Query(None, min_length=7, max_length=7),
+    end: str | None = Query(None, min_length=7, max_length=7),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    order_by: str | None = Query(None, max_length=32),
+):
+    result = build_uc_history(
+        repository, uc_id, section, start, end, page, page_size, order_by
     )
+    period = result["period"]
+    return {
+        **result,
+        "metadata": _uc_metadata(
+            repository,
+            result["status"],
+            period["start"],
+            period["end"],
+            result["limitations"],
+        ),
+    }
+
+
+@router.get(
+    "/{uc_id}",
+    response_model=UCDetailResponse,
+    responses={404: {"model": AnalyticsErrorResponse}},
+    summary="Visão 360 da Unidade Consumidora sintética",
+)
+def get_uc_360(uc_id: str, repository: AnalyticsRepositoryDep):
+    data, state, limitations = build_uc_detail(repository, uc_id)
+    filters = AnalyticsFilters()
+    result_metadata = metadata(repository, state, DEFAULT_START, DEFAULT_END, filters)
+    result_metadata.limitations.extend(limitations)
+    return {"data": data, "metadata": result_metadata}
