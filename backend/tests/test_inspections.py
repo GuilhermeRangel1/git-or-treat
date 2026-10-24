@@ -55,7 +55,7 @@ def test_orders_can_be_filtered_by_existing_status_enum(client):
     ).json()
     client.patch(
         f"/api/v1/inspections/orders/{in_progress['id']}",
-        json={"status": "EM_ANDAMENTO"},
+        json={"version": 1, "status": "EM_ANDAMENTO"},
     )
 
     response = client.get("/api/v1/inspections/orders?status=PENDENTE")
@@ -76,7 +76,7 @@ def test_order_update_changes_only_supplied_fields(client):
 
     updated = client.patch(
         f"/api/v1/inspections/orders/{created['id']}",
-        json={"status": "EM_ANDAMENTO", "result": "Medidor em análise"},
+        json={"version": 1, "status": "EM_ANDAMENTO", "result": "Medidor em análise"},
     )
 
     assert updated.status_code == 200
@@ -88,7 +88,7 @@ def test_order_update_changes_only_supplied_fields(client):
 def test_updating_missing_order_keeps_http_404_contract(client):
     response = client.patch(
         "/api/v1/inspections/orders/987654",
-        json={"status": "EM_ANDAMENTO"},
+        json={"version": 1, "status": "EM_ANDAMENTO"},
     )
 
     assert response.status_code == 404
@@ -106,7 +106,7 @@ def test_invalid_request_field_types_are_rejected_by_http_contract(client):
     ).json()
     invalid_update = client.patch(
         f"/api/v1/inspections/orders/{created['id']}",
-        json={"status": "STATUS_DESCONHECIDO"},
+        json={"version": 1, "status": "STATUS_DESCONHECIDO"},
     )
 
     assert invalid_create.status_code == 422
@@ -152,7 +152,7 @@ def test_database_errors_roll_back_order_writes(client):
     try:
         failed_update = client.patch(
             f"/api/v1/inspections/orders/{created['id']}",
-            json={"status": "EM_ANDAMENTO"},
+            json={"version": 1, "status": "EM_ANDAMENTO"},
         )
     finally:
         with test_engine.begin() as connection:
@@ -212,7 +212,7 @@ def test_service_rollback_keeps_same_session_usable_after_insert_and_update_erro
             inspection_service.update_order(
                 db,
                 created.id,
-                OrderUpdateRequest(status=OrderStatus.IN_PROGRESS),
+                OrderUpdateRequest(version=1, status=OrderStatus.IN_PROGRESS),
             )
 
         with engine.begin() as connection:
@@ -223,7 +223,7 @@ def test_service_rollback_keeps_same_session_usable_after_insert_and_update_erro
         updated = inspection_service.update_order(
             db,
             created.id,
-            OrderUpdateRequest(status=OrderStatus.IN_PROGRESS),
+            OrderUpdateRequest(version=1, status=OrderStatus.IN_PROGRESS),
         )
         assert updated.status == OrderStatus.IN_PROGRESS
     finally:

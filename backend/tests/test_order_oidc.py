@@ -68,12 +68,12 @@ def test_individual_access_and_scope_enforcement(oidc, key):
     assert access["permissions"] == ["orders:read"]
     assert oidc.get(ROOT + "/orders/search", headers=reader).status_code == 200
     assert oidc.post(ROOT + "/orders", headers=reader, json={"uc_id": "OIDC-1", "reason": "test"}).status_code == 403
-    assert oidc.patch(ROOT + "/orders/1", headers=reader, json={"notes": "test"}).status_code == 403
+    assert oidc.patch(ROOT + "/orders/1", headers=reader, json={"version": 1, "notes": "test"}).status_code == 403
     assert oidc.post(ROOT + "/queue/UC-1004/orders", headers=reader, json={}).status_code == 403
     writer = auth(token(key))
     created = oidc.post(ROOT + "/orders", headers=writer, json={"uc_id": "OIDC-1", "reason": "test"})
     assert created.status_code == 201
-    assert oidc.patch(ROOT + f"/orders/{created.json()['id']}", headers=writer, json={"status": "EM_ANDAMENTO"}).status_code == 200
+    assert oidc.patch(ROOT + f"/orders/{created.json()['id']}", headers=writer, json={"version": 1, "status": "EM_ANDAMENTO"}).status_code == 200
     assert oidc.get(ROOT + "/access", headers=writer).json()["permissions"] == ["orders:read", "orders:write"]
 
 

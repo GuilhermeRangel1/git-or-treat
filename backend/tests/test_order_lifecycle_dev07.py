@@ -47,25 +47,25 @@ def test_full_lifecycle_persists_actor_versions_and_results(writer):
         assert persisted.result == "Sem irregularidade"
         assert db.query(OperationalOrderHistory).filter_by(order_id=oid).count() == 3
     # Repeat the acknowledged result without duplicating audit/version.
-    assert writer.post(f"{ROOT}/{oid}/result", json={"result": "Sem irregularidade"}).json()["version"] == 3
+    assert writer.post(f"{ROOT}/{oid}/result", json={"version": 3, "result": "Sem irregularidade"}).json()["version"] == 3
     assert len(writer.get(f"{ROOT}/{oid}/history").json()) == 3
     for payload in ({"notes": "alterar"}, {"result": "outro"}, {"status": "PENDENTE"}):
-        assert writer.patch(f"{ROOT}/{oid}", json=payload).status_code == 409
+        assert writer.patch(f"{ROOT}/{oid}", json={**payload, "version": 3}).status_code == 409
 
 
 def test_identified_cancellation_reopen_regression_and_retries(writer):
     order = create(writer)
     oid = order["id"]
-    assert writer.post(f"{ROOT}/{oid}/cancel", json={}).status_code == 422
-    assert writer.post(f"{ROOT}/{oid}/cancel", json={"confirmed_order_id": oid + 1}).status_code == 409
-    payload = {"confirmed_order_id": oid, "reason": "Duplicidade verificada"}
+    assert writer.post(f"{ROOT}/{oid}/cancel", json={"version": 1}).status_code == 422
+    assert writer.post(f"{ROOT}/{oid}/cancel", json={"version": 1, "confirmed_order_id": oid + 1}).status_code == 409
+    payload = {"version": 1, "confirmed_order_id": oid, "reason": "Duplicidade verificada"}
     cancelled = writer.post(f"{ROOT}/{oid}/cancel", json=payload)
     assert cancelled.status_code == 200
     assert cancelled.json()["cancellation_reason"] == payload["reason"]
-    assert writer.post(f"{ROOT}/{oid}/cancel", json=payload).json()["version"] == 2
+    assert writer.post(f"{ROOT}/{oid}/cancel", json={**payload, "version": 2}).json()["version"] == 2
     for state in ("PENDENTE", "EM_ANDAMENTO", "CONCLUIDA"):
-        assert writer.patch(f"{ROOT}/{oid}", json={"status": state, "result": "tentativa"}).status_code == 409
-    assert writer.post(f"{ROOT}/{oid}/result", json={"result": "tentativa"}).status_code == 409
+        assert writer.patch(f"{ROOT}/{oid}", json={"version": 2, "status": state, "result": "tentativa"}).status_code == 409
+    assert writer.post(f"{ROOT}/{oid}/result", json={"version": 2, "result": "tentativa"}).status_code == 409
     assert writer.get(f"{ROOT}/{oid}").json()["status"] == "CANCELADA"
     assert len(writer.get(f"{ROOT}/{oid}/history").json()) == 2
     assert writer.post(ROOT, json={"uc_id": "UC-DEV07", "reason": "Novo ciclo"}).status_code == 201
@@ -74,30 +74,30 @@ def test_identified_cancellation_reopen_regression_and_retries(writer):
 @pytest.mark.parametrize("payload", [{}, {"version": 1}, {"version": 0, "notes": "n"}, {"version": True, "notes": "n"}, {"result": "   "}, {"status": "INVENTADO"}])
 def test_invalid_changes_do_not_write(writer, payload):
     order = create(writer)
-    assert writer.patch(f"{ROOT}/{order['id']}", json=payload).status_code == 422
+    assert writer.patch(f"{ROOT}/{order['id']}", json={"version": 1, **payload}).status_code == 422
     assert len(writer.get(f"{ROOT}/{order['id']}/history").json()) == 1
 
 
 def test_required_result_stale_version_and_invalid_transition(writer):
     oid = create(writer)["id"]
-    assert writer.patch(f"{ROOT}/{oid}", json={"status": "CONCLUIDA"}).status_code == 409
-    assert writer.post(f"{ROOT}/{oid}/result", json={"result": "  "}).status_code == 422
+    assert writer.patch(f"{ROOT}/{oid}", json={"version": 1, "status": "CONCLUIDA"}).status_code == 409
+    assert writer.post(f"{ROOT}/{oid}/result", json={"version": 1, "result": "  "}).status_code == 422
     assert writer.patch(f"{ROOT}/{oid}", json={"notes": "primeiro", "version": 1}).status_code == 200
     conflict = writer.patch(f"{ROOT}/{oid}", json={"notes": "obsoleto", "version": 1})
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "version_conflict"
-    writer.patch(f"{ROOT}/{oid}", json={"status": "EM_ANDAMENTO"})
-    assert writer.patch(f"{ROOT}/{oid}", json={"status": "PENDENTE"}).status_code == 409
+    writer.patch(f"{ROOT}/{oid}", json={"version": 2, "status": "EM_ANDAMENTO"})
+    assert writer.patch(f"{ROOT}/{oid}", json={"version": 3, "status": "PENDENTE"}).status_code == 409
 
 
 def test_independent_sessions_cannot_overwrite_same_status_updates(writer):
     oid = create(writer)["id"]
     with TestingSessionLocal() as first, TestingSessionLocal() as second:
         stale = second.get(InspectionOrder, oid)
-        service.update_order(first, oid, OrderUpdateRequest(notes="Primeira alteração"))
+        service.update_order(first, oid, OrderUpdateRequest(version=1, notes="Primeira alteração"))
         assert stale.version == 1
         with pytest.raises(service.OrderConflictError):
-            service.update_order(second, oid, OrderUpdateRequest(notes="Sobrescrita concorrente"))
+            service.update_order(second, oid, OrderUpdateRequest(version=1, notes="Sobrescrita concorrente"))
     assert writer.get(f"{ROOT}/{oid}").json()["notes"] == "Primeira alteração"
     assert len(writer.get(f"{ROOT}/{oid}/history").json()) == 2
 
@@ -107,7 +107,7 @@ def test_history_failure_rolls_back_order_and_version(writer):
     with test_engine.begin() as conn:
         conn.execute(text("CREATE TRIGGER fail_history BEFORE INSERT ON operational_order_history BEGIN SELECT RAISE(ABORT, 'audit failure'); END"))
     try:
-        assert writer.patch(f"{ROOT}/{oid}", json={"status": "EM_ANDAMENTO"}).status_code == 500
+        assert writer.patch(f"{ROOT}/{oid}", json={"version": 1, "status": "EM_ANDAMENTO"}).status_code == 500
         assert writer.post(ROOT, json={"uc_id": "UC-ROLLBACK", "reason": "teste"}).status_code == 500
     finally:
         with test_engine.begin() as conn:
@@ -119,14 +119,14 @@ def test_history_failure_rolls_back_order_and_version(writer):
 
 
 def test_new_routes_require_access_and_report_missing_order(writer):
-    for route, payload in (("history", None), ("result", {"result": "r"}), ("cancel", {"confirmed_order_id": 999})):
+    for route, payload in (("history", None), ("result", {"version": 1, "result": "r"}), ("cancel", {"version": 1, "confirmed_order_id": 999})):
         response = writer.get(f"{ROOT}/999/{route}") if payload is None else writer.post(f"{ROOT}/999/{route}", json=payload)
         assert response.status_code == 404
     oid = create(writer)["id"]
     writer.headers.pop("Authorization")
     assert writer.get(f"{ROOT}/{oid}/history").status_code == 401
-    assert writer.post(f"{ROOT}/{oid}/result", json={"result": "r"}).status_code == 401
-    assert writer.post(f"{ROOT}/{oid}/cancel", json={"confirmed_order_id": oid}).status_code == 401
+    assert writer.post(f"{ROOT}/{oid}/result", json={"version": 1, "result": "r"}).status_code == 401
+    assert writer.post(f"{ROOT}/{oid}/cancel", json={"version": 1, "confirmed_order_id": oid}).status_code == 401
 
 
 @pytest.mark.parametrize("revision", ["c4b1a239d8e7", "a6d060000002"])
@@ -149,7 +149,7 @@ def test_migrate_both_branches_preserves_existing_order(tmp_path, revision):
             event = db.query(OperationalOrderHistory).one()
             assert event.details == "motivo legado" and event.actor is None
         with pytest.raises(service.OrderConflictError):
-            service.update_order(db, order.id, OrderUpdateRequest(status=OrderStatus.PENDING))
+            service.update_order(db, order.id, OrderUpdateRequest(version=1, status=OrderStatus.PENDING))
     with engine.connect() as conn:
         command.downgrade(alembic_config(conn), "base")
     engine.dispose()
