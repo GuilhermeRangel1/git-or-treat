@@ -28,7 +28,10 @@ import type {
   AIQuestionResponse,
 } from "./contract";
 
-type RetryRequest = Pick<AIQuestionRequest, "question" | "context">;
+type RetryRequest = Pick<AIQuestionRequest, "question" | "context"> & {
+  userMessageId: number;
+  assistantMessageId: number;
+};
 type ChatMessage = {
   id: number;
   role: "user" | "assistant";
@@ -77,6 +80,40 @@ function makeContext(messages: ChatMessage[]): AIConversationTurn[] {
       content: message.content.slice(0, 1000),
     }))
     .slice(-3);
+}
+
+function updateConversationInteraction(
+  messages: ChatMessage[],
+  userMessageId: number,
+  assistantMessage: ChatMessage,
+  moveToEnd: boolean,
+): ChatMessage[] {
+  const updated = messages.map((message) => {
+    if (message.id === userMessageId) {
+      return {
+        ...message,
+        contextEligible: assistantMessage.contextEligible,
+      };
+    }
+    return message.id === assistantMessage.id ? assistantMessage : message;
+  });
+  const withAssistant = updated.some(
+    (message) => message.id === assistantMessage.id,
+  )
+    ? updated
+    : [...updated, assistantMessage];
+  if (!moveToEnd) return withAssistant;
+
+  const userMessage = withAssistant.find(
+    (message) => message.id === userMessageId,
+  );
+  const previousPosition = withAssistant.filter(
+    (message) =>
+      message.id !== userMessageId && message.id !== assistantMessage.id,
+  );
+  return userMessage
+    ? [...previousPosition, userMessage, assistantMessage]
+    : [...previousPosition, assistantMessage];
 }
 
 function formatFilterValue(value: string | number | boolean) {
@@ -250,21 +287,34 @@ export default function AssistentePage() {
   useEffect(() => {
     const history = historyRef.current;
     if (history) history.scrollTop = history.scrollHeight;
-  }, [messages.length, mutation.isPending]);
+  }, [messages.length]);
 
   async function send(
     questionText: string,
     context: AIConversationTurn[],
     addUserMessage: boolean,
+    retryAttempt?: RetryRequest,
   ) {
     const question = questionText.trim();
     if (!question || question.length > 1000 || mutation.isPending) return;
-    const retryRequest = { question, context };
+    const userMessageId = addUserMessage
+      ? nextMessageId.current++
+      : retryAttempt?.userMessageId;
+    const assistantMessageId = addUserMessage
+      ? nextMessageId.current++
+      : retryAttempt?.assistantMessageId;
+    if (userMessageId === undefined || assistantMessageId === undefined) return;
+    const retryRequest = retryAttempt ?? {
+      question,
+      context,
+      userMessageId,
+      assistantMessageId,
+    };
     if (addUserMessage) {
       setMessages((current) => [
         ...current,
         {
-          id: nextMessageId.current++,
+          id: userMessageId!,
           role: "user",
           content: question,
           contextEligible: true,
@@ -279,20 +329,27 @@ export default function AssistentePage() {
         question,
         context: context.slice(-3),
       });
-      setMessages((current) => [
-        ...current,
-        {
-          id: nextMessageId.current++,
-          role: "assistant",
-          content: responseContent(response),
-          response,
-          retryRequest:
-            response.status === "recoverable_error" && response.error?.retryable
-              ? retryRequest
-              : undefined,
-          contextEligible: response.status !== "recoverable_error",
-        },
-      ]);
+      const assistantMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: responseContent(response),
+        response,
+        retryRequest:
+          response.status === "recoverable_error" && response.error?.retryable
+            ? retryRequest
+            : undefined,
+        contextEligible: !["recoverable_error", "refused"].includes(
+          response.status,
+        ),
+      };
+      setMessages((current) =>
+        updateConversationInteraction(
+          current,
+          userMessageId,
+          assistantMessage,
+          retryAttempt !== undefined,
+        ),
+      );
     } catch (error) {
       const safeError =
         error instanceof AIChatApiError
@@ -301,17 +358,22 @@ export default function AssistentePage() {
               "Não foi possível concluir a pergunta. Tente novamente mais tarde.",
               false,
             );
-      setMessages((current) => [
-        ...current,
-        {
-          id: nextMessageId.current++,
-          role: "assistant",
-          content: safeError.message,
-          error: safeError,
-          retryRequest: safeError.retryable ? retryRequest : undefined,
-          contextEligible: false,
-        },
-      ]);
+      const assistantMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: safeError.message,
+        error: safeError,
+        retryRequest: safeError.retryable ? retryRequest : undefined,
+        contextEligible: false,
+      };
+      setMessages((current) =>
+        updateConversationInteraction(
+          current,
+          userMessageId,
+          assistantMessage,
+          retryAttempt !== undefined,
+        ),
+      );
     }
   }
 
@@ -427,7 +489,7 @@ export default function AssistentePage() {
                 key={message.id}
                 message={message}
                 onRetry={(request) =>
-                  void send(request.question, request.context, false)
+                  void send(request.question, request.context, false, request)
                 }
               />
             ))}
