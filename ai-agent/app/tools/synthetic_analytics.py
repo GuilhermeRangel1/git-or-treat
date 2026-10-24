@@ -7,6 +7,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.scenarios import SYNTHETIC_SCENARIOS
+from app.schemas.access import AccessContext
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.evidence import (
     EvidenceLookupResult,
@@ -70,7 +71,9 @@ class SyntheticScenarioTool:
     ) -> None:
         self._catalog = catalog
 
-    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
+    async def retrieve(
+        self, plan: LogicalReadPlan, access_context: AccessContext
+    ) -> EvidenceLookupResult:
         """Recebe somente o plano aprovado pelo núcleo."""
         result = self.execute(SyntheticScenarioRequest(plan=plan))
         if result.evidence is not None:

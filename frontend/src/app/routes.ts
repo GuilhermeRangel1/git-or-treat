@@ -1,4 +1,5 @@
-import type { ComponentType } from "react";
+import { lazy } from "react";
+import type { ComponentType, LazyExoticComponent } from "react";
 import {
   Activity,
   Bot,
@@ -10,14 +11,18 @@ import {
 } from "lucide-react";
 import type { NavItem } from "@/layouts/navigation";
 import PanoramaPage from "@/features/panorama/PanoramaPage";
-import ReceitaPage from "@/features/receita/ReceitaPage";
-import UC360Page from "@/features/uc360/UC360Page";
-import InspecoesPage from "@/features/inspecoes/InspecoesPage";
-import OrdensPage from "@/features/ordens/OrdensPage";
-import OperacaoPage from "@/features/operacao/OperacaoPage";
-import AssistentePage from "@/features/assistente/AssistentePage";
+const ReceitaPage = lazy(() => import("@/features/receita/ReceitaPage"));
+export const UC360Page = lazy(() => import("@/features/uc360/UC360Page"));
+const InspecoesPage = lazy(() => import("@/features/inspecoes/InspecoesPage"));
+const OrdensPage = lazy(() => import("@/features/ordens/OrdensPage"));
+const OperacaoPage = lazy(() => import("@/features/operacao/OperacaoPage"));
+const AssistentePage = lazy(
+  () => import("@/features/assistente/AssistentePage"),
+);
 
-type AppRoute = NavItem & { Component: ComponentType };
+type AppRoute = NavItem & {
+  Component: ComponentType | LazyExoticComponent<ComponentType>;
+};
 
 export const routes = [
   {
@@ -51,6 +56,7 @@ export const routes = [
   },
   {
     path: "/inspecoes",
+    contentHeading: true,
     label: "Inspeções",
     title: "Priorize a próxima inspeção.",
     section: "Perdas",

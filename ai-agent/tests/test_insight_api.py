@@ -1,5 +1,7 @@
 """Contratos HTTP públicos para insights contextuais sintéticos."""
 
+import json
+
 from app.agent.access import ReadAccessPolicy
 from app.agent.insights import ScreenInsightOrchestrator
 from app.api.access import SYNTHETIC_SOURCE_ID
@@ -75,13 +77,17 @@ def _client(model=None) -> InProcessClient:
 def test_insight_real_mode_without_verified_identity_never_calls_model() -> None:
     model = RecordingInsightModel()
     application = create_app(
-        settings=Settings(environment="production", _env_file=None),
+        settings=Settings(environment="production", service_api_token="s" * 32, _env_file=None),
         insight_orchestrator=ScreenInsightOrchestrator(
             model, ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID)
         ),
     )
     with InProcessClient(application) as client:
-        response = client.post("/api/v1/insights", json={"screen": _screen_context()})
+        response = client.post(
+            "/api/v1/insights",
+            json={"screen": _screen_context()},
+            headers={"Authorization": f"Bearer {'s' * 32}"},
+        )
 
     assert response.status_code == 200
     assert response.json()["status"] == "refused"
@@ -116,7 +122,11 @@ def test_insight_separates_supplied_observation_from_generated_hypothesis() -> N
     assert body["audit_reference"] is None
     assert body["error"] is None
     assert body["observation"]["values"] == [{"label": "consumo total", "value": 420}]
-    assert "consumo total: 420 kWh fictícios" in body["hypothesis"]
+    assert "consumo total: 420 kWh fictícios" not in body["hypothesis"]
+    assert body["hypothesis"] == (
+        "Investigue a composição de consumo demonstrativo no recorte selecionado. "
+        "O valor observado não comprova uma causa."
+    )
     assert model.answer not in body["hypothesis"]
     assert body["context"]["metric"] == "consumo demonstrativo"
     assert body["context"]["period"]["start"] == "2025-01-01"
@@ -125,6 +135,28 @@ def test_insight_separates_supplied_observation_from_generated_hypothesis() -> N
     assert model.calls[0][2].records[0]["observations"] == [
         {"observation_id": "row_1", "value": 420}
     ]
+
+
+def test_comparison_hypothesis_does_not_repeat_selected_numbers() -> None:
+    model = RecordingInsightModel(observation_ids=("row_1", "row_2"))
+    screen = _screen_context(
+        observations=[
+            {"label": "Abr/24", "value": 90_000},
+            {"label": "Mar/24", "value": 100_000},
+        ]
+    )
+
+    with _client(model) as client:
+        response = client.post("/api/v1/insights", json={"screen": screen})
+
+    body = response.json()
+    assert body["observation"]["values"] == screen["observations"]
+    assert body["hypothesis"] == (
+        "Investigue a relação entre os recortes selecionados de consumo demonstrativo. "
+        "A comparação não comprova uma causa."
+    )
+    assert "90.000" not in body["hypothesis"]
+    assert "100.000" not in body["hypothesis"]
 
 
 def test_insight_does_not_forward_client_reference_to_model_or_response() -> None:
@@ -185,9 +217,12 @@ def test_insight_does_not_publish_untrusted_model_text() -> None:
         response = client.post("/api/v1/insights", json={"screen": _screen_context()})
 
     assert response.json()["status"] == "answered"
-    assert "420 kWh fictícios" in response.json()["hypothesis"]
+    assert "420 kWh fictícios" not in response.json()["hypothesis"]
     assert "123.456.789-00" not in response.text
-    assert "999" not in response.text
+    # O correlation_id é hexadecimal aleatório e pode conter "999" por acaso.
+    public = response.json()
+    public.pop("correlation_id")
+    assert "999" not in json.dumps(public, ensure_ascii=False)
 
 
 def test_insight_rejects_inconsistent_period_and_real_evidence_in_synthetic_stage() -> None:

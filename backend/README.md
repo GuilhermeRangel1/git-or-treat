@@ -54,11 +54,35 @@ O exemplo `.env.example` atende à execução no host. Para executar o backend i
 
 `db` é um nome de serviço da rede Docker; não é o endereço do banco para o Python executado no Windows. `localhost` dentro do contêiner aponta para o próprio contêiner. Ao alternar os modos, confira a URL antes de migrar. Os testes HTTP substituem `DATABASE_URL` por SQLite em memória; eles passarem não comprova que a conexão da aplicação foi configurada. Confira também o health check com `database=connected` no modo escolhido.
 
+## Perguntas ao serviço GenAI
+
+`POST /api/v1/ai/questions` recebe uma pergunta e até três turnos transitórios de conversa, valida o contrato `v1` e encaminha a chamada ao serviço GenAI. O Backend devolve a resposta validada, as referências de evidência e o ID de correlação. Não consulta Gold nem salva sessões nesta rota. O contrato e os códigos de erro estão em [genai-chat-api.md](../docs/contracts/genai-chat-api.md).
+
+Para testar os dois serviços no host, use o mesmo token aleatório de pelo menos 32 caracteres nos arquivos `.env` locais, sem versioná-lo. Configure `AI_AGENT_BASE_URL=http://127.0.0.1:8001` e `AI_AGENT_SERVICE_API_TOKEN` no Backend; no GenAI, configure `GENAI_SERVICE_API_TOKEN`, `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true`. Inicie o GenAI na porta 8001 e o Backend na porta 8000. Uma chamada de exemplo:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8000/api/v1/ai/questions `
+  -ContentType 'application/json' `
+  -Body '{"contract_version":"v1","question":"Qual foi o consumo no período de demonstração?","context":[]}'
+```
+
+Sem provedor de modelo configurado, o GenAI responde com erro recuperável no envelope de negócio; isso ainda permite verificar o encaminhamento. Para obter uma resposta sintética gerada por modelo, configure um provedor no ambiente local do GenAI. O token autentica apenas os serviços entre si; não representa uma pessoa usuária ou autorização para a Gold.
+
+### Chat do portal no Docker Compose
+
+A rota `/assistente` do portal envia perguntas para este endpoint. O Compose também sobe o serviço GenAI, acessível ao Backend somente na rede interna. Para ativar a demonstração local, configure nos arquivos ignorados pelo Git:
+
+- `backend/.env`: `AI_AGENT_BASE_URL=http://ai-agent:8001` e `AI_AGENT_SERVICE_API_TOKEN`;
+- `ai-agent/.env`: o mesmo `GENAI_SERVICE_API_TOKEN`, `GENAI_ENVIRONMENT=local`, `GENAI_ENABLE_DEMO_ACCESS=true`, `GENAI_MODEL_PROVIDER=gemini` e `GENAI_GEMINI_API_KEY`.
+
+Os dois tokens de serviço devem ser iguais e ter pelo menos 32 caracteres. A chave Gemini fica apenas em `ai-agent/.env`; nunca use `VITE_*` ou envie credenciais ao navegador. Com `.env.db`, `backend/.env` e `ai-agent/.env` preparados, execute `docker compose up --build` na raiz e abra `http://localhost:5173/assistente`. A conversa fica em memória no navegador e consulta somente os cenários artificiais desta versão; não usa Gold e não persiste histórico.
+
 ## Contratos analíticos de desenvolvimento
 
 `ANALYTICS_SOURCE` aceita `unavailable` (padrão, retorna HTTP 503 nas rotas analíticas) ou `synthetic`. Para experimentar os contratos sem conectar ao PostgreSQL, configure a opção `synthetic` no ambiente antes de iniciar a API. Um valor desconhecido impede a inicialização. `/api/v1/kpis`, `/revenue`, `/ucs`, `/ucs/{uc_id}`, `/inspections/queue` e `/operations/continuity` usam a interface `get_analytics_repository`; filas de inspeção continuam separadas das ordens operacionais persistidas.
 
-A fixture determinística declara faturamento BRL 182, pagamentos BRL 170, energia faturada de 170 kWh e energia medida conhecida de 407 kWh no período janeiro–fevereiro de 2025. Faturado e pago usam fatos de fatura; energia medida e faturada têm campos separados. O perfil de UC traz uma referência e um nome fictícios. Vencimento, pagamento e situação de cada fatura são campos propostos, podendo ser nulos quando desconhecidos. A decomposição preço-volume endpoint e as taxas de continuidade são demonstrativas, versionadas e não homologadas pela Gold. A fixture inclui leitura zero válida, leitura ausente, UC sem fatura, medidor retirado, alimentador sem denominador e o AL-02 distribuído entre Olinda e Paulista; limitações e nulidade aparecem na resposta.
+A fixture sintética `dev03-v1` cobre explicitamente janeiro e fevereiro de 2025 para faturamento e energia faturada; `/api/v1/revenue` publica o contrato 1.1.0 e inclui oito UCs distintas faturadas em cada extremo, com Recife e Olinda, mais de um bairro e as classes Comercial e Residencial nos dois meses. No período, os controles são BRL 1.727 faturados, BRL 1.710 pagos com valor conhecido, 1.585 kWh faturados e 407 kWh medidos com valor conhecido. Receita por competência e recorte usa apenas fatos de fatura; leituras e pagamento permanecem grandezas separadas. A cobertura das leituras medidas é parcial e não substitui cobertura financeira. O perfil de UC traz referência e nome fictícios; vencimento, pagamento e situação permanecem campos sintéticos. A decomposição preço-volume e as taxas de continuidade são demonstrativas, versionadas e não homologadas pela Gold. A fixture mantém leitura zero válida, leitura ausente, UC sem fatura, medidor retirado, alimentador sem denominador e o AL-02 distribuído entre Olinda e Paulista; limitações e nulidade aparecem na resposta.
 
 Exemplo PowerShell para iniciar a API em modo demonstrativo:
 
@@ -66,6 +90,16 @@ Exemplo PowerShell para iniciar a API em modo demonstrativo:
 $env:ANALYTICS_SOURCE = "synthetic"
 uvicorn app.main:app --reload --port 8000
 ```
+
+## Acesso às ordens e limites de entrada
+
+As rotas `/api/v1/inspections/orders` agora ficam bloqueadas sem autenticação de serviço. Configure no servidor `ORDERS_READ_TOKEN` e/ou `ORDERS_WRITE_TOKEN`, usando valores aleatórios distintos com pelo menos 32 caracteres. Leitor somente lista; escritor lista/cria/altera. O Swagger oferece o esquema `OrdersServiceToken` em Authorize. Não coloque esses valores em `VITE_*`, URLs, commits ou código frontend. Eles não são login de usuário; a futura UI operacional precisa de sessão/BFF ou identidade própria. Sem configuração, o Panorama sintético continua funcionando e ordens permanecem fechadas.
+
+Para criar cada valor, execute localmente `python -c "import secrets; print(secrets.token_urlsafe(32))"` e armazene apenas em configuração privada. A alteração requer reiniciar/recriar o backend. Em produção, use HTTPS e rotacione as credenciais.
+
+Entradas operacionais têm limites de tamanho; IDs de ordem são positivos até 2^63−1. JSON usa UTF-8, corpo até 64 KiB e até 32 níveis. Rejeições são 400/413/422. PENDENTE pode iniciar/cancelar; EM_ANDAMENTO pode concluir/cancelar; ordens encerradas não reabrem e conclusão exige resultado. Veja [ADR-0007](../docs/decisions/0007-contencao-seguranca-ordens-e-entradas.md) para detalhes e limites.
+
+`BACKEND_ALLOWED_HOSTS` aceita lista JSON ou nomes separados por vírgulas. Configure os hosts reais do ingresso em produção; a lista padrão atende localhost/127.0.0.1, proxy backend e testes. Não use wildcard como configuração de implantação.
 
 ## Verificações
 

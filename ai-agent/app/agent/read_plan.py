@@ -99,6 +99,24 @@ class ReadPlanBuilder:
                 dimension_id=key, operator=FilterOperator.EQ, values=(value,)
             )
 
+        period_window = next(
+            (
+                window
+                for window in self._profile.period_windows
+                if _normalize(window.phrase) == _normalize(intent.period_phrase)
+            ),
+            None,
+        )
+        window = (
+            ReadWindow(
+                kind=WindowKind.BOUNDED,
+                start=period_window.start,
+                end=period_window.end,
+                granularity=period_window.granularity,
+            )
+            if period_window is not None
+            else ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
+        )
         return LogicalReadPlan(
             catalog_version=self._profile.contract_version,
             operation="read",
@@ -108,7 +126,7 @@ class ReadPlanBuilder:
             metric_id=metric.id,
             dimension_ids=tuple(sorted(selected_ids)),
             unit=metric.unit,
-            window=ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase),
+            window=window,
             filters=tuple(filters[key] for key in sorted(filters)),
             limit=self._default_limit,
         )
