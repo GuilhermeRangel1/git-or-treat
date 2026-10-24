@@ -279,6 +279,21 @@ class DomainProfile(BaseModel):
     metrics: tuple[MetricDefinition, ...] = Field(min_length=1, max_length=200)
     dimensions: tuple[DimensionDefinition, ...] = Field(min_length=1, max_length=100)
     period_phrases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=100)
+    default_period_phrase: CatalogPhrase | None = None
+    default_period_context_phrases: tuple[CatalogPhrase, ...] = Field(
+        default=(),
+        max_length=50,
+        description="Contextos que autorizam aplicar o período padrão sem uma janela explícita.",
+    )
+    comparison_period_phrases: tuple[CatalogPhrase, ...] = Field(
+        default=(),
+        max_length=30,
+        description=(
+            "Frases reconhecidas como janela de comparação; a primeira é a forma canônica "
+            "e as demais são aliases."
+        ),
+    )
+    non_location_phrases: tuple[CatalogPhrase, ...] = Field(default=(), max_length=50)
     comparison_terms: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=30)
     correction_terms: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=30)
     follow_up_starters: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=30)
@@ -336,7 +351,29 @@ class DomainProfile(BaseModel):
         if CatalogOperation.READ not in self.operations:
             raise ValueError("catálogo analítico precisa permitir leitura")
         _require_unique(list(self.operations), "operação duplicada")
-        _require_unique([_normalize(item) for item in self.period_phrases], "período duplicado")
+        normalized_period_phrases = [_normalize(item) for item in self.period_phrases]
+        _require_unique(normalized_period_phrases, "período duplicado")
+        period_phrases = set(normalized_period_phrases)
+        if self.default_period_phrase is not None and (
+            _normalize(self.default_period_phrase) not in period_phrases
+        ):
+            raise ValueError("período padrão precisa estar no catálogo de períodos")
+        if self.default_period_context_phrases and self.default_period_phrase is None:
+            raise ValueError("contexto de período padrão exige um período padrão")
+        _require_unique(
+            [_normalize(item) for item in self.default_period_context_phrases],
+            "contexto de período padrão duplicado",
+        )
+        if any(_normalize(item) not in period_phrases for item in self.comparison_period_phrases):
+            raise ValueError("período de comparação precisa estar no catálogo de períodos")
+        _require_unique(
+            [_normalize(item) for item in self.comparison_period_phrases],
+            "período de comparação duplicado",
+        )
+        _require_unique(
+            [_normalize(item) for item in self.non_location_phrases],
+            "frase não geográfica duplicada",
+        )
         return self
 
 

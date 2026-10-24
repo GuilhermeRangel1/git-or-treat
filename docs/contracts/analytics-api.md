@@ -41,7 +41,7 @@ Receita declara `currency_unit: BRL` e `energy_unit: kWh`; faturas também decla
 | Perdas | `GET /api/v1/inspections/queue` | Fila, prioridade, motivo, indicadores e estimativa demonstrativos | Regra e estimativa auditáveis sobre a Gold |
 | Ordens | `GET/POST /api/v1/inspections/orders` e `PATCH /api/v1/inspections/orders/{order_id}` | Schemas e persistência existentes, separados dos dados analíticos | Ciclo de estados, histórico, idempotência e UI nos cards DEV-06/07 |
 | Operação | `GET /api/v1/operations/continuity` | Indicadores por alimentador, denominador e lacunas | Fórmula/denominador por período conforme DE-05 e dados reais |
-| Conversa IA | `POST /api/v1/questions`, no serviço `ai-agent` | Contrato existente de pergunta, contexto limitado, resposta e evidências | Integração backend/portal e consultas Gold nos cards DEV-09/11/14 |
+| Conversa IA | Portal → `POST /api/v1/ai/questions` no Backend → `POST /api/v1/questions` no `ai-agent` | Contrato v1 de pergunta, contexto transitório limitado, resposta e evidências | Integração da tela, autenticação de usuário, sessões reais e consultas Gold |
 | Insight IA | `POST /api/v1/insights`, no serviço `ai-agent` | Contrato existente de contexto estruturado, observação e hipótese | Contexto autorizado vindo do backend e vínculo com o recorte no DEV-10 |
 
 ### Listagem e erros
@@ -74,6 +74,7 @@ Erros analíticos possuem `error.code`, `error.message` e `error.details` (itens
 - Pergunta: recebe `question` e `context` opcional com até três turnos. Responde `status`, `answer`, `message`, `evidence` e `limitations`. Estados existentes: `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`.
 - Insight: recebe `screen` com métrica, unidade, período, filtros, observações, referência e limitações. Responde contexto, valores observados, hipótese, evidências e limitações; mantém referência sintética nesta etapa. O endpoint não autentica nem autoriza o consumidor por si só.
 - `/api/v1/ai/query` no backend continua um placeholder legado. A lista de tabelas ali presente não é contrato real da Gold nem comprovação de executor seguro; DEV-11 é responsável por essa implementação.
+- O contrato conversacional está detalhado em [genai-chat-api.md](genai-chat-api.md). A chamada atual encaminha ao serviço GenAI e não consulta o banco nem persiste sessões.
 
 ## Conferência com o protótipo
 

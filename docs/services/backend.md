@@ -39,6 +39,12 @@ O case não prescreve nomes de rota. A DEV-01 versiona contratos JSON, paginaç�
 
 Para a fronteira com a GenAI, há uma proposta pendente de revisão para o Backend controlar as consultas Gold por um contrato estruturado, sem SQL livre do agente ([ADR-0002](../decisions/0002-genai-gold-query-owner.md)). A rota `/api/v1/ai/query` existente é apenas scaffold e ainda não consulta dados.
 
+## Contrato conversacional com a GenAI
+
+O Backend expõe `POST /api/v1/ai/questions` para o portal e encaminha a solicitação v1 ao `POST /api/v1/questions` do serviço GenAI. O endpoint antigo `/api/v1/ai/query` permanece separado e não é usado como rota de chat ou executor.
+
+O Backend valida pergunta/contexto, aplica timeout, encaminha token interno e correlação, e valida o envelope de resposta antes de devolvê-lo. Não acessa SQL nem Gold nessa jornada. O contrato completo, limites, exemplos e erros estão em [genai-chat-api.md](../contracts/genai-chat-api.md). A integração é stateless e demonstrativa: não persiste sessão, não autentica usuário do portal e não concede escopo Gold. O token interno autentica Backend → GenAI; autorização real de usuário e retenção precisam ser decididas antes da implantação.
+
 ### Envelope conceitual de uma resposta analítica
 
 O contrato final pode variar, mas cada resposta que sustenta um número deve permitir identificar: valor e unidade; período/competências; filtros efetivamente aplicados; população/denominador; versão ou data do lote Gold; indicador de cobertura/qualidade; definição do dicionário; e estado de indisponibilidade. Expor metadados por resposta ou por um contrato comum, conforme decisão da equipe. Não inventar campos da extração para preencher o envelope.

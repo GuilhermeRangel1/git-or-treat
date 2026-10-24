@@ -81,7 +81,7 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
     }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  // As três jornadas integradas podem consultar dados; as demais permanecem visuais.
+  // As jornadas de dados consultam APIs; o chat só envia após ação da pessoa.
   await waitFor(() =>
     expect(
       fetchSpy.mock.calls.some((call) =>

@@ -13,6 +13,22 @@
       timeout: 5s
       retries: 5
 
+  ai-agent:
+    build:
+      context: .
+      dockerfile: ai-agent/Dockerfile
+    env_file:
+      - ai-agent/.env
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: .
@@ -23,6 +39,8 @@
       ANALYTICS_SOURCE: ${ANALYTICS_SOURCE:-synthetic}
     depends_on:
       db:
+        condition: service_healthy
+      ai-agent:
         condition: service_healthy
     ports:
       - "8000:8000"

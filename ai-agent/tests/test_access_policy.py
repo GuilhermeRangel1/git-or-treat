@@ -260,7 +260,7 @@ def test_http_body_cannot_grant_identity_in_real_mode() -> None:
     source = RecordingSource()
     model = RecordingModel()
     app = create_app(
-        settings=Settings(environment="production", _env_file=None),
+        settings=Settings(environment="production", service_api_token="s" * 32, _env_file=None),
         question_orchestrator=_orchestrator(source, model),
         insight_orchestrator=object(),
     )
@@ -268,6 +268,7 @@ def test_http_body_cannot_grant_identity_in_real_mode() -> None:
         denied = client.post(
             "/api/v1/questions",
             json={"question": "Qual foi o consumo no período de demonstração?"},
+            headers={"Authorization": f"Bearer {'s' * 32}"},
         )
         tampered = client.post(
             "/api/v1/questions",
@@ -277,6 +278,7 @@ def test_http_body_cannot_grant_identity_in_real_mode() -> None:
                     GRID360_DEMO_PROFILE, "0" * 32
                 ).model_dump(mode="json"),
             },
+            headers={"Authorization": f"Bearer {'s' * 32}"},
         )
 
     assert denied.status_code == 200
@@ -296,7 +298,10 @@ def test_demo_access_requires_both_local_and_explicit_flag(
     model = RecordingModel()
     app = create_app(
         settings=Settings(
-            environment=environment, enable_demo_access=enabled, _env_file=None
+            environment=environment,
+            enable_demo_access=enabled,
+            service_api_token="s" * 32,
+            _env_file=None,
         ),
         question_orchestrator=_orchestrator(source, model),
         insight_orchestrator=object(),
@@ -305,6 +310,7 @@ def test_demo_access_requires_both_local_and_explicit_flag(
         denied = client.post(
             "/api/v1/questions",
             json={"question": "Qual foi o consumo no período de demonstração?"},
+            headers={"Authorization": f"Bearer {'s' * 32}"},
         )
 
     assert denied.status_code == 200
@@ -339,12 +345,16 @@ def test_http_input_limits_run_before_source_and_model() -> None:
     source = RecordingSource()
     model = RecordingModel()
     app = create_app(
-        settings=Settings(_env_file=None),
+        settings=Settings(_env_file=None, service_api_token="s" * 32),
         question_orchestrator=_orchestrator(source, model),
         insight_orchestrator=object(),
     )
     with InProcessClient(app) as client:
-        response = client.post("/api/v1/questions", json={"question": "a" * 1001})
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "a" * 1001},
+            headers={"Authorization": f"Bearer {'s' * 32}"},
+        )
 
     assert response.status_code == 422
     assert source.calls == model.calls == 0

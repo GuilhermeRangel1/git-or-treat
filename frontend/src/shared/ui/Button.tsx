@@ -9,7 +9,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   isLoading?: boolean;
-  loadingLabel?: string;
+  loadingLabel?: string | null;
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   ref?: Ref<HTMLButtonElement>;
@@ -66,7 +66,7 @@ export default function Button({
       {isLoading ? (
         <>
           <Loader2 className="size-4 animate-spin shrink-0 text-current" />
-          <span>{loadingLabel}</span>
+          {loadingLabel && <span>{loadingLabel}</span>}
         </>
       ) : (
         <>

@@ -9,6 +9,7 @@ from app.agent.read_plan import ReadPlanBuilder
 from app.api.access import SYNTHETIC_SOURCE_ID
 from app.ports.evidence import EvidenceContractInvalid
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
+from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.domain_profile import DomainProfile
 from app.schemas.evidence import (
     EvidenceLookupResult,
@@ -229,6 +230,45 @@ def test_same_guard_uses_field_classification_from_another_domain() -> None:
         {"observation_id": "row_1", "value": 17.5, "unit": plan.unit}
     ]
     assert "station_id" not in safe.model_dump_json()
+
+
+def test_revenue_comparison_preserves_period_next_to_each_synthetic_value() -> None:
+    scenario = next(
+        item for item in SYNTHETIC_SCENARIOS if item.scenario_id == "revenue_comparison_demo"
+    )
+    interpreted = QuestionInterpreter(GRID360_DEMO_PROFILE).interpret(scenario.question)
+    assert interpreted.intent is not None
+    plan = ReadPlanBuilder(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID).build(
+        interpreted.intent
+    )
+    evidence = scenario.evidence.model_copy(
+        update={
+            "provenance": EvidenceProvenance(
+                source_id=plan.source_id,
+                reference_source=scenario.evidence.reference.source,
+                plan_fingerprint=plan.fingerprint(),
+                catalog_version=plan.catalog_version,
+                metric_id=plan.metric_id,
+                unit=plan.unit,
+                window=plan.window,
+                filters=plan.filters,
+                dimension_ids=plan.dimension_ids,
+            )
+        }
+    )
+    result = EvidenceLookupResult(
+        status=EvidenceLookupStatus.AVAILABLE,
+        evidence=evidence,
+        limitations=scenario.limitations,
+    )
+
+    safe = EvidenceGuard(GRID360_DEMO_PROFILE).validate(plan, result)
+
+    assert safe.evidence is not None
+    assert [_describe_observation(row) for row in safe.evidence.records] == [
+        "2025-01: 100 unidades fictícias",
+        "2025-02: 95 unidades fictícias",
+    ]
 
 
 def test_approved_period_and_dimension_identify_each_observation() -> None:

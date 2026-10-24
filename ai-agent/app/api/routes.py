@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
-from app.api.access import resolve_access_context
+from app.api.access import require_service_auth, resolve_access_context
 from app.schemas.access import AccessContext
 from app.schemas.capabilities import CapabilitiesResponse
 from app.schemas.insights import ScreenInsightRequest, ScreenInsightResponse
@@ -38,6 +38,7 @@ async def capabilities() -> CapabilitiesResponse:
 @router.post(
     "/api/v1/questions",
     response_model=QuestionResponse,
+    dependencies=[Depends(require_service_auth)],
     responses={
         422: {"model": PublicErrorResponse, "description": "Solicitação fora do contrato v1."},
         500: {"model": PublicErrorResponse, "description": "Falha interna controlada."},
@@ -59,6 +60,7 @@ async def ask_question(
 @router.post(
     "/api/v1/insights",
     response_model=ScreenInsightResponse,
+    dependencies=[Depends(require_service_auth)],
     responses={
         422: {"model": PublicErrorResponse, "description": "Solicitação fora do contrato v1."},
         500: {"model": PublicErrorResponse, "description": "Falha interna controlada."},
