@@ -659,9 +659,9 @@ def build_uc_history(
             measure: set(measure_months)
             for measure, (measure_months, _) in invoice_measure_coverage.items()
         }
-        # Invoice history is bounded by billed-amount coverage; other measures
-        # remain independently nullable within that invoice population.
-        months = sorted(covered_months_by_measure["billed_amount"])
+        # Keep invoice months covered by any measure; each value is masked by
+        # its own coverage below.
+        months = sorted(set().union(*covered_months_by_measure.values()))
         full = all(measure_full for _, measure_full in invoice_measure_coverage.values())
     else:
         coverage_key = {

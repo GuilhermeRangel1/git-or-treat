@@ -85,8 +85,12 @@ FEEDERS = [
 ]
 
 SUSPICIONS = [
-    {"uc_id": "UC-1004", "priority": 0.92, "reason": "Queda de leitura e medidor retirado", "potential_recoverable_energy_kwh": 45.0, "indicators": ["reading_gap", "meter_removed"]},
-    {"uc_id": "UC-1002", "priority": 0.61, "reason": "Variação de consumo e geração distribuída", "potential_recoverable_energy_kwh": None, "indicators": ["consumption_variation", "distributed_generation"]},
+    {"uc_id": "UC-1004", "reason": "Lacuna de leitura e medidor retirado", "indicators": ["reading_gap", "meter_removed"],
+     "estimate_evidence": {"baseline_kwh": 90.0, "observed_kwh": 45.0, "horizon_months": 1,
+                           "reference": "Cenário sintético DEV-05: referência hipotética de 90 kWh/mês e leitura conhecida de janeiro/2025 de 45 kWh. Fevereiro sem leitura não é imputado; projeção de um mês, não total da janela."}},
+    {"uc_id": "UC-1002", "reason": "Variação de consumo com geração distribuída; investigar contexto", "indicators": ["consumption_variation", "distributed_generation"],
+     "estimate_evidence": {"baseline_kwh": None, "observed_kwh": 82.0, "horizon_months": 1,
+                           "reference": "Leitura de fevereiro/2025: 82 kWh. Referência comparável ajustada para GD indisponível."}},
 ]
 
 # Controls: invoices total BRL 1,727 and payments with known values total
