@@ -20,11 +20,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema: add versioning, cancellation reason, idempotency and history."""
+    has_key = 'idempotency_key' in {c['name'] for c in sa.inspect(op.get_bind()).get_columns('operational_inspection_orders')}
     with op.batch_alter_table('operational_inspection_orders', schema=None) as batch_op:
         batch_op.add_column(sa.Column('cancellation_reason', sa.Text(), nullable=True))
         batch_op.add_column(sa.Column('version', sa.Integer(), server_default='1', nullable=False))
-        batch_op.add_column(sa.Column('idempotency_key', sa.String(length=100), nullable=True))
-        batch_op.create_index('ix_operational_inspection_orders_idempotency_key', ['idempotency_key'], unique=True)
+        if not has_key:
+            batch_op.add_column(sa.Column('idempotency_key', sa.String(length=128), nullable=True))
+            batch_op.create_index('ix_operational_inspection_orders_idempotency_key', ['idempotency_key'], unique=True)
 
     op.create_table(
         'operational_order_history',
@@ -46,8 +48,13 @@ def downgrade() -> None:
     """Downgrade schema: drop history table and order lifecycle columns."""
     op.drop_index(op.f('ix_operational_order_history_order_id'), table_name='operational_order_history')
     op.drop_table('operational_order_history')
+    inspector = sa.inspect(op.get_bind())
+    indexes = {i['name'] for i in inspector.get_indexes('operational_inspection_orders')}
+    columns = {c['name'] for c in inspector.get_columns('operational_inspection_orders')}
     with op.batch_alter_table('operational_inspection_orders', schema=None) as batch_op:
-        batch_op.drop_index('ix_operational_inspection_orders_idempotency_key')
-        batch_op.drop_column('idempotency_key')
+        if 'ix_operational_inspection_orders_idempotency_key' in indexes:
+            batch_op.drop_index('ix_operational_inspection_orders_idempotency_key')
+        if 'idempotency_key' in columns and 'uq_orders_idempotency' not in indexes:
+            batch_op.drop_column('idempotency_key')
         batch_op.drop_column('version')
         batch_op.drop_column('cancellation_reason')

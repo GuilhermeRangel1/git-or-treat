@@ -1,18 +1,5 @@
-from datetime import datetime, timezone
 from enum import Enum
-from sqlalchemy import (
-    BigInteger,
-    Column,
-    DateTime,
-    Enum as SQLEnum,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Text,
-)
-from sqlalchemy.orm import relationship
-
+from sqlalchemy import Column, String, Integer, BigInteger, Text, JSON, DateTime, ForeignKey, Enum as SQLEnum, Index, text, func
 from app.db.base import Base
 from app.models.base import TimestampMixin
 
@@ -22,13 +9,6 @@ class OrderStatus(str, Enum):
     IN_PROGRESS = "EM_ANDAMENTO"
     COMPLETED = "CONCLUIDA"
     CANCELLED = "CANCELADA"
-
-
-class OrderAction(str, Enum):
-    CREATED = "CRIACAO"
-    STATUS_UPDATED = "ATUALIZACAO_STATUS"
-    RESULT_REGISTERED = "REGISTRO_RESULTADO"
-    CANCELLED = "CANCELAMENTO"
 
 
 class InspectionOrder(Base, TimestampMixin):
@@ -43,49 +23,45 @@ class InspectionOrder(Base, TimestampMixin):
     uc_id = Column(String(50), nullable=False, index=True)
     reason = Column(String(255), nullable=False)
     priority = Column(String(20), default="MEDIA", nullable=False, index=True)
-    # native_enum=False armazena como VARCHAR com check constraint, facilitando futuras migrações sem lock de tipo
+    # Persiste os nomes do enum (PENDING etc.) como VARCHAR; não cria CHECK por padrão.
     status = Column(SQLEnum(OrderStatus, native_enum=False, length=20), default=OrderStatus.PENDING, nullable=False, index=True)
     notes = Column(Text, nullable=True)
     result = Column(Text, nullable=True)
+    suspicion_reference = Column(String(64), nullable=True)
+    suspicion_snapshot = Column(JSON, nullable=True)
+    idempotency_key = Column(String(128), nullable=True)
+    request_fingerprint = Column(String(64), nullable=True)
+    version = Column(Integer, nullable=False, default=1, server_default="1")
     cancellation_reason = Column(Text, nullable=True)
-    version = Column(Integer, default=1, nullable=False)
-    idempotency_key = Column(String(100), nullable=True, unique=True, index=True)
 
-    history = relationship(
-        "OperationalOrderHistory",
-        back_populates="order",
-        cascade="all, delete-orphan",
-        order_by="OperationalOrderHistory.created_at.asc()",
-    )
+    __mapper_args__ = {"version_id_col": version}
 
     __table_args__ = (
         Index("idx_orders_status_priority", "status", "priority"),
+        Index("uq_orders_idempotency", "idempotency_key", unique=True),
+        Index("uq_orders_active_uc", "uc_id", unique=True,
+              postgresql_where=text("status IN ('PENDING', 'IN_PROGRESS')"),
+              sqlite_where=text("status IN ('PENDING', 'IN_PROGRESS')")),
     )
+
+
+class OrderAction(str, Enum):
+    CREATED = "CRIACAO"
+    STATUS_UPDATED = "ATUALIZACAO_STATUS"
+    RESULT_REGISTERED = "REGISTRO_RESULTADO"
+    CANCELLED = "CANCELAMENTO"
 
 
 class OperationalOrderHistory(Base):
-    """
-    Trilha de auditoria das alterações nas ordens de inspeção (WEB-05).
-    Registra data/hora, transições de status, ações executadas e notas de campo.
-    """
     __tablename__ = "operational_order_history"
 
     id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
-    order_id = Column(
-        BigInteger().with_variant(Integer, "sqlite"),
-        ForeignKey("operational_inspection_orders.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
+    order_id = Column(BigInteger().with_variant(Integer, "sqlite"), ForeignKey("operational_inspection_orders.id", ondelete="CASCADE"), nullable=False, index=True)
     previous_status = Column(SQLEnum(OrderStatus, native_enum=False, length=20), nullable=True)
     new_status = Column(SQLEnum(OrderStatus, native_enum=False, length=20), nullable=False)
     action = Column(SQLEnum(OrderAction, native_enum=False, length=30), nullable=False)
     notes = Column(Text, nullable=True)
     details = Column(Text, nullable=True)
-    created_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
-
-    order = relationship("InspectionOrder", back_populates="history")
+    actor = Column(String(255), nullable=True)
+    order_version = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False)
