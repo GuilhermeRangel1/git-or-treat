@@ -73,7 +73,7 @@ Erros analíticos possuem `error.code`, `error.message` e `error.details` (itens
 - Ordem: criação recebe `uc_id`, `reason`, `priority` e `notes`; atualização recebe `status`, `notes` e `result`. A resposta inclui ID, UC, motivo, prioridade, estado, observações, resultado e datas de criação/alteração. A listagem atual retorna uma lista, não o novo envelope analítico paginado; essa compatibilidade é intencional até DEV-06.
 - Pergunta: recebe `question` e `context` opcional com até três turnos. Responde `status`, `answer`, `message`, `evidence` e `limitations`. Estados existentes: `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`.
 - Insight: recebe `screen` com métrica, unidade, período, filtros, observações, referência e limitações. Responde contexto, valores observados, hipótese, evidências e limitações; mantém referência sintética nesta etapa. O endpoint não autentica nem autoriza o consumidor por si só.
-- `/api/v1/ai/query` no backend continua um placeholder legado. A lista de tabelas ali presente não é contrato real da Gold nem comprovação de executor seguro; DEV-11 é responsável por essa implementação.
+- `/api/v1/ai/query` no backend é uma rota legada indisponível: após validar a entrada, devolve 503 sem registros ou lista de tabelas. DEV-11 depende da decisão sobre o dono da consulta e de um novo contrato tipado para executar Gold.
 - O contrato conversacional está detalhado em [genai-chat-api.md](genai-chat-api.md). A chamada atual encaminha ao serviço GenAI e não consulta o banco nem persiste sessões.
 
 ## Conferência com o protótipo

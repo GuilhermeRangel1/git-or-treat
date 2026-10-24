@@ -97,6 +97,45 @@ def test_fields_outside_catalog_and_source_instructions_are_removed() -> None:
     assert "Ignore" not in safe.model_dump_json()
 
 
+def test_external_source_rejects_demonstration_evidence() -> None:
+    plan = _plan().model_copy(update={"source_id": "external.test"})
+    with pytest.raises(EvidenceContractInvalid, match="evidência demonstrativa"):
+        EvidenceGuard(GRID360_DEMO_PROFILE).validate(plan, _result(plan))
+
+
+def test_external_source_preserves_approved_numeric_evidence() -> None:
+    plan = _plan().model_copy(update={"source_id": "external.test"})
+    source = "external_test:controlled"
+    result = _result(
+        plan,
+        reference=EvidenceReference(
+            source=source, description="Aggregate test fixture.", is_demo=False
+        ),
+        provenance=EvidenceProvenance(
+            source_id=plan.source_id,
+            reference_source=source,
+            plan_fingerprint=plan.fingerprint(),
+            catalog_version=plan.catalog_version,
+            metric_id=plan.metric_id,
+            unit=plan.unit,
+            window=plan.window,
+            filters=plan.filters,
+            dimension_ids=plan.dimension_ids,
+        ),
+        limitations=[],
+    )
+
+    safe = EvidenceGuard(GRID360_DEMO_PROFILE).validate(plan, result)
+
+    assert safe.evidence is not None
+    assert safe.evidence.records == [
+        {"observation_id": "row_1", "value": 420, "unit": "unidades fictícias"}
+    ]
+    assert safe.evidence.reference.is_demo is False
+    assert safe.evidence.provenance is not None
+    assert safe.evidence.provenance.source_id == plan.source_id
+
+
 @pytest.mark.parametrize(
     "change",
     [

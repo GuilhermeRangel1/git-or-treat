@@ -1,16 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
 from app.repositories.panorama import PanoramaRepository, get_panorama_repository
 from app.schemas.ai import (
     AIQueryRequest,
-    AIQueryResponse,
     AIQuestionError,
     AIQuestionErrorResponse,
     AIQuestionRequest,
@@ -35,14 +32,6 @@ from app.services.panorama_insights import (
 )
 
 router = APIRouter()
-
-ALLOWED_READ_TABLES = [
-    "gold_indicadores",
-    "gold_ucs",
-    "gold_receita",
-    "gold_continuidadade",
-]
-
 
 class AIQuestionRoute(APIRoute):
     """Retorna erro de validação estável sem ecoar valores da pergunta."""
@@ -125,30 +114,20 @@ def get_genai_insight_client(request: Request) -> GenAIInsightClient:
 
 @router.post(
     "/query",
-    response_model=AIQueryResponse,
-    summary="Consulta somente-leitura controlada para o agente de IA",
+    response_model=AIQuestionErrorResponse,
+    status_code=503,
+    summary="Consulta analítica legada ainda indisponível",
 )
 def query_analytical_data(
-    payload: AIQueryRequest, db: Annotated[Session, Depends(get_db)]
-):
-    """
-    Permite ao agente de IA consultar tabelas analíticas permitidas (allowlist)
-    sem permissão de escrita e com trilha de auditoria.
-    """
-    if payload.target_table not in ALLOWED_READ_TABLES:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Tabela não permitida para o agente. Tabelas acessíveis: {ALLOWED_READ_TABLES}",
-        )
+    payload: AIQueryRequest, request: Request
+) -> AIQuestionErrorResponse:
+    """O contrato legado não executa Gold e nunca deve simular sucesso."""
 
-    # Retorno estruturado seguro
-    return {
-        "status": "success",
-        "intent": payload.intent,
-        "table": payload.target_table,
-        "records": [],
-        "evidence": "Consulta analítica somente leitura",
-    }
+    return AIQuestionErrorResponse(
+        correlation_id=request.state.correlation_id,
+        message="A consulta analítica ainda não está disponível.",
+        error=AIQuestionError(code="service_unavailable", retryable=False),
+    )
 
 
 @questions_router.post(

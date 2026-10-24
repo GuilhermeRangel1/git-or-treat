@@ -2,6 +2,7 @@
 
 import json
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
@@ -16,6 +17,8 @@ class Settings(BaseSettings):
     service_name: str = "V-Energy Grid 360 GenAI"
     environment: str = "production"
     enable_demo_access: bool = False
+    demo_source: Literal["fixture", "sqlite"] = "fixture"
+    demo_sqlite_path: Path | None = None
     service_api_token: SecretStr | None = None
     model_provider: Literal["unavailable", "gemini", "groq"] = "unavailable"
     gemini_model: str = "gemini-3.5-flash-lite"

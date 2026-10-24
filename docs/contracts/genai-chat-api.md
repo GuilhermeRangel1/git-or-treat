@@ -15,7 +15,7 @@ Portal → POST /api/v1/ai/questions → Backend → POST /api/v1/questions → 
        ← resposta v1            ← validação e encaminhamento ← resposta v1
 ```
 
-O endpoint legado `POST /api/v1/ai/query` continua separado: é um scaffold analítico e não faz parte do chat.
+O endpoint legado `POST /api/v1/ai/query` continua separado do chat e responde 503 para entradas válidas; não executa consulta analítica.
 
 O cliente do portal mantém as mensagens na memória da página e envia no máximo três turnos anteriores junto da nova pergunta. Não há armazenamento em `localStorage`, sessão no Backend ou restauração após recarregar. O contexto é não confiável e não concede identidade ou permissão. O navegador não chama o GenAI diretamente e não recebe credenciais de serviço ou a chave do Gemini.
 
