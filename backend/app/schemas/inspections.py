@@ -31,12 +31,15 @@ class OrderCreateRequest(BaseModel):
 
 
 class OrderUpdateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"examples": [
+        {"version": 1, "status": "EM_ANDAMENTO"},
+        {"version": 2, "notes": "Visita agendada"},
+    ]})
 
-    status: OrderStatus | None = None
+    status: Literal[OrderStatus.PENDING, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED] | None = Field(None, description="Para cancelar, use POST /orders/{id}/cancel com confirmação do ID.")
     notes: OrderText | None = None
     result: OrderText | None = None
-    version: int | None = Field(None, ge=1, strict=True)
+    version: int = Field(ge=1, strict=True, description="Versão atual retornada pela consulta da ordem. Recarregue após conflito 409.", examples=[1])
 
     @model_validator(mode="after")
     def validate_update(self):
@@ -81,6 +84,10 @@ class OrderConflictDetail(BaseModel):
 
 
 class OrderConflictResponse(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "detail": "Ordem alterada por outra solicitação. Consulte novamente.",
+        "error": {"code": "version_conflict", "message": "Ordem alterada por outra solicitação. Consulte novamente.", "order_id": 42},
+    }]})
     detail: str
     error: OrderConflictDetail
 
@@ -92,17 +99,21 @@ class OrderAccessResponse(BaseModel):
 
 
 class OrderResultRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"examples": [
+        {"version": 2, "result": "Sem irregularidade", "notes": "Inspeção realizada"},
+    ]})
     result: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
     notes: OrderText | None = None
-    version: int | None = Field(None, ge=1, strict=True)
+    version: int = Field(ge=1, strict=True, description="Versão atual retornada pela consulta da ordem. Recarregue após conflito 409.", examples=[1])
 
 
 class OrderCancelRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"examples": [
+        {"version": 1, "confirmed_order_id": 42, "reason": "Inspeção desnecessária"},
+    ]})
     confirmed_order_id: int = Field(ge=1, strict=True)
     reason: OrderText | None = None
-    version: int | None = Field(None, ge=1, strict=True)
+    version: int = Field(ge=1, strict=True, description="Versão atual retornada pela consulta da ordem. Recarregue após conflito 409.", examples=[1])
 
 
 class OrderHistoryResponse(BaseModel):

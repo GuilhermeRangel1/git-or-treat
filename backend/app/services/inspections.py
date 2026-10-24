@@ -191,15 +191,23 @@ def get_history(db: Session, order_id: int):
 
 
 def update_order(db: Session, order_id: int, payload: OrderUpdateRequest,
-                 *, actor: str = "orders-writer", cancellation_reason: str | None = None) -> Optional[InspectionOrder]:
+                 *, actor: str = "orders-writer") -> Optional[InspectionOrder]:
+    # Also enforce the boundary for direct service callers, not just HTTP schemas.
+    if payload.status == OrderStatus.CANCELLED:
+        raise OrderConflictError("Use a rota de cancelamento e confirme o ID da ordem.", "cancellation_confirmation_required", order_id)
+    changes = payload.model_dump(exclude_unset=True, exclude={"version"})
+    return _apply_update(db, order_id, changes, payload.version, actor=actor)
+
+
+def _apply_update(db: Session, order_id: int, changes: dict, version: int,
+                  *, actor: str, cancellation_reason: str | None = None) -> Optional[InspectionOrder]:
     order = db.get(InspectionOrder, order_id)
     if not order:
         return None
-    if payload.version is not None and payload.version != order.version:
+    if version != order.version:
         raise OrderConflictError("Ordem alterada por outra solicitação. Consulte novamente.", "version_conflict", order_id)
     previous = order.status
-    target = payload.status or previous
-    changes = payload.model_dump(exclude_unset=True, exclude={"version"})
+    target = changes.get("status") or previous
     if changes.get("status") is None:
         changes.pop("status", None)
     if target != previous and target not in TRANSITIONS[previous]:
@@ -245,12 +253,13 @@ def update_order(db: Session, order_id: int, payload: OrderUpdateRequest,
 
 
 def register_result(db: Session, order_id: int, payload: OrderResultRequest, *, actor: str):
-    values = payload.model_dump(exclude_unset=True)
-    return update_order(db, order_id, OrderUpdateRequest(**values, status=OrderStatus.COMPLETED), actor=actor)
+    values = payload.model_dump(exclude_unset=True, exclude={"version"})
+    values["status"] = OrderStatus.COMPLETED
+    return _apply_update(db, order_id, values, payload.version, actor=actor)
 
 
 def cancel_order(db: Session, order_id: int, payload: OrderCancelRequest, *, actor: str):
     if payload.confirmed_order_id != order_id:
         raise OrderConflictError("A confirmação não identifica a ordem solicitada.", "confirmation_mismatch", order_id)
-    return update_order(db, order_id, OrderUpdateRequest(status=OrderStatus.CANCELLED, version=payload.version),
-                        actor=actor, cancellation_reason=payload.reason)
+    return _apply_update(db, order_id, {"status": OrderStatus.CANCELLED}, payload.version,
+                         actor=actor, cancellation_reason=payload.reason)

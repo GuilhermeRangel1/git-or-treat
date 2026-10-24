@@ -86,7 +86,9 @@ def get_order_history(order_id: int = Path(ge=1, le=9223372036854775807), db: Se
 
 
 @router.post("/orders/{order_id}/result", response_model=OrderResponse,
-             responses={409: {"model": OrderConflictResponse}})
+             responses={409: {"model": OrderConflictResponse}},
+             summary="Registrar resultado e concluir a ordem",
+             description="Exige EM_ANDAMENTO e a versão atual da ordem. Versão obsoleta retorna 409; consulte novamente antes de reenviar.")
 def register_order_result(payload: OrderResultRequest, order_id: int = Path(ge=1, le=9223372036854775807),
                           db: Session = Depends(get_db), actor: str = Depends(require_orders_write)):
     try:
@@ -99,7 +101,9 @@ def register_order_result(payload: OrderResultRequest, order_id: int = Path(ge=1
 
 
 @router.post("/orders/{order_id}/cancel", response_model=OrderResponse,
-             responses={409: {"model": OrderConflictResponse}})
+             responses={409: {"model": OrderConflictResponse}},
+             summary="Confirmar cancelamento da ordem",
+             description="Exige versão atual e confirmed_order_id igual ao ID da rota. Esta é a única rota de cancelamento; use no exemplo o ID real da ordem selecionada.")
 def cancel_inspection_order(payload: OrderCancelRequest, order_id: int = Path(ge=1, le=9223372036854775807),
                             db: Session = Depends(get_db), actor: str = Depends(require_orders_write)):
     try:
@@ -164,7 +168,8 @@ def create_order(payload: OrderCreateRequest, db: Session = Depends(get_db), act
 @router.patch(
     "/orders/{order_id}",
     response_model=OrderResponse,
-    summary="Atualizar status ou resultado da ordem",
+    summary="Atualizar status, observações ou resultado da ordem",
+    description="Exige a versão atual retornada pelo GET. CANCELADA não é aceita: use POST /orders/{order_id}/cancel com confirmação do ID. Sem versão: 422; versão obsoleta: 409.",
     responses={409: {"model": OrderConflictResponse}},
     dependencies=[Depends(require_orders_write)],
 )
