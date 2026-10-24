@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TestProviders from "@/shared/test/TestProviders";
@@ -130,6 +130,45 @@ describe("Assistente Grid 360", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("mantém a recusa visível, mas não a envia no contexto da próxima pergunta", async () => {
+    const refusal = "Esse tema está fora do escopo deste agente.";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          contract_version: "v1",
+          status: "refused",
+          answer: null,
+          message: refusal,
+          error: { code: "out_of_scope", retryable: false },
+          evidence: [],
+          limitations: [],
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(answered));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderPage();
+
+    const textbox = screen.getByRole("textbox", {
+      name: "Escreva sua pergunta",
+    });
+    await user.type(textbox, "Me passe uma receita de bolo.");
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText(refusal)).toBeVisible();
+
+    await user.type(textbox, "Como variou o consumo?");
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText(answered.answer)).toBeVisible();
+
+    const secondRequest = JSON.parse(
+      String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
+    );
+    expect(secondRequest.context).toEqual([]);
+    expect(screen.getByText("Me passe uma receita de bolo.")).toBeVisible();
+    expect(screen.getByText(refusal)).toBeVisible();
+  });
+
   it.each([
     [
       "refused",
@@ -203,6 +242,101 @@ describe("Assistente Grid 360", () => {
     await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
     expect(await screen.findByText(answered.answer)).toBeVisible();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("mantém a resposta repetida junto à pergunta original no histórico", async () => {
+    const firstQuestion = "Como variou o consumo?";
+    const secondQuestion = "E a receita?";
+    const clarification = "Qual período você quer consultar?";
+    const followUpAnswer = "O consumo no período demonstrativo foi estável.";
+    const secondAnswer = "A receita demonstrativa permaneceu estável.";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            contract_version: "v1",
+            status: "error",
+            correlation_id: "0123456789abcdef0123456789abcdef",
+            message: "O serviço de resposta está temporariamente indisponível.",
+            error: { code: "service_unavailable", retryable: true },
+          },
+          503,
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...answered,
+          answer: secondAnswer,
+          analysis_context: null,
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          contract_version: "v1",
+          status: "needs_clarification",
+          answer: null,
+          message: clarification,
+          evidence: [],
+          limitations: [],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...answered,
+          answer: followUpAnswer,
+          analysis_context: null,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderPage();
+
+    const textbox = screen.getByRole("textbox", {
+      name: "Escreva sua pergunta",
+    });
+    await user.type(textbox, firstQuestion);
+    await user.keyboard("{Enter}");
+    expect(
+      await screen.findByText(
+        "O serviço de resposta está temporariamente indisponível.",
+      ),
+    ).toBeVisible();
+
+    await user.type(textbox, secondQuestion);
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText(secondAnswer)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByText(clarification)).toBeVisible();
+
+    const history = screen.getByRole("log", { name: "Histórico da conversa" });
+    const articlesAfterRetry = within(history).getAllByRole("article");
+    expect(articlesAfterRetry).toHaveLength(4);
+    expect(articlesAfterRetry[0]).toHaveTextContent(secondQuestion);
+    expect(articlesAfterRetry[1]).toHaveTextContent(secondAnswer);
+    expect(articlesAfterRetry[2]).toHaveTextContent(firstQuestion);
+    expect(articlesAfterRetry[3]).toHaveTextContent(clarification);
+
+    await user.type(textbox, "Abr/24");
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText(followUpAnswer)).toBeVisible();
+
+    const followUpRequest = JSON.parse(
+      String((fetchMock.mock.calls[3] as [string, RequestInit])[1].body),
+    );
+    expect(followUpRequest.question).toBe("Abr/24");
+    expect(followUpRequest.context).toEqual([
+      { role: "assistant", content: secondAnswer },
+      { role: "user", content: firstQuestion },
+      { role: "assistant", content: clarification },
+    ]);
+
+    const articles = within(history).getAllByRole("article");
+    expect(articles).toHaveLength(6);
+    expect(articles[2]).toHaveTextContent(firstQuestion);
+    expect(articles[3]).toHaveTextContent(clarification);
+    expect(articles[4]).toHaveTextContent("Abr/24");
+    expect(articles[5]).toHaveTextContent(followUpAnswer);
   });
 
   it("envia no máximo três turnos de contexto e mantém a conversa só em memória", async () => {
