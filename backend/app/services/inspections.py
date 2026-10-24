@@ -1,367 +1,256 @@
-from typing import Optional
+import logging
+import hashlib
+import json
+from typing import Callable, Optional
+
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 
-from app.models.operational import (
-    InspectionOrder,
-    OperationalOrderHistory,
-    OrderAction,
-    OrderStatus,
-)
-from app.schemas.inspections import (
-    OrderCancelRequest,
-    OrderCreateRequest,
-    OrderResultRequest,
-    OrderUpdateRequest,
-)
+from app.models.operational import InspectionOrder, OrderStatus, OperationalOrderHistory, OrderAction
+from app.schemas.inspections import OrderCreateRequest, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage, OrderCancelRequest, OrderResultRequest
+from app.schemas.order_snapshot import OrderSnapshotV1
+from app.schemas.inspections import OrderSummary
+from app.repositories.analytics import AnalyticsRepository
+from app.services.inspection_analytics import build_suspicion_response
+
+class OrderConflictError(Exception):
+    def __init__(self, message: str, code: str = "order_conflict", order_id: int | None = None):
+        super().__init__(message)
+        self.code = code
+        self.order_id = order_id
 
 
-class InspectionDomainError(Exception):
-    """Erro base para operações operacionais de inspeções."""
+class OrderResultRequiredError(ValueError):
     pass
 
 
-class OrderNotFoundError(InspectionDomainError):
-    """Ordem de inspeção não encontrada."""
-    pass
-
-
-class InvalidStateTransitionError(InspectionDomainError):
-    """Transição de status não permitida pelas regras de ciclo operacional."""
-    pass
-
-
-class OrderTerminalStateError(InspectionDomainError):
-    """Operação rejeitada porque a ordem já se encontra em estado terminal (cancelada ou concluída)."""
-    pass
-
-
-class ConcurrencyConflictError(InspectionDomainError):
-    """Conflito de versão detectado em alteração concorrente (controle otimista)."""
-    pass
-
-
-class ActiveOrderConflictError(InspectionDomainError):
-    """Já existe uma ordem ativa (PENDENTE ou EM_ANDAMENTO) para a UC informada."""
-    pass
-
-
-class FieldResultRequiredError(InspectionDomainError):
-    """Registro de resultado de campo é obrigatório para concluir a ordem de inspeção."""
-    pass
-
-
-ALLOWED_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
-    OrderStatus.PENDING: {OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED, OrderStatus.COMPLETED},
+logger = logging.getLogger(__name__)
+TRANSITIONS = {
+    OrderStatus.PENDING: {OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED},
     OrderStatus.IN_PROGRESS: {OrderStatus.COMPLETED, OrderStatus.CANCELLED},
     OrderStatus.COMPLETED: set(),
     OrderStatus.CANCELLED: set(),
 }
 
 
-def list_orders(
-    db: Session,
-    status_filter: Optional[OrderStatus] = None,
-    uc_id: Optional[str] = None,
-) -> list[InspectionOrder]:
+def list_orders(db: Session, status_filter: Optional[OrderStatus] = None) -> list[InspectionOrder]:
+    query = db.query(InspectionOrder)
+    if status_filter:
+        query = query.filter(InspectionOrder.status == status_filter)
+    return query.all()
+
+
+def get_order(db: Session, order_id: int) -> InspectionOrder | None:
+    return db.get(InspectionOrder, order_id)
+
+
+def _active_order(db: Session, uc_id: str) -> InspectionOrder | None:
+    return db.query(InspectionOrder).filter(
+        InspectionOrder.uc_id == uc_id,
+        InspectionOrder.status.in_([OrderStatus.PENDING, OrderStatus.IN_PROGRESS]),
+    ).first()
+
+
+def _active_conflict(order: InspectionOrder) -> OrderConflictError:
+    return OrderConflictError(
+        f"Já existe ordem ativa para esta UC: {order.id}.", "active_order_exists", order.id,
+    )
+
+
+def create_order(db: Session, payload: OrderCreateRequest, *, actor: str = "orders-writer") -> InspectionOrder:
+    active = _active_order(db, payload.uc_id)
+    if active:
+        raise _active_conflict(active)
+    order = InspectionOrder(
+        uc_id=payload.uc_id, reason=payload.reason, priority=payload.priority,
+        notes=payload.notes, status=OrderStatus.PENDING,
+    )
+    db.add(order)
+    try:
+        db.flush()
+        _record(db, order, None, OrderAction.CREATED, actor, "Ordem criada.")
+        db.commit()
+        db.refresh(order)
+        logger.info("inspection_order_created", extra={"order_id": order.id, "actor": actor})
+        return order
+    except IntegrityError:
+        db.rollback()
+        active = _active_order(db, payload.uc_id)
+        if active:
+            raise _active_conflict(active) from None
+        raise
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _fingerprint(value: dict) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+
+
+def _replay(db: Session, key: str, fingerprint: str) -> InspectionOrder | None:
+    existing = db.query(InspectionOrder).filter_by(idempotency_key=key).first()
+    if existing and existing.request_fingerprint != fingerprint:
+        raise OrderConflictError("Chave de idempotência já usada com outra solicitação.", "idempotency_key_reused", existing.id)
+    return existing
+
+
+def create_from_queue(
+    db: Session, repository_provider: Callable[[], AnalyticsRepository], uc_id: str,
+    payload: QueueOrderCreateRequest, key: str, *, actor: str = "orders-writer",
+) -> tuple[InspectionOrder, bool]:
+    fingerprint = _fingerprint({"uc_id": uc_id, **payload.model_dump()})
+    existing = _replay(db, key, fingerprint)
+    if existing:
+        return existing, False
+    snapshot = build_suspicion_response(repository_provider(), uc_id)
+    if (snapshot.metadata.source.version != payload.source_version
+            or snapshot.data.rule_version != payload.rule_version):
+        raise OrderConflictError("A suspeita mudou. Atualize a fila antes de criar a ordem.", "stale_suspicion")
+    reference = _fingerprint({
+        "uc_id": uc_id, "source": snapshot.metadata.source.model_dump(exclude={"updated_at"}),
+        "rule_version": snapshot.data.rule_version,
+    })
+    active = _active_order(db, uc_id)
+    if active:
+        # A competing request may commit after the first key lookup but before
+        # this active-order query. Reconcile the key before reporting conflict.
+        existing = _replay(db, key, fingerprint)
+        if existing:
+            return existing, False
+        raise _active_conflict(active)
+    order = InspectionOrder(
+        uc_id=snapshot.data.uc_id, reason=snapshot.data.reason,
+        priority=payload.priority, notes=payload.notes, status=OrderStatus.PENDING,
+        suspicion_reference=reference,
+        suspicion_snapshot=OrderSnapshotV1.model_validate(snapshot.model_dump(mode="json")).model_dump(mode="json"),
+        idempotency_key=key, request_fingerprint=fingerprint,
+    )
+    db.add(order)
+    try:
+        db.flush()
+        _record(db, order, None, OrderAction.CREATED, actor, "Ordem criada.")
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # The unique indexes arbitrate competing workers, not a process-local lock.
+        existing = _replay(db, key, fingerprint)
+        if existing:
+            return existing, False
+        active = _active_order(db, uc_id)
+        if active:
+            raise _active_conflict(active) from None
+        raise
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(order)
+    logger.info("inspection_order_created", extra={"order_id": order.id, "actor": actor})
+    return order, True
+
+
+def search_orders(db: Session, status_filter: OrderStatus | None, uc_id: str | None,
+                  priority: str | None, page: int, page_size: int) -> OrderPage:
     query = db.query(InspectionOrder)
     if status_filter:
         query = query.filter(InspectionOrder.status == status_filter)
     if uc_id:
         query = query.filter(InspectionOrder.uc_id == uc_id)
-    return query.order_by(InspectionOrder.id.asc()).all()
+    if priority:
+        query = query.filter(InspectionOrder.priority == priority)
+    total = query.with_entities(func.count(InspectionOrder.id)).scalar()
+    offset = (page - 1) * page_size
+    items = []
+    if offset < total:
+        # Project only summary columns; do not fetch or deserialize historical JSON.
+        columns = [getattr(InspectionOrder, name) for name in OrderSummary.model_fields]
+        rows = query.with_entities(*columns).order_by(
+            InspectionOrder.created_at.desc(), InspectionOrder.id.desc(),
+        ).offset(offset).limit(page_size).all()
+        items = [OrderSummary.model_validate(row) for row in rows]
+    return OrderPage(items=items, pagination={
+        "page": page, "page_size": page_size, "total": total,
+        "total_pages": (total + page_size - 1) // page_size,
+    })
 
 
-def get_order(db: Session, order_id: int) -> Optional[InspectionOrder]:
-    return db.query(InspectionOrder).filter(InspectionOrder.id == order_id).first()
+def _record(db, order, previous, action, actor, details):
+    db.add(OperationalOrderHistory(
+        order_id=order.id, previous_status=previous, new_status=order.status,
+        action=action, notes=order.notes, details=details, actor=actor,
+        order_version=order.version,
+    ))
 
 
-def create_order(
-    db: Session,
-    payload: OrderCreateRequest,
-    idempotency_key: Optional[str] = None,
-) -> InspectionOrder:
-    key = payload.idempotency_key or idempotency_key
-    if key:
-        existing_by_key = (
-            db.query(InspectionOrder)
-            .filter(InspectionOrder.idempotency_key == key)
-            .first()
-        )
-        if existing_by_key:
-            return existing_by_key
-
-    # Prevenção de duplicidade: impede múltiplas ordens abertas para a mesma UC
-    active_order = (
-        db.query(InspectionOrder)
-        .filter(
-            InspectionOrder.uc_id == payload.uc_id,
-            InspectionOrder.status.in_([OrderStatus.PENDING, OrderStatus.IN_PROGRESS]),
-        )
-        .first()
-    )
-    if active_order:
-        raise ActiveOrderConflictError(
-            f"Já existe uma ordem ativa ({active_order.status.value}) para a UC '{payload.uc_id}' (Ordem #{active_order.id}). Conclua ou cancele a ordem ativa antes de abrir uma nova."
-        )
-
-    try:
-        order = InspectionOrder(
-            uc_id=payload.uc_id,
-            reason=payload.reason,
-            priority=payload.priority,
-            notes=payload.notes,
-            status=OrderStatus.PENDING,
-            version=1,
-            idempotency_key=key,
-        )
-        db.add(order)
-        db.flush()
-
-        history = OperationalOrderHistory(
-            order_id=order.id,
-            previous_status=None,
-            new_status=OrderStatus.PENDING,
-            action=OrderAction.CREATED,
-            notes=payload.notes,
-            details=f"Ordem de inspeção criada com prioridade {order.priority}. Motivo: {order.reason}",
-        )
-        db.add(history)
-        db.commit()
-        db.refresh(order)
-        return order
-    except Exception:
-        db.rollback()
-        raise
+def get_history(db: Session, order_id: int):
+    return db.query(OperationalOrderHistory).filter_by(order_id=order_id).order_by(
+        OperationalOrderHistory.id.asc(),
+    ).all()
 
 
-def update_order(
-    db: Session, order_id: int, payload: OrderUpdateRequest
-) -> Optional[InspectionOrder]:
-    order = (
-        db.query(InspectionOrder)
-        .filter(InspectionOrder.id == order_id)
-        .first()
-    )
+def update_order(db: Session, order_id: int, payload: OrderUpdateRequest,
+                 *, actor: str = "orders-writer", cancellation_reason: str | None = None) -> Optional[InspectionOrder]:
+    order = db.get(InspectionOrder, order_id)
     if not order:
         return None
-
-    # Validação de concorrência otimista
     if payload.version is not None and payload.version != order.version:
-        raise ConcurrencyConflictError(
-            f"Conflito de concorrência: a ordem foi modificada por outro processo. "
-            f"Versão informada: {payload.version}, versão atual: {order.version}."
-        )
-
-    # Prevenção da regressão do protótipo: ordem cancelada não pode ser reativada ou alterada
-    if order.status == OrderStatus.CANCELLED:
-        raise OrderTerminalStateError(
-            f"Transição inválida: a ordem #{order_id} já está cancelada e não pode ser reativada ou alterada."
-        )
-
-    # Ordem concluída não pode ter seu ciclo de vida revertido
-    if order.status == OrderStatus.COMPLETED and payload.status and payload.status != OrderStatus.COMPLETED:
-        raise OrderTerminalStateError(
-            f"Transição inválida: a ordem #{order_id} já foi concluída e não pode ter seu status alterado."
-        )
-
-    old_status = order.status
-    status_changed = payload.status is not None and payload.status != old_status
-
-    if status_changed:
-        # Se estiver concluindo, o resultado de campo é estritamente obrigatório
-        if payload.status == OrderStatus.COMPLETED:
-            eff_result = payload.result if payload.result is not None else order.result
-            if not eff_result or not eff_result.strip():
-                raise FieldResultRequiredError(
-                    "O registro de resultado de campo é obrigatório para concluir a ordem de inspeção."
-                )
-
-        allowed = ALLOWED_TRANSITIONS.get(old_status, set())
-        if payload.status not in allowed:
-            raise InvalidStateTransitionError(
-                f"Transição de status inválida: não é permitido transitar de '{old_status.value}' para '{payload.status.value}'."
-            )
-
-        order.status = payload.status
-
-    if payload.notes is not None:
-        order.notes = payload.notes
-    if payload.result is not None:
-        order.result = payload.result
-
-    order.version += 1
-
-    # Registra evento na trilha de auditoria
-    if status_changed:
-        if order.status == OrderStatus.CANCELLED:
-            action = OrderAction.CANCELLED
-            details = "Ordem cancelada via atualização"
-        elif order.status == OrderStatus.COMPLETED:
-            action = OrderAction.RESULT_REGISTERED
-            details = f"Ordem concluída. Resultado: {order.result}"
-        else:
-            action = OrderAction.STATUS_UPDATED
-            details = f"Status alterado de {old_status.value} para {order.status.value}"
-
-        history = OperationalOrderHistory(
-            order_id=order.id,
-            previous_status=old_status,
-            new_status=order.status,
-            action=action,
-            notes=payload.notes,
-            details=details,
-        )
-        db.add(history)
-    elif payload.notes is not None or payload.result is not None:
-        history = OperationalOrderHistory(
-            order_id=order.id,
-            previous_status=old_status,
-            new_status=order.status,
-            action=OrderAction.STATUS_UPDATED,
-            notes=payload.notes,
-            details="Dados complementares (observações/resultado) atualizados",
-        )
-        db.add(history)
-
+        raise OrderConflictError("Ordem alterada por outra solicitação. Consulte novamente.", "version_conflict", order_id)
+    previous = order.status
+    target = payload.status or previous
+    changes = payload.model_dump(exclude_unset=True, exclude={"version"})
+    if changes.get("status") is None:
+        changes.pop("status", None)
+    if target != previous and target not in TRANSITIONS[previous]:
+        raise OrderConflictError("Transição de status não permitida.", "invalid_transition", order_id)
+    # Repeated identical writes are harmless, including requests after closure.
+    if all(getattr(order, key) == value for key, value in changes.items()):
+        if cancellation_reason is not None and cancellation_reason != order.cancellation_reason:
+            raise OrderConflictError("Ordem encerrada não pode ser alterada.", "terminal_order", order_id)
+        return order
+    if previous in {OrderStatus.COMPLETED, OrderStatus.CANCELLED}:
+        raise OrderConflictError("Ordem encerrada não pode ser alterada.", "terminal_order", order_id)
+    if target == OrderStatus.COMPLETED and not (changes.get("result", order.result) or "").strip():
+        raise OrderResultRequiredError("Informe o resultado para concluir a ordem.")
+    if target == OrderStatus.CANCELLED:
+        action, details = OrderAction.CANCELLED, f"Cancelamento confirmado para a ordem. Motivo: {cancellation_reason or 'não informado'}"
+    elif target == OrderStatus.COMPLETED or "result" in changes:
+        action, details = OrderAction.RESULT_REGISTERED, f"Resultado de campo registrado: {changes.get('result', order.result)}"
+    else:
+        action, details = OrderAction.STATUS_UPDATED, "Estado ou observações atualizados."
     try:
+        for key, value in changes.items():
+            setattr(order, key, value)
+        if target == OrderStatus.CANCELLED:
+            order.cancellation_reason = cancellation_reason
+        # ORM includes the previously read version in UPDATE's WHERE clause.
+        # Flush before the history so both share the resulting version/transaction.
+        db.flush()
+        _record(db, order, previous, action, actor, details)
         db.commit()
         db.refresh(order)
-        return order
+    except StaleDataError:
+        db.rollback()
+        raise OrderConflictError("Ordem alterada por outra solicitação. Consulte novamente.", "version_conflict", order_id) from None
     except Exception:
         db.rollback()
         raise
+    if target != previous:
+        logger.info("inspection_order_status_changed", extra={
+            "order_id": order_id, "previous_status": previous.value,
+            "new_status": target.value, "actor": actor,
+        })
+    return order
 
 
-def register_result(
-    db: Session, order_id: int, payload: OrderResultRequest
-) -> InspectionOrder:
-    order = (
-        db.query(InspectionOrder)
-        .filter(InspectionOrder.id == order_id)
-        .first()
-    )
-    if not order:
-        raise OrderNotFoundError("Ordem de inspeção não encontrada.")
-
-    if payload.version is not None and payload.version != order.version:
-        raise ConcurrencyConflictError(
-            f"Conflito de concorrência: a ordem foi modificada por outro processo. "
-            f"Versão informada: {payload.version}, versão atual: {order.version}."
-        )
-
-    if order.status == OrderStatus.CANCELLED:
-        raise OrderTerminalStateError(
-            f"Não é possível registrar resultado na ordem #{order_id} pois ela já se encontra cancelada."
-        )
-
-    if order.status == OrderStatus.COMPLETED:
-        raise OrderTerminalStateError(
-            f"A ordem #{order_id} já se encontra concluída com resultado registrado."
-        )
-
-    if not payload.result or not payload.result.strip():
-        raise FieldResultRequiredError(
-            "O registro de resultado de campo é obrigatório para concluir a ordem de inspeção."
-        )
-
-    old_status = order.status
-    order.result = payload.result.strip()
-    if payload.notes is not None:
-        order.notes = payload.notes
-    order.status = OrderStatus.COMPLETED
-    order.version += 1
-
-    history = OperationalOrderHistory(
-        order_id=order.id,
-        previous_status=old_status,
-        new_status=OrderStatus.COMPLETED,
-        action=OrderAction.RESULT_REGISTERED,
-        notes=payload.notes,
-        details=f"Resultado de campo registrado: {order.result}",
-    )
-    db.add(history)
-
-    try:
-        db.commit()
-        db.refresh(order)
-        return order
-    except Exception:
-        db.rollback()
-        raise
+def register_result(db: Session, order_id: int, payload: OrderResultRequest, *, actor: str):
+    values = payload.model_dump(exclude_unset=True)
+    return update_order(db, order_id, OrderUpdateRequest(**values, status=OrderStatus.COMPLETED), actor=actor)
 
 
-def cancel_order(
-    db: Session, order_id: int, payload: Optional[OrderCancelRequest] = None
-) -> InspectionOrder:
-    order = (
-        db.query(InspectionOrder)
-        .filter(InspectionOrder.id == order_id)
-        .first()
-    )
-    if not order:
-        raise OrderNotFoundError("Ordem de inspeção não encontrada.")
-
-    if payload and payload.version is not None and payload.version != order.version:
-        raise ConcurrencyConflictError(
-            f"Conflito de concorrência: a ordem foi modificada por outro processo. "
-            f"Versão informada: {payload.version}, versão atual: {order.version}."
-        )
-
-    if order.status == OrderStatus.CANCELLED:
-        raise OrderTerminalStateError(
-            f"A ordem #{order_id} já se encontra cancelada."
-        )
-
-    if order.status == OrderStatus.COMPLETED:
-        raise OrderTerminalStateError(
-            f"Não é possível cancelar a ordem #{order_id} pois ela já foi concluída em campo."
-        )
-
-    old_status = order.status
-    order.status = OrderStatus.CANCELLED
-    reason = (
-        payload.reason.strip()
-        if (payload and payload.reason and payload.reason.strip())
-        else None
-    )
-    if reason:
-        order.cancellation_reason = reason
-
-    order.version += 1
-
-    history = OperationalOrderHistory(
-        order_id=order.id,
-        previous_status=old_status,
-        new_status=OrderStatus.CANCELLED,
-        action=OrderAction.CANCELLED,
-        notes=order.notes,
-        details=f"Ordem cancelada. Motivo: {reason or 'Cancelamento confirmado pelo operador'}",
-    )
-    db.add(history)
-
-    try:
-        db.commit()
-        db.refresh(order)
-        return order
-    except Exception:
-        db.rollback()
-        raise
-
-
-def get_order_history(
-    db: Session, order_id: int
-) -> list[OperationalOrderHistory]:
-    order = (
-        db.query(InspectionOrder)
-        .filter(InspectionOrder.id == order_id)
-        .first()
-    )
-    if not order:
-        raise OrderNotFoundError("Ordem de inspeção não encontrada.")
-
-    return (
-        db.query(OperationalOrderHistory)
-        .filter(OperationalOrderHistory.order_id == order_id)
-        .order_by(OperationalOrderHistory.created_at.asc(), OperationalOrderHistory.id.asc())
-        .all()
-    )
+def cancel_order(db: Session, order_id: int, payload: OrderCancelRequest, *, actor: str):
+    if payload.confirmed_order_id != order_id:
+        raise OrderConflictError("A confirmação não identifica a ordem solicitada.", "confirmation_mismatch", order_id)
+    return update_order(db, order_id, OrderUpdateRequest(status=OrderStatus.CANCELLED, version=payload.version),
+                        actor=actor, cancellation_reason=payload.reason)
