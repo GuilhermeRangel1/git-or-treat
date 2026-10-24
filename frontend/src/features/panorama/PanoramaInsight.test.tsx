@@ -8,10 +8,13 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
+import { createQueryClient } from "../../shared/api/query-client";
 import { calculateSyntheticPanorama } from "../../shared/analytics/syntheticData";
 import type { PanoramaFilters } from "../../shared/analytics/types";
 import TestProviders from "../../shared/test/TestProviders";
+import { ThemeProvider } from "../../shared/theme/ThemeProvider";
 import PanoramaPage from "./PanoramaPage";
 
 function dateRange(period: string) {
@@ -123,6 +126,20 @@ function renderPanorama(initialEntry = "/panorama") {
   );
 }
 
+function renderPanoramaWithQueryClient(initialEntry = "/panorama") {
+  const queryClient = createQueryClient();
+  const result = render(
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <PanoramaPage />
+        </MemoryRouter>
+      </ThemeProvider>
+    </QueryClientProvider>,
+  );
+  return { ...result, queryClient };
+}
+
 describe("IA-04 contextual insight on Panorama", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -172,6 +189,17 @@ describe("IA-04 contextual insight on Panorama", () => {
     expect(
       await within(insight).findByText(/caiu 10% de Mar\/24 para Abr\/24/),
     ).toBeVisible();
+    expect(within(insight).getByText("Hipótese para investigar")).toBeVisible();
+    expect(
+      within(insight).getByText(
+        "Investigue a composição deste recorte sem atribuir uma causa.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(insight).getByText(
+        "Sugestão de investigação; não comprova causa.",
+      ),
+    ).toBeVisible();
     expect(
       within(insight).getByText(/Principal movimento: Recife/),
     ).toBeVisible();
@@ -184,9 +212,12 @@ describe("IA-04 contextual insight on Panorama", () => {
     expect(
       within(insight).queryByText(/Município: Todos/),
     ).not.toBeInTheDocument();
-    expect(
-      within(insight).getByRole("button", { name: "Ver análise detalhada" }),
-    ).toBeVisible();
+    const detailButton = within(insight).getByRole("button", {
+      name: "Ver análise detalhada",
+    });
+    expect(detailButton).toBeVisible();
+    expect(detailButton).toHaveClass("text-[var(--accent-goiaba-text)]");
+    expect(detailButton).not.toHaveClass("text-white");
     expect(
       screen.getByRole("region", {
         name: "Indicadores principais do Panorama",
@@ -206,6 +237,16 @@ describe("IA-04 contextual insight on Panorama", () => {
     const drawer = screen.getByRole("dialog", {
       name: "Insight",
     });
+    expect(
+      within(drawer).getByRole("heading", {
+        name: "Hipótese para investigar",
+      }),
+    ).toBeVisible();
+    expect(
+      within(drawer).getByText(
+        "Investigue a composição deste recorte sem atribuir uma causa.",
+      ),
+    ).toBeVisible();
     expect(drawer).toHaveStyle({
       position: "fixed",
       top: "0px",
@@ -260,6 +301,94 @@ describe("IA-04 contextual insight on Panorama", () => {
     });
     expect(body.loteVersao).toBe("panorama-sintetico-2024.04-v1");
     expect(body.observations).toBeUndefined();
+  });
+
+  it("hides a cached insight and shows the stale-batch warning after a 409", async () => {
+    let insightRequests = 0;
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input), "http://localhost:5173");
+        if (url.pathname === "/api/v1/panorama") {
+          const filters: PanoramaFilters = {
+            periodo: url.searchParams.get("competencia")!,
+            comparacao: url.searchParams.get(
+              "comparacao",
+            ) as PanoramaFilters["comparacao"],
+            municipio: url.searchParams.get("municipio")!,
+            classe: url.searchParams.get("classe")!,
+          };
+          return panoramaResponse(filters);
+        }
+
+        insightRequests += 1;
+        if (insightRequests === 1) {
+          const request = JSON.parse(String(init?.body)) as {
+            filters: PanoramaFilters;
+          };
+          return new Response(JSON.stringify(successEnvelope(request.filters)));
+        }
+        return new Response(
+          JSON.stringify({
+            contract_version: "v1",
+            status: "error",
+            correlation_id: "b".repeat(32),
+            message: "O lote mudou desde que os indicadores foram carregados.",
+            error: { code: "invalid_context", retryable: false },
+          }),
+          { status: 409 },
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { queryClient } = renderPanoramaWithQueryClient();
+    const insight = await screen.findByRole("region", {
+      name: "Insight contextual do Panorama",
+    });
+    expect(
+      await within(insight).findByText(/caiu 10% de Mar\/24 para Abr\/24/),
+    ).toBeVisible();
+    await userEvent.click(
+      within(insight).getByRole("button", { name: "Ver análise detalhada" }),
+    );
+    const drawer = screen.getByRole("dialog", { name: "Insight" });
+
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["panorama-insight"],
+      });
+    });
+
+    const staleWarning =
+      "O lote mudou desde que os indicadores foram carregados. Atualize o Panorama para sincronizar o contexto.";
+    await waitFor(() => {
+      const cardWarning = within(insight)
+        .getAllByRole("status")
+        .find((status) => !drawer.contains(status));
+      expect(cardWarning).toHaveTextContent(staleWarning);
+    });
+    expect(within(drawer).getByRole("status")).toHaveTextContent(staleWarning);
+    expect(
+      within(insight).queryByText(/caiu 10% de Mar\/24 para Abr\/24/),
+    ).not.toBeInTheDocument();
+    expect(
+      within(drawer).queryByText(/caiu 10% de Mar\/24 para Abr\/24/),
+    ).not.toBeInTheDocument();
+    expect(
+      within(insight).queryByText(
+        "Investigue a composição deste recorte sem atribuir uma causa.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      within(drawer).queryByText(
+        "Investigue a composição deste recorte sem atribuir uma causa.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", {
+        name: "Indicadores principais do Panorama",
+      }),
+    ).toBeVisible();
   });
 
   it("keeps indicators visible if insight service fails", async () => {

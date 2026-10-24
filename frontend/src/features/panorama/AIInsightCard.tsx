@@ -7,6 +7,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import Button from "../../shared/ui/Button";
 import type {
   PanoramaData,
   PanoramaFilters,
@@ -181,7 +182,9 @@ export default function AIInsightCard({
   const detailsTriggerRef = useRef<HTMLButtonElement>(null);
   const restoreDetailsFocusRef = useRef(false);
   const metric = data.metricas.energiaFaturada;
-  const response = query.data;
+  // A failed refetch can leave TanStack Query's previous response in `data`.
+  // Never present that cached interpretation as current after an error.
+  const response = query.isError ? undefined : query.data;
   const insight = response?.insight;
   const analysis = response?.analysis;
   const pending =
@@ -365,6 +368,19 @@ export default function AIInsightCard({
                 {compactNextStep(analysis)}
               </p>
             )}
+            {insight.hypothesis && (
+              <div className="mt-3 border-l-2 border-[var(--accent-goiaba)] pl-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  Hipótese para investigar
+                </p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
+                  {insight.hypothesis}
+                </p>
+                <p className="mt-1 text-[11px] leading-4 text-muted">
+                  Sugestão de investigação; não comprova causa.
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="mt-2">
@@ -407,16 +423,17 @@ export default function AIInsightCard({
       </div>
 
       <div className="mt-auto border-t border-[var(--line)] pt-3">
-        <button
+        <Button
           ref={detailsTriggerRef}
-          type="button"
+          variant="primary"
+          size="lg"
           aria-haspopup="dialog"
           onClick={() => setDetailsOpen(true)}
-          className="inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-lg border border-transparent bg-brand px-6 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[var(--accent-goiaba-hover)] active:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          rightIcon={<ArrowRight aria-hidden="true" className="size-4" />}
+          className="w-full font-semibold"
         >
-          <span>Ver análise detalhada</span>
-          <ArrowRight aria-hidden="true" className="size-4" />
-        </button>
+          Ver análise detalhada
+        </Button>
       </div>
 
       {detailsOpen && (
@@ -548,6 +565,27 @@ export default function AIInsightCard({
                   )}
                 </div>
               </section>
+
+              {insight?.status === "answered" && insight.hypothesis && (
+                <section
+                  aria-labelledby="panorama-insight-hypothesis-title"
+                  className="rounded-xl border border-[var(--line)] bg-surface p-4"
+                >
+                  <h3
+                    id="panorama-insight-hypothesis-title"
+                    className="font-heading text-sm font-semibold"
+                  >
+                    Hipótese para investigar
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-content">
+                    {insight.hypothesis}
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-muted">
+                    Interpretação gerada pela IA; os dados observados não
+                    comprovam uma causa.
+                  </p>
+                </section>
+              )}
 
               {insight?.status === "answered" && (
                 <section className="rounded-xl border border-[var(--line)] bg-[var(--accent-pistache-subtle)]/60 p-4">
