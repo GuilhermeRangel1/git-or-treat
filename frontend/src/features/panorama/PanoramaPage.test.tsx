@@ -6,6 +6,16 @@ import TestProviders from "../../shared/test/TestProviders";
 import PanoramaPage from "./PanoramaPage";
 import { calculateSyntheticPanorama } from "../../shared/analytics/syntheticData";
 
+function panoramaRequestCount() {
+  return vi
+    .mocked(fetch)
+    .mock.calls.filter(
+      ([input]) =>
+        new URL(String(input), "http://localhost:5173").pathname ===
+        "/api/v1/panorama",
+    ).length;
+}
+
 describe("PanoramaPage (WEB-01)", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -19,17 +29,84 @@ describe("PanoramaPage (WEB-01)", () => {
     );
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation(async (url: string) => {
-        const params = new URL(url, "http://localhost:5173").searchParams;
-        const data = calculateSyntheticPanorama({
-          periodo: params.get("competencia")!,
-          comparacao: params.get("comparacao") as
-            "anterior" | "ano_anterior" | "nenhuma",
-          municipio: params.get("municipio")!,
-          classe: params.get("classe")!,
-        });
-        return new Response(JSON.stringify({ data }));
-      }),
+      vi
+        .fn()
+        .mockImplementation(
+          async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = new URL(String(input), "http://localhost:5173");
+            if (url.pathname === "/api/v1/ai/insights") {
+              const request = JSON.parse(String(init?.body)) as {
+                filters: {
+                  periodo: string;
+                  comparacao: "anterior" | "ano_anterior" | "nenhuma";
+                  municipio: string;
+                  classe: string;
+                };
+              };
+              const insightData = calculateSyntheticPanorama(request.filters);
+              const metric = insightData.metricas.energiaFaturada;
+              const [year, month] = request.filters.periodo
+                .split("-")
+                .map(Number);
+              const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+              return new Response(
+                JSON.stringify({
+                  insight: {
+                    contract_version: "v1",
+                    correlation_id: "c".repeat(32),
+                    audit_reference: null,
+                    error: null,
+                    status: "answered",
+                    context: {
+                      metric: metric.nome,
+                      unit: metric.unidade,
+                      period: {
+                        start: `${request.filters.periodo}-01`,
+                        end: `${request.filters.periodo}-${String(lastDay).padStart(2, "0")}`,
+                        granularity: "month",
+                      },
+                      filters: request.filters,
+                    },
+                    observation: {
+                      values: [{ label: "Atual", value: metric.valorAtual }],
+                    },
+                    hypothesis: "Hipótese sintética para teste.",
+                    message: null,
+                    evidence: [
+                      {
+                        source: "synthetic.screen",
+                        description: "Contexto sintético de teste.",
+                        is_demo: true,
+                      },
+                    ],
+                    limitations: ["Sem reconciliação com Gold."],
+                  },
+                  metric: {
+                    id: metric.id,
+                    definicao: metric.definicao,
+                    formula: metric.formula,
+                  },
+                  source: {
+                    kind: "synthetic",
+                    loteVersao: insightData.loteVersao,
+                    dataAtualizacao: insightData.dataAtualizacao,
+                    isDemo: true,
+                    limitacoes: ["Dados sintéticos de teste."],
+                  },
+                }),
+              );
+            }
+            const params = url.searchParams;
+            const data = calculateSyntheticPanorama({
+              periodo: params.get("competencia")!,
+              comparacao: params.get("comparacao") as
+                "anterior" | "ano_anterior" | "nenhuma",
+              municipio: params.get("municipio")!,
+              classe: params.get("classe")!,
+            });
+            return new Response(JSON.stringify({ data }));
+          },
+        ),
     );
   });
 
@@ -56,7 +133,7 @@ describe("PanoramaPage (WEB-01)", () => {
         screen.getByRole("button", { name: "Restaurar filtros padrão" }),
       );
       expect(await screen.findByText(/76\.500,00/)).toBeVisible();
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(panoramaRequestCount()).toBe(1);
     },
   );
 

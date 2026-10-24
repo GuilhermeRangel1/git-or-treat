@@ -254,7 +254,7 @@ def test_direct_insight_uses_injected_model_and_sink_without_reading_source() ->
     )
 
     assert response.status == "answered"
-    assert "valor observado: 42 unidades fictícias" in response.hypothesis
+    assert "valor observado: 42 unidades fictícias" not in response.hypothesis
     assert source.calls == 0
     assert model.calls == 1
     assert sink.events[0].flow == "insight"

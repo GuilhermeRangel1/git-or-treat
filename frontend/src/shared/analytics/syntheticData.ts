@@ -719,7 +719,7 @@ export function calculateSyntheticPanorama(
     periodoIncompleto: isIncompleto,
     totalRegistros: registrosAtuais.length,
     dataAtualizacao: "2024-04-30T18:00:00Z",
-    loteVersao: "Lote Gold 2024.04-sintetico-v1",
+    loteVersao: "panorama-sintetico-2024.04-v1",
     metricas: {
       receitaFaturada: buildMetric(
         "rec_fat",

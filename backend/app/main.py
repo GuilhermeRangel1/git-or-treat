@@ -15,7 +15,7 @@ from app.middleware.request_limits import RequestLimitsMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.repositories.analytics import AnalyticsSourceUnavailable
 from app.services.analytics import AnalyticsAPIError
-from app.services.genai_client import GenAIQuestionClient
+from app.services.genai_client import GenAIInsightClient, GenAIQuestionClient
 
 
 @asynccontextmanager
@@ -25,13 +25,24 @@ async def lifespan(app: FastAPI):
     if settings.DATABASE_URL.startswith("sqlite"):
         Base.metadata.create_all(bind=engine)
     timeout = httpx.Timeout(settings.AI_AGENT_TIMEOUT_SECONDS)
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as http_client:
+    async with httpx.AsyncClient(
+        timeout=timeout, follow_redirects=False
+    ) as http_client:
         token = (
             settings.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()
             if settings.AI_AGENT_SERVICE_API_TOKEN is not None
             else None
         )
         app.state.genai_question_client = GenAIQuestionClient(
+            http_client=http_client,
+            base_url=(
+                str(settings.AI_AGENT_BASE_URL)
+                if settings.AI_AGENT_BASE_URL is not None
+                else None
+            ),
+            service_token=token,
+        )
+        app.state.genai_insight_client = GenAIInsightClient(
             http_client=http_client,
             base_url=(
                 str(settings.AI_AGENT_BASE_URL)
@@ -57,17 +68,26 @@ app = FastAPI(
 async def analytics_error_handler(request: Request, exc: AnalyticsAPIError):
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}},
+        content={
+            "error": {"code": exc.code, "message": exc.message, "details": exc.details}
+        },
     )
 
 
 @app.exception_handler(AnalyticsSourceUnavailable)
-async def analytics_unavailable_handler(request: Request, exc: AnalyticsSourceUnavailable):
+async def analytics_unavailable_handler(
+    request: Request, exc: AnalyticsSourceUnavailable
+):
     return JSONResponse(
         status_code=503,
-        content={"error": {"code": "source_unavailable", "message": "A fonte analítica não está configurada.", "details": []}},
+        content={
+            "error": {
+                "code": "source_unavailable",
+                "message": "A fonte analítica não está configurada.",
+                "details": [],
+            }
+        },
     )
-
 
 
 # Configuração de CORS para permitir requisições do frontend Vite/React
@@ -92,6 +112,7 @@ async def add_correlation_id(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Correlation-ID"] = correlation_id
     return response
+
 
 # Roteador central v1
 app.include_router(api_router, prefix=settings.API_V1_STR)
