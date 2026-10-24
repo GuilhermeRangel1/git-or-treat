@@ -2,6 +2,8 @@
 
 23/10/2026. WEB-05, dependência DEV-01; integração com DEV-05/WEB-04. Backend verificado com fonte sintética. Interface básica por solicitação da pessoa usuária; acabamento e jornada completa de alterações ficam com a pessoa responsável pelo frontend.
 
+> Atualização DEV-07 (24/10/2026): criação e consulta permanecem como abaixo. Todas as alterações agora exigem `version`; cancelamento só é permitido por `/orders/{id}/cancel` com `confirmed_order_id`. O [contrato vigente das alterações](inspection-lifecycle-dev07.md) substitui a compatibilidade do PATCH descrita originalmente nesta entrega.
+
 ## Criação pela fila
 
 `POST /api/v1/inspections/queue/{uc_id}/orders`, Bearer com permissão de escrita e header obrigatório `Idempotency-Key`: 16–128 caracteres alfanuméricos ASCII, `_` ou `-`. Autenticação individual, scopes e contrato para o frontend: [guia de entrega](inspection-auth-handoff.md).

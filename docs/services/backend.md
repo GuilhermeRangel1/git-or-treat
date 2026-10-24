@@ -51,7 +51,7 @@ A base do backend DEV-06 (`85a72a0`) foi incorporada nesta branch: fila/detalhe 
 
 WEB-05 segue Em validação. A [ADR-0013](../decisions/0013-integracao-do-ciclo-operacional-dev07.md) concilia a ADR-0004 com a base DEV-06: PENDENTE inicia/cancela; EM_ANDAMENTO conclui com resultado/cancela; estados finais não reabrem. Prioridades BAIXA/MEDIA/ALTA. Repetições idênticas não gravam eventos nem incrementam versão.
 
-A DEV-07 acrescenta histórico durável com ator/versão, resultado dedicado, cancelamento com confirmação do ID e controle otimista no SQL. Ordem e evento são uma única transação. Versão opcional mantém compatibilidade; clientes devem enviá-la para detectar tela obsoleta. `alembic upgrade head` converge bancos existentes das duas branches sem recriação. Especificação, exemplos, evidência e limites no [contrato DEV-07](../contracts/inspection-lifecycle-dev07.md). Interface completa e execução PostgreSQL permanecem pendentes.
+A DEV-07 acrescenta histórico durável com ator/versão, resultado dedicado, cancelamento com confirmação do ID e controle otimista no SQL. Ordem e evento são uma única transação. Versão é obrigatória em todas as alterações (422 se ausente/inválida, 409 se obsoleta). Cancelamento via PATCH é recusado; a rota dedicada exige confirmação do ID. `alembic upgrade head` converge bancos existentes das duas branches sem recriação. Especificação, exemplos, evidência e limites no [contrato DEV-07](../contracts/inspection-lifecycle-dev07.md). Interface completa permanece pendente. A revisão do contrato passou na suíte com PostgreSQL 18 efêmero e SQLite; consulte a evidência no contrato.
 
 ## Carga da Gold e consistência
 

@@ -131,3 +131,10 @@ Depois do upgrade, o teste compara o esquema com todos os modelos registrados us
 ## Limites atuais
 
 As ordens usam dados operacionais separados, controle de acesso DEV-06, histórico transacional, resultado, cancelamento identificado e versão DEV-07. Contratos, exemplos, migrações e limites no [guia DEV-07](../docs/contracts/inspection-lifecycle-dev07.md). A integração completa do frontend e a validação PostgreSQL no ambiente de destino continuam pendentes. A carga da Gold não lê nem insere linhas e não oferece idempotência. Executar `python scripts/load_gold.py` informa que a carga ainda não está implementada; a presença de CSVs não significa que foram carregados.
+
+
+## Contrato de alterações das ordens — DEV-07
+
+Todas as mutações exigem `version` inteiro positivo retornado pelo GET. Sem versão ou com tipo inválido: 422; versão obsoleta: 409 `version_conflict`, sem gravar ordem/histórico. Após 409, consulte novamente e permita que a pessoa revise a alteração. Não reenvie automaticamente a intenção com uma versão nova.
+
+Cancelamento só é aceito por `POST /api/v1/inspections/orders/{id}/cancel`, com `confirmed_order_id` igual ao ID da rota e a versão atual. `PATCH` com CANCELADA retorna 422. Os exemplos do Swagger mostram início, resultado, cancelamento e conflito. Clientes DEV-06 precisam adaptar as alterações; criação/consulta não mudam. Não há nova migração de banco nesta revisão; reinicie o backend para carregar as rotas/schemas atualizados.
