@@ -210,8 +210,8 @@ Cada time deve responder à pergunta sobre queda de receita residencial. A expli
 | ID | Prioridade | Estado | Requisito e critérios de aceite |
 | --- | --- | --- | --- |
 | DE-01 | Obrigatório | Em validação | **Ingerir tudo em Bronze.** Os oito conjuntos, incluindo cinco arquivos de leitura e três abas de inspeção, estão em Delta; linhas, colunas, valores e arquivos de origem são rastreáveis. Diferenças de parse e rejeições são contadas e explicadas. |
-| DE-02 | Obrigatório | Pendente | **Silver confiável.** Perfil de qualidade por fonte, regras de limpeza/padronização, contagens antes/depois e exceções documentadas; datas, classes, identificadores e medidas podem ser usados com significado consistente. |
-| DE-03 | Obrigatório | Pendente | **Integridade referencial.** Medição, faturamento e cadastro possuem vínculos válidos ou exceções explicitamente segregadas; verificações detectam órfãos e multiplicação indevida de fatos. |
+| DE-02 | Obrigatório | Em validação | **Silver confiável.** Perfil de qualidade por fonte, regras de limpeza/padronização, contagens antes/depois e exceções documentadas; datas, classes, identificadores e medidas podem ser usados com significado consistente. |
+| DE-03 | Obrigatório | Em validação | **Integridade referencial.** Medição, faturamento e cadastro possuem vínculos válidos ou exceções explicitamente segregadas; verificações detectam órfãos e multiplicação indevida de fatos. |
 | DE-04 | Obrigatório | Pendente | **Gold para perguntas de negócio.** Tabelas consolidadas suportam indicadores, receita, visão UC, inspeção, rede e IA; granularidade, fórmulas e escolhas de modelagem estão documentadas. |
 | DE-05 | Obrigatório | Pendente | **DEC/FEC por alimentador.** Implementar a definição simplificada descrita no case/ANEEL com numerador, denominador, janela e UC afetada explícitos; conferir amostras e não apresentar resultado como conformidade regulatória oficial. |
 | DE-06 | Obrigatório | Pendente | **Exportar Gold ao banco local.** CSVs de Gold podem ser carregados novamente sem duplicar resultados; conferir esquema, contagens, chaves e agregados entre Databricks e banco. |
@@ -465,6 +465,34 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
+### 2026-10-21 — DE-02/DE-03 — tratamento de ambiguidades na Silver
+
+- Estado anterior → novo estado: DE-02 e DE-03 permanecem `Em validação`. As regras estão implementadas, mas o requisito não pode ser concluído sem executar esta versão no lote real.
+- Mudança observável: datas ambíguas de leitura e emissão permanecem em quarentena (B); o diagnóstico C mede por arquivo a ordem evidente, a compatibilidade das datas inequívocas com a competência e competências ausentes/inválidas, sem inferir valor publicado. Medidor com instalação ambígua permanece em quarentena e leituras dependentes são classificadas como bloqueio `medidor_em_quarentena` (A). UC com CPF/CNPJ ou nome de titular conflitante publica o atributo nulo e sinalizado. Fatura preserva data/status, sem tratar `9999-12-31` ou data futura como prova de pagamento. Registros aceitos mantêm metadados técnicos de linhagem; rejeitados preservam todas as colunas, inclusive `_registro_bruto` e nulos, em `_registro`.
+- Artefatos: `data-engineering/notebook/Bronze_to_Silver.ipynb`, `data-engineering/decisoes-tecnicas.md` (D53–D60, §11.4), `data-engineering/README.md`, `docs/services/data-engineering.md` e este PRD; branch `feat/silver`.
+- Dados usados: somente as contagens agregadas já registradas em D52/§11.3; não houve acesso nesta revisão ao dataset bruto ou ao sistema de origem. A pessoa usuária informou que não sabe o significado de `9999-12-31` e das datas futuras em faturas `EM ABERTO`.
+- Verificações: a versão atual ainda requer execução no Databricks com lote autorizado e reconciliação das saídas. O run `20261021T101818Z_223235ca` comprova somente a versão anterior.
+- Critérios de aceite restantes: executar o perfil e a Silver revisados no mesmo lote autorizado; revisar os quatro contadores por arquivo antes de aprovar qualquer nova regra; conferir reconciliação por origem, competência e classe, amostra independente e metadados de linhagem. A política atual já é conservadora: datas ambíguas ficam fora de cálculos dependentes da competência, leituras bloqueadas ficam rastreáveis e datas futuras/sentinela não provam pagamento. DE-02/DE-03 seguem em validação até evidência reproduzível do lote.
+- Rastreador: cartões DE-02 e DE-03 atualizados no Trello como `Em validação`, com referência a esta evidência; nenhum marcado como concluído.
+- Responsável/revisor: implementação assistida por Codex; revisão humana e validação do lote real ainda necessárias.
+
+### 2026-10-21 — DE-02/DE-03 — ampliação do contrato e da reconciliação Silver
+
+- Estado: DE-02 e DE-03 permanecem `Em validação`; a versão atual ainda não foi executada no Databricks.
+- Mudança observável: pré-requisitos de lote/perfil/reconciliação/arquivos passam a ser conferidos antes do preparo; chaves ausentes, competência, vínculo medidor–UC, conversões e deduplicação recebem regras explícitas. Datas ambíguas seguem em quarentena; leituras dependentes de medidor em quarentena recebem motivo de bloqueio próprio; conflitos cadastrais não são resolvidos por completude; datas futuras e sentinela não comprovam pagamento; timestamps inválidos vão à quarentena e valores negativos de satisfação mantêm flag sem interpretação presumida. A matriz liga achados do perfil ao tratamento, e a reconciliação detalha arquivo/aba, competência e classe. Saídas são preparadas por execução, com histórico e ponteiro de publicação. Tratativas preservam a posição no array JSON, e a linhagem técnica dos aceitos permanece localizável na Bronze. O Workflow permanece inalterado.
+- Rastreabilidade da implementação: [commit `c7bd256`](https://github.com/GuilhermeRangel1/git-or-treat/commit/c7bd256fa270bb8c7b6789697fc46ccb96ce7bcb) e [PR #29](https://github.com/GuilhermeRangel1/git-or-treat/pull/29). Detalhamento técnico: D53–D60 e seções 11.4/14 do notebook.
+- Limites: a versão atual ainda não foi executada no Databricks; o run anterior não comprova estas mudanças. Faltam conferir os rótulos do perfil atual, sobreposições de motivos, permissões efetivas e o consumo das vistas publicadas pela Gold. O contrato de entrada da Gold foi documentado, mas Gold e exportação não existem.
+
+### 2026-10-21 — DE-02/DE-03 — Silver adaptada à Bronze com publicação por lote
+
+- Estado anterior → novo estado: DE-02 `Pendente` → `Em validação`; DE-03 `Pendente` → `Em validação`. Há execução real no Databricks com reconciliação fechada; faltam o Workflow, as decisões de negócio abaixo e a revisão humana.
+- Mudança observável: `Bronze_to_Silver.ipynb` lê o lote ativo da Bronze com o `_lote_id` fixado, valida o contrato de colunas antes de gravar, concilia contagem e soma (R$ e kWh) por tabela, inclui os rejeitados do parse na conta ponta a ponta, registra a execução em `silver.controle_silver` e **falha** quando um invariante é violado. Corrige `primeira_acao`/`ultima_acao` de `atendimentos`, que estourava com `historico` vazio em ANSI.
+- Arquivos/branch: `data-engineering/notebook/Bronze_to_Silver.ipynb`, `data-engineering/README.md`, `data-engineering/decisoes-tecnicas.md` (D46–D52, §11.2–11.3), `docs/services/data-engineering.md` e este PRD; branch `feat/silver`, criada a partir de `feat/bronze-rastreabilidade`.
+- Dados usados: dataset real do case no Volume autorizado do Databricks; nenhum dado foi copiado para o Git.
+- Verificações: Databricks Free Edition, serverless, em 21/10/2026. Bronze lote `20261021T095426Z_106436a4` (com o ajuste de tipo na migração, ver pendências), perfil com 108 linhas, Silver run `20261021T101818Z_223235ca` `CONCLUIDO` com 0 falhas em ≈ 7 min 45 s. Esta evidência corresponde à versão então executada e não valida a revisão atual.
+- Reconciliação ou amostra manual: `delta = 0` nas 8 tabelas e em `atendimentos_historico`; soma de faturas R$ 676.675.147,58 = aceitos 647.055.875,02 + quarentena 29.619.272,56. Os motivos batem com o perfil de 17/10 (leituras: data ambígua 102.878, medidor inexistente 8.609, cascata 58.214; faturas: emissão ambígua 61.226, UC inexistente 32.285). Contagens completas em `decisoes-tecnicas.md` §11.3.
+- Critérios de aceite e pendências: manter datas ambíguas em quarentena e usar o diagnóstico por arquivo de D53 antes de propor qualquer regra de interpretação; confirmar o significado da sentinela `9999-12-31` (14.2) e se o nome de `inspetor` é exibido ao usuário (14.4); revisar os 1.369 medidores com instalação ambígua. Bronze: a migração sobre tabelas anteriores exige o `cast("long")` de `_ordem_na_origem` em `Landing_to_Bronze.ipynb`, em commit separado. Trello não sincronizado (MCP não conectado).
+- Responsável/revisor: Júlia (juliatenoriocalado), com apoio do Claude Code; revisão humana pendente.
 ### 2026-10-23 — IA-01/IA-02/IA-03/IA-06 — pergunta HTTP com banco sintético controlado
 
 - Estado: IA-01, IA-02, IA-03 e IA-06 permanecem `Pendente`. Esta é uma prova demonstrativa, sem reconciliação com Gold ou identidade real.
@@ -1094,7 +1122,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 - Estado anterior → novo estado: `Pendente` → `Em validação`; a ingestão roda e a conta fecha, mas o PR #8 ainda não foi revisado e a reconciliação não registra o hash do arquivo de origem (§4.3).
 - Mudança observável para usuário/negócio: a Bronze passa a devolver, por fonte, quantas linhas físicas de origem foram lidas, quantas viraram linha da tabela e quantas foram rejeitadas. Registro malformado deixa de ser descartado em silêncio: vai para `bronze.rejeitados` com o conteúdo bruto, e `bronze.reconciliacao` fecha a conta com `delta = 0`.
-- Arquivos/commit/PR: `data-engineering/notebook/Landing_to_Bronze.ipynb` (reescrito, então `01_bronze.py`), `data-engineering/notebook/Bronze_perfilamento.ipynb` (colunas de auditoria no perfilamento e deduplicação restrita às colunas de negócio, então `02_perfilamento.py`), [ADR-0003](decisions/0003-reconciliacao-e-captura-de-registros-malformados.md), `docs/services/data-engineering.md` e este PRD; branch `feat/bronze`, PR #8 (ainda sem revisão).
+- Arquivos/commit/PR: `data-engineering/notebook/Landing_to_Bronze.ipynb` (reescrito, então `01_bronze.py`), `data-engineering/notebook/Bronze_perfilamento.ipynb` (colunas de auditoria no perfilamento e deduplicação restrita às colunas de negócio, então `02_perfilamento.py`), [decisões técnicas consolidadas da Bronze](../data-engineering/decisoes-tecnicas.md), `docs/services/data-engineering.md` e este PRD; branch `feat/bronze`, PR #8 (ainda sem revisão).
 - Dados usados (versão/fonte; sem anexar dados sensíveis): extração do case com as 8 fontes, no Volume `/Volumes/workspace/default/venergy`; dados brutos não versionados (`.gitignore`).
 - Verificações: execução completa do notebook na Databricks Free Edition em 17/10/2026, sem erro. Contagens: unidades_consumidoras 46.461, medidores 51.812, ocorrencias_rede 180.000, geracao_distribuida 3.510, faturas 2.184.623, leituras 2.182.468, atendimentos 318.871, inspecoes 1.389 (abas 511 + 383 + 495). `bronze.reconciliacao` com `delta = 0` em todas as linhas; `atendimentos` sai como `SEM_BASE` e `inspecoes` com `linhas_arquivo = null` (esperado). Autoteste de registros malformados `OK` nos dois leitores (CSV 1 válida/2 rejeitadas; JSON 1 válida/1 rejeitada). `bronze.rejeitados` sem linhas. `python -m py_compile` local nos dois notebooks.
 - Reconciliação ou amostra manual: `bronze.leituras` conferida contra a contagem física do Volume — 2.182.473 linhas menos 5 cabeçalhos = 2.182.468, igual à tabela. As demais fontes fecham por aritmética dentro do próprio notebook (§4.3).
@@ -1202,11 +1230,44 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 - Estado anterior → novo estado: DE-01 `Em validação` → `Em validação`; DE-02 permanece `Pendente`.
 - Mudança observável: antes de ler cada CSV, a Bronze confere a quantidade de campos com o cabeçalho e bloqueia o lote com contagem e linhas de exemplo se houver divergência. O autoteste usa dois registros de largura incorreta para verificar esse bloqueio. O perfilador registra `NAO_EXECUTADA` em `quality.perfil_bronze` quando uma coluna esperada falta. O limite da ordem de leitura em CSV/JSON passa a ser declarado corretamente.
-- Arquivos/branch: `data-engineering/notebook/Landing_to_Bronze.ipynb`, `data-engineering/notebook/Bronze_perfilamento.ipynb`, `data-engineering/decisoes-tecnicas.md`, `docs/decisions/0003-reconciliacao-e-captura-de-registros-malformados.md`, `data-engineering/README.md` e este PRD; `feat/bronze`, sem commit nesta etapa.
+- Arquivos/branch: `data-engineering/notebook/Landing_to_Bronze.ipynb`, `data-engineering/notebook/Bronze_perfilamento.ipynb`, [decisões técnicas consolidadas da Bronze](../data-engineering/decisoes-tecnicas.md), `data-engineering/README.md` e este PRD; `feat/bronze`, sem commit nesta etapa.
 - Dados usados: nenhum arquivo real do case foi aberto localmente. A guarda é baseada no contrato de CSV e nos registros sintéticos do autoteste; a execução histórica de 19/10/2026 precede esta alteração.
 - Verificações locais (script auxiliar não versionado): as células Python dos dois notebooks compilaram; com arquivos sintéticos, a guarda aceitou campos delimitados entre aspas e bloqueou duas linhas com larguras incorretas, informando linhas 3 e 4. O perfil registrou `NAO_EXECUTADA` uma única vez para uma coluna ausente consultada duas vezes. `git diff --check` não apontou erro. A execução completa no Databricks, a contagem real por origem e o tempo adicional da varredura CSV continuam pendentes. Para a publicação por lote, também falta comprovar uma falha induzida durante a troca seguida de reexecução e implementar no consumidor a leitura somente quando o lote atual estiver `PUBLICADO`.
 - Reconciliação e pendências: a guarda evita que o Spark complete campos ausentes ou descarte excedentes silenciosamente. A reconciliação do JSON continua `SEM_BASE`, pois `objetos_interpretados` vem do próprio parser. A localização física CSV/JSON e a execução Databricks desta versão ainda precisam de evidência antes de concluir DE-01.
 - Responsável/revisor: Codex (correção local); execução Databricks e revisão humana pendentes.
+
+### 2026-10-20 — DE-01/DE-02 — scanner e perfil descritivo da Bronze
+
+- Estado anterior → novo estado: DE-01 permanece `Em validação`; DE-02 permanece `Pendente`.
+- Mudança observável: a ingestão separa registros lógicos CSV/JSON antes do Spark, preserva trecho bruto e linhas físicas, reconcilia JSON com contagem independente e mantém campos CSV de largura incorreta na quarentena. O perfilamento registra `NAO_EXECUTADA` com ocorrência nula, não conta chaves ausentes como órfãs/duplicatas e chama `tipo_bronze` o tipo armazenado, sem afirmar inferência semântica. Após publicação bem-sucedida, remove os temporários; em falha, os artefatos ficam para diagnóstico.
+- Arquivos/branch: notebooks Bronze, configuração YAML, README, [decisões técnicas consolidadas da Bronze](../data-engineering/decisoes-tecnicas.md), guia do serviço e este PRD; `feat/bronze`, sem commit ou push.
+- Dados usados: fixtures sintéticas; nenhum arquivo real do case foi aberto ou copiado.
+- Verificações locais: compilação das células Python dos dois notebooks; autoteste isolado com fixtures sintéticas (CSV: 3 registros, 2 rejeitados; JSON: 3 objetos, 1 rejeitado; total: 6 lidos, 3 aceitos, 3 rejeitados, delta zero); perfil testado com ocorrência desconhecida e esquema nullable; `git diff --check` sem erro. Nenhuma execução Databricks desta versão.
+- Reconciliação ou amostra manual: o autoteste espera 6 registros lógicos no total, 3 aceitos e 3 rejeitados entre o CSV e JSON sintéticos, com `delta = 0` e linhas físicas CSV conferidas.
+- Critérios de aceite e pendências: confirmar runtime e permissões no Databricks; comparar as 14 origens autorizadas, hashes e publicação; induzir falha e reexecutar; validar inferência descritiva com o inventário real. Manter DE-01 em validação até essas evidências.
+- Responsável/revisor: Codex (alteração local); revisão humana e execução Databricks pendentes.
+
+### 2026-10-20 — DE-01/DE-02 — mapa de relações e abas de inspeção
+
+- Estado anterior → novo estado: DE-01 permanece `Em validação`; DE-02 permanece `Pendente`.
+- Mudança observável: o perfilamento descreve o período aparente das três abas de inspeções, mede a unicidade de `id_inspecao` por aba e registra que a finalidade específica das abas depende de confirmação da origem. O mapa passa a distinguir vínculos com chave compartilhada, comparação exploratória por UC/competência e fluxos sem chave verificada; registra máximos de linhas por chave e a ausência de prova de vigência temporal. A ingestão reúne código repetido de carga e reconciliação no próprio notebook.
+- Arquivos/branch: `data-engineering/notebook/Bronze_perfilamento.ipynb`, `data-engineering/notebook/Landing_to_Bronze.ipynb` e este PRD; `feat/bronze-rastreabilidade-publicacao`, mudanças locais sem commit.
+- Dados usados: nenhum arquivo real do case foi aberto nesta revisão; o grão e as relações dependem de medição no Databricks.
+- Verificações: JSON e sintaxe Python das células conferidos; IDs das células únicos; `git diff --check` sem erros. O notebook de ingestão passou de 1.052 para 1.023 linhas de conteúdo e de 384 para 224 linhas na maior célula. O perfil tem 1.002 linhas de conteúdo; a célula de 432 linhas foi separada em blocos de até 204 linhas. Execução no Databricks pendente.
+- Reconciliação ou amostra manual: nenhuma amostra real nova nesta revisão. O perfil resultante deverá ser confrontado com o inventário das 14 origens e com o conhecimento da equipe sobre as abas.
+- Critérios de aceite e pendências: confirmar finalidade e grão das abas com a origem, verificar os vínculos e a vigência temporal sobre os dados reais e validar carga, perfil e reconciliação no Databricks antes de concluir DE-01 ou DE-02.
+- Responsável/revisor: Codex (alteração local); revisão humana e execução Databricks pendentes.
+
+### 2026-10-20 — DE-01/DE-02 — contagens pendentes da issue #19 no perfil da Bronze
+
+- Estado anterior → novo estado: DE-01 permanece `Em validação`; DE-02 permanece `Pendente`.
+- Mudança observável: o relatório persistido por arquivo/aba reúne contagem de `mes_referencia` fora de `AAAA-MM`, chaves duplicadas e linhas excedentes, linhas CSV iguais ao cabeçalho inteiro e grupos de grafias candidatas de `inspetor`. Nomes de pessoas não são persistidos nesses novos achados. As contagens medem a Bronze e não alteram registros.
+- Arquivos/branch: `data-engineering/notebook/Bronze_perfilamento.ipynb` e este PRD; `feat/bronze-rastreabilidade-publicacao`, mudanças locais sem commit.
+- Dados usados: nenhum arquivo real do case foi aberto nesta revisão.
+- Verificações: estrutura JSON, sintaxe Python das células e `git diff --check`; execução do perfil atualizado no Databricks pendente.
+- Reconciliação ou amostra manual: sem números novos até executar o perfil contra o lote publicado.
+- Critérios de aceite e pendências: conferir os quatro resultados por origem; depois decidir quais regras da Silver manter, ajustar ou criar. Antes de padronizar `inspetor`, confirmar se o nome é exibido ao usuário. A issue #19 e DE-02 dependem dessa análise e decisão.
+- Responsável/revisor: Codex (alteração local); revisão humana e execução Databricks pendentes.
 
 ### Modelo de entrada
 

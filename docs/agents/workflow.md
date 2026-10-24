@@ -27,7 +27,11 @@ O hook `quality-gate` pode verificar automaticamente comandos existentes, mas n�
 
 Atualize a célula `Estado` na tabela do ID e adicione uma entrada no `Registro de progresso` do PRD com: mudança observável, arquivos/commit/PR, dados e versão, comandos/resultados, reconciliação/amostra, pendências e revisor. Use `Em validação` quando há implementação sem prova suficiente. Use `Bloqueado` com causa e desbloqueio necessário. `Concluído` exige todos os critérios do ID.
 
-Quando a decisão altera arquitetura ou métrica, crie ADR em `docs/decisions/` com contexto, opções, escolha, consequência e data; atualize PRD, dicionário e guias afetados. A decisão não deve ficar apenas em chat.
+Quando a decisão altera arquitetura ou métrica, registre contexto, opções, escolha, consequências, data e estado de
+validação. Para Engenharia de Dados, mantenha o registro consolidado em
+`data-engineering/decisoes-tecnicas.md` e aponte para ele no índice `docs/decisions/README.md`; para os demais
+módulos, crie ADR em `docs/decisions/`. Atualize PRD, dicionário e guias afetados. A decisão não deve ficar apenas
+em chat.
 
 Sincronize o cartão Trello de cada ID alterado, conforme `issue-tracker.md`. Atualize estado e evidência depois do PRD; marque como concluído apenas quando o estado canônico for `Concluído`.
 

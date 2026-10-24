@@ -1,6 +1,6 @@
 # Serviço: engenharia de dados
 
-**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** Bronze implementada e executada na Databricks Free Edition (17/10/2026; a versão com publicação por lote rodou em 19/10/2026) e o Workflow `v-energy-grid-360` criado em 18/10/2026 com as duas tarefas da Bronze encadeadas (PR #8 em revisão); Silver implementada e em validação (em PR separado); Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
+**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. A Silver (`Bronze_to_Silver.ipynb`) foi executada em 21/10/2026 (`CONCLUIDO`, 0 falhas), mas essa execução corresponde à versão anterior e não valida as alterações atuais. O Workflow permanece com as duas tarefas da Bronze encadeadas; a Silver ainda não está encadeada. Gold e exportação ainda não existem. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
 
 ## Responsabilidade
 
@@ -12,7 +12,9 @@ Converter oito conjuntos legados em tabelas Gold confiáveis para portal, IA e d
 
 ### Inventário de descoberta ao receber o `.zip`
 
-Para cada arquivo/aba, registrar tamanho, período aparente, encoding, delimitador/separador, quantidade física e lógica de registros, colunas/caminhos JSON, tipos inferidos, nulos, duplicatas e valores fora de domínio. Separar erro de leitura do arquivo de erro de regra de negócio. O JSON de atendimento e o Excel de inspeção exigem cuidado especial: uma lista aninhada ou uma aba auxiliar pode mudar o grão e inflar contagens. Documentar o que cada aba representa antes de fazer união.
+Para cada arquivo/aba, registrar tamanho, período aparente, encoding, delimitador/separador, quantidade física e lógica de registros, colunas/caminhos JSON, tipo físico armazenado e padrões observados de parseabilidade,
+nulos, duplicatas e valores fora de domínio. A Bronze não converte os campos brutos para
+inferir tipos semânticos. Separar erro de leitura do arquivo de erro de regra de negócio. O JSON de atendimento e o Excel de inspeção exigem cuidado especial: uma lista aninhada ou uma aba auxiliar pode mudar o grão e inflar contagens. Documentar o que cada aba representa antes de fazer união.
 
 Montar um mapa de relacionamento **com chaves verificadas**, cobrindo UC, cliente, medidor, competência, fatura, ocorrência, chamado e inspeção. Registrar cardinalidade e vigência temporal. Para fontes sem chave suficiente, explicitar a limitação do fluxo dependente em vez de criar join por semelhança de texto.
 
@@ -20,16 +22,35 @@ Montar um mapa de relacionamento **com chaves verificadas**, cobrindo UC, client
 
 | Camada | Deve preservar/publicar | Checagem de saída |
 | --- | --- | --- |
-| Bronze | Conteúdo original, arquivo/aba de origem, lote, momento de ingestão e rejeições de parse separadas | Contagens e checksums por fonte quando possível; nenhuma correção silenciosa |
+| Bronze | Conteúdo original, arquivo/aba de origem, lote de origem, versão/hash, execução, momento de ingestão e rejeições de parse separadas | Contagem de registros lógicos contra aceitos + rejeitados por fonte, checksum e acesso ao trecho bruto; nenhuma correção silenciosa |
 | Silver | Tipos, datas, chaves, categorias e medidas padronizadas; regras de deduplicação e exceções documentadas | Nulos, duplicatas, órfãos, intervalos impossíveis e reconciliação por fonte/período |
 | Gold | Tabelas para indicadores, receita, UC, inspeção e continuidade, com dimensão de tempo/geografia/classe | Chaves e granularidade declaradas; agregações reproduzíveis; dicionário completo |
 
 ### Invariantes de qualidade por transição
 
-- **Bronze:** reprocessar o mesmo lote deve conservar o conteúdo e permitir localizar arquivo/aba/registro de origem. Quando um formato não for interpretável, contar e isolar a falha sem alterar silenciosamente o restante.
-- **Silver:** toda regra que remove, substitui ou agrega registros precisa de contagem antes/depois e motivo. A soma de aceitos, quarentenados e rejeitados deve reconciliar com a entrada adequada ao grão.
+- **Bronze:** reprocessar o mesmo lote deve conservar o conteúdo e permitir localizar arquivo/aba/registro de origem. Quando um formato não for interpretável, contar e isolar a falha sem alterar silenciosamente o restante. O perfil registra, por arquivo/aba, padrões observados de data, fuso e pontuação numérica sem inferir decimal versus milhar.
+- **Silver:** toda regra que remove, substitui ou agrega registros precisa de contagem antes/depois e motivo. A soma de aceitos, quarentenados e rejeitados deve reconciliar com a entrada adequada ao grão, por arquivo/aba, competência e classe quando aplicável. A versão em preparo não substitui as vistas publicadas antes da validação.
+- **Silver:** datas ambíguas de leitura/emissão permanecem em quarentena (B), enquanto o diagnóstico C mede evidências por arquivo sem inferir datas; medidor com instalação ambígua fica em quarentena, e leituras dependentes são bloqueadas com `medidor_em_quarentena` (A); CPF/CNPJ ou nome conflitante não é escolhido por completude; data registrada ou futura não comprova quitação, e `9999-12-31` é preservada sem uso como data real. Rejeitados preservam payload integral em `silver_hist.quarentena._registro`; aceitos carregam metadados técnicos de linhagem. Consulte D36–D38 e D48–D60 em [decisões técnicas](../../data-engineering/decisoes-tecnicas.md). O diagnóstico e esta revisão ainda precisam ser executados no lote real.
 - **Gold:** publicar uma métrica apenas depois de declarar grão, chave, fórmula e população. Verificar que joins não multiplicam receita/energia e que recortes geográficos/classes somam ao total quando compõem uma partição válida.
 - **Exportação:** carregar CSVs Gold em banco local de modo repetível; segunda carga do mesmo lote não duplica linhas ou valores. Comparar contagem, chave e amostras de agregados em ambos os lados.
+
+### Contrato de entrada da Gold
+
+A Gold deve ler apenas `silver_publicada.*` depois de conferir uma única linha `silver.controle_publicacao` para `chave = 'silver'`, com `run_ativo`, `lote_ativo` e estado `CONCLUIDO` correspondente em `silver.controle_silver`. A mesma execução e o mesmo lote devem aparecer em todas as tabelas consumidas; tabelas de preparo, `silver_hist` e quarentena não são entrada de métricas. Antes de liberar exportação, conferir permissões efetivas: somente operadores autorizados podem ler Bronze, histórico, quarentena e campos pessoais da Silver. Não conceder acesso direto da aplicação ou da IA a esses objetos.
+
+| Vista Silver | Grão e chave para consumo | Limite para agregação |
+| --- | --- | --- |
+| `unidades_consumidoras` | Uma UC por `id_uc` aceito | Cadastro atual não prova titularidade ou classe histórica; CPF/CNPJ e nome não saem em Gold/CSV sem regra de mascaramento aprovada. |
+| `medidores` | Um medidor por `id_medidor` aceito | Datas ambíguas de instalação ficam fora; não inferir troca ou vigência não observada. |
+| `leituras` | Uma leitura por `id_leitura` aceito | `consumo_kwh` soma no grão de leitura; datas ambíguas e vínculos bloqueados ficam fora, flags de vigência e leitura decrescente seguem para avaliação. |
+| `faturas` | Uma fatura por `id_fatura` aceito | `valor_total` é R$ decimal com duas casas; competência e classe não tornam fatura única por UC. Status ou data isolada não comprovam pagamento; sentinela não é data real. |
+| `geracao_distribuida` | Uma linha por `id_uc` aceito | Potência instalada e média de injeção não provam geração/compensação por competência. |
+| `ocorrencias_rede` | Uma ocorrência por `id_ocorrencia` aceito | Duração e UC afetada não bastam para DEC/FEC regulatório; investigar `_duracao_incompativel`. |
+| `atendimentos` | Um protocolo por `protocolo` aceito | `qtd_tratativas` não é número de protocolos; nota inválida fica nula e sinalizada. |
+| `atendimentos_historico` | Uma tratativa por `(protocolo, posicao_historico)` | `sequencia` do JSON não é chave confiável; não somar chamados após explodir tratativas. |
+| `inspecoes` | Uma inspeção por `id_inspecao` aceito, com `_aba_origem` | Resultado desconhecido continua explícito; inspeção histórica não é ordem operacional criada no portal. |
+
+Toda linha aceita mantém `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_id_registro`; inspeções mantêm `_aba_origem` e tratativas mantêm `posicao_historico`. Esses campos são para auditoria, não dimensões de negócio. A população excluída e os motivos são recuperáveis no histórico da quarentena por execução; cobertura e impacto devem acompanhar qualquer métrica publicada. Juntar fatos pela UC antes de agregar pode multiplicar valores, portanto agregar cada fato no próprio grão e só depois unir os resultados. O dicionário de métricas Gold permanece a preencher quando as tabelas Gold forem implementadas.
 
 ## Pontos críticos de modelagem
 
@@ -43,11 +64,11 @@ Montar um mapa de relacionamento **com chaves verificadas**, cobrindo UC, client
 
 O Job deve mostrar dependências explícitas entre ingestão, tratamento, Gold e exportação, com parâmetros de ambiente/lote, status observável, logs úteis e falha que interrompe publicação de dados inválidos. Testar uma execução completa e uma reexecução do mesmo lote. Se uma etapa falhar, registrar quais saídas permanecem válidas e como retomar sem mistura de versões.
 
-Existe hoje o job `v-energy-grid-360` com as duas tarefas da Bronze encadeadas (`Landing_to_Bronze` → `Bronze_perfilamento`, o elo em `depends_on` + `run_if: ALL_SUCCESS`), definido em [`data-engineering/configuracao/databricks/v-energy-grid-360.yaml`](../../data-engineering/configuracao/databricks/v-energy-grid-360.yaml) e comprovado em execução na Free Edition (run `14313419965490`, 21m 03s, `Succeeded`). A evidência com identificação da execução e resultado está no [README do módulo](../../data-engineering/README.md#execução-comprovada).
+O job `v-energy-grid-360` encadeia `Landing_to_Bronze` → `Bronze_perfilamento` (`depends_on` + `run_if: ALL_SUCCESS`). A configuração exportada do Workflow está em [`v-energy-grid-360.yaml`](../../data-engineering/configuracao/databricks/v-energy-grid-360.yaml); ela preserva os caminhos do Workspace de origem e deve ser ajustada na interface para outro Workspace. O run `14313419965490` (21m 03s, `Succeeded`) comprova a versão anterior das duas tarefas, não a revisão atual. A evidência histórica está no [README do módulo](../../data-engineering/README.md#evidência-anterior).
 
 O case fornece uma extração única e pede que o time proponha agendamento para uma operação futura. A periodicidade, a janela de chegada das fontes, o tratamento de atrasos/retificações e o custo da atualização são decisões a justificar após inspecionar o material. Não apresentar uma simulação de agenda como integração de produção existente.
 
-Agenda proposta para essa operação futura: **mensal, dia 5, às 03:00 (America/Recife)** — o insumo é mensal por natureza (leituras e faturas são por competência), o dia 5 dá folga para o fechamento chegar íntegro, e a reexecução é segura porque a Bronze é **publicada por lote** (ingestão em `bronze_stg`, troca de `bronze.*` só no fim, com `bronze.controle_lote`) e reconciliada com `delta = 0`, de modo que uma competência retificada entra no lugar da anterior em vez de acumular e uma falha antes da publicação deixa o lote anterior inteiro. A janela real de chegada das fontes continua desconhecida, porque o case não a informa.
+Agenda proposta para essa operação futura: **mensal, dia 5, às 03:00 (America/Recife)** — o insumo é mensal por natureza; o dia 5 dá folga ao fechamento. A configuração exportada registra o agendamento do Workflow existente; a proposta operacional e a validação da versão nova ainda precisam ser conferidas no Workspace. A versão nova prepara cada execução em schema próprio, preserva lotes em `bronze_hist` e muda uma linha em `bronze.controle_publicacao` para selecionar o lote exposto pelas vistas `bronze.*`. A reexecução da mesma versão não deve duplicar a vista publicada, mas essa recuperação ainda precisa de prova no Databricks. A janela real de chegada continua desconhecida.
 
 ## Dependências e decisões pendentes
 
