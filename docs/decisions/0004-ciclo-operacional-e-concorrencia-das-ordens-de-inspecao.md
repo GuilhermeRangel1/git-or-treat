@@ -4,6 +4,8 @@
 **Estado:** aprovada  
 **IDs do PRD afetados:** WEB-04, WEB-05, WEB-11  
 
+> Atualização de 24/10/2026: a [ADR-0013](0013-integracao-do-ciclo-operacional-dev07.md) registra a integração DEV-06/DEV-07 e substitui os pontos divergentes de transição, prioridade e idempotência deste registro histórico.
+
 ## Contexto
 
 O requisito [WEB-05](../PRD.md#62-portal-web-e-backend--web) exige que o usuário crie ordens de inspeção a partir da fila de suspeitas, altere o status, registre o resultado de campo e cancele ordens desnecessárias, impedindo transições inválidas e repetições indevidas.

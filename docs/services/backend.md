@@ -6,7 +6,7 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas/IA são placeholders e ainda não leem dados Gold. A carga CSV não insere linhas nem implementa idempotência. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos e adaptador sintético; IA é scaffold. Nenhuma lê dados Gold. A carga CSV não insere linhas nem implementa idempotência. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
 Nas ordens, endpoints HTTP validam os schemas de entrada/saída e delegam operações ao serviço, que recebe a sessão SQLAlchemy e usa os modelos ORM. `app/db/base.py` declara `Base` sem importar conexão; `app/core/database.py` configura engine, pooling, `SessionLocal` e `get_db`. Os modelos importam `Base` do módulo neutro, e Alembic carrega esses modelos para compor `target_metadata`. O import compatível `app.core.database.Base` permanece disponível.
 
@@ -45,18 +45,13 @@ O contrato final pode variar, mas cada resposta que sustenta um número deve per
 - Informar competência, atualização e proveniência nas respostas para evitar interpretações falsas.
 - Erros não expõem SQL, stack trace, dados de terceiros ou credenciais ao navegador.
 
-## Ordens de inspeção: ciclo operacional implementado (ADR-0004)
+## Ordens de inspeção: DEV-05, DEV-06 e DEV-07
 
-WEB-05 sustenta o ciclo operacional de fiscalização de perdas não técnicas: criação, alteração de status, registro de resultado de campo e cancelamento confirmado. A modelagem e regras seguem a [ADR-0004](../decisions/0004-ciclo-operacional-e-concorrencia-das-ordens-de-inspecao.md):
+A base do backend DEV-06 (`85a72a0`) foi incorporada nesta branch: fila/detalhe sintéticos DEV-05, criação pela fila com snapshot/fingerprint/idempotência, consulta paginada, controle de acesso e índice único por UC ativa. Analytics têm adaptador sintético explícito e não consultam Gold; IA permanece scaffold.
 
-- **Estados:** `PENDENTE`, `EM_ANDAMENTO`, `CONCLUIDA`, `CANCELADA`.
-- **Transições permitidas:** `PENDENTE` → `EM_ANDAMENTO`, `CANCELADA` ou `CONCLUIDA` (com resultado); `EM_ANDAMENTO` → `CONCLUIDA` (com resultado obrigatório) ou `CANCELADA`. `CONCLUIDA` e `CANCELADA` são estados terminais imutáveis.
-- **Prevenção da regressão do protótipo:** tentativas de reabrir, alterar status ou registrar resultado em ordens canceladas são rejeitadas no servidor com HTTP 409 Conflict.
-- **Campos obrigatórios:** criação exige `uc_id` e `reason` válidos, com prioridade validada (`BAIXA`, `MEDIA`, `ALTA`, `CRITICA`); conclusão exige `result` não vazio.
-- **Cancelamento identificado:** endpoint `POST /api/v1/inspections/orders/{order_id}/cancel` identifica a ordem explicitamente e grava motivo de cancelamento.
-- **Histórico auditável:** tabela `operational_order_history` registra cronologicamente todas as transições (`CRIACAO`, `ATUALIZACAO_STATUS`, `REGISTRO_RESULTADO`, `CANCELAMENTO`), status anterior/novo, notas e timestamp UTC, consultável via `GET /api/v1/inspections/orders/{order_id}/history`.
-- **Repetição e concorrência:** idempotência com chave `idempotency_key` (via header ou payload); bloqueio de ordens ativas duplicadas para a mesma UC (HTTP 409); controle de concorrência otimista via coluna `version` (HTTP 409 em caso de descompasso de versão).
+WEB-05 segue Em validação. A [ADR-0013](../decisions/0013-integracao-do-ciclo-operacional-dev07.md) concilia a ADR-0004 com a base DEV-06: PENDENTE inicia/cancela; EM_ANDAMENTO conclui com resultado/cancela; estados finais não reabrem. Prioridades BAIXA/MEDIA/ALTA. Repetições idênticas não gravam eventos nem incrementam versão.
 
+A DEV-07 acrescenta histórico durável com ator/versão, resultado dedicado, cancelamento com confirmação do ID e controle otimista no SQL. Ordem e evento são uma única transação. Versão opcional mantém compatibilidade; clientes devem enviá-la para detectar tela obsoleta. `alembic upgrade head` converge bancos existentes das duas branches sem recriação. Especificação, exemplos, evidência e limites no [contrato DEV-07](../contracts/inspection-lifecycle-dev07.md). Interface completa e execução PostgreSQL permanecem pendentes.
 
 ## Carga da Gold e consistência
 
