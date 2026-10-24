@@ -166,6 +166,15 @@ class DimensionDefinition(BaseModel):
         return self
 
 
+class UnitKind(StrEnum):
+    ENERGY = "energy"
+    POWER = "power"
+    CURRENCY = "currency"
+    COUNT = "count"
+    TIME = "time"
+    PERCENTAGE = "percentage"
+
+
 class MetricDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -181,6 +190,8 @@ class MetricDefinition(BaseModel):
         Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)],
         ...,
     ] = Field(default=(), max_length=20)
+    # Vazio: a métrica não restringe unidade, como nos perfis anteriores.
+    accepted_unit_kinds: tuple[UnitKind, ...] = Field(default=(), max_length=10)
 
     @model_validator(mode="after")
     def validate_metric_aliases(self) -> Self:
@@ -209,6 +220,29 @@ class MetricDefinition(BaseModel):
         return self
 
 
+class UnitDefinition(BaseModel):
+    """Unidade citada em "em <unidade>"; nunca é tratada como nome de local."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: LogicalIdentifier
+    kind: UnitKind
+    aliases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=30)
+
+
+class DetailRule(BaseModel):
+    """Detalhe pedido na pergunta (mês, série por período, média, total).
+
+    Com `clarification`, o perfil não atende o detalhe e pede outro; sem ela, o detalhe já é
+    atendido e as frases só deixam de ser lidas como local.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    phrases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=40)
+    clarification: CatalogText | None = None
+
+
 class AmbiguityRule(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -228,6 +262,10 @@ class ClarificationMessages(BaseModel):
     missing_period: CatalogText
     comparison_baseline: CatalogText
     multiple_periods: CatalogText
+    # Opcionais: sem a mensagem, o perfil mantém o comportamento anterior. "{dimension}" e
+    # "{unit}" são trocados pelo rótulo da dimensão e pela unidade citada.
+    unsupported_breakdown: CatalogText | None = None
+    unit_mismatch: CatalogText | None = None
 
 
 class DomainProfile(BaseModel):
@@ -247,8 +285,14 @@ class DomainProfile(BaseModel):
     direction_terms: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=30)
     out_of_scope_terms: tuple[CatalogPhrase, ...] = Field(default=(), max_length=30)
     ambiguities: tuple[AmbiguityRule, ...] = Field(default=(), max_length=50)
+    units: tuple[UnitDefinition, ...] = Field(default=(), max_length=50)
+    detail_rules: tuple[DetailRule, ...] = Field(default=(), max_length=20)
     clarifications: ClarificationMessages
     operations: tuple[CatalogOperation, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_units_and_details(self) -> Self:
+        return _validate_units_and_details(self)
 
     @model_validator(mode="after")
     def validate_catalog_references_and_aliases(self) -> Self:
@@ -294,6 +338,22 @@ class DomainProfile(BaseModel):
         _require_unique(list(self.operations), "operação duplicada")
         _require_unique([_normalize(item) for item in self.period_phrases], "período duplicado")
         return self
+
+
+def _validate_units_and_details(profile: "DomainProfile") -> "DomainProfile":
+    _require_unique([unit.id for unit in profile.units], "ID de unidade duplicado")
+    unit_aliases = [_normalize(alias) for unit in profile.units for alias in unit.aliases]
+    _require_unique(unit_aliases, "alias de unidade ambíguo")
+    metric_aliases = {_normalize(alias) for metric in profile.metrics for alias in metric.aliases}
+    if set(unit_aliases) & metric_aliases:
+        raise ValueError("alias de unidade conflita com alias de métrica")
+    for metric in profile.metrics:
+        _require_unique(list(metric.accepted_unit_kinds), "tipo de unidade duplicado na métrica")
+    detail_phrases = [_normalize(item) for rule in profile.detail_rules for item in rule.phrases]
+    _require_unique(detail_phrases, "frase de detalhe duplicada")
+    if set(detail_phrases) & (metric_aliases | set(unit_aliases)):
+        raise ValueError("frase de detalhe conflita com métrica ou unidade")
+    return profile
 
 
 def _normalize(value: str) -> str:

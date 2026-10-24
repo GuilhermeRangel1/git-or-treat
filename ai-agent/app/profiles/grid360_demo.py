@@ -6,6 +6,7 @@ from app.schemas.domain_profile import (
     CatalogOperation,
     CatalogSensitivity,
     ClarificationMessages,
+    DetailRule,
     DimensionDefinition,
     DimensionRole,
     DimensionValue,
@@ -16,6 +17,8 @@ from app.schemas.domain_profile import (
     FilterOperator,
     FilterValueType,
     MetricDefinition,
+    UnitDefinition,
+    UnitKind,
 )
 
 _GEOGRAPHY = DimensionDefinition(
@@ -95,6 +98,7 @@ GRID360_DEMO_PROFILE = DomainProfile(
         MetricDefinition(
             id="billing.revenue",
             domain_id="revenue",
+            accepted_unit_kinds=(UnitKind.CURRENCY,),
             aliases=("faturamento", "receita", "faturamos", "faturou", "faturaram", "faturei"),
             unit="unidades fictícias",
             granularities=_MONTH_YEAR,
@@ -109,6 +113,7 @@ GRID360_DEMO_PROFILE = DomainProfile(
         MetricDefinition(
             id="energy.consumption",
             domain_id="consumption",
+            accepted_unit_kinds=(UnitKind.ENERGY,),
             aliases=("queda de consumo", "consumo", "leitura", "leituras"),
             unit="unidades fictícias",
             granularities=_MONTH_YEAR,
@@ -123,6 +128,7 @@ GRID360_DEMO_PROFILE = DomainProfile(
         MetricDefinition(
             id="network.interruptions",
             domain_id="network",
+            accepted_unit_kinds=(UnitKind.COUNT,),
             aliases=(
                 "falta de luz",
                 "falta de energia",
@@ -148,6 +154,7 @@ GRID360_DEMO_PROFILE = DomainProfile(
         MetricDefinition(
             id="service.attendance",
             domain_id="service",
+            accepted_unit_kinds=(UnitKind.COUNT,),
             aliases=(
                 "atendimentos",
                 "atendimento",
@@ -227,6 +234,98 @@ GRID360_DEMO_PROFILE = DomainProfile(
             ),
         ),
     ),
+    # Unidades citadas em "em <unidade>". Antes ficavam no interpretador; o tipo indica se a
+    # métrica pode ser respondida nela. Potência (kW) não é consumo (kWh).
+    units=(
+        UnitDefinition(
+            id="energy.wh",
+            kind=UnitKind.ENERGY,
+            aliases=(
+                "Wh",
+                "kWh",
+                "MWh",
+                "GWh",
+                "watt-hora",
+                "watts-hora",
+                "quilowatt-hora",
+                "quilowatts-hora",
+                "megawatt-hora",
+                "megawatts-hora",
+            ),
+        ),
+        UnitDefinition(
+            id="power.w",
+            kind=UnitKind.POWER,
+            aliases=(
+                "kW",
+                "MW",
+                "GW",
+                "kVA",
+                "MVA",
+                "quilowatt",
+                "quilowatts",
+                "megawatt",
+                "megawatts",
+            ),
+        ),
+        UnitDefinition(id="currency.brl", kind=UnitKind.CURRENCY, aliases=("R$", "real", "reais")),
+        UnitDefinition(
+            id="count.occurrences",
+            kind=UnitKind.COUNT,
+            aliases=("ocorrências", "quantidade", "vezes"),
+        ),
+        UnitDefinition(
+            id="time.hours",
+            kind=UnitKind.TIME,
+            aliases=("hora", "horas", "minuto", "minutos"),
+        ),
+        UnitDefinition(
+            id="ratio.percentage",
+            kind=UnitKind.PERCENTAGE,
+            aliases=("porcentagem", "percentual", "percentagem"),
+        ),
+    ),
+    # Mês isolado e série por período não são janelas deste perfil; média não é calculada.
+    # Frases contidas em um período do catálogo (ex.: "março de 2025") não disparam a regra.
+    detail_rules=(
+        DetailRule(
+            phrases=(
+                "janeiro",
+                "fevereiro",
+                "março",
+                "abril",
+                "maio",
+                "junho",
+                "julho",
+                "agosto",
+                "setembro",
+                "outubro",
+                "novembro",
+                "dezembro",
+                "mês",
+                "meses",
+                "por dia",
+                "por semana",
+                "por mês",
+                "por trimestre",
+                "por semestre",
+                "por ano",
+                "mês a mês",
+                "ano a ano",
+            ),
+            clarification=(
+                "Ainda não consulto um mês isolado nem séries por dia, mês ou ano. Qual período "
+                "disponível você quer, como ‘último trimestre’ ou ‘período de demonstração’?"
+            ),
+        ),
+        DetailRule(
+            phrases=("em média", "média", "médias", "médio", "médios"),
+            clarification=(
+                "Por enquanto mostro só o total do período, sem média. Quer o total?"
+            ),
+        ),
+        DetailRule(phrases=("no total", "total", "ao todo")),
+    ),
     clarifications=ClarificationMessages(
         missing_metric="Qual indicador ou assunto você quer consultar?",
         multiple_domains=(
@@ -242,6 +341,14 @@ GRID360_DEMO_PROFILE = DomainProfile(
         missing_period="Qual período você quer consultar ou comparar?",
         comparison_baseline="Qual período deve servir de base para essa comparação?",
         multiple_periods="Você mencionou mais de um período; quer compará-los?",
+        unsupported_breakdown=(
+            "Ainda não separo o resultado por {dimension}. Posso mostrar o total do período "
+            "ou filtrar um valor, por exemplo ‘em Olinda’ ou ‘residencial’."
+        ),
+        unit_mismatch=(
+            "Não tenho esse indicador em {unit}: consumo é energia (kWh), faturamento é em "
+            "reais, e interrupções e atendimentos são contagens. Quer na unidade do indicador?"
+        ),
     ),
     operations=(CatalogOperation.READ,),
 )

@@ -9,6 +9,7 @@ from app.schemas.domain_profile import (
     DimensionRole,
     DomainProfile,
     MetricDefinition,
+    UnitDefinition,
 )
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
@@ -17,37 +18,13 @@ _PERCENTAGE_THRESHOLD = re.compile(
     r"(?<!\w)(?:acima de|abaixo de|mais de|menos de)\s+\d+(?:[.,]\d+)?\s*%",
     re.IGNORECASE,
 )
-# Unidades de energia, potência e moeda nunca são locais em "em kWh" ou "em reais".
-# Tempo e percentual ficam de fora: "em horas" pede duração e "em porcentagem" pede
-# participação, e responder a contagem ou o total nesses casos seria um falso acerto.
-_UNIT_PHRASES = (
-    "Wh",
-    "kWh",
-    "MWh",
-    "GWh",
-    "kW",
-    "MW",
-    "GW",
-    "kVA",
-    "MVA",
-    "watt-hora",
-    "watts-hora",
-    "quilowatt-hora",
-    "quilowatts-hora",
-    "megawatt-hora",
-    "megawatts-hora",
-    "quilowatt",
-    "quilowatts",
-    "megawatt",
-    "megawatts",
-    "R$",
-    "real",
-    "reais",
-)
 _LOCATION_AFTER_PREPOSITION = re.compile(r"\b(?:em|no|na)\s+([\wÀ-ÿ-]+)", re.IGNORECASE)
-# Sem preposição de lugar, só a grafia de nome próprio sinaliza local: "de Recife" sim,
-# "de energia", "de janeiro" e "de 2025" não. Siglas e nomes com hífen ficam de fora.
-_PROPER_NAME_AFTER_DE = re.compile(r"(?<!\w)(?i:de)\s+([A-ZÀ-Ý][a-zà-ÿ]+)(?![\w-])")
+# Sem preposição de lugar, só a grafia de nome próprio sinaliza local: "de Recife" e
+# "do Recife" sim, "de energia" e "de 2025" não. Siglas e nomes com hífen ficam de fora.
+_PROPER_NAME_AFTER_DE = re.compile(
+    r"(?<!\w)(?i:de|do|da|dos|das)\s+([A-ZÀ-Ý][a-zà-ÿ]+)(?![\w-])"
+)
+_ENDS_WITH_EM = re.compile(r"(?:^|\W)em\s+$")
 
 
 def _normalize(value: str) -> str:
@@ -101,6 +78,13 @@ class QuestionInterpreter:
                 if _normalize(other) != _normalize(alias)
             )
         )
+        self._unit_aliases = tuple(alias for unit in profile.units for alias in unit.aliases)
+        self._units_by_alias: dict[str, UnitDefinition] = {
+            _normalize(alias): unit for unit in profile.units for alias in unit.aliases
+        }
+        self._detail_phrases = tuple(
+            phrase for rule in profile.detail_rules for phrase in rule.phrases
+        )
         # Palavra já usada em alguma frase do perfil ("Energia" de "falta de energia")
         # não é tratada como nome de lugar desconhecido.
         self._profile_words = frozenset(
@@ -111,6 +95,8 @@ class QuestionInterpreter:
                 *profile.comparison_terms,
                 *profile.direction_terms,
                 *profile.correction_terms,
+                *self._unit_aliases,
+                *self._detail_phrases,
                 *(
                     alias
                     for dimension in profile.dimensions
@@ -205,9 +191,24 @@ class QuestionInterpreter:
         selected_metric = self._select_metric(matched_metrics, base_intent)
         domain = next(iter(matched_domains)) if matched_domains else base_intent.domain
 
+        breakdown = self._requested_breakdown(question)
+        breakdown_message = self._profile.clarifications.unsupported_breakdown
+        if breakdown is not None and breakdown_message is not None:
+            # Sem agrupamento no plano, responder o total seria um falso acerto.
+            return self._clarify(
+                breakdown_message.replace("{dimension}", breakdown.label.lower())
+            )
+
         geography = self._dimension_value_matches(question, self._geography_dimensions)
         if self._has_unrecognized_location_phrase(question, geography):
             return self._clarify(self._profile.clarifications.unknown_geography)
+        unit_surface = self._incompatible_unit(question, selected_metric)
+        unit_message = self._profile.clarifications.unit_mismatch
+        if unit_surface is not None and unit_message is not None:
+            return self._clarify(unit_message.replace("{unit}", unit_surface))
+        detail_clarification = self._unsupported_detail(question)
+        if detail_clarification is not None:
+            return self._clarify(detail_clarification)
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
         if self._has_unresolved_multiple_values(question, geography):
             return self._clarify(self._profile.clarifications.multiple_geographies)
@@ -336,6 +337,58 @@ class QuestionInterpreter:
         )
         return _find_phrases(question, phrases)
 
+    def _requested_breakdown(self, question: str) -> DimensionDefinition | None:
+        """Dimensão pedida em "por <alias>", exceto quando um valor dela vem logo depois."""
+
+        normalized = _normalize(question)
+        for dimension in self._profile.dimensions:
+            aliases = sorted(
+                {_normalize(item) for item in dimension.aliases}, key=len, reverse=True
+            )
+            alternatives = "|".join(re.escape(alias) for alias in aliases)
+            pattern = rf"(?<!\w)por\s+(?:cada\s+)?(?:{alternatives})(?!\w)"
+            values = {_normalize(item) for value in dimension.values for item in value.aliases}
+            for match in re.finditer(pattern, normalized):
+                # "por classe residencial" e "por município de Olinda" são filtros.
+                rest = normalized[match.end() :]
+                if any(
+                    re.match(rf"\s+(?:(?:de|da|do)\s+)?{re.escape(value)}(?!\w)", rest)
+                    for value in values
+                ):
+                    continue
+                return dimension
+        return None
+
+    def _incompatible_unit(self, question: str, metric: MetricDefinition | None) -> str | None:
+        """Unidade citada em "em <unidade>" cujo tipo a métrica não aceita."""
+
+        if metric is None or not metric.accepted_unit_kinds:
+            return None
+        for start, _end, surface in _find_phrases(question, self._unit_aliases):
+            if not _ENDS_WITH_EM.search(_normalize(question[:start])):
+                continue
+            if self._units_by_alias[_normalize(surface)].kind not in metric.accepted_unit_kinds:
+                return surface
+        return None
+
+    def _unsupported_detail(self, question: str) -> str | None:
+        """Pedido de detalhe que o perfil não atende, fora de um período do catálogo."""
+
+        period_spans = [
+            (start, end)
+            for start, end, _ in _find_phrases(question, self._profile.period_phrases)
+        ]
+        for rule in self._profile.detail_rules:
+            if rule.clarification is None:
+                continue
+            for start, end, _ in _find_phrases(question, rule.phrases):
+                if not any(
+                    period_start <= start and end <= period_end
+                    for period_start, period_end in period_spans
+                ):
+                    return rule.clarification
+        return None
+
     def _has_comparison(self, normalized_question: str) -> bool:
         return bool(_find_phrases(normalized_question, self._profile.comparison_terms))
 
@@ -382,7 +435,8 @@ class QuestionInterpreter:
                         for dimension in self._profile.dimensions
                         for alias in dimension.aliases
                     ),
-                    *_UNIT_PHRASES,
+                    *self._unit_aliases,
+                    *self._detail_phrases,
                 ),
             ),
         ]

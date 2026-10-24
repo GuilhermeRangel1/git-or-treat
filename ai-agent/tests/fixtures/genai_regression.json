@@ -1,5 +1,5 @@
 {
-  "dataset_version": "3.4.0",
+  "dataset_version": "3.5.0",
   "synthetic": true,
   "scenario_scope": "POST /api/v1/questions e POST /api/v1/insights com fixtures e adaptadores fixos.",
   "limitations": [
@@ -797,9 +797,9 @@
       "model_answer": "Foram registradas 2 ocorrências fictícias de interrupção.",
       "model_observation_ids": ["row_1"],
       "known_failure": {
-        "reason": "Quebra \"por município\" é ignorada e o total sem recorte é respondido. O interpretador não é o único bloqueio: AnalysisIntent não tem campo de agrupamento, o ReadPlanBuilder não preenche group_by_dimension_ids e a fonte sintética responde o total quando não há filtro.",
-        "failing_checks": ["model_calls", "plan", "status"],
-        "actual_status": "answered"
+        "reason": "O esperado é o agrupamento real por município. Provisoriamente (revisão do PR #42), o interpretador reconhece \"por <dimensão do perfil>\" e pede esclarecimento em vez de responder o total, sem chamar a fonte. O agrupamento depende de campo em AnalysisIntent, de group_by_dimension_ids no ReadPlanBuilder e da fonte sintética.",
+        "failing_checks": ["domain", "plan", "status", "tool_calls"],
+        "actual_status": "needs_clarification"
       }
     },
     {
@@ -1258,9 +1258,9 @@
       "model_answer": "Foram registradas 2 ocorrências fictícias de interrupção.",
       "model_observation_ids": ["row_1"],
       "known_failure": {
-        "reason": "Mesma lacuna da proposta 41: a quebra \"por município\" é ignorada e o total sem recorte é respondido; o agrupamento depende de AnalysisIntent, ReadPlanBuilder e da fonte sintética.",
-        "failing_checks": ["model_calls", "plan", "status"],
-        "actual_status": "answered"
+        "reason": "Mesma lacuna da proposta 41: o esperado é o agrupamento por município; provisoriamente a quebra pede esclarecimento sem chamar a fonte, em vez de responder o total.",
+        "failing_checks": ["domain", "plan", "status", "tool_calls"],
+        "actual_status": "needs_clarification"
       }
     },
     {
@@ -1280,9 +1280,259 @@
         "filters": [{"dimension_id": "geography.municipality", "values": ["Olinda"]}]
       },
       "known_failure": {
-        "reason": "Mesma lacuna da proposta 41: o filtro Olinda é aplicado, mas a quebra \"por classe\" é ignorada e não entra no plano; o status já é no_evidence por causa do filtro.",
-        "failing_checks": ["plan"],
-        "actual_status": "no_evidence"
+        "reason": "Mesma lacuna da proposta 41: o esperado é o filtro Olinda com agrupamento por classe; provisoriamente a quebra \"por classe\" pede esclarecimento sem chamar a fonte.",
+        "failing_checks": ["domain", "plan", "status", "tool_calls"],
+        "actual_status": "needs_clarification"
+      }
+    },
+    {
+      "id": "breakdown_by_municipality_clarification",
+      "category": "near_miss",
+      "proposal_number": 70,
+      "question": "Interrupções por município no período de demonstração",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Ainda não separo o resultado por município"
+    },
+    {
+      "id": "breakdown_by_class_clarification",
+      "category": "near_miss",
+      "proposal_number": 71,
+      "question": "Qual o consumo por classe no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Ainda não separo o resultado por classe de consumo"
+    },
+    {
+      "id": "breakdown_by_month_asks_period",
+      "category": "near_miss",
+      "proposal_number": 72,
+      "question": "Qual o consumo por mês no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Qual período disponível"
+    },
+    {
+      "id": "near_miss_por_favor_answered",
+      "category": "near_miss",
+      "proposal_number": 73,
+      "question": "Qual o consumo, por favor, no período de demonstração?",
+      "expected_domain": "consumption",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "O consumo demonstrativo foi 420 unidades fictícias.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "420 unidades fictícias",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "near_miss_por_classe_residencial_is_a_filter",
+      "category": "near_miss",
+      "proposal_number": 74,
+      "question": "Qual o consumo por classe residencial no período de demonstração?",
+      "expected_domain": "consumption",
+      "expected_status": "no_evidence",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 0,
+      "expected_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": ["customer.consumption_class"],
+        "window": {"phrase": "período de demonstração"},
+        "filters": [{"dimension_id": "customer.consumption_class", "values": ["residencial"]}]
+      }
+    },
+    {
+      "id": "unit_mismatch_revenue_in_kwh_clarification",
+      "category": "near_miss",
+      "proposal_number": 75,
+      "question": "Qual o faturamento em kWh no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Não tenho esse indicador em kWh"
+    },
+    {
+      "id": "unit_mismatch_consumption_in_brl_clarification",
+      "category": "near_miss",
+      "proposal_number": 76,
+      "question": "Qual o consumo em R$ no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Não tenho esse indicador em R$"
+    },
+    {
+      "id": "unit_mismatch_interruptions_in_hours_clarification",
+      "category": "near_miss",
+      "proposal_number": 77,
+      "question": "Qual a duração das interrupções em horas no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Não tenho esse indicador em horas"
+    },
+    {
+      "id": "detail_average_clarification",
+      "category": "near_miss",
+      "proposal_number": 78,
+      "question": "Qual o consumo em média no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "sem média"
+    },
+    {
+      "id": "detail_percentage_clarification",
+      "category": "near_miss",
+      "proposal_number": 79,
+      "question": "Qual o consumo em porcentagem no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Não tenho esse indicador em porcentagem"
+    },
+    {
+      "id": "near_miss_no_total_answered",
+      "category": "near_miss",
+      "proposal_number": 80,
+      "question": "Qual o consumo no total no período de demonstração?",
+      "expected_domain": "consumption",
+      "expected_status": "answered",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 1,
+      "expected_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {"phrase": "período de demonstração"},
+        "filters": []
+      },
+      "model_status": "answered",
+      "model_answer": "O consumo demonstrativo foi 420 unidades fictícias.",
+      "model_observation_ids": ["row_1"],
+      "expected_answer_fragment": "420 unidades fictícias",
+      "expected_evidence_source": "synthetic.fixture"
+    },
+    {
+      "id": "month_capitalized_is_period_clarification",
+      "category": "near_miss",
+      "proposal_number": 81,
+      "question": "Qual o consumo de Janeiro?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Qual período disponível"
+    },
+    {
+      "id": "month_after_em_is_period_clarification",
+      "category": "near_miss",
+      "proposal_number": 82,
+      "question": "Qual o consumo em março?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Qual período disponível"
+    },
+    {
+      "id": "month_with_year_is_period_clarification",
+      "category": "near_miss",
+      "proposal_number": 83,
+      "question": "Qual o consumo de março de 2026?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Qual período disponível"
+    },
+    {
+      "id": "month_follow_up_is_period_clarification",
+      "category": "near_miss",
+      "proposal_number": 84,
+      "question": "E em março?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Qual período disponível",
+      "context": [{"role": "user", "content": "Qual o consumo no período de demonstração?"}, {"role": "assistant", "content": "O consumo demonstrativo foi 420 unidades fictícias."}]
+    },
+    {
+      "id": "place_with_article_do_recife_clarification",
+      "category": "near_miss",
+      "proposal_number": 85,
+      "question": "Qual o consumo do Recife no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Não reconheci esse local"
+    },
+    {
+      "id": "place_lowercase_em_recife_clarification",
+      "category": "near_miss",
+      "proposal_number": 86,
+      "question": "Qual o consumo em recife no período de demonstração?",
+      "expected_domain": null,
+      "expected_status": "needs_clarification",
+      "expected_tool_calls": 0,
+      "expected_model_calls": 0,
+      "expected_answer_fragment": "Não reconheci esse local"
+    },
+    {
+      "id": "near_miss_na_cidade_de_olinda_filtered",
+      "category": "near_miss",
+      "proposal_number": 87,
+      "question": "Qual o consumo na cidade de Olinda no período de demonstração?",
+      "expected_domain": "consumption",
+      "expected_status": "no_evidence",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 0,
+      "expected_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": ["geography.municipality"],
+        "window": {"phrase": "período de demonstração"},
+        "filters": [{"dimension_id": "geography.municipality", "values": ["Olinda"]}]
+      }
+    },
+    {
+      "id": "near_miss_correction_na_verdade_uses_last_place",
+      "category": "near_miss",
+      "proposal_number": 88,
+      "question": "Qual o consumo em Olinda, na verdade em Jaboatão, no período de demonstração?",
+      "expected_domain": "consumption",
+      "expected_status": "no_evidence",
+      "expected_tool_calls": 1,
+      "expected_model_calls": 0,
+      "expected_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": ["geography.municipality"],
+        "window": {"phrase": "período de demonstração"},
+        "filters": [{"dimension_id": "geography.municipality", "values": ["Jaboatão dos Guararapes"]}]
       }
     }
   ]

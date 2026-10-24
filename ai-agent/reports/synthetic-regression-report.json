@@ -1,14 +1,14 @@
 {
   "report_type": "synthetic_regression",
   "synthetic": true,
-  "dataset_version": "3.4.0",
+  "dataset_version": "3.5.0",
   "scenario_scope": "POST /api/v1/questions e POST /api/v1/insights com fixtures e adaptadores fixos.",
   "provider": "fixed_test_adapter; no Gemini API calls",
   "summary": {
-    "total": 82,
-    "passed": 79,
+    "total": 101,
+    "passed": 98,
     "failed": 3,
-    "pass_rate": "79/82 (96.3%)",
+    "pass_rate": "98/101 (97.0%)",
     "known_failures_confirmed": 3,
     "known_failures_changed": 0,
     "known_failures_now_passing": 0,
@@ -1342,33 +1342,26 @@
       "category": "geography_or_scope",
       "passed": false,
       "outcome": "known_failure_confirmed",
-      "known_failure": "Quebra \"por município\" é ignorada e o total sem recorte é respondido. O interpretador não é o único bloqueio: AnalysisIntent não tem campo de agrupamento, o ReadPlanBuilder não preenche group_by_dimension_ids e a fonte sintética responde o total quando não há filtro.",
+      "known_failure": "O esperado é o agrupamento real por município. Provisoriamente (revisão do PR #42), o interpretador reconhece \"por <dimensão do perfil>\" e pede esclarecimento em vez de responder o total, sem chamar a fonte. O agrupamento depende de campo em AnalysisIntent, de group_by_dimension_ids no ReadPlanBuilder e da fonte sintética.",
       "failing_checks": [
-        "model_calls",
+        "domain",
         "plan",
-        "status"
+        "status",
+        "tool_calls"
       ],
       "checks": {
         "http_ok": true,
         "status": false,
-        "tool_calls": true,
-        "model_calls": false,
-        "domain": true,
+        "tool_calls": false,
+        "model_calls": true,
+        "domain": false,
         "plan": false
       },
-      "actual_status": "answered",
-      "actual_domain": "network",
-      "actual_plan": {
-        "domain_id": "network",
-        "metric_id": "network.interruptions",
-        "dimension_ids": [],
-        "window": {
-          "phrase": "período de demonstração"
-        },
-        "filters": []
-      },
-      "tool_calls": 1,
-      "model_calls": 1
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
     },
     {
       "id": "scope_year_period_clarification",
@@ -2128,25 +2121,143 @@
       "category": "near_miss",
       "passed": false,
       "outcome": "known_failure_confirmed",
-      "known_failure": "Mesma lacuna da proposta 41: a quebra \"por município\" é ignorada e o total sem recorte é respondido; o agrupamento depende de AnalysisIntent, ReadPlanBuilder e da fonte sintética.",
+      "known_failure": "Mesma lacuna da proposta 41: o esperado é o agrupamento por município; provisoriamente a quebra pede esclarecimento sem chamar a fonte, em vez de responder o total.",
       "failing_checks": [
-        "model_calls",
+        "domain",
         "plan",
-        "status"
+        "status",
+        "tool_calls"
       ],
       "checks": {
         "http_ok": true,
         "status": false,
-        "tool_calls": true,
-        "model_calls": false,
-        "domain": true,
+        "tool_calls": false,
+        "model_calls": true,
+        "domain": false,
         "plan": false
       },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_interrupcoes_em_olinda_por_classe_no_evidence",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": false,
+      "outcome": "known_failure_confirmed",
+      "known_failure": "Mesma lacuna da proposta 41: o esperado é o filtro Olinda com agrupamento por classe; provisoriamente a quebra \"por classe\" pede esclarecimento sem chamar a fonte.",
+      "failing_checks": [
+        "domain",
+        "plan",
+        "status",
+        "tool_calls"
+      ],
+      "checks": {
+        "http_ok": true,
+        "status": false,
+        "tool_calls": false,
+        "model_calls": true,
+        "domain": false,
+        "plan": false
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "breakdown_by_municipality_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "breakdown_by_class_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "breakdown_by_month_asks_period",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_por_favor_answered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
       "actual_status": "answered",
-      "actual_domain": "network",
+      "actual_domain": "consumption",
       "actual_plan": {
-        "domain_id": "network",
-        "metric_id": "network.interruptions",
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
         "dimension_ids": [],
         "window": {
           "phrase": "período de demonstração"
@@ -2157,28 +2268,339 @@
       "model_calls": 1
     },
     {
-      "id": "near_miss_interrupcoes_em_olinda_por_classe_no_evidence",
+      "id": "near_miss_por_classe_residencial_is_a_filter",
       "endpoint": "questions",
       "category": "near_miss",
-      "passed": false,
-      "outcome": "known_failure_confirmed",
-      "known_failure": "Mesma lacuna da proposta 41: o filtro Olinda é aplicado, mas a quebra \"por classe\" é ignorada e não entra no plano; o status já é no_evidence por causa do filtro.",
-      "failing_checks": [
-        "plan"
-      ],
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
       "checks": {
         "http_ok": true,
         "status": true,
         "tool_calls": true,
         "model_calls": true,
         "domain": true,
-        "plan": false
+        "plan": true
       },
       "actual_status": "no_evidence",
-      "actual_domain": "network",
+      "actual_domain": "consumption",
       "actual_plan": {
-        "domain_id": "network",
-        "metric_id": "network.interruptions",
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "values": [
+              "residencial"
+            ]
+          }
+        ]
+      },
+      "tool_calls": 1,
+      "model_calls": 0
+    },
+    {
+      "id": "unit_mismatch_revenue_in_kwh_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "unit_mismatch_consumption_in_brl_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "unit_mismatch_interruptions_in_hours_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "detail_average_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "detail_percentage_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_no_total_answered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true,
+        "expected_content": true,
+        "evidence_source": true
+      },
+      "actual_status": "answered",
+      "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": []
+      },
+      "tool_calls": 1,
+      "model_calls": 1
+    },
+    {
+      "id": "month_capitalized_is_period_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "month_after_em_is_period_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "month_with_year_is_period_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "month_follow_up_is_period_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "place_with_article_do_recife_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "place_lowercase_em_recife_clarification",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "expected_content": true
+      },
+      "actual_status": "needs_clarification",
+      "actual_domain": null,
+      "actual_plan": null,
+      "tool_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_na_cidade_de_olinda_filtered",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true
+      },
+      "actual_status": "no_evidence",
+      "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
         "dimension_ids": [
           "geography.municipality"
         ],
@@ -2190,6 +2612,45 @@
             "dimension_id": "geography.municipality",
             "values": [
               "Olinda"
+            ]
+          }
+        ]
+      },
+      "tool_calls": 1,
+      "model_calls": 0
+    },
+    {
+      "id": "near_miss_correction_na_verdade_uses_last_place",
+      "endpoint": "questions",
+      "category": "near_miss",
+      "passed": true,
+      "outcome": "passed",
+      "known_failure": null,
+      "failing_checks": [],
+      "checks": {
+        "http_ok": true,
+        "status": true,
+        "tool_calls": true,
+        "model_calls": true,
+        "domain": true,
+        "plan": true
+      },
+      "actual_status": "no_evidence",
+      "actual_domain": "consumption",
+      "actual_plan": {
+        "domain_id": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "phrase": "período de demonstração"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "values": [
+              "Jaboatão dos Guararapes"
             ]
           }
         ]
