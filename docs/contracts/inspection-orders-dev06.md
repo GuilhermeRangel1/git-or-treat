@@ -38,7 +38,7 @@ No cliente, uma chave por intenção, reutilizada após perda de resposta. Desab
 
 ## Consulta e compatibilidade
 
-`GET /api/v1/inspections/orders/search`: filtros AND por `status` (PENDENTE/EM_ANDAMENTO/CONCLUIDA/CANCELADA), `uc_id` exato e `priority`; `page >= 1`, `page_size` de 1 a 100 (padrão 20). Retorna `{items, pagination: {page, page_size, total, total_pages}}`. Ordenação `created_at DESC, id DESC`. Contagem do recorte completo; página além do total tem itens vazios. Paginação por offset pode mudar se houver gravações entre consultas.
+`GET /api/v1/inspections/orders/search`: filtros AND por `status` (PENDENTE/EM_ANDAMENTO/CONCLUIDA/CANCELADA), `uc_id` exato, `priority` e `has_result` opcional. `has_result=true` seleciona ordens com resultado preenchido; `false` seleciona resultado nulo, vazio ou composto apenas por whitespace ASCII; omissão inclui ambos. O filtro é aplicado antes da contagem e da paginação. `page >= 1`, `page_size` de 1 a 100 (padrão 20). Retorna `{items, pagination: {page, page_size, total, total_pages}}`. Ordenação `created_at DESC, id DESC`. Contagem do recorte completo; página além do total tem itens vazios. Paginação por offset pode mudar se houver gravações entre consultas.
 
 `items` usa `OrderSummary`, com ID, UC, motivo, prioridade, estado, observações/resultado, timestamps e referência da suspeita; não inclui `suspicion_snapshot`. A consulta SQL seleciona somente essas colunas e conta por ID, sem carregar o JSON. Evidência completa permanece no GET por ID e nas respostas de criação/reenvio. Página além do total é devolvida antes de enviar offset ao banco, inclusive para inteiros maiores que BIGINT; mantém os totais e evita erro 500.
 

@@ -83,6 +83,62 @@ def test_paginated_listing_filters_totals_and_access(orders):
     assert orders.get(f"{ROOT}/orders/search").status_code == 401
 
 
+def test_search_filters_result_before_count_and_pagination(orders):
+    from app.models.operational import InspectionOrder
+    from tests.conftest import TestingSessionLocal
+
+    expected_results = {
+        "UC-RESULT-NULL": None,
+        "UC-RESULT-EMPTY": "",
+        "UC-RESULT-SPACE": " \t\n ",
+        "UC-RESULT-TEXT": "Irregularidade confirmada",
+    }
+    created = {}
+    for uc_id in expected_results:
+        response = orders.post(
+            f"{ROOT}/orders",
+            json={"uc_id": uc_id, "reason": "Verificação sintética", "priority": "ALTA"},
+        )
+        assert response.status_code == 201
+        created[uc_id] = response.json()["id"]
+
+    with TestingSessionLocal() as db:
+        for uc_id, result in expected_results.items():
+            db.query(InspectionOrder).filter_by(id=created[uc_id]).update({"result": result})
+        db.commit()
+
+    all_orders = orders.get(f"{ROOT}/orders/search?page_size=2").json()
+    assert all_orders["pagination"] == {"page": 1, "page_size": 2, "total": 4, "total_pages": 2}
+    assert len(all_orders["items"]) == 2
+
+    with_result = orders.get(f"{ROOT}/orders/search?has_result=true").json()
+    assert with_result["pagination"]["total"] == 1
+    assert [item["uc_id"] for item in with_result["items"]] == ["UC-RESULT-TEXT"]
+
+    without_result_page = orders.get(
+        f"{ROOT}/orders/search?has_result=false&page_size=2"
+    ).json()
+    assert without_result_page["pagination"] == {
+        "page": 1, "page_size": 2, "total": 3, "total_pages": 2,
+    }
+    assert len(without_result_page["items"]) == 2
+    without_result_second_page = orders.get(
+        f"{ROOT}/orders/search?has_result=false&page=2&page_size=2"
+    ).json()
+    assert without_result_second_page["pagination"]["total"] == 3
+    assert len(without_result_second_page["items"]) == 1
+    assert {item["uc_id"] for item in (
+        without_result_page["items"] + without_result_second_page["items"]
+    )} == {"UC-RESULT-NULL", "UC-RESULT-EMPTY", "UC-RESULT-SPACE"}
+
+    combined = orders.get(
+        f"{ROOT}/orders/search?has_result=false&status=PENDENTE&priority=ALTA&uc_id=UC-RESULT-SPACE"
+    ).json()
+    assert combined["pagination"]["total"] == 1
+    assert combined["items"][0]["uc_id"] == "UC-RESULT-SPACE"
+    assert orders.get(f"{ROOT}/orders/search?has_result=maybe").status_code == 422
+
+
 def test_pages_beyond_total_never_send_oversized_offsets_to_database(orders):
     create(orders)
     for page in (2, 9223372036854775808, 10 ** 100):

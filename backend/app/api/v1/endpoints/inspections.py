@@ -89,9 +89,12 @@ def search_orders(
     status_filter: OrderStatus | None = Query(None, alias="status"),
     uc_id: str | None = Query(None, min_length=1, max_length=50),
     priority: Literal["BAIXA", "MEDIA", "ALTA"] | None = None,
+    has_result: bool | None = Query(None),
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
 ) -> OrderPage:
-    return inspection_service.search_orders(db, status_filter, uc_id, priority, page, page_size)
+    return inspection_service.search_orders(
+        db, status_filter, uc_id, priority, page, page_size, has_result=has_result,
+    )
 
 
 @router.get("/orders/{order_id}", response_model=OrderResponse, dependencies=[Depends(require_orders_read)])
