@@ -7,6 +7,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    host: "127.0.0.1",
     watch: {
       usePolling: process.env.DEV_USE_POLLING === "true",
       interval: 300,
