@@ -1,13 +1,24 @@
 import logging
-from typing import Optional
+import hashlib
+import json
+from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 
 from app.models.operational import InspectionOrder, OrderStatus
-from app.schemas.inspections import OrderCreateRequest, OrderUpdateRequest
+from app.schemas.inspections import OrderCreateRequest, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage
+from app.schemas.order_snapshot import OrderSnapshotV1
+from app.schemas.inspections import OrderSummary
+from app.repositories.analytics import AnalyticsRepository
+from app.services.inspection_analytics import build_suspicion_response
 
 class OrderConflictError(Exception):
-    pass
+    def __init__(self, message: str, code: str = "order_conflict", order_id: int | None = None):
+        super().__init__(message)
+        self.code = code
+        self.order_id = order_id
 
 
 class OrderResultRequiredError(ValueError):
@@ -30,7 +41,27 @@ def list_orders(db: Session, status_filter: Optional[OrderStatus] = None) -> lis
     return query.all()
 
 
-def create_order(db: Session, payload: OrderCreateRequest) -> InspectionOrder:
+def get_order(db: Session, order_id: int) -> InspectionOrder | None:
+    return db.get(InspectionOrder, order_id)
+
+
+def _active_order(db: Session, uc_id: str) -> InspectionOrder | None:
+    return db.query(InspectionOrder).filter(
+        InspectionOrder.uc_id == uc_id,
+        InspectionOrder.status.in_([OrderStatus.PENDING, OrderStatus.IN_PROGRESS]),
+    ).first()
+
+
+def _active_conflict(order: InspectionOrder) -> OrderConflictError:
+    return OrderConflictError(
+        f"Já existe ordem ativa para esta UC: {order.id}.", "active_order_exists", order.id,
+    )
+
+
+def create_order(db: Session, payload: OrderCreateRequest, *, actor: str = "orders-writer") -> InspectionOrder:
+    active = _active_order(db, payload.uc_id)
+    if active:
+        raise _active_conflict(active)
     order = InspectionOrder(
         uc_id=payload.uc_id, reason=payload.reason, priority=payload.priority,
         notes=payload.notes, status=OrderStatus.PENDING,
@@ -39,13 +70,108 @@ def create_order(db: Session, payload: OrderCreateRequest) -> InspectionOrder:
     try:
         db.commit()
         db.refresh(order)
+        logger.info("inspection_order_created", extra={"order_id": order.id, "actor": actor})
         return order
+    except IntegrityError:
+        db.rollback()
+        active = _active_order(db, payload.uc_id)
+        if active:
+            raise _active_conflict(active) from None
+        raise
     except Exception:
         db.rollback()
         raise
 
 
-def update_order(db: Session, order_id: int, payload: OrderUpdateRequest) -> Optional[InspectionOrder]:
+def _fingerprint(value: dict) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+
+
+def _replay(db: Session, key: str, fingerprint: str) -> InspectionOrder | None:
+    existing = db.query(InspectionOrder).filter_by(idempotency_key=key).first()
+    if existing and existing.request_fingerprint != fingerprint:
+        raise OrderConflictError("Chave de idempotência já usada com outra solicitação.", "idempotency_key_reused", existing.id)
+    return existing
+
+
+def create_from_queue(
+    db: Session, repository_provider: Callable[[], AnalyticsRepository], uc_id: str,
+    payload: QueueOrderCreateRequest, key: str, *, actor: str = "orders-writer",
+) -> tuple[InspectionOrder, bool]:
+    fingerprint = _fingerprint({"uc_id": uc_id, **payload.model_dump()})
+    existing = _replay(db, key, fingerprint)
+    if existing:
+        return existing, False
+    snapshot = build_suspicion_response(repository_provider(), uc_id)
+    if (snapshot.metadata.source.version != payload.source_version
+            or snapshot.data.rule_version != payload.rule_version):
+        raise OrderConflictError("A suspeita mudou. Atualize a fila antes de criar a ordem.", "stale_suspicion")
+    reference = _fingerprint({
+        "uc_id": uc_id, "source": snapshot.metadata.source.model_dump(exclude={"updated_at"}),
+        "rule_version": snapshot.data.rule_version,
+    })
+    active = _active_order(db, uc_id)
+    if active:
+        # A competing request may commit after the first key lookup but before
+        # this active-order query. Reconcile the key before reporting conflict.
+        existing = _replay(db, key, fingerprint)
+        if existing:
+            return existing, False
+        raise _active_conflict(active)
+    order = InspectionOrder(
+        uc_id=snapshot.data.uc_id, reason=snapshot.data.reason,
+        priority=payload.priority, notes=payload.notes, status=OrderStatus.PENDING,
+        suspicion_reference=reference,
+        suspicion_snapshot=OrderSnapshotV1.model_validate(snapshot.model_dump(mode="json")).model_dump(mode="json"),
+        idempotency_key=key, request_fingerprint=fingerprint,
+    )
+    db.add(order)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # The unique indexes arbitrate competing workers, not a process-local lock.
+        existing = _replay(db, key, fingerprint)
+        if existing:
+            return existing, False
+        active = _active_order(db, uc_id)
+        if active:
+            raise _active_conflict(active) from None
+        raise
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(order)
+    logger.info("inspection_order_created", extra={"order_id": order.id, "actor": actor})
+    return order, True
+
+
+def search_orders(db: Session, status_filter: OrderStatus | None, uc_id: str | None,
+                  priority: str | None, page: int, page_size: int) -> OrderPage:
+    query = db.query(InspectionOrder)
+    if status_filter:
+        query = query.filter(InspectionOrder.status == status_filter)
+    if uc_id:
+        query = query.filter(InspectionOrder.uc_id == uc_id)
+    if priority:
+        query = query.filter(InspectionOrder.priority == priority)
+    total = query.with_entities(func.count(InspectionOrder.id)).scalar()
+    offset = (page - 1) * page_size
+    items = []
+    if offset < total:
+        # Project only summary columns; do not fetch or deserialize historical JSON.
+        columns = [getattr(InspectionOrder, name) for name in OrderSummary.model_fields]
+        rows = query.with_entities(*columns).order_by(
+            InspectionOrder.created_at.desc(), InspectionOrder.id.desc(),
+        ).offset(offset).limit(page_size).all()
+        items = [OrderSummary.model_validate(row) for row in rows]
+    return OrderPage(items=items, pagination={
+        "page": page, "page_size": page_size, "total": total,
+        "total_pages": (total + page_size - 1) // page_size,
+    })
+
+
+def update_order(db: Session, order_id: int, payload: OrderUpdateRequest, *, actor: str = "orders-writer") -> Optional[InspectionOrder]:
     order = db.query(InspectionOrder).filter(InspectionOrder.id == order_id).first()
     if not order:
         return None
@@ -78,6 +204,6 @@ def update_order(db: Session, order_id: int, payload: OrderUpdateRequest) -> Opt
     if target != previous:
         logger.info("inspection_order_status_changed", extra={
             "order_id": order_id, "previous_status": previous.value,
-            "new_status": target.value, "actor": "orders-writer",
+            "new_status": target.value, "actor": actor,
         })
     return order

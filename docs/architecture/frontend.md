@@ -31,7 +31,7 @@ frontend/src/
 
 ## Rotas e carregamento
 
-A [ADR-0010](../decisions/0010-composicao-ui-e-carregamento-frontend.md) registra a evolução da composição e a exceção temporária do Panorama.
+A [ADR-0013](../decisions/0013-composicao-ui-e-carregamento-frontend.md) registra a evolução da composição e a exceção temporária do Panorama.
 
 `app/routes.ts` define caminhos, rótulos, contexto visual, requisito e componente de entrada. `app/router.tsx` mantém `AppLayout` em torno das rotas e coloca o `Suspense` interno ao layout, para que a estrutura global permaneça montada durante a troca de conteúdo. A rota `/panorama` é carregada diretamente; as demais páginas de produto usam `React.lazy` por rota e são carregadas ao navegar. `/uc-360/:ucId` reutiliza a mesma entrada lazy da busca. `/dev/contratos` é carregada sob demanda apenas em desenvolvimento e não participa da navegação de produto.
 

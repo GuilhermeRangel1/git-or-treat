@@ -4,10 +4,21 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
 from app.models.operational import OrderStatus
+from app.schemas.analytics import Pagination
+from app.schemas.order_snapshot import OrderSnapshotV1
 
 UCIdentifier = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 OrderReason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
 OrderText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=4000)]
+
+
+class QueueOrderCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_version: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    rule_version: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    priority: Literal["BAIXA", "MEDIA", "ALTA"] = "MEDIA"
+    notes: OrderText | None = None
 
 
 class OrderCreateRequest(BaseModel):
@@ -33,7 +44,7 @@ class OrderUpdateRequest(BaseModel):
         return self
 
 
-class OrderResponse(BaseModel):
+class OrderSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -45,3 +56,30 @@ class OrderResponse(BaseModel):
     result: str | None
     created_at: datetime
     updated_at: datetime
+    suspicion_reference: str | None = None
+
+
+class OrderResponse(OrderSummary):
+    suspicion_snapshot: OrderSnapshotV1 | None = None
+
+
+class OrderPage(BaseModel):
+    items: list[OrderSummary]
+    pagination: Pagination
+
+
+class OrderConflictDetail(BaseModel):
+    code: str
+    message: str
+    order_id: int | None = None
+
+
+class OrderConflictResponse(BaseModel):
+    detail: str
+    error: OrderConflictDetail
+
+
+class OrderAccessResponse(BaseModel):
+    actor: str
+    auth_mode: Literal["demo", "service", "oidc"]
+    permissions: list[Literal["orders:read", "orders:write"]]
