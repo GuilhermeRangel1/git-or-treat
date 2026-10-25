@@ -46,6 +46,8 @@ No cliente, uma chave por intenção, reutilizada após perda de resposta. Desab
 
 `PATCH /orders/{id}` preserva ADR-0007: PENDENTE inicia/cancela, EM_ANDAMENTO conclui/cancela, conclusão exige resultado, estados finais não reabrem. A UI básica só cria/consulta. Snapshot de criação não substitui auditoria durável das alterações nem identidade individual de operador, ainda pendentes em WEB-05/WEB-10.
 
+Atualização frontend de 24/10/2026: a página de Ordens passa a consumir também o PATCH existente, com resultado obrigatório na conclusão, confirmação de cancelamento e bloqueio de estados finais. Os timestamps operacionais são gerados em UTC por `TimestampMixin`; a demo SQLite pode serializá-los sem offset, e o cliente os normaliza como UTC antes de mostrar o fuso de Recife. Competências do snapshot (`YYYY-MM`) são apresentadas como mês/ano, sem conversão de fuso. [Evidências](../plans/2026-10-24-dev06-orders-frontend-evidence.md).
+
 ## Execução e integração do frontend
 
 Aplicar `alembic upgrade head` sobre banco existente, inclusive SQLite. Revisão `a6d060000001` acrescenta campos nulos e índices sem perder ordens antigas. Downgrade remove os novos campos/evidências: requer backup adequado fora do banco descartável.

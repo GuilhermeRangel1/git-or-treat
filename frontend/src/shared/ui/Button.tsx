@@ -2,7 +2,15 @@ import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { Loader2 } from "lucide-react";
 
 export type ButtonVariant =
-  "primary" | "secondary" | "outline" | "ghost" | "control" | "accent" | "icon";
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "control"
+  | "accent"
+  | "icon"
+  | "neutral"
+  | "danger";
 export type ButtonSize = "sm" | "md" | "lg" | "icon" | "wide";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -51,6 +59,10 @@ export default function Button({
     accent:
       "bg-brand text-[var(--accent-goiaba-text)] hover:opacity-90 border border-transparent font-semibold",
     icon: "border border-control bg-surface text-content hover:bg-surface-hover",
+    neutral:
+      "bg-[var(--action-neutral-bg)] text-[var(--action-neutral-text)] hover:opacity-90 border border-transparent font-medium",
+    danger:
+      "bg-[var(--action-danger-bg)] text-[var(--action-danger-text)] hover:opacity-90 border border-transparent font-medium",
   };
 
   const isActuallyDisabled = disabled || isLoading;
