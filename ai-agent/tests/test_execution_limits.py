@@ -206,9 +206,9 @@ def test_configured_row_and_byte_limits_reach_plan_and_evidence_guard() -> None:
     class CapturingSource(SyntheticScenarioTool):
         plan = None
 
-        async def retrieve(self, plan):
+        async def retrieve(self, plan, access_context):
             self.plan = plan
-            return await super().retrieve(plan)
+            return await super().retrieve(plan, access_context)
 
     source = CapturingSource()
     planner = QuestionAnalysisPlanner(
@@ -233,7 +233,7 @@ def test_question_flow_times_out_without_late_work(slow_stage: str) -> None:
     class SlowSource:
         cancelled = False
 
-        async def retrieve(self, plan):
+        async def retrieve(self, plan, _access_context):
             try:
                 await asyncio.Event().wait()
             finally:

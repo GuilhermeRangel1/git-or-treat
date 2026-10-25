@@ -1,5 +1,6 @@
 """Fábrica da aplicação FastAPI do serviço GenAI."""
 
+import re
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -10,17 +11,25 @@ from app.agent.composition import compose_core
 from app.agent.execution import ExecutionController, ExecutionLimits
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.orchestrator import QuestionOrchestrator
-from app.api.access import SYNTHETIC_SOURCE_ID
-from app.api.errors import invalid_request_response, unexpected_error_response
+from app.api.access import SYNTHETIC_SOURCE_ID, AccessContextResolver
+from app.api.errors import (
+    ServiceAuthenticationError,
+    invalid_request_response,
+    service_auth_error_response,
+    unexpected_error_response,
+)
 from app.api.routes import router
 from app.config import Settings, get_settings
 from app.ports.events import EventSink
 from app.ports.evidence import EvidenceSource
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
-from app.providers.factory import build_model_adapter
+from app.profiles.grid360_sql_demo import GRID360_SQL_DEMO_PROFILE
+from app.providers.factory import build_model_adapter, build_model_router
 from app.providers.protocols import ModelAdapter
+from app.providers.routing import ModelRouter, ModelTier
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.domain_profile import DomainProfile
+from app.sql.demo import SQL_DEMO_SOURCE_ID, build_sql_demo_source
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 
@@ -31,15 +40,69 @@ def create_app(
     domain_profile: DomainProfile | None = None,
     evidence_source: EvidenceSource | None = None,
     model_adapter: ModelAdapter | None = None,
+    model_router: ModelRouter | None = None,
     access_policy: ReadAccessPolicy | None = None,
     event_sink: EventSink | None = None,
     require_durable_audit: bool = False,
     source_id: str = SYNTHETIC_SOURCE_ID,
+    source_mode: str = "demo",
+    access_context_resolver: AccessContextResolver | None = None,
 ) -> FastAPI:
-    """Cria a API isolada; adaptadores reais podem ser injetados quando estiverem disponíveis."""
+    """Compõe a demonstração ou uma fonte externa explicitamente autorizada."""
 
     active_settings = settings or get_settings()
+    if active_settings.demo_source == "sqlite":
+        if (
+            source_mode != "demo"
+            or domain_profile is not None
+            or evidence_source is not None
+            or source_id != SYNTHETIC_SOURCE_ID
+            or active_settings.environment != "local"
+            or not active_settings.enable_demo_access
+            or active_settings.demo_sqlite_path is None
+        ):
+            raise ValueError("Fonte SQLite demonstrativa exige composição local explícita.")
+        domain_profile = GRID360_SQL_DEMO_PROFILE
+        source_id = SQL_DEMO_SOURCE_ID
+        evidence_source = build_sql_demo_source(active_settings.demo_sqlite_path)
     active_domain_profile = domain_profile or GRID360_DEMO_PROFILE
+    routing_requested = active_settings.model_routing_enabled or model_router is not None
+    is_synthetic_schema = (
+        active_domain_profile == GRID360_DEMO_PROFILE and source_id == SYNTHETIC_SOURCE_ID
+    )
+    if routing_requested and not is_synthetic_schema:
+        raise ValueError(
+            "O roteamento de modelos está restrito ao perfil Grid 360 demonstrativo "
+            "e à fonte synthetic.fixture."
+        )
+    if source_mode not in {"demo", "external"}:
+        raise ValueError("Modo da fonte desconhecido.")
+    if source_mode == "external":
+        if (
+            domain_profile is None
+            or evidence_source is None
+            or access_context_resolver is None
+            or domain_profile == GRID360_DEMO_PROFILE
+            or source_id.startswith("synthetic.")
+        ):
+            raise ValueError(
+                "Fonte externa exige perfil próprio, fonte e resolvedor de acesso explícitos."
+            )
+        if active_settings.enable_demo_access or active_settings.service_api_token is None:
+            raise ValueError("Fonte externa exige token interno e acesso demonstrativo desligado.")
+        if (
+            not require_durable_audit
+            or event_sink is None
+            or getattr(event_sink, "durable", False) is not True
+        ):
+            raise ValueError("Fonte externa exige auditoria durável configurada.")
+        if question_orchestrator is not None or insight_orchestrator is not None:
+            raise ValueError("Fonte externa deve ser composta pelo núcleo com a fonte declarada.")
+    else:
+        if access_context_resolver is not None:
+            raise ValueError("Resolvedor de acesso externo exige modo external.")
+        if not source_id.startswith("synthetic."):
+            raise ValueError("Modo demo exige fonte sintética explícita.")
     application = FastAPI(
         title=active_settings.service_name,
         version="0.1.0",
@@ -48,18 +111,25 @@ def create_app(
 
     @application.middleware("http")
     async def add_correlation_id(request, call_next):
-        correlation_id = uuid4().hex
+        incoming_id = request.headers.get("x-correlation-id", "")
+        correlation_id = (
+            incoming_id if re.fullmatch(r"[a-f0-9]{32}", incoming_id) else uuid4().hex
+        )
         request.state.correlation_id = correlation_id
         response = await call_next(request)
         response.headers["X-Correlation-ID"] = correlation_id
         return response
 
     application.add_exception_handler(RequestValidationError, invalid_request_response)
+    application.add_exception_handler(ServiceAuthenticationError, service_auth_error_response)
     application.add_exception_handler(Exception, unexpected_error_response)
     application.state.environment = active_settings.environment
     application.state.enable_demo_access = active_settings.enable_demo_access
+    application.state.service_api_token = active_settings.service_api_token
     application.state.domain_profile = active_domain_profile
     application.state.source_id = source_id
+    application.state.source_mode = source_mode
+    application.state.access_context_resolver = access_context_resolver
 
     execution_controller = ExecutionController(
         ExecutionLimits(
@@ -76,6 +146,17 @@ def create_app(
 
     core = None
     if question_orchestrator is None or insight_orchestrator is None:
+        active_model_adapter = model_adapter
+        if active_model_adapter is None:
+            active_model_adapter = (
+                model_router.adapter_for(ModelTier.STRONG)
+                if model_router is not None
+                else build_model_adapter(active_settings)
+            )
+        active_model_router = model_router or build_model_router(
+            active_settings,
+            active_model_adapter,
+        )
         core = compose_core(
             profile=active_domain_profile,
             source_id=source_id,
@@ -84,9 +165,8 @@ def create_app(
                 if evidence_source is not None
                 else SyntheticScenarioTool(SYNTHETIC_SCENARIOS)
             ),
-            model_adapter=(
-                model_adapter if model_adapter is not None else build_model_adapter(active_settings)
-            ),
+            model_adapter=active_model_adapter,
+            model_router=active_model_router,
             execution_controller=execution_controller,
             access_policy=access_policy,
             event_sink=event_sink,

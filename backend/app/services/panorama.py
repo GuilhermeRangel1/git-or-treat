@@ -1,10 +1,9 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from app.repositories.panorama import PanoramaRepository
 from app.schemas.panorama import PanoramaData, PanoramaMetric, PanoramaSeriesPoint
 from app.services.analytics import AnalyticsAPIError
-from app.synthetic import panorama_fixtures
 
 DEFAULT_PERIOD = "2024-04"
 COMPARISON_TYPES = ("anterior", "ano_anterior", "nenhuma")
@@ -41,7 +40,7 @@ def validate_filter(value: str, field: str, accepted: set[str], wildcard: str) -
     return value
 
 
-def comparison_period(periodo: str, comparacao: str) -> Optional[str]:
+def comparison_period(periodo: str, comparacao: str) -> str | None:
     """Competência de referência da comparação: mês anterior, mesmo mês do ano anterior ou nenhuma."""
     if comparacao == "nenhuma":
         return None
@@ -93,7 +92,7 @@ def build_metric(
     categoria: str,
     tipo_grandeza: str,
     valor_atual: float,
-    valor_anterior: Optional[float],
+    valor_anterior: float | None,
     unidade: str,
     definicao: str,
     formula: str,
@@ -101,8 +100,8 @@ def build_metric(
 ) -> PanoramaMetric:
     tem_anterior = valor_anterior is not None
     base_zero = tem_anterior and valor_anterior == 0.0
-    variacao_absoluta: Optional[float] = None
-    variacao_percentual: Optional[float] = None
+    variacao_absoluta: float | None = None
+    variacao_percentual: float | None = None
 
     if tem_anterior and not base_zero:
         variacao_absoluta = round(valor_atual - valor_anterior, 2)
@@ -157,7 +156,9 @@ def build_panorama(
 
     atual = sum_records(registros_atuais)
     # Totais parciais não são comparáveis com uma competência fechada.
-    periodos_completos = panorama_fixtures.INCOMPLETE_PERIOD not in (periodo, competencia_anterior)
+    periodos_completos = not repository.incomplete_periods.intersection(
+        {periodo, competencia_anterior}
+    )
     anterior = sum_records(registros_anteriores) if registros_anteriores and periodos_completos else None
 
     preco_medio_atual = (
@@ -276,7 +277,7 @@ def build_panorama(
         serie_mensal.append(
             PanoramaSeriesPoint(
                 competencia=competencia_historia,
-                label=panorama_fixtures.HISTORY_LABELS.get(competencia_historia, period_label(competencia_historia)),
+                label=period_label(competencia_historia),
                 receitaFaturada=soma["receita_faturada"],
                 receitaPaga=soma["receita_paga"],
                 energiaConsumidaKwh=soma["energia_consumida"],
@@ -296,7 +297,7 @@ def build_panorama(
 
     return PanoramaData(
         filtros=filtros,
-        periodoIncompleto=periodo == panorama_fixtures.INCOMPLETE_PERIOD,
+        periodoIncompleto=periodo in repository.incomplete_periods,
         totalRegistros=len(registros_atuais),
         dataAtualizacao=repository.source_updated_at,
         loteVersao=repository.source_version,

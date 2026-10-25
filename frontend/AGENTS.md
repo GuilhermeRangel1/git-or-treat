@@ -2,6 +2,8 @@
 
 Leia `../docs/services/frontend.md`, `../docs/architecture/frontend.md` e os IDs WEB relevantes de `../docs/PRD.md`. O portal usa React + TypeScript com Vite, Tailwind CSS e Lucide; a futura integração consome a API FastAPI.
 
+Ao criar, revisar ou refatorar páginas, componentes, hooks, consultas ou estilos, consulte a skill `frontend-coding-standards`, baseada na arquitetura atual e nas decisões do Figma do projeto.
+
 - Mostre unidade, período, filtros, atualização, estado vazio e erro em cada métrica.
 - Teste as jornadas de diretoria, comercial, atendimento, perdas e operação.
 - Consulte a skill `vercel-react-best-practices` para performance; adapte as recomendações ao Vite do projeto.

@@ -284,7 +284,18 @@ def test_partial_coverage_limits_history_rows_and_percent_change(client):
             params={"start": "2025-01", "end": "2025-02"},
         ).json()
         assert history["metadata"]["status"] == "partial"
-        assert all(row["competencia"] == "2025-02" for row in history["data"]["items"])
+        invoices_by_id = {
+            row["invoice_id"]: row for row in history["data"]["items"]
+        }
+        for invoice_id, paid_amount, billed_energy_kwh in (
+            ("F-1001-01", 100.0, 90.0),
+            ("OUT-OF-COVERAGE", 900.0, 800.0),
+        ):
+            invoice = invoices_by_id[invoice_id]
+            assert invoice["competencia"] == "2025-01"
+            assert invoice["billed_amount"] is None
+            assert invoice["paid_amount"] == paid_amount
+            assert invoice["billed_energy_kwh"] == billed_energy_kwh
 
         overview = client.get(
             "/api/v1/ucs/UC-1001/overview",

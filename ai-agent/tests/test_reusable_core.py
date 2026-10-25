@@ -75,7 +75,7 @@ class RecordingSource:
         self.mode = mode
         self.calls = 0
 
-    async def retrieve(self, plan):
+    async def retrieve(self, plan, access_context):
         self.calls += 1
         if self.mode == "denied":
             from app.ports.evidence import EvidenceAccessDenied
@@ -97,7 +97,7 @@ class RecordingSource:
                 status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
                 message="Esta fonte artificial não suporta o filtro solicitado.",
             )
-        result = await self.inner.retrieve(plan)
+        result = await self.inner.retrieve(plan, access_context)
         if self.mode not in {"sensitive", "sensitive_reference", "limit", "provenance"}:
             return result
         assert result.evidence is not None
@@ -497,7 +497,12 @@ def test_second_domain_runs_insight_without_grid_specific_response_text() -> Non
     )
 
     assert response.status == "answered"
-    assert "chuva observada: 12 mm fictícios" in response.hypothesis
+    assert response.observation.model_dump() == {
+        "values": [{"label": "chuva observada", "value": 12}]
+    }
+    assert response.context.unit == "mm fictícios"
+    assert "chuva demonstrativa" in response.hypothesis
+    assert "12" not in response.hypothesis
     assert "V-Energy" not in response.model_dump_json()
     assert source.calls == 0
     assert model.calls == 1

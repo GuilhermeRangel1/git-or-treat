@@ -54,6 +54,12 @@ O exemplo `.env.example` atende à execução no host. Para executar o backend i
 
 `db` é um nome de serviço da rede Docker; não é o endereço do banco para o Python executado no Windows. `localhost` dentro do contêiner aponta para o próprio contêiner. Ao alternar os modos, confira a URL antes de migrar. Os testes HTTP substituem `DATABASE_URL` por SQLite em memória; eles passarem não comprova que a conexão da aplicação foi configurada. Confira também o health check com `database=connected` no modo escolhido.
 
+## Perguntas ao serviço GenAI
+
+`POST /api/v1/ai/questions` valida o contrato v1 e encaminha a pergunta ao serviço GenAI. Configure `AI_AGENT_BASE_URL` e `AI_AGENT_SERVICE_API_TOKEN` no Backend e o mesmo token em `GENAI_SERVICE_API_TOKEN` no GenAI. O token autentica somente a comunicação entre serviços; não identifica a pessoa usuária nem concede acesso à Gold. O contrato e os códigos de erro estão em [genai-chat-api.md](../docs/contracts/genai-chat-api.md).
+
+No Docker Compose, o portal chama essa rota e o serviço GenAI fica acessível ao Backend pela rede interna. A conversa usa cenários artificiais e permanece em memória no navegador; não consulta Gold nem persiste histórico. Veja as variáveis locais em `.env.example` e no README da GenAI.
+
 ## Contratos analíticos de desenvolvimento
 
 `ANALYTICS_SOURCE` aceita `unavailable` (padrão, retorna HTTP 503 nas rotas analíticas) ou `synthetic`. Para experimentar os contratos sem conectar ao PostgreSQL, configure a opção `synthetic` no ambiente antes de iniciar a API. Um valor desconhecido impede a inicialização. `/api/v1/kpis`, `/revenue`, `/ucs`, `/ucs/{uc_id}`, `/inspections/queue` e `/operations/continuity` usam a interface `get_analytics_repository`; filas de inspeção continuam separadas das ordens operacionais persistidas.
@@ -69,7 +75,7 @@ uvicorn app.main:app --reload --port 8000
 
 ## Acesso às ordens e limites de entrada
 
-DEV-06: [contrato de criação pela fila e consulta paginada](../docs/contracts/inspection-orders-dev06.md). Aplicar `alembic upgrade head` antes de iniciar sobre banco existente. O portal básico usa `POST /inspections/queue/{uc_id}/orders` com `Idempotency-Key` e versões do detalhe; consulta por `/inspections/orders/search` e `/inspections/orders/{id}`. O prefixo completo é `/api/v1`. O proxy Vite não injeta credenciais; a tela básica funciona sem login no modo demo sintético local (`APP_ENV=development`, `ANALYTICS_SOURCE=synthetic`, `ORDERS_AUTH_MODE=demo`). Login fica para uma etapa futura. Veja o [guia de entrega para o frontend](../docs/contracts/inspection-auth-handoff.md).
+DEV-06: [contrato de criação pela fila e consulta paginada](../docs/contracts/inspection-orders-dev06.md). Aplicar `alembic upgrade head` antes de iniciar sobre banco existente. O portal básico usa `POST /inspections/queue/{uc_id}/orders` com `Idempotency-Key` e versões do detalhe; consulta por `/inspections/orders/search` e `/inspections/orders/{id}`, com filtros de estado, UC, prioridade e presença de resultado (`has_result`). O prefixo completo é `/api/v1`. O proxy Vite não injeta credenciais; a tela básica funciona sem login no modo demo sintético local (`APP_ENV=development`, `ANALYTICS_SOURCE=synthetic`, `ORDERS_AUTH_MODE=demo`). Login fica para uma etapa futura. Veja o [guia de entrega para o frontend](../docs/contracts/inspection-auth-handoff.md).
 
 A revisão `a6d060000002` garante uma ordem ativa por UC, incluindo criações manuais e fontes/versões diferentes. Se houver duplicidades ativas antigas, o upgrade interrompe para reconciliação manual e não cancela registros. Reenvios confirmados da fila funcionam mesmo com a fonte analítica indisponível; conflitos mantêm a mensagem em `detail` e incluem código e ID em `error` para integração.
 

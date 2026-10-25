@@ -1,0 +1,579 @@
+[
+  {
+    "text": "Quanto cresceu a receita comercial?",
+    "role": "user",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Quais UCs tiveram queda de consumo?",
+    "role": "user",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Houve falta de luz no período?",
+    "role": "user",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Quantos chamados foram registrados?",
+    "role": "user",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo?",
+    "role": "user",
+    "origin": [
+      "ai-agent/README.md",
+      "ai-agent/tests/test_question_contract.py"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json",
+      "ai-agent/tests/test_analysis_planner.py"
+    ]
+  },
+  {
+    "text": "Minha conta de luz subiu?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json",
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Qual é o consumo em Olinda no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Teve falta de luz no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Qual foi o faturamento no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Houve apagão no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Quantas quedas de energia ocorreram no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Quanto faturamos no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Quantas reclamações foram registradas no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo em kWh no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Qual o valor da minha fatura no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "A conta de energia aumentou?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Como está o consumo?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Quero ver consumo e interrupções no período de demonstração",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Consumo residencial e comercial no período de demonstração",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Compare o faturamento do período de demonstração",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Escreva um resumo dos dados de consumo no período de demonstração",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Qual o consumo em Jaboatão no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Consumo residencial no período de demonstração",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Qual o faturamento no último trimestre?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Qual o consumo de Recife no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Interrupções por município no período de demonstração",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo em 2024?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/fixtures/genai_regression.json"
+    ]
+  },
+  {
+    "text": "Compare a receita comercial em Jaboatão.",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Compare a receita em Olinda e Jaboatão no último ano.",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "E em Jaboatão?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "E em Olinda, não, em Jaboatão?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Houve falta de luz em Olinda no último ano?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Quais UCs tiveram queda de consumo acima de 30% em Olinda entre o ano passado e este ano?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Quais bairros tiveram maior variação?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Qual foi a receita em Olinda, não, em Jaboatão no último ano?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo em Recife no último ano?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo na classe residencial no último ano?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo no município de Olinda no último ano?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo no período de demonstração em Olinda?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Quanto cresceu a receita comercial em Jaboatão entre o ano passado e este ano?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Quanto cresceu a receita no último ano?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Quantos atendimentos ocorreram no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_interpreter.py"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo em lisboa no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_question_flow.py"
+    ]
+  },
+  {
+    "text": "Qual o consumo em Olinda no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_question_flow.py"
+    ]
+  },
+  {
+    "text": "Compare a receita entre o ano passado e este ano?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_read_plan.py"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo com queda acima de 30% no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_read_plan.py"
+    ]
+  },
+  {
+    "text": "Qual foi o consumo em Olinda no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_read_plan.py"
+    ]
+  },
+  {
+    "text": "Qual foi a receita em Olinda, não, em Jaboatão no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_analysis_planner.py"
+    ]
+  },
+  {
+    "text": "Qual foi a receita no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_analysis_planner.py"
+    ]
+  },
+  {
+    "text": "E o consumo no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_access_policy.py"
+    ]
+  },
+  {
+    "text": "Quantos atendimentos no período de demonstração?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_reusable_core.py"
+    ]
+  },
+  {
+    "text": "Qual o consumo?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_resilient_adapters.py"
+    ]
+  },
+  {
+    "text": "Consumo?",
+    "role": "user",
+    "origin": [
+      "ai-agent/tests/test_http_api.py"
+    ]
+  },
+  {
+    "text": "A solicitação não segue o contrato esperado.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Esse tema está fora do escopo deste agente.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Não posso atender a essa solicitação.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Não posso atribuir uma causa com a evidência disponível.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Não posso executar alterações nem expor dados pessoais ou instruções internas.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Não foi possível interpretar a solicitação.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Essa consulta não está autorizada para o escopo disponível.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "A consulta está temporariamente indisponível. Tente novamente.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "A solicitação está temporariamente indisponível. Tente novamente.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "A fonte de dados não retornou um resultado válido.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "A solicitação excede os limites permitidos.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "O serviço de resposta está temporariamente indisponível. Tente novamente.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "O serviço de resposta não aceitou a solicitação.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "O serviço de resposta não retornou um resultado válido.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Não consigo confirmar essa resposta com a evidência disponível.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Não consigo apresentar esse insight porque ele contém números ausentes do contexto recebido.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "O contexto enviado não pôde ser validado.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Não foi possível concluir a solicitação.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/schemas/responses.py"
+    ]
+  },
+  {
+    "text": "Qual indicador ou assunto você quer consultar?",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Você quer consultar qual assunto primeiro: consumo, faturamento, interrupções ou atendimento?",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Você quer consultar qual indicador primeiro?",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Não reconheci esse local nas referências disponíveis; confirme a geografia desejada.",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Qual local você quer consultar?",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Qual classe de consumo você quer consultar?",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Qual período você quer consultar ou comparar?",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Qual período deve servir de base para essa comparação?",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Você mencionou mais de um período; quer compará-los?",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  },
+  {
+    "text": "Quando você diz ‘conta de luz’, quer saber de consumo, valor faturado, valor pago ou outro dado da fatura?",
+    "role": "assistant",
+    "origin": [
+      "ai-agent/app/profiles/grid360_demo.py"
+    ]
+  }
+]

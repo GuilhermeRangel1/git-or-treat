@@ -38,11 +38,13 @@ def test_migration_refuses_duplicates_and_preserves_orders(tmp_path, dialect):
                 conn.commit()
                 before = list(conn.execute(text("SELECT id, reason, status, suspicion_reference FROM operational_inspection_orders ORDER BY id")))
                 conn.commit()
+                versions_before = set(conn.scalars(text("SELECT version_num FROM alembic_version ORDER BY version_num")))
                 with pytest.raises(RuntimeError, match="ordens ativas duplicadas"):
                     command.upgrade(config, "head")
                 conn.rollback()
                 assert list(conn.execute(text("SELECT id, reason, status, suspicion_reference FROM operational_inspection_orders ORDER BY id"))) == before
-                assert "a6d060000001" in set(conn.scalars(text("SELECT version_num FROM alembic_version")))
+                versions_after = set(conn.scalars(text("SELECT version_num FROM alembic_version ORDER BY version_num")))
+                assert versions_after == versions_before
                 assert "uq_orders_active_suspicion" in {i["name"] for i in inspect(conn).get_indexes("operational_inspection_orders")}
                 # Explicit reconciliation in this disposable test, never in the migration.
                 conn.execute(text("UPDATE operational_inspection_orders SET status = 'CANCELLED' WHERE suspicion_reference = 'old-reference-2'"))

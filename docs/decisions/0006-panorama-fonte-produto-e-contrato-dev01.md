@@ -10,7 +10,7 @@ A DEV-01 passou a servir um contrato analítico versionado em `GET /api/v1/kpis`
 
 A WEB-01 exige indicadores com definição, unidade, competência, filtros e comparação; o PRD não fixa oito KPIs nem competências de 2024. Conforme a revisão de produto da DEV-02 em 22/10/2026, o protótipo atual apresenta quatro indicadores principais e outro período. Ele orienta organização e estilização, sem definir o contrato HTTP ou o calendário desta fixture.
 
-A escolha de oito métricas, competências selecionáveis 2024-03 a 2024-05 e lote `Lote Gold 2024.04-sintetico-v1` foi da implementação demonstrativa. O nome histórico do lote não significa origem Gold: a fonte é sintética e não reconciliada com Gold. O envelope de produto (`data.metricas` indexado por chave, `data.serieMensal`, `data.filtros` e `data.totalRegistros`) também é uma decisão da implementação.
+A escolha de oito métricas, competências selecionáveis 2024-03 a 2024-05 e lote `panorama-sintetico-2024.04-v1` foi da implementação demonstrativa. A fonte é sintética e não reconciliada com Gold. O envelope de produto (`data.metricas` indexado por chave, `data.serieMensal`, `data.filtros` e `data.totalRegistros`) também é uma decisão da implementação.
 
 Na revisão de 22/10, os quatro indicadores de destaque da implementação são receita faturada, receita paga, energia consumida e energia faturada, preservando as distinções solicitadas na DEV-02. Preço médio, UCs, DEC e FEC permanecem complementares, abaixo da série. Essa seleção não é apresentada como reprodução exata dos KPIs do protótipo. Os períodos da fixture foram preservados para manter os controles de teste existentes; o calendário final depende da Gold.
 
@@ -26,7 +26,7 @@ Alternar o payload de `/api/v1/kpis` entre o contrato da DEV-01 e o contrato de 
 
 Adotar a opção 3. A rota `/api/v1/panorama` segue a mesma arquitetura da DEV-01 (rota → serviço → repositório → base sintética em memória) e o mesmo controle de fonte: `ANALYTICS_SOURCE=synthetic` é obrigatório; qualquer outro valor devolve 503 `source_unavailable`, sem fallback silencioso.
 
-A base do Panorama (`Lote Gold 2024.04-sintetico-v1`, competências 2024-03 a 2024-05) é distinta do lote da DEV-01 (`dev01-v1`) e não é a mesma fonte. O contrato analítico da DEV-01 permanece sem alteração em `/api/v1/kpis`.
+A base do Panorama (`panorama-sintetico-2024.04-v1`, competências 2024-03 a 2024-05) é distinta do lote da DEV-01 (`dev01-v1`) e não é a mesma fonte. O contrato analítico da DEV-01 permanece sem alteração em `/api/v1/kpis`.
 
 A entrada inválida (competência inexistente, comparação fora do conjunto, município ou classe inexistentes) responde 422 `invalid_query`. Combinação válida sem fatos responde 200 com `totalRegistros: 0`; essa diferença em relação à política da DEV-01 (que representa ausência com `null` e estado por métrica) está registrada como pendência de revisão no catálogo de contratos e precisa ser resolvida antes do aceite com Gold.
 

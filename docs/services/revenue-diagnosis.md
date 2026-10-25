@@ -10,6 +10,8 @@ Separar quatro perguntas: (1) o valor da queda se reproduz no dataset? (2) quant
 
 ## Método a executar
 
+Para a exploração sintética DEV-03, o [contrato Receita 1.1.0](../contracts/revenue-dev03.md) e a [ADR-0008](../decisions/0008-exploracao-demonstrativa-receita.md) fixam comparação por competências extremas, cobertura explícita, base pequena e reconciliação. A exploração foi [verificada com API e tela reais](../plans/2026-10-21-dev03-evidence.md), usando exclusivamente fatos artificiais. Essa demonstração não executa o diagnóstico anual abaixo: suas janelas e definições continuam dependentes da inspeção Gold. Contribuições absolutas dos grupos são aditivas; efeitos recalculados com preços médios de cada grupo podem mudar por mix e não devem ser somados como se fossem os efeitos recalculados do agregado.
+
 1. Definir exatamente as competências dos dois intervalos e a receita comparada (faturada, paga, líquida etc.). Verificar cobertura mensal e mudanças de população de UCs.
 2. Reproduzir receita e energia residencial totais em Gold e conferir contra faturas tratadas, com contagem de registros excluídos e ajustes.
 3. Decompor a variação em componente de volume, componente de preço efetivo/tarifa e termo de interação, por método documentado cuja soma feche com a diferença total.

@@ -1,6 +1,8 @@
 # Dicionário de dados Gold
 
-**Estado:** estrutura pronta; campos reais não conhecidos até o dataset ser recebido. Este arquivo será preenchido durante DE-08. Nunca inventar esquema.
+**Estado:** a Bronze e a Silver já têm colunas observadas e documentadas, mas ainda não há tabelas Gold nem métricas validadas. Este dicionário será preenchido durante DE-08 a partir das saídas implementadas e reconciliadas. Não tratar propostas de Gold como esquema publicado.
+
+Os [contratos de consumo DEV-01](contracts/analytics-api.md) e as definições de suas fixtures sintéticas são propostas de aplicação, separadas deste dicionário Gold. Sua existência não comprova nomes de colunas, fórmulas ou granularidades do dataset. A integração futura deve revisar os pontos provisórios indicados no catálogo antes de apresentar métricas reais.
 
 ## Modelo de tabela Gold
 
@@ -38,3 +40,5 @@
 - Indicadores de atendimento e satisfação, se exibidos.
 
 Uma métrica só pode alimentar portal, IA ou apresentação final depois de ter fórmula e validação registradas aqui.
+
+O contrato das vistas Silver que poderão alimentar a Gold — grão, chave, cobertura, linhagem e limites de uso — está no [guia do serviço de engenharia de dados](services/data-engineering.md#contrato-de-entrada-da-gold). Ele não substitui as definições e provas por métrica exigidas neste dicionário.

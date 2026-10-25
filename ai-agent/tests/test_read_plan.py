@@ -16,6 +16,7 @@ from app.agent.read_plan import (
 from app.api.access import SYNTHETIC_SOURCE_ID, demo_access_context
 from app.ports.evidence import EvidenceAccessDenied
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
+from app.schemas.access import AccessContext
 from app.schemas.domain_profile import DomainProfile
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.schemas.interpretation import InterpretationStatus
@@ -29,9 +30,13 @@ CORRELATION = "0" * 32
 class RecordingSource:
     def __init__(self) -> None:
         self.calls: list[LogicalReadPlan] = []
+        self.contexts: list[AccessContext | None] = []
 
-    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
+    async def retrieve(
+        self, plan: LogicalReadPlan, access_context: AccessContext | None
+    ) -> EvidenceLookupResult:
         self.calls.append(plan)
+        self.contexts.append(access_context)
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.NO_EVIDENCE,
             message="Nenhum registro da fonte artificial.",
@@ -95,6 +100,7 @@ def test_same_validator_contract_approves_two_catalogs(
     assert result.read_plan.limit == 100
     assert source.calls == [result.read_plan]
     assert source.calls[0] is result.read_plan
+    assert source.contexts == [context]
 
 
 def test_unsupported_lexical_filter_is_explained_without_source_call() -> None:

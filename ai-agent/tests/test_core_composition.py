@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import app.main as app_main
 from app.agent.access import ReadAccessPolicy
 from app.agent.composition import compose_core
 from app.agent.execution import ExecutionController, ExecutionLimits
@@ -20,7 +21,8 @@ from app.ports.events import EventCode, EventOutcome, EventStage
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.gemini import GeminiModelAdapter
-from app.providers.protocols import ModelProviderUnavailable
+from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
+from app.providers.routing import ModelRouter, ModelTier, RoutingPolicy
 from app.schemas.insights import ScreenContext
 from app.schemas.questions import QuestionRequest
 from app.tools.synthetic_analytics import SyntheticScenarioTool
@@ -36,9 +38,9 @@ class RecordingSource:
         self.calls = 0
         self._inner = SyntheticScenarioTool()
 
-    async def retrieve(self, plan):
+    async def retrieve(self, plan, access_context):
         self.calls += 1
-        return await self._inner.retrieve(plan)
+        return await self._inner.retrieve(plan, access_context)
 
 
 class RecordingModel(FakeModelAdapter):
@@ -114,6 +116,30 @@ def test_direct_core_runs_authorized_question_and_records_only_safe_outcome() ->
     assert QUESTION not in repr(sink.events)
 
 
+def test_direct_question_uses_single_authorized_observation_after_model_refusal() -> None:
+    refusing_model = FakeModelAdapter(
+        result=GeneratedAnswer(
+            status="refused",
+            answer="Não posso atender a essa solicitação.",
+        )
+    )
+    sink = RecordingSink()
+    core = _core(RecordingSource(), refusing_model, sink)
+
+    response = asyncio.run(
+        core.question.answer(
+            QuestionRequest(question="Qual valor de leitura foi usado no cenário sintético?"),
+            demo_access_context(GRID360_DEMO_PROFILE, CORRELATION_ID),
+        )
+    )
+
+    assert response.status == "answered"
+    assert "420 unidades fictícias" in response.answer
+    assert response.evidence[0].is_demo is True
+    assert sink.events[-2].code is EventCode.REFUSED
+    assert sink.events[-1].code is EventCode.COMPLETED
+
+
 def test_http_uses_injected_source_model_and_sink_with_the_same_flow() -> None:
     source = RecordingSource()
     model = RecordingModel()
@@ -132,6 +158,69 @@ def test_http_uses_injected_source_model_and_sink_with_the_same_flow() -> None:
     assert response.json()["status"] == "answered"
     assert source.calls == model.calls == 1
     assert sink.events[0].correlation_id == response.headers["x-correlation-id"]
+
+
+def test_http_composes_configured_router_into_question_flow(monkeypatch) -> None:
+    source = RecordingSource()
+    light, strong = RecordingModel(), RecordingModel()
+    router = ModelRouter(
+        {ModelTier.LIGHT: light, ModelTier.STRONG: strong},
+        RoutingPolicy(light_intents={"consumption"}),
+    )
+    monkeypatch.setattr(app_main, "build_model_adapter", lambda settings: strong)
+    monkeypatch.setattr(app_main, "build_model_router", lambda settings, adapter: router)
+    application = create_app(
+        settings=Settings(
+            _env_file=None,
+            environment="local",
+            enable_demo_access=True,
+            model_routing_enabled=True,
+            model_light_model="gemini-light-test",
+            model_light_intents=["consumption"],
+        ),
+        evidence_source=source,
+    )
+
+    with InProcessClient(application) as client:
+        response = client.post("/api/v1/questions", json={"question": QUESTION})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "answered"
+    assert response.json()["model_tier"] == "light"
+    assert source.calls == light.calls == 1
+    assert strong.calls == 0
+    assert application.state.insight_orchestrator is not None
+
+
+def test_http_rejects_routing_configuration_for_non_synthetic_source() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_routing_enabled=True,
+        model_light_intents=["consumption"],
+    )
+
+    with pytest.raises(ValueError, match="roteamento de modelos.*restrito"):
+        create_app(settings=settings, source_id="warehouse.gold")
+
+
+def test_http_rejects_injected_router_for_non_synthetic_profile() -> None:
+    light, strong = RecordingModel(), RecordingModel()
+    router = ModelRouter(
+        {ModelTier.LIGHT: light, ModelTier.STRONG: strong},
+        RoutingPolicy(light_intents={"consumption"}),
+    )
+    non_synthetic_profile = GRID360_DEMO_PROFILE.model_copy(
+        update={"profile_id": "approved.gold.v1"}
+    )
+
+    with pytest.raises(ValueError, match="roteamento de modelos.*restrito"):
+        create_app(
+            settings=Settings(_env_file=None),
+            model_adapter=strong,
+            model_router=router,
+            domain_profile=non_synthetic_profile,
+            source_id=SYNTHETIC_SOURCE_ID,
+        )
 
 
 def test_direct_insight_uses_injected_model_and_sink_without_reading_source() -> None:
@@ -165,7 +254,7 @@ def test_direct_insight_uses_injected_model_and_sink_without_reading_source() ->
     )
 
     assert response.status == "answered"
-    assert "valor observado: 42 unidades fictícias" in response.hypothesis
+    assert "valor observado: 42 unidades fictícias" not in response.hypothesis
     assert source.calls == 0
     assert model.calls == 1
     assert sink.events[0].flow == "insight"
@@ -311,9 +400,13 @@ def test_fallback_model_uses_the_same_authorized_evidence_and_output_validation(
 
 
 def test_generic_task_instructions_do_not_embed_grid_vocabulary() -> None:
-    instructions = f"{SYSTEM_INSTRUCTION} {INSIGHT_TASK}".casefold()
+    instructions = " ".join(f"{SYSTEM_INSTRUCTION} {INSIGHT_TASK}".casefold().split())
 
     assert "observation_ids" in instructions
+    assert "o serviço já autorizou o plano" in instructions
+    assert (
+        "n\u00e3o recuse apenas porque a refer\u00eancia \u00e9 demonstrativa" in instructions
+    )
     assert "jaboatão" not in instructions
     assert "gold_indicadores" not in instructions
     assert "v-energy" not in instructions

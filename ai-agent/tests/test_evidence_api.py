@@ -21,7 +21,7 @@ from app.schemas.read_plan import LogicalReadPlan
 
 
 class AlternateEvidenceSource:
-    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
+    async def retrieve(self, plan: LogicalReadPlan, _access_context) -> EvidenceLookupResult:
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.AVAILABLE,
             evidence=EvidenceResult(

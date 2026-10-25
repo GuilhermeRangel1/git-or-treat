@@ -6,7 +6,7 @@
 
 ## Contexto
 
-A GenAI precisa consultar evidências Gold para responder perguntas e fundamentar os números. O banco local, o esquema Gold e as métricas ainda não foram aprovados. O endpoint atual `POST /api/v1/ai/query` do Backend é um scaffold: valida uma lista de nomes de tabela e sempre devolve `records: []`; não executa consulta nem demonstra credencial somente leitura. O modelo analítico implementado também não representa ainda o catálogo Gold do case.
+A GenAI precisa consultar evidências Gold para responder perguntas e fundamentar os números. O banco local, o esquema Gold e as métricas ainda não foram aprovados. Na data desta proposta, `POST /api/v1/ai/query` do Backend era um scaffold que validava uma lista de nomes de tabela e devolvia `records: []`, sem executar consulta ou demonstrar credencial somente leitura. Desde 23/10/2026, essa rota valida a entrada e devolve 503, sem sugerir falsamente uma consulta Gold bem sucedida. O modelo analítico implementado também não representa ainda o catálogo Gold do case.
 
 É necessário definir quem controla a execução, autorização, limites e auditoria antes de conectar o agente a dados reais. Portal e agente também precisam compartilhar definições e números consistentes.
 

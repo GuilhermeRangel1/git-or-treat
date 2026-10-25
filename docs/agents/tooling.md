@@ -14,6 +14,22 @@ Skills externas foram copiadas para `.agents/skills/` em 16/10/2026, a partir do
 
 As instruções completas ficam em `.agents/skills/` e são descobertas pelo Codex e pelo Antigravity. `.claude/skills/` contém adaptadores com nome e descrição compatíveis que direcionam Claude Code às mesmas instruções e recursos de apoio; altere o conteúdo canônico em `.agents/skills/`, não replique a skill inteira no adaptador.
 
+### Skills de padrões de backend e frontend
+
+[backend-coding-standards](../../.agents/skills/backend-coding-standards/SKILL.md) reúne orientação em português para camadas FastAPI, schemas, injeção, sync/async, evolução dos serviços e verificações. Foi adaptada em 20/10/2026 da [skill de msb7-jpg](https://github.com/msb7-jpg/visagio-atividade-v-energy-360/tree/d90fe16c26e3b6cc2cdcea4e5f2c116ded73ceb5/.agents/skills/backend-coding-standards), revisão `d90fe16c26e3b6cc2cdcea4e5f2c116ded73ceb5`. A origem não declara uma licença na raiz consultada; este registro atribui a referência, sem presumir uma licença.
+
+A adaptação mantém a organização temática, preserva os serviços funcionais e a sessão síncrona atuais e trata limites de linhas como sinais de revisão. Corrige o exemplo de dependência chamável, evita presumir ferramentas instaladas e acrescenta transações, concorrência/idempotência, contratos analíticos e limites dos testes. As recomendações foram confrontadas com documentação oficial; referências ficam nos guias da skill. Não há mudança de arquitetura aprovada nem implementação funcional decorrente da instalação da skill.
+
+[frontend-coding-standards](../../.agents/skills/frontend-coding-standards/SKILL.md) foi escrita em português a partir da arquitetura React/Vite existente, dos componentes/tokens locais e das decisões registradas do Figma Grid 360. A [skill frontend da mesma origem e revisão](https://github.com/msb7-jpg/visagio-atividade-v-energy-360/tree/d90fe16c26e3b6cc2cdcea4e5f2c116ded73ceb5/.agents/skills/frontend-coding-standards) serviu apenas de referência pontual, conforme orientação da pessoa usuária. A versão local cobre composição, contratos em execução, filtros/cache, Tailwind 4, acessibilidade, temas, movimento e conferência visual; não impõe Shadcn, Base UI, Motion, Bun ou bibliotecas de formulários. As referências ao Figma usam o arquivo e os registros existentes; esta entrega não realizou nova auditoria do arquivo.
+
+As instruções canônicas ficam em `.agents/skills/`; há metadados de apresentação Codex e adaptadores em `.claude/skills/`. A descoberta depende do cliente carregar as skills do workspace. Invoque `$backend-coding-standards` ou `$frontend-coding-standards`; não instalam dependências nem alteram permissões dos agentes.
+
+### Skill própria de integração GenAI e Gold
+
+[genai-gold](../../.agents/skills/genai-gold/SKILL.md) orienta desenvolvimento e revisão do núcleo, catálogo, fontes de evidência, consulta SQL, chat e insights. Use `$genai-gold` ou leia a skill indicada no `AGENTS.md` da raiz. O [guia compartilhado](genai-gold.md) identifica os pontos de extensão existentes, as restrições demonstrativas, as fronteiras de teste e a evidência necessária para distinguir preparação, integração executável e aceite Gold.
+
+Criada em 24/10/2026 a partir do código e das decisões deste repositório, ela possui adaptador em `.claude/skills/genai-gold/` e metadados em `.agents/skills/genai-gold/agents/openai.yaml`. O conteúdo canônico permanece na skill e no guia; os `CLAUDE.md` existentes importam os `AGENTS.md` compartilhados. O carregamento efetivo depende do cliente e deve ser conferido em uma sessão nova. Não há hook novo ou bloqueio automático de arquitetura; revisão e testes continuam necessários. A skill não altera a aplicação nem aprova a decisão pendente de propriedade da consulta Gold.
+
 ### Skill própria de prototipação
 
 [git-or-treat-figma](../../.agents/skills/git-or-treat-figma/SKILL.md), criada em 16/10/2026, orienta preparação, discussão visual, construção e revisão do protótipo V-Energy Grid 360. Pode ser invocada como `$git-or-treat-figma`; há adaptador em `.claude/skills/git-or-treat-figma/`. A descoberta em cada IDE depende de seu cliente carregar as skills do workspace.
@@ -48,6 +64,8 @@ Os scripts são exceção à etapa “somente documental”, autorizada explicit
 
 **Verificado neste ambiente em 16/10/2026:** `codex mcp list` reconheceu `context7`, `figma` e `trello` como habilitados; Python, Node.js e `npx` estão no PATH. O Trello aparece com autenticação desconhecida. A tentativa de `codex mcp login trello` não concluiu porque este ambiente não conseguiu acessar o endpoint para descoberta OAuth. Os JSONs de configuração e a sintaxe dos scripts foram validados; os hooks foram exercitados com eventos simulados. Isso confirma descoberta e comportamento local básico, não a execução de uma sessão completa dos clientes.
 
+O workflow atual também executa testes do CLI Antigravity para comando seguro, bloqueio de `.env` e chave falsa, Stop gate com e sem evidência e formatação via Prettier. Isso confirma o adaptador e os scripts em processo automatizado, não a execução de uma sessão completa dos clientes.
+
 **Ainda depende de uma sessão real:** no Codex, confiar no projeto e revisar os hooks em `/hooks`; no Claude Code, abrir o projeto e conferir em `/context` se o `CLAUDE.md` da raiz e o da pasta acessada foram carregados, depois verificar os hooks com `/hooks`. O comando `claude` não está disponível neste ambiente, portanto os hooks, imports e MCPs do Claude Code ainda não foram testados de ponta a ponta. A sessão de Figma MCP usada na prototipação foi autenticada e realizou leitura/escrita no arquivo documentado; isso não comprova autenticação nas outras IDEs. A sessão Antigravity testou hooks e configuração estrutural; a execução dos comandos precisa permanecer compatível com o diretório usado pelo cliente. A autenticação e chamadas reais de cada MCP dependem da sessão de cada participante e devem ser confirmadas em Customizations > MCP. Confira os três servidores, autentique Trello/Figma quando solicitado e valide chamadas; confira também `.agents/skills/`. O Context7 depende do download do pacote e de rede na primeira execução. Essas etapas pertencem ao ambiente de cada participante e não são resolvidas por arquivos versionados.
 
 Ao iniciar implementação do frontend, instalar Prettier em `frontend/` antes do primeiro `Write`/`Edit`; o hook de formatação sinaliza falha enquanto ele estiver ausente. Ao adicionar `package.json` ou testes Python, definir scripts/comandos de verificação no módulo. O quality gate executa apenas comandos que existirem e só detecta arquivos alterados no estado Git local. Registre no PRD os testes de negócio e a reconciliação; o hook não os substitui.
@@ -61,12 +79,15 @@ Ao iniciar implementação do frontend, instalar Prettier em `frontend/` antes d
 
 ## GitHub Actions
 
-O workflow `.github/workflows/quality.yml` roda em pull requests, em pushes para `main` e sob solicitação manual. Com permissões de leitura, ele valida documentação/configurações dos agentes e executa os gates disponíveis nos módulos atuais:
+O workflow `.github/workflows/quality.yml` roda em pull requests, em pushes para `main` e `develop` e sob solicitação manual. Com permissões de leitura, ele valida documentação/configurações dos agentes e executa os gates disponíveis nos módulos atuais:
 
-- **GenAI:** instala `.[dev]`, roda `pytest`, `compileall`, Ruff e gera o relatório sintético de regressão. Os testes não exigem chave Gemini nem chamadas faturáveis.
-- **Backend:** instala `requirements.txt`, roda `pytest` e `compileall`. Os testes usam SQLite em memória e não dependem de um serviço PostgreSQL.
-- **Frontend:** instala pelo `package-lock.json` com `npm ci`, roda `oxlint` e `npm run build` para validar TypeScript e gerar o bundle.
-- **Documentação e harness:** valida JSON/TOML, imports `CLAUDE.md` → `AGENTS.md`, links locais e sintaxe dos hooks compartilhados.
+- **CI GenAI:** instala `.[dev]`, roda `pytest` com relatório JUnit, `compileall`, Ruff e gera o relatório sintético de regressão mesmo quando os testes ou lint falham após a instalação. JUnit e regressão são publicados como artefato por 14 dias. Os testes não exigem chave Gemini nem chamadas faturáveis.
+- **CI Backend:** instala `requirements.txt`, roda `pytest` e `compileall`, constrói a imagem Docker Hardened e executa `pip check` e a suíte dentro dela. Os testes HTTP usam SQLite em memória; o teste de migração e persistência usa PostgreSQL 16 descartável do CI. O login em `dhi.io` é feito quando os secrets `DHI_USERNAME` e `DHI_TOKEN` estão configurados.
+- **CI Frontend:** instala pelo `package-lock.json` com `npm ci`, roda `oxlint`, verificações de arquitetura/formatação/testes, `npm run build` e seis testes funcionais pelo CLI do adaptador Antigravity. Eles cobrem permissão de comando seguro, bloqueios de caminho/credencial, os dois resultados do Stop gate e formatação real pelo Prettier.
+- **CI Documentação e configuração:** valida JSON/TOML, imports `CLAUDE.md` → `AGENTS.md`, links locais, sintaxe Python dos hooks e todos os workflows com actionlint `1.7.12`; a instalação do validador confere o SHA-256 do binário.
+- **CI Docker Compose:** cria `.env.db` e `backend/.env` descartáveis a partir dos exemplos, valida a configuração, constrói e sobe a stack completa. O smoke test acessa o portal e chama `/api/v1/health` pelo proxy do Vite, confirmando API e banco. O job remove containers e volume do PostgreSQL ao final; não usa dados ou credenciais reais.
+
+Os nomes acima também são os nomes dos checks exibidos no GitHub. Ao tornar checks obrigatórios em um ruleset, selecione esses nomes atualizados após a primeira execução do workflow.
 
 As ações externas estão fixadas em SHAs completos. O workflow é CI de qualidade; ainda não há CD/deploy porque ambiente de publicação, credenciais e processo de release não foram definidos. Não declarar checks obrigatórios nas regras da branch antes de uma execução bem-sucedida no GitHub; exigência de PR e checks obrigatórios são configurações de proteção da branch, não criadas pelo arquivo do workflow. O CI não cria funcionalidades, branches nem PRs.
 
@@ -77,7 +98,7 @@ Para quem usa Claude Code, conferir em uma sessão real (a raiz do repositório 
 1. **Versão e pré-requisitos.** `claude --version` deve ser 2.1.295 ou superior (necessário para `onFailure` nos hooks). O comando `python --version` precisa responder: os hooks chamam `python`, não `python3`. Em macOS e em alguns Linux só existe `python3`; como o hook de segredos usa `onFailure: "block"`, sem `python` todas as chamadas de Read, Write, Edit e Bash ficam bloqueadas. Crie um alias/symlink `python` ou ajuste o comando localmente.
 2. **Hooks.** `/hooks` deve listar `PreToolUse` (segredos), `PostToolUse` (formatação) e `Stop` (quality gate).
 3. **Instruções.** `/context` deve mostrar o `CLAUDE.md` da raiz e o `AGENTS.md`; ao pedir a leitura de um arquivo em `backend/`, o `CLAUDE.md` da pasta também deve ser carregado.
-4. **Skills.** Digitar `/` deve listar as 14 skills de `.claude/skills/`; testar `/grill-me`, que só roda quando chamada.
+4. **Skills.** Digitar `/` deve listar as skills de `.claude/skills/`; conferir `genai-gold` e testar `/grill-me`, que só roda quando chamada.
 5. **MCP.** `/mcp`: aprovar `context7` e `figma`; autenticar o Figma. Testar o Context7 pedindo a documentação de uma biblioteca.
 6. **Segredos.** Com um `.env` falso (ignorado pelo Git): ler `.env` deve ser bloqueado, ler `.env.example` deve funcionar e escrever uma chave falsa como `AKIAIOSFODNN7EXAMPLE` deve ser bloqueado.
 7. **Quality gate.** Marcar um requisito como `Concluído` no PRD sem entrada no Registro de progresso: o Claude deve ser impedido de encerrar o turno. Desfazer a alteração depois.

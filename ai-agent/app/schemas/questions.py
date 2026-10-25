@@ -96,6 +96,9 @@ class AppliedQueryContext(BaseModel):
 class QuestionResponse(PublicResponseMetadata):
 
     status: QuestionStatus
+    model_tier: Literal["light", "strong"] | None = Field(
+        default=None, description="Nível do modelo usado para gerar o resultado da pergunta."
+    )
     answer: ResponseText | None = None
     message: ResponseText | None = None
     evidence: list[EvidenceReference] = Field(default_factory=list, max_length=20)

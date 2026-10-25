@@ -6,7 +6,7 @@ from typing import Callable, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.models.operational import InspectionOrder, OrderStatus, OperationalOrderHistory, OrderAction
 from app.schemas.inspections import OrderCreateRequest, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage, OrderCancelRequest, OrderResultRequest
@@ -152,7 +152,8 @@ def create_from_queue(
 
 
 def search_orders(db: Session, status_filter: OrderStatus | None, uc_id: str | None,
-                  priority: str | None, page: int, page_size: int) -> OrderPage:
+                  priority: str | None, page: int, page_size: int, *,
+                  has_result: bool | None = None) -> OrderPage:
     query = db.query(InspectionOrder)
     if status_filter:
         query = query.filter(InspectionOrder.status == status_filter)
@@ -160,6 +161,19 @@ def search_orders(db: Session, status_filter: OrderStatus | None, uc_id: str | N
         query = query.filter(InspectionOrder.uc_id == uc_id)
     if priority:
         query = query.filter(InspectionOrder.priority == priority)
+    trimmed_result = func.trim(InspectionOrder.result, " \t\n\r\f\v")
+    if has_result is True:
+        query = query.filter(
+            InspectionOrder.result.is_not(None),
+            trimmed_result != "",
+        )
+    elif has_result is False:
+        query = query.filter(
+            or_(
+                InspectionOrder.result.is_(None),
+                trimmed_result == "",
+            ),
+        )
     total = query.with_entities(func.count(InspectionOrder.id)).scalar()
     offset = (page - 1) * page_size
     items = []

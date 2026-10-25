@@ -2,11 +2,9 @@
 
 23/10/2026. WEB-05, dependência DEV-01; integração com DEV-05/WEB-04. Backend verificado com fonte sintética. Interface básica por solicitação da pessoa usuária; acabamento e jornada completa de alterações ficam com a pessoa responsável pelo frontend.
 
-> Atualização DEV-07 (24/10/2026): criação e consulta permanecem como abaixo. Todas as alterações agora exigem `version`; cancelamento só é permitido por `/orders/{id}/cancel` com `confirmed_order_id`. O [contrato vigente das alterações](inspection-lifecycle-dev07.md) substitui a compatibilidade do PATCH descrita originalmente nesta entrega.
-
 ## Criação pela fila
 
-`POST /api/v1/inspections/queue/{uc_id}/orders`, Bearer com permissão de escrita e header obrigatório `Idempotency-Key`: 16–128 caracteres alfanuméricos ASCII, `_` ou `-`. Autenticação individual, scopes e contrato para o frontend: [guia de entrega](inspection-auth-handoff.md).
+`POST /api/v1/inspections/queue/{uc_id}/orders`, com `Idempotency-Key` obrigatório: 16–128 caracteres alfanuméricos ASCII, `_` ou `-`. No modo local `demo`, não exige Bearer; nos modos autenticados `service`/`oidc`, exige credencial com permissão de escrita. Configuração, scopes e contrato para o frontend: [guia de entrega](inspection-auth-handoff.md).
 
 ```json
 {
@@ -22,7 +20,7 @@ Use as versões retornadas pelo detalhe, sem fixá-las no cliente. As duas vers�
 - 201: nova ordem PENDENTE, commit confirmado.
 - 200: mesma chave/conteúdo normalizado retorna a mesma ordem, inclusive após encerramento.
 - 409: chave reutilizada com outro conteúdo/UC, versão obsoleta ou ordem ativa para a mesma UC.
-- 404: UC sem suspeita. 422: entrada/header inválidos. 401/403: acesso negado. 503: fonte/acesso indisponíveis.
+- 404: UC sem suspeita. 422: entrada/header inválidos. Nos modos autenticados, 401 indica credencial ausente/inválida e 403 indica permissão insuficiente; na demo, 403 também pode indicar origem de navegador não permitida ou requisição cross-site. 503 indica fonte/acesso indisponíveis.
 
 `suspicion_reference` identifica UC + kind/version/is_demo da fonte + versão da regra por SHA-256. `updated_at` não cria nova identidade: a versão da fonte precisa identificar snapshot imutável. `suspicion_snapshot` preserva detalhe e metadados completos: motivo, sinais, pontuação, estimativa, janela, atualização e limites. Estimativa ausente continua nula. Gold e inspeções históricas XLSX não são alteradas.
 
@@ -40,13 +38,15 @@ No cliente, uma chave por intenção, reutilizada após perda de resposta. Desab
 
 ## Consulta e compatibilidade
 
-`GET /api/v1/inspections/orders/search`: filtros AND por `status` (PENDENTE/EM_ANDAMENTO/CONCLUIDA/CANCELADA), `uc_id` exato e `priority`; `page >= 1`, `page_size` de 1 a 100 (padrão 20). Retorna `{items, pagination: {page, page_size, total, total_pages}}`. Ordenação `created_at DESC, id DESC`. Contagem do recorte completo; página além do total tem itens vazios. Paginação por offset pode mudar se houver gravações entre consultas.
+`GET /api/v1/inspections/orders/search`: filtros AND por `status` (PENDENTE/EM_ANDAMENTO/CONCLUIDA/CANCELADA), `uc_id` exato, `priority` e `has_result` opcional. `has_result=true` seleciona ordens com resultado preenchido; `false` seleciona resultado nulo, vazio ou composto apenas por whitespace ASCII; omissão inclui ambos. O filtro é aplicado antes da contagem e da paginação. `page >= 1`, `page_size` de 1 a 100 (padrão 20). Retorna `{items, pagination: {page, page_size, total, total_pages}}`. Ordenação `created_at DESC, id DESC`. Contagem do recorte completo; página além do total tem itens vazios. Paginação por offset pode mudar se houver gravações entre consultas.
 
 `items` usa `OrderSummary`, com ID, UC, motivo, prioridade, estado, observações/resultado, timestamps e referência da suspeita; não inclui `suspicion_snapshot`. A consulta SQL seleciona somente essas colunas e conta por ID, sem carregar o JSON. Evidência completa permanece no GET por ID e nas respostas de criação/reenvio. Página além do total é devolvida antes de enviar offset ao banco, inclusive para inteiros maiores que BIGINT; mantém os totais e evita erro 500.
 
-`GET /api/v1/inspections/orders/{id}` retorna registro ou 404 independentemente da fonte analítica. Leitura exige token de leitura ou escrita. Ordens antigas têm campos novos nulos. `GET /orders` mantém lista antiga por compatibilidade; clientes novos usam `/orders/search`. `POST /orders` mantém criação manual sem vínculo analítico, agora sujeita à mesma unicidade por UC, com 409 estruturado para repetição; o portal usa exclusivamente criação pela fila.
+`GET /api/v1/inspections/orders/{id}` retorna registro ou 404 independentemente da fonte analítica. Nos modos autenticados, leitura exige token de leitura ou escrita; no modo local `demo`, não exige Bearer. Ordens antigas têm campos novos nulos. `GET /orders` mantém lista antiga por compatibilidade; clientes novos usam `/orders/search`. `POST /orders` mantém criação manual sem vínculo analítico, agora sujeita à mesma unicidade por UC, com 409 estruturado para repetição; o portal usa exclusivamente criação pela fila.
 
 `PATCH /orders/{id}` preserva ADR-0007: PENDENTE inicia/cancela, EM_ANDAMENTO conclui/cancela, conclusão exige resultado, estados finais não reabrem. A UI básica só cria/consulta. Snapshot de criação não substitui auditoria durável das alterações nem identidade individual de operador, ainda pendentes em WEB-05/WEB-10.
+
+Atualização frontend de 24/10/2026: a página de Ordens passa a consumir também o PATCH existente, com resultado obrigatório na conclusão, confirmação de cancelamento e bloqueio de estados finais. Os timestamps operacionais são gerados em UTC por `TimestampMixin`; a demo SQLite pode serializá-los sem offset, e o cliente os normaliza como UTC antes de mostrar o fuso de Recife. Competências do snapshot (`YYYY-MM`) são apresentadas como mês/ano, sem conversão de fuso. [Evidências](../plans/2026-10-24-dev06-orders-frontend-evidence.md).
 
 ## Execução e integração do frontend
 
@@ -54,7 +54,7 @@ Aplicar `alembic upgrade head` sobre banco existente, inclusive SQLite. Revisão
 
 A revisão seguinte, `a6d060000002`, verifica duplicidades ativas por UC antes de substituir o índice por referência. Se encontrar duplicidades, interrompe a migração para reconciliação manual, sem apagar/cancelar ordens. Após resolver a duplicidade de acordo com a operação, reaplicar o upgrade. O histórico, snapshots e chaves existentes são preservados.
 
-API: `DATABASE_URL` persistente, `ANALYTICS_SOURCE=synthetic`, `ORDERS_WRITE_TOKEN` privado. SQLite em memória não comprova reinício.
+API: use `DATABASE_URL` persistente e `ANALYTICS_SOURCE=synthetic`. A demo local sem Bearer exige `APP_ENV=development` e `ORDERS_AUTH_MODE=demo`. No modo `service`, `ORDERS_WRITE_TOKEN` privado habilita escrita e leitura; `ORDERS_READ_TOKEN` é opcional para acesso somente de leitura. OIDC é a opção autenticada futura. SQLite em memória não comprova reinício.
 
 Vite: `API_PROXY_TARGET` com endereço da API e `VITE_API_URL=/`. O proxy não injeta credenciais; `ORDERS_DEV_PROXY_TOKEN` não tem mais efeito. No Compose local, `ORDERS_AUTH_MODE=demo` permite criar e consultar sem login, somente em desenvolvimento com fonte sintética. Para execução fora do Compose, configure também `APP_ENV=development` e `ANALYTICS_SOURCE=synthetic` e reinicie a API. OIDC fica como integração futura opcional, conforme [guia de entrega](inspection-auth-handoff.md). Credenciais de serviço ficam exclusivas de CLI/Swagger em desenvolvimento; não entram em `VITE_*`, bundle ou armazenamento do navegador. Compose publica as três portas somente em localhost.
 
@@ -71,7 +71,7 @@ Referência consultada via Figma MCP: arquivo `oTjmpIBgbA7OOYb9ZmMG9K`, frame `1
 
 ### Revisão integrada com develop — 23/10/2026
 
-- Integração de `origin/develop` em `e6c5423`: preservados contratos UC/Receita e fila; conflitos documentais resolvidos, decisão da fila renumerada para ADR-0010. A develop não foi alterada.
+- Integração de `origin/develop` em `e6c5423`: preservados contratos UC/Receita e fila; conflitos documentais resolvidos, decisão da fila renumerada para ADR-0010 e decisão de composição do frontend para ADR-0013. A develop não foi alterada.
 - Corrigida também a janela concorrente entre a primeira consulta da chave e a consulta de ordem ativa: antes de emitir conflito, o serviço reconcilia novamente a chave e retorna 200 para conteúdo idêntico. O teste determinístico confirma criação pelo outro trabalhador nesse intervalo, sem transformar reenvio válido em 409.
 - `python -m pytest -q` com PostgreSQL 18 descartável: **214 aprovados, sem pulados**. `python -m compileall -q app tests scripts`: aprovado. Novas regressões cobrem páginas extremas, projeção SQL sem JSON, snapshots legados após evolução do DTO analítico e interleaving concorrente.
 - Frontend integrado: **130 testes em 17 arquivos**, lint, fronteiras (89 arquivos), build/tipos e format:check aprovados. A tela básica continua usando os mesmos campos do resumo. `git diff --check` aprovado.
