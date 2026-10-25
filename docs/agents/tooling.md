@@ -24,6 +24,12 @@ A adaptação mantém a organização temática, preserva os serviços funcionai
 
 As instruções canônicas ficam em `.agents/skills/`; há metadados de apresentação Codex e adaptadores em `.claude/skills/`. A descoberta depende do cliente carregar as skills do workspace. Invoque `$backend-coding-standards` ou `$frontend-coding-standards`; não instalam dependências nem alteram permissões dos agentes.
 
+### Skill própria de integração GenAI e Gold
+
+[genai-gold](../../.agents/skills/genai-gold/SKILL.md) orienta desenvolvimento e revisão do núcleo, catálogo, fontes de evidência, consulta SQL, chat e insights. Use `$genai-gold` ou leia a skill indicada no `AGENTS.md` da raiz. O [guia compartilhado](genai-gold.md) identifica os pontos de extensão existentes, as restrições demonstrativas, as fronteiras de teste e a evidência necessária para distinguir preparação, integração executável e aceite Gold.
+
+Criada em 24/10/2026 a partir do código e das decisões deste repositório, ela possui adaptador em `.claude/skills/genai-gold/` e metadados em `.agents/skills/genai-gold/agents/openai.yaml`. O conteúdo canônico permanece na skill e no guia; os `CLAUDE.md` existentes importam os `AGENTS.md` compartilhados. O carregamento efetivo depende do cliente e deve ser conferido em uma sessão nova. Não há hook novo ou bloqueio automático de arquitetura; revisão e testes continuam necessários. A skill não altera a aplicação nem aprova a decisão pendente de propriedade da consulta Gold.
+
 ### Skill própria de prototipação
 
 [git-or-treat-figma](../../.agents/skills/git-or-treat-figma/SKILL.md), criada em 16/10/2026, orienta preparação, discussão visual, construção e revisão do protótipo V-Energy Grid 360. Pode ser invocada como `$git-or-treat-figma`; há adaptador em `.claude/skills/git-or-treat-figma/`. A descoberta em cada IDE depende de seu cliente carregar as skills do workspace.
@@ -92,7 +98,7 @@ Para quem usa Claude Code, conferir em uma sessão real (a raiz do repositório 
 1. **Versão e pré-requisitos.** `claude --version` deve ser 2.1.295 ou superior (necessário para `onFailure` nos hooks). O comando `python --version` precisa responder: os hooks chamam `python`, não `python3`. Em macOS e em alguns Linux só existe `python3`; como o hook de segredos usa `onFailure: "block"`, sem `python` todas as chamadas de Read, Write, Edit e Bash ficam bloqueadas. Crie um alias/symlink `python` ou ajuste o comando localmente.
 2. **Hooks.** `/hooks` deve listar `PreToolUse` (segredos), `PostToolUse` (formatação) e `Stop` (quality gate).
 3. **Instruções.** `/context` deve mostrar o `CLAUDE.md` da raiz e o `AGENTS.md`; ao pedir a leitura de um arquivo em `backend/`, o `CLAUDE.md` da pasta também deve ser carregado.
-4. **Skills.** Digitar `/` deve listar as 14 skills de `.claude/skills/`; testar `/grill-me`, que só roda quando chamada.
+4. **Skills.** Digitar `/` deve listar as skills de `.claude/skills/`; conferir `genai-gold` e testar `/grill-me`, que só roda quando chamada.
 5. **MCP.** `/mcp`: aprovar `context7` e `figma`; autenticar o Figma. Testar o Context7 pedindo a documentação de uma biblioteca.
 6. **Segredos.** Com um `.env` falso (ignorado pelo Git): ler `.env` deve ser bloqueado, ler `.env.example` deve funcionar e escrever uma chave falsa como `AKIAIOSFODNN7EXAMPLE` deve ser bloqueado.
 7. **Quality gate.** Marcar um requisito como `Concluído` no PRD sem entrada no Registro de progresso: o Claude deve ser impedido de encerrar o turno. Desfazer a alteração depois.

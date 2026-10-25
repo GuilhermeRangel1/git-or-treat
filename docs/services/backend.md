@@ -6,7 +6,7 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua um placeholder e não comprova execução segura. A carga CSV não insere linhas nem implementa idempotência. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV não insere linhas nem implementa idempotência. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
 ## DEV-01: contratos antes da Gold
 
@@ -37,7 +37,21 @@ A DEV-04 implementa demonstrativamente WEB-03 segundo [contrato UC 1.1.0](../con
 
 O case não prescreve nomes de rota. A DEV-01 versiona contratos JSON, paginação, erros, tipos, nulidade e exemplos sem dados pessoais. A demonstração desses contratos não conclui as funcionalidades reconciliadas com Gold.
 
-Para a fronteira com a GenAI, há uma proposta pendente de revisão para o Backend controlar as consultas Gold por um contrato estruturado, sem SQL livre do agente ([ADR-0002](../decisions/0002-genai-gold-query-owner.md)). A rota `/api/v1/ai/query` existente é apenas scaffold e ainda não consulta dados.
+Para a fronteira com a GenAI, há uma proposta pendente de revisão para o Backend controlar as consultas Gold por um contrato estruturado, sem SQL livre do agente ([ADR-0002](../decisions/0002-genai-gold-query-owner.md)). A rota `/api/v1/ai/query` existente é legado indisponível: valida o corpo e responde 503; não consulta dados, anuncia uma lista fictícia de tabelas nem fornece evidência.
+
+## Contrato conversacional com a GenAI
+
+O Backend expõe `POST /api/v1/ai/questions` para o portal e encaminha a solicitação v1 ao `POST /api/v1/questions` do serviço GenAI. O endpoint antigo `/api/v1/ai/query` permanece separado e não é usado como rota de chat ou executor.
+
+O Backend valida pergunta/contexto, aplica timeout, encaminha token interno e correlação, e valida o envelope de resposta antes de devolvê-lo. Não acessa SQL nem Gold nessa jornada. O contrato completo, limites, exemplos e erros estão em [genai-chat-api.md](../contracts/genai-chat-api.md). A integração é stateless e demonstrativa: não persiste sessão, não autentica usuário do portal e não concede escopo Gold. O token interno autentica Backend → GenAI; autorização real de usuário e retenção precisam ser decididas antes da implantação.
+
+### Insight contextual do Panorama — IA-04
+
+O portal envia filtros aplicados e `loteVersao` a `POST /api/v1/ai/insights`; nunca envia observações numéricas. O Backend valida o recorte com `build_panorama`, recalcula energia faturada na fonte corrente e deriva a variação percentual e, quando os filtros permitem, o município ou a classe que mais contribuiu para a mudança. Em seguida, encaminha o contexto estruturado a `POST /api/v1/insights` com o token de serviço e correlação. Antes de devolver um insight `answered`, confere se a GenAI retornou o mesmo período, filtros, métrica, unidade e observações calculados no servidor. Lote desatualizado retorna HTTP 409 `invalid_context`; indisponibilidade, timeout e resposta inválida têm envelopes v1 estáveis. Veja o [contrato Portal → Backend → GenAI](../contracts/panorama-insight-api.md).
+
+Na versão atual, o serviço só gera o contexto com a fonte sintética do Panorama; fonte não compatível falha fechada. Isso conecta o caminho da interface, mas não comprova Gold, autorização de usuário, auditoria persistida ou uma geração ao vivo de provedor. A evolução para Gold precisa revisar a métrica com o dicionário e continuar recalculando os valores no Backend.
+
+O cálculo do Panorama recebe `PanoramaRepository`: a fonte informa `incomplete_periods`, versão, atualização e limitações do lote. O serviço usa essa cobertura para impedir comparação com competências abertas e gera rótulos da série a partir da competência, sem consultar constantes da fixture. O restante do cálculo ainda espera linhas agregadas em memória com o formato demonstrativo e fórmulas provisórias; o modo de implantação `ANALYTICS_SOURCE` aceita apenas `synthetic` ou `unavailable`. Um adaptador Gold precisa homologar grão e fórmulas, oferecer filtros válidos e preservar a mesma versão do lote entre indicadores e insight antes de ser habilitado.
 
 ### Envelope conceitual de uma resposta analítica
 

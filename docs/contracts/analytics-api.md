@@ -41,8 +41,8 @@ Receita declara `currency_unit: BRL` e `energy_unit: kWh`; faturas também decla
 | Perdas | `GET /api/v1/inspections/queue` | Fila, prioridade, motivo, indicadores e estimativa demonstrativos | Regra e estimativa auditáveis sobre a Gold |
 | Ordens | `GET/POST /api/v1/inspections/orders` e `PATCH /api/v1/inspections/orders/{order_id}` | Schemas e persistência existentes, separados dos dados analíticos | Ciclo de estados, histórico, idempotência e UI nos cards DEV-06/07 |
 | Operação | `GET /api/v1/operations/continuity` | Indicadores por alimentador, denominador e lacunas | Fórmula/denominador por período conforme DE-05 e dados reais |
-| Conversa IA | `POST /api/v1/questions`, no serviço `ai-agent` | Contrato existente de pergunta, contexto limitado, resposta e evidências | Integração backend/portal e consultas Gold nos cards DEV-09/11/14 |
-| Insight IA | `POST /api/v1/insights`, no serviço `ai-agent` | Contrato existente de contexto estruturado, observação e hipótese | Contexto autorizado vindo do backend e vínculo com o recorte no DEV-10 |
+| Conversa IA | Portal → `POST /api/v1/ai/questions` no Backend → `POST /api/v1/questions` no `ai-agent` | Contrato v1 de pergunta, contexto transitório limitado, resposta e evidências | Integração da tela, autenticação de usuário, sessões reais e consultas Gold |
+| Insight IA (IA-04) | Portal `POST /api/v1/ai/insights` → Backend → GenAI `POST /api/v1/insights` | Backend recalcula observações do recorte; contrato de insight existente separa observação e hipótese | Esta etapa usa a fonte sintética; Gold, autorização de usuário e reconciliação continuam pendentes |
 
 ### Listagem e erros
 
@@ -73,7 +73,8 @@ Erros analíticos possuem `error.code`, `error.message` e `error.details` (itens
 - Ordem: criação recebe `uc_id`, `reason`, `priority` e `notes`; atualização recebe `status`, `notes` e `result`. A resposta inclui ID, UC, motivo, prioridade, estado, observações, resultado e datas de criação/alteração. A listagem atual retorna uma lista, não o novo envelope analítico paginado; essa compatibilidade é intencional até DEV-06.
 - Pergunta: recebe `question` e `context` opcional com até três turnos. Responde `status`, `answer`, `message`, `evidence` e `limitations`. Estados existentes: `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`.
 - Insight: recebe `screen` com métrica, unidade, período, filtros, observações, referência e limitações. Responde contexto, valores observados, hipótese, evidências e limitações; mantém referência sintética nesta etapa. O endpoint não autentica nem autoriza o consumidor por si só.
-- `/api/v1/ai/query` no backend continua um placeholder legado. A lista de tabelas ali presente não é contrato real da Gold nem comprovação de executor seguro; DEV-11 é responsável por essa implementação.
+- `/api/v1/ai/query` no backend é uma rota legada indisponível: após validar a entrada, devolve 503 sem registros ou lista de tabelas. DEV-11 depende da decisão sobre o dono da consulta e de um novo contrato tipado para executar Gold.
+- O contrato conversacional está detalhado em [genai-chat-api.md](genai-chat-api.md). A chamada atual encaminha ao serviço GenAI e não consulta o banco nem persiste sessões.
 
 ## Conferência com o protótipo
 
@@ -119,7 +120,7 @@ A fonte de interrupções declara separadamente sua cobertura temporal inclusiva
 
 A [ADR-0006](../decisions/0006-panorama-fonte-produto-e-contrato-dev01.md) define que o contrato de produto do Panorama é servido em `GET /api/v1/panorama`, com repositório, serviço e base sintética próprios, e que o contrato analítico da DEV-01 permanece intacto em `GET /api/v1/kpis`.
 
-A base do Panorama é o lote `Lote Gold 2024.04-sintetico-v1`, com competências 2024-03 a 2024-05, municípios Recife, Olinda e Jaboatão e classes Residencial, Comercial e Industrial. Não é o lote `dev01-v1` nem uma linha Gold: os números são controles de demonstração derivados do protótipo Figma e do PRD.
+A base do Panorama é o lote `panorama-sintetico-2024.04-v1`, com competências 2024-03 a 2024-05, municípios Recife, Olinda e Jaboatão e classes Residencial, Comercial e Industrial. Não é o lote `dev01-v1` nem uma linha Gold: os números são controles de demonstração derivados do protótipo Figma e do PRD.
 
 O envelope traz `data.filtros` (competência, comparação, município e classe aplicados), `data.periodoIncompleto`, `data.totalRegistros`, `data.dataAtualizacao`, `data.loteVersao`, `data.metricas` e `data.serieMensal`, com `metadata` de período, filtros, unidade, versão do lote e qualidade da cobertura. Cada métrica declara id, nome, subtítulo, categoria, tipo de grandeza, valor atual e anterior, variação absoluta e percentual, unidade, definição, fórmula, marcação de base zero e o sentido favorável do indicador.
 

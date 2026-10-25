@@ -74,6 +74,8 @@ class EvidenceGuard:
         evidence = result.evidence
         if evidence is None or evidence.provenance is None:
             raise EvidenceContractInvalid("proveniência ausente")
+        if evidence.reference.is_demo and not plan.source_id.startswith("synthetic."):
+            raise EvidenceContractInvalid("fonte externa devolveu evidência demonstrativa")
         provenance = evidence.provenance
         if (
             provenance.source_id != plan.source_id

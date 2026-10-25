@@ -96,11 +96,26 @@ class SqliteReadOnlyExecutor:
             connection.close()
         return _result(columns, rows, self._max_rows)
 
-    def _authorize(self, action: int, arg1: str | None, arg2: str | None, *_: object) -> int:
+    def _authorize(
+        self, action: int, arg1: str | None, arg2: str | None, database: str | None,
+        _origin: str | None,
+    ) -> int:
         if action not in _SQLITE_ALLOWED_ACTIONS:
             return sqlite3.SQLITE_DENY
-        if action == sqlite3.SQLITE_READ and (arg2 or "").casefold() in self._sensitive:
-            return sqlite3.SQLITE_DENY
+        if action == sqlite3.SQLITE_READ:
+            table = self._dictionary.tables.get((arg1 or "").casefold())
+            column = (arg2 or "").casefold()
+            # COUNT(*) sobre uma CTE materializada não referencia tabela física.
+            # As leituras físicas da CTE recebem database="main" e são verificadas abaixo.
+            if database is None and not column:
+                return sqlite3.SQLITE_OK
+            if (
+                database != "main"
+                or table is None
+                or column in self._sensitive
+                or (column and column not in table.columns)
+            ):
+                return sqlite3.SQLITE_DENY
         return sqlite3.SQLITE_OK
 
 

@@ -3,8 +3,10 @@ import FilterBar from "../../shared/filters/FilterBar";
 import { usePanoramaFilters } from "../../shared/filters/usePanoramaFilters";
 import ContentState from "../../shared/ui/ContentState";
 import MetricCard from "../../shared/ui/MetricCard";
+import AIInsightCard from "./AIInsightCard";
 import PanoramaArtwork from "./PanoramaArtwork";
 import PanoramaSeriesChart from "./PanoramaSeriesChart";
+import { usePanoramaInsight } from "./usePanoramaInsight";
 
 export default function PanoramaPage() {
   const {
@@ -19,6 +21,12 @@ export default function PanoramaPage() {
     filters,
     isValid,
   );
+  const isVazio = data && data.totalRegistros === 0;
+  const insight = usePanoramaInsight(
+    filters,
+    data,
+    isValid && Boolean(data) && !isLoading && !isError,
+  );
 
   const comparacaoLabel =
     filters.comparacao === "anterior"
@@ -26,8 +34,6 @@ export default function PanoramaPage() {
       : filters.comparacao === "ano_anterior"
         ? "vs. mesmo mês ano anterior (m-12)"
         : "Sem comparação";
-
-  const isVazio = data && data.totalRegistros === 0;
 
   return (
     <div className="relative space-y-6 pb-12">
@@ -84,12 +90,24 @@ export default function PanoramaPage() {
       )}
 
       {isValid && isVazio && !isLoading && !isError && (
-        <ContentState
-          type="empty"
-          title="Nenhum registro para o recorte selecionado"
-          description="Não encontramos faturas ou medições para a combinação de filtros selecionada (competência, município ou classe sem clientes ativos nesta concessão)."
-          onResetFilters={resetFilters}
-        />
+        <>
+          <ContentState
+            type="empty"
+            title="Nenhum registro para o recorte selecionado"
+            description="Não encontramos faturas ou medições para a combinação de filtros selecionada (competência, município ou classe sem clientes ativos nesta concessão)."
+            onResetFilters={resetFilters}
+          />
+          {data && (
+            <div className="xl:max-w-[460px]">
+              <AIInsightCard
+                filters={filters}
+                data={data}
+                query={insight}
+                onRefreshIndicators={() => void refetch()}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* Conteúdo Principal (Métricas e Séries) quando há dados */}
@@ -141,11 +159,20 @@ export default function PanoramaPage() {
             </div>
           </section>
 
-          {/* Gráfico de Séries Históricas das Competências */}
-          <PanoramaSeriesChart
-            data={data.serieMensal}
-            partialPeriod={data.periodoIncompleto ? filters.periodo : undefined}
-          />
+          <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:items-stretch xl:grid-cols-[minmax(0,1fr)_340px]">
+            <PanoramaSeriesChart
+              data={data.serieMensal}
+              partialPeriod={
+                data.periodoIncompleto ? filters.periodo : undefined
+              }
+            />
+            <AIInsightCard
+              filters={filters}
+              data={data}
+              query={insight}
+              onRefreshIndicators={() => void refetch()}
+            />
+          </div>
           <section aria-label="Indicadores complementares do Panorama">
             <h2 className="mb-3 font-heading text-base font-semibold">
               Indicadores complementares

@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from app.agent.access import ReadAccessPolicy
 from app.agent.interpreter import QuestionInterpreter
 from app.agent.orchestrator import QuestionOrchestrator
@@ -19,9 +21,12 @@ from app.schemas.evidence import (
     EvidenceReference,
     EvidenceResult,
 )
+from app.schemas.questions import ConversationTurn
 from app.schemas.read_plan import LogicalReadPlan
 from app.tools.synthetic_analytics import (
+    SyntheticScenarioRequest,
     SyntheticScenarioTool,
+    ToolStatus,
 )
 
 from .conftest import FakeModelAdapter, InProcessClient
@@ -35,6 +40,20 @@ class RecordingModelAdapter(FakeModelAdapter):
     async def generate(self, question, context, evidence):
         self.calls.append((question, context, evidence))
         return await super().generate(question, context, evidence)
+
+
+class SelectAllEvidenceAdapter:
+    async def generate(
+        self,
+        question: str,
+        context: list[ConversationTurn],
+        evidence: EvidenceResult,
+    ) -> GeneratedAnswer:
+        return GeneratedAnswer(
+            status="answered",
+            answer="Resposta baseada nas observações selecionadas.",
+            observation_ids=tuple(row["observation_id"] for row in evidence.records),
+        )
 
 
 class FailingScenarioTool:
@@ -149,6 +168,63 @@ def test_unknown_lowercase_municipality_never_widens_the_query() -> None:
     assert model.calls == []
 
 
+@pytest.mark.parametrize(
+    ("question", "expected_domain", "expected_value"),
+    [
+        (
+            "Qual valor de leitura foi usado no cenário sintético?",
+            "consumption",
+            420,
+        ),
+        (
+            "Quanto de consumo fict\u00edcio aparece na demonstra\u00e7\u00e3o?",
+            "consumption",
+            420,
+        ),
+        (
+            "Quantas interrup\u00e7\u00f5es de fornecimento aparecem na demonstra\u00e7\u00e3o?",
+            "network",
+            2,
+        ),
+        (
+            "Quantas faltas de luz existem no cen\u00e1rio sint\u00e9tico?",
+            "network",
+            2,
+        ),
+        (
+            "Quantas faltas de energia h\u00e1 na demonstra\u00e7\u00e3o?",
+            "network",
+            2,
+        ),
+        (
+            "Qual n\u00famero de chamados foi usado na demonstra\u00e7\u00e3o?",
+            "service",
+            1,
+        ),
+        (
+            "O cen\u00e1rio sint\u00e9tico tem chamados? Quantos?",
+            "service",
+            1,
+        ),
+    ],
+)
+def test_reworded_demo_questions_resolve_to_the_expected_fixture(
+    question: str, expected_domain: str, expected_value: int
+) -> None:
+    interpretation = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+
+    assert interpretation.status.value == "ready"
+    assert interpretation.intent is not None
+    assert interpretation.intent.domain == expected_domain
+    result = SyntheticScenarioTool().execute(
+        SyntheticScenarioRequest(intent=interpretation.intent)
+    )
+
+    assert result.status is ToolStatus.SUCCESS
+    assert result.evidence is not None
+    assert any(record["value"] == expected_value for record in result.evidence.records)
+
+
 def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> None:
     with _client() as client:
         response = client.post(
@@ -188,6 +264,110 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
         },
     }
     assert body["evidence"][0]["source"].startswith("synthetic.fixture:")
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_values"),
+    [
+        (
+            "Quanto de consumo fict\u00edcio aparece na demonstra\u00e7\u00e3o?",
+            ("420 unidades fict\u00edcias",),
+        ),
+        (
+            "Quantas interrup\u00e7\u00f5es de fornecimento aparecem na demonstra\u00e7\u00e3o?",
+            ("2 ocorr\u00eancias fict\u00edcias",),
+        ),
+        (
+            "Quantas faltas de luz existem no cen\u00e1rio sint\u00e9tico?",
+            ("2 ocorr\u00eancias fict\u00edcias",),
+        ),
+        (
+            "Quantas faltas de energia h\u00e1 na demonstra\u00e7\u00e3o?",
+            ("2 ocorr\u00eancias fict\u00edcias",),
+        ),
+        (
+            "Qual n\u00famero de chamados foi usado na demonstra\u00e7\u00e3o?",
+            ("1 atendimento fict\u00edcio",),
+        ),
+        (
+            "O cen\u00e1rio sint\u00e9tico tem chamados? Quantos?",
+            ("1 atendimento fict\u00edcio",),
+        ),
+        (
+            "Qual é o indicador sintético de consumo no cenário de demonstração?",
+            ("420 unidades fictícias",),
+        ),
+        (
+            "Compare o indicador fictício de receita entre dois períodos de demonstração.",
+            ("2025-01: 100 unidades fictícias", "2025-02: 95 unidades fictícias"),
+        ),
+        (
+            "Quantas interrupções existem no cenário de demonstração?",
+            ("2 ocorrências fictícias",),
+        ),
+    ],
+)
+def test_assistant_suggestions_return_their_synthetic_answers(
+    question: str, expected_values: tuple[str, ...]
+) -> None:
+    with _client(model_adapter=SelectAllEvidenceAdapter()) as client:
+        response = client.post("/api/v1/questions", json={"question": question})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "answered"
+    assert all(value in body["answer"] for value in expected_values)
+    assert body["evidence"][0]["is_demo"] is True
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_value"),
+    [
+        (
+            "Qual valor de leitura foi usado no cenário sintético?",
+            "420 unidades fictícias",
+        ),
+        (
+            "O cenário sintético tem chamados? Quantos?",
+            "1 atendimento fictício",
+        ),
+    ],
+)
+def test_model_refusal_does_not_hide_a_single_authorized_observation(
+    question: str, expected_value: str
+) -> None:
+    model = RecordingModelAdapter(
+        result=GeneratedAnswer(
+            status="refused",
+            answer="Não posso atender a essa solicitação.",
+        )
+    )
+
+    with _client(model_adapter=model) as client:
+        response = client.post("/api/v1/questions", json={"question": question})
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["status"] == "answered"
+    assert expected_value in body["answer"]
+    assert body["evidence"][0]["is_demo"] is True
+    assert len(model.calls) == 1
+
+
+def test_demo_comparison_alias_returns_the_configured_period_values() -> None:
+    with _client(model_adapter=SelectAllEvidenceAdapter()) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={
+                "question": "Que valores de faturamento foram usados na comparação demonstrativa?"
+            },
+        )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["status"] == "answered"
+    assert "2025-01: 100 unidades fictícias" in body["answer"]
+    assert "2025-02: 95 unidades fictícias" in body["answer"]
 
 
 def test_write_request_is_refused_before_the_analytic_tool_runs() -> None:
@@ -462,6 +642,55 @@ def test_follow_up_context_is_transient_between_api_requests() -> None:
 
     assert with_context.json()["status"] == "no_evidence"
     assert without_context.json()["status"] == "needs_clarification"
+
+
+def test_unrelated_reply_to_missing_period_clarification_repeats_the_period_request() -> None:
+    tool = RecordingScenarioTool()
+    model = RecordingModelAdapter()
+    with _client(model_adapter=model, scenario_tool=tool) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={
+                "question": "consultar",
+                "context": [
+                    {"role": "user", "content": "Como está o consumo?"},
+                    {
+                        "role": "assistant",
+                        "content": GRID360_DEMO_PROFILE.clarifications.missing_period,
+                    },
+                ],
+            },
+        )
+
+    assert response.json()["status"] == "needs_clarification"
+    assert response.json()["message"] == GRID360_DEMO_PROFILE.clarifications.missing_period
+    assert tool.requests == []
+    assert model.calls == []
+
+
+def test_period_reply_to_clarification_completes_the_original_question() -> None:
+    tool = RecordingScenarioTool()
+    with _client(scenario_tool=tool) as client:
+        response = client.post(
+            "/api/v1/questions",
+            json={
+                "question": "no período de demonstração",
+                "context": [
+                    {"role": "user", "content": "Como está o consumo?"},
+                    {
+                        "role": "assistant",
+                        "content": GRID360_DEMO_PROFILE.clarifications.missing_period,
+                    },
+                ],
+            },
+        )
+
+    assert response.json()["status"] != "needs_clarification"
+    assert len(tool.requests) == 1
+    intent = tool.requests[0]
+    assert intent.domain_id == "consumption"
+    assert intent.metric_id == "energy.consumption"
+    assert intent.window.phrase == "período de demonstração"
 
 
 def test_follow_up_does_not_skip_ambiguous_latest_user_turn() -> None:

@@ -117,11 +117,15 @@ def test_openapi_describes_the_stable_invalid_request_envelope() -> None:
 
 def test_unexpected_failure_returns_safe_envelope_and_correlation() -> None:
     class ExplodingQuestionOrchestrator:
-        async def answer(self, _payload):
+        async def answer(self, _payload, _access_context, _correlation_id):
             raise RuntimeError("segredo interno que não deve ser exposto")
 
     application = create_app(
-        settings=Settings(_env_file=None),
+        settings=Settings(
+            _env_file=None,
+            environment="local",
+            enable_demo_access=True,
+        ),
         question_orchestrator=ExplodingQuestionOrchestrator(),
     )
 

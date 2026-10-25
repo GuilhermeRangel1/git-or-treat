@@ -5,9 +5,9 @@ Os registros reproduzem os controles declarados no PRD e no protótipo Figma
 de demonstração: não constituem diagnóstico da V-Energy nem resultado da Gold.
 """
 
-DATA_VERSION = "Lote Gold 2024.04-sintetico-v1"
+DATA_VERSION = "panorama-sintetico-2024.04-v1"
 UPDATED_AT = "2024-04-30T18:00:00Z"
-DATA_LIMITATION = "Base sintética de demonstração alinhada aos controles do PRD WEB-01; não representa a Gold."
+DATA_LIMITATION = "Os números são fictícios e servem apenas para demonstração; não representam dados operacionais reais."
 
 # Grão: competência x município x classe.
 # 2024-04 (Total: Faturado R$ 76.500 | Pago R$ 74.200 | Consumo 90.000 kWh | Faturado 90.000 kWh | UCs 1.248)

@@ -244,17 +244,20 @@ class ScreenInsightOrchestrator:
                 error=failure.error,
             )
         if generated.status == "answered":
-            selected = ", ".join(
-                f"{observations[item].label}: {observations[item].value} {screen.unit}"
-                for item in generated.observation_ids
-            )
+            if len(generated.observation_ids) > 1:
+                hypothesis = (
+                    f"Investigue a relação entre os recortes selecionados de "
+                    f"{screen.metric}. A comparação não comprova uma causa."
+                )
+            else:
+                hypothesis = (
+                    f"Investigue a composição de {screen.metric} no recorte "
+                    "selecionado. O valor observado não comprova uma causa."
+                )
             return self._response(
                 screen,
                 status=QuestionStatus.ANSWERED,
-                hypothesis=(
-                    f"Investigue o recorte de {screen.metric} a partir da observação "
-                    f"demonstrativa: {selected}. Isso não estabelece uma causa."
-                ),
+                hypothesis=hypothesis,
             )
         if generated.status == "needs_clarification":
             return self._response(

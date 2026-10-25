@@ -44,6 +44,7 @@ class SqlPlanCatalog:
     metrics: Mapping[str, SqlMetricBinding]
     dimensions: Mapping[str, str]
     status: Literal["artificial"] = "artificial"
+    source_version: str | None = None
 
 
 class SqlPlanReader:
@@ -201,6 +202,7 @@ class SqlPlanReader:
                 plan_fingerprint=plan.fingerprint(),
                 catalog_version=plan.catalog_version,
                 correlation_id=correlation_id,
+                source_version=catalog.source_version,
             ),
             result_validator=lambda rows: _validate_artificial_result(
                 rows, group_id=group_id, limit=plan.limit
