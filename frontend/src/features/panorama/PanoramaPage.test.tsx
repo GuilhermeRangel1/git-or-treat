@@ -272,6 +272,7 @@ describe("PanoramaPage (WEB-01)", () => {
     await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
     const municipioSelect = screen.getByLabelText("Município");
     await user.selectOptions(municipioSelect, "Recife");
+    await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
     // Recife soma R$ 38.000 e 620 UCs
     expect(await screen.findByText(/38\.000,00/)).toBeVisible();

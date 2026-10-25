@@ -11,7 +11,7 @@ import { usePanoramaInsight } from "./usePanoramaInsight";
 export default function PanoramaPage() {
   const {
     filters,
-    setFilter,
+    setFilters,
     resetFilters,
     hasActiveFilters,
     errors,
@@ -62,8 +62,7 @@ export default function PanoramaPage() {
       {/* Barra de Filtros Integrada à URL */}
       <FilterBar
         filters={filters}
-        onFilterChange={setFilter}
-        onReset={resetFilters}
+        onApply={setFilters}
         hasActiveFilters={hasActiveFilters}
         errors={errors}
       />
