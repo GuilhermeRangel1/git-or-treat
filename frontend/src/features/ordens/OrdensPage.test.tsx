@@ -78,7 +78,7 @@ function renderPage(entry = "/ordens", client?: QueryClient) {
 async function firstOrderAction() {
   return (
     await screen.findAllByRole("button", {
-      name: "Abrir ações da ordem OS-000041 da UC UC-1041",
+      name: "Ações da ordem OS-000041 da UC UC-1041",
     })
   )[0];
 }
@@ -203,7 +203,7 @@ it("normaliza UC e consulta os filtros recebidos na URL", async () => {
     "/ordens?uc_id=%20UC-1041%20&status=EM_ANDAMENTO&priority=ALTA&page=2&page_size=5",
   );
 
-  await screen.findByRole("button", { name: /Ações da ordem OS-000041/ });
+  await firstOrderAction();
   expect(screen.getByText(/Recorte aplicado/)).toHaveTextContent(
     "UC UC-1041 · Estado Em andamento · Prioridade Alta · 5 por página",
   );

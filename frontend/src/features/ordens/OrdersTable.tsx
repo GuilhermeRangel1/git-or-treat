@@ -22,7 +22,7 @@ function ActionButton({
       onClick={(event: MouseEvent<HTMLButtonElement>) =>
         onSelect(order, event.currentTarget)
       }
-      aria-label={`Abrir ações da ordem ${formatOrderCode(order.id)} da UC ${order.uc_id}`}
+      aria-label={`Ações da ordem ${formatOrderCode(order.id)} da UC ${order.uc_id}`}
     >
       Ações {formatOrderCode(order.id)}{" "}
       <ArrowRight size={15} aria-hidden="true" />
