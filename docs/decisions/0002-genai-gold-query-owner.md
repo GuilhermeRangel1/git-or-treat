@@ -1,7 +1,7 @@
 # ADR-0002 — Backend como proprietário da consulta analítica Gold
 
 **Data:** 2026-10-18 (proposta inicial); revisada em 2026-10-25
-**Estado:** proposta — houve alinhamento no grupo em 24/10/2026, com concordância do Backend e do Guilherme. Passa a aprovada quando Backend e Engenharia de Dados aprovarem o PR que traz esta revisão (#XX). Até lá, nenhuma parte desta decisão autoriza adaptador Gold, credencial ou consulta real.
+**Estado:** proposta — houve alinhamento no grupo em 24/10/2026, com concordância do Backend e do Guilherme. Passa a aprovada quando Backend e Engenharia de Dados aprovarem o PR que traz esta revisão (#54). Até lá, nenhuma parte desta decisão autoriza adaptador Gold, credencial ou consulta real.
 **IDs do PRD afetados:** IA-01, IA-03, IA-06, DE-06, DE-08, P-04
 **Contrato detalhado:** [Contrato interno de planejamento e síntese entre Backend e GenAI](../contracts/genai-query-execution.md)
 
