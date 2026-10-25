@@ -24,6 +24,30 @@ O contrato também é resumido no [README do serviço](../../ai-agent/README.md)
 | Portal → Backend `POST /api/v1/ai/questions` → GenAI `POST /api/v1/questions` | `contract_version` opcional (padrão `v1`; versão nula ou não suportada é rejeitada), `question` (1–1.000 caracteres) e `context` opcional com até três turnos ordenados (`role`: `user` ou `assistant`; `content`: até 1.000 caracteres). Cada chamada deve reenviar o contexto necessário. | Envelope `v1`: `status`, `answer` ou `message`, `evidence`, `limitations`, `analysis_context`, `model_tier`, `error`, `correlation_id` e `audit_reference`. `model_tier` é `light` ou `strong` quando o roteador gera o resultado, e `null` quando o roteador não é usado ou não há geração concluída; não divulga o ID do modelo. |
 | `POST /api/v1/insights` | `screen` com `metric`, `unit`, `period`, `filters`, `observations`, `reference` e `limitations`. A referência deve ter `is_demo: true` durante o protótipo. | Envelope `v1`: `status`, `context`, `observation.values`, `hypothesis` ou `message`, `evidence`, `limitations`, `error`, `correlation_id` e `audit_reference`. Observações recebidas e hipótese gerada ficam em campos separados. |
 
+### Fundamentação de afirmações quantitativas
+
+O contrato interno do modelo aceita `claims` opcionais, sem alterar o envelope HTTP `v1`.
+Cada afirmação explícita vincula `observation_id`, valor, métrica lógica, unidade, período,
+filtros, operadores e dimensões à observação selecionada e ao plano autorizado. Operador
+omitido significa apenas igualdade; exclusão não equivale a inclusão. Valor de outra linha,
+percentual derivado sem observação própria ou contexto divergente gera recusa de fundamentação.
+`decimal_places` permite somente arredondamento decimal HALF_UP de 0 a 6 casas; não permite
+conversão de unidade nem muda o valor original apresentado pelo serviço.
+
+Em insights, cada chamada autorizada emite uma referência aleatória `context_id`, copiada pelo
+modelo junto do ID e do valor da observação. A referência só vale naquela chamada e não é
+credencial. O provedor continua recebendo métrica genérica e nomes dos filtros, sem novos
+valores de filtros ou rótulo real da métrica. Reutilizar uma referência anterior gera recusa,
+mantendo os dados observados disponíveis e a hipótese ausente.
+
+Os dois orquestradores aplicam a checagem numérica auxiliar também sem roteador. Com roteador,
+uma falha de fundamentação pode escalar uma vez, respeitando o orçamento existente. Adaptadores
+anteriores podem omitir `claims`: nesse caso, o rascunho recebe somente a checagem lexical e
+de IDs, não validação semântica completa. Texto livre continua descartado; resposta quantitativa
+e hipótese públicas são construídas pelo serviço. Os testes em `test_grounded_claims.py`
+exercitam perguntas e insights com evidência controlada, incluindo outro domínio; não comprovam
+reconciliação Gold nem interpretação semântica universal de prosa.
+
 ### Envelope público v1 e erros
 
 As respostas de negócio carregam `contract_version: "v1"`. Em `QuestionResponse`, `model_tier` informa o nível (`light` ou `strong`) da geração que compôs o resultado final quando o roteador está ativo; sem roteamento ou sem geração concluída, o valor é `null`. O campo não divulga provedor nem ID do modelo. O serviço gera um identificador hexadecimal de 32 caracteres por requisição, retorna-o em `correlation_id` e no cabeçalho `X-Correlation-ID`; ele não é aceito do cliente como prova de identidade. `audit_reference` é `null`: correlação não equivale a auditoria persistida. Uma referência em `evidence` indica a origem e inclui `is_demo`; nenhum resultado desta etapa é dado real da V-Energy.

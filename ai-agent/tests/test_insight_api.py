@@ -132,9 +132,10 @@ def test_insight_separates_supplied_observation_from_generated_hypothesis() -> N
     assert body["context"]["period"]["start"] == "2025-01-01"
     assert body["context"]["filters"] == {"classe": "residencial", "municipio": "Exemplo"}
     assert body["evidence"][0]["is_demo"] is True
-    assert model.calls[0][2].records[0]["observations"] == [
-        {"observation_id": "row_1", "value": 420}
-    ]
+    observation = model.calls[0][2].records[0]["observations"][0]
+    assert observation["observation_id"] == "row_1"
+    assert observation["value"] == 420
+    assert len(observation["context_id"]) == 64
 
 
 def test_comparison_hypothesis_does_not_repeat_selected_numbers() -> None:
@@ -216,8 +217,8 @@ def test_insight_does_not_publish_untrusted_model_text() -> None:
     with _client(model) as client:
         response = client.post("/api/v1/insights", json={"screen": _screen_context()})
 
-    assert response.json()["status"] == "answered"
-    assert "420 kWh fictícios" not in response.json()["hypothesis"]
+    assert response.json()["status"] == "refused"
+    assert response.json()["hypothesis"] is None
     assert "123.456.789-00" not in response.text
     # O correlation_id é hexadecimal aleatório e pode conter "999" por acaso.
     public = response.json()
