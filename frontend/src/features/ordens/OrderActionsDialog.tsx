@@ -1,20 +1,23 @@
-import { useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ClipboardCheck, X } from "lucide-react";
 import {
+  cancelOrder,
   getOrderDetail,
+  registerOrderResult,
   updateOrder,
   type Order,
-  type OrderStatus,
+  type OrderDetail,
 } from "@/shared/api/orders";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
 import {
-  allowedOrderStatuses,
   isOrderFinal,
   orderErrorMessage,
   orderStatusLabel,
 } from "./order-actions";
+import { formatOrderCode } from "./ordens-query";
+import OrderHistory from "./OrderHistory";
 
 type OrderActionsDialogProps = {
   order: Order | null;
@@ -24,12 +27,10 @@ type OrderActionsDialogProps = {
   onSaved: (order: Order, message: string) => void;
 };
 
-const statusOptions: Record<OrderStatus, string> = {
-  PENDENTE: "Pendente",
-  EM_ANDAMENTO: "Em andamento",
-  CONCLUIDA: "Concluída",
-  CANCELADA: "Cancelada",
-};
+type MutationVariables =
+  | { orderId: number; kind: "start"; version: number }
+  | { orderId: number; kind: "result"; version: number; result: string }
+  | { orderId: number; kind: "cancel"; version: number; reason: string };
 
 export default function OrderActionsDialog({
   order,
@@ -44,115 +45,179 @@ export default function OrderActionsDialog({
     queryKey: ["orders", "detail", orderId],
     queryFn: ({ signal }) => getOrderDetail(orderId as number, signal),
     enabled: open && orderId !== undefined,
+    staleTime: 0,
   });
   const current = detail.data;
-  const [statusSelection, setStatusSelection] = useState<{
-    base: OrderStatus;
-    value: OrderStatus;
-  } | null>(null);
   const [resultDraft, setResultDraft] = useState<string | undefined>(undefined);
-  const statusDraft =
-    current && statusSelection?.base === current.status
-      ? statusSelection.value
-      : (current?.status ?? order?.status ?? "PENDENTE");
-  const resultValue = resultDraft ?? current?.result ?? "";
+  const [cancelReason, setCancelReason] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [confirmCancellation, setConfirmCancellation] = useState(false);
   const resultRef = useRef<HTMLTextAreaElement>(null);
+  const submittingRef = useRef(false);
+  const mountedRef = useRef(false);
+  const activeOrderIdRef = useRef(orderId);
+  const openRef = useRef(open);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    activeOrderIdRef.current = orderId;
+    openRef.current = open;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [open, orderId]);
 
   const mutation = useMutation({
-    mutationFn: ({
-      payload,
-    }: {
-      payload: Parameters<typeof updateOrder>[1];
-      message: string;
-    }) => updateOrder(orderId as number, payload),
+    mutationFn: async (variables: MutationVariables): Promise<OrderDetail> => {
+      switch (variables.kind) {
+        case "start":
+          return updateOrder(variables.orderId, {
+            version: variables.version,
+            status: "EM_ANDAMENTO",
+          });
+        case "result":
+          return registerOrderResult(variables.orderId, {
+            version: variables.version,
+            result: variables.result,
+          });
+        case "cancel":
+          return cancelOrder(variables.orderId, {
+            confirmed_order_id: variables.orderId,
+            version: variables.version,
+            ...(variables.reason ? { reason: variables.reason } : {}),
+          });
+      }
+    },
     onSuccess: (saved, variables) => {
-      queryClient.setQueryData(["orders", "detail", saved.id], saved);
-      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+      const latest = queryClient.setQueryData<OrderDetail>(
+        ["orders", "detail", saved.id],
+        (cached) => (cached && cached.version > saved.version ? cached : saved),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["orders", "list"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["orders", "history", saved.id],
+      });
+      if (
+        !latest ||
+        latest.version > saved.version ||
+        !mountedRef.current ||
+        !openRef.current ||
+        activeOrderIdRef.current !== variables.orderId
+      ) {
+        return;
+      }
       setValidationError(null);
       setConfirmCancellation(false);
-      onSaved(saved, variables.message);
+      setResultDraft(undefined);
+      setCancelReason("");
+      const message =
+        variables.kind === "start"
+          ? "Ordem iniciada."
+          : variables.kind === "result"
+            ? "Resultado registrado e ordem concluída."
+            : "Ordem cancelada.";
+      onSaved(saved, message);
       onClose();
     },
-    onError: async (error) => {
+    onError: async (error, variables) => {
       const conflict =
         error !== null &&
         typeof error === "object" &&
         "status" in error &&
         error.status === 409;
-      const refreshed = await detail.refetch();
-      if (
-        conflict ||
-        (confirmCancellation &&
-          refreshed.data &&
-          isOrderFinal(refreshed.data.status))
+      let refreshed: OrderDetail | undefined;
+      try {
+        refreshed = await queryClient.fetchQuery({
+          queryKey: ["orders", "detail", variables.orderId],
+          queryFn: ({ signal }) => getOrderDetail(variables.orderId, signal),
+          staleTime: 0,
+        });
+      } catch {
+        // Keep the write error visible; the failed reconciliation never retries it.
+      }
+      if (conflict) {
+        if (
+          mountedRef.current &&
+          openRef.current &&
+          activeOrderIdRef.current === variables.orderId
+        ) {
+          setConfirmCancellation(false);
+        }
+        void queryClient.invalidateQueries({ queryKey: ["orders", "list"] });
+        void queryClient.invalidateQueries({
+          queryKey: ["orders", "history", variables.orderId],
+        });
+      } else if (
+        mountedRef.current &&
+        openRef.current &&
+        activeOrderIdRef.current === variables.orderId &&
+        confirmCancellation &&
+        refreshed &&
+        isOrderFinal(refreshed.status)
       ) {
         setConfirmCancellation(false);
       }
     },
+    onSettled: () => {
+      submittingRef.current = false;
+    },
   });
 
   const finalOrder = current ? isOrderFinal(current.status) : true;
-  const disabled =
+  const locked =
     !current ||
     detail.isFetching ||
     detail.isError ||
     mutation.isPending ||
     finalOrder;
-  const statusPending =
-    mutation.isPending && Boolean(mutation.variables?.payload.status);
-  const resultPending =
-    mutation.isPending && mutation.variables?.payload.status === undefined;
+  const resultValue = resultDraft ?? current?.result ?? "";
+  const isPending = current?.status === "PENDENTE";
+  const isRunning = current?.status === "EM_ANDAMENTO";
+  const orderCode = current ? formatOrderCode(current.id) : "";
 
-  const validateResult = () => {
-    if (resultValue.trim()) {
-      setValidationError(null);
-      return true;
-    }
-    setValidationError("Informe o resultado da inspeção.");
-    resultRef.current?.focus();
-    return false;
-  };
+  function submit(variables: MutationVariables) {
+    if (submittingRef.current || locked || !current) return;
+    submittingRef.current = true;
+    mutation.mutate(variables);
+  }
 
-  const saveStatus = () => {
-    if (!current || disabled || statusDraft === current.status) return;
-    const allowed = allowedOrderStatuses(current.status);
-    if (!allowed.includes(statusDraft)) {
-      setValidationError("Essa transição de estado não é permitida.");
-      setStatusSelection(null);
+  function saveResult() {
+    if (!current || locked) return;
+    const result = resultValue.trim();
+    if (!result) {
+      setValidationError("Informe o resultado da inspeção.");
+      resultRef.current?.focus();
       return;
     }
-    if (statusDraft === "CONCLUIDA" && !validateResult()) return;
-    mutation.mutate({
-      payload: {
-        status: statusDraft,
-        ...(statusDraft === "CONCLUIDA" ? { result: resultValue.trim() } : {}),
-      },
-      message: `Estado atualizado para ${orderStatusLabel(statusDraft).toLowerCase()}.`,
+    if (result.length > 4000) {
+      setValidationError("O resultado deve ter até 4.000 caracteres.");
+      resultRef.current?.focus();
+      return;
+    }
+    setValidationError(null);
+    submit({
+      orderId: current.id,
+      kind: "result",
+      version: current.version,
+      result,
     });
-  };
+  }
 
-  const saveResult = () => {
-    if (!current || disabled || !validateResult()) return;
-    mutation.mutate({
-      payload: { result: resultValue.trim() },
-      message: "Resultado de campo registrado.",
+  function confirmCancel() {
+    if (!current || locked || isOrderFinal(current.status)) return;
+    submit({
+      orderId: current.id,
+      kind: "cancel",
+      version: current.version,
+      reason: cancelReason.trim(),
     });
-  };
-
-  const confirmCancel = () => {
-    if (!current || disabled) return;
-    if (finalOrder) return;
-    mutation.mutate({
-      payload: { status: "CANCELADA" },
-      message: "Ordem cancelada.",
-    });
-  };
+  }
 
   const modalTitle = confirmCancellation
-    ? `Cancelar a ordem ${current ? `#${current.id}` : ""}?`
+    ? `Cancelar ${orderCode}?`
     : `Ações da ordem ${current ? `#${current.id}` : ""}`;
+  const resultPending =
+    mutation.isPending && mutation.variables?.kind === "result";
 
   return (
     <Modal
@@ -166,7 +231,7 @@ export default function OrderActionsDialog({
       closeLabel="Fechar ações da ordem"
       size={confirmCancellation ? "xs" : "sm"}
       header="inline"
-      className={`grid gap-6 p-8 max-[639px]:gap-5 max-[639px]:p-6 ${
+      className={`grid min-w-0 gap-6 p-8 max-[639px]:gap-5 max-[639px]:p-6 ${
         confirmCancellation
           ? "[&_h2]:text-[20px] [&_h2]:leading-7"
           : "[&_h2]:text-[32px] [&_h2]:leading-10 max-[639px]:[&_h2]:text-[26px] max-[639px]:[&_h2]:leading-[34px]"
@@ -175,24 +240,38 @@ export default function OrderActionsDialog({
       {confirmCancellation ? (
         <section className="grid gap-4" aria-label="Confirmar cancelamento">
           <p className="text-sm leading-[22px] text-muted">
-            A ordem será marcada como cancelada. Você pode voltar para manter a
+            Confirme o cancelamento de <strong>{orderCode}</strong>, UC{" "}
+            <strong>{current?.uc_id}</strong>. Você pode voltar para manter a
             ordem sem gravar alterações.
           </p>
-          {mutation.isError && (
-            <p
-              className="rounded-lg p-4 text-sm"
-              role="alert"
-              style={dangerNoticeStyle}
-            >
-              {orderErrorMessage(mutation.error)} A alteração não foi
-              confirmada. Consulte o estado atual antes de reenviar.
+          {mutation.isError ? <MutationError error={mutation.error} /> : null}
+          {mutation.isPending ? (
+            <p role="status" className="text-sm text-muted">
+              Enviando para confirmação do servidor. Fechar esta janela não
+              cancela a gravação.
             </p>
-          )}
+          ) : null}
+          <div className="grid gap-2">
+            <label
+              htmlFor="order-cancellation-reason"
+              className="text-sm font-medium"
+            >
+              Motivo do cancelamento (opcional)
+            </label>
+            <textarea
+              id="order-cancellation-reason"
+              className={`${fieldClassName} min-h-[80px] resize-y py-3`}
+              value={cancelReason}
+              maxLength={4000}
+              disabled={!current || detail.isFetching || mutation.isPending}
+              onChange={(event) => setCancelReason(event.currentTarget.value)}
+            />
+          </div>
           <div className="flex flex-wrap gap-3 max-[639px]:flex-col">
             <Button
               variant="secondary"
               className="min-h-11 min-w-[180px] max-[639px]:w-full"
-              disabled={disabled}
+              disabled={mutation.isPending}
               onClick={() => setConfirmCancellation(false)}
             >
               Manter ordem
@@ -201,23 +280,25 @@ export default function OrderActionsDialog({
               variant="danger"
               className="min-h-11 min-w-[180px] max-[639px]:w-full"
               leftIcon={<X size={18} aria-hidden="true" />}
-              isLoading={mutation.isPending}
+              isLoading={
+                mutation.isPending && mutation.variables?.kind === "cancel"
+              }
               loadingLabel="Cancelando…"
-              disabled={disabled}
+              disabled={locked}
               onClick={confirmCancel}
             >
-              Cancelar ordem
+              Confirmar cancelamento
             </Button>
           </div>
         </section>
       ) : (
-        <div className="grid gap-4">
-          {detail.isPending && (
+        <div className="grid min-w-0 gap-4">
+          {detail.isPending ? (
             <p role="status" className="text-sm text-muted">
               Consultando o estado atual da ordem…
             </p>
-          )}
-          {detail.isError && (
+          ) : null}
+          {detail.isError ? (
             <div
               className="grid gap-3 rounded-lg p-4 text-sm"
               role="alert"
@@ -233,28 +314,28 @@ export default function OrderActionsDialog({
                 Tentar novamente
               </Button>
             </div>
-          )}
-          {detail.isFetching && !detail.isPending && (
+          ) : null}
+          {detail.isFetching && !detail.isPending ? (
             <p role="status" className="text-xs text-muted">
               Atualizando o estado confirmado pelo servidor…
             </p>
-          )}
-          {current && (
+          ) : null}
+          {current ? (
             <>
               <p className="-mt-2 text-xs leading-[18px] text-muted">
-                Atualizações confirmadas pela API · UC {current.uc_id}
+                {orderCode} · UC {current.uc_id} · Estado confirmado:{" "}
+                {orderStatusLabel(current.status)}
               </p>
-              {mutation.isError && (
-                <p
-                  className="rounded-lg p-4 text-sm"
-                  role="alert"
-                  style={dangerNoticeStyle}
-                >
-                  {orderErrorMessage(mutation.error)} A alteração não foi
-                  confirmada. Consulte o estado atual antes de reenviar.
+              {mutation.isError ? (
+                <MutationError error={mutation.error} />
+              ) : null}
+              {mutation.isPending ? (
+                <p role="status" className="text-sm text-muted">
+                  Enviando para confirmação do servidor. Fechar esta janela não
+                  cancela a gravação.
                 </p>
-              )}
-              {validationError && (
+              ) : null}
+              {validationError ? (
                 <div
                   className="rounded-lg p-4 text-sm"
                   role="alert"
@@ -263,50 +344,32 @@ export default function OrderActionsDialog({
                   <strong className="block font-medium">
                     Resultado não informado
                   </strong>
-                  <span>
-                    Informe o resultado de campo antes de registrar ou concluir
-                    a ordem.
-                  </span>
+                  <span>{validationError}</span>
                 </div>
-              )}
-              <div className="grid gap-2">
-                <label htmlFor="order-status" className="text-sm font-medium">
-                  Estado da ordem
-                </label>
-                <select
-                  id="order-status"
-                  className={fieldClassName}
-                  value={statusDraft}
-                  disabled={disabled}
-                  onChange={(event) => {
-                    setStatusSelection({
-                      base: current.status,
-                      value: event.currentTarget.value as OrderStatus,
-                    });
-                    setValidationError(null);
-                  }}
+              ) : null}
+
+              {isPending ? (
+                <Button
+                  variant="neutral"
+                  className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
+                  leftIcon={<ClipboardCheck size={18} aria-hidden="true" />}
+                  isLoading={
+                    mutation.isPending && mutation.variables?.kind === "start"
+                  }
+                  loadingLabel="Iniciando…"
+                  disabled={locked}
+                  onClick={() =>
+                    submit({
+                      orderId: current.id,
+                      kind: "start",
+                      version: current.version,
+                    })
+                  }
                 >
-                  {allowedOrderStatuses(current.status).map((status) => (
-                    <option value={status} key={status}>
-                      {statusOptions[status]}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs leading-[18px] text-muted">
-                  Estado atual confirmado: {orderStatusLabel(current.status)}.
-                </p>
-              </div>
-              <Button
-                variant="neutral"
-                className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
-                leftIcon={<ClipboardCheck size={18} aria-hidden="true" />}
-                disabled={disabled || statusDraft === current.status}
-                isLoading={statusPending}
-                loadingLabel="Atualizando…"
-                onClick={saveStatus}
-              >
-                Atualizar estado
-              </Button>
+                  Iniciar ordem
+                </Button>
+              ) : null}
+
               <div className="grid gap-2">
                 <label htmlFor="order-result" className="text-sm font-medium">
                   Resultado de campo
@@ -317,7 +380,12 @@ export default function OrderActionsDialog({
                   className={`${fieldClassName} min-h-[96px] resize-y py-3`}
                   value={resultValue}
                   maxLength={4000}
-                  disabled={disabled}
+                  disabled={
+                    !isRunning ||
+                    detail.isFetching ||
+                    mutation.isPending ||
+                    finalOrder
+                  }
                   aria-invalid={Boolean(validationError)}
                   aria-describedby={
                     validationError ? "order-result-error" : "order-result-help"
@@ -334,35 +402,37 @@ export default function OrderActionsDialog({
                     id="order-result-error"
                     style={{ color: "var(--action-danger-text)" }}
                   >
-                    Informe um resultado antes de continuar.
+                    {validationError}
                   </p>
                 ) : (
                   <p
                     id="order-result-help"
                     className="text-xs leading-[18px] text-muted"
                   >
-                    Até 4.000 caracteres. Registrar resultado não conclui a
-                    ordem.
+                    Até 4.000 caracteres. Registrar o resultado conclui a ordem.
                   </p>
                 )}
               </div>
-              <Button
-                variant="secondary"
-                className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
-                leftIcon={<Check size={18} aria-hidden="true" />}
-                disabled={disabled}
-                isLoading={resultPending}
-                loadingLabel="Registrando…"
-                onClick={saveResult}
-              >
-                Registrar resultado
-              </Button>
-              {!finalOrder && (
+              {isRunning ? (
+                <Button
+                  variant="secondary"
+                  className="min-h-11 w-fit min-w-[220px] max-[639px]:w-full"
+                  leftIcon={<Check size={18} aria-hidden="true" />}
+                  isLoading={resultPending}
+                  loadingLabel="Concluindo…"
+                  disabled={locked}
+                  onClick={saveResult}
+                >
+                  Registrar resultado e concluir
+                </Button>
+              ) : null}
+
+              {!finalOrder ? (
                 <Button
                   variant="danger"
                   className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
                   leftIcon={<X size={18} aria-hidden="true" />}
-                  disabled={disabled}
+                  disabled={locked}
                   onClick={() => {
                     setValidationError(null);
                     setConfirmCancellation(true);
@@ -370,17 +440,30 @@ export default function OrderActionsDialog({
                 >
                   Cancelar ordem…
                 </Button>
-              )}
-              {finalOrder && (
+              ) : (
                 <p role="status" className="text-sm text-muted">
-                  Esta ordem está encerrada e não pode ser reaberta.
+                  Esta ordem está encerrada e disponível somente para consulta.
                 </p>
               )}
+              <OrderHistory orderId={current.id} />
             </>
-          )}
+          ) : null}
         </div>
       )}
     </Modal>
+  );
+}
+
+function MutationError({ error }: { error: unknown }) {
+  return (
+    <p
+      className="rounded-lg p-4 text-sm"
+      role="alert"
+      style={dangerNoticeStyle}
+    >
+      {orderErrorMessage(error)} A alteração não foi confirmada. Consulte o
+      estado atual antes de iniciar outra ação.
+    </p>
   );
 }
 

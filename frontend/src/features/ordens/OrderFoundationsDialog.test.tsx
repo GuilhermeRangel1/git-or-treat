@@ -21,6 +21,8 @@ const baseOrder: OrderDetail = {
   created_at: "2025-01-10T10:00:00Z",
   updated_at: "2025-01-10T10:00:00Z",
   suspicion_reference: null,
+  version: 1,
+  cancellation_reason: null,
   suspicion_snapshot: null,
 };
 

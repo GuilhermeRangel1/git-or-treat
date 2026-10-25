@@ -4,6 +4,10 @@ import {
   decodeOrderDetail,
   decodeOrderPage,
   getOrderDetail,
+  decodeOrderHistory,
+  getOrderHistory,
+  registerOrderResult,
+  cancelOrder,
   searchOrders,
   updateOrder,
 } from "./orders";
@@ -19,6 +23,8 @@ const order = {
   created_at: "2025-02-01T12:00:00Z",
   updated_at: "2025-02-02T12:00:00Z",
   suspicion_reference: "sha256:abc",
+  version: 2,
+  cancellation_reason: null,
 };
 
 afterEach(() => vi.unstubAllGlobals());
@@ -30,6 +36,8 @@ describe("contrato de ordens", () => {
       status: "EM_ANDAMENTO",
       notes: null,
       result: null,
+      version: 2,
+      cancellation_reason: null,
     });
     expect(() => decodeOrder({ ...order, priority: "URGENTE" })).toThrow(
       "Resposta de ordem inválida",
@@ -58,6 +66,16 @@ describe("contrato de ordens", () => {
         created_at: "2026-10-25T05:15:05.853250+03:00",
       }).created_at,
     ).toBe("2026-10-25T05:15:05.853250+03:00");
+  });
+
+  it("exige versão positiva e cancellation_reason explícita no contrato de ordem", () => {
+    for (const version of [undefined, null, 0, -1, 1.5, "2", true]) {
+      expect(() => decodeOrder({ ...order, version })).toThrow();
+    }
+    expect(() =>
+      decodeOrder({ ...order, cancellation_reason: undefined }),
+    ).toThrow();
+    expect(() => decodeOrder({ ...order, status: "ARQUIVADA" })).toThrow();
   });
 
   it("aceita snapshot legado com campos extras e sem schema_version", () => {
@@ -117,6 +135,7 @@ describe("transporte de ordens", () => {
         JSON.stringify({
           ...order,
           result: "Sem irregularidade",
+          notes: "Inspeção realizada",
           suspicion_snapshot: null,
         }),
         {
@@ -127,17 +146,131 @@ describe("transporte de ordens", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const updated = await updateOrder(12, { result: "Sem irregularidade" });
+    const updated = await updateOrder(12, {
+      version: 2,
+      notes: "Inspeção realizada",
+    });
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/inspections/orders/12",
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ result: "Sem irregularidade" }),
+        body: JSON.stringify({ version: 2, notes: "Inspeção realizada" }),
         headers: expect.any(Headers),
       }),
     );
-    expect(updated.result).toBe("Sem irregularidade");
+    expect(updated.notes).toBe("Inspeção realizada");
+  });
+
+  it("usa POST de resultado e POST de cancelamento com os payloads DEV-07", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ...order,
+            status: "CONCLUIDA",
+            result: "Sem irregularidade",
+            suspicion_snapshot: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ...order,
+            status: "CANCELADA",
+            cancellation_reason: "Inspeção desnecessária",
+            suspicion_snapshot: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    await registerOrderResult(12, { version: 2, result: "Sem irregularidade" });
+    await cancelOrder(12, {
+      version: 2,
+      confirmed_order_id: 12,
+      reason: "Inspeção desnecessária",
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/inspections/orders/12/result",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ version: 2, result: "Sem irregularidade" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/inspections/orders/12/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          version: 2,
+          confirmed_order_id: 12,
+          reason: "Inspeção desnecessária",
+        }),
+      }),
+    );
+  });
+
+  it("valida o histórico e permite ator/versão legados nulos", async () => {
+    const event = {
+      id: 1,
+      order_id: 12,
+      previous_status: null,
+      new_status: "PENDENTE",
+      action: "CRIACAO",
+      notes: null,
+      details: null,
+      actor: null,
+      order_version: null,
+      created_at: "2026-10-25T12:00:00Z",
+    };
+    expect(decodeOrderHistory([event])).toEqual([event]);
+    expect(() => decodeOrderHistory({})).toThrow(
+      "Histórico de ordens inválido",
+    );
+    for (const invalid of [
+      { ...event, action: "REABERTURA" },
+      { ...event, new_status: "ARQUIVADA" },
+      { ...event, order_version: 0 },
+      { ...event, created_at: "ontem" },
+      { ...event, actor: 4 },
+    ])
+      expect(() => decodeOrderHistory([invalid])).toThrow(
+        "Evento do histórico inválido",
+      );
+    const signal = new AbortController().signal;
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([event]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await getOrderHistory(12, signal)).toEqual([event]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/inspections/orders/12/history",
+      expect.objectContaining({ signal }),
+    );
+  });
+
+  it("recusa versão ausente ou inválida e não permite CANCELADA via PATCH", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      updateOrder(12, { version: 0, notes: "Ajuste" }),
+    ).rejects.toThrow("Versão da ordem inválida");
+    await expect(updateOrder(12, { version: 2 } as never)).rejects.toThrow(
+      "Informe uma alteração",
+    );
+    await expect(
+      updateOrder(12, { version: 2, status: "CANCELADA" } as never),
+    ).rejects.toThrow("rota dedicada");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("preserva o erro HTTP 409 estruturado para reconciliação pela feature", async () => {
@@ -159,7 +292,7 @@ describe("transporte de ordens", () => {
     );
 
     await expect(
-      updateOrder(12, { status: "CANCELADA" }),
+      updateOrder(12, { version: 2, status: "EM_ANDAMENTO" }),
     ).rejects.toMatchObject({
       status: 409,
       data: { error: { code: "order_conflict", order_id: 12 } },

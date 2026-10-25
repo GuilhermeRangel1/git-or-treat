@@ -1,14 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/api/client";
 import type { OrderDetail } from "@/shared/api/orders";
 import OrderActionsDialog from "./OrderActionsDialog";
 
 const api = vi.hoisted(() => ({
   getOrderDetail: vi.fn(),
+  getOrderHistory: vi.fn(),
   updateOrder: vi.fn(),
+  registerOrderResult: vi.fn(),
+  cancelOrder: vi.fn(),
 }));
 
 vi.mock("@/shared/api/orders", async (importOriginal) => {
@@ -16,7 +19,10 @@ vi.mock("@/shared/api/orders", async (importOriginal) => {
   return {
     ...actual,
     getOrderDetail: api.getOrderDetail,
+    getOrderHistory: api.getOrderHistory,
     updateOrder: api.updateOrder,
+    registerOrderResult: api.registerOrderResult,
+    cancelOrder: api.cancelOrder,
   };
 });
 
@@ -31,8 +37,25 @@ const order: OrderDetail = {
   created_at: "2025-01-10T10:00:00Z",
   updated_at: "2025-01-10T10:00:00Z",
   suspicion_reference: "sha256:reference",
+  version: 1,
+  cancellation_reason: null,
   suspicion_snapshot: null,
 };
+
+const history = [
+  {
+    id: 1,
+    order_id: 9,
+    previous_status: null,
+    new_status: "PENDENTE" as const,
+    action: "CRIACAO" as const,
+    notes: null,
+    details: "Ordem criada pela fila.",
+    actor: null,
+    order_version: null,
+    created_at: "2025-01-10T10:00:00Z",
+  },
+];
 
 function renderDialog(initial = order, onSaved = vi.fn(), onClose = vi.fn()) {
   const client = new QueryClient({
@@ -42,6 +65,7 @@ function renderDialog(initial = order, onSaved = vi.fn(), onClose = vi.fn()) {
   const view = render(
     <QueryClientProvider client={client}>
       <OrderActionsDialog
+        key={initial.id}
         order={initial}
         open
         onClose={onClose}
@@ -50,310 +74,417 @@ function renderDialog(initial = order, onSaved = vi.fn(), onClose = vi.fn()) {
       />
     </QueryClientProvider>,
   );
-  return { ...view, client, onSaved, onClose };
+  return {
+    ...view,
+    client,
+    onSaved,
+    onClose,
+    setOpen: (open: boolean) =>
+      view.rerender(
+        <QueryClientProvider client={client}>
+          <OrderActionsDialog
+            key={initial.id}
+            order={initial}
+            open={open}
+            onClose={onClose}
+            triggerRef={triggerRef}
+            onSaved={onSaved}
+          />
+        </QueryClientProvider>,
+      ),
+    setOrder: (next: OrderDetail, open = true) =>
+      view.rerender(
+        <QueryClientProvider client={client}>
+          <OrderActionsDialog
+            key={next.id}
+            order={next}
+            open={open}
+            onClose={onClose}
+            triggerRef={triggerRef}
+            onSaved={onSaved}
+          />
+        </QueryClientProvider>,
+      ),
+  };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   api.getOrderDetail.mockResolvedValue(order);
+  api.getOrderHistory.mockResolvedValue(history);
   api.updateOrder.mockImplementation(async (_id, payload) => ({
     ...order,
     ...payload,
     status: payload.status ?? order.status,
     suspicion_snapshot: null,
   }));
+  api.registerOrderResult.mockImplementation(async (_id, payload) => ({
+    ...order,
+    status: "CONCLUIDA",
+    result: payload.result,
+    suspicion_snapshot: null,
+  }));
+  api.cancelOrder.mockImplementation(async (_id, payload) => ({
+    ...order,
+    status: "CANCELADA",
+    cancellation_reason: payload.reason ?? null,
+    suspicion_snapshot: null,
+  }));
 });
 
-afterEach(() => vi.restoreAllMocks());
-
 describe("OrderActionsDialog", () => {
-  it("usa o estado atual do servidor e oferece somente transições válidas", async () => {
+  it("inicia uma ordem pendente usando a versão atual do servidor", async () => {
     const user = userEvent.setup();
     renderDialog();
 
-    const status = await screen.findByRole("combobox", {
-      name: "Estado da ordem",
-    });
-    expect(
-      within(status)
-        .getAllByRole("option")
-        .map((option) => option.textContent),
-    ).toEqual(["Pendente", "Em andamento"]);
-    expect(
-      within(status).queryByRole("option", { name: "Cancelada" }),
-    ).toBeNull();
-
-    await user.selectOptions(status, "EM_ANDAMENTO");
-    await user.click(screen.getByRole("button", { name: "Atualizar estado" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Iniciar ordem" }),
+    );
     await waitFor(() =>
       expect(api.updateOrder).toHaveBeenCalledWith(9, {
         status: "EM_ANDAMENTO",
+        version: 1,
       }),
     );
+    expect(api.registerOrderResult).not.toHaveBeenCalled();
   });
 
-  it("exige resultado e move o foco para o campo quando o registro está vazio", async () => {
+  it("exige resultado não vazio e registra resultado concluindo em uma ação", async () => {
     const user = userEvent.setup();
-    renderDialog();
+    const running = { ...order, status: "EM_ANDAMENTO" as const, version: 3 };
+    api.getOrderDetail.mockResolvedValue(running);
+    renderDialog(running);
     const result = await screen.findByRole("textbox", {
       name: "Resultado de campo",
     });
-    await user.click(
-      screen.getByRole("button", { name: "Registrar resultado" }),
-    );
 
+    await user.click(
+      screen.getByRole("button", { name: "Registrar resultado e concluir" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Resultado não informado",
     );
-    expect(result).toHaveAttribute("aria-invalid", "true");
     expect(result).toHaveFocus();
-    expect(api.updateOrder).not.toHaveBeenCalled();
-  });
+    expect(api.registerOrderResult).not.toHaveBeenCalled();
 
-  it("salva resultado sem concluir automaticamente e só notifica após JSON validado", async () => {
-    const user = userEvent.setup();
-    let finishRequest: ((saved: OrderDetail) => void) | undefined;
-    api.updateOrder.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          finishRequest = resolve;
-        }),
-    );
-    const saved = vi.fn();
-    const closed = vi.fn();
-    renderDialog(order, saved, closed);
-    const result = await screen.findByRole("textbox", {
-      name: "Resultado de campo",
-    });
     await user.type(result, "Sem irregularidade encontrada");
     await user.click(
-      screen.getByRole("button", { name: "Registrar resultado" }),
+      screen.getByRole("button", { name: "Registrar resultado e concluir" }),
     );
-
     await waitFor(() =>
-      expect(api.updateOrder).toHaveBeenCalledWith(9, {
+      expect(api.registerOrderResult).toHaveBeenCalledWith(9, {
         result: "Sem irregularidade encontrada",
+        version: 3,
       }),
     );
-    expect(saved).not.toHaveBeenCalled();
-    finishRequest?.({
-      ...order,
-      result: "Sem irregularidade encontrada",
-      suspicion_snapshot: null,
-    });
-    await waitFor(() =>
-      expect(saved).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: "PENDENTE",
-          result: "Sem irregularidade encontrada",
-        }),
-        "Resultado de campo registrado.",
-      ),
-    );
-    expect(closed).toHaveBeenCalledOnce();
-  });
-
-  it("mantém o rascunho ao voltar da confirmação e não grava até confirmar", async () => {
-    const user = userEvent.setup();
-    const saved = vi.fn();
-    const closed = vi.fn();
-    renderDialog(order, saved, closed);
-    const result = await screen.findByRole("textbox", {
-      name: "Resultado de campo",
-    });
-    await user.type(result, "Verificar vedação do medidor");
-    await user.click(screen.getByRole("button", { name: "Cancelar ordem…" }));
-
-    expect(
-      await screen.findByRole("heading", { name: "Cancelar a ordem #9?" }),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Manter ordem" }));
-    expect(
-      screen.getByRole("textbox", { name: "Resultado de campo" }),
-    ).toHaveValue("Verificar vedação do medidor");
     expect(api.updateOrder).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: "Cancelar ordem…" }));
-    await user.click(screen.getByRole("button", { name: "Cancelar ordem" }));
-    await waitFor(() =>
-      expect(api.updateOrder).toHaveBeenCalledWith(9, { status: "CANCELADA" }),
-    );
-    await waitFor(() =>
-      expect(saved).toHaveBeenCalledWith(
-        expect.objectContaining({ status: "CANCELADA" }),
-        "Ordem cancelada.",
-      ),
-    );
-    expect(closed).toHaveBeenCalledOnce();
   });
 
-  it("conclui somente com resultado preenchido e inclui resultado no mesmo PATCH", async () => {
+  it("impede duplo envio enquanto a escrita está pendente", async () => {
     const user = userEvent.setup();
     const running = { ...order, status: "EM_ANDAMENTO" as const };
     api.getOrderDetail.mockResolvedValue(running);
+    let release: ((value: OrderDetail) => void) | undefined;
+    api.registerOrderResult.mockImplementation(
+      () => new Promise((resolve) => (release = resolve)),
+    );
     renderDialog(running);
-    const status = await screen.findByRole("combobox", {
-      name: "Estado da ordem",
-    });
-    await user.selectOptions(status, "CONCLUIDA");
-    await user.click(screen.getByRole("button", { name: "Atualizar estado" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Resultado não informado",
-    );
-    expect(api.updateOrder).not.toHaveBeenCalled();
-
     await user.type(
-      screen.getByRole("textbox", { name: "Resultado de campo" }),
-      "Sem irregularidade",
+      await screen.findByRole("textbox", { name: "Resultado de campo" }),
+      "Conferido",
     );
-    await user.click(screen.getByRole("button", { name: "Atualizar estado" }));
+    const submit = screen.getByRole("button", {
+      name: "Registrar resultado e concluir",
+    });
+    await user.click(submit);
+    await user.click(submit);
+    expect(api.registerOrderResult).toHaveBeenCalledTimes(1);
+    release?.({ ...running, status: "CONCLUIDA", result: "Conferido" });
+  });
+
+  it("preserva detalhe de versão mais nova quando uma resposta antiga chega depois", async () => {
+    const user = userEvent.setup();
+    let release: ((value: OrderDetail) => void) | undefined;
+    api.updateOrder.mockImplementation(
+      () => new Promise((resolve) => (release = resolve)),
+    );
+    const saved = vi.fn();
+    const closed = vi.fn();
+    const dialog = renderDialog(order, saved, closed);
+    await user.click(
+      await screen.findByRole("button", { name: "Iniciar ordem" }),
+    );
+    expect(api.updateOrder).toHaveBeenCalledWith(9, {
+      status: "EM_ANDAMENTO",
+      version: 1,
+    });
+
+    const latest = {
+      ...order,
+      status: "CANCELADA" as const,
+      cancellation_reason: "Cancelada em outra sessão",
+      version: 3,
+    };
+    dialog.client.setQueryData(["orders", "detail", 9], latest);
+    release?.({ ...order, status: "EM_ANDAMENTO", version: 2 });
+
     await waitFor(() =>
-      expect(api.updateOrder).toHaveBeenLastCalledWith(9, {
-        status: "CONCLUIDA",
-        result: "Sem irregularidade",
+      expect(
+        dialog.client
+          .getMutationCache()
+          .getAll()
+          .some((mutation) => mutation.state.status === "success"),
+      ).toBe(true),
+    );
+    await waitFor(() =>
+      expect(
+        dialog.client.getQueryData<OrderDetail>(["orders", "detail", 9]),
+      ).toEqual(expect.objectContaining({ status: "CANCELADA", version: 3 })),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Iniciar ordem" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Cancelar ordem…" }),
+      ).toBeNull();
+    });
+    expect(saved).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+  });
+
+  it("não deixa uma escrita antiga fechar a sessão de outra OS", async () => {
+    const user = userEvent.setup();
+    const running = { ...order, status: "EM_ANDAMENTO" as const };
+    const other = { ...order, id: 10, uc_id: "UC-1010" };
+    api.getOrderDetail.mockImplementation(async (id) =>
+      id === 9 ? running : other,
+    );
+    let release: ((value: OrderDetail) => void) | undefined;
+    api.registerOrderResult.mockImplementation(
+      () => new Promise((resolve) => (release = resolve)),
+    );
+    const saved = vi.fn();
+    const closed = vi.fn();
+    const dialog = renderDialog(running, saved, closed);
+    await user.type(
+      await screen.findByRole("textbox", { name: "Resultado de campo" }),
+      "Inspeção concluída",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Registrar resultado e concluir" }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Fechar esta janela não cancela a gravação",
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Fechar ações da ordem" }),
+    );
+    dialog.setOpen(false);
+    dialog.setOrder(other);
+    expect(
+      await screen.findByRole("heading", { name: "Ações da ordem #10" }),
+    ).toBeInTheDocument();
+    release?.({
+      ...running,
+      status: "CONCLUIDA",
+      result: "Inspeção concluída",
+    });
+
+    await waitFor(() =>
+      expect(dialog.client.getQueryData(["orders", "detail", 9])).toEqual(
+        expect.objectContaining({ status: "CONCLUIDA" }),
+      ),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Ações da ordem #10" }),
+    ).toBeInTheDocument();
+    expect(saved).not.toHaveBeenCalled();
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirma cancelamento identificando OS e UC, motivo opcional e sem gravar ao voltar", async () => {
+    const user = userEvent.setup();
+    const running = { ...order, status: "EM_ANDAMENTO" as const, version: 4 };
+    api.getOrderDetail.mockResolvedValue(running);
+    renderDialog(running);
+    await user.type(
+      await screen.findByRole("textbox", { name: "Resultado de campo" }),
+      "Rascunho preservado",
+    );
+    await user.click(screen.getByRole("button", { name: "Cancelar ordem…" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Cancelar OS-000009?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/UC-1004/)).toBeInTheDocument();
+    await user.type(
+      screen.getByRole("textbox", {
+        name: "Motivo do cancelamento (opcional)",
+      }),
+      "Duplicada",
+    );
+    await user.click(screen.getByRole("button", { name: "Manter ordem" }));
+    expect(
+      screen.getByRole("textbox", { name: "Resultado de campo" }),
+    ).toHaveValue("Rascunho preservado");
+    expect(api.cancelOrder).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Cancelar ordem…" }));
+    expect(
+      screen.getByRole("textbox", {
+        name: "Motivo do cancelamento (opcional)",
+      }),
+    ).toHaveValue("Duplicada");
+    await user.click(
+      screen.getByRole("button", { name: "Confirmar cancelamento" }),
+    );
+    await waitFor(() =>
+      expect(api.cancelOrder).toHaveBeenCalledWith(9, {
+        confirmed_order_id: 9,
+        version: 4,
+        reason: "Duplicada",
       }),
     );
   });
 
   it.each(["CONCLUIDA", "CANCELADA"] as const)(
-    "não permite mutar ou reabrir estado final %s",
-    async (statusValue) => {
-      const finalOrder = { ...order, status: statusValue };
+    "mostra apenas consulta para estado final %s e carrega o histórico",
+    async (status) => {
+      const finalOrder = { ...order, status };
       api.getOrderDetail.mockResolvedValue(finalOrder);
       renderDialog(finalOrder);
-      const status = await screen.findByRole("combobox", {
-        name: "Estado da ordem",
-      });
-      expect(within(status).getAllByRole("option")).toHaveLength(1);
+
       expect(
-        screen.getByRole("button", { name: "Atualizar estado" }),
-      ).toBeDisabled();
+        await screen.findByText("Ordem criada pela fila."),
+      ).toBeInTheDocument();
+      expect(api.getOrderHistory).toHaveBeenCalledWith(9, expect.anything());
+      expect(
+        screen.queryByRole("button", { name: "Iniciar ordem" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", {
+          name: "Registrar resultado e concluir",
+        }),
+      ).toBeNull();
       expect(
         screen.queryByRole("button", { name: "Cancelar ordem…" }),
       ).toBeNull();
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "não pode ser reaberta",
-      );
+      expect(screen.getByText(/Ator: Não informado/)).toBeInTheDocument();
+      expect(screen.getByText(/Versão: Não informada/)).toBeInTheDocument();
+      expect(
+        screen.getByRole("textbox", { name: "Resultado de campo" }),
+      ).toBeDisabled();
       expect(api.updateOrder).not.toHaveBeenCalled();
+      expect(api.registerOrderResult).not.toHaveBeenCalled();
+      expect(api.cancelOrder).not.toHaveBeenCalled();
     },
   );
 
-  it("mostra conflito e reconcilia o estado final sem perder o rascunho", async () => {
-    const user = userEvent.setup();
-    const running = { ...order, status: "EM_ANDAMENTO" as const };
-    const finished = {
-      ...running,
-      status: "CONCLUIDA" as const,
-      result: "Já finalizada",
-    };
-    api.getOrderDetail
-      .mockResolvedValueOnce(running)
-      .mockResolvedValueOnce(finished);
-    api.updateOrder.mockRejectedValue(
-      new ApiError("Conflito", 409, {
-        detail: "A ordem já foi encerrada.",
-        error: {
-          code: "order_conflict",
-          message: "A ordem já foi encerrada.",
-          order_id: 9,
-        },
-      }),
-    );
-    renderDialog(running);
-    const status = await screen.findByRole("combobox", {
-      name: "Estado da ordem",
-    });
-    const result = screen.getByRole("textbox", { name: "Resultado de campo" });
-    await user.type(result, "Rascunho de campo ainda não salvo");
-    await user.selectOptions(status, "CONCLUIDA");
-    await user.click(screen.getByRole("button", { name: "Atualizar estado" }));
+  it("consulta novamente o detalhe ao reabrir uma ordem cancelada", async () => {
+    const finalOrder = { ...order, status: "CANCELADA" as const };
+    api.getOrderDetail.mockResolvedValue(finalOrder);
+    const dialog = renderDialog(finalOrder);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "A ordem já foi encerrada.",
-    );
+    await screen.findByText("Ordem criada pela fila.");
+    expect(api.getOrderDetail).toHaveBeenCalledTimes(1);
+    dialog.setOpen(false);
+    dialog.setOpen(true);
     await waitFor(() => expect(api.getOrderDetail).toHaveBeenCalledTimes(2));
-    expect(
-      screen.getByRole("combobox", { name: "Estado da ordem" }),
-    ).toHaveValue("CONCLUIDA");
+    expect(api.updateOrder).not.toHaveBeenCalled();
+    expect(api.registerOrderResult).not.toHaveBeenCalled();
+    expect(api.cancelOrder).not.toHaveBeenCalled();
     expect(
       screen.getByRole("textbox", { name: "Resultado de campo" }),
-    ).toHaveValue("Rascunho de campo ainda não salvo");
-    expect(
-      screen.queryByRole("button", { name: "Cancelar ordem…" }),
-    ).toBeNull();
+    ).toBeDisabled();
   });
 
-  it("sai da confirmação ao receber conflito de cancelamento e reconcilia ordem encerrada", async () => {
+  it("conflito reconcilia a ordem sem repetir escrita e mantém o rascunho", async () => {
     const user = userEvent.setup();
     const running = { ...order, status: "EM_ANDAMENTO" as const };
     const cancelled = { ...running, status: "CANCELADA" as const };
     api.getOrderDetail
       .mockResolvedValueOnce(running)
       .mockResolvedValueOnce(cancelled);
-    api.updateOrder.mockRejectedValue(
+    api.registerOrderResult.mockRejectedValue(
       new ApiError("Conflito", 409, {
-        detail: "A ordem já foi cancelada.",
-        error: {
-          code: "order_conflict",
-          message: "A ordem já foi cancelada.",
-          order_id: 9,
-        },
+        error: { code: "order_conflict", message: "A ordem já foi cancelada." },
       }),
     );
     renderDialog(running);
     const result = await screen.findByRole("textbox", {
       name: "Resultado de campo",
     });
-    await user.type(result, "Observação ainda não salva");
-    await user.click(screen.getByRole("button", { name: "Cancelar ordem…" }));
-    await user.click(screen.getByRole("button", { name: "Cancelar ordem" }));
+    await user.type(result, "Rascunho ainda não salvo");
+    await user.click(
+      screen.getByRole("button", { name: "Registrar resultado e concluir" }),
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "A ordem já foi cancelada.",
     );
     await waitFor(() => expect(api.getOrderDetail).toHaveBeenCalledTimes(2));
+    expect(api.registerOrderResult).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("textbox", { name: "Resultado de campo" }),
+    ).toHaveValue("Rascunho ainda não salvo");
+    expect(screen.getByText(/Cancelada/)).toBeInTheDocument();
+  });
+
+  it("sai da confirmação e exige nova ação após conflito de cancelamento ainda ativo", async () => {
+    const user = userEvent.setup();
+    const running = { ...order, status: "EM_ANDAMENTO" as const, version: 4 };
+    const refreshed = { ...running, version: 5 };
+    api.getOrderDetail
+      .mockResolvedValueOnce(running)
+      .mockResolvedValueOnce(refreshed);
+    api.cancelOrder.mockRejectedValue(
+      new ApiError("Conflito", 409, {
+        error: { code: "order_conflict", message: "A versão da ordem mudou." },
+      }),
+    );
+    renderDialog(running);
+    await screen.findByRole("textbox", { name: "Resultado de campo" });
+    await user.click(screen.getByRole("button", { name: "Cancelar ordem…" }));
+    await user.click(
+      screen.getByRole("button", { name: "Confirmar cancelamento" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "A versão da ordem mudou.",
+    );
+    await waitFor(() => expect(api.getOrderDetail).toHaveBeenCalledTimes(2));
     expect(
       screen.getByRole("heading", { name: "Ações da ordem #9" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Cancelar ordem" })).toBeNull();
     expect(
-      screen.getByRole("textbox", { name: "Resultado de campo" }),
-    ).toHaveValue("Observação ainda não salva");
+      screen.getByText(/Estado confirmado: Em andamento/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Cancelar ordem…" }),
+    ).toBeEnabled();
+    expect(api.cancelOrder).toHaveBeenCalledTimes(1);
   });
 
-  it("não afirma rollback após uma falha de rede e preserva o resultado digitado", async () => {
+  it("mantém rascunho e informa que uma falha de rede não foi confirmada", async () => {
     const user = userEvent.setup();
-    api.updateOrder.mockRejectedValue(new Error("Rede indisponível"));
-    renderDialog();
+    const running = { ...order, status: "EM_ANDAMENTO" as const };
+    api.getOrderDetail.mockResolvedValue(running);
+    api.registerOrderResult.mockRejectedValue(new Error("Rede indisponível"));
+    renderDialog(running);
     const result = await screen.findByRole("textbox", {
       name: "Resultado de campo",
     });
     await user.type(result, "Ponto de lacre íntegro");
     await user.click(
-      screen.getByRole("button", { name: "Registrar resultado" }),
+      screen.getByRole("button", { name: "Registrar resultado e concluir" }),
     );
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Rede indisponível");
     expect(alert).toHaveTextContent("A alteração não foi confirmada");
-    expect(alert).not.toHaveTextContent("permanece como estava");
-    expect(
-      screen.getByRole("textbox", { name: "Resultado de campo" }),
-    ).toHaveValue("Ponto de lacre íntegro");
-  });
-
-  it("mostra erro de consulta e permite repetir o GET", async () => {
-    const user = userEvent.setup();
-    api.getOrderDetail.mockRejectedValueOnce(
-      new Error("Falha ao consultar ordem"),
-    );
-    renderDialog();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Falha ao consultar ordem",
-    );
-    await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
-    expect(
-      await screen.findByRole("combobox", { name: "Estado da ordem" }),
-    ).toBeInTheDocument();
+    expect(result).toHaveValue("Ponto de lacre íntegro");
+    expect(api.registerOrderResult).toHaveBeenCalledTimes(1);
   });
 });

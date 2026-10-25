@@ -34,6 +34,8 @@ const confirmed = {
   created_at: "2026-10-23T12:00:00Z",
   updated_at: "2026-10-23T12:00:00Z",
   suspicion_reference: "reference",
+  version: 1,
+  cancellation_reason: null,
 };
 
 it("aguarda confirmação, bloqueia cliques durante envio e permite acompanhar", async () => {
