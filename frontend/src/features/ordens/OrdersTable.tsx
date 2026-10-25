@@ -24,7 +24,8 @@ function ActionButton({
       }
       aria-label={`Abrir ações da ordem ${formatOrderCode(order.id)} da UC ${order.uc_id}`}
     >
-      Abrir ações <ArrowRight size={15} aria-hidden="true" />
+      Ações {formatOrderCode(order.id)}{" "}
+      <ArrowRight size={15} aria-hidden="true" />
     </button>
   );
 }

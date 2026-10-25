@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, ClipboardList } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { Order } from "@/shared/api/orders";
 import { searchOrders } from "@/shared/api/orders";
@@ -96,6 +96,16 @@ export default function OrdensPage() {
 
   return (
     <div className="mt-5 space-y-5 pb-6 lg:mt-6 lg:space-y-6">
+      <nav aria-label="Navegação das ordens">
+        <Link
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          to="/inspecoes"
+        >
+          <ArrowLeft size={16} aria-hidden="true" />
+          Voltar à fila
+        </Link>
+      </nav>
+
       <div>
         <p className="text-xs leading-[18px] text-muted">
           Ambiente demonstrativo · atualização das ordens neste recorte:{" "}
@@ -227,39 +237,9 @@ export default function OrdensPage() {
                 </nav>
               ) : null}
               <section
-                aria-label="Ações operacionais da lista"
+                aria-label="Informações sobre o acompanhamento das ordens"
                 className="space-y-5 lg:space-y-6"
               >
-                <p className="text-sm leading-[22px] text-muted">
-                  Ações confirmadas ficam registradas no portal e podem ser
-                  acompanhadas nesta lista.
-                </p>
-                <div className="flex flex-col items-start gap-5 lg:gap-6">
-                  <Button
-                    variant="neutral"
-                    className="w-full min-w-[180px] sm:w-auto"
-                    leftIcon={<ClipboardList size={18} aria-hidden="true" />}
-                    aria-label={
-                      firstVisibleOrder
-                        ? `Ações da ordem ${formatOrderCode(firstVisibleOrder.id)} da UC ${firstVisibleOrder.uc_id}`
-                        : "Ações da ordem"
-                    }
-                    disabled={!firstVisibleOrder}
-                    onClick={(event) => {
-                      if (firstVisibleOrder)
-                        openActions(firstVisibleOrder, event.currentTarget);
-                    }}
-                  >
-                    Ações da ordem
-                  </Button>
-                  <Link
-                    className="inline-flex min-h-11 w-full min-w-[180px] items-center justify-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:w-auto"
-                    to="/inspecoes"
-                  >
-                    <ArrowLeft size={16} aria-hidden="true" />
-                    Voltar à fila
-                  </Link>
-                </div>
                 <aside className="flex flex-col gap-1 rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]">
                   <p className="font-medium">Acompanhamento operacional</p>
                   <p className="leading-[22px]">
@@ -280,12 +260,19 @@ export default function OrdensPage() {
                   className="min-h-11 w-full justify-center underline decoration-border underline-offset-4 sm:w-auto sm:justify-start"
                   rightIcon={<ArrowRight size={14} aria-hidden="true" />}
                   disabled={!firstVisibleOrder}
+                  aria-label={
+                    firstVisibleOrder
+                      ? `Ver fundamentos da ordem ${formatOrderCode(firstVisibleOrder.id)} da UC ${firstVisibleOrder.uc_id}`
+                      : "Ver fundamentos da ordem"
+                  }
                   onClick={(event) => {
                     if (firstVisibleOrder)
                       openFoundations(firstVisibleOrder, event.currentTarget);
                   }}
                 >
-                  Ver fundamentos
+                  {firstVisibleOrder
+                    ? `Ver fundamentos · ${formatOrderCode(firstVisibleOrder.id)}`
+                    : "Ver fundamentos"}
                 </Button>
               </footer>
             </>
