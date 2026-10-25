@@ -72,7 +72,7 @@ O plano é construído de forma determinística a partir do perfil e do catálog
 | `access_scope` | **proposto** | Mesmos campos de `AccessContext`, exceto `correlation_id`, que vem do cabeçalho. Aceito só nas rotas internas e com token de serviço válido. A GenAI o converte em `AccessContext` pelo `access_context_resolver` já usado em `create_app(source_mode="external")`. |
 | Campos adicionais | existente | Rejeitados (`extra="forbid"`). |
 
-`caller_ref` é um identificador opaco da pessoa usuária, sem nome, e-mail, CPF ou outro dado pessoal. Os IDs dos exemplos são ilustrativos; o catálogo real sai do dicionário Gold (DE-08).
+`caller_ref` é um identificador opaco da pessoa usuária, sem nome, e-mail, CPF ou outro dado pessoal. Os IDs dos exemplos são ilustrativos; a fonte dos identificadores do catálogo é o dicionário Gold (DE-08).
 
 ### Resposta (proposta: `QuestionPlanResponse`)
 
@@ -127,11 +127,21 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
   - `reference` (`EvidenceReference`): `source` igual ao `source_id` do plano ou no formato `<source_id com pontos trocados por _>:<referência opaca>`, `description` e `is_demo: false` para a Gold;
   - `records`: até `plan.limit` linhas agregadas, com os nomes lógicos de campo declarados em `evidence_fields` da métrica no catálogo (papéis medida, unidade, período e dimensão). Nenhum campo de sensibilidade pessoal;
   - `provenance` (`EvidenceProvenance`): `source_id`, `reference_source`, `plan_fingerprint`, `catalog_version`, `metric_id`, `unit`, `window`, `filters` (com `operator`) e `dimension_ids` efetivamente aplicados;
-  - `batch_ref` em `provenance` (**proposto**): identificador do lote exportado da Gold e carregado no banco local.
+  - `batch_ref` em `provenance` (**proposto**): identificador do lote efetivamente carregado e validado no banco local, não apenas da última execução no Databricks. Ver "Lote da Gold (`batch_ref`)" abaixo.
 - `message`: obrigatório em `no_evidence` e `needs_clarification`. É texto livre da fonte e não chega ao portal: `EvidenceGuard` o substitui por mensagem fixa.
 - `limitations`: só textos aprovados em `limitation_texts` da métrica no catálogo.
 
 **Por que a proveniência é obrigatória.** `EvidenceGuard.validate` recusa a evidência se `provenance` não coincidir com o plano em fonte, fingerprint, versão do catálogo, métrica, unidade, janela, filtros e dimensões. Depois disso, cada linha vira uma observação com `observation_id`, `value`, `unit`, `period` e `dimensions`. O grounding (`has_unsupported_claims`, em `app/agent/grounding.py`) compara cada afirmação do modelo com essa observação: métrica, unidade, período, filtros, operadores de filtro e dimensões precisam coincidir, e o valor precisa bater após o arredondamento declarado. Sem unidade, período, dimensões, filtros e operadores na evidência, a resposta é recusada como não fundamentada. O lote (`batch_ref`) é necessário para que a analista reproduza a amostra (IA-03).
+
+### Lote da Gold (`batch_ref`)
+
+**Proposta**, a combinar com quem é dona da exportação da Gold:
+
+- O `batch_ref` é derivado dos registros da tabela de controle da Gold, `gold.controle_gold`, com as colunas `run_id_silver`, `lote_bronze_silver`, `status_gold`, `tabelas_geradas` e `processado_em` (conferidas no notebook `data-engineering/notebook/Silver_to_gold.ipynb` da branch `feat/gold`). Só contam execuções com `status_gold = CONCLUIDO`.
+- A exportação dos CSV leva um pequeno manifesto com esses valores.
+- A carga no banco local registra qual manifesto foi carregado e validado. O Backend lê o `batch_ref` desse registro, e não da última execução no Databricks.
+- O formato exato do identificador fica em aberto.
+- **A combinar com quem é dona da exportação:** quando faltam metadados de execução, o notebook da Gold grava os valores de reserva `SINTETICO_DEV` e `LOTE_DEV` em `controle_gold`, e `status_gold` é sempre `CONCLUIDO`. Filtrar só por `CONCLUIDO` não descarta esses registros. O manifesto da exportação deve excluí-los ou sinalizá-los, e a carga no banco local deve recusar um lote com esses valores de reserva.
 
 ### Processamento na GenAI
 
@@ -180,7 +190,9 @@ Os envelopes montados pelo Backend usam as mensagens públicas de `map_failure` 
 - O token de serviço (`AI_AGENT_SERVICE_API_TOKEN` no Backend, `GENAI_SERVICE_API_TOKEN` na GenAI) autentica o Backend perante a GenAI. Ele não substitui a identidade nem o escopo da pessoa usuária.
 - O escopo vem do Backend em `access_scope` (**proposto**), nunca do corpo público. O portal não pode enviar nem influenciar esse bloco.
 - A GenAI aprova o plano contra o escopo no planejamento e de novo na síntese. O Backend revalida o plano contra o mesmo escopo na execução e ao servir resultado de cache. Nenhuma das três checagens substitui as outras.
-- Enquanto o Backend não tiver autenticação de pessoa usuária, o fluxo Gold não deve ser habilitado fora do ambiente local. O acesso demonstrativo (`GENAI_ENABLE_DEMO_ACCESS`) continua restrito a fontes `synthetic.*`.
+- Estado do código do Backend na branch `develop` em 25/10/2026 (não existe nesta branch): `ORDERS_AUTH_MODE` tem valor padrão `service`; o modo `oidc` é exigido quando `APP_ENV=production`; a demo local das ordens usa `demo` e não identifica a pessoa. O OIDC existe como preparação para a jornada com identificação da pessoa. No chat com a GenAI, o `Authorization: Bearer` autentica só a comunicação Backend → GenAI; não identifica quem usa o portal nem define o escopo de acesso à Gold.
+- **Decisão proposta:** autenticação individual da pessoa usuária é dependência para habilitar o fluxo Gold fora do ambiente local. O token de serviço não substitui essa identidade. O acesso demonstrativo (`GENAI_ENABLE_DEMO_ACCESS`) continua restrito a fontes `synthetic.*`.
+- **Pergunta aberta:** a autenticação individual será dependência para consultas Gold fora do ambiente local, considerando que perfis por cargo são diferencial (WEB-10) no PRD?
 
 ## Orçamento, prazos, correlação e auditoria
 
@@ -221,6 +233,7 @@ Correlação e auditoria:
 
 - As duas operações usam `contract_version: "v1"` interno (`INTERNAL_CONTRACT_VERSION`). Mudança incompatível cria `v2` e mantém `v1` até os dois serviços migrarem.
 - `catalog_version` precisa ser igual nos dois serviços. Divergência rejeita o plano (`invalid_upstream_response`) e nunca cai em outra fonte.
+- Os identificadores do catálogo vêm do dicionário Gold (DE-08). A `catalog_version` não deve ser congelada antes da decisão sobre as colunas expostas da Visão 360 e da fila (A5 da revisão da Gold), ainda em andamento.
 - `POST /api/v1/ai/questions` e `POST /api/v1/ai/insights` não mudam: mesmo corpo, mesmo envelope, mesmos códigos HTTP. O portal não percebe a troca.
 - `POST /api/v1/questions` da GenAI continua atendendo o modo demonstrativo (fixture e SQLite sintético) durante a transição. A escolha entre o caminho atual e o de duas etapas no Backend é por configuração explícita (**proposto**), sem fallback silencioso para a demonstração.
 - `POST /api/v1/ai/query` continua indisponível (503).
@@ -253,14 +266,16 @@ Os IDs são ilustrativos e não representam o catálogo aprovado. O contrato é 
     "order": null,
     "limit": 100
   },
-  "plan_fingerprint": "<sha256 do plano canônico, 64 hexadecimais>",
+  "plan_fingerprint": "9002cbfb7cb8ad373f7b471e41b1092b82d2e5fa8cc269553c73713a8d26fccb",
   "response": null
 }
 ```
 
+O `plan_fingerprint` dos exemplos é o SHA-256 real do plano acima, reproduzível com `LogicalReadPlan.fingerprint()`. Os IDs de catálogo do plano continuam ilustrativos.
+
 ### Válido — resposta fundamentada (sintetizar)
 
-Trecho do `lookup` enviado pelo Backend:
+A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "9002cbfb7cb8ad373f7b471e41b1092b82d2e5fa8cc269553c73713a8d26fccb"`. Trecho do `lookup` enviado pelo Backend:
 
 ```json
 {
@@ -273,7 +288,7 @@ Trecho do `lookup` enviado pelo Backend:
     "provenance": {
       "source_id": "gold.local",
       "reference_source": "gold_local:9b1e",
-      "plan_fingerprint": "<o mesmo do plano>",
+      "plan_fingerprint": "9002cbfb7cb8ad373f7b471e41b1092b82d2e5fa8cc269553c73713a8d26fccb",
       "catalog_version": "v1",
       "metric_id": "energia_faturada",
       "unit": "kWh",
@@ -331,7 +346,11 @@ O portal tenta mandar `access_scope` ou `allowed_metric_ids` no corpo de `POST /
 
 ### Inválido — SQL ou nome físico
 
-Um `lookup` ou plano com texto SQL, nome de tabela ou coluna física em qualquer campo viola o contrato: os schemas não têm esses campos e rejeitam campos extras; valores de dimensão fora do catálogo são recusados pelo `EvidenceGuard`.
+Um `lookup` ou plano com texto SQL, nome de tabela ou coluna física em qualquer campo viola o contrato. O Backend não deve enviar nomes físicos nem SQL em nenhum campo, inclusive dentro de `records`. O código atual trata cada caso de um jeito:
+
+- Campo extra no plano (`LogicalReadPlan`), no `lookup` (`EvidenceLookupResult`), na evidência (`EvidenceResult`), na referência (`EvidenceReference`) ou na proveniência (`EvidenceProvenance`): rejeitado pelo schema (`extra="forbid"`).
+- Chave desconhecida dentro de um item de `records`: o schema não a valida, porque `records` é uma lista de dicionários livres. O `EvidenceGuard` lê só os campos declarados em `evidence_fields` da métrica, exceto os de sensibilidade pessoal, e monta observações novas; as demais chaves são descartadas e não chegam ao modelo nem ao portal. O descarte é defesa adicional e não autoriza o envio.
+- Valor de dimensão de texto fora dos valores aprovados no catálogo: recusado pelo `EvidenceGuard` (`EvidenceContractInvalid`).
 
 ## Limites desta versão
 
