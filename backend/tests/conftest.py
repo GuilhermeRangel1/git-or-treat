@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.main import app
+from app.core.config import settings
 from app.core.database import Base, get_db
 
 # Engine de teste isolado em memória
@@ -51,7 +52,11 @@ def clean_test_db():
 
 
 @pytest.fixture
-def client(clean_test_db):
+def client(clean_test_db, monkeypatch):
+    # O ambiente local pode usar demo; os testes de acesso selecionam seu modo.
+    # Fixtures demo/OIDC substituem estes valores explicitamente após client.
+    monkeypatch.setattr(settings, "APP_ENV", "development")
+    monkeypatch.setattr(settings, "ORDERS_AUTH_MODE", "service")
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
