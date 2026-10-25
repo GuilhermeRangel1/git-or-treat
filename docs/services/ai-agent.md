@@ -120,6 +120,8 @@ O planejador recebe uma `EvidenceSource` assíncrona e envia um `LogicalReadPlan
 
 Esta é uma fronteira interna provisória para permitir substituição controlada da fonte sintética. A proposta é que o Backend seja dono das consultas Gold e exponha um contrato analítico estruturado; essa propriedade e o contrato ainda aguardam revisão de Backend e Engenharia de Dados ([ADR-0002](../decisions/0002-genai-gold-query-owner.md)). O endpoint atual do Backend continua sendo placeholder e não consulta Gold. A fronteira interna da GenAI não define o contrato HTTP entre serviços, nomes de métricas Gold, esquema do banco ou SQL. Uma futura fonte deverá preservar referência, limitações e estados de ausência/indisponibilidade. Um registro anterior de 18/10/2026 informou 121 testes aprovados fora do sandbox Windows; esse resultado histórico não valida integração com Gold nem substitui os gates da revisão atual.
 
+Revisão proposta em 25/10/2026 (GENAI-01): a ADR-0002 passa a prever o Backend como único executor SQL da Gold e a divisão do fluxo de perguntas em duas operações internas da GenAI, planejar e sintetizar, sem chamada de volta ao Backend. O contrato está em [genai-query-execution.md](../contracts/genai-query-execution.md). É preparação documental: nenhuma rota interna, adaptador ou composição mudou, e a decisão segue proposta até aprovação de Backend e Engenharia de Dados.
+
 Qualquer adaptador de fonte, inclusive uma implementação futura do Backend, deve manter os nomes de parâmetros do protocolo: `retrieve(self, plan, access_context)`. Isso permite chamadas por palavra-chave compatíveis com `EvidenceSource`. O contexto é recebido por chamada e não deve ser guardado entre consultas.
 
 ### Perfil de domínio e catálogo de capacidades

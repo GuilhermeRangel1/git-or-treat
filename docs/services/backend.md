@@ -39,6 +39,8 @@ O case não prescreve nomes de rota. A DEV-01 versiona contratos JSON, paginaç�
 
 Para a fronteira com a GenAI, há uma proposta pendente de revisão para o Backend controlar as consultas Gold por um contrato estruturado, sem SQL livre do agente ([ADR-0002](../decisions/0002-genai-gold-query-owner.md)). A rota `/api/v1/ai/query` existente é legado indisponível: valida o corpo e responde 503; não consulta dados, anuncia uma lista fictícia de tabelas nem fornece evidência.
 
+Revisão proposta em 25/10/2026 (GENAI-01): o Backend seria o único executor SQL da Gold no banco local, coordenando planejar (GenAI) → revalidar e consultar (Backend) → sintetizar (GenAI) atrás de `POST /api/v1/ai/questions`, com papel somente leitura, revalidação do plano também no cache e auditoria da execução. O contrato interno está em [genai-query-execution.md](../contracts/genai-query-execution.md). Nada foi implementado; a decisão segue proposta até aprovação de Backend e Engenharia de Dados.
+
 ## Contrato conversacional com a GenAI
 
 O Backend expõe `POST /api/v1/ai/questions` para o portal e encaminha a solicitação v1 ao `POST /api/v1/questions` do serviço GenAI. O endpoint antigo `/api/v1/ai/query` permanece separado e não é usado como rota de chat ou executor.
