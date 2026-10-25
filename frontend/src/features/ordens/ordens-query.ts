@@ -6,6 +6,7 @@ const allowedParameters = new Set([
   "uc_id",
   "status",
   "priority",
+  "has_result",
   "page",
   "page_size",
 ]);
@@ -17,6 +18,7 @@ export type OrdersQuery = {
   ucId: string | null;
   status: (typeof orderStatuses)[number] | null;
   priority: (typeof orderPriorities)[number] | null;
+  hasResult: boolean | null;
 };
 
 function positiveInteger(value: string, max?: number): number | null {
@@ -74,6 +76,15 @@ export function parseOrdersQuery(params: URLSearchParams): OrdersQuery {
     throw new Error("A prioridade informada não é válida.");
   }
 
+  const rawHasResult = params.get("has_result");
+  if (
+    rawHasResult !== null &&
+    rawHasResult !== "true" &&
+    rawHasResult !== "false"
+  ) {
+    throw new Error("O filtro de resultado informado não é válido.");
+  }
+
   const page = positiveInteger(params.get("page") ?? "1");
   if (page === null) throw new Error("A página informada não é válida.");
 
@@ -85,6 +96,7 @@ export function parseOrdersQuery(params: URLSearchParams): OrdersQuery {
   if (ucId) request.set("uc_id", ucId);
   if (rawStatus) request.set("status", rawStatus);
   if (rawPriority) request.set("priority", rawPriority);
+  if (rawHasResult !== null) request.set("has_result", rawHasResult);
   request.set("page", String(page));
   request.set("page_size", String(pageSize));
 
@@ -95,6 +107,7 @@ export function parseOrdersQuery(params: URLSearchParams): OrdersQuery {
     ucId,
     status: rawStatus as OrdersQuery["status"],
     priority: rawPriority as OrdersQuery["priority"],
+    hasResult: rawHasResult === null ? null : rawHasResult === "true",
   };
 }
 

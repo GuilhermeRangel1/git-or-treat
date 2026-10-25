@@ -1,8 +1,14 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import type { Order } from "@/shared/api/orders";
 import TestProviders from "@/shared/test/TestProviders";
 import OrdensPage from "./OrdensPage";
@@ -61,9 +67,15 @@ function response(
   );
 }
 
+function SearchLocation() {
+  const location = useLocation();
+  return <div data-testid="current-search">{location.search}</div>;
+}
+
 function renderPage(entry = "/ordens", client?: QueryClient) {
   const page = (
     <MemoryRouter initialEntries={[entry]}>
+      <SearchLocation />
       <OrdensPage />
     </MemoryRouter>
   );
@@ -102,6 +114,15 @@ it("apresenta a ordem retornada pela API e abre ações para a UC selecionada", 
     "23/10/2026, 22:30 (Recife)",
   );
   expect(screen.queryByText(/16\/10\/2026/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+    "Todas as UCs",
+  );
+  expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+    "Todos os estados",
+  );
+  expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+    "ResultadoTodos",
+  );
 
   await user.click(rowAction);
   expect(screen.getByRole("dialog", { name: "Ações 41" })).toHaveTextContent(
@@ -204,9 +225,11 @@ it("normaliza UC e consulta os filtros recebidos na URL", async () => {
   );
 
   await firstOrderAction();
-  expect(screen.getByText(/Recorte aplicado/)).toHaveTextContent(
-    "UC UC-1041 · Estado Em andamento · Prioridade Alta · 5 por página",
-  );
+  const appliedFilters = screen.getByLabelText("Filtros aplicados");
+  expect(appliedFilters).toHaveTextContent("UC-1041");
+  expect(appliedFilters).toHaveTextContent("Em andamento");
+  expect(appliedFilters).toHaveTextContent("PrioridadeAlta");
+  expect(appliedFilters).toHaveTextContent("Por página5");
   const requestedUrl = new URL(
     String(fetchMock.mock.calls[0][0]),
     location.origin,
@@ -216,6 +239,92 @@ it("normaliza UC e consulta os filtros recebidos na URL", async () => {
   expect(requestedUrl.searchParams.get("priority")).toBe("ALTA");
   expect(requestedUrl.searchParams.get("page")).toBe("2");
   expect(requestedUrl.searchParams.get("page_size")).toBe("5");
+});
+
+it("aplica filtros atomicamente, reinicia a página e preserva prioridade e page_size", async () => {
+  const user = userEvent.setup();
+  const fetchMock = vi.mocked(fetch);
+  renderPage("/ordens?priority=ALTA&page=3&page_size=5");
+
+  await screen.findByRole("button", { name: /Ajustar filtros/ });
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  await user.type(screen.getByLabelText("UC exata"), "UC-1041");
+  await user.selectOptions(screen.getByLabelText("Estado"), "EM_ANDAMENTO");
+  await user.selectOptions(screen.getByLabelText("Resultado"), "false");
+  await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  const locationSearch = new URLSearchParams(
+    screen.getByTestId("current-search").textContent,
+  );
+  expect(locationSearch.get("uc_id")).toBe("UC-1041");
+  expect(locationSearch.get("status")).toBe("EM_ANDAMENTO");
+  expect(locationSearch.get("has_result")).toBe("false");
+  expect(locationSearch.get("priority")).toBe("ALTA");
+  expect(locationSearch.get("page_size")).toBe("5");
+  expect(locationSearch.get("page")).toBe("1");
+
+  const request = new URL(String(fetchMock.mock.calls[1][0]), location.origin);
+  expect(request.searchParams.get("has_result")).toBe("false");
+  expect(request.searchParams.get("page")).toBe("1");
+  expect(request.searchParams.get("page_size")).toBe("5");
+  expect(request.searchParams.get("priority")).toBe("ALTA");
+  expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+    "PrioridadeAlta",
+  );
+  expect(screen.queryByText(/Recorte aplicado/)).not.toBeInTheDocument();
+});
+
+it("descarta o rascunho ao cancelar ou fechar com Escape", async () => {
+  const user = userEvent.setup();
+  renderPage("/ordens?uc_id=UC-1041&priority=ALTA&page_size=5");
+
+  const trigger = screen.getByRole("button", { name: "Ajustar filtros" });
+  await user.click(trigger);
+  await user.clear(screen.getByLabelText("UC exata"));
+  await user.type(screen.getByLabelText("UC exata"), "UC-9999");
+  await user.click(screen.getByRole("button", { name: "Cancelar" }));
+  await user.click(trigger);
+  expect(screen.getByLabelText("UC exata")).toHaveValue("UC-1041");
+  await user.clear(screen.getByLabelText("UC exata"));
+  await user.type(screen.getByLabelText("UC exata"), "UC-8888");
+  await user.keyboard("{Escape}");
+  await user.click(trigger);
+  expect(screen.getByLabelText("UC exata")).toHaveValue("UC-1041");
+  expect(screen.getByTestId("current-search")).toHaveTextContent(
+    "?uc_id=UC-1041&priority=ALTA&page_size=5",
+  );
+});
+
+it("mantém o diálogo aberto com erro de UC corrigível e aplica após a correção", async () => {
+  const user = userEvent.setup();
+  const fetchMock = vi.mocked(fetch);
+  renderPage("/ordens?priority=ALTA&page_size=5");
+
+  await screen.findByRole("button", { name: "Ajustar filtros" });
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  const ucInput = screen.getByLabelText("UC exata");
+  fireEvent.change(ucInput, { target: { value: "U".repeat(51) } });
+  await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+
+  expect(ucInput).toHaveAttribute("aria-invalid", "true");
+  expect(ucInput).toHaveFocus();
+  expect(
+    screen.getByText(
+      "A UC deve ter até 50 caracteres e não pode conter controles.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+
+  await user.clear(ucInput);
+  await user.type(ucInput, "UC-1041");
+  await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByTestId("current-search")).toHaveTextContent(
+    "uc_id=UC-1041",
+  );
 });
 
 it("preserva os filtros da URL ao avançar a página", async () => {

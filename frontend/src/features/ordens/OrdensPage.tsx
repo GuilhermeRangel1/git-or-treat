@@ -7,12 +7,11 @@ import { searchOrders } from "@/shared/api/orders";
 import Button from "@/shared/ui/Button";
 import OrderActionsDialog from "./OrderActionsDialog";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
+import OrderFilters from "./OrderFilters";
 import OrdersTable from "./OrdersTable";
 import {
   formatOrderCode,
   formatOrderDate,
-  orderPriorityLabel,
-  orderStatusLabel,
   parseOrdersQuery,
 } from "./ordens-query";
 
@@ -43,16 +42,6 @@ export default function OrdensPage() {
   });
   const firstVisibleOrder = orders.data?.items[0] ?? null;
   const visibleOrders = orders.data?.items ?? [];
-  const appliedFilters = parsed
-    ? [
-        parsed.ucId ? `UC ${parsed.ucId}` : null,
-        parsed.status ? `Estado ${orderStatusLabel(parsed.status)}` : null,
-        parsed.priority
-          ? `Prioridade ${orderPriorityLabel(parsed.priority)}`
-          : null,
-        parsed.pageSize !== 20 ? `${parsed.pageSize} por página` : null,
-      ].filter((value): value is string => value !== null)
-    : [];
   const lastUpdated = visibleOrders.reduce<string | null>((latest, order) => {
     if (!Number.isFinite(new Date(order.updated_at).getTime())) return latest;
     if (
@@ -113,12 +102,6 @@ export default function OrdensPage() {
         </p>
       </div>
 
-      {appliedFilters.length > 0 ? (
-        <p className="text-xs leading-[18px] text-muted">
-          Recorte aplicado · {appliedFilters.join(" · ")}
-        </p>
-      ) : null}
-
       {invalid ? (
         <div
           role="alert"
@@ -137,6 +120,8 @@ export default function OrdensPage() {
 
       {!invalid && parsed ? (
         <>
+          <OrderFilters params={params} filters={parsed} onChange={setParams} />
+
           {orders.isPending ? (
             <div
               role="status"
