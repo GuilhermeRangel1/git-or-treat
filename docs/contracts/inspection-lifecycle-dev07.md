@@ -1,6 +1,6 @@
 # DEV-07 — ciclo operacional das ordens (WEB-05)
 
-24/10/2026. Base incorporada: backend da DEV-06, commit `85a72a0`, que já inclui DEV-05. Frontend não alterado nesta entrega. Fonte analítica exclusivamente sintética; nenhuma validação Gold é afirmada.
+Entrega inicial de backend em 24/10/2026. Base incorporada: backend da DEV-06, commit `85a72a0`, que já inclui DEV-05. O frontend foi integrado em 25/10/2026, conforme a seção de integração abaixo. Fonte analítica exclusivamente sintética; nenhuma validação Gold é afirmada.
 
 ## Estados e validação
 
@@ -46,7 +46,7 @@ Na validação inicial de 24/10/2026: 263 testes passaram e quatro testes Postgr
 
 `tests/test_order_lifecycle_dev07.py` percorre HTTP → serviço → banco real SQLite → leitura por nova sessão. Cobre criação, resultado, cancelamento, histórico, ator, versões, terminalidade, repetição, confirmação incorreta, validações, acesso, rollback e duas sessões com alterações no mesmo status. Migra bancos originados de ambas as branches, verifica preservação de ordem/chave e impede reativação da ordem cancelada após migração. A suíte DEV-06 conserva os testes da fila, snapshots, idempotência, paginação e segurança.
 
-WEB-05 segue Em validação: integração completa da interface e confirmação visual pendentes. A execução PostgreSQL foi realizada na revisão abaixo. Trello não conectado nesta sessão.
+Na entrega inicial, WEB-05 permaneceu Em validação com integração da interface pendente. A execução PostgreSQL daquela revisão está registrada abaixo; a integração frontend de 25/10 tem evidências próprias no final deste documento.
 
 
 ## Preparação para o frontend — revisão de 24/10/2026
@@ -62,3 +62,9 @@ Exemplos sintéticos publicados no Swagger:
 Versão/ID dos exemplos são ilustrativos: use os valores reais retornados na consulta. A resposta 409 tem `detail` e `error` tipados, com exemplo de version_conflict. Sem nova migração SQL nesta revisão; basta reiniciar a API após atualizar o código (as migrações anteriores continuam necessárias para bancos ainda não atualizados).
 
 Validação adicional em PostgreSQL 18.6 efêmero, com volume anônimo descartado por --rm e isolado dos volumes de desenvolvimento, com usuário migrador sem SUPERUSER. A suíte passou com PostgreSQL configurado (293 testes, nenhum ignorado), cobrindo migração com comparação ORM/esquema, round-trip, índices de unicidade, concorrência, ciclo HTTP e histórico. O ambiente local Python 3.14.3 e a imagem Python 3.12.15 passaram com 293 testes cada. Na imagem, a suíte final executou sobre cópia temporária apenas de app/tests/alembic/scripts e alembic.ini, sem .env nem dados; fonte original montada somente leitura. A primeira tentativa sobre montagem direta Windows teve timeout no teste de reinício (292 passaram); repetição sobre disco Linux passou integralmente em 27,15 s. Fontes dos exemplos consultadas via Context7: [FastAPI — exemplos de schema](https://fastapi.tiangolo.com/tutorial/schema-extra-example/).
+
+## Integração frontend — 25/10/2026
+
+`/ordens` consome a versão atual antes de alterar estado, registra resultado pela rota que conclui e cancela pela rota dedicada com confirmação de OS/UC. O histórico é consultável para ordens ativas e encerradas; ator/versão legados ausentes são explícitos. Falhas preservam rascunhos, 409 exige nova interação e respostas atrasadas não substituem versões mais recentes nem fecham outra sessão do diálogo. Abrir ações de cancelada não dispara escrita.
+
+A revisão usou as skills de frontend/backend standards, API real e PostgreSQL descartável. Criação, resultado, cancelamento e histórico foram confirmados após reload/reinício da API, com comparação SQL independente. A interface foi aprovada pela pessoa usuária em 25/10. A reexecução no alvo Python 3.12.15/container com PostgreSQL 16.13 aprovou os 320 testes, sem ignorados; pip check e compileall também passaram. WEB-05 mantém o estado atual do PRD. Consulte [plano](../plans/2026-10-25-dev07-conclusao.md) e [evidências, comandos e limites](../plans/2026-10-25-dev07-evidencias.md).
