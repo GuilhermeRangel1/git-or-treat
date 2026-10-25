@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
 import Modal from "@/shared/ui/Modal";
@@ -7,9 +7,10 @@ import { queueQuery } from "./queue-query";
 import { useInspectionQueue, useSuspicion } from "./useInspectionQueue";
 import SuspicionDetail from "./SuspicionDetail";
 import InspectionFoundations from "./InspectionFoundations";
+import CreateOrder from "./CreateOrder";
 import InspectionFilters from "./InspectionFilters";
 import InspectionQueue from "./InspectionQueue";
-import { inspectionAction, inspectionPrimary } from "./inspection-ui";
+import { inspectionAction } from "./inspection-ui";
 import type { Metadata } from "./contract";
 
 function DemonstrationLine({ metadata }: { metadata: Metadata }) {
@@ -173,27 +174,17 @@ export default function InspecoesPage() {
           {parsed?.detail && detail.data ? (
             <>
               <SuspicionDetail data={detail.data.data} metadata={metadata} />
-              <div className="flex w-full flex-col items-stretch gap-5 lg:max-w-[180px] lg:gap-6">
-                <button
-                  type="button"
-                  disabled
-                  aria-describedby="create-order-unavailable"
-                  className={`${inspectionPrimary} w-full disabled:cursor-not-allowed disabled:opacity-60`}
-                >
-                  <Plus size={16} aria-hidden="true" />
-                  Criar ordem
-                </button>
-                <Link className={inspectionAction} to={`?${back}`}>
-                  <ArrowLeft size={16} aria-hidden="true" />
-                  Voltar à fila
-                </Link>
-              </div>
-              <p
-                id="create-order-unavailable"
-                className="text-xs leading-5 text-muted"
-              >
-                A criação de ordens estará disponível na jornada WEB-05.
-              </p>
+              <CreateOrder
+                key={`${detail.data.data.uc_id}:${detail.data.metadata.source.version}:${detail.data.data.rule_version}`}
+                uc={detail.data.data.uc_id}
+                sourceVersion={detail.data.metadata.source.version}
+                ruleVersion={detail.data.data.rule_version}
+                disabled={detail.isFetching || detail.isError}
+              />
+              <Link className={inspectionAction} to={`?${back}`}>
+                <ArrowLeft size={16} aria-hidden="true" />
+                Voltar à fila
+              </Link>
             </>
           ) : queue.data ? (
             <>

@@ -1,6 +1,6 @@
 # Arquitetura do frontend
 
-**Estado atual:** sete jornadas de produto compostas em um layout persistente. Panorama, Receita, UC 360 e Inspeções têm consultas demonstrativas integradas; Ordens e Operação permanecem shells; o Assistente integra o chat demonstrativo pelo Backend. As fontes integradas são sintéticas, e os aceites Gold continuam pendentes conforme o [PRD](../PRD.md). Esta descrição registra a arquitetura em execução, sem alterar escopo ou status de produto.
+**Estado atual:** sete jornadas de produto compostas em um layout persistente. Panorama, Receita, UC 360 e Inspeções têm consultas demonstrativas integradas; Ordens consulta a persistência operacional e permite ações confirmadas pelo servidor; o Assistente integra o chat demonstrativo pelo Backend. Operação permanece no escopo registrado no PRD. As fontes analíticas integradas são sintéticas, e os aceites Gold continuam pendentes conforme o [PRD](../PRD.md). Esta descrição registra a arquitetura em execução, sem alterar escopo ou status de produto.
 
 **Decisão estrutural:** [ADR-0001](../decisions/0001-arquitetura-frontend.md). Referências complementares: [ADR-0004 — contratos analíticos e fonte sintética](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md), [ADR-0006 — Panorama](../decisions/0006-panorama-fonte-produto-e-contrato-dev01.md), [ADR-0008 — Receita](../decisions/0008-exploracao-demonstrativa-receita.md), [ADR-0009 — UC 360](../decisions/0009-uc360-contratos-de-consulta.md), [contrato de Inspeções DEV-05](../contracts/inspection-dev05.md) e [catálogo de contratos analíticos](../contracts/analytics-api.md).
 
@@ -31,7 +31,7 @@ frontend/src/
 
 ## Rotas e carregamento
 
-A [ADR-0010](../decisions/0010-composicao-ui-e-carregamento-frontend.md) registra a evolução da composição e a exceção temporária do Panorama.
+A [ADR-0013](../decisions/0013-composicao-ui-e-carregamento-frontend.md) registra a evolução da composição e a exceção temporária do Panorama.
 
 `app/routes.ts` define caminhos, rótulos, contexto visual, requisito e componente de entrada. `app/router.tsx` mantém `AppLayout` em torno das rotas e coloca o `Suspense` interno ao layout, para que a estrutura global permaneça montada durante a troca de conteúdo. A rota `/panorama` é carregada diretamente; as demais páginas de produto usam `React.lazy` por rota e são carregadas ao navegar. `/uc-360/:ucId` reutiliza a mesma entrada lazy da busca. `/dev/contratos` é carregada sob demanda apenas em desenvolvimento e não participa da navegação de produto.
 

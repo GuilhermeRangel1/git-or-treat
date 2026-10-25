@@ -53,6 +53,24 @@ No Docker Compose, o frontend usa `5173` e `VITE_API_URL=/`: o proxy do Vite enc
 
 Na revisão DEV-05 de 22/10/2026, cabeçalho e conteúdo passaram a compartilhar largura fluida centralizada até 1920 px, como o Panorama da DEV-02, com espaçamento adaptativo. O ajuste foi aplicado aos componentes de layout, sem merge de branches.
 
+## Abrir Ordens DEV-06 com persistência local
+
+Na raiz do repositório, com o ambiente `backend/.venv` (ou `backend/venv`) e as dependências do frontend já instalados:
+
+```powershell
+.\scripts\start-orders-demo.ps1
+```
+
+Abra **http://localhost:5173/ordens**. Se as portas padrão já estiverem ocupadas, preserve a instância existente e use:
+
+```powershell
+.\scripts\start-orders-demo.ps1 -BackendPort 8010 -FrontendPort 5180
+```
+
+Nesse caso, abra **http://localhost:5180/ordens**. A execução seleciona demo sintética sem login, aplica as migrações e mantém ordens em `work/dev06-demo/orders.sqlite`. Recarregar a página ou reiniciar os serviços conserva os registros nesse arquivo. O script não altera `.env`; frontend e API escutam apenas em localhost, e o proxy encaminha as chamadas sem acrescentar credenciais. Logs e PIDs ficam em `work/dev06-demo/`.
+
+Uma lista inicial vazia é esperada em um banco novo. Abra **Inspeções**, selecione uma suspeita e use **Criar ordem de inspeção**. Após a confirmação do servidor, abra **Acompanhar ordem** ou o menu **Ordens**. O script antigo de Inspeções usa banco em memória e não deve ser usado para conferir a persistência das ordens.
+
 ## Fundação visual inicial
 
 Branch `feat/visual-frontend`, renomeada de `refactor/arquitetura-frontend`. A [referência Figma](https://www.figma.com/design/oTjmpIBgbA7OOYb9ZmMG9K?node-id=15-164) orienta a sidebar de 224 px e o cabeçalho do Panorama. O rodapé demonstrativo e a linha de dados sintéticos foram retirados conforme pedido. O Assistente é a exceção às páginas ainda visuais: tem envio de perguntas, respostas, estados de erro, evidências sintéticas e contexto transitório no contrato v1.

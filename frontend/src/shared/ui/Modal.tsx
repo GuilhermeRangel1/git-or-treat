@@ -8,7 +8,7 @@ import {
 import { X } from "lucide-react";
 import Button from "./Button";
 
-type ModalSize = "md" | "lg";
+type ModalSize = "xs" | "sm" | "md" | "lg";
 type ModalHeader = "inline" | "sticky";
 
 type ModalProps = {
@@ -21,9 +21,12 @@ type ModalProps = {
   size: ModalSize;
   header: ModalHeader;
   children: ReactNode;
+  className?: string;
 };
 
 const modalStyles: Record<ModalSize, string> = {
+  xs: "fixed inset-0 m-auto max-h-[90dvh] w-[min(35rem,calc(100vw-2rem))] min-w-0 overflow-y-auto rounded-2xl border border-border bg-[var(--bg-elevated)] p-0 text-content shadow-2xl backdrop:bg-black/50",
+  sm: "fixed inset-0 m-auto max-h-[90dvh] w-[min(40rem,calc(100vw-2rem))] min-w-0 overflow-y-auto rounded-2xl border border-border bg-[var(--bg-elevated)] p-0 text-content shadow-2xl backdrop:bg-black/50",
   md: "fixed inset-0 m-auto max-h-[90vh] w-[min(720px,calc(100vw-2rem))] min-w-0 overflow-y-auto rounded-2xl border border-border bg-surface p-0 text-content shadow-2xl backdrop:bg-black/50",
   lg: "m-auto max-h-[min(90dvh,56rem)] w-[min(48rem,calc(100%-2rem))] overflow-y-auto rounded-xl border border-border bg-surface p-0 text-content shadow-xl backdrop:bg-black/50",
 };
@@ -38,6 +41,7 @@ export default function Modal({
   size,
   header,
   children,
+  className,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const wasOpenRef = useRef(false);
@@ -101,7 +105,7 @@ export default function Modal({
     >
       {open ? (
         header === "inline" ? (
-          <section className="grid gap-4 p-5 sm:p-6">
+          <section className={className ?? "grid gap-4 p-5 sm:p-6"}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 id={titleId} className="font-heading text-xl font-semibold">
@@ -117,6 +121,9 @@ export default function Modal({
                 type="button"
                 variant="icon"
                 size="icon"
+                className={
+                  size === "sm" || size === "xs" ? "size-11" : undefined
+                }
                 aria-label={closeLabel}
                 onClick={onClose}
               >

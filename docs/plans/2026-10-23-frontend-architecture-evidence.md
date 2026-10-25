@@ -27,7 +27,7 @@ Solicitação aprovada: consolidar botões/modais, dividir UC 360, remover compo
 
 ## Limites e acompanhamento
 
-Estados do PRD preservados: esta refatoração não é aceite Gold. Reorganização e revisão visual do Panorama adiadas pela pessoa usuária. Leitura do quadro Trello retornou recurso inexistente/sem acesso; sincronização pendente. Não foram criados commits ou push nesta execução. A [ADR-0010](../decisions/0010-composicao-ui-e-carregamento-frontend.md) registra a decisão aprovada.
+Estados do PRD preservados: esta refatoração não é aceite Gold. Reorganização e revisão visual do Panorama adiadas pela pessoa usuária. Leitura do quadro Trello retornou recurso inexistente/sem acesso; sincronização pendente. Não foram criados commits ou push nesta execução. A [ADR-0013](../decisions/0013-composicao-ui-e-carregamento-frontend.md) registra a decisão aprovada.
 
 ## Relatórios locais
 

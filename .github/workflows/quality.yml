@@ -179,6 +179,7 @@ jobs:
           npm run check:boundaries
           npm run format:check
           npm test
+          npm run test:proxy
 
       - name: Validar tipos e build
         run: npm run build

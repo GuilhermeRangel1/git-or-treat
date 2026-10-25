@@ -42,7 +42,7 @@ if ($occupied) {
 $logRoot = Join-Path $repoRoot 'work/dev05-demo'
 New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
 $runId = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
-$environmentNames = @('ANALYTICS_SOURCE', 'DATABASE_URL', 'BACKEND_CORS_ORIGINS', 'VITE_API_URL')
+$environmentNames = @('ANALYTICS_SOURCE', 'APP_ENV', 'ORDERS_AUTH_MODE', 'DATABASE_URL', 'BACKEND_CORS_ORIGINS', 'VITE_API_URL')
 $previousEnvironment = @{}
 foreach ($name in $environmentNames) {
     $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
@@ -51,6 +51,8 @@ $apiProcess = $null
 $frontendProcess = $null
 try {
     $env:ANALYTICS_SOURCE = 'synthetic'
+    $env:APP_ENV = 'development'
+    $env:ORDERS_AUTH_MODE = 'demo'
     $env:DATABASE_URL = 'sqlite:///:memory:'
     $env:BACKEND_CORS_ORIGINS = "[`"http://localhost:$FrontendPort`",`"http://127.0.0.1:$FrontendPort`"]"
     $env:VITE_API_URL = $apiUrl
