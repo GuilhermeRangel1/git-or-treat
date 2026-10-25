@@ -6,13 +6,12 @@ import FilterBar from "./FilterBar";
 import { usePanoramaFilters } from "./usePanoramaFilters";
 
 function Filters() {
-  const { filters, setFilter, resetFilters, hasActiveFilters, errors } =
+  const { filters, setFilters, hasActiveFilters, errors } =
     usePanoramaFilters();
   return (
     <FilterBar
       filters={filters}
-      onFilterChange={setFilter}
-      onReset={resetFilters}
+      onApply={setFilters}
       hasActiveFilters={hasActiveFilters}
       errors={errors}
     />
@@ -20,7 +19,7 @@ function Filters() {
 }
 
 describe("FilterBar", () => {
-  it("mostra o resumo compacto e abre os ajustes sob demanda", async () => {
+  it("mantém alterações como rascunho até aplicar e cancela sem alterar a URL", async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -31,32 +30,82 @@ describe("FilterBar", () => {
     expect(screen.getByText("Mar/2024")).toBeVisible();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: "Ajustar filtros" });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
     await user.click(toggle);
-    const panel = screen.getByRole("region", {
-      name: "Ajustar recorte do Panorama",
-    });
+    const panel = screen.getByRole("dialog", { name: "Ajustar filtros" });
     await user.selectOptions(
       within(panel).getByLabelText("Município"),
       "Recife",
     );
+    expect(
+      screen.getByText("Todos os municípios", { selector: "dd" }),
+    ).toBeVisible();
+    await user.click(within(panel).getByRole("button", { name: "Cancelar" }));
+    expect(
+      screen.getByText("Todos os municípios", { selector: "dd" }),
+    ).toBeVisible();
+    await user.click(toggle);
+    const reopened = screen.getByRole("dialog", { name: "Ajustar filtros" });
+    await user.selectOptions(
+      within(reopened).getByLabelText("Município"),
+      "Recife",
+    );
+    await user.click(
+      within(reopened).getByRole("button", { name: "Aplicar filtros" }),
+    );
     expect(screen.getByText("Recife", { selector: "dd" })).toBeVisible();
+  });
+
+  it("descarta alterações ao pressionar Escape e devolve foco ao acionador", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Filters />
+      </MemoryRouter>,
+    );
+    const toggle = screen.getByRole("button", { name: "Ajustar filtros" });
+    await user.click(toggle);
+    const panel = screen.getByRole("dialog", { name: "Ajustar filtros" });
+    await user.selectOptions(
+      within(panel).getByLabelText("Município"),
+      "Recife",
+    );
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Todos os municípios", { selector: "dd" }),
+    ).toBeVisible();
+    expect(toggle).toHaveFocus();
+  });
+
+  it("limpa o rascunho sem gravar até que filtros sejam aplicados", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/?municipio=Recife"]}>
+        <Filters />
+      </MemoryRouter>,
+    );
+    const toggle = screen.getByRole("button", { name: "Ajustar filtros" });
+    await user.click(toggle);
+    const panel = screen.getByRole("dialog", { name: "Ajustar filtros" });
+    await user.selectOptions(
+      within(panel).getByLabelText("Município"),
+      "Recife",
+    );
     await user.click(
       within(panel).getByRole("button", { name: "Limpar filtros" }),
     );
     expect(within(panel).getByLabelText("Município")).toHaveValue("todos");
+    expect(screen.getByText("Recife", { selector: "dd" })).toBeVisible();
     await user.selectOptions(
       within(panel).getByLabelText("Comparação"),
       "nenhuma",
     );
+    await user.click(
+      within(panel).getByRole("button", { name: "Aplicar filtros" }),
+    );
     expect(
       screen.getByText("Sem comparação", { selector: "dd" }),
     ).toBeVisible();
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Ajustar filtros" }),
-    ).toHaveFocus();
   });
   it("abre valores inválidos para correção sem ocultar a validação", () => {
     render(
@@ -67,9 +116,8 @@ describe("FilterBar", () => {
     expect(
       screen.getByText("Comparação inválida", { selector: "dd" }),
     ).toBeVisible();
-    expect(screen.getByLabelText("Comparação")).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
+    expect(
+      screen.getByRole("combobox", { name: "Comparação" }),
+    ).toHaveAttribute("aria-invalid", "true");
   });
 });

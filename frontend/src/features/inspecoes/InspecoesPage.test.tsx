@@ -136,7 +136,9 @@ it("abre evidências reproduzíveis e volta preservando a página e os filtros",
     )[0],
   );
   expect(await screen.findByText("O que motivou a investigação")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Criar ordem" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+  ).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "Ver fundamentos" }));
   expect(
     await screen.findByRole("heading", {

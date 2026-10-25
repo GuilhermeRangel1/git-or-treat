@@ -470,6 +470,7 @@ describe("IA-04 contextual insight on Panorama", () => {
 
     await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
     await user.selectOptions(screen.getByLabelText("Município"), "Recife");
+    await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
     expect(
       await screen.findByText(
         /Energia Faturada caiu .* de Mar\/24 para Abr\/24/,

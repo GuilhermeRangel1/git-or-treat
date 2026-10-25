@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import ClassVar, Protocol
+from typing import Callable, ClassVar, Protocol
 
 from app.core.config import settings
 from app.synthetic import fixtures
@@ -135,3 +135,8 @@ def get_analytics_repository() -> AnalyticsRepository:
     if settings.ANALYTICS_SOURCE != "synthetic":
         raise AnalyticsSourceUnavailable()
     return _synthetic_repository
+
+
+def get_analytics_repository_provider() -> Callable[[], AnalyticsRepository]:
+    """Resolve analytics lazily, only when a new order needs queue evidence."""
+    return get_analytics_repository

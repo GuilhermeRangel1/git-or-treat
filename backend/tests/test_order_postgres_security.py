@@ -23,6 +23,9 @@ def test_order_security_on_disposable_postgres(monkeypatch):
     assert url.get_backend_name() == "postgresql" and url.database.endswith("_test")
     engine = create_engine(url)
     token = "postgres-isolated-writer-" + "w" * 32
+    # Este teste cria seu próprio cliente; não herdar o modo demo do ambiente local.
+    monkeypatch.setattr("app.core.config.settings.APP_ENV", "development")
+    monkeypatch.setattr("app.core.config.settings.ORDERS_AUTH_MODE", "service")
     monkeypatch.setattr("app.core.config.settings.ORDERS_WRITE_TOKEN", SecretStr(token))
     monkeypatch.setattr("app.core.config.settings.ORDERS_READ_TOKEN", None)
     previous_overrides = app.dependency_overrides.copy()

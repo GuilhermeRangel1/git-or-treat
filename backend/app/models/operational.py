@@ -1,5 +1,5 @@
 from enum import Enum
-from sqlalchemy import Column, String, Integer, BigInteger, Text, Enum as SQLEnum, Index
+from sqlalchemy import Column, String, Integer, BigInteger, Text, JSON, Enum as SQLEnum, Index, text
 from app.db.base import Base
 from app.models.base import TimestampMixin
 
@@ -27,7 +27,15 @@ class InspectionOrder(Base, TimestampMixin):
     status = Column(SQLEnum(OrderStatus, native_enum=False, length=20), default=OrderStatus.PENDING, nullable=False, index=True)
     notes = Column(Text, nullable=True)
     result = Column(Text, nullable=True)
+    suspicion_reference = Column(String(64), nullable=True)
+    suspicion_snapshot = Column(JSON, nullable=True)
+    idempotency_key = Column(String(128), nullable=True)
+    request_fingerprint = Column(String(64), nullable=True)
 
     __table_args__ = (
         Index("idx_orders_status_priority", "status", "priority"),
+        Index("uq_orders_idempotency", "idempotency_key", unique=True),
+        Index("uq_orders_active_uc", "uc_id", unique=True,
+              postgresql_where=text("status IN ('PENDING', 'IN_PROGRESS')"),
+              sqlite_where=text("status IN ('PENDING', 'IN_PROGRESS')")),
     )

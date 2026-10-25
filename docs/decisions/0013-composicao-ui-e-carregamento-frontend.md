@@ -1,4 +1,4 @@
-# ADR-0010 — Composição da interface e carregamento das páginas
+# ADR-0013 — Composição da interface e carregamento das páginas
 
 **Data:** 2026-10-23
 **Estado:** aprovada pela solicitação de refatoração da pessoa usuária

@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:proxy": "node --test scripts/check-dev-proxy.mjs",
     "test:watch": "vitest",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "format": "prettier --write src scripts *.json *.ts index.html README.md",
