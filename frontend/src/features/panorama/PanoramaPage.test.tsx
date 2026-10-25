@@ -132,7 +132,7 @@ describe("PanoramaPage (WEB-01)", () => {
       await userEvent.click(
         screen.getByRole("button", { name: "Restaurar filtros padrão" }),
       );
-      expect(await screen.findByText(/76\.500,00/)).toBeVisible();
+      expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
       expect(panoramaRequestCount()).toBe(1);
     },
   );
@@ -145,19 +145,18 @@ describe("PanoramaPage (WEB-01)", () => {
         </MemoryRouter>
       </TestProviders>,
     );
-    expect(await screen.findByText(/31\.000,00/)).toBeVisible();
+    expect(await screen.findByText(/R\$ 31 mil/)).toBeVisible();
     expect(
       screen.getAllByText("Comparação indisponível · período incompleto"),
-    ).toHaveLength(8);
+    ).toHaveLength(2);
     expect(screen.queryByText("-59,48%")).not.toBeInTheDocument();
     const main = screen.getByRole("region", {
       name: "Indicadores principais do Panorama",
     });
-    const extra = screen.getByRole("region", {
-      name: "Indicadores complementares do Panorama",
-    });
     expect(within(main).getAllByRole("article")).toHaveLength(4);
-    expect(within(extra).getAllByRole("article")).toHaveLength(4);
+    expect(
+      screen.queryByText("Indicadores complementares"),
+    ).not.toBeInTheDocument();
   });
 
   it("mostra falha da API sem substituir por números locais e permite tentar novamente", async () => {
@@ -172,11 +171,50 @@ describe("PanoramaPage (WEB-01)", () => {
     expect(
       await screen.findByText("Erro na consulta dos indicadores"),
     ).toBeVisible();
-    expect(screen.queryByText(/76\.500,00/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/R\$ 76,5 mil/)).not.toBeInTheDocument();
     await userEvent.click(
       screen.getByRole("button", { name: /Tentar novamente/i }),
     );
-    expect(await screen.findByText(/76\.500,00/)).toBeVisible();
+    expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
+  });
+
+  it("mantém o último conjunto válido quando uma atualização falha", async () => {
+    const fallback = vi.mocked(fetch).getMockImplementation();
+    expect(fallback).toBeTypeOf("function");
+    if (!fallback) return;
+    let failNextPanorama = false;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://localhost:5173");
+      if (failNextPanorama && url.pathname === "/api/v1/panorama") {
+        failNextPanorama = false;
+        throw new Error("offline");
+      }
+      return fallback(input, init);
+    });
+    render(
+      <TestProviders>
+        <MemoryRouter>
+          <PanoramaPage />
+        </MemoryRouter>
+      </TestProviders>,
+    );
+    expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
+    failNextPanorama = true;
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ver estado de atualização" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Atualizar indicadores" }),
+    );
+    expect(
+      await screen.findByText(
+        "Atualização pendente · exibindo o último conjunto válido.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText(/R\$ 76,5 mil/)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /Tentar atualizar novamente/ }),
+    ).toBeVisible();
   });
 
   it("trata comparação nula recebida da API sem quebrar os cartões", async () => {
@@ -201,8 +239,11 @@ describe("PanoramaPage (WEB-01)", () => {
         </MemoryRouter>
       </TestProviders>,
     );
-    expect(await screen.findByText(/76\.500,00/)).toBeVisible();
-    expect(screen.getAllByText("Sem comparação selecionada")).toHaveLength(8);
+    expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
+    const main = screen.getByRole("region", {
+      name: "Indicadores principais do Panorama",
+    });
+    expect(within(main).getAllByText("Sem comparação")).toHaveLength(2);
   });
 
   it("rejeita resposta incompleta da API", async () => {
@@ -239,21 +280,27 @@ describe("PanoramaPage (WEB-01)", () => {
     ).toBeVisible();
 
     // Aguarda o carregamento dos dados e verifica os valores do benchmark (PRD WEB-01)
-    expect(await screen.findByText(/76\.500,00/)).toBeVisible();
-    expect(await screen.findByText(/74\.200,00/)).toBeVisible();
-    expect(screen.getAllByText(/90\.000 kWh/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/1\.248 UCs/)).toBeVisible();
-    expect(screen.getByText(/0,85/)).toBeVisible();
-
-    // Distinção faturado vs pago
-    expect(screen.getAllByText("Faturado").length).toBeGreaterThan(0);
-    expect(screen.getByText("Arrecadado / Pago")).toBeVisible();
-    expect(screen.getByText("Físico / Consumido")).toBeVisible();
-
-    // Variações percentuais
-    expect(screen.getByText("-4,38%")).toBeVisible();
-    expect(screen.getByText("-5,48%")).toBeVisible();
-    expect(screen.getAllByText("-10,00%").length).toBeGreaterThan(0);
+    expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
+    expect(screen.getAllByText("90 MWh")).toHaveLength(2);
+    expect(screen.getByText("1.248 UCs")).toBeVisible();
+    expect(screen.getByText("Valor faturado")).toBeVisible();
+    expect(screen.getByText("Energia faturada")).toBeVisible();
+    expect(screen.getByText("Consumo apurado")).toBeVisible();
+    expect(screen.getByText("Base de UCs")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ver fundamentos" }),
+    );
+    const foundations = screen.getByRole("dialog", {
+      name: "Fundamentos dos indicadores",
+    });
+    expect(
+      within(foundations).getByText("Receita Arrecadada / Paga"),
+    ).toBeVisible();
+    expect(within(foundations).getByText("Energia Consumida")).toBeVisible();
+    expect(within(foundations).getByText("Preço Médio Efetivo")).toBeVisible();
+    expect(
+      within(foundations).getByText("Frequência Equivalente (FEC)"),
+    ).toBeVisible();
   });
 
   it("alterar o filtro de município modifica os dados exibidos", async () => {
@@ -267,15 +314,15 @@ describe("PanoramaPage (WEB-01)", () => {
     );
 
     // Aguarda carga inicial
-    expect(await screen.findByText(/76\.500,00/)).toBeVisible();
+    expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
     const municipioSelect = screen.getByLabelText("Município");
     await user.selectOptions(municipioSelect, "Recife");
+    expect(screen.getByText(/R\$ 76,5 mil/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
-
-    // Recife soma R$ 38.000 e 620 UCs
-    expect(await screen.findByText(/38\.000,00/)).toBeVisible();
+    // Recife soma R$ 38 mil e 620 UCs
+    expect(await screen.findByText(/R\$ 38 mil/)).toBeVisible();
     expect(screen.getByText(/620 UCs/)).toBeVisible();
   });
 
@@ -323,7 +370,11 @@ describe("PanoramaPage (WEB-01)", () => {
     );
 
     // Aguarda carga
-    await screen.findByText(/76\.500,00/);
+    await screen.findByText(/R\$ 76,5 mil/);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ver fundamentos" }),
+    );
 
     const infoButton = screen.getByRole("button", {
       name: "Ver detalhes e fórmula de Receita Faturada",
@@ -349,12 +400,15 @@ describe("PanoramaPage (WEB-01)", () => {
     );
 
     // Aguarda carga
-    await screen.findByText(/76\.500,00/);
+    await screen.findByText(/R\$ 76,5 mil/);
 
-    const toggleTableBtn = screen.getByRole("button", { name: "Ver Tabela" });
-    await user.click(toggleTableBtn);
-
+    const showData = screen.getByRole("button", {
+      name: /Ver dados da receita/,
+    });
+    await user.click(showData);
     expect(screen.getByRole("table")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Ver Gráfico" })).toBeVisible();
+    expect(
+      screen.getByRole("dialog", { name: "Dados da receita" }),
+    ).toBeVisible();
   });
 });

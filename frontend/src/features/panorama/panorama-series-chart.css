@@ -1,0 +1,259 @@
+.panorama-series-chart {
+  --panorama-chart-bar: #2d6470;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  padding: 24px;
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .panorama-series-chart {
+  --panorama-chart-bar: #8db9c1;
+}
+
+.panorama-series-chart__title {
+  margin: 0;
+  font-family: var(--font-heading, Manrope, sans-serif);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.panorama-series-chart__caption,
+.panorama-series-chart__summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.panorama-series-chart__figure {
+  min-width: 0;
+  margin: 0;
+}
+
+.panorama-series-chart__plot {
+  display: grid;
+  grid-template-columns: 55px minmax(0, 1fr);
+  column-gap: 12px;
+  min-width: 0;
+}
+
+.panorama-series-chart__axis {
+  position: relative;
+  height: 236px;
+  color: var(--text-secondary);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: right;
+}
+
+.panorama-series-chart__axis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.panorama-series-chart__axis span:nth-child(1) {
+  top: 28px;
+}
+
+.panorama-series-chart__axis span:nth-child(2) {
+  top: 110px;
+}
+
+.panorama-series-chart__axis span:nth-child(3) {
+  top: 192px;
+}
+
+.panorama-series-chart__bars {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  height: 236px;
+  grid-template-columns: repeat(var(--panorama-period-count), minmax(0, 1fr));
+  column-gap: clamp(2px, 1.2vw, 16px);
+}
+
+.panorama-series-chart__gridlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.panorama-series-chart__gridlines span {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px solid var(--line-subtle);
+}
+
+.panorama-series-chart__gridlines span:nth-child(1) {
+  top: 28px;
+}
+
+.panorama-series-chart__gridlines span:nth-child(2) {
+  top: 110px;
+}
+
+.panorama-series-chart__gridlines span:nth-child(3) {
+  top: 192px;
+}
+
+.panorama-series-chart__item {
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  height: 236px;
+  flex-direction: column;
+  align-items: center;
+}
+
+.panorama-series-chart__value {
+  overflow: hidden;
+  max-width: 100%;
+  margin-top: auto;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.panorama-series-chart__bar {
+  width: 100%;
+  max-width: 79px;
+  flex: 0 0 auto;
+  border-radius: 4px;
+  background: var(--panorama-chart-bar);
+}
+
+.panorama-series-chart__bar.is-selected {
+  border: 2px solid var(--text-primary);
+}
+
+.panorama-series-chart__month {
+  display: block;
+  width: 100%;
+  height: 36px;
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.panorama-series-chart__month-full {
+  display: none;
+}
+
+.panorama-series-chart__current {
+  display: block;
+  font-weight: 600;
+}
+
+.panorama-series-chart__details-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  align-self: flex-start;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.panorama-series-chart__details-link:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.panorama-series-chart__table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.panorama-series-chart__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+}
+
+.panorama-series-chart__table th,
+.panorama-series-chart__table td {
+  border-bottom: 1px solid var(--line-subtle);
+  padding: 10px 8px;
+}
+
+.panorama-series-chart__table th {
+  font-weight: 500;
+}
+
+.panorama-series-chart__table td {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.panorama-series-chart__table tfoot th,
+.panorama-series-chart__table tfoot td {
+  border-bottom: 0;
+  font-weight: 600;
+}
+
+@media (min-width: 640px) {
+  .panorama-series-chart__month-short {
+    display: none;
+  }
+
+  .panorama-series-chart__month-full {
+    display: inline;
+  }
+}
+
+@media (max-width: 639px) {
+  .panorama-series-chart {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .panorama-series-chart__title {
+    font-size: 18px;
+    line-height: 26px;
+  }
+
+  .panorama-series-chart__plot {
+    grid-template-columns: 36px minmax(0, 1fr);
+    column-gap: 8px;
+  }
+
+  .panorama-series-chart__axis {
+    font-size: 10px;
+  }
+
+  .panorama-series-chart__bars {
+    column-gap: 2px;
+  }
+
+  .panorama-series-chart__value {
+    font-size: 9px;
+    line-height: 14px;
+  }
+
+  .panorama-series-chart__month {
+    font-size: 10px;
+    line-height: 16px;
+  }
+}
