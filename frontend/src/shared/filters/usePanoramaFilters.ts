@@ -66,6 +66,22 @@ export function usePanoramaFilters() {
     [setSearchParams],
   );
 
+  const setFilters = useCallback(
+    (values: PanoramaFilters) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const key of Object.keys(values) as (keyof PanoramaFilters)[]) {
+            next.set(key, String(values[key]));
+          }
+          return next;
+        },
+        { replace: false },
+      );
+    },
+    [setSearchParams],
+  );
+
   const resetFilters = useCallback(() => {
     setSearchParams(
       (prev) => {
@@ -92,6 +108,7 @@ export function usePanoramaFilters() {
   return {
     filters,
     setFilter,
+    setFilters,
     resetFilters,
     hasActiveFilters,
     errors,

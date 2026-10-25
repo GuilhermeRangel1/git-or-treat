@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import TestProviders from "../../shared/test/TestProviders";
 import PanoramaPage from "./PanoramaPage";
@@ -25,7 +26,11 @@ it("exibe o conteúdo hostil do filtro como texto, sem criar elementos ou execut
     </TestProviders>,
   );
   expect(await screen.findByText("Filtros inválidos na URL")).toBeVisible();
-  expect(screen.getByText(attack, { exact: true })).toBeVisible();
+  expect(screen.getByLabelText("Município")).toHaveValue(attack);
+  expect(screen.getByLabelText("Município")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
   expect(fetch).not.toHaveBeenCalled();
   expect(document.querySelector('img[src="x"]')).toBeNull();
   expect(alert).not.toHaveBeenCalled();
@@ -50,7 +55,11 @@ it("mantém os filtros e a tentativa de recuperação quando a API devolve HTTP 
   expect(
     await screen.findByText("Erro na consulta dos indicadores"),
   ).toBeVisible();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Ajustar filtros" }),
+  );
   expect(screen.getByLabelText("Município")).toBeEnabled();
+  await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
   expect(
     screen.getByRole("button", { name: "Tentar novamente" }),
   ).toBeEnabled();
