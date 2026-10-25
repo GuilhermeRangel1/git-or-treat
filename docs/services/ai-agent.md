@@ -29,7 +29,10 @@ O contrato também é resumido no [README do serviço](../../ai-agent/README.md)
 O contrato interno do modelo aceita `claims` opcionais, sem alterar o envelope HTTP `v1`.
 Cada afirmação explícita vincula `observation_id`, valor, métrica lógica, unidade, período,
 filtros, operadores e dimensões à observação selecionada e ao plano autorizado. Operador
-omitido significa apenas igualdade; exclusão não equivale a inclusão. Valor de outra linha,
+omitido significa apenas igualdade; exclusão não equivale a inclusão. Em filtros `IN`, a
+comparação ignora a ordem e repetições dos valores, preservando os tipos escalares; valores
+extras/ausentes ou tipos diferentes geram recusa. Outros operadores mantêm comparação exata.
+Valor de outra linha,
 percentual derivado sem observação própria ou contexto divergente gera recusa de fundamentação.
 `decimal_places` permite somente arredondamento decimal HALF_UP de 0 a 6 casas; não permite
 conversão de unidade nem muda o valor original apresentado pelo serviço.

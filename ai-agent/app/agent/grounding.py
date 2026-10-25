@@ -111,6 +111,33 @@ def _has_unsupported_numeric_claim(
     return any(not claim.intersection(supported) for claim in claims)
 
 
+def _filters_match(
+    claimed: dict[str, object],
+    expected: dict[str, object],
+    operators: dict[str, str],
+) -> bool:
+    if claimed.keys() != expected.keys():
+        return False
+    for key, expected_value in expected.items():
+        claimed_value = claimed[key]
+        if (
+            operators.get(key, "eq") == "in"
+            and isinstance(claimed_value, list)
+            and isinstance(expected_value, list)
+        ):
+            # Serializar cada escalar preserva bool/int/float/string e evita
+            # ordenar tipos heterogêneos. Duplicatas não mudam a seleção IN.
+            if {json.dumps(item, ensure_ascii=False) for item in claimed_value} != {
+                json.dumps(item, ensure_ascii=False) for item in expected_value
+            }:
+                return False
+        elif json.dumps(claimed_value, ensure_ascii=False) != json.dumps(
+            expected_value, ensure_ascii=False
+        ):
+            return False
+    return True
+
+
 def has_unsupported_claims(
     generated: GeneratedAnswer,
     observations: dict[str, dict[str, object]],
@@ -141,8 +168,7 @@ def has_unsupported_claims(
             claim.metric != metric
             or claim.unit != row["unit"]
             or claim.period != str(row.get("period", period))
-            or json.dumps(claim.filters, sort_keys=True, ensure_ascii=False)
-            != json.dumps(filters, sort_keys=True, ensure_ascii=False)
+            or not _filters_match(claim.filters, filters, filter_operators or {})
             or json.dumps(claim.dimensions, sort_keys=True, ensure_ascii=False)
             != json.dumps(row.get("dimensions", {}), sort_keys=True, ensure_ascii=False)
             or not claim.filter_operators.keys() <= filters.keys()
