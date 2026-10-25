@@ -2,12 +2,14 @@
 
 import asyncio
 from contextlib import suppress
+from secrets import token_hex
 
 from pydantic import ValidationError
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.evidence_guard import safe_reference_source
 from app.agent.execution import ExecutionController, ExecutionLimitExceeded, RequestBudget
+from app.agent.grounding import has_unsupported_claims
 from app.generation.prompts import INSIGHT_TASK
 from app.ports.events import (
     AuditUnavailable,
@@ -150,6 +152,7 @@ class ScreenInsightOrchestrator:
         trace.evidence_ref = safe_reference_id(screen.reference.source)
         trace.row_count = len(screen.observations)
         trace.emit(EventStage.EVIDENCE, EventCode.AVAILABLE, EventOutcome.SUCCESS)
+        context_id = token_hex(32)
         records: list[dict[str, object]] = [
             {
                 "metric": "Indicador demonstrativo da tela",
@@ -157,7 +160,10 @@ class ScreenInsightOrchestrator:
                 "period": screen.period.model_dump(mode="json"),
                 "filter_keys": sorted(screen.filters),
                 "observations": [
-                    {"observation_id": f"row_{index}", "value": item.value}
+                    {
+                        "observation_id": f"row_{index}", "value": item.value,
+                        "context_id": context_id,
+                    }
                     for index, item in enumerate(screen.observations, start=1)
                 ],
             }
@@ -231,10 +237,22 @@ class ScreenInsightOrchestrator:
         observations = {
             f"row_{index}": item for index, item in enumerate(screen.observations, start=1)
         }
+        claim_observations = {
+            key: {
+                "value": item.value, "unit": screen.unit,
+                "period": f"{screen.period.start} a {screen.period.end}",
+            }
+            for key, item in observations.items()
+        }
         if generated.status == "answered" and (
             not generated.observation_ids
             or len(set(generated.observation_ids)) != len(generated.observation_ids)
             or not set(generated.observation_ids) <= set(observations)
+            or has_unsupported_claims(
+                generated, claim_observations, metric=screen.metric,
+                period=f"{screen.period.start} a {screen.period.end}", filters=screen.filters,
+                context_id=context_id,
+            )
         ):
             failure = map_failure(FailureCode.UNGROUNDED_INSIGHT)
             return self._response(
