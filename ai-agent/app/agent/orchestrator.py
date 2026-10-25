@@ -3,9 +3,7 @@
 import asyncio
 import json
 import logging
-import re
 from contextlib import suppress
-from decimal import Decimal, DecimalException
 
 from pydantic import ValidationError
 
@@ -15,6 +13,7 @@ from app.agent.execution import (
     RequestBudget,
     authorized_cache_scope,
 )
+from app.agent.grounding import has_unsupported_claims
 from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
 from app.agent.safety import QuestionSafetyGate, SafetyRefusalCode
 from app.ports.events import (
@@ -50,9 +49,6 @@ from app.schemas.questions import (
 from app.schemas.responses import FailureCode, map_failure
 
 logger = logging.getLogger(__name__)
-_NUMBER_TOKEN = re.compile(
-    r"(?<!\w)[+-]?\d+(?:[.,]\d+)*(?:[eE][+-]?\d+)?(?!\w)"
-)
 
 
 def _describe_observation(observation: dict[str, object]) -> str:
@@ -75,105 +71,6 @@ def _is_ungrounded(generated: GeneratedAnswer, observation_ids: set[str]) -> boo
         or len(set(generated.observation_ids)) != len(generated.observation_ids)
         or not set(generated.observation_ids) <= observation_ids
     )
-
-
-def _number_candidates(token: str) -> set[Decimal]:
-    """Interpreta números decimais e formatos agrupados usuais em pt-BR/en-US."""
-
-    sign = Decimal(-1) if token.startswith("-") else Decimal(1)
-    unsigned = token.lstrip("+-")
-    if not unsigned:
-        return set()
-    exponent = ""
-    exponent_match = re.search(r"[eE][+-]?\d+$", unsigned)
-    if exponent_match is not None:
-        exponent = exponent_match.group()
-        unsigned = unsigned[: exponent_match.start()]
-
-    try:
-        if "," in unsigned and "." in unsigned:
-            decimal_separator = "," if unsigned.rfind(",") > unsigned.rfind(".") else "."
-            grouping_separator = "." if decimal_separator == "," else ","
-            whole, fraction = unsigned.rsplit(decimal_separator, maxsplit=1)
-            if decimal_separator in whole:
-                return set()
-            groups = whole.split(grouping_separator)
-            if len(groups) > 1 and (
-                groups[0] == "0"
-                or not 1 <= len(groups[0]) <= 3
-                or any(len(group) != 3 for group in groups[1:])
-            ):
-                return set()
-            normalized = f"{''.join(groups)}.{fraction}{exponent}"
-            return {sign * Decimal(normalized)}
-
-        separator = "," if "," in unsigned else "." if "." in unsigned else None
-        if separator is None:
-            return {sign * Decimal(f"{unsigned}{exponent}")}
-
-        groups = unsigned.split(separator)
-        candidates: set[Decimal] = set()
-        if len(groups) == 2:
-            candidates.add(sign * Decimal(f"{groups[0]}.{groups[1]}{exponent}"))
-            if (
-                groups[0] != "0"
-                and 1 <= len(groups[0]) <= 3
-                and len(groups[1]) == 3
-            ):
-                candidates.add(sign * Decimal(f"{''.join(groups)}{exponent}"))
-        elif all(len(group) == 3 for group in groups[1:]):
-            if 1 <= len(groups[0]) <= 3:
-                candidates.add(sign * Decimal(f"{''.join(groups)}{exponent}"))
-        return {value for value in candidates if value.is_finite()}
-    except (DecimalException, ValueError):
-        return set()
-
-
-def _numeric_candidates(value: object) -> set[Decimal]:
-    """Coleta números de um texto ou de campos permitidos da evidência selecionada."""
-
-    if isinstance(value, bool) or value is None:
-        return set()
-    if isinstance(value, (int, float, Decimal)):
-        try:
-            number = Decimal(str(value))
-        except DecimalException:
-            return set()
-        return {number} if number.is_finite() else set()
-    if isinstance(value, str):
-        return set().union(
-            *(_number_candidates(match.group()) for match in _NUMBER_TOKEN.finditer(value))
-        )
-    if isinstance(value, dict):
-        return set().union(*(_numeric_candidates(item) for item in value.values()))
-    if isinstance(value, (list, tuple)):
-        return set().union(*(_numeric_candidates(item) for item in value))
-    return set()
-
-
-def _has_unsupported_numeric_claim(
-    generated: GeneratedAnswer,
-    observations: dict[str, dict[str, object]],
-) -> bool:
-    """Detecta números no rascunho que não constam nas observações selecionadas."""
-
-    if generated.status != "answered":
-        return False
-    claims = [
-        _number_candidates(match.group())
-        for match in _NUMBER_TOKEN.finditer(generated.answer)
-    ]
-    if not claims:
-        return False
-
-    supported: set[Decimal] = set()
-    for observation_id in generated.observation_ids:
-        row = observations.get(observation_id)
-        if row is None:
-            continue
-        for field in ("value", "period", "dimensions"):
-            supported.update(_numeric_candidates(row.get(field)))
-    return any(not claim.intersection(supported) for claim in claims)
 
 
 def _serialized_evidence_chars(evidence: EvidenceResult) -> int:
@@ -349,8 +246,19 @@ class QuestionOrchestrator:
 
         allow_deterministic_answer_after_refusal = generated.status == "refused"
         stronger = escalate(tier) if tier is not None else None
-        numeric_mismatch = self._model_router is not None and _has_unsupported_numeric_claim(
-            generated, observations
+        period = (
+            read_plan.window.phrase
+            if read_plan.window.phrase is not None
+            else f"{read_plan.window.start} a {read_plan.window.end}"
+        )
+        filters = {
+            item.dimension_id: item.values[0] if len(item.values) == 1 else list(item.values)
+            for item in read_plan.filters
+        }
+        filter_operators = {item.dimension_id: item.operator for item in read_plan.filters}
+        numeric_mismatch = has_unsupported_claims(
+            generated, observations, metric=read_plan.metric_id, period=period, filters=filters,
+            filter_operators=filter_operators,
         )
         needs_stronger = (
             generated.status == "refused"
@@ -385,9 +293,9 @@ class QuestionOrchestrator:
                 observation_ids=tuple(observations),
             )
 
-        if _is_ungrounded(generated, set(observations)) or (
-            self._model_router is not None
-            and _has_unsupported_numeric_claim(generated, observations)
+        if _is_ungrounded(generated, set(observations)) or has_unsupported_claims(
+            generated, observations, metric=read_plan.metric_id, period=period, filters=filters,
+            filter_operators=filter_operators,
         ):
             return QuestionResponse(
                 status=QuestionStatus.REFUSED,
@@ -398,11 +306,6 @@ class QuestionOrchestrator:
                 model_tier=tier,
             )
 
-        period = (
-            read_plan.window.phrase
-            if read_plan.window.phrase is not None
-            else f"{read_plan.window.start} a {read_plan.window.end}"
-        )
         answer = None
         if generated.status == "answered":
             values = ", ".join(

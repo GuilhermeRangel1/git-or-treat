@@ -145,6 +145,14 @@ A chamada é faturável conforme o plano da conta Groq. Use só dados sintético
 - `POST /api/v1/questions` recebe `contract_version` (opcional; padrão `v1`), `question` e até três mensagens de contexto (`role` `user` ou `assistant`), cada uma limitada a 1.000 caracteres. Versão nula ou não suportada é rejeitada.
 - `POST /api/v1/insights` recebe um objeto `screen` com métrica, unidade, período, filtros, observações numéricas, referência e limitações. Nesta etapa, `reference.is_demo` precisa ser `true`.
 
+As afirmações quantitativas opcionais do modelo (`claims`) são conferidas por observação,
+métrica, unidade, período e filtros/operadores. Insights podem copiar uma referência de contexto
+válida somente na chamada atual, sem enviar novos valores de filtros ao provedor. Rascunhos
+com números sem suporte são recusados também sem roteador; valores observados permanecem
+disponíveis no insight. O texto livre não é publicado. Adaptadores sem `claims` continuam
+compatíveis, com conferência lexical auxiliar e renderização controlada, sem garantia semântica
+de toda a prosa. Veja o [contrato e os limites](../docs/services/ai-agent.md#fundamentação-de-afirmações-quantitativas).
+
 Exemplo de pergunta no PowerShell:
 
 Com `GENAI_SERVICE_API_TOKEN` configurado, inclua também `-Headers @{ Authorization = "Bearer <token local>" }` na chamada direta. O exemplo abaixo pressupõe a demonstração local sem token.
