@@ -464,9 +464,9 @@ def test_model_text_is_not_published_even_with_a_valid_observation_id(caplog) ->
             json={"question": "Qual foi o consumo no período de demonstração?"},
         )
 
-    assert response.json()["status"] == "answered"
-    assert "420 unidades fictícias" in response.json()["answer"]
-    assert "999" not in response.json()["answer"]
+    assert response.json()["status"] == "refused"
+    assert response.json()["answer"] is None
+    assert response.json()["error"]["code"] == "ungrounded_response"
     assert "123.456.789-00" not in response.text
     assert "123.456.789-00" not in caplog.text
     assert model.calls[0][2].records == [
