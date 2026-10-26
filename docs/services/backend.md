@@ -107,3 +107,11 @@ WEB-11 pede testes automatizados como diferencial; a conclusão dos requisitos o
 ### Comparação parcial do Panorama — DEV-02, 22/10/2026
 
 `GET /api/v1/panorama` conserva os totais e a série de maio/2024 parcial. Se a competência atual ou de referência estiver incompleta, as oito métricas retornam `valorAnterior`, `variacaoAbsoluta` e `variacaoPercentual` nulos, com `baseZero: false`. A solicitação de comparação permanece em `filtros`; `periodoIncompleto` identifica a limitação da competência atual. Não se compara mês parcial com fechamento mensal completo.
+
+## DEV-08: Operação demonstrativa
+
+O backend amplia a continuidade DEV-01 com série mensal, ranking por DEC/FEC e detalhe paginado de ocorrências. Fórmula, cobertura e denominador são compartilhados com a rota existente; janelas parciais e denominadores ausentes/zero não competem no ranking. As novas respostas incluem definição, numeradores, janela observada e alternativa textual. Veja o [contrato e controles DEV-08](../contracts/operations-dev08.md). Não houve alteração de frontend ou banco. Integração DE-05/Gold e aceite completo WEB-06/WEB-07 permanecem pendentes.
+
+Na revisão DEV-08, todas as rotas de Operação passaram a recusar parâmetros desconhecidos/duplicados e a devolver `Cache-Control: no-store`, inclusive em erros. O cálculo compartilhado recusa denominador não inteiro positivo e determina cobertura pelas contagens exatas, evitando elegibilidade indevida no ranking por arredondamento. Autorização individual das leituras analíticas permanece pendente para dados reais.
+
+A refatoração de alinhamento DEV-08 move a composição e paginação do detalhe para `build_feeder_detail`, com resposta tipada. As rotas de Operação retornam modelos explícitos; `StrictAnalyticsRoute` fica na fronteira HTTP comum. Receita e Operação compartilham `repeated_query_parameters`, preservando seus contratos e políticas de erro.
