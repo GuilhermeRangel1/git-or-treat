@@ -26,6 +26,8 @@ O fluxo das ordens passa pelas rotas HTTP, validação dos schemas, serviço de 
 
 Use Python 3.12, igual ao Docker e ao CI. Na pasta `backend`, crie e ative um ambiente virtual, instale as dependências e configure `DATABASE_URL` com a URL do seu PostgreSQL local em `.env`:
 
+Confira `python --version` antes de criar o ambiente: deve indicar `3.12.x`. Um venv criado com outra versão continua usando o interpretador original mesmo depois de atualizar o repositório.
+
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -56,27 +58,9 @@ O exemplo `.env.example` atende à execução no host. Para executar o backend i
 
 ## Perguntas ao serviço GenAI
 
-`POST /api/v1/ai/questions` recebe uma pergunta e até três turnos transitórios de conversa, valida o contrato `v1` e encaminha a chamada ao serviço GenAI. O Backend devolve a resposta validada, as referências de evidência e o ID de correlação. Não consulta Gold nem salva sessões nesta rota. O contrato e os códigos de erro estão em [genai-chat-api.md](../docs/contracts/genai-chat-api.md).
+`POST /api/v1/ai/questions` valida o contrato v1 e encaminha a pergunta ao serviço GenAI. Configure `AI_AGENT_BASE_URL` e `AI_AGENT_SERVICE_API_TOKEN` no Backend e o mesmo token em `GENAI_SERVICE_API_TOKEN` no GenAI. O token autentica somente a comunicação entre serviços; não identifica a pessoa usuária nem concede acesso à Gold. O contrato e os códigos de erro estão em [genai-chat-api.md](../docs/contracts/genai-chat-api.md).
 
-Para testar os dois serviços no host, use o mesmo token aleatório de pelo menos 32 caracteres nos arquivos `.env` locais, sem versioná-lo. Configure `AI_AGENT_BASE_URL=http://127.0.0.1:8001` e `AI_AGENT_SERVICE_API_TOKEN` no Backend; no GenAI, configure `GENAI_SERVICE_API_TOKEN`, `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true`. Inicie o GenAI na porta 8001 e o Backend na porta 8000. Uma chamada de exemplo:
-
-```powershell
-Invoke-RestMethod -Method Post `
-  -Uri http://127.0.0.1:8000/api/v1/ai/questions `
-  -ContentType 'application/json' `
-  -Body '{"contract_version":"v1","question":"Qual foi o consumo no período de demonstração?","context":[]}'
-```
-
-Sem provedor de modelo configurado, o GenAI responde com erro recuperável no envelope de negócio; isso ainda permite verificar o encaminhamento. Para obter uma resposta sintética gerada por modelo, configure um provedor no ambiente local do GenAI. O token autentica apenas os serviços entre si; não representa uma pessoa usuária ou autorização para a Gold.
-
-### Chat do portal no Docker Compose
-
-A rota `/assistente` do portal envia perguntas para este endpoint. O Compose também sobe o serviço GenAI, acessível ao Backend somente na rede interna. Para ativar a demonstração local, configure nos arquivos ignorados pelo Git:
-
-- `backend/.env`: `AI_AGENT_BASE_URL=http://ai-agent:8001` e `AI_AGENT_SERVICE_API_TOKEN`;
-- `ai-agent/.env`: o mesmo `GENAI_SERVICE_API_TOKEN`, `GENAI_ENVIRONMENT=local`, `GENAI_ENABLE_DEMO_ACCESS=true`, `GENAI_MODEL_PROVIDER=gemini` e `GENAI_GEMINI_API_KEY`.
-
-Os dois tokens de serviço devem ser iguais e ter pelo menos 32 caracteres. A chave Gemini fica apenas em `ai-agent/.env`; nunca use `VITE_*` ou envie credenciais ao navegador. Com `.env.db`, `backend/.env` e `ai-agent/.env` preparados, execute `docker compose up --build` na raiz e abra `http://localhost:5173/assistente`. A conversa fica em memória no navegador e consulta somente os cenários artificiais desta versão; não usa Gold e não persiste histórico.
+No Docker Compose, o portal chama essa rota e o serviço GenAI fica acessível ao Backend pela rede interna. A conversa usa cenários artificiais e permanece em memória no navegador; não consulta Gold nem persiste histórico. Veja as variáveis locais em `.env.example` e no README da GenAI.
 
 ## Contratos analíticos de desenvolvimento
 
@@ -93,7 +77,7 @@ uvicorn app.main:app --reload --port 8000
 
 ## Acesso às ordens e limites de entrada
 
-DEV-06: [contrato de criação pela fila e consulta paginada](../docs/contracts/inspection-orders-dev06.md). Aplicar `alembic upgrade head` antes de iniciar sobre banco existente. O portal básico usa `POST /inspections/queue/{uc_id}/orders` com `Idempotency-Key` e versões do detalhe; consulta por `/inspections/orders/search` e `/inspections/orders/{id}`. O prefixo completo é `/api/v1`. O proxy Vite não injeta credenciais; a tela básica funciona sem login no modo demo sintético local (`APP_ENV=development`, `ANALYTICS_SOURCE=synthetic`, `ORDERS_AUTH_MODE=demo`). Login fica para uma etapa futura. Veja o [guia de entrega para o frontend](../docs/contracts/inspection-auth-handoff.md).
+DEV-06: [contrato de criação pela fila e consulta paginada](../docs/contracts/inspection-orders-dev06.md). Aplicar `alembic upgrade head` antes de iniciar sobre banco existente. O portal básico usa `POST /inspections/queue/{uc_id}/orders` com `Idempotency-Key` e versões do detalhe; consulta por `/inspections/orders/search` e `/inspections/orders/{id}`, com filtros de estado, UC, prioridade e presença de resultado (`has_result`). O prefixo completo é `/api/v1`. O proxy Vite não injeta credenciais; a tela básica funciona sem login no modo demo sintético local (`APP_ENV=development`, `ANALYTICS_SOURCE=synthetic`, `ORDERS_AUTH_MODE=demo`). Login fica para uma etapa futura. Veja o [guia de entrega para o frontend](../docs/contracts/inspection-auth-handoff.md).
 
 A revisão `a6d060000002` garante uma ordem ativa por UC, incluindo criações manuais e fontes/versões diferentes. Se houver duplicidades ativas antigas, o upgrade interrompe para reconciliação manual e não cancela registros. Reenvios confirmados da fila funcionam mesmo com a fonte analítica indisponível; conflitos mantêm a mensagem em `detail` e incluem código e ID em `error` para integração.
 
@@ -154,4 +138,11 @@ Depois do upgrade, o teste compara o esquema com todos os modelos registrados us
 
 ## Limites atuais
 
-As ordens de inspeção usam a tabela operacional e já têm persistência básica. Regras completas de autorização, ciclo de estados, histórico e repetição ainda dependem de decisão e implementação. A carga da Gold não lê nem insere linhas e não oferece idempotência. Executar `python scripts/load_gold.py` informa que a carga ainda não está implementada; a presença de CSVs não significa que foram carregados.
+As ordens usam dados operacionais separados, controle de acesso DEV-06, histórico transacional, resultado, cancelamento identificado e versão DEV-07. Contratos, exemplos, migrações e limites no [guia DEV-07](../docs/contracts/inspection-lifecycle-dev07.md). A interface foi integrada e aprovada em 25/10; a reexecução com Python 3.12.15/container e PostgreSQL 16.13 descartável passou nos 320 testes, pip check e compileall. Consulte as [evidências e limites](../docs/plans/2026-10-25-dev07-evidencias.md). A carga da Gold não lê nem insere linhas e não oferece idempotência. Executar `python scripts/load_gold.py` informa que a carga ainda não está implementada; a presença de CSVs não significa que foram carregados.
+
+
+## Contrato de alterações das ordens — DEV-07
+
+Todas as mutações exigem `version` inteiro positivo retornado pelo GET. Sem versão ou com tipo inválido: 422; versão obsoleta: 409 `version_conflict`, sem gravar ordem/histórico. Após 409, consulte novamente e permita que a pessoa revise a alteração. Não reenvie automaticamente a intenção com uma versão nova.
+
+Cancelamento só é aceito por `POST /api/v1/inspections/orders/{id}/cancel`, com `confirmed_order_id` igual ao ID da rota e a versão atual. `PATCH` com CANCELADA retorna 422. Os exemplos do Swagger mostram início, resultado, cancelamento e conflito. Clientes DEV-06 precisam adaptar as alterações; criação/consulta não mudam. Não há nova migração de banco nesta revisão; reinicie o backend para carregar as rotas/schemas atualizados.

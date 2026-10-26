@@ -1,11 +1,11 @@
-from typing import Annotated, Callable, Literal, Optional
+from typing import Callable, Literal, Optional
 
 from fastapi import APIRouter, Depends, Path, Query, Header, Response, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from app.core.database import get_db
 from app.core.order_access import OrderIdentity, get_order_identity, require_orders_read, require_orders_write
-from app.models.operational import InspectionOrder, OrderStatus
+from app.models.operational import OrderStatus
 from app.schemas.inspection_queue import QueueResponse, SuspicionResponse
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository, get_analytics_repository_provider
 from app.api.v1.analytics_route import AnalyticsRoute
@@ -13,6 +13,7 @@ from app.services.analytics import filters_model
 from app.services.inspection_analytics import build_queue_response, build_suspicion_response
 from app.schemas.inspections import OrderCreateRequest, OrderResponse, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage, OrderConflictResponse, OrderAccessResponse
 from app.services import inspections as inspection_service
+from app.schemas.inspections import OrderCancelRequest, OrderResultRequest, OrderHistoryResponse
 
 router = APIRouter()
 analytics_router = APIRouter(route_class=AnalyticsRoute)
@@ -27,7 +28,6 @@ def order_conflict_response(exc: inspection_service.OrderConflictError) -> JSONR
 
 @analytics_router.get("/queue", response_model=QueueResponse, summary="Fila sintética de UCs com suspeita")
 def get_inspection_queue(
-    repository: Annotated[AnalyticsRepository, Depends(get_analytics_repository)],
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     order_by: Literal["priority", "uc_id", "potential_recoverable_energy_kwh"] = "priority",
@@ -36,17 +36,15 @@ def get_inspection_queue(
     bairro: str | None = Query(None, max_length=100),
     classe: str | None = Query(None, max_length=100),
     alimentador: str | None = Query(None, max_length=100),
-) -> QueueResponse:
+    repository: AnalyticsRepository = Depends(get_analytics_repository),
+):
     """Read-only demonstration queue; estimates are provisional and not Gold metrics."""
     filters = filters_model(municipio, bairro, classe, alimentador)
     return build_queue_response(repository, filters, page, page_size, order_by, direction)
 
 
 @analytics_router.get("/queue/{uc_id}", response_model=SuspicionResponse, summary="Evidências sintéticas da suspeita")
-def get_suspicion_detail(
-    uc_id: str,
-    repository: Annotated[AnalyticsRepository, Depends(get_analytics_repository)],
-) -> SuspicionResponse:
+def get_suspicion_detail(uc_id: str, repository: AnalyticsRepository = Depends(get_analytics_repository)):
     return build_suspicion_response(repository, uc_id)
 
 
@@ -54,10 +52,7 @@ router.include_router(analytics_router)
 
 
 @router.get("/access", response_model=OrderAccessResponse, summary="Identidade e permissões das ordens")
-def get_order_access(
-    response: Response,
-    identity: Annotated[OrderIdentity, Depends(get_order_identity)],
-) -> OrderAccessResponse:
+def get_order_access(response: Response, identity: OrderIdentity = Depends(get_order_identity)):
     response.headers["Cache-Control"] = "no-store"
     response.headers["Vary"] = "Authorization"
     return OrderAccessResponse(actor=identity.actor, auth_mode=identity.auth_mode, permissions=sorted(identity.permissions))
@@ -68,12 +63,12 @@ def get_order_access(
              dependencies=[Depends(require_orders_write)], summary="Criar ordem pela suspeita selecionada")
 def create_order_from_queue(
     payload: QueueOrderCreateRequest, response: Response,
-    db: Annotated[Session, Depends(get_db)],
-    repository_provider: Annotated[Callable[[], AnalyticsRepository], Depends(get_analytics_repository_provider)],
-    actor: Annotated[str, Depends(require_orders_write)],
     uc_id: str = Path(min_length=1, max_length=50),
     idempotency_key: str = Header(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$"),
-) -> InspectionOrder | JSONResponse:
+    db: Session = Depends(get_db),
+    repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
+    actor: str = Depends(require_orders_write),
+):
     try:
         order, created = inspection_service.create_from_queue(db, repository_provider, uc_id, payload, idempotency_key, actor=actor)
     except inspection_service.OrderConflictError as exc:
@@ -82,26 +77,61 @@ def create_order_from_queue(
     return order
 
 
+@router.get("/orders/{order_id}/history", response_model=list[OrderHistoryResponse],
+            dependencies=[Depends(require_orders_read)])
+def get_order_history(order_id: int = Path(ge=1, le=9223372036854775807), db: Session = Depends(get_db)):
+    if inspection_service.get_order(db, order_id) is None:
+        raise HTTPException(404, "Ordem de inspeção não encontrada.")
+    return inspection_service.get_history(db, order_id)
+
+
+@router.post("/orders/{order_id}/result", response_model=OrderResponse,
+             responses={409: {"model": OrderConflictResponse}},
+             summary="Registrar resultado e concluir a ordem",
+             description="Exige EM_ANDAMENTO e a versão atual da ordem. Versão obsoleta retorna 409; consulte novamente antes de reenviar.")
+def register_order_result(payload: OrderResultRequest, order_id: int = Path(ge=1, le=9223372036854775807),
+                          db: Session = Depends(get_db), actor: str = Depends(require_orders_write)):
+    try:
+        order = inspection_service.register_result(db, order_id, payload, actor=actor)
+    except inspection_service.OrderConflictError as exc:
+        return order_conflict_response(exc)
+    if order is None:
+        raise HTTPException(404, "Ordem de inspeção não encontrada.")
+    return order
+
+
+@router.post("/orders/{order_id}/cancel", response_model=OrderResponse,
+             responses={409: {"model": OrderConflictResponse}},
+             summary="Confirmar cancelamento da ordem",
+             description="Exige versão atual e confirmed_order_id igual ao ID da rota. Esta é a única rota de cancelamento; use no exemplo o ID real da ordem selecionada.")
+def cancel_inspection_order(payload: OrderCancelRequest, order_id: int = Path(ge=1, le=9223372036854775807),
+                            db: Session = Depends(get_db), actor: str = Depends(require_orders_write)):
+    try:
+        order = inspection_service.cancel_order(db, order_id, payload, actor=actor)
+    except inspection_service.OrderConflictError as exc:
+        return order_conflict_response(exc)
+    if order is None:
+        raise HTTPException(404, "Ordem de inspeção não encontrada.")
+    return order
+
+
 @router.get("/orders/search", response_model=OrderPage, dependencies=[Depends(require_orders_read)],
             summary="Consultar ordens com filtros e paginação")
 def search_orders(
-    db: Annotated[Session, Depends(get_db)],
     status_filter: OrderStatus | None = Query(None, alias="status"),
     uc_id: str | None = Query(None, min_length=1, max_length=50),
     priority: Literal["BAIXA", "MEDIA", "ALTA"] | None = None,
     has_result: bool | None = Query(None),
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
-) -> OrderPage:
+    db: Session = Depends(get_db),
+):
     return inspection_service.search_orders(
         db, status_filter, uc_id, priority, page, page_size, has_result=has_result,
     )
 
 
 @router.get("/orders/{order_id}", response_model=OrderResponse, dependencies=[Depends(require_orders_read)])
-def get_order(
-    db: Annotated[Session, Depends(get_db)],
-    order_id: int = Path(ge=1, le=9223372036854775807),
-) -> InspectionOrder:
+def get_order(order_id: int = Path(ge=1, le=9223372036854775807), db: Session = Depends(get_db)):
     order = inspection_service.get_order(db, order_id)
     if order is None:
         raise HTTPException(404, "Ordem de inspeção não encontrada.")
@@ -115,9 +145,9 @@ def get_order(
     dependencies=[Depends(require_orders_read)],
 )
 def list_orders(
-    db: Annotated[Session, Depends(get_db)],
     status_filter: Optional[OrderStatus] = Query(None, alias="status"),
-) -> list[InspectionOrder]:
+    db: Session = Depends(get_db),
+):
     """Lista as ordens registradas no portal (WEB-05)."""
     return inspection_service.list_orders(db, status_filter)
 
@@ -130,11 +160,7 @@ def list_orders(
     responses={409: {"model": OrderConflictResponse}},
     dependencies=[Depends(require_orders_write)],
 )
-def create_order(
-    payload: OrderCreateRequest,
-    db: Annotated[Session, Depends(get_db)],
-    actor: Annotated[str, Depends(require_orders_write)],
-) -> InspectionOrder | JSONResponse:
+def create_order(payload: OrderCreateRequest, db: Session = Depends(get_db), actor: str = Depends(require_orders_write)):
     """Cria uma ordem de inspeção mantida separadamente dos dados analíticos."""
     try:
         return inspection_service.create_order(db, payload, actor=actor)
@@ -145,16 +171,12 @@ def create_order(
 @router.patch(
     "/orders/{order_id}",
     response_model=OrderResponse,
-    summary="Atualizar status ou resultado da ordem",
+    summary="Atualizar status, observações ou resultado da ordem",
+    description="Exige a versão atual retornada pelo GET. CANCELADA não é aceita: use POST /orders/{order_id}/cancel com confirmação do ID. Sem versão: 422; versão obsoleta: 409.",
     responses={409: {"model": OrderConflictResponse}},
     dependencies=[Depends(require_orders_write)],
 )
-def update_order(
-    payload: OrderUpdateRequest,
-    db: Annotated[Session, Depends(get_db)],
-    actor: Annotated[str, Depends(require_orders_write)],
-    order_id: int = Path(ge=1, le=9223372036854775807),
-) -> InspectionOrder | JSONResponse:
+def update_order(payload: OrderUpdateRequest, order_id: int = Path(ge=1, le=9223372036854775807), db: Session = Depends(get_db), actor: str = Depends(require_orders_write)):
     """Atualiza o ciclo de vida ou desfecho da fiscalização."""
     try:
         order = inspection_service.update_order(db, order_id, payload, actor=actor)

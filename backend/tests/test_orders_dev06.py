@@ -50,7 +50,7 @@ def test_queue_creation_replay_conflicts_and_new_intention_after_closure(orders)
     assert create(orders, {**payload, "notes": "Outro conteúdo"}).status_code == 409
     assert create(orders, payload, key="dev06-intention-0002").status_code == 409
     oid = body["id"]
-    assert orders.patch(f"{ROOT}/orders/{oid}", json={"status": "CANCELADA"}).status_code == 200
+    assert orders.post(f"{ROOT}/orders/{oid}/cancel", json={"version": 1, "confirmed_order_id": oid}).status_code == 200
     assert create(orders, payload).json()["status"] == "CANCELADA"
     assert create(orders, payload, key="dev06-intention-0002").status_code == 201
     assert orders.get(f"{ROOT}/orders/{oid}").json()["suspicion_snapshot"] == body["suspicion_snapshot"]
@@ -280,7 +280,7 @@ def test_one_active_uc_across_versions_and_manual_creation(orders):
     manual = orders.post(f"{ROOT}/orders", json={"uc_id": "UC-1004", "reason": "manual"})
     assert manual.status_code == 409
     assert manual.json()["error"]["code"] == "active_order_exists"
-    orders.patch(f"{ROOT}/orders/{first['id']}", json={"status": "CANCELADA"})
+    orders.post(f"{ROOT}/orders/{first['id']}/cancel", json={"version": 1, "confirmed_order_id": first["id"]})
     assert orders.post(f"{ROOT}/orders", json={"uc_id": "UC-1004", "reason": "manual"}).status_code == 201
     assert create(orders, {**payload, "source_version": "new-snapshot"}, key="another-version-0001").status_code == 409
 
@@ -369,8 +369,7 @@ def test_real_api_process_restart_preserves_created_order(tmp_path):
     import httpx
 
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{(tmp_path / 'process.db').as_posix()}",
-           "ANALYTICS_SOURCE": "synthetic", "APP_ENV": "development",
-           "ORDERS_AUTH_MODE": "service", "ORDERS_WRITE_TOKEN": "restart-local-" + "r" * 32}
+           "ANALYTICS_SOURCE": "synthetic", "ORDERS_WRITE_TOKEN": "restart-local-" + "r" * 32}
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]

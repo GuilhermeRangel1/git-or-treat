@@ -1,17 +1,6 @@
 import type { OrderDetail, OrderStatus } from "@/shared/api/orders";
 import { ApiError } from "@/shared/api/client";
 
-const transitions: Record<OrderStatus, readonly OrderStatus[]> = {
-  PENDENTE: ["EM_ANDAMENTO"],
-  EM_ANDAMENTO: ["CONCLUIDA"],
-  CONCLUIDA: [],
-  CANCELADA: [],
-};
-
-export function allowedOrderStatuses(status: OrderStatus): OrderStatus[] {
-  return [status, ...transitions[status]];
-}
-
 export function isOrderFinal(status: OrderStatus) {
   return status === "CONCLUIDA" || status === "CANCELADA";
 }
