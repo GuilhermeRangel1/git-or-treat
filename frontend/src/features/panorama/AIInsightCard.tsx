@@ -44,7 +44,7 @@ function periodLabel(period: string) {
     "Nov",
     "Dez",
   ];
-  return `${months[month - 1]}/${String(year).slice(-2)}`;
+  return `${months[month - 1]}/${year}`;
 }
 
 function comparisonPeriod(filters: PanoramaFilters) {
@@ -201,7 +201,7 @@ export default function AIInsightCard({
   ];
   if (data.periodoIncompleto) {
     limitations.push(
-      `A competência ${filters.periodo} está em aberto; a comparação pode não estar disponível.`,
+      `A competência ${periodLabel(filters.periodo)} está em aberto; a comparação pode não estar disponível.`,
     );
   }
   limitations.push(

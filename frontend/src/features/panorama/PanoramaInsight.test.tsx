@@ -187,7 +187,7 @@ describe("IA-04 contextual insight on Panorama", () => {
     ).toBeVisible();
     expect(within(insight).getByText("Leitura do recorte")).toBeVisible();
     expect(
-      await within(insight).findByText(/caiu 10% de Mar\/24 para Abr\/24/),
+      await within(insight).findByText(/caiu 10% de Mar\/2024 para Abr\/2024/),
     ).toBeVisible();
     expect(within(insight).getByText("Hipótese para investigar")).toBeVisible();
     expect(
@@ -254,7 +254,7 @@ describe("IA-04 contextual insight on Panorama", () => {
       bottom: "0px",
       left: "auto",
     });
-    expect(within(drawer).getByText(/Período: Abr\/24/)).toBeVisible();
+    expect(within(drawer).getByText(/Período: Abr\/2024/)).toBeVisible();
     expect(
       within(drawer).getByRole("heading", { name: "Recomendação" }),
     ).toBeVisible();
@@ -346,7 +346,7 @@ describe("IA-04 contextual insight on Panorama", () => {
       name: "Insight contextual do Panorama",
     });
     expect(
-      await within(insight).findByText(/caiu 10% de Mar\/24 para Abr\/24/),
+      await within(insight).findByText(/caiu 10% de Mar\/2024 para Abr\/2024/),
     ).toBeVisible();
     await userEvent.click(
       within(insight).getByRole("button", { name: "Ver análise detalhada" }),
@@ -369,10 +369,10 @@ describe("IA-04 contextual insight on Panorama", () => {
     });
     expect(within(drawer).getByRole("status")).toHaveTextContent(staleWarning);
     expect(
-      within(insight).queryByText(/caiu 10% de Mar\/24 para Abr\/24/),
+      within(insight).queryByText(/caiu 10% de Mar\/2024 para Abr\/2024/),
     ).not.toBeInTheDocument();
     expect(
-      within(drawer).queryByText(/caiu 10% de Mar\/24 para Abr\/24/),
+      within(drawer).queryByText(/caiu 10% de Mar\/2024 para Abr\/2024/),
     ).not.toBeInTheDocument();
     expect(
       within(insight).queryByText(
@@ -473,7 +473,7 @@ describe("IA-04 contextual insight on Panorama", () => {
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
     expect(
       await screen.findByText(
-        /Energia Faturada caiu .* de Mar\/24 para Abr\/24/,
+        /Energia Faturada caiu .* de Mar\/2024 para Abr\/2024/,
       ),
     ).toBeVisible();
     expect(
@@ -495,7 +495,7 @@ describe("IA-04 contextual insight on Panorama", () => {
       );
     });
     expect(
-      screen.getByText(/Energia Faturada caiu .* de Mar\/24 para Abr\/24/),
+      screen.getByText(/Energia Faturada caiu .* de Mar\/2024 para Abr\/2024/),
     ).toBeVisible();
     expect(
       screen.queryByText(/Principal movimento: Recife/),

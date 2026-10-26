@@ -284,6 +284,15 @@ describe("Receita", () => {
     const summary = await screen.findByRole("region", {
       name: "Resumo da receita",
     });
+    expect(within(summary).getAllByText("Competência: Fev/2025")).toHaveLength(
+      3,
+    );
+    expect(
+      within(summary).getByText("Competência: Jan/2025 → Fev/2025"),
+    ).toBeVisible();
+    expect(
+      within(summary).queryByText(/Competência: 2025-/),
+    ).not.toBeInTheDocument();
     expect(within(summary).getAllByText("R$ 76.500,00")[0]).toBeVisible();
     expect(within(summary).getAllByText(/Antes: R\$ 80\.000,00/i)).toHaveLength(
       1,
@@ -336,8 +345,12 @@ describe("Receita", () => {
 
     const series = screen.getByRole("region", { name: /Série mensal/i });
     expect(within(series).getByRole("table")).toBeVisible();
+    expect(
+      within(series).getByText(/Escala vertical inclui R\$ 0,00/),
+    ).toBeVisible();
     expect(within(series).getAllByText("Jan/2025")).toHaveLength(2);
     expect(within(series).getAllByText("Fev/2025")).toHaveLength(2);
+    expect(within(series).queryByText("2025-01")).not.toBeInTheDocument();
     const chart = within(series).getByRole("img", {
       name: /Receita faturada por competência/i,
     });
@@ -930,6 +943,13 @@ describe("Receita", () => {
     const municipalityLink = await screen.findByRole("link", {
       name: /Município: Olinda/,
     });
+    const explored = screen.getByRole("region", { name: "Recorte explorado" });
+    expect(explored).toHaveTextContent(
+      "Explorando: Município: Olinda · Bairro: Centro · Classe: Comercial",
+    );
+    expect(
+      within(explored).getByRole("button", { name: "Voltar ao total" }),
+    ).toBeVisible();
     expect(municipalityLink).toHaveAttribute("href", `?${municipalitySearch}`);
     const neighborhoodLink = screen.getByRole("link", {
       name: /Bairro: Centro/,
@@ -963,7 +983,7 @@ describe("Receita", () => {
     );
     const totalLink = await screen.findByRole("link", { name: "Total" });
     expect(totalLink).toHaveAttribute("href", `?${totalSearch}`);
-    await user.click(totalLink);
+    await user.click(screen.getByRole("button", { name: "Voltar ao total" }));
     await waitFor(() =>
       expect(screen.getByLabelText("URL atual")).toHaveTextContent(totalSearch),
     );

@@ -49,6 +49,8 @@ Esses percursos são critérios de revisão, não uma imposição de seis rotas.
 
 ## Regras de apresentação
 
+A revisão UX #56 de 26/10/2026 torna explícitos escala zero e recorte explorado em Receita, organiza o período e reúne os quatro KPIs comparativos da UC 360 em uma única seção, separando grandezas físicas e financeiras dos dados de apoio. Evidencia prioridade de suspeita e identifica a ação de cada ordem. Datas de calendário são legíveis em dia/mês/ano quando o ano importa; competências mensais usam mês/ano na interface. Em criação de ordem, conflito por suspeita obsoleta pede atualização do detalhe, ordem ativa aponta para o ID recebido e apenas falha de rede ambígua oferece reenvio da mesma intenção. Valores técnicos continuam nos contratos e na URL. A fonte sintética não conclui a reconciliação Gold dos IDs WEB.
+
 - Toda métrica mostra nome, unidade, período/competência, filtros aplicados e data da atualização.
 - A distinção entre `valor faturado`, `valor pago`, `energia consumida` e `energia faturada` deve ser visível.
 - Gráficos terão rótulos e alternativa textual; tabelas suportarão navegação por teclado, ordenação/recorte claros e estados de carregamento/erro/vazio.

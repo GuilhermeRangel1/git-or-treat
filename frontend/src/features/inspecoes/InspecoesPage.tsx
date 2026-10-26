@@ -180,6 +180,7 @@ export default function InspecoesPage() {
                 sourceVersion={detail.data.metadata.source.version}
                 ruleVersion={detail.data.data.rule_version}
                 disabled={detail.isFetching || detail.isError}
+                onRefresh={() => void detail.refetch()}
               />
               <Link className={inspectionAction} to={`?${back}`}>
                 <ArrowLeft size={16} aria-hidden="true" />

@@ -6,20 +6,20 @@ import ConsumptionComparison from "./ConsumptionComparison";
 function monthLabel(value: string) {
   const [year, month] = value.split("-");
   const monthNames = [
-    "jan",
-    "fev",
-    "mar",
-    "abr",
-    "mai",
-    "jun",
-    "jul",
-    "ago",
-    "set",
-    "out",
-    "nov",
-    "dez",
+    "janeiro",
+    "fevereiro",
+    "março",
+    "abril",
+    "maio",
+    "junho",
+    "julho",
+    "agosto",
+    "setembro",
+    "outubro",
+    "novembro",
+    "dezembro",
   ];
-  return `${monthNames[Number(month) - 1] ?? month}/${year}`;
+  return `${monthNames[Number(month) - 1] ?? month} de ${year}`;
 }
 
 export default function InspectionFoundations({

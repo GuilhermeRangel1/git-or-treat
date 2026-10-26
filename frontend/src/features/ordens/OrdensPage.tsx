@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { Order } from "@/shared/api/orders";
-import { searchOrders } from "@/shared/api/orders";
+import { getOrderDetail, searchOrders } from "@/shared/api/orders";
 import Button from "@/shared/ui/Button";
 import OrderActionsDialog from "./OrderActionsDialog";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
@@ -24,6 +24,7 @@ export default function OrdensPage() {
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null);
   const actionTriggerRef = useRef<HTMLButtonElement>(null);
   const foundationsTriggerRef = useRef<HTMLButtonElement>(null);
+  const deepLinkHandledRef = useRef<number | null>(null);
   const queryClient = useQueryClient();
 
   let parsed: ReturnType<typeof parseOrdersQuery> | null = null;
@@ -40,6 +41,11 @@ export default function OrdensPage() {
     enabled: parsed !== null,
     queryFn: ({ signal }) => searchOrders(request, signal),
   });
+  const requestedOrder = useQuery({
+    queryKey: ["orders", "detail", parsed?.orderId],
+    enabled: parsed?.orderId !== null && parsed?.orderId !== undefined,
+    queryFn: ({ signal }) => getOrderDetail(parsed!.orderId!, signal),
+  });
   const firstVisibleOrder = orders.data?.items[0] ?? null;
   const visibleOrders = orders.data?.items ?? [];
   const lastUpdated = visibleOrders.reduce<string | null>((latest, order) => {
@@ -53,14 +59,36 @@ export default function OrdensPage() {
     return latest;
   }, null);
 
-  function openActions(order: Order, trigger: HTMLButtonElement) {
-    actionTriggerRef.current = trigger;
+  function openActions(order: Order, trigger?: HTMLButtonElement) {
+    actionTriggerRef.current = trigger ?? null;
     setActionSession((session) => session + 1);
     setSelectedOrder(order);
     setSavedFeedback(null);
     setFoundationsOpen(false);
     setActionsOpen(true);
   }
+
+  useEffect(() => {
+    const orderId = parsed?.orderId ?? null;
+    if (orderId === null) {
+      deepLinkHandledRef.current = null;
+      return;
+    }
+    if (
+      !requestedOrder.data ||
+      requestedOrder.data.id !== orderId ||
+      deepLinkHandledRef.current === orderId
+    ) {
+      return;
+    }
+    deepLinkHandledRef.current = orderId;
+    actionTriggerRef.current = null;
+    setActionSession((session) => session + 1);
+    setSelectedOrder(requestedOrder.data);
+    setSavedFeedback(null);
+    setFoundationsOpen(false);
+    setActionsOpen(true);
+  }, [parsed?.orderId, requestedOrder.data]);
 
   function openFoundations(order: Order, trigger: HTMLButtonElement) {
     foundationsTriggerRef.current = trigger;
@@ -116,6 +144,27 @@ export default function OrdensPage() {
             Limpar filtros
           </Button>
         </div>
+      ) : null}
+
+      {requestedOrder.isError ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-border bg-surface p-5"
+        >
+          <p>Não foi possível localizar a ordem solicitada pelo link.</p>
+          <Button
+            className="mt-3"
+            variant="outline"
+            onClick={() => void requestedOrder.refetch()}
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      ) : null}
+      {requestedOrder.isPending && parsed?.orderId != null ? (
+        <p role="status" className="text-sm text-muted">
+          Consultando {formatOrderCode(parsed.orderId)}…
+        </p>
       ) : null}
 
       {!invalid && parsed ? (

@@ -137,6 +137,11 @@ it("abre evidências reproduzíveis e volta preservando a página e os filtros",
   );
   expect(await screen.findByText("O que motivou a investigação")).toBeVisible();
   expect(
+    screen.getByLabelText("Prioridade analítica: 0,92 de 1"),
+  ).toBeVisible();
+  expect(screen.getByText("45 kWh")).toBeVisible();
+  expect(screen.getByText(/não constitui diagnóstico de fraude/)).toBeVisible();
+  expect(
     screen.getByRole("button", { name: "Criar ordem de inspeção" }),
   ).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "Ver fundamentos" }));
@@ -165,6 +170,91 @@ it("abre evidências reproduzíveis e volta preservando a página e os filtros",
   expect(await screen.findByText(/Página 2 de 2/)).toBeVisible();
   expect(screen.getByLabelText("URL atual")).toHaveTextContent(
     "municipio=Recife&page_size=1&page=2",
+  );
+});
+
+it("após conflito obsoleto, atualiza o detalhe e cria nova intenção com dados novos", async () => {
+  const updatedDetail = {
+    ...detail,
+    data: { ...detail.data, rule_version: "dev05-v2" },
+    metadata: {
+      ...metadata,
+      source: { ...metadata.source, version: "dev03-v2" },
+    },
+  };
+  let detailReads = 0;
+  let createAttempts = 0;
+  const fetch = vi
+    .fn()
+    .mockImplementation((url: string, options?: RequestInit) => {
+      if (url.includes("/queue/UC-") && options?.method !== "POST") {
+        detailReads += 1;
+        return Promise.resolve(
+          respond(detailReads === 1 ? detail : updatedDetail),
+        );
+      }
+      if (options?.method === "POST") {
+        createAttempts += 1;
+        return Promise.resolve(
+          createAttempts === 1
+            ? respond(
+                {
+                  detail: "A suspeita mudou.",
+                  error: {
+                    code: "stale_suspicion",
+                    message: "A suspeita mudou.",
+                  },
+                },
+                409,
+              )
+            : respond(
+                {
+                  id: 42,
+                  uc_id: "UC-1004",
+                  reason: item.reason,
+                  priority: "MEDIA",
+                  status: "PENDENTE",
+                  notes: null,
+                  result: null,
+                  created_at: "2026-10-23T12:00:00Z",
+                  updated_at: "2026-10-23T12:00:00Z",
+                  suspicion_reference: "reference",
+                  version: 1,
+                  cancellation_reason: null,
+                },
+                201,
+              ),
+        );
+      }
+      return Promise.resolve(respond(envelope()));
+    });
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes?uc=UC-1004");
+  await screen.findByRole("button", { name: "Criar ordem de inspeção" });
+  await user.click(
+    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+  );
+  await screen.findByText(/A suspeita mudou desde a consulta/);
+  await user.click(
+    screen.getByRole("button", { name: "Atualizar dados da suspeita" }),
+  );
+  await waitFor(() => expect(detailReads).toBe(2));
+  await user.click(
+    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+  );
+  await screen.findByText(/Ordem 42 confirmada pelo servidor/);
+
+  const writes = fetch.mock.calls.filter(
+    ([, options]) => options?.method === "POST",
+  );
+  expect(writes).toHaveLength(2);
+  expect(writes[1][1]?.headers).not.toEqual(writes[0][1]?.headers);
+  expect(writes[0][1]?.body).toBe(
+    JSON.stringify({ source_version: "dev03-v1", rule_version: "dev05-v1" }),
+  );
+  expect(writes[1][1]?.body).toBe(
+    JSON.stringify({ source_version: "dev03-v2", rule_version: "dev05-v2" }),
   );
 });
 

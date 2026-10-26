@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import CreateOrder from "./CreateOrder";
 
-function setup() {
+function setup(onRefresh = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
@@ -17,6 +17,7 @@ function setup() {
           sourceVersion="demo-v1"
           ruleVersion="dev05-v1"
           disabled={false}
+          onRefresh={onRefresh}
         />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -81,8 +82,16 @@ it("reenvia com a mesma chave após perda de resposta e recusa falso sucesso", a
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "A criação não foi confirmada",
   );
+  expect(
+    screen.getByRole("button", { name: "Reenviar mesma criação" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+  ).toBeDisabled();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  await userEvent.click(button);
+  await userEvent.click(
+    screen.getByRole("button", { name: "Reenviar mesma criação" }),
+  );
   await waitFor(() =>
     expect(screen.getByRole("status")).toHaveTextContent(
       "confirmada pelo servidor",
@@ -91,4 +100,70 @@ it("reenvia com a mesma chave após perda de resposta e recusa falso sucesso", a
   expect(fetch.mock.calls[0][1].headers).toEqual(
     fetch.mock.calls[1][1].headers,
   );
+  expect(fetch.mock.calls[0][1].body).toBe(fetch.mock.calls[1][1].body);
+});
+
+it("explica suspeita desatualizada e permite atualizar sem repetir o conflito", async () => {
+  const onRefresh = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: "A suspeita mudou.",
+          error: { code: "stale_suspicion", message: "A suspeita mudou." },
+        }),
+        { status: 409 },
+      ),
+    ),
+  );
+  setup(onRefresh);
+  await userEvent.click(
+    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "A suspeita mudou desde a consulta",
+  );
+  expect(
+    screen.getByRole("button", { name: "Atualizar dados da suspeita" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Reenviar mesma criação" }),
+  ).toBeNull();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Atualizar dados da suspeita" }),
+  );
+  expect(onRefresh).toHaveBeenCalledTimes(1);
+});
+
+it("direciona conflito de ordem ativa para a OS retornada pelo servidor", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: "Ordem ativa.",
+          error: {
+            code: "active_order_exists",
+            message: "Ordem ativa.",
+            order_id: 77,
+          },
+        }),
+        { status: 409 },
+      ),
+    ),
+  );
+  setup();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Já existe uma ordem ativa para esta UC",
+  );
+  expect(
+    screen.getByRole("link", { name: "Acompanhar OS-000077" }),
+  ).toHaveAttribute("href", "/ordens?uc_id=UC-1004&order_id=77");
+  expect(
+    screen.queryByRole("button", { name: "Reenviar mesma criação" }),
+  ).toBeNull();
 });

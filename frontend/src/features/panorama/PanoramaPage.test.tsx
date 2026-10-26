@@ -337,7 +337,7 @@ describe("PanoramaPage (WEB-01)", () => {
 
     expect(
       await screen.findByText(
-        /Competência 2024-05 em aberto · Dados preliminares/i,
+        /Competência Mai\/2024 em aberto · Dados preliminares/i,
       ),
     ).toBeVisible();
   });

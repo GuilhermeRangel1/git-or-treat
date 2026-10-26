@@ -3,6 +3,7 @@ import Button from "../../shared/ui/Button";
 import MetricCard from "../../shared/ui/MetricCard";
 import Modal from "../../shared/ui/Modal";
 import type { PanoramaData } from "../../shared/analytics/types";
+import { formatCompetenciaLabel } from "../../shared/analytics/syntheticData";
 
 const metricsOrder = [
   "receitaFaturada",
@@ -75,7 +76,9 @@ export default function PanoramaFoundations({
               </div>
               <div>
                 <dt className="inline">Competência: </dt>
-                <dd className="inline">{data.filtros.periodo}</dd>
+                <dd className="inline">
+                  {formatCompetenciaLabel(data.filtros.periodo)}
+                </dd>
               </div>
               <div>
                 <dt className="inline">Município: </dt>

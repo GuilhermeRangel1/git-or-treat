@@ -132,6 +132,30 @@ it("apresenta a ordem retornada pela API e abre ações para a UC selecionada", 
   );
 });
 
+it("abre exatamente a OS indicada por order_id no link de acompanhamento", async () => {
+  const current = order();
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation((url: string) =>
+        Promise.resolve(
+          url.includes("/orders/41")
+            ? new Response(
+                JSON.stringify({ ...current, suspicion_snapshot: null }),
+                { status: 200 },
+              )
+            : response([current]),
+        ),
+      ),
+  );
+  renderPage("/ordens?uc_id=UC-1041&order_id=41");
+
+  expect(
+    await screen.findByRole("dialog", { name: "Ações 41" }),
+  ).toHaveTextContent("UC-1041");
+});
+
 it("recusa parâmetros repetidos antes do fetch e permite limpar a URL inválida", async () => {
   const user = userEvent.setup();
   const fetchMock = vi.mocked(fetch);

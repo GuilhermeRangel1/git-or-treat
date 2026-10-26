@@ -46,6 +46,7 @@ type ChartPoint = {
 function chartCoordinates(rows: RevenueEnvelope["data"]["series"]): {
   points: ChartPoint[];
   ticks: number[];
+  zeroY: number;
 } {
   const values = rows
     .map((row) => row.billed_amount)
@@ -67,23 +68,28 @@ function chartCoordinates(rows: RevenueEnvelope["data"]["series"]): {
         y: null,
       })),
       ticks: [],
+      zeroY: bottom,
     };
   }
 
   const observedMinimum = Math.min(...values);
   const observedMaximum = Math.max(...values);
-  const observedSpan = observedMaximum - observedMinimum;
-  const padding =
-    observedSpan === 0
-      ? Math.max(Math.abs(observedMaximum) * 0.08, 1)
-      : observedSpan * 0.14;
-  const minimum = observedMinimum - padding;
-  const maximum = observedMaximum + padding;
+  const domainMinimum = Math.min(0, observedMinimum);
+  const domainMaximum = Math.max(0, observedMaximum);
+  const domainSpan = domainMaximum - domainMinimum;
+  const padding = Math.max(domainSpan * 0.08, 1);
+  const minimum = domainMinimum < 0 ? domainMinimum - padding : 0;
+  const maximum = domainMaximum > 0 ? domainMaximum + padding : padding;
   const span = maximum - minimum;
   const ticks = Array.from(
-    { length: 4 },
-    (_, index) => maximum - (span * index) / 3,
+    { length: 5 },
+    (_, index) => maximum - (span * index) / 4,
   );
+  if (minimum < 0 && maximum > 0) {
+    ticks.push(0);
+    ticks.sort((left, right) => right - left);
+  }
+  const zeroY = top + ((maximum - 0) / span) * (bottom - top);
 
   return {
     points: rows.map((row, index) => ({
@@ -99,6 +105,7 @@ function chartCoordinates(rows: RevenueEnvelope["data"]["series"]): {
           : top + ((maximum - row.billed_amount) / span) * (bottom - top),
     })),
     ticks,
+    zeroY,
   };
 }
 
@@ -125,11 +132,11 @@ function linePath(points: ChartPoint[]) {
     .join(" ");
 }
 
-function areaPath(points: ChartPoint[]) {
+function areaPath(points: ChartPoint[], zeroY: number) {
   const first = points[0];
   const last = points.at(-1);
   if (!first || !last) return "";
-  return `M ${first.x} ${chart.bottom} L ${linePath(points).slice(2)} L ${last.x} ${chart.bottom} Z`;
+  return `M ${first.x} ${zeroY} L ${linePath(points).slice(2)} L ${last.x} ${zeroY} Z`;
 }
 
 export default function RevenueSeries({
@@ -138,7 +145,7 @@ export default function RevenueSeries({
   envelope: RevenueEnvelope;
 }) {
   const rows = envelope.data.series;
-  const { points, ticks } = chartCoordinates(rows);
+  const { points, ticks, zeroY } = chartCoordinates(rows);
   const groups = pointGroups(points);
   const [activeCompetence, setActiveCompetence] = useState<string | null>(null);
   const activePoint = points.find(
@@ -170,7 +177,7 @@ export default function RevenueSeries({
       </h2>
       <p className="mt-1 text-sm text-muted">
         Receita faturada por competência (BRL). Lacunas permanecem sem valor e
-        não são ligadas no gráfico.
+        não são ligadas no gráfico. Escala vertical inclui R$ 0,00.
       </p>
       <div className="mt-4 min-w-0 max-w-full overflow-x-auto rounded-lg bg-canvas/50 px-2 py-2">
         <div className="revenue-series__chart-enter">
@@ -236,7 +243,7 @@ export default function RevenueSeries({
             {groups.map((group) => (
               <path
                 key={`area-${group[0]?.competencia}`}
-                d={areaPath(group)}
+                d={areaPath(group, zeroY)}
                 fill="url(#revenue-series-fill)"
               />
             ))}

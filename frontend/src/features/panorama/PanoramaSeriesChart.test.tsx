@@ -43,11 +43,11 @@ describe("PanoramaSeriesChart", () => {
     ).toBeVisible();
     expect(screen.getByText("Cenário sintético · R$ mil / mês")).toBeVisible();
     expect(screen.getByRole("img")).toHaveAccessibleName(
-      /Receita ao longo do período.*Receita faturada mensal entre Mar\/24 e Abr\/24/,
+      /Receita ao longo do período.*Receita faturada mensal entre Mar\/2024 e Abr\/2024/,
     );
     expect(screen.getByText("76,5")).toBeVisible();
     expect(screen.getByText("72")).toBeVisible();
-    expect(screen.getByText(/Abr\/24\*/)).toBeVisible();
+    expect(screen.getByText(/Abr\/2024\*/)).toBeVisible();
 
     const selectedBar = document.querySelector(
       ".panorama-series-chart__bar.is-selected",

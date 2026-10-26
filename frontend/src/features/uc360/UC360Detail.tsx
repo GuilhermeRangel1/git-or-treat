@@ -4,9 +4,9 @@ import type { UCHistory, UCOverview } from "./contract";
 import { ErrorMessage, EvidenceDialog, HistoryPanel } from "./UC360History";
 import UC360OverviewTable from "./UC360OverviewTable";
 import UC360Interpretation from "./UC360Interpretation";
-import { UC360Comparison, UC360SummaryMetrics } from "./UC360Metrics";
+import { UC360Comparison, UC360SupportMetrics } from "./UC360Metrics";
 import UC360PeriodForm from "./UC360PeriodForm";
-import { formatUCPower, statusLabel } from "./uc360-format";
+import { formatUCDate, formatUCPower, statusLabel } from "./uc360-format";
 import type { UCHistorySection } from "./uc360-state";
 
 type Props = {
@@ -117,7 +117,14 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
           )}
           {selected && metadata && (
             <>
-              <UC360SummaryMetrics data={selected} />
+              <UC360PeriodForm
+                appliedStart={unit.filters.start}
+                appliedEnd={unit.filters.end}
+                period={selected.period}
+                onApply={actions.onPeriodApply}
+              />
+              <UC360Comparison comparison={selected.comparison} />
+              <UC360SupportMetrics data={selected} />
               <UC360OverviewTable comparison={selected.comparison} />
               <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
                 <h2 className="font-heading text-lg font-semibold">
@@ -136,7 +143,7 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                       <>Medidor: {statusLabel(selected.current_meter.status)}</>
                     )}
                     {selected.current_meter.item?.removed_at
-                      ? ` · retirado em ${selected.current_meter.item.removed_at}`
+                      ? ` · retirado em ${formatUCDate(selected.current_meter.item.removed_at)}`
                       : ""}
                     .
                   </li>
@@ -215,13 +222,6 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                   Atualizando período…
                 </p>
               )}
-              <UC360PeriodForm
-                appliedStart={unit.filters.start}
-                appliedEnd={unit.filters.end}
-                period={selected.period}
-                onApply={actions.onPeriodApply}
-              />
-              <UC360Comparison comparison={selected.comparison} />
               <UC360Interpretation data={selected} />
             </>
           )}
