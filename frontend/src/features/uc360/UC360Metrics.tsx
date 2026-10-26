@@ -1,5 +1,6 @@
 import type { UCChange, UCMeasure, UCOverview, UCStatus } from "./contract";
 import {
+  formatUCCompetence,
   formatUCAmount,
   humanizeLimitation,
   statusLabel,
@@ -45,17 +46,17 @@ function Metric({
     ]),
   ];
   return (
-    <article className="grid min-w-0 min-h-40 content-center gap-2 rounded-xl bg-surface px-3 py-4 text-center sm:px-4 sm:py-5">
+    <article className="grid min-w-0 content-start gap-2 rounded-xl border border-control/60 bg-surface px-3 py-4 text-left sm:px-4 sm:py-5">
       <h3 className="text-sm text-muted">{title}</h3>
-      <p className="break-words font-heading text-xl font-semibold text-content sm:text-2xl xl:text-3xl">
+      <p className="break-words font-heading text-2xl font-semibold text-content sm:text-3xl">
         {formatUCAmount(current.value, unit)}
       </p>
-      <p className="text-xs text-muted">
-        Anterior: {formatUCAmount(before.value, unit)}
-      </p>
-      <p className="break-words text-xs font-medium text-muted sm:text-sm">
+      <p className="break-words text-sm font-semibold text-muted">
         <span className={changeTone(change.delta)}>{delta}</span> ·{" "}
         <span className={changeTone(change.percent_change)}>{percent}</span>
+      </p>
+      <p className="text-xs text-muted">
+        Período anterior: {formatUCAmount(before.value, unit)}
       </p>
       <p className="text-xs text-muted">
         {period} · atual: {statusLabel(current.status)} · anterior:{" "}
@@ -113,55 +114,42 @@ function SummaryMetric({
   );
 }
 
-export function UC360SummaryMetrics({ data }: { data: UCOverview["data"] }) {
-  const { comparison } = data;
+export function UC360SupportMetrics({ data }: { data: UCOverview["data"] }) {
   return (
     <section
-      className="grid grid-cols-2 gap-3 lg:gap-4 xl:grid-cols-4"
-      aria-labelledby="uc-primary-indicators-title"
+      className="grid gap-2 rounded-xl border border-control p-3 sm:p-4"
+      role="region"
+      aria-label="Apoio ao atendimento"
     >
-      <h2 id="uc-primary-indicators-title" className="sr-only">
-        Indicadores principais da unidade
+      <h2 className="font-heading text-base font-semibold text-content">
+        Apoio ao atendimento
       </h2>
-      <SummaryMetric
-        title="Consumo recente"
-        value={formatUCAmount(
-          comparison.final.measured_energy_kwh.value,
-          "kWh",
-        )}
-        detail={`${comparison.final.competencia} · Anterior: ${formatUCAmount(comparison.initial.measured_energy_kwh.value, "kWh")} (${comparison.initial.competencia})`}
-        status={comparison.final.measured_energy_kwh.status}
-        limitations={comparison.final.measured_energy_kwh.limitations}
-      />
-      <SummaryMetric
-        title="Valor faturado"
-        value={formatUCAmount(comparison.final.billed_amount.value, "BRL")}
-        detail={`${comparison.final.competencia} · Anterior: ${formatUCAmount(comparison.initial.billed_amount.value, "BRL")} (${comparison.initial.competencia})`}
-        status={comparison.final.billed_amount.status}
-        limitations={comparison.final.billed_amount.limitations}
-      />
-      <SummaryMetric
-        title="Faturas em aberto"
-        value={data.open_invoices.count?.toLocaleString("pt-BR") ?? "Sem dado"}
-        detail={`${data.period.start} a ${data.period.end} · contagem, sem saldo ou atraso`}
-        status={data.open_invoices.status}
-        limitations={data.open_invoices.limitations}
-      />
-      <SummaryMetric
-        title="Geração própria"
-        value={
-          data.distributed_generation.items.length > 0
-            ? data.distributed_generation.items
-                .map((item) => `${decimal.format(item.capacity_kw)} kW`)
-                .join(" · ")
-            : data.distributed_generation.status === "empty"
-              ? "Sem cadastro"
-              : "Sem dado"
-        }
-        detail="Potência cadastrada em kW; não é energia compensada."
-        status={data.distributed_generation.status}
-        limitations={data.distributed_generation.limitations}
-      />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <SummaryMetric
+          title="Geração própria"
+          value={
+            data.distributed_generation.items.length > 0
+              ? data.distributed_generation.items
+                  .map((item) => `${decimal.format(item.capacity_kw)} kW`)
+                  .join(" · ")
+              : data.distributed_generation.status === "empty"
+                ? "Sem cadastro"
+                : "Sem dado"
+          }
+          detail="Potência cadastrada em kW; não é energia compensada."
+          status={data.distributed_generation.status}
+          limitations={data.distributed_generation.limitations}
+        />
+        <SummaryMetric
+          title="Faturas em aberto"
+          value={
+            data.open_invoices.count?.toLocaleString("pt-BR") ?? "Sem dado"
+          }
+          detail={`${formatUCCompetence(data.period.start)} a ${formatUCCompetence(data.period.end)} · contagem, sem saldo ou atraso`}
+          status={data.open_invoices.status}
+          limitations={data.open_invoices.limitations}
+        />
+      </div>
     </section>
   );
 }
@@ -171,50 +159,66 @@ export function UC360Comparison({
 }: {
   comparison: UCOverview["data"]["comparison"];
 }) {
-  const comparisonPeriod = `${comparison.initial.competencia} → ${comparison.final.competencia}`;
+  const comparisonPeriod = `${formatUCCompetence(comparison.initial.competencia)} → ${formatUCCompetence(comparison.final.competencia)}`;
   return (
-    <section
-      className="grid grid-cols-2 gap-3 xl:grid-cols-4"
-      aria-labelledby="uc-comparison-title"
-    >
-      <h2
-        id="uc-comparison-title"
-        className="col-span-full font-heading text-lg font-semibold text-content"
-      >
-        Comparação entre competências
+    <section className="grid gap-4" aria-label="Indicadores comparativos">
+      <h2 className="font-heading text-xl font-semibold text-content">
+        Indicadores comparativos
       </h2>
-      <Metric
-        title="Consumo medido"
-        current={comparison.final.measured_energy_kwh}
-        before={comparison.initial.measured_energy_kwh}
-        change={comparison.measured_energy_kwh}
-        unit="kWh"
-        period={comparisonPeriod}
-      />
-      <Metric
-        title="Energia faturada"
-        current={comparison.final.billed_energy_kwh}
-        before={comparison.initial.billed_energy_kwh}
-        change={comparison.billed_energy_kwh}
-        unit="kWh"
-        period={comparisonPeriod}
-      />
-      <Metric
-        title="Valor faturado"
-        current={comparison.final.billed_amount}
-        before={comparison.initial.billed_amount}
-        change={comparison.billed_amount}
-        unit="BRL"
-        period={comparisonPeriod}
-      />
-      <Metric
-        title="Valor pago"
-        current={comparison.final.paid_amount}
-        before={comparison.initial.paid_amount}
-        change={comparison.paid_amount}
-        unit="BRL"
-        period={comparisonPeriod}
-      />
+      <div
+        className="grid gap-3 rounded-xl border border-control p-3 sm:p-4"
+        aria-label="Comparação de energia e consumo"
+        role="region"
+      >
+        <h2 className="font-heading text-lg font-semibold text-content">
+          Energia e consumo
+        </h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Metric
+            title="Consumo medido (kWh)"
+            current={comparison.final.measured_energy_kwh}
+            before={comparison.initial.measured_energy_kwh}
+            change={comparison.measured_energy_kwh}
+            unit="kWh"
+            period={comparisonPeriod}
+          />
+          <Metric
+            title="Energia faturada (kWh)"
+            current={comparison.final.billed_energy_kwh}
+            before={comparison.initial.billed_energy_kwh}
+            change={comparison.billed_energy_kwh}
+            unit="kWh"
+            period={comparisonPeriod}
+          />
+        </div>
+      </div>
+      <div
+        className="grid gap-3 rounded-xl border border-control p-3 sm:p-4"
+        aria-label="Comparação de valores financeiros"
+        role="region"
+      >
+        <h2 className="font-heading text-lg font-semibold text-content">
+          Valores financeiros
+        </h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Metric
+            title="Valor faturado (BRL)"
+            current={comparison.final.billed_amount}
+            before={comparison.initial.billed_amount}
+            change={comparison.billed_amount}
+            unit="BRL"
+            period={comparisonPeriod}
+          />
+          <Metric
+            title="Valor pago (BRL)"
+            current={comparison.final.paid_amount}
+            before={comparison.initial.paid_amount}
+            change={comparison.paid_amount}
+            unit="BRL"
+            period={comparisonPeriod}
+          />
+        </div>
+      </div>
     </section>
   );
 }

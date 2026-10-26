@@ -98,6 +98,17 @@ export default function ReceitaPage() {
     searchParams,
     "bairro",
   );
+  const refinementLabels = [
+    parsed.refinements.municipio
+      ? `Município: ${filterLabel(parsed.refinements.municipio, "Não informado")}`
+      : null,
+    parsed.refinements.bairro
+      ? `Bairro: ${filterLabel(parsed.refinements.bairro, "Não informado")}`
+      : null,
+    parsed.refinements.classe
+      ? `Classe: ${filterLabel(parsed.refinements.classe, "Não informado")}`
+      : null,
+  ].filter((label): label is string => label !== null);
   const unavailableMessage = (() => {
     if (!(revenue.error instanceof ApiError)) {
       return "Não foi possível consultar a receita. Tente novamente.";
@@ -156,6 +167,30 @@ export default function ReceitaPage() {
           </span>
         ) : null}
       </div>
+
+      {refinementLabels.length > 0 ? (
+        <section
+          aria-label="Recorte explorado"
+          className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/40 bg-brand/5 px-4 py-3"
+        >
+          <p className="min-w-0 text-sm text-content">
+            <span className="font-semibold">Explorando:</span>{" "}
+            {refinementLabels.join(" · ")}
+          </p>
+          <Button
+            type="button"
+            variant="accent"
+            size="sm"
+            onClick={() =>
+              setSearchParams(totalRefinementParams, {
+                preventScrollReset: true,
+              })
+            }
+          >
+            Voltar ao total
+          </Button>
+        </section>
+      ) : null}
 
       <section
         aria-label="Filtros aplicados"
@@ -362,8 +397,9 @@ export default function ReceitaPage() {
           role="status"
           className="rounded-xl border border-border bg-surface p-4 text-sm text-muted"
         >
-          Carregando a receita para {parsed.base.competencia_inicio} —{" "}
-          {parsed.base.competencia_fim}…
+          Carregando a receita para{" "}
+          {competenceLabel(parsed.base.competencia_inicio)} —{" "}
+          {competenceLabel(parsed.base.competencia_fim)}…
         </p>
       ) : null}
 

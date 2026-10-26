@@ -7,6 +7,7 @@ const allowedParameters = new Set([
   "status",
   "priority",
   "has_result",
+  "order_id",
   "page",
   "page_size",
 ]);
@@ -19,6 +20,7 @@ export type OrdersQuery = {
   status: (typeof orderStatuses)[number] | null;
   priority: (typeof orderPriorities)[number] | null;
   hasResult: boolean | null;
+  orderId: number | null;
 };
 
 function positiveInteger(value: string, max?: number): number | null {
@@ -85,6 +87,11 @@ export function parseOrdersQuery(params: URLSearchParams): OrdersQuery {
     throw new Error("O filtro de resultado informado não é válido.");
   }
 
+  const rawOrderId = params.get("order_id");
+  const orderId = rawOrderId === null ? null : positiveInteger(rawOrderId);
+  if (rawOrderId !== null && orderId === null)
+    throw new Error("O identificador da ordem informado não é válido.");
+
   const page = positiveInteger(params.get("page") ?? "1");
   if (page === null) throw new Error("A página informada não é válida.");
 
@@ -108,6 +115,7 @@ export function parseOrdersQuery(params: URLSearchParams): OrdersQuery {
     status: rawStatus as OrdersQuery["status"],
     priority: rawPriority as OrdersQuery["priority"],
     hasResult: rawHasResult === null ? null : rawHasResult === "true",
+    orderId,
   };
 }
 
@@ -120,8 +128,11 @@ export function formatOrderDate(value: string | null | undefined): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "indisponível";
   const formatted = new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
     timeZone: "America/Recife",
   }).format(date);
   return `${formatted} (Recife)`;

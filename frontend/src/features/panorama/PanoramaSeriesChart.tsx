@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from "react";
 import type { MonthlyDataPoint } from "../../shared/analytics/types";
+import { formatCompetenciaLabel } from "../../shared/analytics/syntheticData";
 import Modal from "../../shared/ui/Modal";
 import "./panorama-series-chart.css";
 
@@ -77,9 +78,10 @@ export default function PanoramaSeriesChart({
 
       <figure className="panorama-series-chart__figure">
         <figcaption id={chartDescriptionId} className="sr-only">
-          Receita faturada mensal entre {firstPoint.label} e {lastPoint.label}.
-          O gráfico exibe {data.length} competências e usa uma escala em
-          milhares de reais.
+          Receita faturada mensal entre{" "}
+          {formatCompetenciaLabel(firstPoint.competencia)} e{" "}
+          {formatCompetenciaLabel(lastPoint.competencia)}. O gráfico exibe{" "}
+          {data.length} competências e usa uma escala em milhares de reais.
         </figcaption>
         <div
           className="panorama-series-chart__plot"
@@ -124,11 +126,13 @@ export default function PanoramaSeriesChart({
                   />
                   <span className="panorama-series-chart__month">
                     <span className="panorama-series-chart__month-short">
-                      {monthFromLabel(point.label)}
+                      {monthFromLabel(
+                        formatCompetenciaLabel(point.competencia),
+                      )}
                       {isPartial ? "*" : ""}
                     </span>
                     <span className="panorama-series-chart__month-full">
-                      {point.label}
+                      {formatCompetenciaLabel(point.competencia)}
                       {isPartial ? "*" : ""}
                     </span>
                     {isCurrent ? (
@@ -144,8 +148,9 @@ export default function PanoramaSeriesChart({
         </div>
         <p className="panorama-series-chart__summary">
           Receita faturada de {formatCurrency(firstPoint.receitaFaturada)} em{" "}
-          {firstPoint.label} a {formatCurrency(lastPoint.receitaFaturada)} em{" "}
-          {lastPoint.label}.
+          {formatCompetenciaLabel(firstPoint.competencia)} a{" "}
+          {formatCurrency(lastPoint.receitaFaturada)} em{" "}
+          {formatCompetenciaLabel(lastPoint.competencia)}.
           {partialPeriod
             ? " * Competência parcial; valor ainda não consolidado."
             : ""}
@@ -184,7 +189,7 @@ export default function PanoramaSeriesChart({
               {data.map((point) => (
                 <tr key={point.competencia}>
                   <th scope="row">
-                    {point.label}
+                    {formatCompetenciaLabel(point.competencia)}
                     {point.competencia === partialPeriod ? " · parcial" : ""}
                   </th>
                   <td>{formatCurrency(point.receitaFaturada)}</td>

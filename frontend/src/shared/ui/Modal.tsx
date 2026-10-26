@@ -14,7 +14,7 @@ type ModalHeader = "inline" | "sticky";
 type ModalProps = {
   open: boolean;
   onClose: () => void;
-  triggerRef: RefObject<HTMLButtonElement | null>;
+  triggerRef: RefObject<HTMLElement | null>;
   title: string;
   description?: string;
   closeLabel: string;

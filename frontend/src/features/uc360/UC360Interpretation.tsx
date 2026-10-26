@@ -1,6 +1,7 @@
 import type { UCOverview } from "./contract";
 import {
   formatUCAmount,
+  formatUCCompetence,
   humanizeLimitation,
   statusLabel,
 } from "./uc360-format";
@@ -47,15 +48,15 @@ export default function UC360Interpretation({
               comparison.initial.measured_energy_kwh.value,
               "kWh",
             )}{" "}
-            em {comparison.initial.competencia} →{" "}
+            em {formatUCCompetence(comparison.initial.competencia)} →{" "}
             {formatUCAmount(comparison.final.measured_energy_kwh.value, "kWh")}{" "}
-            em {comparison.final.competencia}.
+            em {formatUCCompetence(comparison.final.competencia)}.
           </li>
           <li>
             {comparison.initial.billed_amount.status === "empty" &&
             comparison.final.billed_amount.status === "empty"
               ? "Sem faturas nos meses comparados."
-              : `Valor faturado: ${formatUCAmount(comparison.initial.billed_amount.value, "BRL")} → ${formatUCAmount(comparison.final.billed_amount.value, "BRL")}.`}
+              : `Valor faturado: ${formatUCAmount(comparison.initial.billed_amount.value, "BRL")} → ${formatUCAmount(comparison.final.billed_amount.value, "BRL")} (${formatUCCompetence(comparison.initial.competencia)} a ${formatUCCompetence(comparison.final.competencia)}).`}
           </li>
           <li>
             Estado da medição:{" "}

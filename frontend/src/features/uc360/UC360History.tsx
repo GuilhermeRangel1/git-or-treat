@@ -3,7 +3,12 @@ import { AlertCircle, ArrowUpRight, X } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 import type { UCHistory, UCHistoryItem, UCMeter, UCStatus } from "./contract";
 import type { UCHistorySection } from "./uc360-state";
-import { humanizeLimitation, statusLabel } from "./uc360-format";
+import {
+  formatUCCompetence,
+  formatUCDate,
+  humanizeLimitation,
+  statusLabel,
+} from "./uc360-format";
 
 const sectionLabels: Record<UCHistorySection, string> = {
   consumption: "Consumo",
@@ -61,6 +66,17 @@ const decimal = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 
 function historyValue(key: string, value: unknown) {
   if (value === null) return "Sem dado";
+  if (key === "competencia") return formatUCCompetence(String(value));
+  if (
+    [
+      "due_date",
+      "payment_date",
+      "installed_at",
+      "removed_at",
+      "opened_at",
+    ].includes(key)
+  )
+    return formatUCDate(String(value));
   if (key === "billed_amount" || key === "paid_amount")
     return money.format(Number(value));
   if (["measured_energy_kwh", "billed_energy_kwh"].includes(key))
@@ -132,7 +148,7 @@ function coverageMessage(status: UCStatus) {
 
 function currentMeterMessage(meter: UCMeter | null, status?: UCStatus) {
   if (meter) {
-    return `Vigente no snapshot: ${meter.meter_id}, instalado em ${meter.installed_at}. Consulte o histórico para vínculos anteriores e retiradas.`;
+    return `Vigente no snapshot: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. Consulte o histórico para vínculos anteriores e retiradas.`;
   }
   switch (status) {
     case "empty":

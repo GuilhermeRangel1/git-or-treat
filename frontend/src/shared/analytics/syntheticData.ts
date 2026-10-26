@@ -21,15 +21,15 @@ export interface SyntheticRecord {
 export const COMPETENCIAS_DISPONIVEIS = [
   {
     value: "2024-05",
-    label: "2024-05 (Parcial em aberto)",
+    label: "Mai/2024 (Parcial em aberto)",
     isIncompleto: true,
   },
   {
     value: "2024-04",
-    label: "2024-04 (Fechada · Referência)",
+    label: "Abr/2024 (Fechada · Referência)",
     isIncompleto: false,
   },
-  { value: "2024-03", label: "2024-03 (Fechada)", isIncompleto: false },
+  { value: "2024-03", label: "Mar/2024 (Fechada)", isIncompleto: false },
 ];
 
 export const MUNICIPIOS_DISPONIVEIS = [
@@ -602,7 +602,7 @@ export function formatCompetenciaLabel(competencia: string): string {
   ];
   const idx = parseInt(mes, 10) - 1;
   const nomeMes = meses[idx] || mes;
-  return `${nomeMes}/${ano.slice(2)}`;
+  return `${nomeMes}/${ano}`;
 }
 
 // Função agregadora de dados para o Panorama

@@ -14,6 +14,7 @@ import AIInsightCard from "./AIInsightCard";
 import PanoramaSeriesChart from "./PanoramaSeriesChart";
 import { usePanoramaInsight } from "./usePanoramaInsight";
 import { formatPanoramaTimestamp } from "./panorama-format";
+import { formatCompetenciaLabel } from "../../shared/analytics/syntheticData";
 
 export default function PanoramaPage() {
   const {
@@ -76,7 +77,7 @@ export default function PanoramaPage() {
       {isValid && data?.periodoIncompleto && (
         <ContentState
           type="partial"
-          title={`Competência ${filters.periodo} em aberto · Dados preliminares`}
+          title={`Competência ${formatCompetenciaLabel(filters.periodo)} em aberto · Dados preliminares`}
           description="Os dados desta competência ainda são parciais. A comparação entre períodos completos fica indisponível até o fechamento."
         />
       )}

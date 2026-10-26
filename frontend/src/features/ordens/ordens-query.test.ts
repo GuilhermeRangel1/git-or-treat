@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { parseOrdersQuery } from "./ordens-query";
+import { formatOrderDate, parseOrdersQuery } from "./ordens-query";
 
 it.each([
   ["has_result=true", "true", true],
@@ -23,6 +23,21 @@ it("preserva prioridade e tamanho da página ao consultar o resultado", () => {
   expect(parsed.pageSize).toBe(5);
 });
 
+it("mantém o identificador pedido na URL sem enviá-lo como filtro da API", () => {
+  const parsed = parseOrdersQuery(
+    new URLSearchParams("uc_id=UC-1041&order_id=77"),
+  );
+
+  expect(parsed.orderId).toBe(77);
+  expect(new URLSearchParams(parsed.request).has("order_id")).toBe(false);
+});
+
+it("recusa identificador de ordem inválido na URL", () => {
+  expect(() => parseOrdersQuery(new URLSearchParams("order_id=0"))).toThrow(
+    "O identificador da ordem informado não é válido.",
+  );
+});
+
 it.each(["has_result=TRUE", "has_result=1", "has_result="])(
   "recusa has_result não canônico (%s)",
   (query) => {
@@ -36,4 +51,10 @@ it("recusa has_result duplicado", () => {
   expect(() =>
     parseOrdersQuery(new URLSearchParams("has_result=true&has_result=false")),
   ).toThrow("inválidos ou estão repetidos");
+});
+
+it("formata a data da OS em dd/MM com ano completo no fuso de Recife", () => {
+  expect(formatOrderDate("2026-10-24T01:30:00Z")).toBe(
+    "23/10/2026, 22:30 (Recife)",
+  );
 });
