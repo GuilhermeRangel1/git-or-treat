@@ -169,14 +169,6 @@ export default function RevenueSeries({
 
   const { points, ticks } = chartCoordinates(rows, chartWidth);
   const groups = pointGroups(points);
-  const valuePoints = points.filter(
-    (point): point is ChartPoint & { value: number; y: number } =>
-      point.value !== null && point.y !== null,
-  );
-  const valueLabelPoints =
-    valuePoints.length > 2
-      ? [valuePoints[0], valuePoints.at(-1)!]
-      : valuePoints;
   const [activeCompetence, setActiveCompetence] = useState<string | null>(null);
   const activePoint = points.find(
     (point) => point.competencia === activeCompetence && point.value !== null,
@@ -297,24 +289,6 @@ export default function RevenueSeries({
                 </g>
               ),
             )}
-            {valueLabelPoints.map((point) => {
-              const isNearTop = point.y <= chart.top + 30;
-              const isRightSide = point.x > chartWidth / 2;
-              return (
-                <text
-                  key={`value-${point.competencia}`}
-                  x={point.x}
-                  y={point.y + (isNearTop ? 22 : -12)}
-                  textAnchor={isRightSide ? "end" : "start"}
-                  className="fill-content"
-                  fontSize="12"
-                  fontWeight="600"
-                >
-                  {money.format(point.value)}
-                </text>
-              );
-            })}
-
             {monthTicks.map((row, index) => {
               const point = points.find(
                 (candidate) => candidate.competencia === row.competencia,
