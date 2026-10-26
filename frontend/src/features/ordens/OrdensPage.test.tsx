@@ -14,9 +14,21 @@ import TestProviders from "@/shared/test/TestProviders";
 import OrdensPage from "./OrdensPage";
 
 vi.mock("./OrderActionsDialog", () => ({
-  default: ({ order, open }: { order: Order | null; open: boolean }) =>
+  default: ({
+    order,
+    open,
+    triggerRef,
+  }: {
+    order: Order | null;
+    open: boolean;
+    triggerRef: { current: HTMLElement | null };
+  }) =>
     open && order ? (
-      <div role="dialog" aria-label={`Ações ${order.id}`}>
+      <div
+        role="dialog"
+        aria-label={`Ações ${order.id}`}
+        data-return-target={triggerRef.current?.textContent?.trim()}
+      >
         <p>{order.uc_id}</p>
       </div>
     ) : null,
@@ -151,9 +163,9 @@ it("abre exatamente a OS indicada por order_id no link de acompanhamento", async
   );
   renderPage("/ordens?uc_id=UC-1041&order_id=41");
 
-  expect(
-    await screen.findByRole("dialog", { name: "Ações 41" }),
-  ).toHaveTextContent("UC-1041");
+  const dialog = await screen.findByRole("dialog", { name: "Ações 41" });
+  expect(dialog).toHaveTextContent("UC-1041");
+  expect(dialog).toHaveAttribute("data-return-target", "Voltar à fila");
 });
 
 it("recusa parâmetros repetidos antes do fetch e permite limpar a URL inválida", async () => {

@@ -22,7 +22,8 @@ export default function OrdensPage() {
   const [foundationsOpen, setFoundationsOpen] = useState(false);
   const [actionSession, setActionSession] = useState(0);
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null);
-  const actionTriggerRef = useRef<HTMLButtonElement>(null);
+  const actionTriggerRef = useRef<HTMLElement>(null);
+  const backToQueueRef = useRef<HTMLAnchorElement>(null);
   const foundationsTriggerRef = useRef<HTMLButtonElement>(null);
   const deepLinkHandledRef = useRef<number | null>(null);
   const queryClient = useQueryClient();
@@ -82,7 +83,7 @@ export default function OrdensPage() {
       return;
     }
     deepLinkHandledRef.current = orderId;
-    actionTriggerRef.current = null;
+    actionTriggerRef.current = backToQueueRef.current;
     setActionSession((session) => session + 1);
     setSelectedOrder(requestedOrder.data);
     setSavedFeedback(null);
@@ -115,6 +116,7 @@ export default function OrdensPage() {
     <div className="mt-5 space-y-5 pb-6 lg:mt-6 lg:space-y-6">
       <nav aria-label="Navegação das ordens">
         <Link
+          ref={backToQueueRef}
           className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           to="/inspecoes"
         >

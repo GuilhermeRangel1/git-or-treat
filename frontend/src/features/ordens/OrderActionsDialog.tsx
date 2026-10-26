@@ -23,7 +23,7 @@ type OrderActionsDialogProps = {
   order: Order | null;
   open: boolean;
   onClose: () => void;
-  triggerRef: RefObject<HTMLButtonElement | null>;
+  triggerRef: RefObject<HTMLElement | null>;
   onSaved: (order: Order, message: string) => void;
 };
 
