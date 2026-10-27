@@ -1,9 +1,12 @@
-import { useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import type { UCPeriod } from "./contract";
 import { formatUCCompetence } from "./uc360-format";
 
 const inputClass =
   "min-h-11 rounded-lg border border-control bg-canvas px-3 text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+const validCompetence = /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/;
+
+type ValidationError = { message: string; start: boolean; end: boolean };
 
 type Props = {
   appliedStart: string;
@@ -24,24 +27,33 @@ export default function UC360PeriodForm({
     start: appliedStart || "2025-01",
     end: appliedEnd || "2025-02",
   });
-  const [validation, setValidation] = useState("");
+  const [validation, setValidation] = useState<ValidationError | null>(null);
+  const startId = useId();
+  const endId = useId();
+  const validationId = useId();
+  const startInputRef = useRef<HTMLInputElement>(null);
+  const endInputRef = useRef<HTMLInputElement>(null);
   const start =
     draft.applied === applied ? draft.start : appliedStart || "2025-01";
   const end = draft.applied === applied ? draft.end : appliedEnd || "2025-02";
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (
-      !/^\d{4}-(0[1-9]|1[0-2])$/.test(start) ||
-      !/^\d{4}-(0[1-9]|1[0-2])$/.test(end) ||
-      start > end
-    ) {
-      setValidation(
-        "Informe competências válidas e mantenha o início antes do fim.",
-      );
+    const startValid = validCompetence.test(start);
+    const endValid = validCompetence.test(end);
+    const inverted = startValid && endValid && start > end;
+    if (!startValid || !endValid || inverted) {
+      setValidation({
+        message:
+          "Informe competências válidas e mantenha o início antes do fim.",
+        start: !startValid || inverted,
+        end: !endValid || inverted,
+      });
+      if (!startValid || inverted) startInputRef.current?.focus();
+      else endInputRef.current?.focus();
       return;
     }
-    setValidation("");
+    setValidation(null);
     onApply(start, end);
   }
 
@@ -68,8 +80,12 @@ export default function UC360PeriodForm({
         <label className="grid gap-1 text-xs font-medium text-muted">
           Início
           <input
+            ref={startInputRef}
+            id={startId}
             className={inputClass}
             aria-label="Competência inicial"
+            aria-invalid={validation?.start || undefined}
+            aria-describedby={validation?.start ? validationId : undefined}
             type="month"
             value={start}
             onChange={(event) =>
@@ -80,8 +96,12 @@ export default function UC360PeriodForm({
         <label className="grid gap-1 text-xs font-medium text-muted">
           Fim
           <input
+            ref={endInputRef}
+            id={endId}
             className={inputClass}
             aria-label="Competência final"
+            aria-invalid={validation?.end || undefined}
+            aria-describedby={validation?.end ? validationId : undefined}
             type="month"
             value={end}
             onChange={(event) =>
@@ -101,8 +121,12 @@ export default function UC360PeriodForm({
         {formatUCCompetence(period.start)} a {formatUCCompetence(period.end)}
       </p>
       {validation && (
-        <span className="w-full text-sm text-danger" role="alert">
-          {validation}
+        <span
+          id={validationId}
+          className="w-full text-sm text-danger"
+          role="alert"
+        >
+          {validation.message}
         </span>
       )}
     </form>

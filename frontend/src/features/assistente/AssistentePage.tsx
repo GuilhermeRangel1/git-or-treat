@@ -124,22 +124,24 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   const context = response.analysis_context;
   if (!context) return null;
   const details = [
-    context.metric && `Métrica: ${context.metric}`,
-    context.unit && `Unidade: ${context.unit}`,
-    context.period && `Período: ${context.period}`,
-    ...Object.entries(context.filters).map(
-      ([key, value]) => `${key}: ${formatFilterValue(value)}`,
-    ),
-  ].filter(Boolean);
+    context.metric && ["Métrica", context.metric],
+    context.unit && ["Unidade", context.unit],
+    context.period && ["Período", context.period],
+    ...Object.entries(context.filters).map(([key, value]) => [
+      key,
+      formatFilterValue(value),
+    ]),
+  ].filter((detail): detail is [string, string] => Boolean(detail));
   if (details.length === 0) return null;
   return (
     <dl className="mt-3 flex flex-wrap gap-2" aria-label="Recorte analisado">
-      {details.map((detail) => (
+      {details.map(([label, value]) => (
         <div
-          key={detail}
+          key={label}
           className="rounded-md border border-divider bg-surface px-2.5 py-1 text-xs text-muted"
         >
-          {detail}
+          <dt className="inline font-medium">{label}</dt>
+          <dd className="inline">: {value}</dd>
         </div>
       ))}
     </dl>

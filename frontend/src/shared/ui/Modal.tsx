@@ -135,9 +135,16 @@ export default function Modal({
         ) : (
           <>
             <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-5 py-4">
-              <h2 id={titleId} className="font-heading text-xl font-semibold">
-                {title}
-              </h2>
+              <div className="min-w-0">
+                <h2 id={titleId} className="font-heading text-xl font-semibold">
+                  {title}
+                </h2>
+                {description ? (
+                  <p id={descriptionId} className="mt-1 text-sm text-muted">
+                    {description}
+                  </p>
+                ) : null}
+              </div>
               <Button
                 type="button"
                 variant="icon"

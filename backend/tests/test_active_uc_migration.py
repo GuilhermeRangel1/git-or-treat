@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 
-from tests.test_migrations import alembic_config, migrated_database
+from tests.support.migrations import alembic_config, migrated_database
 
 
 @pytest.mark.parametrize("dialect", ["sqlite", "postgresql"])

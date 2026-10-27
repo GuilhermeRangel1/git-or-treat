@@ -87,6 +87,24 @@ describe("Assistente Grid 360", () => {
     expect(
       screen.getByText(/Os valores não representam dados reais/),
     ).toBeVisible();
+    const analysisContext = screen.getByLabelText("Recorte analisado");
+    expect(within(analysisContext).getByText("Métrica")).toBeVisible();
+    expect(within(analysisContext).getByText("Unidade")).toBeVisible();
+    expect(within(analysisContext).getByText("Período")).toBeVisible();
+    expect(within(analysisContext).getAllByRole("term")).toHaveLength(4);
+    expect(within(analysisContext).getAllByRole("definition")).toHaveLength(4);
+    expect(
+      within(analysisContext).getAllByRole("definition")[0],
+    ).toHaveTextContent(": Consumo");
+    expect(
+      within(analysisContext).getAllByRole("definition")[1],
+    ).toHaveTextContent(": kWh fictícios");
+    expect(
+      within(analysisContext).getAllByRole("definition")[2],
+    ).toHaveTextContent(": 2025-01 a 2025-02");
+    expect(
+      within(analysisContext).getAllByRole("definition")[3],
+    ).toHaveTextContent(": Exemplo");
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(options.method).toBe("POST");
