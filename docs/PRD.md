@@ -1884,6 +1884,11 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Pendências: integração e reconciliação com Gold, homologação da definição/denominador temporal, revisão humana da interface e controle de acesso para dados reais. O MCP Trello está conectado, mas o quadro oficial retornou recurso não encontrado ou sem acesso; sincronização de WEB-06/WEB-07 pendente. O PRD permanece a fonte de verdade.
 
 
+### 2026-10-27 — DEV-12 / DEV-13 — separação de escopo
+
+- DE-06 permanece `Em andamento`. A DEV-12 contém somente esquema e carga local; consumidores da API e portal, notebooks e dicionário provisório ficam na DEV-13, dependente da DEV-12. Histórico anterior preservado em branch de backup.
+- [Escopo, pendências e evidência da separação](plans/2026-10-27-dev12-separacao.md): 24 testes de carga/metadados/migrações aprovados em SQLite e PostgreSQL descartável sobre a develop `2581385`; compileall e diff-check passaram. Versão explícita do esquema, auditoria persistente das falhas e teste específico de preservação operacional seguem pendentes. Não conclui DE-06. Trello indisponível; sincronização pendente.
+
 ### 2026-10-27 — DE-06 / Gold CSV v1 — carga local provisória
 
 - Estado: DE-06 `Pendente` → `Em andamento`; DE-08 e requisitos WEB/IA mantidos. Entrega de preparação, não aceite Gold. A pessoa usuária disponibilizou os sete CSVs em `backend/data/gold/v1` e autorizou criar a branch a partir da `develop` (renomeada para `integracao-gold-v1` a seu pedido), trazendo os dois notebooks e o dicionário em elaboração da `feat/gold` (`9664823`). Nenhum CSV ou registro individual foi adicionado ao Git.
