@@ -100,7 +100,7 @@ O Backend trata o plano recebido como entrada não confiável, mesmo vindo de um
 1. Valida o `LogicalReadPlan` com as mesmas regras do schema (`extra="forbid"`, dimensões, filtros, ordenação, `limit` de 1 a 100).
 2. Recalcula `plan_fingerprint` e compara com o recebido.
 3. Confere `catalog_version`, `profile_id`, `source_id`, `metric_id`, dimensões e operadores contra o catálogo aprovado e o escopo da pessoa usuária.
-4. Traduz o plano em consulta parametrizada a partir do catálogo, sem interpolar valores, e executa com papel somente leitura, timeout e limite de linhas.
+4. Traduz o plano em consulta parametrizada a partir do catálogo, sem interpolar valores, e executa com papel somente leitura, timeout e limite de linhas. Pela [ADR-0017](../decisions/0017-banco-local-postgresql.md), o banco é PostgreSQL 16 e o papel é `venergy_gold_reader`, restrito a `SELECT` no schema `gold` e mantido pelo Backend por migração ou script de inicialização.
 5. Monta o `EvidenceLookupResult` (existente) descrito na operação 2.
 
 A mesma revalidação vale para um resultado servido de cache: a chave inclui escopo, `plan_fingerprint`, `catalog_version` e `batch_ref` (**proposto**), no mesmo espírito de `authorized_cache_scope` da GenAI. Um resultado guardado para um escopo não pode ser servido a outro.
@@ -166,7 +166,11 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
 | Plano rejeitado pelo Backend por escopo | Backend | HTTP 200, `refused`, `access_denied`, `retryable: false`. A GenAI não é chamada para sintetizar. |
 | Plano rejeitado pelo Backend por contrato ou versão de catálogo | Backend | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
 | Evidência incompatível com o plano | GenAI (`EvidenceContractInvalid`) | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
-| Banco indisponível ou timeout da consulta | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. |
+| Banco indisponível por falha transitória (conexão recusada ou perdida, timeout de conexão) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. |
+| Credencial ou papel do banco inválidos (erro de configuração) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: false`. Mensagem pública genérica, sem detalhe de credencial, papel ou permissão; repetir não ajuda até o Backend corrigir a configuração. |
+| Timeout da consulta no banco | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. A consulta é cancelada; a GenAI não é chamada para sintetizar. |
+| Lote inválido: nenhum manifesto carregado e validado, lote com valores de reserva (`SINTETICO_DEV`, `LOTE_DEV`) ou `batch_ref` alterado durante a execução | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: false` (**proposto**). O Backend não consulta o banco, ou descarta o resultado, e não chama sintetizar. Repetir só ajuda depois de uma nova carga validada. |
+| Evidência sem `batch_ref` na proveniência | GenAI (`EvidenceGuard`, **proposto**) | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
 | Consulta excederia o limite de linhas do plano | Backend | HTTP 200, `recoverable_error`, `limit_exceeded`, `retryable: false` (**proposto**). |
 | Evidência recebida acima do limite de linhas ou bytes | GenAI (`EvidenceGuard`) | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
 | Prazo total ou número de chamadas esgotado na GenAI | GenAI (`ExecutionLimitExceeded`) | HTTP 200, `recoverable_error`, `limit_exceeded`, `retryable: false`. |
@@ -228,6 +232,30 @@ Correlação e auditoria:
 - `caller_ref` é opaco. O escopo não carrega nome, e-mail, documento ou matrícula.
 - O navegador recebe só o envelope público v1. Plano, fingerprint, `access_scope` e `lookup` ficam entre Backend e GenAI.
 - Os textos vindos do banco (valores de dimensão, mensagens) são dados não confiáveis: `EvidenceGuard` só aceita valores de dimensão aprovados no catálogo e descarta mensagens livres da fonte.
+
+## Fronteiras do núcleo, cache e contexto transitório
+
+### Dependências do núcleo
+
+- O núcleo da GenAI (`app/agent`, `app/generation`, `app/ports`, `app/schemas` e `app/providers/protocols.py`) depende só dos schemas e das portas, como `EvidenceSource` e `ModelAdapter`. Não importa driver de banco (`sqlalchemy`, `psycopg`, `sqlite3`), SDK de provedor, cliente HTTP nem a composição da aplicação. `tests/test_import_boundaries.py` já verifica isso.
+- O núcleo não recebe credencial, string de conexão nem nome físico. As rotas internas e o adaptador que recebe o `lookup` do Backend (**propostos**) ficam na borda (`app/api`) e entregam ao núcleo só objetos já validados (`LogicalReadPlan`, `EvidenceLookupResult`, `AccessContext`).
+- O token de serviço é verificado na borda e não chega ao núcleo nem ao provedor do modelo.
+
+### Cache e invalidação
+
+- **GenAI (existente):** `CachingModelAdapter` guarda em memória, com TTL e limite LRU, só respostas do modelo bem-sucedidas. A chave inclui `authorized_cache_scope` (escopo sem correlação, `plan_fingerprint` e `catalog_version`), pergunta, contexto e a evidência inteira. Sem escopo autorizado ou sem proveniência, o modelo é chamado sem cache. Falhas não são guardadas.
+- **Backend (proposto):** um cache de resultados de consulta, se existir, usa a chave escopo + `plan_fingerprint` + `catalog_version` + `batch_ref`, e o resultado guardado passa pela mesma revalidação de um resultado novo (ver "Execução no Backend").
+- **Invalidação (proposto):** a troca de `batch_ref` ou de `catalog_version` torna inválidas todas as entradas anteriores nos dois serviços. Na GenAI isso acontece pela chave, quando `batch_ref` estiver na proveniência; no Backend, a carga de um novo lote ou a publicação de um novo catálogo precisa descartar o cache. Um resultado de um escopo nunca é servido a outro.
+
+### Contexto transitório autorizado
+
+Vivem só durante a requisição, em memória, e não são gravados pela GenAI: o `AccessContext` reconstruído a partir de `access_scope` e da correlação, a pergunta e até três turnos de contexto enviados pelo portal, o plano, o `lookup`, as observações reduzidas pelo `EvidenceGuard` e o prompt enviado ao provedor. Os eventos internos (`EventTrace`) registram identificadores como `plan_id` e `catalog_version`, sem valores de evidência nem dados pessoais. A única retenção além da requisição é o cache de respostas do modelo descrito acima.
+
+### O que não se aplica ao caminho escolhido
+
+- **SQL textual gerado pelo modelo:** não se aplica. O plano é construído de forma determinística a partir do perfil e do catálogo, e o modelo só participa da síntese. O Backend traduz o plano lógico em consulta parametrizada a partir do catálogo.
+- **Autocorreção de SQL:** não se aplica. Um erro de consulta não é devolvido ao modelo para reescrita; vira um dos estados da tabela "Estados e erros". O leitor SQL de `app/sql/` continua restrito à demonstração sintética.
+- **Fora do escopo deste contrato:** sessão persistida (histórico ou identificador de conversa guardado no servidor) e follow-up avançado (reaproveitar o plano anterior ou resolver referências além dos três turnos de contexto). Os dois dependem de escopo próprio. Até lá, a GenAI continua sem estado de sessão.
 
 ## Versionamento e compatibilidade
 
@@ -303,7 +331,7 @@ A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "9002cbfb
 }
 ```
 
-`valor`, `unidade`, `competencia` e `municipio` são nomes lógicos de `evidence_fields` no catálogo, não colunas do banco. A resposta ao portal é um `QuestionResponse` com `status: "answered"`, `evidence` com a referência e `analysis_context` com métrica, unidade, período e filtros.
+`valor`, `unidade`, `competencia` e `municipio` são nomes lógicos de `evidence_fields` no catálogo, não colunas do banco. Enquanto `batch_ref` for proposto, `EvidenceProvenance` (`extra="forbid"`) rejeita este trecho; sem a linha `batch_ref`, ele é aceito pelo schema atual. A resposta ao portal é um `QuestionResponse` com `status: "answered"`, `evidence` com a referência e `analysis_context` com métrica, unidade, período e filtros.
 
 ### Válido — esclarecimento (planejar)
 
@@ -354,4 +382,6 @@ Um `lookup` ou plano com texto SQL, nome de tabela ou coluna física em qualquer
 
 ## Limites desta versão
 
-Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. Depende do P-04, do dicionário Gold (DE-08) e da carga no banco local (DE-06).
+Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. O motor do P-04 foi escolhido na [ADR-0017](../decisions/0017-banco-local-postgresql.md); o fluxo ainda depende do papel somente leitura criado pelo Backend, do dicionário Gold (DE-08) e da carga no banco local (DE-06).
+
+`ai-agent/tests/test_internal_contract_examples.py` confere os exemplos deste contrato com os schemas existentes da GenAI. Lacunas documentadas, sem teste até existir modelo: envelopes completos de planejar e sintetizar, estados `planned` e `refused` desses envelopes, `access_scope` sem correlação e exigência de `batch_ref`. Elas dependem do formato do `batch_ref`. Os testes do lado Backend (revalidação, execução e papel somente leitura) ficam com o Backend (Felipe).
