@@ -113,6 +113,10 @@ def build_uc_search(
     page_size: int,
     order_by: str,
 ) -> tuple[list[dict], dict, AnalyticsStatus]:
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        from app.services.gold_uc import search
+        return search(repository, q, page, page_size, order_by)
     if q is not None:
         q = validate_uc_id(q)
     items = [
@@ -143,6 +147,11 @@ def build_uc_search(
 def build_uc_detail(
     repository: AnalyticsRepository, uc_id: str
 ) -> tuple[dict, AnalyticsStatus, list[str]]:
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        from app.services.gold_uc import profile
+        return {"profile": profile(repository.unit(uc_id)), **{section: [] for section in ("consumption", "invoices", "meters", "distributed_generation", "interruptions", "calls")},
+                "section_status": {section: "unavailable" for section in ("consumption", "invoices", "meters", "distributed_generation", "interruptions", "calls")}}, "partial", list(repository.source_limitations)
     unit = next((item for item in repository.units if item["uc_id"] == uc_id), None)
     if unit is None:
         raise AnalyticsAPIError(
@@ -360,6 +369,10 @@ def _measure_change(initial: dict, final: dict, money: bool = False) -> dict:
 def build_uc_overview(
     repository: AnalyticsRepository, uc_id: str, start: str | None, end: str | None
 ) -> dict:
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        from app.services.gold_uc import overview
+        return overview(repository, uc_id, start, end)
     start, end = validate_period(start, end)
     unit = _lookup_unit(repository, uc_id)
     uc_id = unit["uc_id"]
@@ -612,6 +625,10 @@ def build_uc_history(
     page_size: int,
     order_by: str | None,
 ) -> dict:
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        from app.services.gold_uc import history
+        return history(repository, uc_id, section, start, end, page, page_size, order_by)
     start, end = validate_period(start, end)
     unit = _lookup_unit(repository, uc_id)
     uc_id = unit["uc_id"]

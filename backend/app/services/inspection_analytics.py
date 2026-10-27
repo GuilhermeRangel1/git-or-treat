@@ -94,6 +94,10 @@ def build_queue_response(
     direction: str,
 ) -> QueueResponse:
     """Compose the product response before pagination, preserving source and scope."""
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        from app.services.gold_inspections import queue_response
+        return queue_response(repository, filters, page, page_size, order_by, direction)
     items, state = build_inspection_queue(repository, filters)
     items = sort_queue(items, order_by, direction)
     total = len(items)
@@ -131,6 +135,10 @@ def build_queue_response(
 def build_suspicion_response(
     repository: AnalyticsRepository, uc_id: str,
 ) -> SuspicionResponse:
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        from app.services.gold_inspections import suspicion_response
+        return suspicion_response(repository, uc_id)
     item = suspicion_detail(repository, uc_id)
     state = "partial" if item["potential_recoverable_energy_kwh"] is None else "available"
     result_metadata = metadata(

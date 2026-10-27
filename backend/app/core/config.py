@@ -94,8 +94,8 @@ class Settings(BaseSettings):
     @field_validator("ANALYTICS_SOURCE")
     @classmethod
     def validate_analytics_source(cls, value: str) -> str:
-        if value not in {"unavailable", "synthetic"}:
-            raise ValueError("ANALYTICS_SOURCE must be 'unavailable' or 'synthetic'")
+        if value not in {"unavailable", "synthetic", "gold"}:
+            raise ValueError("ANALYTICS_SOURCE must be 'unavailable', 'synthetic' or 'gold'")
         return value
 
 

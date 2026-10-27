@@ -6,7 +6,7 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV v1 é transacional e repetível, conforme o [contrato provisório](../contracts/gold-csv-v1.md); as rotas ainda não consomem essas tabelas. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; o modo `gold` lê os CSVs importados em Receita, UC e fila, conforme o contrato provisório. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV v1 é transacional e repetível, conforme o [contrato provisório](../contracts/gold-csv-v1.md); as rotas ainda não consomem essas tabelas. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
 ## DEV-01: contratos antes da Gold
 
@@ -53,7 +53,7 @@ O portal envia filtros aplicados e `loteVersao` a `POST /api/v1/ai/insights`; nu
 
 Na versão atual, o serviço só gera o contexto com a fonte sintética do Panorama; fonte não compatível falha fechada. Isso conecta o caminho da interface, mas não comprova Gold, autorização de usuário, auditoria persistida ou uma geração ao vivo de provedor. A evolução para Gold precisa revisar a métrica com o dicionário e continuar recalculando os valores no Backend.
 
-O cálculo do Panorama recebe `PanoramaRepository`: a fonte informa `incomplete_periods`, versão, atualização e limitações do lote. O serviço usa essa cobertura para impedir comparação com competências abertas e gera rótulos da série a partir da competência, sem consultar constantes da fixture. O restante do cálculo ainda espera linhas agregadas em memória com o formato demonstrativo e fórmulas provisórias; o modo de implantação `ANALYTICS_SOURCE` aceita apenas `synthetic` ou `unavailable`. Um adaptador Gold precisa homologar grão e fórmulas, oferecer filtros válidos e preservar a mesma versão do lote entre indicadores e insight antes de ser habilitado.
+O cálculo do Panorama recebe `PanoramaRepository`: a fonte informa `incomplete_periods`, versão, atualização e limitações do lote. O serviço usa essa cobertura para impedir comparação com competências abertas e gera rótulos da série a partir da competência, sem consultar constantes da fixture. O restante do cálculo ainda espera linhas agregadas em memória com o formato demonstrativo e fórmulas provisórias; o modo de implantação `ANALYTICS_SOURCE` aceita `synthetic`, `unavailable` ou `gold`; Panorama permanece indisponível nesse último modo. Um adaptador Gold precisa homologar grão e fórmulas, oferecer filtros válidos e preservar a mesma versão do lote entre indicadores e insight antes de ser habilitado.
 
 ### Envelope conceitual de uma resposta analítica
 
@@ -123,3 +123,8 @@ O endpoint `GET /api/v1/operations/summary` consolida apenas alimentadores `avai
 Na revisão DEV-08, todas as rotas de Operação passaram a recusar parâmetros desconhecidos/duplicados e a devolver `Cache-Control: no-store`, inclusive em erros. O cálculo compartilhado recusa denominador não inteiro positivo e determina cobertura pelas contagens exatas, evitando elegibilidade indevida no ranking por arredondamento. Autorização individual das leituras analíticas permanece pendente para dados reais.
 
 A refatoração de alinhamento DEV-08 move a composição e paginação do detalhe para `build_feeder_detail`, com resposta tipada. As rotas de Operação retornam modelos explícitos; `StrictAnalyticsRoute` fica na fronteira HTTP comum. Receita e Operação compartilham `repeated_query_parameters`, preservando seus contratos e políticas de erro.
+
+
+## Integração provisória Gold v1 — 27/10/2026
+
+Receita, UC 360 e fila de inspeção têm composição executável com `ANALYTICS_SOURCE=gold`, consultas SQL parametrizadas, agregação/paginação no banco e catálogo de filtros real. O portal preserva rotas e valida envelopes; apresenta lote, importação local, limitações e ausências. `priority_label` preserva a categoria textual; score e estimativa são nulos. Histórico mensal da UC distingue agregado financeiro de fatura individual. Modo sintético permanece explícito e não solicita banco. Panorama/Operação e GenAI não foram homologados para essa fonte; os requisitos continuam abertos. Veja [contrato e execução local](../contracts/gold-csv-v1.md#consumo-provisório-pela-api-e-pelo-portal).

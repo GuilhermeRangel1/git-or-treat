@@ -34,3 +34,11 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def get_analytics_db():
+    """A demonstração em memória não solicita sessão nem conexão SQL."""
+    if settings.ANALYTICS_SOURCE != "gold":
+        yield None
+        return
+    yield from get_db()

@@ -287,7 +287,8 @@ class InspectionQueueItem(BaseModel):
     neighborhood: str
     class_name: str
     feeder_id: str
-    priority: float
+    priority: float | None
+    priority_label: str | None = None
     reason: str
     potential_recoverable_energy_kwh: float | None
     indicators: list[str]

@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from typing import Callable, ClassVar, Protocol
 
 from app.core.config import settings
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from app.core.database import get_analytics_db
 from app.synthetic import fixtures
 
 
@@ -130,13 +133,16 @@ class SyntheticAnalyticsRepository:
 _synthetic_repository = SyntheticAnalyticsRepository()
 
 
-def get_analytics_repository() -> AnalyticsRepository:
+def get_analytics_repository(db: Session | None = Depends(get_analytics_db)) -> AnalyticsRepository:
     """FastAPI dependency: synthetic is explicit; all other allowed modes fail closed."""
+    if settings.ANALYTICS_SOURCE == "gold":
+        from app.repositories.gold import GoldAnalyticsRepository
+        return GoldAnalyticsRepository(db)
     if settings.ANALYTICS_SOURCE != "synthetic":
         raise AnalyticsSourceUnavailable()
     return _synthetic_repository
 
 
-def get_analytics_repository_provider() -> Callable[[], AnalyticsRepository]:
+def get_analytics_repository_provider(db: Session | None = Depends(get_analytics_db)) -> Callable[[], AnalyticsRepository]:
     """Resolve analytics lazily, only when a new order needs queue evidence."""
-    return get_analytics_repository
+    return lambda: get_analytics_repository(db)

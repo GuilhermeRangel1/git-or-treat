@@ -147,6 +147,7 @@ class UCOverviewResponse(BaseModel):
 class UCConsumptionHistoryItem(BaseModel):
     competencia: str
     measured_energy_kwh: Decimal | None
+    billed_amount: Decimal | None = None
     status: Literal["available", "partial", "unavailable"]
 
     @model_validator(mode="after")
@@ -167,7 +168,7 @@ class UCConsumptionHistoryItem(BaseModel):
             )
         return self
 
-    @field_serializer("measured_energy_kwh", when_used="json")
+    @field_serializer("measured_energy_kwh", "billed_amount", when_used="json")
     def serialize_energy(self, value: Decimal | None):
         return float(value) if value is not None else None
 

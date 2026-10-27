@@ -36,6 +36,14 @@ def _uc_metadata(
     return result
 
 
+def _source_period(repository):
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        months = repository.options()["competencias"]
+        return months[0], months[-1]
+    return DEFAULT_START, DEFAULT_END
+
+
 @router.get(
     "",
     response_model=AnalyticsListResponse[UCListItem],
@@ -55,7 +63,7 @@ def search_ucs(
         "data": {"items": selected},
         "pagination": pagination,
         "metadata": metadata(
-            repository, state, DEFAULT_START, DEFAULT_END, AnalyticsFilters()
+            repository, state, *_source_period(repository), AnalyticsFilters()
         ),
     }
 
@@ -132,6 +140,6 @@ def get_uc_history(
 def get_uc_360(uc_id: str, repository: AnalyticsRepositoryDep):
     data, state, limitations = build_uc_detail(repository, uc_id)
     filters = AnalyticsFilters()
-    result_metadata = metadata(repository, state, DEFAULT_START, DEFAULT_END, filters)
+    result_metadata = metadata(repository, state, *_source_period(repository), filters)
     result_metadata.limitations.extend(limitations)
     return {"data": data, "metadata": result_metadata}

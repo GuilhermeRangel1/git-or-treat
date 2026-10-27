@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from app.api.v1.endpoints import analytics_options
 from app.api.v1.endpoints import (
     health,
     kpis,
@@ -11,6 +12,7 @@ from app.api.v1.endpoints import (
 )
 
 api_router = APIRouter()
+api_router.include_router(analytics_options.router, prefix="/analytics", tags=["Catálogo analítico"])
 
 api_router.include_router(health.router, tags=["Health"])
 api_router.include_router(kpis.router, prefix="/kpis", tags=["Indicadores"])
