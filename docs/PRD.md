@@ -1898,6 +1898,11 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Revisão: agente principal conferiu separação de dados operacionais, rollback, repetição, tipagem e ausência de payload em erros do CLI; sem revisão humana nesta etapa. Definições do dicionário, snapshot/manifesto de origem, ajustes da Gold, adaptação de rotas/filtros e substituição dos mocks no frontend continuam pendentes. `ANALYTICS_SOURCE` e `.env` não foram alterados. Nenhum requisito concluído por esta carga. Trello não disponível entre as ferramentas conectadas; sincronização DE-06 pendente. Alterações organizadas em commits locais na branch `integracao-gold-v1`; sem push.
 
 
+### 2026-10-27 — DEV-13 — integração separada para continuidade
+
+- WEB-02/03/07 e DE-06 permanecem `Em andamento`; WEB-04 permanece `Em validação`. A branch `dev13` deriva da infraestrutura `dev12` ([PR #64](https://github.com/GuilhermeRangel1/git-or-treat/pull/64)) e contém API/portal provisórios, notebooks e rascunho de dicionário reaplicados sobre a develop atualizada.
+- [Passagem de trabalho DEV-13](plans/2026-10-27-dev13-handoff.md) registra origem dos commits, checklist implementado/parcial/pendente, limites e comandos de retomada. Após a separação: 453 testes backend e 286 frontend aprovados; build/lint/formatação/fronteiras, compileall e diff-check passaram. Controles locais CSV → banco → API repetidos em SQLite/PostgreSQL passaram. Sem aceite do dicionário, métricas ou autorização; nenhum requisito concluído. Trello não conectado; sincronização pendente.
+
 ### 2026-10-27 — WEB-02/03/04/07 — consumo provisório da Gold CSV v1
 
 - Estados: WEB-02, WEB-03 e WEB-07 `Pendente` → `Em andamento`; WEB-04 permanece `Em validação`, DE-06 permanece `Em andamento`, DE-08 e IA preservados. Entrega de **integração executável**, não aceite Gold. A pessoa usuária autorizou avançar com os CSVs enquanto a engenharia finaliza o dicionário.
