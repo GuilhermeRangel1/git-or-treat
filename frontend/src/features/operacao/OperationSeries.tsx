@@ -149,7 +149,7 @@ export default function OperationSeries({
           <thead className="text-xs text-muted">
             <tr>
               <th scope="col" className="px-4 py-3">
-                Competência
+                Mês
               </th>
               <th scope="col" className="px-4 py-3">
                 DEC (h/UC)

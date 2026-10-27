@@ -1,18 +1,18 @@
 import type { OperationPeriod } from "./contract";
 
 const MONTHS = [
-  "jan",
-  "fev",
-  "mar",
-  "abr",
-  "mai",
-  "jun",
-  "jul",
-  "ago",
-  "set",
-  "out",
-  "nov",
-  "dez",
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
 ];
 
 export function formatNumber(value: number, maximumFractionDigits = 3): string {
@@ -28,6 +28,13 @@ export function formatMonth(value: string): string {
 
 export function formatPeriod(period: OperationPeriod): string {
   return `${formatMonth(period.start)} – ${formatMonth(period.end)}`;
+}
+
+export function formatMonthReferences(value: string): string {
+  return value.replace(
+    /\b(?!0000)(\d{4})-(0[1-9]|1[0-2])(?!-\d{2})\b/g,
+    (_, year, month) => `${MONTHS[Number(month) - 1]}/${year}`,
+  );
 }
 
 export function monthsInPeriod(period: OperationPeriod): string[] {

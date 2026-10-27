@@ -166,7 +166,7 @@ it("mostra consolidado parcial e distingue base incluída da população do reco
     "Numerador FEC: 3 registros UC–interrupção",
   );
   expect(foundations).toHaveTextContent(
-    "Período observado: jan/2025 – fev/2025",
+    "Período observado: Jan/2025 – Fev/2025",
   );
   expect(foundations).toHaveTextContent(
     "Fonte: synthetic · versão dev03-v1 · demonstrativa",
@@ -248,11 +248,9 @@ it("mantém o rascunho de filtros local até aplicar e fecha com Escape devolven
   const dialog = screen.getByRole("dialog", {
     name: "Ajustar filtros de operação",
   });
-  await user.clear(within(dialog).getByLabelText("Competência inicial"));
-  await user.type(
-    within(dialog).getByLabelText("Competência inicial"),
-    "2024-12",
-  );
+  await user.selectOptions(within(dialog).getByLabelText("Mês de início"), "12");
+  await user.clear(within(dialog).getByLabelText("Ano de início"));
+  await user.type(within(dialog).getByLabelText("Ano de início"), "2024");
   await user.keyboard("{Escape}");
   await waitFor(() => expect(dialog).not.toBeVisible());
   expect(trigger).toHaveFocus();
@@ -261,11 +259,9 @@ it("mantém o rascunho de filtros local até aplicar e fecha com Escape devolven
   );
 
   await user.click(trigger);
-  await user.clear(within(dialog).getByLabelText("Competência inicial"));
-  await user.type(
-    within(dialog).getByLabelText("Competência inicial"),
-    "2024-12",
-  );
+  await user.selectOptions(within(dialog).getByLabelText("Mês de início"), "12");
+  await user.clear(within(dialog).getByLabelText("Ano de início"));
+  await user.type(within(dialog).getByLabelText("Ano de início"), "2024");
   await user.click(
     within(dialog).getByRole("button", { name: "Aplicar filtros" }),
   );
@@ -286,18 +282,19 @@ it("mantém o diálogo aberto e foca campo inválido para janela acima de 120 me
   const dialog = screen.getByRole("dialog", {
     name: "Ajustar filtros de operação",
   });
-  const start = within(dialog).getByLabelText("Competência inicial");
-  const end = within(dialog).getByLabelText("Competência final");
+  const start = within(dialog).getByLabelText("Ano de início");
+  const end = within(dialog).getByLabelText("Ano do fim");
   await user.clear(start);
-  await user.type(start, "2010-01");
+  await user.type(start, "2010");
+  await user.selectOptions(within(dialog).getByLabelText("Mês do fim"), "01");
   await user.clear(end);
-  await user.type(end, "2020-01");
+  await user.type(end, "2020");
   await user.click(
     within(dialog).getByRole("button", { name: "Aplicar filtros" }),
   );
   expect(dialog).toBeVisible();
   expect(within(dialog).getByRole("alert")).toHaveTextContent(
-    "120 competências",
+    "120 meses",
   );
   expect(end).toHaveAttribute("aria-invalid", "true");
   expect(end).toHaveFocus();
@@ -350,10 +347,10 @@ it("abre detalhe mensal, mostra alternativa textual e pagina ocorrências sem pe
   ).toBeVisible();
   expect(
     screen.getByRole("region", { name: "Série mensal de DEC" }),
-  ).toHaveTextContent("jan/2025");
+  ).toHaveTextContent("Jan/2025");
   expect(
     screen.getByRole("table", { name: "Dados mensais de continuidade" }),
-  ).toHaveTextContent("fev/2025");
+  ).toHaveTextContent("Fev/2025");
   expect(
     screen.getByRole("table", { name: "Ocorrências de interrupção" }),
   ).toHaveTextContent("EV-01");
@@ -454,10 +451,10 @@ it("mantém ocorrências observadas quando o denominador do alimentador é invá
     "Numerador FEC: 2 registros UC–interrupção",
   );
   expect(foundations).toHaveTextContent(
-    "Período solicitado: jan/2025 – fev/2025",
+    "Período solicitado: Jan/2025 – Fev/2025",
   );
   expect(foundations).toHaveTextContent(
-    "Período observado: jan/2025 – fev/2025",
+    "Período observado: Jan/2025 – Fev/2025",
   );
   expect(foundations).toHaveTextContent(
     "Fonte: synthetic · versão dev03-v1 · demonstrativa",

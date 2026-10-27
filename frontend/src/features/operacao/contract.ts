@@ -137,7 +137,7 @@ function nonEmptyString(value: unknown, path: string): string {
 function month(value: unknown, path: string): string {
   const parsed = string(value, path);
   if (!/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(parsed))
-    throw new OperationContractError(`${path} deve usar YYYY-MM válido.`);
+    throw new OperationContractError(`${path} deve conter mês e ano válidos.`);
   return parsed;
 }
 function number(value: unknown, path: string): number {

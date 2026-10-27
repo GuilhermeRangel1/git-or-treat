@@ -37,8 +37,8 @@ export const defaultRevenueFilters: RevenueBaseFilters = {
 };
 
 const filterLabels: Record<keyof RevenueBaseFilters, string> = {
-  competencia_inicio: "Competência inicial",
-  competencia_fim: "Competência final",
+  competencia_inicio: "Mês inicial",
+  competencia_fim: "Mês final",
   municipio: "Município",
   bairro: "Bairro",
   classe: "Classe",
@@ -104,17 +104,17 @@ export function parseRevenueSearchParams(
     alimentador: values.alimentador,
   };
   if (!validMonth(base.competencia_inicio)) {
-    errors.push("Competência inicial deve usar YYYY-MM com mês válido.");
+    errors.push("Mês inicial inválido. Escolha um mês e ano válidos.");
   }
   if (!validMonth(base.competencia_fim)) {
-    errors.push("Competência final deve usar YYYY-MM com mês válido.");
+    errors.push("Mês final inválido. Escolha um mês e ano válidos.");
   }
   if (
     validMonth(base.competencia_inicio) &&
     validMonth(base.competencia_fim) &&
     base.competencia_inicio > base.competencia_fim
   ) {
-    errors.push("Competência final deve ser igual ou posterior à inicial.");
+    errors.push("Mês final deve ser igual ou posterior ao mês inicial.");
   }
   for (const field of [
     "municipio",
@@ -164,9 +164,6 @@ export function parseRevenueSearchParams(
     "Classe",
     errors,
   );
-  if (neighborhood && !municipality) {
-    errors.push("O bairro do recorte exige o município correspondente.");
-  }
   if (refinements.bairro && refinements.municipio && !municipality) {
     errors.push("O recorte de bairro precisa manter o município.");
   }

@@ -5,7 +5,11 @@ import type {
 } from "./contract";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
-import { formatPeriod, formatUpdatedAt } from "./operation-format";
+import {
+  formatMonthReferences,
+  formatPeriod,
+  formatUpdatedAt,
+} from "./operation-format";
 
 export default function OperationFoundations({
   summary,
@@ -114,7 +118,7 @@ export default function OperationFoundations({
                 {summaryData.excluded_feeder_ids.join(", ") || "nenhum"}.
               </p>
               {summaryData.limitations.map((item) => (
-                <p key={item}>{item}</p>
+                <p key={item}>{formatMonthReferences(item)}</p>
               ))}
             </>
           ) : point ? (
@@ -152,9 +156,9 @@ export default function OperationFoundations({
                 <strong>População atendida:</strong> {point.served_uc_count} UCs
                 · <strong>UCs cobertas:</strong> {point.covered_uc_count}.
               </p>
-              <p>{point.text_alternative}</p>
+              <p>{formatMonthReferences(point.text_alternative)}</p>
               {point.limitations.map((item) => (
-                <p key={item}>{item}</p>
+                <p key={item}>{formatMonthReferences(item)}</p>
               ))}
             </>
           ) : null}

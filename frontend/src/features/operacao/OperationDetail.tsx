@@ -1,6 +1,7 @@
 import type { OperationDetailEnvelope, OperationPeriod } from "./contract";
 import {
   formatMonth,
+  formatMonthReferences,
   formatNumber,
   formatPeriod,
   formatUpdatedAt,
@@ -105,9 +106,9 @@ export default function OperationDetail({
               className="grid gap-2 rounded-xl border border-[var(--status-warning)]/30 bg-[var(--status-warning-bg)] p-4 text-sm"
             >
               <strong>DEC e FEC indisponíveis neste alimentador</strong>
-              <p>{point.text_alternative}</p>
+              <p>{formatMonthReferences(point.text_alternative)}</p>
               {point.limitations.map((limitation) => (
-                <p key={limitation}>{limitation}</p>
+                <p key={limitation}>{formatMonthReferences(limitation)}</p>
               ))}
               <p>
                 Registros e ocorrências observados continuam disponíveis abaixo.
@@ -121,7 +122,7 @@ export default function OperationDetail({
               className="rounded-xl border border-[var(--status-warning)]/30 bg-[var(--status-warning-bg)] p-4 text-sm"
             >
               <strong>Dados parciais neste período.</strong>{" "}
-              {point.limitations.join(" ")}
+              {point.limitations.map(formatMonthReferences).join(" ")}
             </div>
           ) : null}
           {point.status === "empty" ? (
@@ -201,7 +202,7 @@ export default function OperationDetail({
                         UC
                       </th>
                       <th scope="col" className="px-3 py-2">
-                        Competência
+                        Mês
                       </th>
                       <th scope="col" className="px-3 py-2">
                         Duração

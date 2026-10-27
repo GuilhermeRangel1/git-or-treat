@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
+import MonthYearField from "@/shared/ui/MonthYearField";
 import {
   parseOperationParams,
   type OperationUrlQuery,
@@ -54,7 +55,7 @@ export default function OperationFilters({
       setErrors(parsed.errors);
       const first = parsed.errors[0] ?? "";
       if (first.includes("alimentador")) feederRef.current?.focus();
-      else if (first.includes("fim") || first.includes("120 competências"))
+      else if (first.includes("fim") || first.includes("120 meses"))
         endRef.current?.focus();
       else startRef.current?.focus();
       return;
@@ -72,7 +73,7 @@ export default function OperationFilters({
       >
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-3">
           <div>
-            <p className="text-xs text-muted">Competência</p>
+            <p className="text-xs text-muted">Período</p>
             <p className="mt-1 font-medium">
               {formatMonth(query.start)} – {formatMonth(query.end)}
             </p>
@@ -112,41 +113,31 @@ export default function OperationFilters({
         size="md"
         header="inline"
       >
-        <form className="grid gap-4 sm:grid-cols-2" onSubmit={apply}>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Competência inicial
-            <input
-              className={controlClass}
-              ref={startRef}
-              type="month"
-              value={start}
-              aria-invalid={errors.some((item) =>
-                /início|Competência inv|Informe início|120 competências/.test(
-                  item,
-                ),
-              )}
-              aria-describedby={
-                errors.length ? "operation-filter-errors" : undefined
-              }
-              onChange={(event) => setStart(event.target.value)}
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Competência final
-            <input
-              className={controlClass}
-              ref={endRef}
-              type="month"
-              value={end}
-              aria-invalid={errors.some((item) =>
-                /fim|final|anterior ao fim|120 competências/.test(item),
-              )}
-              aria-describedby={
-                errors.length ? "operation-filter-errors" : undefined
-              }
-              onChange={(event) => setEnd(event.target.value)}
-            />
-          </label>
+        <form className="grid gap-4 sm:grid-cols-2" onSubmit={apply} noValidate>
+          <MonthYearField
+            label="Mês inicial"
+            monthLabel="Mês de início"
+            yearLabel="Ano de início"
+            value={start}
+            onChange={setStart}
+            yearRef={startRef}
+            invalid={errors.some((item) =>
+              /início|Mês inv|Informe início|120 meses/.test(item),
+            )}
+            describedBy={errors.length ? "operation-filter-errors" : undefined}
+          />
+          <MonthYearField
+            label="Mês final"
+            monthLabel="Mês do fim"
+            yearLabel="Ano do fim"
+            value={end}
+            onChange={setEnd}
+            yearRef={endRef}
+            invalid={errors.some((item) =>
+              /fim|final|anterior ao fim|120 meses/.test(item),
+            )}
+            describedBy={errors.length ? "operation-filter-errors" : undefined}
+          />
           <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
             Alimentador
             <input

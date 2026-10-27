@@ -95,19 +95,19 @@ export function parseOperationParams(
   let startRaw = raw.competencia_inicio;
   let endRaw = raw.competencia_fim;
   if (periodAlias !== null && (startRaw !== null || endRaw !== null))
-    errors.push("Não combine periodo com o intervalo de competências.");
+    errors.push("Não combine o período único com o intervalo de meses.");
   if (periodAlias !== null) startRaw = endRaw = periodAlias;
   if ((startRaw === null) !== (endRaw === null))
     errors.push("Informe início e fim do período.");
   const start = startRaw === null ? DEFAULT_START : startRaw;
   const end = endRaw === null ? DEFAULT_END : endRaw;
   if (!isMonth(start) || !isMonth(end))
-    errors.push("Competência inválida. Use YYYY-MM válido.");
+    errors.push("Mês inválido. Escolha um mês e ano válidos.");
   if (isMonth(start) && isMonth(end)) {
     if (start > end)
       errors.push("O início do período deve ser anterior ao fim.");
     else if (monthDistance(start, end) > MAX_MONTHS)
-      errors.push("O período permite no máximo 120 competências.");
+      errors.push("O período permite no máximo 120 meses.");
   }
 
   const feederId = feeder(raw.alimentador, "O filtro de alimentador", errors);

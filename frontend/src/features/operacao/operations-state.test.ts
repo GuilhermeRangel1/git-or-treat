@@ -26,7 +26,7 @@ describe("estado de URL da Operação", () => {
   });
 
   it.each([
-    ["competencia_inicio=2025-13&competencia_fim=2025-02", /competência/i],
+    ["competencia_inicio=2025-13&competencia_fim=2025-02", /mês/i],
     ["competencia_inicio=2025-03&competencia_fim=2025-02", /anterior/i],
     ["competencia_inicio=2014-01&competencia_fim=2025-02", /120/],
     [

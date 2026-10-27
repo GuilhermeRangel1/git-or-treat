@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import type { OperationPoint, OperationRankingEnvelope } from "./contract";
 import type { OperationMetric } from "./operations-state";
 import { changeOperationMetric, openOperationDetail } from "./operations-state";
-import { formatNumber } from "./operation-format";
+import { formatMonthReferences, formatNumber } from "./operation-format";
 import Button from "@/shared/ui/Button";
 
 function displayMetric(value: number | null, unit: string) {
@@ -185,7 +185,7 @@ export default function OperationRanking({
                       </span>
                       {item.limitations.length > 0 ? (
                         <small className="block text-xs text-muted">
-                          {item.limitations.join(" ")}
+                          {item.limitations.map(formatMonthReferences).join(" ")}
                         </small>
                       ) : null}
                     </td>
@@ -230,7 +230,7 @@ export default function OperationRanking({
                       </span>
                       {item.limitations.length > 0 ? (
                         <small className="block text-xs text-muted">
-                          {item.limitations.join(" ")}
+                          {item.limitations.map(formatMonthReferences).join(" ")}
                         </small>
                       ) : null}
                     </td>
@@ -297,7 +297,7 @@ export default function OperationRanking({
                 </dl>
                 {item.limitations.length > 0 ? (
                   <p className="text-xs text-muted">
-                    {item.limitations.join(" ")}
+                    {item.limitations.map(formatMonthReferences).join(" ")}
                   </p>
                 ) : null}
                 <Link
