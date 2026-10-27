@@ -1233,6 +1233,9 @@ def _json_target_error(base: Path, target: Path) -> str | None:
         inputs = [path for table in TABLES for path in find_table_files(base, table)]
         if any(resolved == path.resolve() or os.path.samefile(target, path) for path in inputs):
             return f"--json não pode sobrescrever um arquivo de entrada: {target}"
+    # Checa o pai como o sistema o verá na gravação: no Linux, "x/.." exige que x exista.
+    if not target.parent.is_dir():
+        return f"--json: o diretório de destino não existe: {target.parent}"
     return None
 
 

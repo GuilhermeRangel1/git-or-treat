@@ -393,9 +393,26 @@ def test_json_hard_link_to_input_is_refused(tmp_path, capsys):
 def test_json_target_outside_batch_is_written(tmp_path):
     lote = tmp_path / "lote"
     _batch(lote)
+    # A pasta intermediária precisa existir: no Linux, "saida/.." só vale se "saida" existir.
+    (tmp_path / "saida").mkdir()
     target = tmp_path / "saida" / ".." / "out.json"
 
     assert gold_coverage.main([str(lote), "--json", str(target)]) == 0
 
     assert json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))["tabelas"]
     assert not list(lote.rglob("*.json"))
+
+
+def test_json_target_with_missing_parent_is_refused(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _batch(lote)
+
+    # Antes, o lote inteiro era lido e a gravação terminava em traceback (FileNotFoundError).
+    with pytest.raises(SystemExit) as error:
+        gold_coverage.main([str(lote), "--json", str(tmp_path / "nao_existe" / "out.json")])
+
+    assert error.value.code == 2
+    captured = capsys.readouterr()
+    assert "diretório de destino não existe" in captured.err
+    assert captured.out == ""
+    assert not (tmp_path / "nao_existe").exists()
