@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { RevenueEnvelope } from "./contract";
 import "./revenue-series.css";
 
@@ -29,8 +29,9 @@ function monthLabel(value: string) {
 
 const chart = {
   width: 720,
+  minWidth: 560,
   left: 104,
-  right: 704,
+  rightInset: 16,
   top: 20,
   bottom: 202,
   height: 260,
@@ -43,16 +44,18 @@ type ChartPoint = {
   y: number | null;
 };
 
-function chartCoordinates(rows: RevenueEnvelope["data"]["series"]): {
+function chartCoordinates(
+  rows: RevenueEnvelope["data"]["series"],
+  width: number,
+): {
   points: ChartPoint[];
   ticks: number[];
-  zeroY: number;
 } {
   const values = rows
     .map((row) => row.billed_amount)
     .filter((value): value is number => value !== null);
   const left = chart.left;
-  const right = chart.right;
+  const right = Math.max(left + 1, width - chart.rightInset);
   const top = chart.top;
   const bottom = chart.bottom;
 
@@ -68,7 +71,6 @@ function chartCoordinates(rows: RevenueEnvelope["data"]["series"]): {
         y: null,
       })),
       ticks: [],
-      zeroY: bottom,
     };
   }
 
@@ -85,11 +87,14 @@ function chartCoordinates(rows: RevenueEnvelope["data"]["series"]): {
     { length: 5 },
     (_, index) => maximum - (span * index) / 4,
   );
-  if (minimum < 0 && maximum > 0) {
+  if (
+    minimum < 0 &&
+    maximum > 0 &&
+    !ticks.some((tick) => Math.abs(tick) < 0.000001)
+  ) {
     ticks.push(0);
-    ticks.sort((left, right) => right - left);
   }
-  const zeroY = top + ((maximum - 0) / span) * (bottom - top);
+  ticks.sort((left, right) => right - left);
 
   return {
     points: rows.map((row, index) => ({
@@ -105,7 +110,6 @@ function chartCoordinates(rows: RevenueEnvelope["data"]["series"]): {
           : top + ((maximum - row.billed_amount) / span) * (bottom - top),
     })),
     ticks,
-    zeroY,
   };
 }
 
@@ -132,20 +136,38 @@ function linePath(points: ChartPoint[]) {
     .join(" ");
 }
 
-function areaPath(points: ChartPoint[], zeroY: number) {
-  const first = points[0];
-  const last = points.at(-1);
-  if (!first || !last) return "";
-  return `M ${first.x} ${zeroY} L ${linePath(points).slice(2)} L ${last.x} ${zeroY} Z`;
-}
-
 export default function RevenueSeries({
   envelope,
 }: {
   envelope: RevenueEnvelope;
 }) {
   const rows = envelope.data.series;
-  const { points, ticks, zeroY } = chartCoordinates(rows);
+  const chartRef = useRef<SVGSVGElement>(null);
+  const [chartWidth, setChartWidth] = useState(chart.width);
+
+  useLayoutEffect(() => {
+    const svg = chartRef.current;
+    if (!svg) return;
+
+    const updateWidth = () => {
+      const width = Math.max(
+        chart.minWidth,
+        Math.round(svg.getBoundingClientRect().width),
+      );
+      if (width > 0) {
+        setChartWidth((current) => (current === width ? current : width));
+      }
+    };
+
+    updateWidth();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+
+  const { points, ticks } = chartCoordinates(rows, chartWidth);
   const groups = pointGroups(points);
   const [activeCompetence, setActiveCompetence] = useState<string | null>(null);
   const activePoint = points.find(
@@ -182,50 +204,30 @@ export default function RevenueSeries({
       <div className="mt-4 min-w-0 max-w-full overflow-x-auto rounded-lg bg-canvas/50 px-2 py-2">
         <div className="revenue-series__chart-enter">
           <svg
+            ref={chartRef}
             className="block h-64 min-w-[560px] w-full"
-            viewBox={`0 0 ${chart.width} ${chart.height}`}
+            viewBox={`0 0 ${chartWidth} ${chart.height}`}
             role="img"
             aria-label={`Receita faturada por mês. ${accessibleSummary}`}
-            preserveAspectRatio="none"
+            preserveAspectRatio="xMidYMid meet"
           >
-            <defs>
-              <linearGradient
-                id="revenue-series-fill"
-                x1="0"
-                x2="0"
-                y1="0"
-                y2="1"
-              >
-                <stop
-                  offset="0%"
-                  stopColor="var(--color-brand)"
-                  stopOpacity="0.2"
-                />
-                <stop
-                  offset="100%"
-                  stopColor="var(--color-brand)"
-                  stopOpacity="0.015"
-                />
-              </linearGradient>
-            </defs>
-
             {ticks.map((tick, index) => {
               const y =
                 chart.top +
                 ((ticks[0] - tick) / (ticks[0] - ticks.at(-1)!)) *
                   (chart.bottom - chart.top);
+              const isZero = Math.abs(tick) < 0.000001;
               return (
                 <g key={`tick-${index}`}>
                   <line
                     x1={chart.left}
-                    x2={chart.right}
+                    x2={chartWidth - chart.rightInset}
                     y1={y}
                     y2={y}
-                    className="stroke-border"
-                    strokeDasharray={
-                      index === ticks.length - 1 ? undefined : "3 6"
-                    }
-                    strokeOpacity={index === ticks.length - 1 ? 0.9 : 0.65}
+                    className={isZero ? "stroke-brand" : "stroke-border"}
+                    strokeDasharray={isZero ? undefined : "3 6"}
+                    strokeOpacity={isZero ? 0.3 : 0.65}
+                    strokeWidth={isZero ? 1.5 : 1}
                   />
                   <text
                     x={chart.left - 12}
@@ -240,13 +242,6 @@ export default function RevenueSeries({
               );
             })}
 
-            {groups.map((group) => (
-              <path
-                key={`area-${group[0]?.competencia}`}
-                d={areaPath(group, zeroY)}
-                fill="url(#revenue-series-fill)"
-              />
-            ))}
             {groups.map((group) =>
               group.length > 1 ? (
                 <path
@@ -294,7 +289,6 @@ export default function RevenueSeries({
                 </g>
               ),
             )}
-
             {monthTicks.map((row, index) => {
               const point = points.find(
                 (candidate) => candidate.competencia === row.competencia,
@@ -349,7 +343,8 @@ export default function RevenueSeries({
                 />
                 <rect
                   x={
-                    activePoint.x > (chart.left + chart.right) / 2
+                    activePoint.x >
+                    (chart.left + chartWidth - chart.rightInset) / 2
                       ? activePoint.x - 188
                       : activePoint.x + 12
                   }
@@ -362,7 +357,8 @@ export default function RevenueSeries({
                 />
                 <text
                   x={
-                    activePoint.x > (chart.left + chart.right) / 2
+                    activePoint.x >
+                    (chart.left + chartWidth - chart.rightInset) / 2
                       ? activePoint.x - 176
                       : activePoint.x + 24
                   }
@@ -374,7 +370,8 @@ export default function RevenueSeries({
                 </text>
                 <text
                   x={
-                    activePoint.x > (chart.left + chart.right) / 2
+                    activePoint.x >
+                    (chart.left + chartWidth - chart.rightInset) / 2
                       ? activePoint.x - 176
                       : activePoint.x + 24
                   }
@@ -390,7 +387,7 @@ export default function RevenueSeries({
 
             {!hasValues ? (
               <text
-                x={(chart.left + chart.right) / 2}
+                x={(chart.left + chartWidth - chart.rightInset) / 2}
                 y={(chart.top + chart.bottom) / 2}
                 textAnchor="middle"
                 className="fill-muted"
