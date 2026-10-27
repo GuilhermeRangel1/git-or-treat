@@ -79,6 +79,7 @@ export const routes = [
   {
     path: "/operacao",
     label: "Operação",
+    contentHeading: true,
     title: "Continuidade, onde importa.",
     subtitle:
       "Compare alimentadores e investigue os registros que sustentam os indicadores internos.",

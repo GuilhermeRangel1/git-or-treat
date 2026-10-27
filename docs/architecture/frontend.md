@@ -1,6 +1,6 @@
 # Arquitetura do frontend
 
-**Estado atual:** sete jornadas de produto compostas em um layout persistente. Panorama, Receita, UC 360 e Inspeções têm consultas demonstrativas integradas; Ordens consulta a persistência operacional e permite ações confirmadas pelo servidor; o Assistente integra o chat demonstrativo pelo Backend. Operação permanece no escopo registrado no PRD. As fontes analíticas integradas são sintéticas, e os aceites Gold continuam pendentes conforme o [PRD](../PRD.md). Esta descrição registra a arquitetura em execução, sem alterar escopo ou status de produto.
+**Estado atual:** sete jornadas de produto compostas em um layout persistente. Panorama, Receita, UC 360, Inspeções e Operação têm consultas demonstrativas integradas; Ordens consulta a persistência operacional e permite ações confirmadas pelo servidor; o Assistente integra o chat demonstrativo pelo Backend. Operação apresenta consolidado, ranking e investigação do alimentador conforme o escopo registrado no PRD. As fontes analíticas integradas são sintéticas, e os aceites Gold continuam pendentes conforme o [PRD](../PRD.md). Esta descrição registra a arquitetura em execução, sem alterar escopo ou status de produto.
 
 **Decisão estrutural:** [ADR-0001](../decisions/0001-arquitetura-frontend.md). Referências complementares: [ADR-0004 — contratos analíticos e fonte sintética](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md), [ADR-0006 — Panorama](../decisions/0006-panorama-fonte-produto-e-contrato-dev01.md), [ADR-0008 — Receita](../decisions/0008-exploracao-demonstrativa-receita.md), [ADR-0009 — UC 360](../decisions/0009-uc360-contratos-de-consulta.md), [contrato de Inspeções DEV-05](../contracts/inspection-dev05.md) e [catálogo de contratos analíticos](../contracts/analytics-api.md).
 
@@ -69,6 +69,12 @@ A stack é React + TypeScript, Vite, Tailwind CSS 4 e Lucide React. `styles/glob
 Scripts do [frontend/package.json](../../frontend/package.json) oferecem Vitest/Testing Library, lint Oxlint, Prettier, verificação de fronteiras e build TypeScript/Vite. Esses gates validam implementação e estrutura, mas não substituem jornadas de produto, reconciliação com Gold nem critérios de aceite do PRD.
 
 Para evidências específicas e histórico de validações, consulte os documentos existentes: [DEV-03](../plans/2026-10-21-dev03-evidence.md), [DEV-04](../plans/2026-10-22-dev04-evidence.md), [DEV-05](../plans/2026-10-22-dev05-evidence.md) e os registros de progresso do [PRD](../PRD.md).
+
+## Operação: consolidado e investigação do alimentador
+
+`features/operacao/contract.ts` valida os envelopes de summary 1.2.0 e ranking/detalhe 1.1.0 em execução, incluindo período, alimentador e paginação solicitados. `operations-state.ts` é responsável pela URL: o filtro `alimentador` pertence à lista; `feeder_id` identifica o detalhe aberto, sem apagar o filtro de origem. Os hooks de `useOperations.ts` usam o transporte compartilhado, chaves completas e cancelamento. Consultas de resumo, ranking e detalhe são independentes; respostas de outro recorte não são reaproveitadas como atuais.
+
+`OperacaoPage` coordena a URL e compõe filtros, consolidado, ranking, detalhe, séries e fundamentos. Os componentes específicos permanecem na feature; `Button`, `Modal`, layout e temas continuam compartilhados. As fórmulas e os valores vêm da API; o frontend apenas apresenta, formata e dimensiona as barras. A regra do consolidado parcial está na [ADR-0015](../decisions/0015-consolidado-demonstrativo-de-continuidade.md). Referência visual: layer 06 do Figma, com séries mensais e filtros suportados pelo [contrato DEV-08](../contracts/operations-dev08.md).
 
 ## Assistente: conversa demonstrativa
 

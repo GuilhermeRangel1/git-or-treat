@@ -79,6 +79,15 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
         ).toBe(true),
       );
     }
+    if (name === "Operação") {
+      await waitFor(() => {
+        const paths = fetchSpy.mock.calls.map(
+          (call) => new URL(String(call[0]), window.location.origin).pathname,
+        );
+        expect(paths).toContain("/api/v1/operations/summary");
+        expect(paths).toContain("/api/v1/operations/ranking");
+      });
+    }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
   // As jornadas de dados consultam APIs; o chat só envia após ação da pessoa.
@@ -96,6 +105,8 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
       "/api/v1/revenue",
       "/api/v1/inspections/queue",
       "/api/v1/inspections/orders/search",
+      "/api/v1/operations/summary",
+      "/api/v1/operations/ranking",
     ]).toContain(path);
   }
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
