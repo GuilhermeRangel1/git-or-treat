@@ -10,6 +10,10 @@ As ordens têm persistência operacional inicial, separada da tabela `gold_indic
 
 ## DEV-01: contratos antes da Gold
 
+### Infraestrutura de carga — DEV-12
+
+O carregador registra cada tentativa em `gold_carga_tentativas`, publica versão `gold-csv-v1`, contagens e controles em `gold_carga_atual` e confirma sucesso junto das sete tabelas em uma transação. Rejeições preservam a publicação anterior e mantêm auditoria sem valores dos registros. Migração `goldv1000002`, gerador de CSVs artificiais e [runbook de execução/recuperação](../contracts/gold-load-dev12.md). Isso completa a infraestrutura sintética DEV-12; DE-06 continua em andamento até reconciliação com a origem real. Adaptação de consultas e portal fica na DEV-13.
+
 O [catálogo](../contracts/analytics-api.md), [desenho](../design/2026-10-20-dev01-design.md) e [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md) definem a fronteira entre fonte, serviços e HTTP. `ANALYTICS_SOURCE=synthetic` ativa explicitamente a demonstração; o padrão indisponível falha com 503. Os contratos incluem disponibilidade, unidade, competências, filtros efetivos, origem/versão e limitações. Zero legítimo não equivale a ausência.
 
 O adaptador sintético não depende de PostgreSQL e não altera ordens. A implementação Gold futura precisa mapear os conceitos e reconciliar números; contratos provisórios da aplicação não definem colunas reais. Os contratos operacionais existentes e os endpoints de perguntas/insights do serviço IA permanecem preservados.

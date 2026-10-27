@@ -141,6 +141,14 @@ Depois do upgrade, o teste compara o esquema com todos os modelos registrados us
 As ordens usam dados operacionais separados, controle de acesso DEV-06, histórico transacional, resultado, cancelamento identificado e versão DEV-07. Contratos, exemplos, migrações e limites no [guia DEV-07](../docs/contracts/inspection-lifecycle-dev07.md). A interface foi integrada e aprovada em 25/10; a reexecução com Python 3.12.15/container e PostgreSQL 16.13 descartável passou nos 320 testes, pip check e compileall. Consulte as [evidências e limites](../docs/plans/2026-10-25-dev07-evidencias.md). A carga Gold v1 está implementada: após `alembic upgrade head`, execute `python scripts/load_gold.py --directory data/gold/v1 --batch v1`. Ela valida e substitui as sete tabelas em uma transação; repetição idêntica não reinsere dados. Isso não ativa a fonte da API. Veja o [contrato provisório, organização e limites](../docs/contracts/gold-csv-v1.md).
 
 
+## Carga sintética e recuperação — DEV-12
+
+A revisão `goldv1000002` acrescenta versão explícita do esquema ao lote atual e histórico persistente em `gold_carga_tentativas`. Use `--schema-version gold-csv-v1`; versões desconhecidas são rejeitadas. O CLI retorna o UUID de cada tentativa e mantém erros sem conteúdo dos registros. Uma falha reverte a publicação; registrar sucesso e publicar são atômicos.
+
+Para verificar sem dataset real, `venv/Scripts/python.exe scripts/generate_gold_sample.py --directory ../work/dev12-lote-01` cria sete CSVs inteiramente artificiais em um diretório novo. O controle independente é duas UCs mensais, 30 kWh e R$ 25,50. O [runbook DEV-12](../docs/contracts/gold-load-dev12.md) inclui banco isolado, execução/repetição, inspeção da auditoria e recuperação de cargas inválidas/interrompidas.
+
+Os testes de carga usam `TEST_GOLD_POSTGRES_URL`, separada da `TEST_POSTGRES_URL` de migrações. Ambas devem apontar para bancos descartáveis vazios `*_test`, com usuário sem superusuário. A CI fornece as duas URLs ao runner e ao contêiner. Sem configuração, variantes PostgreSQL são ignoradas.
+
 ## Contrato de alterações das ordens — DEV-07
 
 Todas as mutações exigem `version` inteiro positivo retornado pelo GET. Sem versão ou com tipo inválido: 422; versão obsoleta: 409 `version_conflict`, sem gravar ordem/histórico. Após 409, consulte novamente e permita que a pessoa revise a alteração. Não reenvie automaticamente a intenção com uma versão nova.

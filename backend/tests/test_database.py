@@ -14,6 +14,7 @@ def test_model_metadata_loads_without_importing_database_engine():
         assert set(Base.metadata.tables) == {
             "gold_indicadores",
             "gold_carga_atual",
+            "gold_carga_tentativas",
             "gold_consumo_mensal_uc",
             "gold_consumo_receita_bairro",
             "gold_diagnostico_receita",

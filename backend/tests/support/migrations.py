@@ -14,6 +14,7 @@ from sqlalchemy import inspect, text
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_TABLES = {
     "gold_carga_atual",
+    "gold_carga_tentativas",
     "gold_consumo_mensal_uc",
     "gold_consumo_receita_bairro",
     "gold_diagnostico_receita",

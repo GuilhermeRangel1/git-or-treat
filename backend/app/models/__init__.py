@@ -2,6 +2,6 @@
 from app.models.base import TimestampMixin
 from app.models.operational import InspectionOrder, OrderStatus, OperationalOrderHistory, OrderAction
 from app.models.analytical import GoldIndicador
-from app.models import gold_v1  # Registra o contrato CSV observado nas migrações.
+from app.models import gold_load  # Registra o contrato atual sem alterar snapshots Alembic.
 
 __all__ = ["TimestampMixin", "InspectionOrder", "OrderStatus", "OperationalOrderHistory", "OrderAction", "GoldIndicador"]
