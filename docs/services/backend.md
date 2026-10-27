@@ -116,7 +116,9 @@ WEB-11 pede testes automatizados como diferencial; a conclusão dos requisitos o
 
 ## DEV-08: Operação demonstrativa
 
-O backend amplia a continuidade DEV-01 com série mensal, ranking por DEC/FEC e detalhe paginado de ocorrências. Fórmula, cobertura e denominador são compartilhados com a rota existente; janelas parciais e denominadores ausentes/zero não competem no ranking. As novas respostas incluem definição, numeradores, janela observada e alternativa textual. Veja o [contrato e controles DEV-08](../contracts/operations-dev08.md). Não houve alteração de frontend ou banco. Integração DE-05/Gold e aceite completo WEB-06/WEB-07 permanecem pendentes.
+O backend amplia a continuidade DEV-01 com série mensal, ranking por DEC/FEC e detalhe paginado de ocorrências. Fórmula, cobertura e denominador são compartilhados com a rota existente; janelas parciais e denominadores ausentes/zero não competem no ranking. As novas respostas incluem definição, numeradores, janela observada e alternativa textual. Veja o [contrato e controles DEV-08](../contracts/operations-dev08.md). O portal integra essas respostas em `/operacao`; não houve alteração de banco. Integração DE-05/Gold e aceite completo WEB-06/WEB-07 permanecem pendentes.
+
+O endpoint `GET /api/v1/operations/summary` consolida apenas alimentadores `available` em toda a janela. DEC e FEC usam numeradores originais agregados e a soma dos denominadores incluídos; arredondam apenas o resultado final. Exclusões deixam o estado `partial`; uma fonte sem alimentadores é `empty`, e sem elegíveis é `unavailable` com numeradores/indicadores/denominador nulos. Apenas essa resposta usa contrato 1.2.0; a continuidade 1.0.0 e as consultas DEV-08 1.1.0 permanecem preservadas.
 
 Na revisão DEV-08, todas as rotas de Operação passaram a recusar parâmetros desconhecidos/duplicados e a devolver `Cache-Control: no-store`, inclusive em erros. O cálculo compartilhado recusa denominador não inteiro positivo e determina cobertura pelas contagens exatas, evitando elegibilidade indevida no ranking por arredondamento. Autorização individual das leituras analíticas permanece pendente para dados reais.
 

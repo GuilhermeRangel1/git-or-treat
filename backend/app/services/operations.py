@@ -16,6 +16,10 @@ from app.schemas.operations import (
     OperationOccurrence,
     OperationPoint,
     RankedFeeder,
+    OperationSummary,
+    OperationSummaryData,
+    OperationSummaryDefinition,
+    OperationSummaryResponse,
 )
 from app.services.analytics import (
     AnalyticsAPIError,
@@ -120,6 +124,103 @@ def operation_metadata(
             if limitation not in result.limitations:
                 result.limitations.append(limitation)
     return result
+
+
+def build_operation_summary(
+    repository: AnalyticsRepository,
+    start: str,
+    end: str,
+    filters: AnalyticsFilters,
+) -> OperationSummaryResponse:
+    """Aggregate original interruption records across fully eligible feeders."""
+    points, _ = operation_points(repository, start, end, filters)
+    eligible = [point for point in points if point.status == "available"]
+    included_ids = [point.feeder_id for point in eligible]
+    excluded = [point for point in points if point.status != "available"]
+    excluded_ids = [point.feeder_id for point in excluded]
+    served_uc_count = sum(point.served_uc_count for point in points)
+    observed = observed_window(repository, start, end)
+
+    if eligible:
+        denominator = sum(point.denominator_uc_count for point in eligible)
+        events = [
+            row
+            for feeder_id in included_ids
+            for row in observed_events(repository, feeder_id, start, end)
+        ]
+        duration_sum = sum(row["duration_hours"] for row in events)
+        interruption_count = len(events)
+        dec = round(duration_sum / denominator, 3)
+        fec = round(interruption_count / denominator, 3)
+        status = "partial" if excluded else "available"
+        included_uc_count = denominator
+    else:
+        denominator = duration_sum = interruption_count = dec = fec = None
+        status = "empty" if not points else "unavailable"
+        included_uc_count = 0
+
+    limitations = list(repository.source_limitations)
+    if not points:
+        limitations.append("A fonte não contém alimentadores para o recorte solicitado.")
+    for point in excluded:
+        reason = "; ".join(point.limitations) or f"estado {point.status}."
+        limitations.append(f"{point.feeder_id} excluído do consolidado: {reason}")
+    if eligible and excluded:
+        limitations.append(
+            "Consolidado parcial: indicadores calculados somente sobre os alimentadores incluídos."
+        )
+
+    dec_label = "indisponível" if dec is None else str(dec)
+    fec_label = "indisponível" if fec is None else str(fec)
+    base_label = "indisponível" if denominator is None else str(denominator)
+    text_alternative = (
+        f"Consolidado de {start} a {end}: DEC {dec_label} h/UC; "
+        f"FEC {fec_label} interrupções/UC; base incluída {base_label} UCs; "
+        f"alimentadores incluídos {', '.join(included_ids) or 'nenhum'}; "
+        f"excluídos {', '.join(excluded_ids) or 'nenhum'}; estado {status}. "
+        "Indicadores simplificados de demonstração."
+    )
+    summary = OperationSummary(
+        period=AnalyticsPeriod(start=start, end=end),
+        observed_period=observed,
+        dec_hours_per_uc=dec,
+        fec_interruptions_per_uc=fec,
+        duration_hours_sum=duration_sum,
+        interruption_count=interruption_count,
+        denominator_uc_count=denominator,
+        served_uc_count=served_uc_count,
+        included_uc_count=included_uc_count,
+        included_feeder_ids=included_ids,
+        excluded_feeder_ids=excluded_ids,
+        status=status,
+        limitations=limitations,
+        text_alternative=text_alternative,
+    )
+    result_metadata = metadata(repository, status, start, end, filters)
+    result_metadata.contract_version = "1.2.0"
+    for limitation in limitations:
+        if limitation not in result_metadata.limitations:
+            result_metadata.limitations.append(limitation)
+    return OperationSummaryResponse(
+        data=OperationSummaryData(
+            summary=summary,
+            definition=OperationSummaryDefinition(
+                dec_formula=(
+                    "Soma das durações originais em horas dos registros UC-interrupção "
+                    "/ soma dos denominadores dos alimentadores incluídos."
+                ),
+                fec_formula=(
+                    "Quantidade original de registros UC-interrupção "
+                    "/ soma dos denominadores dos alimentadores incluídos."
+                ),
+                population=(
+                    "População atendida é a contagem cadastral ativa no recorte; "
+                    "a base incluída é a soma dos denominadores dos alimentadores elegíveis."
+                ),
+            ),
+        ),
+        metadata=result_metadata,
+    )
 
 
 def operation_ranking(

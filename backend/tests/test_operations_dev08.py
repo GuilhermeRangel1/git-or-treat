@@ -72,6 +72,7 @@ def test_denominator_does_not_hide_occurrences_or_create_zero(client, monkeypatc
     detail = client.get("/api/v1/operations/feeders/AL-01").json()
     summary = detail["data"]["summary"]
     assert summary["status"] == "unavailable"
+    assert summary["denominator_uc_count"] == denominator
     assert summary["dec_hours_per_uc"] is summary["fec_interruptions_per_uc"] is None
     assert summary["interruption_count"] == detail["pagination"]["total"] == 2
     assert summary["duration_hours_sum"] == 3
@@ -79,6 +80,49 @@ def test_denominator_does_not_hide_occurrences_or_create_zero(client, monkeypatc
     ranked = client.get("/api/v1/operations/ranking?alimentador=AL-01").json()["data"]
     assert ranked["items"] == []
     assert ranked["excluded"][0]["feeder_id"] == "AL-01"
+
+
+@pytest.mark.parametrize("denominator", [2.5, "invalid", "2", True])
+def test_invalid_typed_denominator_is_unavailable_without_hiding_valid_feeders(client, monkeypatch, denominator):
+    repository = SyntheticAnalyticsRepository()
+    repository.feeders[0]["denominator_uc_count"] = denominator
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+
+    series_response = client.get("/api/v1/operations/series")
+    ranking_response = client.get("/api/v1/operations/ranking")
+    detail_response = client.get("/api/v1/operations/feeders/AL-01")
+    continuity_response = client.get("/api/v1/operations/continuity")
+
+    assert [series_response.status_code, ranking_response.status_code,
+            detail_response.status_code, continuity_response.status_code] == [200, 200, 200, 200]
+
+    series = series_response.json()["data"]["items"]
+    assert {point["feeder_id"] for point in series} == {"AL-01", "AL-02", "AL-03"}
+    assert all(point["denominator_uc_count"] is None for point in series if point["feeder_id"] == "AL-01")
+    assert all(point["status"] == "unavailable" for point in series if point["feeder_id"] == "AL-01")
+    assert all(point["denominator_uc_count"] == 2 for point in series if point["feeder_id"] == "AL-02")
+
+    ranking = ranking_response.json()["data"]
+    assert [point["feeder_id"] for point in ranking["items"]] == ["AL-02"]
+    assert {point["feeder_id"] for point in ranking["excluded"]} == {"AL-01", "AL-03"}
+    assert next(point for point in ranking["excluded"] if point["feeder_id"] == "AL-01")["denominator_uc_count"] is None
+
+    detail = detail_response.json()
+    summary = detail["data"]["summary"]
+    assert summary["denominator_uc_count"] is None
+    assert summary["status"] == "unavailable"
+    assert summary["dec_hours_per_uc"] is summary["fec_interruptions_per_uc"] is None
+    assert any("Denominador demonstrativo ausente, zero ou inválido" in limitation
+               for limitation in summary["limitations"])
+    assert detail["pagination"]["total"] == 2
+    assert len(detail["data"]["occurrences"]) == 2
+
+    continuity = continuity_response.json()["data"]["items"]
+    assert {item["feeder_id"] for item in continuity} == {"AL-01", "AL-02", "AL-03"}
+    invalid_item = next(item for item in continuity if item["feeder_id"] == "AL-01")
+    assert invalid_item["denominator_uc_count"] is None
+    assert invalid_item["status"] == "unavailable"
+    assert invalid_item["interruption_count"] == 2
 
 
 @pytest.mark.parametrize("coverage,start,end,status,observed", [
@@ -166,6 +210,14 @@ def test_source_unavailable_fails_closed(client, monkeypatch, path):
     response = client.get(f"/api/v1/operations/{path}")
     assert response.status_code == 503
     assert "data" not in response.json()
+
+
+@pytest.mark.parametrize("path", ["continuity", "series", "ranking", "feeders/AL-01"])
+def test_invalid_period_is_validated_before_unavailable_source(client, monkeypatch, path):
+    monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "unavailable")
+    response = client.get(f"/api/v1/operations/{path}?periodo=2025-13")
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_query"
 
 
 @pytest.mark.parametrize("path", ["series", "ranking", "feeders/{feeder_id}"])

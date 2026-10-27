@@ -18,6 +18,40 @@ class ContinuityDefinition(BaseModel):
     rounding: str = "Três casas decimais, conforme o contrato DEV-01; não somar valores já arredondados."
 
 
+class OperationSummaryDefinition(ContinuityDefinition):
+    inclusion_rule: str = (
+        "Incluir somente alimentadores com estado available em toda a janela solicitada "
+        "e denominador inteiro positivo; excluir os demais e identificá-los na resposta."
+    )
+
+
+class OperationSummary(BaseModel):
+    period: AnalyticsPeriod
+    observed_period: AnalyticsPeriod | None
+    dec_hours_per_uc: float | None
+    fec_interruptions_per_uc: float | None
+    duration_hours_sum: float | None
+    interruption_count: int | None
+    denominator_uc_count: int | None
+    served_uc_count: int
+    included_uc_count: int
+    included_feeder_ids: list[str]
+    excluded_feeder_ids: list[str]
+    status: Literal["available", "partial", "unavailable", "empty"]
+    limitations: list[str] = Field(default_factory=list)
+    text_alternative: str
+
+
+class OperationSummaryData(BaseModel):
+    summary: OperationSummary
+    definition: OperationSummaryDefinition
+
+
+class OperationSummaryResponse(BaseModel):
+    data: OperationSummaryData
+    metadata: AnalyticsMetadata
+
+
 class OperationPoint(ContinuityItem):
     period: AnalyticsPeriod
     observed_period: AnalyticsPeriod | None

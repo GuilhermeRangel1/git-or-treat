@@ -160,10 +160,13 @@ def build_continuity(repository: AnalyticsRepository, start: str, end: str, filt
     result = []
     for feeder in sorted(feeders, key=lambda row: row["feeder_id"]):
         events = [row for row in repository.interruptions if has_temporal_coverage and row["feeder_id"] == feeder["feeder_id"] and observed_start <= row["competencia"] <= observed_end]
-        denominator = feeder["denominator_uc_count"]
+        raw_denominator = feeder["denominator_uc_count"]
+        # Keep only actual integers from the source. In particular, Pydantic's
+        # coercion must not turn bools or numeric strings into valid counts.
+        denominator = raw_denominator if isinstance(raw_denominator, int) and not isinstance(raw_denominator, bool) else None
         served_count = sum(1 for unit in repository.units if unit["alimentador"] == feeder["feeder_id"] and unit["status"] == "active")
         covered_count = served_count
-        valid_denominator = isinstance(denominator, int) and not isinstance(denominator, bool) and denominator > 0
+        valid_denominator = denominator is not None and denominator > 0
         coverage = round(covered_count / denominator, 3) if valid_denominator else None
         status: AnalyticsStatus = "unavailable" if not valid_denominator or not has_temporal_coverage else ("partial" if covered_count != denominator or temporal_limitations else "available")
         coverage_limitations = list(temporal_limitations)

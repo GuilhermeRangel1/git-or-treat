@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query
 
@@ -15,6 +15,7 @@ from app.schemas.operations import (
     OperationRankingResponse,
     OperationSeriesData,
     OperationSeriesResponse,
+    OperationSummaryResponse,
 )
 from app.services.analytics import (
     AnalyticsAPIError,
@@ -24,6 +25,7 @@ from app.services.analytics import (
     validate_period,
 )
 from app.services.operations import (
+    build_operation_summary,
     build_feeder_detail,
     operation_metadata,
     operation_points,
@@ -36,9 +38,9 @@ router = APIRouter(route_class=StrictAnalyticsRoute)
 
 
 def operation_period(
-    periodo: str | None = Query(None, max_length=7),
-    competencia_inicio: str | None = Query(None, max_length=7),
-    competencia_fim: str | None = Query(None, max_length=7),
+    periodo: Annotated[str | None, Query(max_length=7)] = None,
+    competencia_inicio: Annotated[str | None, Query(max_length=7)] = None,
+    competencia_fim: Annotated[str | None, Query(max_length=7)] = None,
 ) -> tuple[str, str]:
     if periodo is not None:
         if competencia_inicio is not None or competencia_fim is not None:
@@ -56,7 +58,7 @@ def operation_period(
 
 
 def exploration_period(
-    period: tuple[str, str] = Depends(operation_period),
+    period: Annotated[tuple[str, str], Depends(operation_period)],
 ) -> tuple[str, str]:
     validate_operation_window(*period)
     return period
@@ -68,9 +70,9 @@ def exploration_period(
     summary="DEC/FEC demonstrativos por alimentador e competência",
 )
 def get_continuity_metrics(
-    period: tuple[str, str] = Depends(operation_period),
-    alimentador: str | None = Query(None, max_length=100),
-    repository: AnalyticsRepository = Depends(get_analytics_repository),
+    period: Annotated[tuple[str, str], Depends(operation_period)],
+    repository: Annotated[AnalyticsRepository, Depends(get_analytics_repository)],
+    alimentador: Annotated[str | None, Query(max_length=100)] = None,
 ) -> ContinuityResponse:
     start, end = period
     filters = filters_model(alimentador=alimentador)
@@ -91,9 +93,9 @@ def get_continuity_metrics(
     summary="Evolução mensal e alternativa textual de DEC/FEC",
 )
 def get_operation_series(
-    period: tuple[str, str] = Depends(exploration_period),
-    alimentador: str | None = Query(None, max_length=100),
-    repository: AnalyticsRepository = Depends(get_analytics_repository),
+    period: Annotated[tuple[str, str], Depends(exploration_period)],
+    repository: Annotated[AnalyticsRepository, Depends(get_analytics_repository)],
+    alimentador: Annotated[str | None, Query(max_length=100)] = None,
 ) -> OperationSeriesResponse:
     start, end = period
     filters = filters_model(alimentador=alimentador)
@@ -108,15 +110,30 @@ def get_operation_series(
 
 
 @router.get(
+    "/summary",
+    response_model=OperationSummaryResponse,
+    summary="Consolidado demonstrativo de DEC/FEC por alimentadores elegíveis",
+)
+def get_operation_summary(
+    period: Annotated[tuple[str, str], Depends(exploration_period)],
+    repository: Annotated[AnalyticsRepository, Depends(get_analytics_repository)],
+    alimentador: Annotated[str | None, Query(max_length=100)] = None,
+) -> OperationSummaryResponse:
+    start, end = period
+    filters = filters_model(alimentador=alimentador)
+    return build_operation_summary(repository, start, end, filters)
+
+
+@router.get(
     "/ranking",
     response_model=OperationRankingResponse,
     summary="Piores alimentadores por DEC ou FEC demonstrativo",
 )
 def get_operation_ranking(
-    period: tuple[str, str] = Depends(exploration_period),
-    alimentador: str | None = Query(None, max_length=100),
+    period: Annotated[tuple[str, str], Depends(exploration_period)],
+    repository: Annotated[AnalyticsRepository, Depends(get_analytics_repository)],
+    alimentador: Annotated[str | None, Query(max_length=100)] = None,
     metric: Literal["dec", "fec"] = "dec",
-    repository: AnalyticsRepository = Depends(get_analytics_repository),
 ) -> OperationRankingResponse:
     start, end = period
     filters = filters_model(alimentador=alimentador)
@@ -135,10 +152,10 @@ def get_operation_ranking(
     summary="Detalhe do alimentador e ocorrências relacionadas",
 )
 def get_feeder_detail(
-    feeder_id: str = Path(..., min_length=1, max_length=100),
-    period: tuple[str, str] = Depends(exploration_period),
-    page: int = Query(1, ge=1, le=1000000),
-    page_size: int = Query(20, ge=1, le=100),
-    repository: AnalyticsRepository = Depends(get_analytics_repository),
+    feeder_id: Annotated[str, Path(min_length=1, max_length=100)],
+    period: Annotated[tuple[str, str], Depends(exploration_period)],
+    repository: Annotated[AnalyticsRepository, Depends(get_analytics_repository)],
+    page: Annotated[int, Query(ge=1, le=1000000)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> OperationDetailResponse:
     return build_feeder_detail(repository, feeder_id, *period, page, page_size)
