@@ -2,10 +2,13 @@
 
 import json
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+ModelProviderName = Literal["gemini", "groq"]
 
 
 class Settings(BaseSettings):
@@ -14,7 +17,10 @@ class Settings(BaseSettings):
     service_name: str = "V-Energy Grid 360 GenAI"
     environment: str = "production"
     enable_demo_access: bool = False
-    model_provider: Literal["unavailable", "gemini"] = "unavailable"
+    demo_source: Literal["fixture", "sqlite"] = "fixture"
+    demo_sqlite_path: Path | None = None
+    service_api_token: SecretStr | None = None
+    model_provider: Literal["unavailable", "gemini", "groq"] = "unavailable"
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_api_key: SecretStr | None = None
     model_timeout_ms: int = Field(default=20_000, ge=1_000, le=120_000)
@@ -27,6 +33,13 @@ class Settings(BaseSettings):
     model_total_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
     model_cache_ttl_seconds: int = Field(default=0, ge=0, le=86_400)
     model_cache_max_entries: int = Field(default=256, ge=1, le=10_000)
+    # Provedores tentados, em ordem, depois dos modelos do provedor principal.
+    model_fallback_providers: Annotated[list[ModelProviderName], NoDecode] = Field(
+        default_factory=list
+    )
+    groq_api_key: SecretStr | None = None
+    # Confira no console do Groq se este ID continua disponível e aceita JSON mode.
+    groq_model: str = "openai/gpt-oss-120b"
     request_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
     source_timeout_ms: int = Field(default=10_000, ge=100, le=120_000)
     source_max_calls: int = Field(default=1, ge=1, le=10)
@@ -45,7 +58,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    @field_validator("gemini_fallback_models", mode="before")
+    @field_validator("gemini_fallback_models", "model_fallback_providers", mode="before")
     @classmethod
     def _split_model_list(cls, value: object) -> object:
         """Aceita lista JSON ou nomes separados por vírgula."""
@@ -81,6 +94,13 @@ class Settings(BaseSettings):
 
         normalized = value.strip() if value is not None else None
         return normalized or None
+
+    @field_validator("service_api_token")
+    @classmethod
+    def _validate_service_api_token(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError("GENAI_SERVICE_API_TOKEN deve ter ao menos 32 caracteres.")
+        return value
 
 
 @lru_cache

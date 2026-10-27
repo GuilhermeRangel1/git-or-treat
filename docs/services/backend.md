@@ -6,7 +6,7 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua um placeholder e não comprova execução segura. A carga CSV não insere linhas nem implementa idempotência. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV não insere linhas nem implementa idempotência. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
 ## DEV-01: contratos antes da Gold
 
@@ -22,6 +22,10 @@ A revisão Alembic `7c4a2b1e9d60` acrescenta defaults de inserção do servidor 
 
 ## Requisitos de produto e contratos ainda pendentes
 
+DEV-03 implementada e verificada com fonte sintética: Receita usa o [contrato 1.1.0](../contracts/revenue-dev03.md), com snapshots dos extremos, cobertura financeira explícita, contagem de UCs, recortes e controles de reconciliação. As regras ficam em `app/services/revenue_analytics.py`, com repositório injetável e cálculos Decimal. A [ADR-0008](../decisions/0008-exploracao-demonstrativa-receita.md) registra as decisões provisórias; demais jornadas preservam seus contratos e as operações continuam separadas. Consulte [comandos, controles e pendências](../plans/2026-10-21-dev03-evidence.md). O método demonstrativo não homologa métricas Gold.
+
+A DEV-04 implementa demonstrativamente WEB-03 segundo [contrato UC 1.1.0](../contracts/uc360-dev04.md), [plano](../plans/2026-10-22-dev04-plan.md) e [ADR-0009](../decisions/0009-uc360-contratos-de-consulta.md). Busca e detalhe DEV-01 preservam 1.0.0; overview e históricos por seção acrescentam comparação e paginação. Cobertura da UC por fonte, medida e período/snapshot é independente da presença de linhas. O serviço é responsável por comparação e resumo do universo filtrado; o repositório delimita acesso/paginação. Integração Gold, chaves reais e reconciliação continuam pendentes.
+
 | Domínio | Operações necessárias | Condições de aceite |
 | --- | --- | --- |
 | Indicadores | Métricas agregadas, comparação temporal, filtros geográficos e por classe | Resposta inclui unidade, janela, filtros e metadados de atualização; reconcilia com Gold |
@@ -33,7 +37,23 @@ A revisão Alembic `7c4a2b1e9d60` acrescenta defaults de inserção do servidor 
 
 O case não prescreve nomes de rota. A DEV-01 versiona contratos JSON, paginação, erros, tipos, nulidade e exemplos sem dados pessoais. A demonstração desses contratos não conclui as funcionalidades reconciliadas com Gold.
 
-Para a fronteira com a GenAI, há uma proposta pendente de revisão para o Backend controlar as consultas Gold por um contrato estruturado, sem SQL livre do agente ([ADR-0002](../decisions/0002-genai-gold-query-owner.md)). A rota `/api/v1/ai/query` existente é apenas scaffold e ainda não consulta dados.
+Para a fronteira com a GenAI, há uma proposta pendente de revisão para o Backend controlar as consultas Gold por um contrato estruturado, sem SQL livre do agente ([ADR-0002](../decisions/0002-genai-gold-query-owner.md)). A rota `/api/v1/ai/query` existente é legado indisponível: valida o corpo e responde 503; não consulta dados, anuncia uma lista fictícia de tabelas nem fornece evidência.
+
+Revisão proposta em 25/10/2026 (GENAI-01): o Backend seria o único executor SQL da Gold no banco local, coordenando planejar (GenAI) → revalidar e consultar (Backend) → sintetizar (GenAI) atrás de `POST /api/v1/ai/questions`, com papel somente leitura, revalidação do plano também no cache e auditoria da execução. O contrato interno está em [genai-query-execution.md](../contracts/genai-query-execution.md). Nada foi implementado; a decisão segue proposta até aprovação de Backend e Engenharia de Dados.
+
+## Contrato conversacional com a GenAI
+
+O Backend expõe `POST /api/v1/ai/questions` para o portal e encaminha a solicitação v1 ao `POST /api/v1/questions` do serviço GenAI. O endpoint antigo `/api/v1/ai/query` permanece separado e não é usado como rota de chat ou executor.
+
+O Backend valida pergunta/contexto, aplica timeout, encaminha token interno e correlação, e valida o envelope de resposta antes de devolvê-lo. Não acessa SQL nem Gold nessa jornada. O contrato completo, limites, exemplos e erros estão em [genai-chat-api.md](../contracts/genai-chat-api.md). A integração é stateless e demonstrativa: não persiste sessão, não autentica usuário do portal e não concede escopo Gold. O token interno autentica Backend → GenAI; autorização real de usuário e retenção precisam ser decididas antes da implantação.
+
+### Insight contextual do Panorama — IA-04
+
+O portal envia filtros aplicados e `loteVersao` a `POST /api/v1/ai/insights`; nunca envia observações numéricas. O Backend valida o recorte com `build_panorama`, recalcula energia faturada na fonte corrente e deriva a variação percentual e, quando os filtros permitem, o município ou a classe que mais contribuiu para a mudança. Em seguida, encaminha o contexto estruturado a `POST /api/v1/insights` com o token de serviço e correlação. Antes de devolver um insight `answered`, confere se a GenAI retornou o mesmo período, filtros, métrica, unidade e observações calculados no servidor. Lote desatualizado retorna HTTP 409 `invalid_context`; indisponibilidade, timeout e resposta inválida têm envelopes v1 estáveis. Veja o [contrato Portal → Backend → GenAI](../contracts/panorama-insight-api.md).
+
+Na versão atual, o serviço só gera o contexto com a fonte sintética do Panorama; fonte não compatível falha fechada. Isso conecta o caminho da interface, mas não comprova Gold, autorização de usuário, auditoria persistida ou uma geração ao vivo de provedor. A evolução para Gold precisa revisar a métrica com o dicionário e continuar recalculando os valores no Backend.
+
+O cálculo do Panorama recebe `PanoramaRepository`: a fonte informa `incomplete_periods`, versão, atualização e limitações do lote. O serviço usa essa cobertura para impedir comparação com competências abertas e gera rótulos da série a partir da competência, sem consultar constantes da fixture. O restante do cálculo ainda espera linhas agregadas em memória com o formato demonstrativo e fórmulas provisórias; o modo de implantação `ANALYTICS_SOURCE` aceita apenas `synthetic` ou `unavailable`. Um adaptador Gold precisa homologar grão e fórmulas, oferecer filtros válidos e preservar a mesma versão do lote entre indicadores e insight antes de ser habilitado.
 
 ### Envelope conceitual de uma resposta analítica
 
@@ -58,9 +78,17 @@ O contêiner usa `dhi.io/python:3.12-alpine3.24-dev`, base mantida pela Docker c
 - Informar competência, atualização e proveniência nas respostas para evitar interpretações falsas.
 - Erros não expõem SQL, stack trace, dados de terceiros ou credenciais ao navegador.
 
-## Ordens de inspeção: ciclo operacional a decidir
+## Contenção de segurança e ciclo operacional das ordens
 
-WEB-05 exige criar, atualizar status, registrar resultado e cancelar. Antes de implementar, definir estados permitidos, transições, quem pode executá-las, campos mínimos e vínculo com a versão da fila que motivou a ordem. Preservar trilha de criação, alterações e cancelamento. Uma UC pode ser priorizada novamente; a regra para ordens simultâneas e repetição da mesma requisição deve ser explícita. Inspeções históricas do Excel não devem ser tratadas automaticamente como ordens novas do portal.
+A [ADR-0007](../decisions/0007-contencao-seguranca-ordens-e-entradas.md) registra a contenção implementada após a auditoria: Bearer de serviço com leitura/escrita separadas e negação por padrão; PENDENTE inicia ou cancela, EM_ANDAMENTO conclui ou cancela, estados finais não reabrem. Conclusão exige resultado. ID, strings e prioridade são limitados no servidor, com atualização condicional por status para impedir sobrescrita de transição concorrente.
+
+A API limita corpos a 64 KiB e JSON UTF-8 a 32 níveis, valida hosts e inclui headers defensivos. Essa proteção não substitui identidade de usuário e controle de acesso individual a ordens. WEB-05 permanece `Em validação`: a DEV-07 implementa o ciclo e o histórico operacional descritos a seguir, enquanto homologação e reconciliação com a Gold continuam pendentes. WEB-10 continua pendente. Preservar trilha de criação, alterações e cancelamento. Uma UC pode ser priorizada novamente; a regra para ordens simultâneas e repetição da mesma requisição deve ser explícita. Inspeções históricas do Excel não devem ser tratadas automaticamente como ordens novas do portal.
+
+### DEV-07 — ciclo operacional das ordens
+
+A [ADR-0014](../decisions/0014-integracao-do-ciclo-operacional-dev07.md) concilia o registro inicial do ciclo com a base DEV-06: PENDENTE inicia/cancela; EM_ANDAMENTO conclui com resultado/cancela; estados finais não reabrem. Prioridades BAIXA/MEDIA/ALTA. Repetições idênticas não gravam eventos nem incrementam versão.
+
+A DEV-07 acrescenta histórico persistido com ator/versão, registro dedicado de resultado, cancelamento com confirmação da OS/UC e controle otimista no SQL. Ordem e evento são gravados na mesma transação. Todas as alterações exigem versão (422 se ausente/inválida, 409 se obsoleta); cancelamento via PATCH é recusado e usa rota dedicada. `alembic upgrade head` converge bancos existentes das duas branches sem recriação. Especificação, exemplos e limites estão no [contrato DEV-07](../contracts/inspection-lifecycle-dev07.md); evidências e ambiente estão no [registro da entrega](../plans/2026-10-25-dev07-evidencias.md). A execução de 25/10 validou a interface e a persistência com API real, consultas SQL independentes e PostgreSQL descartável. A fila continua sintética; não há reconciliação Gold nesta entrega.
 
 ## Carga da Gold e consistência
 
@@ -68,6 +96,30 @@ O script `backend/scripts/load_gold.py` é um esqueleto: não carrega linhas CSV
 
 ## Qualidade
 
+DEV-06 liga a criação de ordens à fila DEV-05: valida versões, preserva UC/motivo e snapshot da suspeita, confirma commit e impede repetição concorrente por chave de idempotência e índice parcial de ordem ativa. Consulta por ID e busca paginada combinam filtros de estado, UC e prioridade; `has_result` opcional seleciona ordens com ou sem resultado antes da contagem e da paginação. A migração `a6d060000001` preserva ordens anteriores com campos novos nulos. Veja o [contrato DEV-06, comandos e evidências](../contracts/inspection-orders-dev06.md). WEB-05 fica `Em validação`: auditoria durável das alterações, homologação e reconciliação Gold continuam pendentes.
+
+Na revisão de integração com DEV-04/develop, a busca passou a projetar `OrderSummary` sem carregar JSON e a retornar páginas além do total antes de executar offset. O detalhe usa snapshot operacional v1 independente dos modelos analíticos, aceitando registros anteriores sem versão explícita. Reenvios que encontram uma gravação concorrente entre as consultas da chave e da suspeita ativa são reconciliados antes de emitir conflito.
+
+A [ADR-0011](../decisions/0011-ordem-ativa-por-uc.md) alinha DEV-06/DEV-07: uma única ordem ativa por UC, inclusive criações manuais e versões distintas da suspeita. A migração `a6d060000002` recusa duplicidades antigas sem cancelamento automático e instala índice parcial por UC. Reenvio confirmado resolve somente o banco operacional, sem exigir fonte analítica; novas intenções continuam dependentes da fonte. Conflitos mantêm `detail` e acrescentam `error.code`, `error.message` e `error.order_id`. Testes de falha antes e depois do commit comprovam rollback ou recuperação sem duplicação conforme o caso.
+
+A [ADR-0012](../decisions/0012-autenticacao-individual-das-ordens.md) acrescenta autenticação OIDC individual, scopes de leitura/escrita e identificação do operador nos eventos, com produção recusando credenciais compartilhadas. O proxy não autentica nem injeta tokens, e o Compose publica portas somente em localhost. `GET /inspections/access` fornece identidade opaca/permissões sem cache. Após a revisão de escopo solicitada pela pessoa usuária, login não é obrigatório na DEV-06: o modo explícito `demo` permite leitura/escrita sem Bearer exclusivamente em desenvolvimento com fonte sintética. Compose e script local selecionam esse modo; o ator `local-demo` não identifica uma pessoa. OIDC fica como preparação futura opcional. Veja o [guia de entrega para o frontend](../contracts/inspection-auth-handoff.md). Perfis das outras áreas e trilha durável completa não são concluídos por essa fatia.
+
+Para DEV-05/WEB-04, o serviço `inspection_analytics` calcula apenas a [regra sintética versionada](../contracts/inspection-dev05.md). A fila aceita direção explícita e retorna opções de filtros; `/api/v1/inspections/queue/{uc_id}` expõe os insumos e limites da prioridade/projeção. Não há gravação, alteração de ordens ou migração. A regra demonstrativa recusa fonte não demonstrativa até homologação dos critérios reais.
+
 Testar filtros combinados, estados vazios, UC inexistente, IDs inválidos, paginação, ordenação, idempotência da carga e transições das ordens. Quando houver alterações em métrica, fazer teste de contrato com amostra Gold reconciliada. Se PostgreSQL for escolhido, consultar a skill local `supabase-postgres-best-practices`; isso não impõe uso da plataforma Supabase.
 
 WEB-11 pede testes automatizados como diferencial; a conclusão dos requisitos obrigatórios ainda requer verificação funcional e numérica reproduzível mesmo que esse diferencial não seja perseguido. Registrar no PRD quais fluxos e contratos foram testados, com comando/resultado e lote de dados.
+
+### Comparação parcial do Panorama — DEV-02, 22/10/2026
+
+`GET /api/v1/panorama` conserva os totais e a série de maio/2024 parcial. Se a competência atual ou de referência estiver incompleta, as oito métricas retornam `valorAnterior`, `variacaoAbsoluta` e `variacaoPercentual` nulos, com `baseZero: false`. A solicitação de comparação permanece em `filtros`; `periodoIncompleto` identifica a limitação da competência atual. Não se compara mês parcial com fechamento mensal completo.
+
+## DEV-08: Operação demonstrativa
+
+O backend amplia a continuidade DEV-01 com série mensal, ranking por DEC/FEC e detalhe paginado de ocorrências. Fórmula, cobertura e denominador são compartilhados com a rota existente; janelas parciais e denominadores ausentes/zero não competem no ranking. As novas respostas incluem definição, numeradores, janela observada e alternativa textual. Veja o [contrato e controles DEV-08](../contracts/operations-dev08.md). O portal integra essas respostas em `/operacao`; não houve alteração de banco. Integração DE-05/Gold e aceite completo WEB-06/WEB-07 permanecem pendentes.
+
+O endpoint `GET /api/v1/operations/summary` consolida apenas alimentadores `available` em toda a janela. DEC e FEC usam numeradores originais agregados e a soma dos denominadores incluídos; arredondam apenas o resultado final. Exclusões deixam o estado `partial`; uma fonte sem alimentadores é `empty`, e sem elegíveis é `unavailable` com numeradores/indicadores/denominador nulos. Apenas essa resposta usa contrato 1.2.0; a continuidade 1.0.0 e as consultas DEV-08 1.1.0 permanecem preservadas.
+
+Na revisão DEV-08, todas as rotas de Operação passaram a recusar parâmetros desconhecidos/duplicados e a devolver `Cache-Control: no-store`, inclusive em erros. O cálculo compartilhado recusa denominador não inteiro positivo e determina cobertura pelas contagens exatas, evitando elegibilidade indevida no ranking por arredondamento. Autorização individual das leituras analíticas permanece pendente para dados reais.
+
+A refatoração de alinhamento DEV-08 move a composição e paginação do detalhe para `build_feeder_detail`, com resposta tipada. As rotas de Operação retornam modelos explícitos; `StrictAnalyticsRoute` fica na fronteira HTTP comum. Receita e Operação compartilham `repeated_query_parameters`, preservando seus contratos e políticas de erro.

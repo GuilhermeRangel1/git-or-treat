@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_TABLES = {"gold_indicadores", "operational_inspection_orders"}
+EXPECTED_TABLES = {"gold_indicadores", "operational_inspection_orders", "operational_order_history"}
 
 
 def alembic_config(connection):
@@ -200,7 +200,7 @@ def assert_timestamp_migration_preserves_existing_orders(connection):
         )
     )
     before = connection.execute(
-        text("SELECT * FROM operational_inspection_orders WHERE uc_id = 'BEFORE-MIGRATION'")
+        text("SELECT id, uc_id, reason, priority, status, notes, result, created_at, updated_at FROM operational_inspection_orders WHERE uc_id = 'BEFORE-MIGRATION'")
     ).one()
     connection.commit()
     for target in ("head", "2d848fa6f44a", "head"):
@@ -209,7 +209,7 @@ def assert_timestamp_migration_preserves_existing_orders(connection):
         else:
             command.downgrade(config, target)
         after = connection.execute(
-            text("SELECT * FROM operational_inspection_orders WHERE uc_id = 'BEFORE-MIGRATION'")
+            text("SELECT id, uc_id, reason, priority, status, notes, result, created_at, updated_at FROM operational_inspection_orders WHERE uc_id = 'BEFORE-MIGRATION'")
         ).one()
         assert after == before
         defaults = {

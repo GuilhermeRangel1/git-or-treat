@@ -13,6 +13,18 @@ Esse arranjo é o ponto de partida. Organização por domínio pode ajudar quand
 | Persistência/fonte | Executar consultas parametrizadas, preservar granularidade e implementar acesso à fonte acordada. |
 | Schema | Descrever entrada/saída, nulidade, limites e metadados; separar payload de criação, atualização e resposta. |
 
+## Evolução do acesso analítico para Gold
+
+A DEV-03 usa registros sintéticos em memória expostos pelo repositório analítico; [o serviço de Receita](../../../../backend/app/services/revenue_analytics.py) filtra e calcula sobre essas listas. Isso demonstra os contratos, sem estabelecer um padrão de processamento para grandes volumes. Preserve a separação existente entre API, serviços, repositórios e modelos; o repositório continua sendo a fronteira explícita entre regras de negócio e fontes analíticas.
+
+Na integração Gold real, priorize filtros, agregações, agrupamentos e paginação no banco quando apropriado. Evite carregar grandes tabelas para executar em memória operações que o banco pode realizar eficientemente. A interface atual baseada em listas pode evoluir de forma controlada para consultas específicas; não é necessário materializar a Gold inteira para reproduzir o adaptador sintético.
+
+Os serviços mantêm responsabilidade pelas definições, cálculos e regras de negócio; o repositório executa o acesso e as operações de consulta acordadas. Executar uma agregação no banco não transfere a propriedade da métrica para uma segunda implementação independente. Evite duplicar regras entre backend, frontend e IA. Preserve granularidade, filtros efetivos, cobertura, proveniência, precisão e consistência entre detalhe e total, inclusive ao paginar: uma página não representa o universo completo da métrica.
+
+Antes de substituir a fonte, consulte o [dicionário Gold](../../../../docs/data-dictionary.md), a [ADR-0004](../../../../docs/decisions/0004-contratos-analiticos-e-fonte-sintetica.md) e os pontos de revisão do [catálogo analítico](../../../../docs/contracts/analytics-api.md#revisão-obrigatória-quando-a-gold-chegar). Não antecipe tabelas, colunas, fórmulas ou estruturas físicas ainda não aprovadas. Reconcilie consultas independentes com a resposta da API e revise contratos/consumidores quando a semântica mudar; em Receita, preserve também os controles do [contrato DEV-03](../../../../docs/contracts/revenue-dev03.md).
+
+Essas orientações guiam a integração futura, sem exigir mudanças imediatas no repositório ou no serviço da DEV-03. A fonte sintética permanece demonstrativa e sua substituição é explícita e controlada, conforme as regras de disponibilidade abaixo.
+
 ## Contratos e erros
 
 Use `response_model` explícito; não serialize livremente todos os atributos do ORM. Em Pydantic 2, a conversão de atributos pode usar `ConfigDict(from_attributes=True)` e `model_validate`. Em atualizações parciais, diferencie campo omitido de `null` explícito com `model_dump(exclude_unset=True)`, respeitando o contrato.

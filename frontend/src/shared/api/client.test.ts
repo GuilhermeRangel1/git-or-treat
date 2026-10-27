@@ -72,3 +72,11 @@ describe("fronteira HTTP", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+it("usa a origem do portal no desenvolvimento para funcionar fora do localhost", async () => {
+  vi.stubEnv("DEV", true);
+  vi.stubEnv("VITE_API_URL", undefined);
+  fetchMock.mockResolvedValueOnce(Response.json({ ok: true }));
+  await expect(apiClient("/api/v1/panorama")).resolves.toEqual({ ok: true });
+  expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/panorama");
+});

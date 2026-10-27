@@ -25,6 +25,12 @@ Teste o comportamento que a pessoa vê com Vitest/Testing Library; prefira consu
 
 Para mudança visual ou interação, inspecione no navegador a fatia afetada; jsdom não comprova geometria, contraste ou reflow. Não crie testes de produto para uma alteração apenas documental de skill.
 
+## Localização e divisão dos testes
+
+Prefira colocation: mantenha testes próximos aos componentes, hooks ou módulos que verificam, como `RevenueSeries.test.tsx` junto a `RevenueSeries.tsx`. Use `__tests__/` para agrupar testes de integração ou conjuntos maiores quando isso melhorar a navegação. Não é necessária uma pasta global `tests/` para reunir todos os testes da aplicação; a preparação compartilhada existente em `src/test/` tem outra responsabilidade.
+
+Considere dividir arquivos extensos por cenários ou responsabilidades verificáveis. Por exemplo, a jornada integrada de Receita pode continuar em `ReceitaPage.test.tsx`, enquanto interações próprias da série podem ter testes próximos ao componente. Preserve a cobertura da jornada e evite fragmentar cenários que precisam ser compreendidos em conjunto.
+
 ## Gates existentes
 
 Na pasta `frontend`, confira os scripts e execute os aplicáveis/obrigatórios:

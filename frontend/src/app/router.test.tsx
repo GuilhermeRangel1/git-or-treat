@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import AppProviders from "./providers";
@@ -15,10 +15,14 @@ beforeEach(() => {
       removeEventListener: vi.fn(),
     }),
   );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockRejectedValue(new Error("network offline")),
+  );
 });
 
-it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar dados", async () => {
-  const fetchSpy = vi.fn();
+it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implementadas", async () => {
+  const fetchSpy = vi.fn().mockRejectedValue(new Error("network offline"));
   vi.stubGlobal("fetch", fetchSpy);
   const user = userEvent.setup();
   render(
@@ -28,6 +32,10 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar 
       </MemoryRouter>
     </AppProviders>,
   );
+  await screen.findByRole("heading", {
+    level: 1,
+    name: "Sua rede, em perspectiva.",
+  });
   const sidebar = screen.getByLabelText("Menu lateral principal");
   await user.click(
     screen.getByRole("button", { name: "Alternar para tema escuro" }),
@@ -43,7 +51,7 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar 
   ]) {
     await user.click(screen.getByRole("link", { name }));
     expect(
-      screen.getByRole("heading", {
+      await screen.findByRole("heading", {
         level: 1,
         name: title,
       }),
@@ -53,11 +61,56 @@ it("mantém a estrutura e o tema ao navegar entre as sete áreas, sem consultar 
       "aria-current",
       "page",
     );
+    if (name === "Receita") {
+      await waitFor(() =>
+        expect(
+          fetchSpy.mock.calls.filter((call) =>
+            String(call[0]).includes("/api/v1/revenue?"),
+          ),
+        ).toHaveLength(1),
+      );
+    }
+    if (name === "Inspeções") {
+      await waitFor(() =>
+        expect(
+          fetchSpy.mock.calls.some((call) =>
+            String(call[0]).includes("/api/v1/inspections/queue?"),
+          ),
+        ).toBe(true),
+      );
+    }
+    if (name === "Operação") {
+      await waitFor(() => {
+        const paths = fetchSpy.mock.calls.map(
+          (call) => new URL(String(call[0]), window.location.origin).pathname,
+        );
+        expect(paths).toContain("/api/v1/operations/summary");
+        expect(paths).toContain("/api/v1/operations/ranking");
+      });
+    }
   }
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-  expect(fetchSpy).not.toHaveBeenCalled();
+  // As jornadas de dados consultam APIs; o chat só envia após ação da pessoa.
+  await waitFor(() =>
+    expect(
+      fetchSpy.mock.calls.some((call) =>
+        String(call[0]).includes("/api/v1/panorama?"),
+      ),
+    ).toBe(true),
+  );
+  for (const call of fetchSpy.mock.calls) {
+    const path = new URL(String(call[0]), window.location.origin).pathname;
+    expect([
+      "/api/v1/panorama",
+      "/api/v1/revenue",
+      "/api/v1/inspections/queue",
+      "/api/v1/inspections/orders/search",
+      "/api/v1/operations/summary",
+      "/api/v1/operations/ranking",
+    ]).toContain(path);
+  }
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
-});
+}, 15000);
 
 it("inicia e permite alternar o tema quando o armazenamento está indisponível", async () => {
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
@@ -73,13 +126,17 @@ it("inicia e permite alternar o tema quando o armazenamento está indisponível"
       </MemoryRouter>
     </AppProviders>,
   );
+  await screen.findByRole("heading", {
+    level: 1,
+    name: "Sua rede, em perspectiva.",
+  });
   await userEvent.click(
     screen.getByRole("button", { name: "Alternar para tema escuro" }),
   );
   expect(document.documentElement).toHaveAttribute("data-theme", "dark");
-});
+}, 10000);
 
-it("mantém o redirecionamento inicial e trata caminhos desconhecidos", () => {
+it("mantém o redirecionamento inicial e trata caminhos desconhecidos", async () => {
   render(
     <AppProviders>
       <MemoryRouter initialEntries={["/inexistente"]}>
@@ -88,7 +145,7 @@ it("mantém o redirecionamento inicial e trata caminhos desconhecidos", () => {
     </AppProviders>,
   );
   expect(
-    screen.getByRole("heading", {
+    await screen.findByRole("heading", {
       level: 1,
       name: "Sua rede, em perspectiva.",
     }),

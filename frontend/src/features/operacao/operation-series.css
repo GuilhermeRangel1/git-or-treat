@@ -1,0 +1,7 @@
+.operation-series-bar {
+  background-color: #2d6470;
+}
+
+[data-theme="dark"] .operation-series-bar {
+  background-color: #8db9c1;
+}

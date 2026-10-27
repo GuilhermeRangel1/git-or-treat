@@ -3,13 +3,14 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 
-from app.api.access import resolve_access_context
+from app.api.access import require_service_auth, resolve_access_context
 from app.schemas.access import AccessContext
 from app.schemas.capabilities import CapabilitiesResponse
 from app.schemas.insights import ScreenInsightRequest, ScreenInsightResponse
 from app.schemas.questions import QuestionRequest, QuestionResponse
-from app.schemas.responses import PublicErrorResponse
+from app.schemas.responses import PublicError, PublicErrorCode, PublicErrorResponse
 
 router = APIRouter()
 ResolvedAccess = Annotated[AccessContext | None, Depends(resolve_access_context)]
@@ -38,6 +39,7 @@ async def capabilities() -> CapabilitiesResponse:
 @router.post(
     "/api/v1/questions",
     response_model=QuestionResponse,
+    dependencies=[Depends(require_service_auth)],
     responses={
         422: {"model": PublicErrorResponse, "description": "Solicitação fora do contrato v1."},
         500: {"model": PublicErrorResponse, "description": "Falha interna controlada."},
@@ -59,8 +61,10 @@ async def ask_question(
 @router.post(
     "/api/v1/insights",
     response_model=ScreenInsightResponse,
+    dependencies=[Depends(require_service_auth)],
     responses={
         422: {"model": PublicErrorResponse, "description": "Solicitação fora do contrato v1."},
+        503: {"model": PublicErrorResponse, "description": "Insight indisponível para a fonte."},
         500: {"model": PublicErrorResponse, "description": "Falha interna controlada."},
     },
 )
@@ -68,9 +72,20 @@ async def generate_screen_insight(
     payload: ScreenInsightRequest,
     request: Request,
     access_context: ResolvedAccess,
-) -> ScreenInsightResponse:
+) -> ScreenInsightResponse | JSONResponse:
     """Gera hipótese exploratória a partir do recorte estruturado enviado pelo portal."""
 
+    if request.app.state.source_mode == "external":
+        body = PublicErrorResponse(
+            correlation_id=request.state.correlation_id,
+            error=PublicError(code=PublicErrorCode.SERVICE_UNAVAILABLE, retryable=False),
+            message="O insight para esta fonte ainda não está disponível.",
+        )
+        return JSONResponse(
+            status_code=503,
+            content=body.model_dump(mode="json"),
+            headers={"X-Correlation-ID": request.state.correlation_id},
+        )
     response = await request.app.state.insight_orchestrator.generate(
         payload.screen, access_context, request.state.correlation_id
     )

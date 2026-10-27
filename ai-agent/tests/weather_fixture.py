@@ -108,7 +108,7 @@ class WeatherEvidenceSource:
     def __init__(self) -> None:
         self.plans: list[LogicalReadPlan] = []
 
-    async def retrieve(self, plan: LogicalReadPlan) -> EvidenceLookupResult:
+    async def retrieve(self, plan: LogicalReadPlan, _access_context) -> EvidenceLookupResult:
         self.plans.append(plan)
         if (
             plan.window.kind is not WindowKind.CATALOG_PHRASE

@@ -1,3 +1,5 @@
+import inspect
+
 import pytest
 from pydantic import ValidationError
 
@@ -5,6 +7,7 @@ from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.scenarios import SyntheticScenario
+from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 
 def test_synthetic_catalog_covers_prd_domains_and_marks_every_result_as_demo() -> None:
@@ -27,8 +30,8 @@ def test_synthetic_catalog_values_match_explicit_demo_expectations() -> None:
     scenarios = {scenario.scenario_id: scenario for scenario in SYNTHETIC_SCENARIOS}
 
     assert scenarios["revenue_comparison_demo"].evidence.records == [
-        {"period_label": "período A", "value": 100, "unit": "unidades fictícias"},
-        {"period_label": "período B", "value": 95, "unit": "unidades fictícias"},
+        {"period": "2025-01", "value": 100, "unit": "unidades fictícias"},
+        {"period": "2025-02", "value": 95, "unit": "unidades fictícias"},
     ]
     assert scenarios["consumption_demo"].evidence.records == [
         {"value": 420, "unit": "unidades fictícias"}
@@ -61,3 +64,9 @@ def test_analysis_intent_keeps_unapproved_business_terms_as_phrases() -> None:
     assert intent.metric_phrase == "receita"
     assert intent.period_phrase == "último ano"
     assert intent.model_dump()["filters"] == {}
+
+
+def test_synthetic_source_retrieve_matches_evidence_port_keyword() -> None:
+    inspect.signature(SyntheticScenarioTool.retrieve).bind(
+        SyntheticScenarioTool(), plan=object(), access_context=object()
+    )

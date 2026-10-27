@@ -1,28 +1,40 @@
 # Serviço: portal web
 
-**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** fundação arquitetural preparada; sidebar, topo visual do Panorama e textos superiores das demais páginas alinhados ao Figma, com temas claro/escuro e navegação mobile. As páginas do produto permanecem sem integração de negócio. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos com API sintética real. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
+**Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros na URL, 4 KPIs principais, oito métricas auditáveis nos fundamentos, série mensal e API sintética em `GET /api/v1/panorama`. O Assistente envia perguntas ao Backend pelo contrato v1 e mostra evidências e limitações sintéticas. Receita mantém a exploração DEV-03; Inspeções mantém fila e detalhe auditável DEV-05. As demais jornadas seguem seus estados no PRD. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos, sem substituir o contrato do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
+
+O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite. As portas são publicadas somente em localhost por segurança; acesso de outro dispositivo exige ingresso configurado deliberadamente. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
 
 ## Arquitetura adotada
 
-Consulte o [guia arquitetural](../architecture/frontend.md) e a [ADR-0001](../decisions/0001-arquitetura-frontend.md) para estrutura, limites de importação, layout persistente, tema, transporte HTTP e política de estado. A primeira fatia visual cobre apenas navegação, apresentação visual do Panorama e textos superiores das demais páginas, até antes dos filtros ou conteúdo operacional.
+A revisão DEV-02 de 25/10/2026 validou o checklist sintético do Panorama: filtros e histórico da URL, oito métricas auditáveis, série de receita e estados de carregamento/erro/vazio/parcial/base zero. Base anterior zero, comparação desativada e falta de registros no período comparativo são mensagens distintas. A formatação da atualização é compartilhada entre a página e o painel de estado. Ver [revisão final e controles numéricos](../plans/2026-10-25-dev02-panorama-review.md); WEB-01 e WEB-07 não são concluídos pela validação sintética.
+
+Consulte o [guia arquitetural](../architecture/frontend.md), a [ADR-0001](../decisions/0001-arquitetura-frontend.md) e a [ADR-0013](../decisions/0013-composicao-ui-e-carregamento-frontend.md) para ownership, limites de importação, layout persistente, tema, transporte HTTP, estado e carregamento por rota. Panorama, Receita, UC 360 e Inspeções têm consultas demonstrativas; Ordens consulta a persistência operacional; o Assistente integra o chat demonstrativo pelo Backend. Operação permanece em seu escopo registrado. A arquitetura não altera o escopo ou os estados dos requisitos no PRD.
+
+A DEV-06 acrescenta criação no detalhe da suspeita e acompanhamento em `/ordens`, com UC/estado/prioridade/resultado/página na URL. A tabela desktop e os registros mobile mantêm uma ação operacional contextual por ordem; a navegação `Voltar à fila` fica no início da página. A revisão de 25/10 acrescenta, por solicitação da pessoa usuária além do protótipo, uma barra de filtros no padrão visual de Receita e Inspeções: UC exata, estado e resultado (todos/com resultado/sem resultado), com modal de ajustes, rascunho local e aplicação explícita. Alterar o recorte reinicia a página, preserva prioridade/tamanho da página e consulta os totais filtrados no servidor. Os painéis reutilizam o modal nativo padronizado do portal. Sucesso exige confirmação do servidor, falhas preservam o rascunho e ordens finais não reabrem. O proxy não injeta credenciais e a demo local não exige Bearer. Veja o [contrato DEV-06](../contracts/inspection-orders-dev06.md), [guia de acesso](../contracts/inspection-auth-handoff.md) e [evidências do frontend](../plans/2026-10-24-dev06-orders-frontend-evidence.md).
+
+A DEV-07 integra o ciclo operacional com versão obrigatória, resultado que conclui a ordem, cancelamento pela rota dedicada com confirmação de OS/UC e histórico persistido pelo servidor. Ordens encerradas ficam somente para consulta. O cliente reconcilia conflitos sem reenvio automático, preserva rascunhos e impede que uma resposta atrasada substitua uma versão mais recente ou feche outro diálogo. Histórico legado sem ator/versão é explícito; textos longos não ampliam o modal. O fluxo foi verificado com API real e PostgreSQL descartável, inclusive após reload e reinício. A interface foi aprovada em 25/10; WEB-05 mantém o estado do PRD e os dados da fila continuam sintéticos. Veja [contrato DEV-07](../contracts/inspection-lifecycle-dev07.md) e [evidências da revisão](../plans/2026-10-25-dev07-evidencias.md).
 
 A DEV-01 usa TanStack Query e o transporte existente na rota `/dev/contratos`, somente em desenvolvimento e sem item no menu. Ela valida o contrato de indicadores em execução, consulta a API real e mostra demonstração, disponibilidade e proveniência. O build de produção exclui essa página. Veja [contratos](../contracts/analytics-api.md), [desenho](../design/2026-10-20-dev01-design.md) e [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md). A rota não implementa os dashboards ou conclui suas jornadas.
 
 ## Público e jornadas
 
+A DEV-03 torna Receita explorável com API sintética real, segundo [contrato 1.1.0](../contracts/revenue-dev03.md), [desenho](../design/2026-10-21-dev03-design.md) e [ADR-0008](../decisions/0008-exploracao-demonstrativa-receita.md). Filtros base e refinamentos ficam na URL; voltar ao total preserva os filtros base. A barra compacta abre um diálogo de filtros; cartões, decomposição e tabela seguem os frames claro/escuro, com série e fundamento após os recortes. JSON é validado em execução; chave da consulta e cancelamento acompanham os filtros. A demonstração compara competências extremas explicitamente e não substitui as janelas anuais ou o aceite com Gold. Veja as [evidências de revisão integrada](../plans/2026-10-21-dev03-evidence.md).
+
+A DEV-04 implementou a demonstração sintética de WEB-03 conforme [contrato UC 1.1.0](../contracts/uc360-dev04.md), [desenho](../design/2026-10-22-dev04-design.md), [plano](../plans/2026-10-22-dev04-plan.md), [evidências](../plans/2026-10-22-dev04-evidence.md) e [ADR-0009](../decisions/0009-uc360-contratos-de-consulta.md). A busca fica em `/uc-360`; selecionar um resultado abre a tela própria `/uc-360/:ucId`, conforme a parte 03 dos fluxos do Figma. Busca, competências, seção e página aplicadas ficam na URL; rascunho da busca e do período permanecem locais. Links anteriores com `?uc=` continuam compatíveis. A feature valida JSON, consulta overview e histórico por seção, mostra cobertura/ausência por medida e separa fatos de hipóteses. `UC360Page` coordena URL e consultas; `UC360SearchPanel` mantém busca/resultados, `UC360Detail` compõe a visão, `UC360PeriodForm` mantém o rascunho local, e `UC360SummaryMetrics`, `UC360Comparison` e `UC360Interpretation` apresentam métricas, comparação, fatos e limites. Os hooks com decoder e cancelamento permanecem em `useUC360.ts`. Essa implementação não conclui o requisito antes da reconciliação Gold.
+
 O portal é interno e apoia cinco rotinas: panorama para diretoria, receita para comercial, visão UC para atendimento, fila/ordens para perdas e continuidade por alimentador para operação. O agente de IA deve estar acessível no próprio portal e gerar insight contextual em ao menos uma tela. A divisão exata em rotas/telas é decisão de produto; cada jornada precisa ser testada por perfil de usuário relevante.
 
 ## Inventário funcional mínimo
 
-| Área | Conteúdo e ações | Requisitos |
-| --- | --- | --- |
-| Panorama | KPIs, séries, comparação entre períodos, filtros e atualização dos dados | WEB-01, WEB-07 |
-| Receita | Separar preço e volume; navegar município, bairro e classe; visualizar fundamento da variação | WEB-02, WEB-07 |
-| UC 360 | Buscar UC e reunir cliente/cadastro, consumo, faturas, medidor, GD, interrupções, chamados | WEB-03 |
+| Área      | Conteúdo e ações                                                                                                    | Requisitos                     |
+| --------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Panorama  | KPIs, séries, comparação entre períodos, filtros e atualização dos dados                                            | WEB-01, WEB-07                 |
+| Receita   | Separar preço e volume; navegar município, bairro e classe; visualizar fundamento da variação                       | WEB-02, WEB-07                 |
+| UC 360    | Buscar UC e reunir cliente/cadastro, consumo, faturas, medidor, GD, interrupções, chamados                          | WEB-03                         |
 | Inspeções | Fila com motivo/energia estimada, geração e ciclo de vida de ordens; exportar/importar se diferenciais forem feitos | WEB-04, WEB-05, WEB-08, WEB-09 |
-| Operação | DEC/FEC por alimentador, tendência e pior desempenho | WEB-06 |
-| IA | Conversa em português e insight contextual verificável | IA-04, IA-05 |
-| Acesso | Perfis e telas/ações por cargo, se diferencial for escolhido | WEB-10 |
+| Operação  | DEC/FEC por alimentador, tendência e pior desempenho                                                                | WEB-06                         |
+| IA        | Conversa em português e insight contextual verificável                                                              | IA-04, IA-05                   |
+| Acesso    | Perfis e telas/ações por cargo, se diferencial for escolhido                                                        | WEB-10                         |
 
 ### Jornadas para revisão de produto
 
@@ -37,6 +49,8 @@ Esses percursos são critérios de revisão, não uma imposição de seis rotas.
 
 ## Regras de apresentação
 
+A revisão UX #56 de 26/10/2026 torna explícitos escala zero e recorte explorado em Receita, organiza o período e reúne os quatro KPIs comparativos da UC 360 em uma única seção, separando grandezas físicas e financeiras dos dados de apoio. Evidencia prioridade de suspeita e identifica a ação de cada ordem. Datas de calendário são legíveis em dia/mês/ano quando o ano importa; competências mensais usam mês/ano na interface. Em criação de ordem, conflito por suspeita obsoleta pede atualização do detalhe, ordem ativa aponta para o ID recebido e apenas falha de rede ambígua oferece reenvio da mesma intenção. Valores técnicos continuam nos contratos e na URL. A fonte sintética não conclui a reconciliação Gold dos IDs WEB.
+
 - Toda métrica mostra nome, unidade, período/competência, filtros aplicados e data da atualização.
 - A distinção entre `valor faturado`, `valor pago`, `energia consumida` e `energia faturada` deve ser visível.
 - Gráficos terão rótulos e alternativa textual; tabelas suportarão navegação por teclado, ordenação/recorte claros e estados de carregamento/erro/vazio.
@@ -46,19 +60,55 @@ Esses percursos são critérios de revisão, não uma imposição de seis rotas.
 
 ## Estados e dados que cada visualização deve tratar
 
-| Estado | Comportamento esperado |
-| --- | --- |
-| Carregando | Identificar área em atualização sem exibir número antigo como se fosse atual. |
-| Vazio legítimo | Distinguir ausência de registro para filtros escolhidos de falha na carga ou valor zero. |
-| Parcial/incompleto | Indicar quais fontes/competências faltam e quais conclusões ficam indisponíveis. |
-| Erro de API/IA | Permitir nova tentativa quando apropriado e manter os dados já válidos; mensagem sem detalhes internos. |
-| Base pequena/denominador zero | Evitar percentuais e ordenações enganosas; mostrar contagem de base e razão da indisponibilidade. |
-| Filtro alterado | Atualizar gráfico, tabela, exportação e insight contextual em conjunto ou sinalizar que um deles ainda não foi recalculado. |
+| Estado                        | Comportamento esperado                                                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Carregando                    | Identificar área em atualização sem exibir número antigo como se fosse atual.                                               |
+| Vazio legítimo                | Distinguir ausência de registro para filtros escolhidos de falha na carga ou valor zero.                                    |
+| Parcial/incompleto            | Indicar quais fontes/competências faltam e quais conclusões ficam indisponíveis.                                            |
+| Erro de API/IA                | Permitir nova tentativa quando apropriado e manter os dados já válidos; mensagem sem detalhes internos.                     |
+| Base pequena/denominador zero | Evitar percentuais e ordenações enganosas; mostrar contagem de base e razão da indisponibilidade.                           |
+| Filtro alterado               | Atualizar gráfico, tabela, exportação e insight contextual em conjunto ou sinalizar que um deles ainda não foi recalculado. |
 
 Para tabelas grandes, definir paginação/ordenação de modo consistente com a API; para visualizações, explicitar unidade, legenda, escala e descrição textual. Validar uso por teclado, foco, rótulos e contraste nas jornadas principais.
 
 ## Integração e aceitação
 
+A DEV-05 implementa a jornada demonstrativa de perdas em `/inspecoes`, com consulta real ao backend sintético, filtros/página/ordenação na URL e detalhe de evidências com retorno ao mesmo recorte. A [regra de prioridade, estimativa e desempate](../contracts/inspection-dev05.md) expõe insumos, ausência e limitações; não confirma irregularidade. A regra real e a Gold continuam pendentes; as ordens possuem a integração operacional DEV-06/DEV-07 descrita acima. Dados cacheados podem permanecer durante atualização ou falha somente com aviso explícito.
+
+A revisão visual DEV-05 de 23/10/2026 usa os frames `15:773`, `16:579` e `195:7869` da seção `04 · Inspeções`; detalhe mobile `195:8041` e frames escuros `16:1738`/`16:1833` foram conferidos visualmente no navegador, sem alegar contexto MCP para eles. A fila desktop tem cinco colunas; no mobile, cada UC é um registro vertical sem tabela ou rolagem horizontal. A composição vigente não mostra três cartões de resumo nem classes alta/média: prioridade numérica, sinais e energia vêm da API. A barra de filtros abre diálogo modal no padrão de Receita, com rascunho local, aplicar/cancelar, fechamento por Escape e retorno de foco; os filtros aplicados continuam na URL. A janela mostrada é janeiro–fevereiro/2025, com comparação não aplicada. O detalhe mantém painel de motivo, aviso de limite, fundamentos auditáveis e `Criar ordem` desabilitada por pertencer à WEB-05. Tema e geometria usam os tokens locais. Testes, lint, fronteiras, formatação e build frontend passaram; os fluxos principais foram conferidos com API HTTP local e fonte sintética. Capturas da fila/detalhe em claro/escuro de 390 a 2560 px não mostram overflow horizontal. Modal mobile passou nos dois temas; estilos computados acordados de Receita e Inspeções são iguais. Reflow 720×512 passou sem overflow; não foi testado zoom nativo a 200%. O contrato [DEV-05](../contracts/inspection-dev05.md) descreve as fontes visuais e os limites de apresentação.
+
 O frontend consome API FastAPI; não lê o banco ou arquivos Gold diretamente. Definir contratos com backend antes de codificar componentes. Verificar ao menos uma jornada real de cada área com Gold carregada e demonstrar que os números batem com a consulta fonte. A skill `vercel-react-best-practices` é referência para performance React, não substitui os critérios do PRD. O [protótipo próprio em Figma](../design/grid360-prototype.md) orienta a interface nos dois temas; contém dados sintéticos e não valida integração, persistência ou acessibilidade de execução.
 
 Antes de declarar WEB-01 a WEB-07 concluídos, guardar evidência de uma execução com API real, filtros exercitados, caso vazio/erro e amostra reconciliada com Gold. Os diferenciais WEB-08 a WEB-10 são independentes e continuam pendentes até seus próprios critérios serem testados.
+
+### Assistente — integração conversacional demonstrativa
+
+A rota `/assistente` envia `contract_version=v1`, a pergunta e até três turnos recentes a `POST /api/v1/ai/questions`. O navegador chama somente o Backend; a chave e a configuração do Gemini permanecem no serviço GenAI. A tela valida o envelope recebido em execução e distingue resposta fundamentada, esclarecimento, recusa, ausência de evidência e falha recuperável, com um rótulo visível para cada estado. Respostas mostram referência, descrição, marcação sintética, limitações e recorte declarado. O histórico é uma região rolável independente; o formulário fica fora dela, acessível enquanto as mensagens rolam, e o estado de processamento é anunciado à tecnologia assistiva. A conversa e seu contexto ficam apenas na memória do componente e podem ser apagados com “Nova conversa”. Erros HTTP não são repetidos automaticamente; a falha de rede tem mensagem recuperável e o botão manual só aparece quando o envelope válido permite retry.
+
+O `docker-compose.yml` inicia o serviço GenAI sem publicar sua porta no host e aguarda o health check antes do Backend. Para uma chamada de modelo, as configurações privadas de Backend e GenAI precisam ser preenchidas; os arquivos `.env` seguem ignorados pelo Git. O CI usa o `.env.example` e verifica saúde do conjunto sem chave Gemini, sem chamada faturável e sem habilitar acesso demonstrativo no GenAI. A prova automática da tela usa transporte falso; a integração real depende de configuração local e continua sem acesso à Gold. Veja [contrato de chat](../contracts/genai-chat-api.md) e os READMEs de Backend e GenAI.
+
+### Insight contextual — IA-04
+
+O Panorama posiciona o cartão compacto de insight na coluna à direita da série histórica em telas largas e abaixo dela em telas menores. Em telas largas, a grade estica o cartão até a altura do gráfico; em telas menores, ele usa a altura natural do conteúdo. O cartão resume valor observado, variação percentual, principal movimento por grupo e um próximo passo curto para investigação. A hipótese retornada pela IA aparece em bloco próprio, separada da observação e da leitura numérica calculada; no cartão, o texto fica limitado a duas linhas e é identificado como sugestão de investigação que não comprova causa. O painel lateral mostra a hipótese completa com a mesma ressalva. O botão “Ver análise detalhada” abre à direita um painel lateral modal com leitura completa, recomendação, competência, comparação, município, classe, definição, fórmula, evidências, lote, atualização e limitações. O painel rola internamente para evitar alongar o dashboard; o aviso de dados sintéticos aparece nos detalhes sem expor nomes internos de requisitos. Respostas, esclarecimento, recusa, falta de evidência, atualização de recorte e falha de serviço têm estados visíveis. Se os indicadores não tiverem linhas, o cartão informa ausência sem tratar a soma zero como dado observado.
+
+O hook usa chave de consulta formada por filtros e versão do lote, propaga `AbortSignal` e valida o recorte e a versão da resposta. Uma alteração de filtro troca a chave imediatamente, e uma resposta tardia fica associada ao recorte anterior; erro de insight não desmonta os KPIs. HTTP 409 sinaliza que o lote mudou e oferece atualizar os indicadores. O contrato está em [panorama-insight-api.md](../contracts/panorama-insight-api.md). Esta versão usa exclusivamente a fonte sintética e não satisfaz a reconciliação obrigatória com Gold.
+
+### Revisão DEV-02 — 22/10/2026
+
+Filtros da URL são validados antes do envio: comparação, município e classe devem pertencer aos conjuntos demonstrativos; competência deve ser real em YYYY-MM; parâmetros repetidos são recusados. Valores inválidos permanecem na URL com erro por campo até correção ou restauração. Histórico e recarga conservam o contexto. Datas válidas sem fatos continuam sendo recortes vazios. Fonte sintética e atualização ficam no topo. A revisão de 25/10/2026 segue a camada 01 do Figma: valor faturado, energia faturada, consumo apurado e base de UCs precedem uma série mensal de receita faturada em R$ mil; oito métricas continuam auditáveis em Ver fundamentos. A barra ocupa a largura útil do layout, alinhada como Receita; filtros usam modal padronizado, com rascunho, aplicar/cancelar e foco. Os termos m-1/m-12 saíram dos rótulos. A tabela da série abre em modal. O desenho decorativo que tinha animação foi retirado a pedido da pessoa usuária, preservando o gráfico de receita e o componente existente de insights IA. Falha em atualização conserva o último conjunto válido identificado por aviso. Evidências e limites em [revisão do Panorama](../plans/2026-10-25-panorama-refactor.md). Comparação de competência parcial é indisponível, sem exibir percentual zero; 1 GWh equivale a 1.000.000 kWh.
+
+### Faixa compacta de filtros — DEV-02, 22/10/2026
+
+A apresentação inicial dos filtros é um resumo de competência, período de comparação, território e classe, conforme as capturas do protótipo fornecidas na revisão. “Ajustar filtros” expande os controles na mesma superfície; edições são aplicadas automaticamente na URL e nos dados. Fechar ajustes ou Escape recolhe os campos; Escape retorna foco ao botão. URLs inválidas abrem os campos para correção. Desktop usa quatro colunas com ação lateral; mobile organiza o resumo em duas colunas e a ação abaixo. Os períodos e valores seguem a fixture vigente, sem trocar pelos exemplos visuais do Figma.
+
+Por solicitação da pessoa usuária nesta revisão, a linha de fonte/lote e última atualização foi retirada do topo do Panorama. A API preserva os metadados e os detalhes das métricas mantêm o lote; a origem continua sintética.
+
+### Operação — DEV-08
+
+A página `/operacao` integra o [contrato DEV-08](../contracts/operations-dev08.md) ao layer 06 do protótipo: consolidado, ranking dos alimentadores e investigação de séries/ocorrências. Os quatro cards usam `GET /operations/summary` 1.2.0 e a [definição consolidada aprovada](../decisions/0015-consolidado-demonstrativo-de-continuidade.md). A base incluída e a população cadastral do recorte são conceitos distintos; exclusões tornam o consolidado parcial e ficam explícitas nos fundamentos. Não se calcula média de DEC/FEC no cliente.
+
+Filtros aplicados de competência inicial/final e alimentador, métrica do ranking, alimentador aberto e paginação ficam na URL. O formulário usa rascunho local; aplicar confirma o recorte, cancelar/Escape preserva a consulta anterior. Ao abrir/voltar do detalhe, o filtro da lista e a ordenação são mantidos. Os filtros de comparação anual, município e classe desenhados no Figma não aparecem como controles sem suporte no backend.
+
+O detalhe consome `GET /operations/feeders/{id}` 1.1.0, com resumo independente da página de ocorrências. As séries DEC/FEC são mensais, com unidade, escala a partir de zero e alternativa textual; os valores e períodos ilustrativos do Figma não substituem a API. Alimentadores excluídos do ranking continuam investigáveis, e a indisponibilidade dos indicadores não transforma ocorrências observadas em ausência. Fórmula, universo, denominador, numeradores, janela observada, referência, origem e limitações permanecem consultáveis.
+
+Decoders validam o JSON e seu contexto antes de apresentar dados; filtros inválidos na URL suspendem consultas até correção/restauração. Erros de cada consulta têm recuperação manual e não apagam respostas válidas das demais. Carregamento, atualização, vazio, parcial, indisponível e zero conhecido são estados distintos. A integração é demonstrativa, sem carga ou reconciliação Gold, e não declara conformidade regulatória. Evidências finais e limites ficam no Registro de progresso do PRD.

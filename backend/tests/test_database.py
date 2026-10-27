@@ -14,6 +14,7 @@ def test_model_metadata_loads_without_importing_database_engine():
         assert set(Base.metadata.tables) == {
             "gold_indicadores",
             "operational_inspection_orders",
+            "operational_order_history",
         }
         assert "app.core.database" not in sys.modules
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, ClassVar, Protocol
 
 from app.core.config import settings
 from app.synthetic import fixtures
@@ -15,6 +15,26 @@ class MonthlyCoverage:
 
     start: str
     end: str
+
+
+@dataclass(frozen=True)
+class UCCoverage:
+    """Coverage declaration for one UC source, independent of its rows."""
+
+    uc_ids: frozenset[str]
+    start: str | None = None
+    end: str | None = None
+    snapshot_at: str | None = None
+
+
+@dataclass(frozen=True)
+class RevenueCoverage:
+    """Explicit monthly coverage for each independent revenue measure."""
+
+    billed_amount: frozenset[str]
+    billed_energy_kwh: frozenset[str]
+    paid_amount: frozenset[str]
+    measured_energy_kwh: frozenset[str]
 
 
 class AnalyticsRepository(Protocol):
@@ -33,6 +53,13 @@ class AnalyticsRepository(Protocol):
     source_updated_at: str
     source_limitations: list[str]
     continuity_coverage: MonthlyCoverage | None
+    revenue_coverage: RevenueCoverage
+    uc_monthly_coverage: dict[str, UCCoverage]
+    uc_snapshot_coverage: dict[str, UCCoverage]
+
+
+_SYNTHETIC_UC_COVERAGE_IDS = frozenset({"UC-1001", "UC-1002", "UC-1003", "UC-1004"})
+_SYNTHETIC_UC_PROFILE_IDS = frozenset(unit["uc_id"] for unit in fixtures.UNITS)
 
 
 class SyntheticAnalyticsRepository:
@@ -51,11 +78,53 @@ class SyntheticAnalyticsRepository:
     source_version = fixtures.DATA_VERSION
     source_is_demo = True
     source_updated_at = fixtures.UPDATED_AT
-    source_limitations = [fixtures.DATA_LIMITATION]
+    source_limitations: ClassVar[list[str]] = [fixtures.DATA_LIMITATION]
     continuity_coverage: MonthlyCoverage | None = MonthlyCoverage(
         start=fixtures.CONTINUITY_COVERAGE_START,
         end=fixtures.CONTINUITY_COVERAGE_END,
     )
+    revenue_coverage: RevenueCoverage = RevenueCoverage(
+        billed_amount=frozenset(fixtures.REVENUE_BILLED_AMOUNT_COVERAGE),
+        billed_energy_kwh=frozenset(fixtures.REVENUE_BILLED_ENERGY_COVERAGE),
+        paid_amount=frozenset(fixtures.REVENUE_PAID_AMOUNT_COVERAGE),
+        measured_energy_kwh=frozenset(fixtures.REVENUE_MEASURED_ENERGY_COVERAGE),
+    )
+    uc_monthly_coverage: ClassVar[dict[str, UCCoverage]] = {
+        measure: UCCoverage(_SYNTHETIC_UC_COVERAGE_IDS, "2025-01", "2025-02")
+        for measure in (
+            "measured_energy_kwh",
+            "billed_amount",
+            "billed_energy_kwh",
+            "paid_amount",
+            "interruptions",
+            "calls",
+        )
+    }
+    uc_snapshot_coverage: ClassVar[dict[str, UCCoverage]] = {
+        "profile": UCCoverage(
+            _SYNTHETIC_UC_PROFILE_IDS, snapshot_at=fixtures.UPDATED_AT[:10]
+        ),
+        "meters": UCCoverage(
+            _SYNTHETIC_UC_COVERAGE_IDS, snapshot_at=fixtures.UPDATED_AT[:10]
+        ),
+        "distributed_generation": UCCoverage(
+            _SYNTHETIC_UC_COVERAGE_IDS, snapshot_at=fixtures.UPDATED_AT[:10]
+        ),
+    }
+
+    def __init__(self):
+        self.units = [dict(row) for row in fixtures.UNITS]
+        self.invoices = [dict(row) for row in fixtures.INVOICES]
+        self.readings = [dict(row) for row in fixtures.READINGS]
+        self.meters = [dict(row) for row in fixtures.METERS]
+        self.generation = [dict(row) for row in fixtures.GENERATION]
+        self.interruptions = [dict(row) for row in fixtures.INTERRUPTIONS]
+        self.calls = [dict(row) for row in fixtures.CALLS]
+        self.feeders = [dict(row) for row in fixtures.FEEDERS]
+        self.suspicions = [dict(row) for row in fixtures.SUSPICIONS]
+        self.source_limitations = list(type(self).source_limitations)
+        self.uc_monthly_coverage = dict(type(self).uc_monthly_coverage)
+        self.uc_snapshot_coverage = dict(type(self).uc_snapshot_coverage)
 
 
 _synthetic_repository = SyntheticAnalyticsRepository()
@@ -66,3 +135,8 @@ def get_analytics_repository() -> AnalyticsRepository:
     if settings.ANALYTICS_SOURCE != "synthetic":
         raise AnalyticsSourceUnavailable()
     return _synthetic_repository
+
+
+def get_analytics_repository_provider() -> Callable[[], AnalyticsRepository]:
+    """Resolve analytics lazily, only when a new order needs queue evidence."""
+    return get_analytics_repository

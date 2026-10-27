@@ -21,7 +21,7 @@ export class ApiError extends Error {
 function apiBaseUrl() {
   const configured = import.meta.env.VITE_API_URL?.trim();
   if (configured) return configured.replace(/\/$/, "");
-  if (import.meta.env.DEV) return "http://localhost:8000";
+  if (import.meta.env.DEV) return "";
   throw new ApiError(
     "VITE_API_URL não foi configurada.",
     0,
