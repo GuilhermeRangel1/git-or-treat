@@ -100,8 +100,8 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 **Regras de Negócio e Tratamento de Dados:** 
 * **Filtro de Segurança / Qualidade (N2):** Exclusão das UCs fictícias de teste (`id_uc` iniciando com `TESTE`), garantindo a base real de 45.000 UCs no denominador para evitar subestimação dos indicadores operacionais.
 * **Fórmulas Oficiais:**
-  * $\text{DEC} = \frac{\text{duracao\_total\_interrupcoes\_horas}}{\text{total\_ucs\_alimentador}}$
-  * $\text{FEC} = \frac{\text{frequencia\_total\_interrupcoes}}{\text{total\_ucs\_alimentador}}$
+  * **DEC:** `DEC` = `duracao_total_interrupcoes_horas` / `total_ucs_alimentador`
+  * **FEC:** `FEC` = `frequencia_total_interrupcoes` / `total_ucs_alimentador`
 
 | Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
 | :--- | :--- | :--- | :--- |
@@ -144,9 +144,9 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 **Janelas Temporais de Análise:**
 * **Período Inicial (P1):** Média de consumo mensal de `2022-07` a `2023-06` (12 meses).
 * **Período Final (P2):** Média de consumo mensal de `2025-07` a `2026-06` (12 meses).
-**Fórmulas e Regras de Negócio:**
-* $\text{variacao\_kwh} = \text{consumo\_medio\_final} - \text{consumo\_medio\_inicial}$
-* $\text{variacao\_pct} = \left(\frac{\text{consumo\_medio\_final} - \text{consumo\_medio\_inicial}}{\text{consumo\_medio\_inicial}}\right) \times 100$
+* **Fórmulas e Regras de Negócio:**
+  * **Variação Absoluta:** `variacao_kwh` = `consumo_medio_final` - `consumo_medio_inicial`
+  * **Variação Percentual:** `variacao_pct` = ((`consumo_medio_final` - `consumo_medio_inicial`) / `consumo_medio_inicial`) * 100
 * **Tratamento de Nulos:** Indicador `variacao_pct` mantido como `NULL` quando não há histórico de leitura em ambos os períodos (P1 e P2). Havendo ao menos 1 mês com medição em cada janela, o indicador é calculado sobre a média dos meses disponíveis.
 
 | Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
