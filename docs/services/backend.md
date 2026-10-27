@@ -6,7 +6,7 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV não insere linhas nem implementa idempotência. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV v1 é transacional e repetível, conforme o [contrato provisório](../contracts/gold-csv-v1.md); as rotas ainda não consomem essas tabelas. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
 ## DEV-01: contratos antes da Gold
 
@@ -92,7 +92,7 @@ A DEV-07 acrescenta histórico persistido com ator/versão, registro dedicado de
 
 ## Carga da Gold e consistência
 
-O script `backend/scripts/load_gold.py` é um esqueleto: não carrega linhas CSV nem garante idempotência. Quando a ingestão for implementada, registrar lote, esquema e contagens por tabela; só disponibilizar consultas após validar consistência entre tabelas. A segunda execução do mesmo lote deve produzir os mesmos totais. Alterações na fórmula Gold exigem atualização coordenada do dicionário, API, portal, IA e diagnóstico. Testar o mesmo recorte no Databricks, banco local e resposta da API. Se o banco escolhido não suportar separação robusta de permissões, documentar controles compensatórios para o agente de IA antes de afirmar que consultas são somente leitura.
+O script `backend/scripts/load_gold.py` importa as sete tabelas CSV do lote v1 após `alembic upgrade head`, em transação única, com chaves, tipos, contagens, somas e hashes validados. Não altera ordens operacionais nem ativa a fonte da API. Consulte organização, comandos e limites no [contrato CSV v1](../contracts/gold-csv-v1.md). A prova Databricks → CSV, as definições DE-08 e a adaptação API/portal permanecem pendentes.
 
 ## Qualidade
 

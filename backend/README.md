@@ -15,7 +15,7 @@ backend/
 ├── app/schemas/           # Contratos Pydantic de entrada e saída
 ├── app/services/          # Regras e operações de domínio
 ├── alembic/               # Migrações de esquema
-├── scripts/load_gold.py   # Esqueleto sem carga de dados implementada
+├── scripts/load_gold.py   # Carga transacional dos sete CSVs Gold v1
 ├── tests/                 # Testes HTTP, ORM e migrações
 └── requirements.txt       # Dependências Python
 ```
@@ -138,7 +138,7 @@ Depois do upgrade, o teste compara o esquema com todos os modelos registrados us
 
 ## Limites atuais
 
-As ordens usam dados operacionais separados, controle de acesso DEV-06, histórico transacional, resultado, cancelamento identificado e versão DEV-07. Contratos, exemplos, migrações e limites no [guia DEV-07](../docs/contracts/inspection-lifecycle-dev07.md). A interface foi integrada e aprovada em 25/10; a reexecução com Python 3.12.15/container e PostgreSQL 16.13 descartável passou nos 320 testes, pip check e compileall. Consulte as [evidências e limites](../docs/plans/2026-10-25-dev07-evidencias.md). A carga da Gold não lê nem insere linhas e não oferece idempotência. Executar `python scripts/load_gold.py` informa que a carga ainda não está implementada; a presença de CSVs não significa que foram carregados.
+As ordens usam dados operacionais separados, controle de acesso DEV-06, histórico transacional, resultado, cancelamento identificado e versão DEV-07. Contratos, exemplos, migrações e limites no [guia DEV-07](../docs/contracts/inspection-lifecycle-dev07.md). A interface foi integrada e aprovada em 25/10; a reexecução com Python 3.12.15/container e PostgreSQL 16.13 descartável passou nos 320 testes, pip check e compileall. Consulte as [evidências e limites](../docs/plans/2026-10-25-dev07-evidencias.md). A carga Gold v1 está implementada: após `alembic upgrade head`, execute `python scripts/load_gold.py --directory data/gold/v1 --batch v1`. Ela valida e substitui as sete tabelas em uma transação; repetição idêntica não reinsere dados. Isso não ativa a fonte da API. Veja o [contrato provisório, organização e limites](../docs/contracts/gold-csv-v1.md).
 
 
 ## Contrato de alterações das ordens — DEV-07
