@@ -42,7 +42,12 @@ const historyLabels: Record<string, string> = {
   category: "Categoria",
 };
 const historyColumns: Record<UCHistorySection, string[]> = {
-  consumption: ["competencia", "measured_energy_kwh", "status"],
+  consumption: [
+    "competencia",
+    "measured_energy_kwh",
+    "billed_amount",
+    "status",
+  ],
   invoices: [
     "invoice_id",
     "competencia",
@@ -65,7 +70,7 @@ const money = new Intl.NumberFormat("pt-BR", {
 const decimal = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 
 function historyValue(key: string, value: unknown) {
-  if (value === null) return "Sem dado";
+  if (value == null) return "Sem dado";
   if (key === "competencia") return formatUCCompetence(String(value));
   if (
     [
@@ -214,7 +219,7 @@ export function HistoryPanel({
   onPageChange: (page: number) => void;
 }) {
   return (
-    <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
+    <section className="grid min-w-0 gap-3 rounded-xl bg-surface p-4 sm:p-5">
       <h3 className="font-heading text-lg font-semibold">
         Histórico da unidade
       </h3>
@@ -243,7 +248,7 @@ export function HistoryPanel({
       {error != null && <ErrorMessage error={error} retry={onRetry} />}
       {history && (
         <>
-          <p className="text-sm text-muted">
+          <p className="min-w-0 break-all text-sm text-muted">
             {statusLabel(history.metadata.status)} · {history.pagination.total}{" "}
             {history.pagination.total === 1 ? "registro" : "registros"} · fonte{" "}
             {history.metadata.source.version}

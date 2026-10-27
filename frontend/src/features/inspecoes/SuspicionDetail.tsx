@@ -28,9 +28,11 @@ export default function SuspicionDetail({
   data: DetailEnvelope["data"];
   metadata: Metadata;
 }) {
-  const priority = data.priority.toLocaleString("pt-BR", {
-    maximumFractionDigits: 2,
-  });
+  const priority =
+    data.priority_label ??
+    data.priority?.toLocaleString("pt-BR", {
+      maximumFractionDigits: 2,
+    });
 
   return (
     <article
@@ -58,14 +60,20 @@ export default function SuspicionDetail({
           <div className="mt-4">
             <span
               role="status"
-              aria-label={`Prioridade analítica: ${priority} de 1`}
+              aria-label={
+                data.priority === null
+                  ? `Prioridade categórica: ${priority}`
+                  : `Prioridade analítica: ${priority} de 1`
+              }
               className="inline-flex min-h-9 items-center rounded-full border border-[var(--status-info-text)] bg-[var(--status-info-bg)] px-3 text-sm font-semibold text-[var(--status-info-text)]"
             >
-              Prioridade {priority} / 1
+              Prioridade {priority}
+              {data.priority !== null ? " / 1" : ""}
             </span>
             <p className="mt-1 text-xs leading-[18px] text-muted">
-              Pontuação de priorização da fila; não é probabilidade de
-              irregularidade.
+              {data.priority === null
+                ? "Categoria publicada pela Gold; regra provisória aguardando homologação."
+                : "Pontuação de priorização da fila; não é probabilidade de irregularidade."}
             </p>
           </div>
 
@@ -75,7 +83,9 @@ export default function SuspicionDetail({
               {energy(data.potential_recoverable_energy_kwh)}
             </p>
             <p className="text-xs leading-[18px] text-muted">
-              Estimativa demonstrativa, sem confirmação de recuperação.
+              {metadata.source.is_demo
+                ? "Estimativa demonstrativa, sem confirmação de recuperação."
+                : "Estimativa não fornecida na Gold desta versão."}
             </p>
           </div>
 
@@ -88,7 +98,9 @@ export default function SuspicionDetail({
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-muted">Sem sinais disponíveis.</p>
+              <p className="mt-1 text-muted">
+                {data.indicators.join(" · ") || "Sem sinais disponíveis."}
+              </p>
             )}
           </div>
 
@@ -105,8 +117,9 @@ export default function SuspicionDetail({
         <div>
           <p className="text-sm leading-5 font-medium">Limite da evidência</p>
           <p className="text-sm leading-[22px]">
-            Não há irregularidade confirmada. A priorização orienta uma
-            inspeção; não constitui diagnóstico de fraude.
+            {metadata.source.is_demo
+              ? "Não há irregularidade confirmada. A priorização orienta uma inspeção; não constitui diagnóstico de fraude."
+              : "O histórico e a prioridade não confirmam uma nova irregularidade. A fila orienta investigação; não constitui diagnóstico de fraude."}
           </p>
         </div>
       </aside>

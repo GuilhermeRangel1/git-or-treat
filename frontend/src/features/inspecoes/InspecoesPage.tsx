@@ -19,7 +19,9 @@ function DemonstrationLine({ metadata }: { metadata: Metadata }) {
       {metadata.source.is_demo
         ? "Demonstração · dados sintéticos"
         : "Fonte analítica"}
-      {" · atualização ilustrativa: "}
+      {metadata.source.is_demo
+        ? " · atualização ilustrativa: "
+        : " · importação local: "}
       {new Intl.DateTimeFormat("pt-BR", {
         day: "2-digit",
         month: "2-digit",
@@ -95,7 +97,7 @@ export default function InspecoesPage() {
         </h1>
         <p className="text-sm leading-[22px] text-muted">
           {parsed?.detail
-            ? `${parsed.detail} · Prioridade ${detail.data ? detail.data.data.priority.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "consultando"} neste cenário demonstrativo.`
+            ? `${parsed.detail} · Prioridade ${detail.data ? (detail.data.data.priority_label ?? detail.data.data.priority?.toLocaleString("pt-BR", { maximumFractionDigits: 2 })) : "consultando"}.`
             : "Uma fila explicável para orientar a investigação de perdas. Suspeita não é fraude comprovada."}
         </p>
       </header>
@@ -174,14 +176,21 @@ export default function InspecoesPage() {
           {parsed?.detail && detail.data ? (
             <>
               <SuspicionDetail data={detail.data.data} metadata={metadata} />
-              <CreateOrder
-                key={`${detail.data.data.uc_id}:${detail.data.metadata.source.version}:${detail.data.data.rule_version}`}
-                uc={detail.data.data.uc_id}
-                sourceVersion={detail.data.metadata.source.version}
-                ruleVersion={detail.data.data.rule_version}
-                disabled={detail.isFetching || detail.isError}
-                onRefresh={() => void detail.refetch()}
-              />
+              {metadata.source.is_demo ? (
+                <CreateOrder
+                  key={`${detail.data.data.uc_id}:${detail.data.metadata.source.version}:${detail.data.data.rule_version}`}
+                  uc={detail.data.data.uc_id}
+                  sourceVersion={detail.data.metadata.source.version}
+                  ruleVersion={detail.data.data.rule_version}
+                  disabled={detail.isFetching || detail.isError}
+                  onRefresh={() => void detail.refetch()}
+                />
+              ) : (
+                <p className="text-sm text-muted">
+                  Criação de ordens pela fila Gold aguarda homologação. Consulta
+                  disponível.
+                </p>
+              )}
               <Link className={inspectionAction} to={`?${back}`}>
                 <ArrowLeft size={16} aria-hidden="true" />
                 Voltar à fila
@@ -195,12 +204,14 @@ export default function InspecoesPage() {
               >
                 <div>
                   <p className="text-sm font-semibold">
-                    Prioridade demonstrativa
+                    {metadata.source.is_demo
+                      ? "Prioridade demonstrativa"
+                      : "Prioridade publicada na Gold"}
                   </p>
                   <p className="mt-1 text-sm leading-[22px]">
-                    Motivos e estimativas são sintéticos. Critério final de
-                    priorização e energia recuperável dependem de validação com
-                    as fontes.
+                    {metadata.source.is_demo
+                      ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
+                      : "Categorias e histórico vêm dos CSVs. Score e energia recuperável não foram fornecidos; critérios aguardam o dicionário."}
                   </p>
                 </div>
               </aside>
@@ -218,7 +229,9 @@ export default function InspecoesPage() {
               {metadata.source.is_demo
                 ? "cenário sintético"
                 : metadata.source.kind}
-              . Nenhuma consulta à Gold.
+              {metadata.source.is_demo
+                ? ". Nenhuma consulta à Gold."
+                : ". Gold CSV provisória; critérios aguardam o dicionário."}
             </p>
             <button
               ref={foundationsTriggerRef}

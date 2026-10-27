@@ -83,7 +83,11 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
             {metadata.source.is_demo
               ? "Demonstração · dados sintéticos"
               : "Dados da fonte"}{" "}
-            · atualização {sourceDate(metadata.source.updated_at)}
+            ·{" "}
+            {metadata.source.kind === "gold_csv"
+              ? `Gold CSV provisória · lote ${metadata.source.version.split(":")[0]} · importação local`
+              : "atualização"}{" "}
+            {sourceDate(metadata.source.updated_at)}
           </p>
         )}
       </header>

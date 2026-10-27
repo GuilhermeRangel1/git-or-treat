@@ -113,6 +113,7 @@ export type UCSearchResponse = {
 export type UCConsumptionItem = Record<string, unknown> & {
   competencia: string;
   measured_energy_kwh: number | null;
+  billed_amount?: number | null;
   status: UCStatus;
 };
 export type UCInvoiceItem = Record<string, unknown> & {
@@ -465,6 +466,7 @@ export function decodeUCHistory(
     };
     switch (section) {
       case "consumption":
+        if ("billed_amount" in item) nullableNumber("billed_amount");
         text("competencia");
         month(item.competencia, `items[${index}].competencia`);
         const measuredEnergy = nullableNumber("measured_energy_kwh");

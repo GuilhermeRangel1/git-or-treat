@@ -1,16 +1,13 @@
 import { useId, useRef, useState } from "react";
 import { ChevronDown, RotateCcw, SlidersHorizontal } from "lucide-react";
-import {
-  CLASSES_DISPONIVEIS,
-  COMPETENCIAS_DISPONIVEIS,
-  MUNICIPIOS_DISPONIVEIS,
-} from "../analytics/syntheticData";
+import type { SourceOptions } from "../analytics/sourceOptions";
 import type { ComparisonType, PanoramaFilters } from "../analytics/types";
 import { DEFAULT_FILTERS } from "./usePanoramaFilters";
 import Button from "../ui/Button";
 import Modal from "../ui/Modal";
 
 interface FilterBarProps {
+  options?: SourceOptions;
   filters: PanoramaFilters;
   onApply: (filters: PanoramaFilters) => void;
   hasActiveFilters: boolean;
@@ -119,7 +116,19 @@ export default function FilterBar({
   onApply,
   hasActiveFilters,
   errors = {},
+  options,
 }: FilterBarProps) {
+  const MUNICIPIOS_DISPONIVEIS = [
+    { value: "todos", label: "Todos os municípios" },
+    ...(options?.municipio ?? []).map((value) => ({ value, label: value })),
+  ];
+  const CLASSES_DISPONIVEIS = [
+    { value: "todas", label: "Todas as classes" },
+    ...(options?.classe ?? []).map((value) => ({ value, label: value })),
+  ];
+  const COMPETENCIAS_DISPONIVEIS = (options?.competencias ?? []).map(
+    (value) => ({ value, label: periodLabel(value), isIncompleto: false }),
+  );
   const [open, setOpen] = useState(Object.keys(errors).length > 0);
   const [draft, setDraft] = useState(filters);
   const triggerRef = useRef<HTMLButtonElement>(null);

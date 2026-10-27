@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import Button from "@/shared/ui/Button";
 import MonthYearField from "@/shared/ui/MonthYearField";
+import type { SourceOptions } from "@/shared/analytics/sourceOptions";
 import type { RevenueEnvelope } from "./contract";
 import type { RevenueBaseFilters } from "./revenue-filters";
 
@@ -8,6 +9,7 @@ type RevenueFiltersFormProps = {
   initialFilters: RevenueBaseFilters;
   searchKey: string;
   envelope?: RevenueEnvelope;
+  options?: SourceOptions;
   onApply: (filters: RevenueBaseFilters) => void;
 };
 
@@ -22,6 +24,7 @@ export default function RevenueFiltersForm({
   initialFilters,
   searchKey,
   envelope,
+  options,
   onApply,
 }: RevenueFiltersFormProps) {
   const [draft, setDraft] = useState(initialFilters);
@@ -108,6 +111,13 @@ export default function RevenueFiltersForm({
           setDraft({ ...draft, competencia_inicio })
         }
       />
+      {options?.competencias.length ? (
+        <p className="text-sm text-muted sm:col-span-2">
+          Competências observadas: {options.competencias[0]} a{" "}
+          {options.competencias[options.competencias.length - 1]}. Ausência de
+          competência no recorte não equivale a zero.
+        </p>
+      ) : null}
       <MonthYearField
         label="Mês final"
         monthLabel="Mês do fim"
@@ -168,6 +178,32 @@ export default function RevenueFiltersForm({
           ))}
         </select>
       </label>
+      <div className="flex items-end sm:col-span-2">
+        <label className="grid gap-1.5 text-sm font-medium">
+          Alimentador
+          <select
+            className={textInputClass}
+            value={draft.alimentador}
+            onChange={(event) =>
+              setDraft({ ...draft, alimentador: event.target.value })
+            }
+          >
+            <option value="">Todos os alimentadores</option>
+            {Array.from(
+              new Set([
+                ...(options?.alimentador ?? []),
+                ...(draft.alimentador ? [draft.alimentador] : []),
+              ]),
+            )
+              .sort()
+              .map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+          </select>
+        </label>
+      </div>
       <div className="flex items-end sm:col-span-2">
         <Button type="submit" variant="accent" size="wide">
           Aplicar filtros

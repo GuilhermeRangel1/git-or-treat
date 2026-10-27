@@ -72,6 +72,7 @@ function mergeFilter(
 
 export function parseRevenueSearchParams(
   params: URLSearchParams,
+  defaults: RevenueBaseFilters = defaultRevenueFilters,
 ): ParsedRevenueUrl {
   const errors: string[] = [];
   const seen = new Set<string>();
@@ -95,9 +96,8 @@ export function parseRevenueSearchParams(
 
   const base: RevenueBaseFilters = {
     competencia_inicio:
-      values.competencia_inicio || defaultRevenueFilters.competencia_inicio,
-    competencia_fim:
-      values.competencia_fim || defaultRevenueFilters.competencia_fim,
+      values.competencia_inicio || defaults.competencia_inicio,
+    competencia_fim: values.competencia_fim || defaults.competencia_fim,
     municipio: values.municipio,
     bairro: values.bairro,
     classe: values.classe,

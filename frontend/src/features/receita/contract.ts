@@ -59,7 +59,7 @@ export type RevenueEnvelope = {
     comparison: RevenueComparison;
     price_volume: {
       method: "endpoint_price_volume";
-      reference_version: "dev03-v1";
+      reference_version: "dev03-v1" | "gold-csv-v1";
       price_effect_brl: number | null;
       volume_effect_brl: number | null;
       interaction_effect_brl: number | null;
@@ -358,7 +358,7 @@ export function decodeRevenueEnvelope(input: unknown): RevenueEnvelope {
   const priceVolume = object(data.price_volume, "data.price_volume");
   if (
     priceVolume.method !== "endpoint_price_volume" ||
-    priceVolume.reference_version !== "dev03-v1"
+    !["dev03-v1", "gold-csv-v1"].includes(String(priceVolume.reference_version))
   ) {
     throw new RevenueContractError(
       "data.price_volume contém método ou versão inválida.",
@@ -445,7 +445,8 @@ export function decodeRevenueEnvelope(input: unknown): RevenueEnvelope {
       comparison: comparison(data.comparison, "data.comparison"),
       price_volume: {
         method: "endpoint_price_volume",
-        reference_version: "dev03-v1",
+        reference_version: priceVolume.reference_version as
+          "dev03-v1" | "gold-csv-v1",
         price_effect_brl: nullableNumber(
           priceVolume.price_effect_brl,
           "data.price_volume.price_effect_brl",

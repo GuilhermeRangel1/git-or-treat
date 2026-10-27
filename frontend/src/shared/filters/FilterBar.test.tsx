@@ -4,12 +4,14 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import FilterBar from "./FilterBar";
 import { usePanoramaFilters } from "./usePanoramaFilters";
+import { sourceOptionsFixture } from "../analytics/sourceOptions.fixture.test-support";
 
 function Filters() {
   const { filters, setFilters, hasActiveFilters, errors } =
     usePanoramaFilters();
   return (
     <FilterBar
+      options={sourceOptionsFixture.data}
       filters={filters}
       onApply={setFilters}
       hasActiveFilters={hasActiveFilters}

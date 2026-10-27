@@ -49,8 +49,13 @@ function ItemCard({
       <p className="text-xs text-muted">UC / prioridade</p>
       <h3 className="mt-1 font-heading text-lg leading-[26px] font-semibold">
         {item.uc_id} /{" "}
-        <span aria-label={`Prioridade ${formatNumber(item.priority)} em 1`}>
-          {formatNumber(item.priority)}
+        <span
+          aria-label={
+            item.priority_label ??
+            `Prioridade ${formatNumber(item.priority ?? 0)} em 1`
+          }
+        >
+          {item.priority_label ?? formatNumber(item.priority ?? 0)}
         </span>
       </h3>
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -63,7 +68,7 @@ function ItemCard({
           <p className="mt-1 leading-5">
             {item.signals.length
               ? item.signals.map((signal) => signal.label).join(" · ")
-              : "Sem indicador informado"}
+              : item.indicators.join(" · ") || "Sem indicador informado"}
           </p>
         </div>
       </div>
@@ -179,14 +184,17 @@ export default function InspectionQueue({
                       className="break-words px-3 py-3 text-left font-normal"
                     >
                       <p className="font-sans leading-[22px]">
-                        {item.uc_id} / {formatNumber(item.priority)}
+                        {item.uc_id} /{" "}
+                        {item.priority_label ??
+                          formatNumber(item.priority ?? 0)}
                       </p>
                     </th>
                     <td className="px-3 py-3 leading-5">{item.reason}</td>
                     <td className="px-3 py-3 text-sm leading-5 text-muted">
                       {item.signals.length
                         ? item.signals.map((signal) => signal.label).join(" · ")
-                        : "Sem indicador informado"}
+                        : item.indicators.join(" · ") ||
+                          "Sem indicador informado"}
                     </td>
                     <td className="px-3 py-3">
                       <p className="font-medium">

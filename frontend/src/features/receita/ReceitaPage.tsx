@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
+import { useSourceOptions } from "@/shared/analytics/sourceOptions";
 import RevenueFiltersForm from "./RevenueFiltersForm";
 import RevenueBreakdown from "./RevenueBreakdown";
 import RevenueDecomposition from "./RevenueDecomposition";
@@ -10,6 +11,7 @@ import RevenueSeries from "./RevenueSeries";
 import RevenueSummary from "./RevenueSummary";
 import {
   parseRevenueSearchParams,
+  defaultRevenueFilters,
   revenueRefinementDestination,
   refineRevenueParams,
   updateRevenueBaseParams,
@@ -46,9 +48,20 @@ export default function ReceitaPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersTriggerRef = useRef<HTMLButtonElement>(null);
   const searchKey = searchParams.toString();
+  const catalog = useSourceOptions();
+  const defaults = useMemo(() => {
+    const months = catalog.data?.data.competencias;
+    if (catalog.data?.source.kind !== "gold_csv" || !months?.length)
+      return defaultRevenueFilters;
+    return {
+      ...defaultRevenueFilters,
+      competencia_inicio: months[Math.max(0, months.length - 12)],
+      competencia_fim: months[months.length - 1],
+    };
+  }, [catalog.data]);
   const parsed = useMemo(
-    () => parseRevenueSearchParams(new URLSearchParams(searchKey)),
-    [searchKey],
+    () => parseRevenueSearchParams(new URLSearchParams(searchKey), defaults),
+    [searchKey, defaults],
   );
   const revenue = useRevenue(parsed.query);
 
@@ -133,6 +146,16 @@ export default function ReceitaPage() {
   return (
     <div className="mt-6 grid min-w-0 w-full gap-4">
       <div className="flex min-h-[18px] min-w-0 flex-wrap items-center justify-between gap-2 text-xs">
+        {envelope?.metadata.source.kind === "gold_csv" ? (
+          <p className="text-muted">
+            Gold CSV provisória · lote{" "}
+            {envelope.metadata.source.version.split(":")[0]} · importação local{" "}
+            {new Date(envelope.metadata.source.updated_at).toLocaleDateString(
+              "pt-BR",
+              { timeZone: "UTC" },
+            )}
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {envelope?.metadata.source.is_demo ? (
             <span className="text-muted">
@@ -367,6 +390,7 @@ export default function ReceitaPage() {
       >
         {filtersOpen ? (
           <RevenueFiltersForm
+            options={catalog.data?.data}
             initialFilters={parsed.base}
             searchKey={searchKey}
             envelope={envelope}
@@ -421,6 +445,18 @@ export default function ReceitaPage() {
 
       {envelope ? (
         <>
+          {envelope.metadata.source.kind === "gold_csv" ? (
+            <aside
+              aria-label="Limitações da Gold"
+              className="rounded-xl border border-border bg-surface p-4 text-sm text-muted"
+            >
+              <ul className="list-disc space-y-1 pl-5">
+                {envelope.metadata.limitations.map((text) => (
+                  <li key={text}>{text}</li>
+                ))}
+              </ul>
+            </aside>
+          ) : null}
           <RevenueSummary envelope={envelope} />
           <div className="grid min-w-0 gap-4 min-[1850px]:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <RevenueDecomposition envelope={envelope} />

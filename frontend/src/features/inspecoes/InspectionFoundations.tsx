@@ -74,9 +74,15 @@ export default function InspectionFoundations({
               Como a prioridade foi calculada
             </h3>
             <p className="mt-2 text-sm leading-5">
-              Pontuação: <strong>{formatNumber(detail.priority)} / 1</strong>.
-              Soma dos pesos dos sinais presentes, limitada a 1 e arredondada a
-              duas casas. Não é probabilidade de irregularidade.
+              Prioridade:{" "}
+              <strong>
+                {detail.priority_label ??
+                  `${formatNumber(detail.priority ?? 0)} / 1`}
+              </strong>
+              .{" "}
+              {metadata.source.is_demo
+                ? "Soma dos pesos dos sinais presentes, limitada a 1 e arredondada a duas casas. Não é probabilidade de irregularidade."
+                : "Categoria publicada na Gold. Não há score nem pesos fornecidos nesta versão."}
             </p>
             <ul className="mt-3 space-y-2">
               {detail.signals.map((signal) => (
@@ -97,19 +103,23 @@ export default function InspectionFoundations({
               {detail.signals
                 .map((signal) => formatNumber(signal.weight))
                 .join(" + ") || "0"}
-              ) = {formatNumber(detail.priority)}
+              ) ={" "}
+              {detail.priority === null
+                ? "score não fornecido"
+                : formatNumber(detail.priority)}
             </p>
             <h4 className="mt-5 font-semibold">
               O que define a posição na fila
             </h4>
             <p className="mt-2 text-sm text-muted">
-              Na ordenação padrão, as maiores pontuações aparecem primeiro no
-              recorte filtrado. Alterar filtros ou ordenação pode mudar a
-              posição.
+              {metadata.source.is_demo
+                ? "Na ordenação padrão, as maiores pontuações aparecem primeiro no recorte filtrado. Alterar filtros ou ordenação pode mudar a posição."
+                : "Ordenação categórica: Alta, Média, Revisar e Baixa. A ordem não corresponde a um score de risco."}
             </p>
             <p className="mt-2 text-sm text-muted">
-              Desempate: maior estimativa disponível, depois número da UC em
-              ordem crescente. Estimativas ausentes ficam por último.
+              {metadata.source.is_demo
+                ? "Desempate: maior estimativa disponível, depois número da UC em ordem crescente. Estimativas ausentes ficam por último."
+                : "Desempate por número da UC crescente. Estimativas de recuperação não foram fornecidas."}
             </p>
           </section>
 
@@ -130,7 +140,11 @@ export default function InspectionFoundations({
             <ConsumptionComparison evidence={detail.estimate_evidence} />
             <dl className="mt-4 grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-muted">Referência mensal hipotética</dt>
+                <dt className="text-muted">
+                  {metadata.source.is_demo
+                    ? "Referência mensal hipotética"
+                    : "Referência mensal não fornecida"}
+                </dt>
                 <dd className="mt-1 font-mono font-medium">
                   {detail.estimate_evidence.baseline_kwh === null
                     ? "Referência indisponível"
@@ -138,7 +152,11 @@ export default function InspectionFoundations({
                 </dd>
               </div>
               <div>
-                <dt className="text-muted">Observação mensal sintética</dt>
+                <dt className="text-muted">
+                  {metadata.source.is_demo
+                    ? "Observação mensal sintética"
+                    : "Observação mensal não fornecida"}
+                </dt>
                 <dd>{energy(detail.estimate_evidence.observed_kwh)}</dd>
               </div>
               <div>

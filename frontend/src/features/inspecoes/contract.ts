@@ -4,7 +4,8 @@ export type QueueItem = {
   neighborhood: string;
   class_name: string;
   feeder_id: string;
-  priority: number;
+  priority: number | null;
+  priority_label?: string | null;
   reason: string;
   potential_recoverable_energy_kwh: number | null;
   indicators: string[];
@@ -80,8 +81,14 @@ function strings(value: unknown): string[] {
 }
 function item(value: unknown): QueueItem {
   const row = record(value);
-  const priority = number(row.priority);
-  if (priority > 1) invalid();
+  const priority = nullable(row.priority);
+  const priority_label =
+    row.priority_label == null ? null : string(row.priority_label);
+  if (
+    (priority !== null && priority > 1) ||
+    (priority === null && !priority_label?.trim())
+  )
+    invalid();
   if (!Array.isArray(row.signals)) invalid();
   return {
     uc_id: string(row.uc_id),
@@ -90,6 +97,7 @@ function item(value: unknown): QueueItem {
     class_name: string(row.class_name),
     feeder_id: string(row.feeder_id),
     priority,
+    priority_label,
     reason: string(row.reason),
     potential_recoverable_energy_kwh: nullable(
       row.potential_recoverable_energy_kwh,
@@ -108,7 +116,7 @@ function metadata(value: unknown): Metadata {
     period = record(row.period),
     source = record(row.source);
   if (
-    row.contract_version !== "1.0.0" ||
+    !["1.0.0", "1.1.0"].includes(String(row.contract_version)) ||
     typeof source.is_demo !== "boolean" ||
     !["available", "partial", "empty", "unavailable"].includes(
       string(row.status),
@@ -165,7 +173,8 @@ export function decodeQueue(value: unknown): QueueEnvelope {
       summary.unavailable_estimate_units,
     ].every(Number.isSafeInteger) ||
     summary.estimated_units + summary.unavailable_estimate_units !== total ||
-    (total === 0) !== (summary.highest_priority === null) ||
+    (metadata(root.metadata).source.kind !== "gold_csv" &&
+      (total === 0) !== (summary.highest_priority === null)) ||
     (summary.highest_priority !== null && summary.highest_priority > 1)
   )
     invalid();

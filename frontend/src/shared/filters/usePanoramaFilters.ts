@@ -1,10 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { ComparisonType, PanoramaFilters } from "../analytics/types";
-import {
-  CLASSES_DISPONIVEIS,
-  MUNICIPIOS_DISPONIVEIS,
-} from "../analytics/syntheticData";
+import type { SourceOptions } from "../analytics/sourceOptions";
 
 export const DEFAULT_FILTERS: PanoramaFilters = {
   periodo: "2024-04",
@@ -13,7 +10,7 @@ export const DEFAULT_FILTERS: PanoramaFilters = {
   classe: "todas",
 };
 
-export function usePanoramaFilters() {
+export function usePanoramaFilters(options?: SourceOptions) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters = useMemo<PanoramaFilters>(() => {
@@ -38,10 +35,22 @@ export function usePanoramaFilters() {
     errors.periodo = "Informe uma competência real no formato YYYY-MM.";
   if (!["anterior", "ano_anterior", "nenhuma"].includes(filters.comparacao))
     errors.comparacao = "Escolha mês anterior, ano anterior ou sem comparação.";
-  if (!MUNICIPIOS_DISPONIVEIS.some((item) => item.value === filters.municipio))
-    errors.municipio = "Escolha um município da fonte demonstrativa.";
-  if (!CLASSES_DISPONIVEIS.some((item) => item.value === filters.classe))
-    errors.classe = "Escolha uma classe da fonte demonstrativa.";
+  if (
+    !filters.municipio.trim() ||
+    filters.municipio.length > 100 ||
+    (options &&
+      filters.municipio !== "todos" &&
+      !options.municipio.includes(filters.municipio))
+  )
+    errors.municipio = "Escolha um município da fonte consultada.";
+  if (
+    !filters.classe.trim() ||
+    filters.classe.length > 100 ||
+    (options &&
+      filters.classe !== "todas" &&
+      !options.classe.includes(filters.classe))
+  )
+    errors.classe = "Escolha uma classe da fonte consultada.";
   for (const key of Object.keys(filters) as (keyof PanoramaFilters)[]) {
     if (searchParams.getAll(key).length > 1)
       errors[key] = "Use apenas um valor para este filtro na URL.";

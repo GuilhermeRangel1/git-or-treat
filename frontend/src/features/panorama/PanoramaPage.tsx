@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Activity, Bot, ChartNoAxesCombined } from "lucide-react";
 import { usePanoramaData } from "../../shared/analytics/usePanoramaData";
+import { useSourceOptions } from "../../shared/analytics/sourceOptions";
 import FilterBar from "../../shared/filters/FilterBar";
 import { usePanoramaFilters } from "../../shared/filters/usePanoramaFilters";
 import ContentState from "../../shared/ui/ContentState";
@@ -17,6 +18,7 @@ import { formatPanoramaTimestamp } from "./panorama-format";
 import { formatCompetenciaLabel } from "../../shared/analytics/syntheticData";
 
 export default function PanoramaPage() {
+  const options = useSourceOptions();
   const {
     filters,
     setFilters,
@@ -24,7 +26,7 @@ export default function PanoramaPage() {
     hasActiveFilters,
     errors,
     isValid,
-  } = usePanoramaFilters();
+  } = usePanoramaFilters(options.data?.data);
   const { data, isLoading, isError, isFetching, refetch } = usePanoramaData(
     filters,
     isValid,
@@ -83,6 +85,7 @@ export default function PanoramaPage() {
       )}
 
       <FilterBar
+        options={options.data?.data}
         filters={filters}
         onApply={setFilters}
         hasActiveFilters={hasActiveFilters}
