@@ -1,8 +1,12 @@
 """Confere um lote candidato da Gold exportado em CSV e imprime somente agregados.
 
-O script lê os arquivos em modo somente leitura e não grava nada no diretório do lote. A saída
-nunca inclui linhas de dados, identificadores de UC ou de alimentador nem valores de colunas de
-alta cardinalidade; colunas categóricas só têm os valores listados quando a cardinalidade é baixa.
+O script lê os arquivos em modo somente leitura e não grava nada no diretório do lote (o destino
+de ``--json`` é recusado se estiver nele ou for um arquivo de entrada). A saída nunca inclui
+linhas de dados nem identificadores de UC ou de alimentador. Só as dimensões de
+``PUBLISHABLE_DIMENSIONS`` têm valores listados, e nunca quando o nome ou os valores parecem dado
+pessoal; as demais colunas mostram apenas contagens, tipos e número de distintos.
+Reconciliações com medida nula ou inválida saem como ``nao_verificavel`` e as janelas de 12
+meses exigem competências contínuas.
 
 Uso:
     python scripts/gold_coverage.py <diretório do lote>
@@ -52,7 +56,22 @@ TABLES = (
     "diagnostico_receita",
     "indicadores_dec_fec",
 )
-IDENTIFIER_COLUMNS = {"id_uc", "id_alimentador", "alimentador"}
+# Únicas colunas cujos valores podem aparecer na saída (allowlist); as demais nunca os publicam.
+PUBLISHABLE_DIMENSIONS = {
+    "municipio",
+    "classe",
+    "classe_consumo",
+    "subgrupo",
+    "subgrupo_tarifario",
+    "bandeira_tarifaria",
+    "possui_gd",
+    "possui_geracao_solar",
+    "status",
+    "uf",
+    "prioridade_inspecao",
+    "queda_consumo_superior_30_pct",
+}
+DATE_KINDS = {"ano_mes", "data"}
 SENSITIVE_TOKENS = {
     "cpf",
     "cnpj",
@@ -101,6 +120,25 @@ def _decimal(value: str) -> Decimal | None:
 
 def _is_null(value: str) -> bool:
     return value.strip().lower() in NULL_TOKENS
+
+
+def _measure(value: str | None) -> tuple[Decimal | None, str | None]:
+    """Converte uma medida da reconciliação; o segundo item diz se ela é nula ou inválida."""
+    if value is None or _is_null(value):
+        return None, "nulo"
+    try:
+        number = Decimal(value.strip().replace(",", "."))
+    except InvalidOperation:
+        return None, "invalido"
+    return (number, None) if number.is_finite() else (None, "invalido")
+
+
+def _is_sensitive_name(name: str) -> bool:
+    return bool(SENSITIVE_TOKENS & set(name.lower().strip("_").split("_")))
+
+
+def _looks_personal(value: str) -> bool:
+    return bool(CPF_LIKE.search(value) or CEP_LIKE.match(value) or EMAIL_LIKE.search(value))
 
 
 class ColumnProfile:
@@ -193,19 +231,27 @@ class ColumnProfile:
                 sentinelas_numericas=self.sentinels,
             )
         if self.min_text is not None:
-            result.update(
-                minimo_texto=self.min_text,
-                maximo_texto=self.max_text,
-                datas_fora_de_1950_2099=self.sentinels,
-            )
+            # Mínimo e máximo de texto só em coluna inteira de data/competência, nunca texto livre.
+            if set(self.kinds) <= DATE_KINDS:
+                result.update(minimo_texto=self.min_text, maximo_texto=self.max_text)
+            result["datas_fora_de_1950_2099"] = self.sentinels
         if self.cpf_like or self.cep_like or self.email_like:
             result.update(
                 padrao_cpf=self.cpf_like, padrao_cep=self.cep_like, padrao_email=self.email_like
             )
         low = distinct is not None and distinct <= LOW_CARDINALITY
-        if low and self.name not in IDENTIFIER_COLUMNS:
+        if low and self._publishable():
             result["valores"] = dict(sorted(self.values.items()))
         return result
+
+    def _publishable(self) -> bool:
+        """Allowlist de dimensões; nome ou valor com cara de dado pessoal veta a publicação."""
+        return (
+            self.name in PUBLISHABLE_DIMENSIONS
+            and not _is_sensitive_name(self.name)
+            and not (self.cpf_like or self.cep_like or self.email_like)
+            and not any(_looks_personal(value) for value in self.values)
+        )
 
 
 def find_table_files(base: Path, table: str) -> list[Path]:
@@ -263,6 +309,9 @@ class Recon:
         self.monthly_per_uc: Counter[str] = Counter()
         self.monthly_sum_per_uc: dict[str, Decimal] = defaultdict(Decimal)
         self.monthly_null_consumo = 0
+        self.monthly_bad_consumo_ucs: set[str] = set()
+        # (tabela) -> "<medida>_nulo" / "<medida>_invalido" -> linhas; nunca entram como zero.
+        self.measure_issues: dict[str, Counter[str]] = defaultdict(Counter)
         self.variacao = Counter()
         self.fila = Counter()
         self.fila_priority_by_rule: Counter[tuple[str, str]] = Counter()
@@ -287,6 +336,32 @@ def _get(row: list[str], idx: dict[str, int], column: str) -> str | None:
     if position is None or position >= len(row):
         return None
     return row[position].strip()
+
+
+def _track(recon: Recon, table: str, measure: str, raw: str | None) -> Decimal | None:
+    number, issue = _measure(raw)
+    if issue:
+        recon.measure_issues[table][f"{measure}_{issue}"] += 1
+    return number
+
+
+def _accumulate(bucket: list[Decimal], values) -> None:
+    for i, value in enumerate(values):
+        if value is not None:
+            bucket[i] += value
+
+
+def _issues(recon: Recon, *tables: str) -> dict[str, dict[str, int]]:
+    """Contagens de medidas nulas ou inválidas das tabelas que tiverem alguma."""
+    return {
+        table: dict(sorted(recon.measure_issues[table].items()))
+        for table in tables
+        if recon.measure_issues.get(table)
+    }
+
+
+def _unverifiable(issues: dict) -> dict:
+    return {"estado": "nao_verificavel", "medidas_nulas_ou_invalidas": issues}
 
 
 def feed(recon: Recon, table: str, row: list[str], idx: dict[str, int]) -> None:
@@ -316,11 +391,12 @@ def feed(recon: Recon, table: str, row: list[str], idx: dict[str, int]) -> None:
         _feed_variacao(recon, g)
     elif table == "consumo_mensal_uc":
         comp = g("competencia")
-        consumo = _decimal(g("consumo_kwh") or "")
-        receita = _decimal(g("receita_reais") or "")
+        consumo = _track(recon, table, "consumo_kwh", g("consumo_kwh"))
+        receita = _track(recon, table, "receita_reais", g("receita_reais"))
         recon.monthly_per_uc[uc] += 1
         if consumo is None:
             recon.monthly_null_consumo += 1
+            recon.monthly_bad_consumo_ucs.add(uc)
         else:
             recon.monthly_sum_per_uc[uc] += consumo
         municipio = recon.uc_municipio.get(uc, "<UC fora da visao_360_uc>")
@@ -330,27 +406,22 @@ def feed(recon: Recon, table: str, row: list[str], idx: dict[str, int]) -> None:
             recon.by_comp_mun[table][(comp, municipio)],
             recon.by_comp_class[table][(comp, classe)],
         ):
-            bucket[0] += consumo or 0
-            bucket[1] += receita or 0
-            bucket[2] += 1
+            _accumulate(bucket, (consumo, receita, Decimal(1)))
     elif table in {"consumo_receita_bairro", "diagnostico_receita"}:
         comp = g("competencia")
-        consumo = _decimal(g("consumo_total_kwh") or "") or Decimal(0)
-        receita = _decimal(g("receita_total_reais") or "") or Decimal(0)
-        ucs = _decimal(g("qtd_ucs_distintas_faturadas_no_mes") or "") or Decimal(0)
+        consumo = _track(recon, table, "consumo_kwh", g("consumo_total_kwh"))
+        receita = _track(recon, table, "receita_reais", g("receita_total_reais"))
+        ucs = _track(recon, table, "ucs", g("qtd_ucs_distintas_faturadas_no_mes"))
         classe = g("classe_consumo")
         for bucket in (
             recon.by_comp[table][comp],
             recon.by_comp_mun[table][(comp, g("municipio"))],
             recon.by_comp_class[table][(comp, classe)],
         ):
-            bucket[0] += consumo
-            bucket[1] += receita
-            bucket[2] += ucs
+            _accumulate(bucket, (consumo, receita, ucs))
         if table == "consumo_receita_bairro":
             cell = recon.bairro_cells[(comp, g("municipio"), g("bairro"), classe)]
-            cell[0] += consumo
-            cell[1] += receita
+            _accumulate(cell, (consumo, receita))
         if table == "diagnostico_receita":
             _feed_diag(recon, g, comp, consumo, receita, ucs)
     elif table == "indicadores_dec_fec":
@@ -433,6 +504,11 @@ def _feed_diag(recon: Recon, g, comp, consumo, receita, ucs) -> None:
     medio = _decimal(g("consumo_medio_kwh_por_uc") or "")
     tarifa = _decimal(g("tarifa_media_efetiva") or "")
     c = recon.diag
+    if tarifa is None:
+        c["tarifa_nula"] += 1
+    if consumo is None or receita is None or ucs is None:
+        c["linhas_com_medida_nula_ou_invalida"] += 1
+        return
     if ucs and ticket is not None and abs(receita / ucs - ticket) > Decimal("0.01"):
         c["ticket_diverge_receita_sobre_ucs"] += 1
     if ucs and medio is not None and abs(consumo / ucs - medio) > Decimal("0.01"):
@@ -443,8 +519,6 @@ def _feed_diag(recon: Recon, g, comp, consumo, receita, ucs) -> None:
         c["consumo_zero"] += 1
         if tarifa is not None:
             c["tarifa_preenchida_com_consumo_zero"] += 1
-    if tarifa is None:
-        c["tarifa_nula"] += 1
     faturamentos = _decimal(g("soma_faturamentos_mensais") or "")
     if faturamentos is not None and faturamentos < ucs:
         c["faturamentos_menor_que_ucs"] += 1
@@ -514,9 +588,7 @@ def profile_table(base: Path, table: str, recon: Recon) -> dict:
             per_comp_rows[_get(row, idx, "competencia")] += 1
         feed(recon, table, row, idx)
     missing_key = [k for k in key_columns if k not in idx]
-    sensitive = [
-        name for name in header if SENSITIVE_TOKENS & set(name.lower().strip("_").split("_"))
-    ]
+    sensitive = [name for name in header if _is_sensitive_name(name)]
     result = {
         "estado": "presente",
         "arquivos": len(files),
@@ -571,13 +643,19 @@ def _period_summary(per_comp: Counter[str]) -> dict:
     }
 
 
-def _compare_buckets(left: dict, right: dict) -> dict:
+def _compare_buckets(left: dict, right: dict, issues: dict) -> dict:
+    """Compara somas por grupo; com medida nula ou inválida, não declara divergência alguma."""
     keys = set(left) | set(right)
+    structure = {
+        "grupos": len(keys),
+        "grupos_so_na_primeira": sum(1 for k in keys if k not in right),
+        "grupos_so_na_segunda": sum(1 for k in keys if k not in left),
+    }
+    if issues:
+        return {**_unverifiable(issues), **structure}
     zero = [Decimal(0)] * 3
     worst = [Decimal(0)] * 3
     divergent = [0, 0, 0]
-    only_left = sum(1 for k in keys if k not in right)
-    only_right = sum(1 for k in keys if k not in left)
     for key in keys:
         a, b = left.get(key, zero), right.get(key, zero)
         for i, tolerance in enumerate((Decimal("0.5"), MONEY_TOLERANCE, Decimal(0))):
@@ -587,9 +665,8 @@ def _compare_buckets(left: dict, right: dict) -> dict:
     total_left = [sum(v[i] for v in left.values()) for i in range(3)]
     total_right = [sum(v[i] for v in right.values()) for i in range(3)]
     return {
-        "grupos": len(keys),
-        "grupos_so_na_primeira": only_left,
-        "grupos_so_na_segunda": only_right,
+        "estado": "verificada",
+        **structure,
         "grupos_divergentes_consumo_kwh": divergent[0],
         "grupos_divergentes_receita_reais": divergent[1],
         "grupos_divergentes_ucs": divergent[2],
@@ -644,6 +721,8 @@ def reconcile(recon: Recon) -> dict:
             media_vs_monthly["media_nula_" + ("com_meses" if months else "sem_meses")] += 1
         elif not months:
             media_vs_monthly["media_preenchida_sem_meses_no_consumo_mensal"] += 1
+        elif uc in recon.monthly_bad_consumo_ucs:
+            media_vs_monthly["nao_verificavel_consumo_nulo_ou_invalido"] += 1
         else:
             mean = recon.monthly_sum_per_uc[uc] / months
             media_vs_monthly["confere" if abs(mean - media) <= 1 else "diverge_mais_de_1kwh"] += 1
@@ -668,7 +747,10 @@ def reconcile(recon: Recon) -> dict:
         diag_gd.update(counter)
 
     all_municipios = sorted(set().union(*recon.municipios.values())) if recon.municipios else []
+    bairro_x_diag = _issues(recon, "consumo_receita_bairro", "diagnostico_receita")
+    mensal_x_diag = _issues(recon, "consumo_mensal_uc", "diagnostico_receita")
     return {
+        "medidas_nulas_ou_invalidas_por_tabela": _issues(recon, *TABLES),
         "ucs_por_tabela": {t: len(s) for t, s in ucs.items()},
         "ucs_x_visao_360": uc_sets,
         "visao_360_sem_consumo_mensal_por_status": dict(status_missing),
@@ -693,25 +775,34 @@ def reconcile(recon: Recon) -> dict:
         "diagnostico_checagens": dict(recon.diag),
         "diagnostico_possui_gd_valores": dict(diag_gd),
         "bairro_x_diagnostico_por_competencia": _compare_buckets(
-            by_comp.get("consumo_receita_bairro", {}), by_comp.get("diagnostico_receita", {})
+            by_comp.get("consumo_receita_bairro", {}),
+            by_comp.get("diagnostico_receita", {}),
+            bairro_x_diag,
         ),
         "bairro_x_diagnostico_por_competencia_municipio": _compare_buckets(
             by_comp_mun.get("consumo_receita_bairro", {}),
             by_comp_mun.get("diagnostico_receita", {}),
+            bairro_x_diag,
         ),
         "bairro_x_diagnostico_por_competencia_classe": _compare_buckets(
             by_comp_class.get("consumo_receita_bairro", {}),
             by_comp_class.get("diagnostico_receita", {}),
+            bairro_x_diag,
         ),
         "consumo_mensal_x_diagnostico_por_competencia": _compare_buckets(
-            by_comp.get("consumo_mensal_uc", {}), by_comp.get("diagnostico_receita", {})
+            by_comp.get("consumo_mensal_uc", {}),
+            by_comp.get("diagnostico_receita", {}),
+            mensal_x_diag,
         ),
         "consumo_mensal_com_municipio_da_visao_x_diagnostico": _compare_buckets(
-            by_comp_mun.get("consumo_mensal_uc", {}), by_comp_mun.get("diagnostico_receita", {})
+            by_comp_mun.get("consumo_mensal_uc", {}),
+            by_comp_mun.get("diagnostico_receita", {}),
+            mensal_x_diag,
         ),
         "consumo_mensal_com_classe_da_visao_x_diagnostico": _compare_buckets(
             by_comp_class.get("consumo_mensal_uc", {}),
             by_comp_class.get("diagnostico_receita", {}),
+            mensal_x_diag,
         ),
         "alimentadores": {
             "dec_fec": len(alim_decfec),
@@ -748,17 +839,32 @@ def exploratory_examples(recon: Recon) -> dict:
     """Recalcula as perguntas de exemplo do PRD §7.6 só para provar cobertura.
 
     Os valores não são métricas homologadas: as janelas (primeiros, penúltimos e últimos 12
-    meses do lote) são escolha deste relatório e precisam de definição aprovada.
+    meses do lote) são escolha deste relatório e precisam de definição aprovada. Cada janela tem
+    12 meses de calendário consecutivos; se faltar competência, nenhum percentual é calculado.
     """
 
-    months = sorted({key[0] for key in recon.bairro_cells if key[0] and YM.match(key[0])})
-    if len(months) < 24:
+    issues = _issues(recon, "consumo_receita_bairro")
+    if issues:
+        return _unverifiable(issues)
+    present = {key[0] for key in recon.bairro_cells if key[0] and YM.match(key[0])}
+    if len(present) < 24:
         return {"estado": "menos de 24 competências; janelas de 12 meses indisponíveis"}
-    windows = {
-        "primeiros_12m": set(months[:12]),
-        "penultimos_12m": set(months[-24:-12]),
-        "ultimos_12m": set(months[-12:]),
+    calendar = _months_between(min(present), max(present))
+    calendar_windows = {
+        "primeiros_12m": calendar[:12],
+        "penultimos_12m": calendar[-24:-12],
+        "ultimos_12m": calendar[-12:],
     }
+    missing = {
+        name: [m for m in window if m not in present] for name, window in calendar_windows.items()
+    }
+    if any(missing.values()):
+        return {
+            "estado": "janela incompleta",
+            "janelas": {name: [w[0], w[-1]] for name, w in calendar_windows.items()},
+            "meses_faltantes": {name: m for name, m in missing.items() if m},
+        }
+    windows = {name: set(window) for name, window in calendar_windows.items()}
 
     def total(predicate, index: int) -> dict[str, Decimal]:
         result = {}
@@ -852,8 +958,13 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
         }
 
     diag_comp = recon.by_comp.get("diagnostico_receita", {})
+    diag_issues = _issues(recon, "diagnostico_receita")
     months = sorted(c for c in diag_comp if c and YM.match(c))
     full = f"{months[0]} a {months[-1]}" if months else "sem competência"
+    span = _months_between(months[0], months[-1]) if months else []
+    gaps = [m for m in span if m not in diag_comp]
+    if gaps:
+        full += f" (competências faltantes: {', '.join(gaps)})"
     last = months[-1] if months else None
     controls = []
     if diag_comp:
@@ -864,7 +975,9 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
                 "diagnostico_receita",
                 ["consumo_total_kwh", "receita_total_reais"],
                 full,
-                {
+                _unverifiable(diag_issues)
+                if diag_issues
+                else {
                     "consumo_kwh": str(sum(v[0] for v in diag_comp.values())),
                     "receita_reais": str(sum(v[1] for v in diag_comp.values())),
                 },
@@ -881,8 +994,10 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
                 "diagnostico_receita",
                 ["classe_consumo", "consumo_total_kwh", "receita_total_reais"],
                 full,
-                {c: {"consumo_kwh": str(v[0]), "receita_reais": str(v[1])}
-                 for c, v in sorted(per_class.items())},
+                _unverifiable(diag_issues)
+                if diag_issues
+                else {c: {"consumo_kwh": str(v[0]), "receita_reais": str(v[1])}
+                      for c, v in sorted(per_class.items())},
             )
         )
     monthly = recon.by_comp.get("consumo_mensal_uc", {})
@@ -910,8 +1025,10 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
                 "diagnostico_receita",
                 ["competencia", "municipio", "consumo_total_kwh", "receita_total_reais"],
                 last,
-                {"municipio": municipio, "consumo_kwh": str(values[0]),
-                 "receita_reais": str(values[1])},
+                _unverifiable(diag_issues)
+                if diag_issues
+                else {"municipio": municipio, "consumo_kwh": str(values[0]),
+                      "receita_reais": str(values[1])},
             )
         )
     if recon.uc_classe:
@@ -995,7 +1112,7 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
                 },
             )
         )
-    dec_months = sorted({comp for _, comp in recon.decfec_values})
+    dec_months = sorted({comp for _, comp in recon.decfec_values if comp and YM.match(comp)})
     if dec_months:
         month = dec_months[-1]
         worst = max(
@@ -1003,6 +1120,20 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
             key=lambda a: recon.decfec_values[(a, month)][0],
         )
         history = [v for (a, _), v in recon.decfec_values.items() if a == worst]
+        worst_months = {c for a, c in recon.decfec_values if a == worst}
+        missing = [m for m in _months_between(dec_months[0], month) if m not in worst_months]
+        value = {
+            "dec_mes": round(float(recon.decfec_values[(worst, month)][0]), 4),
+            "fec_mes": round(float(recon.decfec_values[(worst, month)][1]), 4),
+        }
+        if missing:
+            # Média de meses não contínuos não cobre a janela declarada: não é calculada.
+            value["media_mensal"] = {"estado": "janela incompleta", "meses_faltantes": missing}
+            window = f"{month}; média não calculada"
+        else:
+            value["dec_media_mensal"] = round(float(sum(h[0] for h in history) / len(history)), 4)
+            value["fec_media_mensal"] = round(float(sum(h[1] for h in history) / len(history)), 4)
+            window = f"{month}; média de {len(history)} meses"
         controls.append(
             control(
                 "C11",
@@ -1010,18 +1141,18 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
                 "meses do lote (identificador omitido)",
                 "indicadores_dec_fec",
                 ["id_alimentador", "competencia", "DEC", "FEC"],
-                f"{month}; média de {len(history)} meses",
-                {
-                    "dec_mes": round(float(recon.decfec_values[(worst, month)][0]), 4),
-                    "fec_mes": round(float(recon.decfec_values[(worst, month)][1]), 4),
-                    "dec_media_mensal": round(float(sum(h[0] for h in history) / len(history)), 4),
-                    "fec_media_mensal": round(float(sum(h[1] for h in history) / len(history)), 4),
-                },
+                window,
+                value,
             )
         )
     bairro = recon.by_comp.get("consumo_receita_bairro", {})
     if bairro and diag_comp:
-        mismatch = sum(1 for k in set(bairro) | set(diag_comp) if bairro.get(k) != diag_comp.get(k))
+        c12_issues = _issues(recon, "consumo_receita_bairro", "diagnostico_receita")
+        mismatch = (
+            _unverifiable(c12_issues)
+            if c12_issues
+            else sum(1 for k in set(bairro) | set(diag_comp) if bairro.get(k) != diag_comp.get(k))
+        )
         controls.append(
             control(
                 "C12",
@@ -1092,6 +1223,19 @@ def _print(report: dict) -> None:
         print(f"  - {item['id']} {item['definicao']}: {value}")
 
 
+def _json_target_error(base: Path, target: Path) -> str | None:
+    """Recusa destino do --json dentro do lote (também via link ou ``..``) ou sobre uma entrada."""
+    root = base.resolve()
+    resolved = target.resolve()
+    if resolved == root or root in resolved.parents:
+        return f"--json não pode gravar dentro do diretório do lote: {target}"
+    if target.exists():
+        inputs = [path for table in TABLES for path in find_table_files(base, table)]
+        if any(resolved == path.resolve() or os.path.samefile(target, path) for path in inputs):
+            return f"--json não pode sobrescrever um arquivo de entrada: {target}"
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("data_dir", nargs="?", help="diretório do lote (padrão: GOLD_DATA_DIR)")
@@ -1103,6 +1247,10 @@ def main(argv: list[str] | None = None) -> int:
     base = Path(raw_dir)
     if not base.is_dir():
         parser.error(f"diretório não encontrado: {base}")
+    if args.json:
+        problem = _json_target_error(base, args.json)
+        if problem:
+            parser.error(problem)
     report = build_report(base)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")

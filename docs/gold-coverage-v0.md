@@ -31,7 +31,14 @@
 - comparativo entre os CSVs e as tabelas no Databricks;
 - controles aprovados de catálogo, papel somente leitura, identidade e auditoria (pendências da ADR-0002).
 
-**Como reproduzir:** a partir de `ai-agent/`, `python scripts/gold_coverage.py <diretório do lote>` (ou `GOLD_DATA_DIR=<diretório> python scripts/gold_coverage.py --json <saída fora do repo>`). O script só lê, usa biblioteca padrão e imprime agregados; não imprime linhas, ids de UC nem ids de alimentador. Testes com dados inventados: `python -m pytest tests/test_gold_coverage.py`. Execução sobre este lote: cerca de 2 min.
+**Como reproduzir:** a partir de `ai-agent/`, `python scripts/gold_coverage.py <diretório do lote>` (ou `GOLD_DATA_DIR=<diretório> python scripts/gold_coverage.py --json <saída fora do repo>`). O script só lê, usa biblioteca padrão e imprime agregados; não imprime linhas, ids de UC nem ids de alimentador. Salvaguardas da saída:
+
+- valores de coluna só aparecem para as dimensões autorizadas (município, classe, subgrupo, bandeira, GD, status, UF, prioridade e flag de queda), e nunca quando o nome ou os valores parecem dado pessoal (CPF, CEP, e-mail); mínimo e máximo de texto só em colunas de data e competência;
+- reconciliações e controles com medida nula ou inválida saem como `nao_verificavel`, com as contagens, e não como "0 divergências";
+- as janelas de 12 meses exigem competências contínuas; com lacuna, o percentual não é calculado (`janela incompleta`);
+- `--json` recusa destino dentro da pasta do lote, inclusive via link ou `..`, e sobre um arquivo de entrada.
+
+Testes com dados inventados: `python -m pytest tests/test_gold_coverage.py`. Execução sobre este lote: cerca de 2 min.
 
 **Fontes lidas:** [PRD](PRD.md) (§1, §1.2, §2.1, §4, §6.3, §7.6, §8), [contrato](contracts/genai-query-execution.md), [ADR-0002](decisions/0002-genai-gold-query-owner.md), `ai-agent/app/sql/dictionary_gold.toml` (**existe só na branch `feat/ia-gold-dicionario-sql`, commit `fd6db48`; não está na `develop`**), `docs/dicionario_gold.md` e `data-engineering/notebook/Silver_to_gold.ipynb` da branch `feat/gold` (commit `9664823`). O [dicionário Gold](data-dictionary.md) da `develop` ainda é modelo vazio.
 
