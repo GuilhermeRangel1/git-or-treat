@@ -9,7 +9,7 @@ from app.models.operational import InspectionOrder
 from app.models.operational import OrderStatus
 from app.schemas.inspections import OrderCreateRequest, OrderUpdateRequest
 from app.services import inspections as inspection_service
-from tests.conftest import TestingSessionLocal, test_engine
+from tests.support.database import TestingSessionLocal, test_engine
 
 
 @pytest.fixture(autouse=True)

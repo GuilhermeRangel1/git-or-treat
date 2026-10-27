@@ -12,7 +12,7 @@ from app.main import app
 from app.models.operational import InspectionOrder, OrderStatus
 from app.schemas.inspections import OrderCreateRequest, OrderUpdateRequest, OrderCancelRequest
 from app.services.inspections import OrderConflictError, create_order, update_order, cancel_order
-from tests.test_migrations import migrated_database
+from tests.support.migrations import migrated_database
 
 
 def test_order_security_on_disposable_postgres(monkeypatch):
