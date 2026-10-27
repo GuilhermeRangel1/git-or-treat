@@ -100,7 +100,7 @@ Ao final, a banca deve conseguir acompanhar uma extração pelo Workflow do Data
 | Geração distribuída (GD) | Geração própria da UC, geralmente solar; energia gerada é abatida do consumo faturado. |
 | DEC e FEC | Indicadores regulatórios de duração e frequência equivalentes de interrupção por UC. O case pede cálculo simplificado conforme a definição da ANEEL para comparar alimentadores e períodos internos, **sem afirmar conformidade com limites regulatórios reais**. Cada ocorrência corresponde a uma UC afetada, e os valores são consolidados por alimentador. |
 
-Termos adicionais, campos reais, chaves de junção e fórmulas finais entram em `docs/data-dictionary.md` depois da inspeção dos arquivos. Não preencher com suposições não verificadas.
+Termos adicionais, campos reais, chaves de junção e fórmulas finais entram em `docs/dicionario_gold.md` depois da inspeção dos arquivos. Não preencher com suposições não verificadas.
 
 ## 4. Dados de origem e contrato de ingestão
 
@@ -216,7 +216,7 @@ Cada time deve responder à pergunta sobre queda de receita residencial. A expli
 | DE-05 | Obrigatório | Pendente | **DEC/FEC por alimentador.** Implementar a definição simplificada descrita no case/ANEEL com numerador, denominador, janela e UC afetada explícitos; conferir amostras e não apresentar resultado como conformidade regulatória oficial. |
 | DE-06 | Obrigatório | Pendente | **Exportar Gold ao banco local.** CSVs de Gold podem ser carregados novamente sem duplicar resultados; conferir esquema, contagens, chaves e agregados entre Databricks e banco. |
 | DE-07 | Obrigatório | Pendente | **Orquestrar.** Databricks Workflow liga Bronze → Silver → Gold → exportação, possui dependências, logs de falha e execução reproduzível de ponta a ponta; arquivo de definição versionado. |
-| DE-08 | Obrigatório | Pendente | **Dicionário Gold.** Toda tabela e métrica exposta ao portal/IA tem definição, tipo, unidade, granularidade, origem, transformação, chave e limitação em `docs/data-dictionary.md`. |
+| DE-08 | Obrigatório | Pendente | **Dicionário Gold.** Toda tabela e métrica exposta ao portal/IA tem definição, tipo, unidade, granularidade, origem, transformação, chave e limitação em `docs/dicionario_gold.md`. |
 | DE-09 | Diferencial | Pendente | **Testes automatizados no pipeline.** Regras críticas de qualidade falham explicitamente antes de publicar Gold, incluindo unicidade, integridade, intervalos e reconciliação de totais. |
 
 ### 6.2 Portal web e backend — WEB
@@ -392,7 +392,7 @@ Esta é uma proposta de execução, não cronograma imposto. Entregas podem avan
 | Marco | Condição para avançar com confiança | Documentos que devem refletir o resultado |
 | --- | --- | --- |
 | Perfil das fontes | Oito conjuntos inventariados; problemas e relacionamentos prováveis registrados; contagens brutas reconciliadas. | PRD (dependências/estado), relatório de qualidade e dicionário inicial. |
-| Contrato Gold | Tabelas, grãos, chaves, fórmulas e amostras manuais suficientes para consumo dos fluxos prioritários. | `docs/data-dictionary.md`, guias de serviço e ADRs de decisões materiais. |
+| Contrato Gold | Tabelas, grãos, chaves, fórmulas e amostras manuais suficientes para consumo dos fluxos prioritários. | `docs/dicionario_gold.md`, guias de serviço e ADRs de decisões materiais. |
 | Integração mínima | Workflow executa; Gold exporta e carrega; API e uma jornada do portal consultam o mesmo lote com totais iguais. | README operacional em evolução, evidência no PRD e contrato de API. |
 | Cobertura do case | Diretoria, comercial, atendimento, perdas, operação e IA exercitados; cenários de ausência/erro tratados. | Tabela de IDs, registro de progresso, guias afetados e testes. |
 | Diagnóstico defendível | Variação reconciliada, decomposição fechada, hipóteses julgadas e recomendações com impacto limitado pela evidência. | `docs/revenue-diagnosis.md`, dicionário e roteiro da apresentação. |
@@ -456,6 +456,15 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Entrada de evidência adicionada abaixo e estado do ID alterado para `Concluído` na mesma mudança.
 
 ## 14. Registro de progresso
+
+### 2026-10-27 — DE-04 a DE-08 — integração da branch Gold com a develop
+
+- Estado: DE-04, DE-05, DE-06, DE-07 e DE-08 mantêm os estados do PRD. A integração da branch e a documentação de evidências não alteram automaticamente os critérios de aceite.
+- Arquivos: `data-engineering/notebook/Silver_to_gold.ipynb`, `data-engineering/notebook/Exportacao_Gold_SQLite.ipynb` e `docs/dicionario_gold.md` foram mantidos da `feat/gold`; Bronze, perfilamento e Silver vieram da `develop`. A Gold gera sete tabelas analíticas e `gold.controle_gold`; o notebook de exportação grava CSV por tabela em Volume, sem carregar o banco local.
+- Evidências: na revisão do [PR #36](https://github.com/GuilhermeRangel1/git-or-treat/pull/36), Júlia relatou execução da versão `c95bfc3` sobre a Silver `20261024T035426Z_c5ba30e0`, com reconciliação. Em 27/10/2026, a pessoa usuária confirmou que execução, reconciliação e Workflow já foram validados; os identificadores de execução, versões e resultados dessa validação mais recente não foram informados nesta revisão e devem ser vinculados ao registro.
+- Verificações desta integração: os cinco notebooks foram lidos como JSON válido; seus hashes, e o do dicionário, foram comparados às respectivas branches de origem; `git diff --cached --check origin/develop` passou na preparação do merge. Não houve execução dos notebooks no Databricks nesta revisão.
+- Documentação e limites: registrar os identificadores, versões e resultados das validações informadas e atualizar o YAML versionado para refletir o Job efetivamente executado. Os testes finais da Gold ocorrem após gravações, e a conferência de DEC no notebook usa um alimentador e competência fixos, sem validar toda a tabela ou o FEC. O dicionário original `docs/dicionario_gold.md` foi preservado, e sua revisão para as sete saídas permanece vinculada a DE-08.
+- Rastreador: descrições dos cartões DE-04 a DE-08 atualizadas com a evidência e a ressalva de alteração local ainda sem commit. DE-04 e DE-05 aparecem marcados como concluídos no Trello, embora permaneçam `Pendente` no PRD; a marcação precisa ser reconciliada no quadro.
 
 ### 2026-10-25 — IA-01/IA-03/IA-06 — GENAI-01: contrato da consulta Gold (preparação)
 
@@ -1578,7 +1587,7 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - [Status report intermediário a preencher](status-report.md)
 - [Fluxo de agentes e qualidade](agents/workflow.md)
 - [Ferramentas e hooks](agents/tooling.md)
-- [Dicionário de dados](data-dictionary.md)
+- [Dicionário de dados](dicionario_gold.md)
 
 ### 2026-10-21 — WEB-01 e WEB-07 — correções da integração Panorama
 

@@ -1,6 +1,6 @@
 # Desenvolvimento GenAI com a Gold
 
-Este guia orienta a execução dos cartões do quadro [GenAI — Gold real](https://trello.com/b/Vlnppr77/genai-gold-real) sobre o código existente. O [PRD](../PRD.md), os guias de [GenAI](../services/ai-agent.md) e [Backend](../services/backend.md), o [dicionário Gold](../data-dictionary.md) e as decisões aprovadas continuam canônicos. O quadro de adaptação não altera o aceite obrigatório IA-01 a IA-06; IA-07 e IA-08 continuam diferenciais. Testes de regressão permanecem necessários à qualidade das mudanças.
+Este guia orienta a execução dos cartões do quadro [GenAI — Gold real](https://trello.com/b/Vlnppr77/genai-gold-real) sobre o código existente. O [PRD](../PRD.md), os guias de [GenAI](../services/ai-agent.md) e [Backend](../services/backend.md), o [dicionário Gold](../dicionario_gold.md) e as decisões aprovadas continuam canônicos. O quadro de adaptação não altera o aceite obrigatório IA-01 a IA-06; IA-07 e IA-08 continuam diferenciais. Testes de regressão permanecem necessários à qualidade das mudanças.
 
 ## Estado e decisões de partida
 

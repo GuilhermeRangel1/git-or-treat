@@ -623,7 +623,7 @@ de negócio da versão atual.
 ## 9. Camada Gold — proposta e decisões a tomar
 
 > A Gold **não existe ainda**. Esta seção é a **proposta de modelagem** para não repetir a modelagem quando o
-> notebook for escrito; cada item é decisão a registrar em `docs/data-dictionary.md` (DE-08) e, se alterar
+> notebook for escrito; cada item é decisão a registrar em `docs/dicionario_gold.md` (DE-08) e, se alterar
 > arquitetura/métrica, em ADR (workflow §4).
 
 ### 9.1 Tabelas propostas (grão e chave)
@@ -960,7 +960,7 @@ O run de §11.3 valida somente a revisão anterior, não D53–D60. Nesta revis�
 - [PRD](../docs/PRD.md) — IDs DE-01 a DE-09; §4 (regras de tratamento, perfil, reconciliação), §5 (arquitetura), §6.1.
 - [Índice de decisões arquiteturais de outros módulos](../docs/decisions/README.md).
 - [Serviço: engenharia de dados](../docs/services/data-engineering.md) — contrato por camada e invariantes.
-- [Dicionário de dados Gold](../docs/data-dictionary.md) — a preencher em DE-08.
+- [Dicionário de dados Gold](../docs/dicionario_gold.md) — a preencher em DE-08.
 - [Workflow de desenvolvimento e qualidade](../docs/agents/workflow.md).
 - Notebooks (`data-engineering/notebook/`): `Landing_to_Bronze.ipynb` (reconciliação por origem, `_ordem_na_origem`,
   `bronze.arquivos_lote` e publicação por lote — R34–R37), `Bronze_perfilamento.ipynb` (R38) e
