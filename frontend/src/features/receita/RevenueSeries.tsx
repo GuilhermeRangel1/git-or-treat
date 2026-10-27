@@ -198,8 +198,8 @@ export default function RevenueSeries({
         Série mensal de faturamento
       </h2>
       <p className="mt-1 text-sm text-muted">
-        Receita faturada por competência (BRL). Lacunas permanecem sem valor e
-        não são ligadas no gráfico. Escala vertical inclui R$ 0,00.
+        Receita faturada por mês (BRL). Lacunas permanecem sem valor e não são
+        ligadas no gráfico. Escala vertical inclui R$ 0,00.
       </p>
       <div className="mt-4 min-w-0 max-w-full overflow-x-auto rounded-lg bg-canvas/50 px-2 py-2">
         <div className="revenue-series__chart-enter">
@@ -208,7 +208,7 @@ export default function RevenueSeries({
             className="block h-64 min-w-[560px] w-full"
             viewBox={`0 0 ${chartWidth} ${chart.height}`}
             role="img"
-            aria-label={`Receita faturada por competência. ${accessibleSummary}`}
+            aria-label={`Receita faturada por mês. ${accessibleSummary}`}
             preserveAspectRatio="xMidYMid meet"
           >
             {ticks.map((tick, index) => {
@@ -366,7 +366,7 @@ export default function RevenueSeries({
                   className="fill-muted"
                   fontSize="10"
                 >
-                  Competência · {monthLabel(activePoint.competencia)}
+                  Mês · {monthLabel(activePoint.competencia)}
                 </text>
                 <text
                   x={
@@ -407,7 +407,7 @@ export default function RevenueSeries({
           <thead className="border-b border-border text-xs text-muted">
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">
-                Competência
+                Mês
               </th>
               <th scope="col" className="px-3 py-2 font-medium">
                 Receita faturada (BRL)

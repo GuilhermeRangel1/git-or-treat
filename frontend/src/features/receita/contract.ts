@@ -140,7 +140,7 @@ function string(value: unknown, path: string): string {
 function month(value: unknown, path: string): string {
   const parsed = string(value, path);
   if (!/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(parsed)) {
-    throw new RevenueContractError(`${path} deve usar YYYY-MM válido.`);
+    throw new RevenueContractError(`${path} deve conter mês e ano válidos.`);
   }
   return parsed;
 }

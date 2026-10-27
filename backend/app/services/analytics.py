@@ -160,14 +160,18 @@ def build_continuity(repository: AnalyticsRepository, start: str, end: str, filt
     result = []
     for feeder in sorted(feeders, key=lambda row: row["feeder_id"]):
         events = [row for row in repository.interruptions if has_temporal_coverage and row["feeder_id"] == feeder["feeder_id"] and observed_start <= row["competencia"] <= observed_end]
-        denominator = feeder["denominator_uc_count"]
+        raw_denominator = feeder["denominator_uc_count"]
+        # Keep only actual integers from the source. In particular, Pydantic's
+        # coercion must not turn bools or numeric strings into valid counts.
+        denominator = raw_denominator if isinstance(raw_denominator, int) and not isinstance(raw_denominator, bool) else None
         served_count = sum(1 for unit in repository.units if unit["alimentador"] == feeder["feeder_id"] and unit["status"] == "active")
         covered_count = served_count
-        coverage = round(covered_count / denominator, 3) if denominator else None
-        status: AnalyticsStatus = "unavailable" if not denominator or not has_temporal_coverage else ("partial" if coverage != 1 or temporal_limitations else "available")
+        valid_denominator = denominator is not None and denominator > 0
+        coverage = round(covered_count / denominator, 3) if valid_denominator else None
+        status: AnalyticsStatus = "unavailable" if not valid_denominator or not has_temporal_coverage else ("partial" if covered_count != denominator or temporal_limitations else "available")
         coverage_limitations = list(temporal_limitations)
-        if not denominator:
-            coverage_limitations.append("Denominador demonstrativo ausente ou zero; DEC/FEC não calculados.")
+        if not valid_denominator:
+            coverage_limitations.append("Denominador demonstrativo ausente, zero ou inválido; DEC/FEC não calculados.")
         if denominator is not None and covered_count != denominator:
             coverage_limitations.append("Contagem de UCs atendidas diverge do denominador configurado.")
         if feeder["territory_status"] == "multi_municipal":
@@ -176,14 +180,14 @@ def build_continuity(repository: AnalyticsRepository, start: str, end: str, filt
             feeder_id=feeder["feeder_id"],
             municipalities=feeder["municipios"],
             territory_status=feeder["territory_status"],
-            dec_hours_per_uc=round(sum(row["duration_hours"] for row in events) / denominator, 3) if denominator and has_temporal_coverage else None,
-            fec_interruptions_per_uc=round(len(events) / denominator, 3) if denominator and has_temporal_coverage else None,
+            dec_hours_per_uc=round(sum(row["duration_hours"] for row in events) / denominator, 3) if valid_denominator and has_temporal_coverage else None,
+            fec_interruptions_per_uc=round(len(events) / denominator, 3) if valid_denominator and has_temporal_coverage else None,
             interruption_count=len(events),
             denominator_uc_count=denominator,
             covered_uc_count=covered_count,
             coverage_ratio=coverage,
             served_uc_count=served_count,
-            coverage_status="unavailable" if not denominator else ("partial" if covered_count != denominator else "available"),
+            coverage_status="unavailable" if not valid_denominator else ("partial" if covered_count != denominator else "available"),
             status=status,
             limitations=coverage_limitations,
         ))

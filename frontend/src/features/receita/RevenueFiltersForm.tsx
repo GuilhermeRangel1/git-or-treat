@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import Button from "@/shared/ui/Button";
+import MonthYearField from "@/shared/ui/MonthYearField";
 import type { RevenueEnvelope } from "./contract";
 import type { RevenueBaseFilters } from "./revenue-filters";
 
@@ -36,11 +37,15 @@ export default function RevenueFiltersForm({
     envelope?.data.filter_options.municipios ?? [],
   );
   if (draft.municipio) municipalityOptions.add(draft.municipio);
-  const neighborhoodOptions = (
-    envelope?.data.filter_options.bairros.filter(
-      (item) => item.municipio === draft.municipio,
-    ) ?? []
-  ).map((item) => item.bairro);
+  const neighborhoodOptions = Array.from(
+    new Set(
+      (envelope?.data.filter_options.bairros ?? [])
+        .filter(
+          (item) => !draft.municipio || item.municipio === draft.municipio,
+        )
+        .map((item) => item.bairro),
+    ),
+  );
   if (draft.bairro && !neighborhoodOptions.includes(draft.bairro)) {
     neighborhoodOptions.push(draft.bairro);
   }
@@ -51,10 +56,10 @@ export default function RevenueFiltersForm({
     event.preventDefault();
     const nextErrors: string[] = [];
     if (!monthValid(draft.competencia_inicio)) {
-      nextErrors.push("A competência inicial precisa ser válida.");
+      nextErrors.push("O mês inicial precisa ser válido.");
     }
     if (!monthValid(draft.competencia_fim)) {
-      nextErrors.push("A competência final precisa ser válida.");
+      nextErrors.push("O mês final precisa ser válido.");
     }
     if (
       monthValid(draft.competencia_inicio) &&
@@ -62,11 +67,8 @@ export default function RevenueFiltersForm({
       draft.competencia_inicio > draft.competencia_fim
     ) {
       nextErrors.push(
-        "A competência final deve ser igual ou posterior à inicial.",
+        "O mês final deve ser igual ou posterior ao mês inicial.",
       );
-    }
-    if (draft.bairro && !draft.municipio) {
-      nextErrors.push("Selecione o município para filtrar um bairro.");
     }
     for (const [field, label] of [
       ["municipio", "Município"],
@@ -92,35 +94,27 @@ export default function RevenueFiltersForm({
 
   return (
     <form
-      className="grid gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3"
+      className="grid gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-2"
       onSubmit={submit}
       noValidate
       aria-label="Filtros de receita"
     >
-      <label className="grid gap-1.5 text-sm font-medium">
-        Competência inicial
-        <input
-          className={textInputClass}
-          type="month"
-          required
-          value={draft.competencia_inicio}
-          onChange={(event) =>
-            setDraft({ ...draft, competencia_inicio: event.target.value })
-          }
-        />
-      </label>
-      <label className="grid gap-1.5 text-sm font-medium">
-        Competência final
-        <input
-          className={textInputClass}
-          type="month"
-          required
-          value={draft.competencia_fim}
-          onChange={(event) =>
-            setDraft({ ...draft, competencia_fim: event.target.value })
-          }
-        />
-      </label>
+      <MonthYearField
+        label="Mês inicial"
+        monthLabel="Mês de início"
+        yearLabel="Ano de início"
+        value={draft.competencia_inicio}
+        onChange={(competencia_inicio) =>
+          setDraft({ ...draft, competencia_inicio })
+        }
+      />
+      <MonthYearField
+        label="Mês final"
+        monthLabel="Mês do fim"
+        yearLabel="Ano do fim"
+        value={draft.competencia_fim}
+        onChange={(competencia_fim) => setDraft({ ...draft, competencia_fim })}
+      />
       <label className="grid gap-1.5 text-sm font-medium">
         Município
         <select
@@ -145,7 +139,6 @@ export default function RevenueFiltersForm({
         <select
           className={textInputClass}
           value={draft.bairro}
-          disabled={!draft.municipio}
           onChange={(event) =>
             setDraft({ ...draft, bairro: event.target.value })
           }
@@ -175,7 +168,7 @@ export default function RevenueFiltersForm({
           ))}
         </select>
       </label>
-      <div className="flex items-end sm:col-span-2 lg:col-span-3">
+      <div className="flex items-end sm:col-span-2">
         <Button type="submit" variant="accent" size="wide">
           Aplicar filtros
         </Button>
@@ -183,7 +176,7 @@ export default function RevenueFiltersForm({
       {errors.length > 0 ? (
         <div
           role="alert"
-          className="space-y-1 text-sm text-danger sm:col-span-2 lg:col-span-3"
+          className="space-y-1 text-sm text-danger sm:col-span-2"
         >
           <h3 className="font-semibold">Filtros inválidos</h3>
           <ul className="list-inside list-disc">
@@ -194,8 +187,9 @@ export default function RevenueFiltersForm({
         </div>
       ) : null}
       {!draft.municipio ? (
-        <p className="text-sm text-muted sm:col-span-2 lg:col-span-3">
-          Escolha um município antes de selecionar um bairro.
+        <p className="text-sm text-muted sm:col-span-2">
+          Sem município selecionado, bairros com o mesmo nome em municípios
+          diferentes serão agrupados.
         </p>
       ) : null}
     </form>

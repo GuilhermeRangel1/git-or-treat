@@ -210,7 +210,7 @@ export default function ReceitaPage() {
             return (
               <>
                 <div>
-                  <p className="text-xs text-muted">Competência</p>
+                  <p className="text-xs text-muted">Período</p>
                   <p className="mt-1 text-sm font-medium text-content">
                     {competenceLabel(
                       envelope?.metadata.period.end ??

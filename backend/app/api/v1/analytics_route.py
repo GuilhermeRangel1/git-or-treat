@@ -2,6 +2,9 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from starlette.datastructures import QueryParams
+
+from app.services.analytics import AnalyticsAPIError
 
 from app.schemas.analytics import AnalyticsErrorResponse
 
@@ -34,3 +37,40 @@ class AnalyticsRoute(APIRoute):
                 )
 
         return analytics_handler
+
+
+def repeated_query_parameters(parameters: QueryParams) -> list[str]:
+    """Return repeated scalar parameter names in a deterministic order."""
+    return sorted(name for name in parameters if len(parameters.getlist(name)) > 1)
+
+
+class StrictAnalyticsRoute(AnalyticsRoute):
+    """Reject unsupported or repeated scalar filters before source resolution."""
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+        allowed: set[str] = set()
+
+        def collect_query_parameters(dependant) -> None:
+            allowed.update(parameter.alias for parameter in dependant.query_params)
+            for dependency in dependant.dependencies:
+                collect_query_parameters(dependency)
+
+        collect_query_parameters(self.dependant)
+
+        async def strict_handler(request: Request):
+            repeated = repeated_query_parameters(request.query_params)
+            unknown = set(request.query_params) - allowed
+            if repeated or unknown:
+                raise AnalyticsAPIError(
+                    422,
+                    "invalid_query",
+                    "Parâmetro de consulta desconhecido ou repetido.",
+                    [{
+                        "field": "query",
+                        "message": "Use somente os parâmetros documentados, uma vez cada.",
+                    }],
+                )
+            return await handler(request)
+
+        return strict_handler

@@ -83,7 +83,7 @@ function MetricCard({
         {value}
       </p>
       <p className="text-xs text-muted">Antes: {before}</p>
-      <p className="text-xs text-muted">Competência: {competence}</p>
+      <p className="text-xs text-muted">Mês: {competence}</p>
     </article>
   );
 }
@@ -145,7 +145,7 @@ export default function RevenueSummary({
             {signedMoney(change)}
           </p>
           <p className="text-xs text-muted">
-            Competência: {competenceLabel(initial.competencia)} →{" "}
+            Período: {competenceLabel(initial.competencia)} →{" "}
             {competenceLabel(final.competencia)}
           </p>
           <p className="text-xs text-muted">
