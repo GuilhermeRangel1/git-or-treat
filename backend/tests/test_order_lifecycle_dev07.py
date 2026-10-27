@@ -8,8 +8,8 @@ from alembic import command
 from app.models.operational import InspectionOrder, OperationalOrderHistory, OrderStatus
 from app.schemas.inspections import OrderUpdateRequest
 from app.services import inspections as service
-from tests.conftest import TestingSessionLocal, test_engine
-from tests.test_migrations import alembic_config
+from tests.support.database import TestingSessionLocal, test_engine
+from tests.support.migrations import alembic_config
 
 ROOT = "/api/v1/inspections/orders"
 

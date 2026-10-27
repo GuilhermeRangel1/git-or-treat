@@ -171,6 +171,7 @@ export class UCContractError extends Error {
   }
 }
 type Obj = Record<string, unknown>;
+type UCPagination = UCSearchResponse["pagination"];
 function obj(value: unknown, path: string): Obj {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new UCContractError(`${path} deve ser objeto.`);
@@ -193,6 +194,32 @@ function strings(value: unknown, path: string): string[] {
   if (!Array.isArray(value))
     throw new UCContractError(`${path} deve ser lista.`);
   return value.map((item, i) => str(item, `${path}[${i}]`));
+}
+function pagination(value: unknown, path: string): UCPagination {
+  const input = obj(value, path);
+  const integer = (raw: unknown, field: string) => {
+    const parsed = n(raw, `${path}.${field}`);
+    if (!Number.isInteger(parsed) || parsed < 0)
+      throw new UCContractError(`${path}.${field} inválido.`);
+    return parsed;
+  };
+  const page = integer(input.page, "page");
+  const pageSize = integer(input.page_size, "page_size");
+  const total = integer(input.total, "total");
+  const totalPages = integer(input.total_pages, "total_pages");
+  if (page < 1)
+    throw new UCContractError(`${path}.page deve ser pelo menos 1.`);
+  if (pageSize < 1 || pageSize > 100)
+    throw new UCContractError(`${path}.page_size deve estar entre 1 e 100.`);
+  const expectedTotalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+  if (totalPages !== expectedTotalPages)
+    throw new UCContractError(`${path}.total_pages não corresponde ao total.`);
+  return {
+    page,
+    page_size: pageSize,
+    total,
+    total_pages: totalPages,
+  };
 }
 function state(value: unknown, path: string): UCStatus {
   if (!(UC_STATES as readonly unknown[]).includes(value))
@@ -391,12 +418,6 @@ export function decodeUCSearch(value: unknown): UCSearchResponse {
     m = obj(root.metadata, "metadata");
   if (!Array.isArray(data.items))
     throw new UCContractError("data.items deve ser lista.");
-  const integer = (x: unknown, path: string) => {
-    const value = n(x, path);
-    if (!Number.isInteger(value) || value < 0)
-      throw new UCContractError(`${path} inválido.`);
-    return value;
-  };
   return {
     data: {
       items: data.items.map((raw, index) => {
@@ -411,12 +432,7 @@ export function decodeUCSearch(value: unknown): UCSearchResponse {
         };
       }),
     },
-    pagination: {
-      page: integer(p.page, "page"),
-      page_size: integer(p.page_size, "page_size"),
-      total: integer(p.total, "total"),
-      total_pages: integer(p.total_pages, "total_pages"),
-    },
+    pagination: pagination(p, "pagination"),
     metadata: { status: state(m.status, "metadata.status") },
   };
 }
@@ -429,12 +445,6 @@ export function decodeUCHistory(
     p = obj(root.pagination, "pagination");
   if (!Array.isArray(data.items))
     throw new UCContractError("data.items deve ser lista.");
-  const integer = (x: unknown, path: string) => {
-    const value = n(x, path);
-    if (!Number.isInteger(value) || value < 0)
-      throw new UCContractError(`${path} inválido.`);
-    return value;
-  };
   const items = data.items.map((raw, index) => {
     const item = obj(raw, `items[${index}]`);
     const required = (key: string) => {
@@ -520,12 +530,7 @@ export function decodeUCHistory(
     data: {
       items,
     },
-    pagination: {
-      page: integer(p.page, "page"),
-      page_size: integer(p.page_size, "page_size"),
-      total: integer(p.total, "total"),
-      total_pages: integer(p.total_pages, "total_pages"),
-    },
+    pagination: pagination(p, "pagination"),
     metadata: meta(root.metadata, "metadata"),
   };
 }

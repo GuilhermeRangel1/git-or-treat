@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.main import app
 from app.repositories.analytics import get_analytics_repository, get_analytics_repository_provider
 from app.repositories.analytics import SyntheticAnalyticsRepository
-from tests.test_migrations import alembic_config
+from tests.support.migrations import alembic_config
 from alembic import command
 
 ROOT = "/api/v1/inspections"
@@ -85,7 +85,7 @@ def test_paginated_listing_filters_totals_and_access(orders):
 
 def test_search_filters_result_before_count_and_pagination(orders):
     from app.models.operational import InspectionOrder
-    from tests.conftest import TestingSessionLocal
+    from tests.support.database import TestingSessionLocal
 
     expected_results = {
         "UC-RESULT-NULL": None,
@@ -152,7 +152,7 @@ def test_pages_beyond_total_never_send_oversized_offsets_to_database(orders):
 
 def test_search_projects_summary_without_loading_snapshot(orders):
     from sqlalchemy import event
-    from tests.conftest import test_engine
+    from tests.support.database import test_engine
 
     order = create(orders).json()
     statements = []
@@ -178,7 +178,7 @@ def test_legacy_snapshot_survives_evolving_live_analytical_contract(orders):
     from pydantic import create_model, ValidationError
     from app.models.operational import InspectionOrder
     from app.schemas.inspection_queue import SuspicionResponse
-    from tests.conftest import TestingSessionLocal
+    from tests.support.database import TestingSessionLocal
 
     created = create(orders).json()
     assert created["suspicion_snapshot"]["snapshot_schema_version"] == "1"
@@ -202,7 +202,7 @@ def test_legacy_snapshot_survives_evolving_live_analytical_contract(orders):
 def test_replay_if_competing_request_commits_between_key_and_active_lookup(orders, monkeypatch):
     from app.services import inspections as service
     from app.schemas.inspections import QueueOrderCreateRequest
-    from tests.conftest import TestingSessionLocal
+    from tests.support.database import TestingSessionLocal
 
     payload = request(orders)
     original = service.build_suspicion_response
@@ -287,7 +287,7 @@ def test_one_active_uc_across_versions_and_manual_creation(orders):
 
 def test_failed_insert_rolls_back_key_and_allows_same_intention_retry(orders):
     from sqlalchemy import text
-    from tests.conftest import test_engine, TestingSessionLocal
+    from tests.support.database import test_engine, TestingSessionLocal
     from app.models.operational import InspectionOrder
 
     payload = request(orders)
@@ -307,7 +307,7 @@ def test_failed_insert_rolls_back_key_and_allows_same_intention_retry(orders):
 
 def test_post_commit_confirmation_failure_recovers_with_source_down(orders, monkeypatch):
     from app.repositories.analytics import AnalyticsSourceUnavailable
-    from tests.conftest import TestingSessionLocal
+    from tests.support.database import TestingSessionLocal
     from app.models.operational import InspectionOrder
 
     payload = request(orders)
@@ -419,7 +419,7 @@ def test_concurrent_creation_and_persistence_on_disposable_postgres(monkeypatch)
     from app.models.operational import InspectionOrder
     from app.schemas.inspections import QueueOrderCreateRequest, OrderCreateRequest
     from app.services.inspections import create_from_queue, create_order, OrderConflictError
-    from tests.test_migrations import migrated_database
+    from tests.support.migrations import migrated_database
 
     raw = os.getenv("TEST_POSTGRES_URL")
     if not raw:

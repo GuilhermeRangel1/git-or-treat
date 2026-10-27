@@ -100,7 +100,7 @@ O Backend trata o plano recebido como entrada não confiável, mesmo vindo de um
 1. Valida o `LogicalReadPlan` com as mesmas regras do schema (`extra="forbid"`, dimensões, filtros, ordenação, `limit` de 1 a 100).
 2. Recalcula `plan_fingerprint` e compara com o recebido.
 3. Confere `catalog_version`, `profile_id`, `source_id`, `metric_id`, dimensões e operadores contra o catálogo aprovado e o escopo da pessoa usuária.
-4. Traduz o plano em consulta parametrizada a partir do catálogo, sem interpolar valores, e executa com papel somente leitura, timeout e limite de linhas.
+4. Traduz o plano em consulta parametrizada a partir do catálogo, sem interpolar valores, e executa com papel somente leitura, timeout e limite de linhas. Pela [ADR-0017](../decisions/0017-banco-local-postgresql.md), o banco é PostgreSQL 16 e o papel é `venergy_gold_reader`, restrito a `SELECT` no schema `gold` e mantido pelo Backend por migração ou script de inicialização.
 5. Monta o `EvidenceLookupResult` (existente) descrito na operação 2.
 
 A mesma revalidação vale para um resultado servido de cache: a chave inclui escopo, `plan_fingerprint`, `catalog_version` e `batch_ref` (**proposto**), no mesmo espírito de `authorized_cache_scope` da GenAI. Um resultado guardado para um escopo não pode ser servido a outro.
@@ -166,7 +166,8 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
 | Plano rejeitado pelo Backend por escopo | Backend | HTTP 200, `refused`, `access_denied`, `retryable: false`. A GenAI não é chamada para sintetizar. |
 | Plano rejeitado pelo Backend por contrato ou versão de catálogo | Backend | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
 | Evidência incompatível com o plano | GenAI (`EvidenceContractInvalid`) | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
-| Banco indisponível (conexão recusada, papel ou credencial inválidos) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. |
+| Banco indisponível por falha transitória (conexão recusada ou perdida, timeout de conexão) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. |
+| Credencial ou papel do banco inválidos (erro de configuração) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: false`. Mensagem pública genérica, sem detalhe de credencial, papel ou permissão; repetir não ajuda até o Backend corrigir a configuração. |
 | Timeout da consulta no banco | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. A consulta é cancelada; a GenAI não é chamada para sintetizar. |
 | Lote inválido: nenhum manifesto carregado e validado, lote com valores de reserva (`SINTETICO_DEV`, `LOTE_DEV`) ou `batch_ref` alterado durante a execução | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: false` (**proposto**). O Backend não consulta o banco, ou descarta o resultado, e não chama sintetizar. Repetir só ajuda depois de uma nova carga validada. |
 | Evidência sem `batch_ref` na proveniência | GenAI (`EvidenceGuard`, **proposto**) | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
@@ -381,6 +382,6 @@ Um `lookup` ou plano com texto SQL, nome de tabela ou coluna física em qualquer
 
 ## Limites desta versão
 
-Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. Depende do P-04, do dicionário Gold (DE-08) e da carga no banco local (DE-06).
+Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. O motor do P-04 foi escolhido na [ADR-0017](../decisions/0017-banco-local-postgresql.md); o fluxo ainda depende do papel somente leitura criado pelo Backend, do dicionário Gold (DE-08) e da carga no banco local (DE-06).
 
 `ai-agent/tests/test_internal_contract_examples.py` confere os exemplos deste contrato com os schemas existentes da GenAI. Lacunas documentadas, sem teste até existir modelo: envelopes completos de planejar e sintetizar, estados `planned` e `refused` desses envelopes, `access_scope` sem correlação e exigência de `batch_ref`. Elas dependem do formato do `batch_ref`. Os testes do lado Backend (revalidação, execução e papel somente leitura) ficam com o Backend (Felipe).

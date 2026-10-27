@@ -4,11 +4,13 @@ Este guia orienta a execução dos cartões do quadro [GenAI — Gold real](http
 
 ## Estado e decisões de partida
 
-Referência inspecionada em 24/10/2026: `develop` em `3d1242162ab00d394fa7d15749cbd55f8f818026`. Reconfira os símbolos e o estado dos documentos na branch atual; esta referência não fixa versões futuras.
+Referência de código inspecionada em 24/10/2026: `develop` em `3d1242162ab00d394fa7d15749cbd55f8f818026`. Essa fotografia não fixa versões futuras nem substitui o estado documental atual da branch.
 
 - Chat, insight e leitura SQL têm implementações demonstrativas integradas. Fonte externa dispõe de composição explícita para perguntas, mas isso não comprova um adaptador Gold operacional.
 - Nesta referência, o dicionário oficial ainda é um modelo a preencher. Um dicionário de outra branch só pode ser habilitado após conferir a versão aprovada, o esquema e as capacidades efetivamente executadas.
-- A [ADR-0002](../decisions/0002-genai-gold-query-owner.md) propõe o Backend como proprietário da consulta e ainda aguarda revisão. GENAI-01 deve resolver essa decisão antes de habilitar acesso real. O leitor SQL existente é uma base técnica, não aprovação automática de acesso direto da GenAI ao banco.
+- A [ADR-0002](../decisions/0002-genai-gold-query-owner.md) foi aprovada em 25/10/2026 com base nos comentários de concordância de Backend e Engenharia de Dados no PR #54, sem Approve formal no GitHub: Backend é o único executor SQL da Gold local e coordena planejar → executar → sintetizar. A decisão não autoriza adaptador, credencial nem consulta real. P-04, DE-06, DE-08 e as dependências de catálogo, autorização individual e prazos precisam ser resolvidas antes da implementação. O leitor SQL existente não altera essa decisão.
+
+Em 27/10/2026, a [ADR-0016](../decisions/0016-priorizacao-melhorias-pre-gold.md) aprovou priorizar oito melhorias pré-Gold; não altera estados funcionais do PRD nem cancela as demais observações da auditoria.
 
 ## Caminhos e pontos de extensão
 

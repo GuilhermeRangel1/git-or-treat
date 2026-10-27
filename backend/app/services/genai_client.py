@@ -3,7 +3,7 @@
 from typing import Any
 
 import httpx
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
 from app.schemas.ai_insight import AIInsightRequest, AIInsightResponse
@@ -19,6 +19,51 @@ class GenAITimeout(Exception):
 
 class GenAIResponseInvalid(Exception):
     """O serviço GenAI devolveu status, JSON ou contrato inesperado."""
+
+
+async def _post_genai_json(
+    *,
+    http_client: httpx.AsyncClient,
+    base_url: str | None,
+    service_token: str | None,
+    path: str,
+    payload: BaseModel | dict[str, Any],
+    correlation_id: str,
+) -> Any:
+    """Executa o transporte privado comum e valida o envelope HTTP/JSON básico."""
+    if base_url is None or service_token is None:
+        raise GenAIServiceUnavailable
+
+    request_payload = (
+        payload.model_dump(mode="json") if isinstance(payload, BaseModel) else payload
+    )
+    headers = {
+        "Authorization": f"Bearer {service_token}",
+        "X-Correlation-ID": correlation_id,
+    }
+
+    try:
+        response = await http_client.post(
+            f"{base_url}{path}",
+            json=request_payload,
+            headers=headers,
+        )
+    except httpx.TimeoutException as exc:
+        raise GenAITimeout from exc
+    except httpx.RequestError as exc:
+        raise GenAIServiceUnavailable from exc
+
+    if response.status_code != 200:
+        raise GenAIResponseInvalid
+
+    try:
+        result = response.json()
+    except ValueError as exc:
+        raise GenAIResponseInvalid from exc
+
+    if response.headers.get("x-correlation-id") != correlation_id:
+        raise GenAIResponseInvalid
+    return result
 
 
 class GenAIQuestionClient:
@@ -41,42 +86,21 @@ class GenAIQuestionClient:
         *,
         correlation_id: str,
     ) -> AIQuestionResponse:
-        if self._base_url is None or self._service_token is None:
-            raise GenAIServiceUnavailable
-
-        request_payload = (
-            payload.model_dump(mode="json")
-            if isinstance(payload, AIQuestionRequest)
-            else payload
+        response_payload = await _post_genai_json(
+            http_client=self._http_client,
+            base_url=self._base_url,
+            service_token=self._service_token,
+            path="/api/v1/questions",
+            payload=payload,
+            correlation_id=correlation_id,
         )
-        headers = {
-            "Authorization": f"Bearer {self._service_token}",
-            "X-Correlation-ID": correlation_id,
-        }
 
         try:
-            response = await self._http_client.post(
-                f"{self._base_url}/api/v1/questions",
-                json=request_payload,
-                headers=headers,
-            )
-        except httpx.TimeoutException as exc:
-            raise GenAITimeout from exc
-        except httpx.RequestError as exc:
-            raise GenAIServiceUnavailable from exc
-
-        if response.status_code != 200:
-            raise GenAIResponseInvalid
-
-        try:
-            result = AIQuestionResponse.model_validate(response.json())
+            result = AIQuestionResponse.model_validate(response_payload)
         except (ValueError, ValidationError) as exc:
             raise GenAIResponseInvalid from exc
 
-        if (
-            result.correlation_id != correlation_id
-            or response.headers.get("x-correlation-id") != correlation_id
-        ):
+        if result.correlation_id != correlation_id:
             raise GenAIResponseInvalid
         return result
 
@@ -101,41 +125,20 @@ class GenAIInsightClient:
         *,
         correlation_id: str,
     ) -> AIInsightResponse:
-        if self._base_url is None or self._service_token is None:
-            raise GenAIServiceUnavailable
-
-        request_payload = (
-            payload.model_dump(mode="json")
-            if isinstance(payload, AIInsightRequest)
-            else payload
+        response_payload = await _post_genai_json(
+            http_client=self._http_client,
+            base_url=self._base_url,
+            service_token=self._service_token,
+            path="/api/v1/insights",
+            payload=payload,
+            correlation_id=correlation_id,
         )
-        headers = {
-            "Authorization": f"Bearer {self._service_token}",
-            "X-Correlation-ID": correlation_id,
-        }
 
         try:
-            response = await self._http_client.post(
-                f"{self._base_url}/api/v1/insights",
-                json=request_payload,
-                headers=headers,
-            )
-        except httpx.TimeoutException as exc:
-            raise GenAITimeout from exc
-        except httpx.RequestError as exc:
-            raise GenAIServiceUnavailable from exc
-
-        if response.status_code != 200:
-            raise GenAIResponseInvalid
-
-        try:
-            result = AIInsightResponse.model_validate(response.json())
+            result = AIInsightResponse.model_validate(response_payload)
         except (ValueError, ValidationError) as exc:
             raise GenAIResponseInvalid from exc
 
-        if (
-            result.correlation_id != correlation_id
-            or response.headers.get("x-correlation-id") != correlation_id
-        ):
+        if result.correlation_id != correlation_id:
             raise GenAIResponseInvalid
         return result
