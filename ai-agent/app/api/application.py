@@ -23,7 +23,6 @@ from app.schemas.domain_profile import DomainProfile
 from app.schemas.insights import ScreenContext, ScreenInsightResponse
 from app.schemas.questions import QuestionRequest, QuestionResponse
 
-
 SourceMode = Literal["demo", "external"]
 
 
