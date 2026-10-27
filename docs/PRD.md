@@ -40,7 +40,7 @@ A V-Energy é uma distribuidora de energia elétrica com concessão na região m
 
 Os sistemas cresceram sem uma estratégia integrada. Cadastro comercial, medição, ocorrências de rede, atendimento e inspeções possuem versões desconectadas do cliente. Há exportações em CSV, JSON aninhado e planilhas Excel; chaves, formatos, duplicatas, ausências e inconsistências precisam ser examinados. Cada área usa números diferentes. O produto deve reconciliar essas fontes e oferecer uma fonte única de verdade rastreável.
 
-A pergunta que originou o projeto é: **por que a receita residencial caiu 8% nos últimos 12 meses em comparação com o primeiro ano da base, enquanto a tarifa residencial acumulou reajuste homologado de 10,5% desde meados de 2022 e o volume de energia faturada caiu quase 4%?** O time deve explicar a variação com dados, decompondo preço e quantidade, investigando município, bairro e classe, e encerrando com recomendações de negócio e ordem de grandeza do impacto esperado. Os percentuais são premissas do enunciado; o diagnóstico final precisa reconciliá-los com os dados recebidos e declarar qualquer divergência.
+A pergunta que originou o projeto é: **por que a receita residencial subiu apenas 8% nos últimos 12 meses em comparação com o primeiro ano da base, enquanto a tarifa residencial acumulou reajuste homologado de 10,5% desde meados de 2022 e o volume de energia faturada caiu quase 4%?** O time deve explicar a variação com dados, decompondo preço e quantidade, investigando município, bairro e classe, e encerrando com recomendações de negócio e ordem de grandeza do impacto esperado. Os percentuais são premissas do enunciado; o diagnóstico final precisa reconciliá-los com os dados recebidos e declarar qualquer divergência.
 
 A diretoria também quer que uma pessoa consiga fazer perguntas em português e receber uma resposta fundamentada sem abrir chamado técnico. Se o agente não souber, deve dizer que não sabe. A precisão da resposta e a integridade dos dados têm prioridade sobre funcionalidades extras.
 
@@ -54,7 +54,7 @@ A visão 360 precisa conectar os fragmentos da mesma UC sem apagar diferenças e
 
 | Pessoa / área | Problema relatado | Resposta que a solução deve permitir | IDs relacionados |
 | --- | --- | --- | --- |
-| Henrique Duarte, diretor comercial | Reajuste residencial homologado de 10,5% convive com volume faturado quase 4% menor e receita 8% menor. A diretoria não consegue localizar a razão. | Decompor a variação por preço/tarifa e quantidade; abrir por bairro, classe e município; perguntar rapidamente qual recorte mais perdeu volume e quanto cresceu a receita comercial em Jaboatão. | WEB-01, WEB-02, IA-01, IA-03, ENT-01 |
+| Henrique Duarte, diretor comercial | Reajuste residencial homologado de 10,5% convive com volume faturado quase 4% menor e receita apenas 8% maior. A diretoria não consegue localizar a razão. | Decompor a variação por preço/tarifa e quantidade; abrir por bairro, classe e município; perguntar rapidamente qual recorte mais perdeu volume e quanto cresceu a receita comercial em Jaboatão. | WEB-01, WEB-02, IA-01, IA-03, ENT-01 |
 | Patrícia Lins, diretora de tecnologia | Exportações heterogêneas e números divergentes tornam cada pergunta dependente de engenharia de dados. | Criar fonte rastreável; integrar portal e IA; responder em português com base identificável; dizer claramente quando os dados não sustentam resposta. | DE-01 a DE-08, IA-01 a IA-06 |
 | Camila Barreto, gerente de atendimento | Durante a ligação, o atendente precisa verificar se a conta realmente subiu e por quê. | Buscar por número da UC e ver cliente, consumo histórico, faturas em aberto, medidor, solar, interrupções e chamados na mesma jornada. | WEB-03, IA-01 |
 | Rafael Coutinho, gerente de perdas | Mais de 200 inspeções por mês, menos da metade com irregularidade; deslocamentos improdutivos. | Ver fila de UCs suspeitas, motivo, energia potencialmente recuperável e prioridade; escolher quem vai a campo, abrir ordem e registrar resultado. | WEB-04, WEB-05, WEB-08, WEB-09 |
@@ -201,7 +201,7 @@ O agente conversacional recebe perguntas em português, traduz para consultas so
 
 ### 5.4 Diagnóstico de negócio
 
-Cada time deve responder à pergunta sobre queda de receita residencial. A explicação tem de separar os efeitos de preço/tarifa e volume, sustentar causas com dados identificados, estimar ordem de grandeza do impacto das recomendações e ser comunicável à diretoria na apresentação final. Artefatos textuais do diagnóstico ficam em `docs/`; a apresentação pode ser produzida posteriormente conforme regras da atividade. Uma hipótese plausível não substitui prova nos dados.
+Cada time deve responder à pergunta sobre a evolução da receita residencial (volume quase 4% menor, receita apenas 8% maior). A explicação tem de separar os efeitos de preço/tarifa e volume, sustentar causas com dados identificados, estimar ordem de grandeza do impacto das recomendações e ser comunicável à diretoria na apresentação final. Artefatos textuais do diagnóstico ficam em `docs/`; a apresentação pode ser produzida posteriormente conforme regras da atividade. Uma hipótese plausível não substitui prova nos dados.
 
 ## 6. Histórias, critérios de aceite e rastreabilidade
 
@@ -268,9 +268,9 @@ O case cobra de todos os grupos: **pipeline Databricks completo Bronze → Silve
 
 Selecionar períodos comparáveis e visualizar receita, energia faturada, consumo, UCs, continuidade e demais indicadores escolhidos. Cada KPI deve esclarecer se é faturado, pago, consumido ou entregue. Comparação por competência precisa usar janela coerente e exposição da base. A diretoria consegue navegar do agregado ao recorte sem perder os filtros.
 
-### 7.2 Comercial: queda residencial
+### 7.2 Comercial: volume e receita residenciais
 
-Partir da diferença de receita entre o primeiro ano disponível e os 12 meses mais recentes (definição exata após inspeção das competências), isolar classe residencial, decompor tarifa/preço efetivo e volume faturado, depois recortar por município/bairro/classe. Confirmar se a queda citada no enunciado se reproduz; se não, explicar cobertura, tratamento de qualidade ou base de comparação. Inspecionar hipóteses como GD, bandeiras, inadimplência, mix, perdas e cadastro apenas se os dados permitirem. O resultado é uma cadeia de evidências, não correlação apresentada como causalidade.
+Partir da diferença de receita entre o primeiro ano disponível e os 12 meses mais recentes (definição exata após inspeção das competências), isolar classe residencial, decompor tarifa/preço efetivo e volume faturado, depois recortar por município/bairro/classe. Confirmar se as variações de volume e receita citadas no enunciado se reproduzem; se não, explicar cobertura, tratamento de qualidade ou base de comparação. Inspecionar hipóteses como GD, bandeiras, inadimplência, mix, perdas e cadastro apenas se os dados permitirem. O resultado é uma cadeia de evidências, não correlação apresentada como causalidade.
 
 ### 7.3 Atendimento: chamada sobre conta alta
 
@@ -431,7 +431,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 | P-01 | Dataset não fornecido junto com as imagens. | Não validar esquema, chaves, números reais ou hipóteses de receita até receber o `.zip`. |
 | P-02 | Narrativa cita 45 mil UCs e >2,1 milhões de leituras/faturas; tabela cita 46 mil e 2,18 milhões. | Tratar como aproximações de apresentação; registrar contagem real por arquivo após ingestão. |
 | P-03 | O texto sobre portal remete a “user stories da seção 6.2”, enquanto as páginas numeram essas histórias em 5.2. | IDs WEB deste PRD são a referência estável. |
-| P-04 | SQL local: SQLite/PostgreSQL/outro; framework e modelo de IA ainda abertos. | Decidir por ADR com razões e consequências antes de acoplar módulos. |
+| P-04 | SQL local: SQLite/PostgreSQL/outro; framework e modelo de IA ainda abertos. | Banco local resolvido pela [ADR-0017](decisions/0017-banco-local-postgresql.md), aprovada em 27/10/2026: PostgreSQL 16 como banco local da Gold, Backend como único executor de SQL e papel somente leitura `venergy_gold_reader` com `SELECT` no schema `gold` (papel ainda não criado; pendências na ADR). Framework e modelo de IA continuam abertos: decidir por ADR com razões e consequências antes de acoplar módulos. |
 | P-05 | Definição de DEC/FEC depende de campos e população de UCs por alimentador. | Documentar fórmula e limitar interpretação; não reivindicar cálculo regulatório oficial. |
 | P-06 | Case exige GitHub público e imprime aviso de confidencialidade. | Confirmar permissão de publicação; evitar subir dataset e informação identificável. |
 | P-07 | Não há ano explícito nas datas 04/11, 05/11 e 10/11. | Conferir calendário do programa. |
@@ -465,6 +465,11 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Evidência reproduzível permanente: [Verificações reproduzíveis do plano da Fase 1](plans/2026-10-27-melhorias-pre-gold-fase1.md#verificações-reproduzíveis) registra cwd, comandos, resultados, revisão pelo agente principal e limites. T1 revisada pelo principal; quatro critérios frontend exercitados. FE-010 cobre parte dos invariantes de paginação TR-003, sem alinhar todos os produtores/consumidores; TR-004 é o smoke produtor → decoder e continua pendente. A suíte frontend completa passou sequencialmente: 281 testes em 34 arquivos, 128,45 s. Uma tentativa anterior com dois workers teve 280 aprovados e um timeout de 5 s no teste existente de Operação; a reexecução isolada passou em 3629 ms e a suíte sequencial passou sem mudanças no código, teste ou timeout. A causa da diferença não está determinada. T2: 404 aprovados, 4 skips PostgreSQL e 1 aviso Starlette preexistente; `compileall` aprovado. T3: 426 aprovados, 4 skips PostgreSQL e 1 aviso Starlette/httpx preexistente; `compileall` aprovado. Os relatórios em `work/refactor-pre-gold/` são auxiliares locais e não a única fonte da evidência.
 - Limites: verificações backend foram feitas com Python 3.11.9 local, enquanto o alvo CI é Python 3.12; não substituem essa matriz. Os cenários PostgreSQL foram ignorados por falta de banco descartável configurado. Nenhuma validação de integração Gold é alegada. A documentação T4 e o checklist completo estão no plano da Fase 1; comandos e resultados documentais constam em `work/refactor-pre-gold/task-docs-report.md`.
 - Sincronização: pendente. A consulta MCP ao quadro Trello obrigatório retornou recurso não encontrado ou sem acesso; nenhuma escrita foi realizada. O principal tratará a sincronização quando houver acesso.
+
+### Correção datada de 2026-10-27 — premissa do case e P-04
+
+- A premissa do case foi corrigida nas §1, §1.2, §5.4, §7.2 e §15: o volume de energia caiu quase 4% e a receita subiu apenas 8%; o texto anterior dizia que a receita havia caído 8%.
+- O banco local da Gold, parte da P-04, foi resolvido pela [ADR-0017](decisions/0017-banco-local-postgresql.md). Framework e modelo de IA seguem abertos. Nenhum estado de requisito muda nesta entrada.
 
 ### Correção datada de 2026-10-27 — estado da ADR-0002 no registro GENAI-01
 
@@ -1566,7 +1571,7 @@ Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localiz
 | Página | Conteúdo específico preservado | Onde aparece / como será demonstrado |
 | --- | --- | --- |
 | 1 | Visagio, Rocket Lab 2026.2; caso final V-Energy Grid 360; três trilhas — engenharia de dados, web e IA — e aviso de confidencialidade. | Abertura, seções 5 e 12; decisão de publicação ainda aberta. |
-| 2 | Distribuidora na região metropolitana do Recife; 45 mil UCs, 14 municípios, quase 300 bairros, mais de 120 alimentadores, quatro anos, >2,1 milhões de leituras/faturas; fontes isoladas; reajuste 10,5%, volume quase −4%, receita −8%; missão de construir e defender solução integrada. | Seções 1, 1.1, 1.2, 2, 5.4 e 7.2; reconciliação em ENT-01. |
+| 2 | Distribuidora na região metropolitana do Recife; 45 mil UCs, 14 municípios, quase 300 bairros, mais de 120 alimentadores, quatro anos, >2,1 milhões de leituras/faturas; fontes isoladas; reajuste 10,5%, volume quase −4%, receita apenas +8%; missão de construir e defender solução integrada. | Seções 1, 1.1, 1.2, 2, 5.4 e 7.2; reconciliação em ENT-01. |
 | 3 | Extração bruta e heterogênea; oito conjuntos, com formato/volume/função, `.zip` disponibilizado na atividade; visão 360 que une consumo, faturamento, continuidade e atendimento. | Seções 2 e 4; DE-01 a DE-04, WEB-03. |
 | 4 | Fluxo conceitual de cinco origens para Grid 360, portal, IA, diagnóstico, fila e qualidade; glossário de UC, competência, classe, alimentador, bandeira, perdas, GD e DEC/FEC. | Seções 2, 3 e 5; vínculos testados nos cenários de 7.7. |
 | 5 | Três módulos técnicos e um entregável de negócio; Bronze original, Silver tratada, Gold modelada; Databricks/PySpark/Delta, exportação CSV ao banco local, Workflow e agenda futura justificada. | Seções 4 e 5; DE-01 a DE-08 e ENT-01. |
