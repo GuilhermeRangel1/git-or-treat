@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -22,6 +22,9 @@ from app.schemas.access import AccessContext
 from app.schemas.domain_profile import DomainProfile
 from app.schemas.insights import ScreenContext, ScreenInsightResponse
 from app.schemas.questions import QuestionRequest, QuestionResponse
+
+
+SourceMode = Literal["demo", "external"]
 
 
 class QuestionHandler(Protocol):
@@ -53,7 +56,7 @@ def create_api_application(
     insight_handler: InsightHandler,
     domain_profile: DomainProfile,
     source_id: str,
-    source_mode: str,
+    source_mode: SourceMode,
     access_context_resolver: AccessContextResolver | None,
 ) -> FastAPI:
     """Configura a aplicação HTTP sem conhecer a composição concreta do serviço."""

@@ -8,7 +8,7 @@ from app.agent.execution import ExecutionController, ExecutionLimits
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.orchestrator import QuestionOrchestrator
 from app.api.access import SYNTHETIC_SOURCE_ID, AccessContextResolver
-from app.api.application import create_api_application
+from app.api.application import SourceMode, create_api_application
 from app.config import Settings, get_settings
 from app.ports.events import EventSink
 from app.ports.evidence import EvidenceSource
@@ -35,7 +35,7 @@ def create_app(
     event_sink: EventSink | None = None,
     require_durable_audit: bool = False,
     source_id: str = SYNTHETIC_SOURCE_ID,
-    source_mode: str = "demo",
+    source_mode: SourceMode = "demo",
     access_context_resolver: AccessContextResolver | None = None,
 ) -> FastAPI:
     """Compõe a demonstração ou uma fonte externa explicitamente autorizada."""
