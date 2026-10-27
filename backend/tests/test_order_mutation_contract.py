@@ -5,7 +5,7 @@ from pydantic import SecretStr
 from app.models.operational import OrderStatus
 from app.schemas.inspections import OrderUpdateRequest
 from app.services import inspections as service
-from tests.conftest import TestingSessionLocal
+from tests.support.database import TestingSessionLocal
 
 ROOT = "/api/v1/inspections/orders"
 
