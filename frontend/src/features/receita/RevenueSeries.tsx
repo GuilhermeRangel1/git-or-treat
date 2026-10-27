@@ -198,8 +198,8 @@ export default function RevenueSeries({
         Série mensal de faturamento
       </h2>
       <p className="mt-1 text-sm text-muted">
-        Receita faturada por mês (BRL). Lacunas permanecem sem valor e
-        não são ligadas no gráfico. Escala vertical inclui R$ 0,00.
+        Receita faturada por mês (BRL). Lacunas permanecem sem valor e não são
+        ligadas no gráfico. Escala vertical inclui R$ 0,00.
       </p>
       <div className="mt-4 min-w-0 max-w-full overflow-x-auto rounded-lg bg-canvas/50 px-2 py-2">
         <div className="revenue-series__chart-enter">

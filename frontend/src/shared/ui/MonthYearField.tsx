@@ -47,9 +47,7 @@ export default function MonthYearField({
   }
 
   function changeYear(nextYear: string) {
-    onChange(
-      `${nextYear.replace(/\D/g, "").slice(0, 4)}-${selectedMonth}`,
-    );
+    onChange(`${nextYear.replace(/\D/g, "").slice(0, 4)}-${selectedMonth}`);
   }
 
   return (

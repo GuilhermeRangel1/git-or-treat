@@ -185,7 +185,9 @@ export default function OperationRanking({
                       </span>
                       {item.limitations.length > 0 ? (
                         <small className="block text-xs text-muted">
-                          {item.limitations.map(formatMonthReferences).join(" ")}
+                          {item.limitations
+                            .map(formatMonthReferences)
+                            .join(" ")}
                         </small>
                       ) : null}
                     </td>
@@ -230,7 +232,9 @@ export default function OperationRanking({
                       </span>
                       {item.limitations.length > 0 ? (
                         <small className="block text-xs text-muted">
-                          {item.limitations.map(formatMonthReferences).join(" ")}
+                          {item.limitations
+                            .map(formatMonthReferences)
+                            .join(" ")}
                         </small>
                       ) : null}
                     </td>

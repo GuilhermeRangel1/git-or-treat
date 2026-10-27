@@ -113,9 +113,7 @@ export default function RevenueFiltersForm({
         monthLabel="Mês do fim"
         yearLabel="Ano do fim"
         value={draft.competencia_fim}
-        onChange={(competencia_fim) =>
-          setDraft({ ...draft, competencia_fim })
-        }
+        onChange={(competencia_fim) => setDraft({ ...draft, competencia_fim })}
       />
       <label className="grid gap-1.5 text-sm font-medium">
         Município

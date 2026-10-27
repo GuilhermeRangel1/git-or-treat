@@ -248,7 +248,10 @@ it("mantém o rascunho de filtros local até aplicar e fecha com Escape devolven
   const dialog = screen.getByRole("dialog", {
     name: "Ajustar filtros de operação",
   });
-  await user.selectOptions(within(dialog).getByLabelText("Mês de início"), "12");
+  await user.selectOptions(
+    within(dialog).getByLabelText("Mês de início"),
+    "12",
+  );
   await user.clear(within(dialog).getByLabelText("Ano de início"));
   await user.type(within(dialog).getByLabelText("Ano de início"), "2024");
   await user.keyboard("{Escape}");
@@ -259,7 +262,10 @@ it("mantém o rascunho de filtros local até aplicar e fecha com Escape devolven
   );
 
   await user.click(trigger);
-  await user.selectOptions(within(dialog).getByLabelText("Mês de início"), "12");
+  await user.selectOptions(
+    within(dialog).getByLabelText("Mês de início"),
+    "12",
+  );
   await user.clear(within(dialog).getByLabelText("Ano de início"));
   await user.type(within(dialog).getByLabelText("Ano de início"), "2024");
   await user.click(
@@ -293,9 +299,7 @@ it("mantém o diálogo aberto e foca campo inválido para janela acima de 120 me
     within(dialog).getByRole("button", { name: "Aplicar filtros" }),
   );
   expect(dialog).toBeVisible();
-  expect(within(dialog).getByRole("alert")).toHaveTextContent(
-    "120 meses",
-  );
+  expect(within(dialog).getByRole("alert")).toHaveTextContent("120 meses");
   expect(end).toHaveAttribute("aria-invalid", "true");
   expect(end).toHaveFocus();
   expect(screen.getByLabelText("URL atual")).toHaveTextContent("");

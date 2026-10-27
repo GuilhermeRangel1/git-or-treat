@@ -284,15 +284,11 @@ describe("Receita", () => {
     const summary = await screen.findByRole("region", {
       name: "Resumo da receita",
     });
-    expect(within(summary).getAllByText("Mês: Fev/2025")).toHaveLength(
-      3,
-    );
+    expect(within(summary).getAllByText("Mês: Fev/2025")).toHaveLength(3);
     expect(
       within(summary).getByText("Período: Jan/2025 → Fev/2025"),
     ).toBeVisible();
-    expect(
-      within(summary).queryByText(/Mês: 2025-/),
-    ).not.toBeInTheDocument();
+    expect(within(summary).queryByText(/Mês: 2025-/)).not.toBeInTheDocument();
     expect(within(summary).getAllByText("R$ 76.500,00")[0]).toBeVisible();
     expect(within(summary).getAllByText(/Antes: R\$ 80\.000,00/i)).toHaveLength(
       1,
