@@ -1,10 +1,6 @@
-"""Fábrica da aplicação FastAPI do serviço GenAI."""
-
-import re
-from uuid import uuid4
+"""Ponto de composição do serviço GenAI e entrypoint do servidor."""
 
 from fastapi import FastAPI
-from fastapi.exceptions import RequestValidationError
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.composition import compose_core
@@ -12,13 +8,7 @@ from app.agent.execution import ExecutionController, ExecutionLimits
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.orchestrator import QuestionOrchestrator
 from app.api.access import SYNTHETIC_SOURCE_ID, AccessContextResolver
-from app.api.errors import (
-    ServiceAuthenticationError,
-    invalid_request_response,
-    service_auth_error_response,
-    unexpected_error_response,
-)
-from app.api.routes import router
+from app.api.application import create_api_application
 from app.config import Settings, get_settings
 from app.ports.events import EventSink
 from app.ports.evidence import EvidenceSource
@@ -103,34 +93,6 @@ def create_app(
             raise ValueError("Resolvedor de acesso externo exige modo external.")
         if not source_id.startswith("synthetic."):
             raise ValueError("Modo demo exige fonte sintética explícita.")
-    application = FastAPI(
-        title=active_settings.service_name,
-        version="0.1.0",
-        description="API independente do agente GenAI do V-Energy Grid 360.",
-    )
-
-    @application.middleware("http")
-    async def add_correlation_id(request, call_next):
-        incoming_id = request.headers.get("x-correlation-id", "")
-        correlation_id = (
-            incoming_id if re.fullmatch(r"[a-f0-9]{32}", incoming_id) else uuid4().hex
-        )
-        request.state.correlation_id = correlation_id
-        response = await call_next(request)
-        response.headers["X-Correlation-ID"] = correlation_id
-        return response
-
-    application.add_exception_handler(RequestValidationError, invalid_request_response)
-    application.add_exception_handler(ServiceAuthenticationError, service_auth_error_response)
-    application.add_exception_handler(Exception, unexpected_error_response)
-    application.state.environment = active_settings.environment
-    application.state.enable_demo_access = active_settings.enable_demo_access
-    application.state.service_api_token = active_settings.service_api_token
-    application.state.domain_profile = active_domain_profile
-    application.state.source_id = source_id
-    application.state.source_mode = source_mode
-    application.state.access_context_resolver = access_context_resolver
-
     execution_controller = ExecutionController(
         ExecutionLimits(
             request_seconds=active_settings.request_timeout_ms / 1000,
@@ -174,14 +136,15 @@ def create_app(
             max_rows=active_settings.evidence_max_rows,
             max_evidence_bytes=active_settings.evidence_max_bytes,
         )
-    application.state.question_orchestrator = (
-        question_orchestrator or core.question
+    return create_api_application(
+        settings=active_settings,
+        question_handler=question_orchestrator or core.question,
+        insight_handler=insight_orchestrator or core.insight,
+        domain_profile=active_domain_profile,
+        source_id=source_id,
+        source_mode=source_mode,
+        access_context_resolver=access_context_resolver,
     )
-    application.state.insight_orchestrator = (
-        insight_orchestrator or core.insight
-    )
-    application.include_router(router)
-    return application
 
 
 app = create_app()
