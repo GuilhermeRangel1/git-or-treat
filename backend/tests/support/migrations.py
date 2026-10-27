@@ -13,6 +13,14 @@ from sqlalchemy import inspect, text
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_TABLES = {
+    "gold_carga_atual",
+    "gold_consumo_mensal_uc",
+    "gold_consumo_receita_bairro",
+    "gold_diagnostico_receita",
+    "gold_fila_inspecao",
+    "gold_indicadores_dec_fec",
+    "gold_variacao_consumo_uc",
+    "gold_visao_360_uc",
     "gold_indicadores",
     "operational_inspection_orders",
     "operational_order_history",
