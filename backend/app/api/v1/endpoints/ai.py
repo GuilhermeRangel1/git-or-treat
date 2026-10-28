@@ -14,6 +14,7 @@ from app.schemas.ai import (
     AIQuestionResponse,
 )
 from app.schemas.ai_insight import (
+    AIInsightResponse,
     PanoramaInsightEnvelope,
     PanoramaInsightRequest,
 )
@@ -215,6 +216,14 @@ async def generate_panorama_insight(
             code="invalid_request",
             retryable=False,
             message="Os filtros do insight não são válidos para o Panorama.",
+        )
+
+    if isinstance(insight_request, AIInsightResponse):
+        return PanoramaInsightEnvelope(
+            insight=insight_request.model_copy(
+                update={"correlation_id": request.state.correlation_id}
+            ),
+            metric=metric, source=source, analysis=analysis,
         )
 
     try:

@@ -39,6 +39,8 @@ O envelope contém:
 
 `observation.values` representa números calculados pelo Backend. O bloco `analysis` identifica a direção e o percentual da mudança, além dos grupos que mais contribuíram ou compensaram a variação quando o recorte permite essa decomposição. `participacaoPercentual` é a parcela do movimento entre grupos que apontam na mesma direção (quedas para a contribuição principal; altas ou quedas compensatórias para a compensação), não a parcela do total líquido. Esses valores são recalculados a partir dos mesmos registros usados pelo Panorama. A interface apresenta a leitura e um próximo passo para investigar, sem atribuir causa aos dados. Se não houver comparação ou detalhamento suficiente, os campos correspondentes ficam indisponíveis.
 
+Quando o recorte validado não contém registros, o Backend retorna HTTP 200 com `insight.status=no_evidence`, mensagem de ausência e listas de observações/evidências vazias, sem chamar a GenAI. Contexto, lote, definição da métrica e correlação são preservados; a análise fica indisponível. Registros existentes com valor zero continuam sendo observações válidas. A validação de filtros, lote e fonte ocorre antes dessa decisão.
+
 ## Erros
 
 | HTTP | Código | Comportamento |
