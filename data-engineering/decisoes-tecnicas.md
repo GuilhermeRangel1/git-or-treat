@@ -623,7 +623,7 @@ de negócio da versão atual.
 ## 9. Camada Gold — proposta e decisões a tomar
 
 > A Gold **não existe ainda**. Esta seção é a **proposta de modelagem** para não repetir a modelagem quando o
-> notebook for escrito; cada item é decisão a registrar em `docs/data-dictionary.md` (DE-08) e, se alterar
+> notebook for escrito; cada item é decisão a registrar em `docs/dicionario_gold.md` (DE-08) e, se alterar
 > arquitetura/métrica, em ADR (workflow §4).
 
 ### 9.1 Tabelas propostas (grão e chave)
@@ -941,12 +941,12 @@ Dataset real no Volume autorizado, compute serverless, notebooks importados à m
   UCs 46.461 → 45.200 + 1.261; medidores 51.812 → 49.930 + 1.882; leituras 2.182.468 → 1.981.032 + 201.436;
   faturas 2.184.623 → 2.091.968 + 92.655; GD 3.510, ocorrências 180.000 e atendimentos 318.871 sem quarentena;
   inspeções 1.389 → 1.344 + 45; `atendimentos_historico` 636.857 tratativas. Soma de controle com `delta = 0,00`:
-  faturas R$ 676.675.147,58 = 647.055.875,02 + 29.619.272,56.
+  faturas: total financeiro reconciliado entre aceitos e quarentena; montantes preservados no ambiente autorizado.
 - **Bate com o perfil de 17/10** (somando as combinações de motivos): leituras com data ambígua 102.878, medidor
   inexistente 8.609, cascata `medidor_em_quarentena` 58.214; faturas com emissão ambígua 61.226, UC inexistente 32.285.
 - **Consumo negativo:** 7.592 leituras somam −366,7 milhões de kWh (≈ −48 mil kWh por leitura). Por isso a soma bruta
   de `consumo_kwh` na Bronze (509,2 milhões) é **menor** que a aceita (813,3 milhões). Não somar consumo direto da Bronze.
-- **Quarentena por data ambígua:** faturas R$ 19,4 milhões só por esse motivo (60.368 linhas) e leituras 39,7 milhões
+- **Quarentena por data ambígua:** faturas com impacto financeiro registrado no ambiente autorizado só por esse motivo (60.368 linhas) e leituras 39,7 milhões
   de kWh (98.168 linhas). D52 é diagnóstico exploratório; a política vigente mantém B + C e não autoriza recuperar essas datas antes da análise por arquivo.
 
 **Próximas verificações:** executar perfil e Silver revisados no lote autorizado, analisar os contadores de formato por arquivo, confirmar no contexto de produto se `inspetor` é exibido e encadear a Silver no Workflow. Instalação ambígua e datas ambíguas continuam segregadas pela política A/B enquanto a análise não justificar outra regra.
@@ -960,7 +960,7 @@ O run de §11.3 valida somente a revisão anterior, não D53–D60. Nesta revis�
 - [PRD](../docs/PRD.md) — IDs DE-01 a DE-09; §4 (regras de tratamento, perfil, reconciliação), §5 (arquitetura), §6.1.
 - [Índice de decisões arquiteturais de outros módulos](../docs/decisions/README.md).
 - [Serviço: engenharia de dados](../docs/services/data-engineering.md) — contrato por camada e invariantes.
-- [Dicionário de dados Gold](../docs/data-dictionary.md) — a preencher em DE-08.
+- [Dicionário de dados Gold](../docs/dicionario_gold.md) — a preencher em DE-08.
 - [Workflow de desenvolvimento e qualidade](../docs/agents/workflow.md).
 - Notebooks (`data-engineering/notebook/`): `Landing_to_Bronze.ipynb` (reconciliação por origem, `_ordem_na_origem`,
   `bronze.arquivos_lote` e publicação por lote — R34–R37), `Bronze_perfilamento.ipynb` (R38) e

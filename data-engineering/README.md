@@ -1,6 +1,9 @@
-# Engenharia de dados — Bronze
+# Engenharia de dados — Bronze, Silver e Gold
 
-Escopo desta entrega: DE-01 e perfil descritivo da Bronze. Valores ausentes,
+Os notebooks versionados cobrem ingestão, perfilamento, Silver, Gold e exportação.
+Segundo a pessoa usuária, a execução, a reconciliação e o Workflow já foram
+validados; os identificadores e resultados da validação mais recente ainda devem
+ser registrados no PRD. Na Bronze, valores ausentes,
 duplicatas, datas ambíguas e vínculos inconsistentes são medidos e preservados;
 tratamento e decisão de negócio pertencem à Silver. O contrato completo está no
 [PRD](../docs/PRD.md) e no [guia do serviço](../docs/services/data-engineering.md).
@@ -12,6 +15,8 @@ tratamento e decisão de negócio pertencem à Silver. O contrato completo está
 | [`Landing_to_Bronze.ipynb`](notebook/Landing_to_Bronze.ipynb) | Ingestão, rejeitados, reconciliação por origem e publicação |
 | [`Bronze_perfilamento.ipynb`](notebook/Bronze_perfilamento.ipynb) | Inventário, achados e relações por arquivo/aba |
 | [`Bronze_to_Silver.ipynb`](notebook/Bronze_to_Silver.ipynb) | Silver: limpeza, tipos, chaves, quarentena, reconciliação e portão de qualidade |
+| [`Silver_to_gold.ipynb`](notebook/Silver_to_gold.ipynb) | Construção e validações das tabelas Gold a partir da Silver publicada |
+| [`Exportacao_Gold_SQLite.ipynb`](notebook/Exportacao_Gold_SQLite.ipynb) | Exportação das sete tabelas Gold em CSV para um Volume |
 
 O scanner grava JSONL de preparo **somente no Volume autorizado**. Cada
 registro aceito mantém o conteúdo bruto, arquivo, ordinal e linha física inicial
@@ -79,22 +84,53 @@ Conflitos de CPF/CNPJ ou nome de titular ficam nulos e sinalizados na UC. Data f
   `20261024T035426Z_c5ba30e0`, lote Bronze `20261021T223955Z_f875fb45`, `CONCLUIDO`, 0 falhas de invariante, 19 min 25 s).
   A evidência de qualidade (bairros, cronologia de datas, classes, valores impossíveis e amostra independente) está
   registrada no PRD (entrada de 24/10/2026) e pode ser reproduzida com o roteiro somente leitura `validacao_silver_v1`.
-  O Job `v-energy-grid-360` já tem as quatro tarefas montadas (Landing_to_Bronze, Bronze_perfilamento, Bronze_to_Silver
-  e Silver_to_gold), mas a tarefa Gold ainda aponta para uma versão antiga e será trocada pela versão final antes do run
-  completo. O YAML versionado ainda reflete só as duas tarefas da Bronze e será exportado depois desse run.
-  DE-02 e DE-03 permanecem em validação até o run final.
+  O registro anterior do Job `v-energy-grid-360` descreve quatro tarefas montadas.
+  Posteriormente, a pessoa usuária confirmou que o Workflow foi validado; o YAML
+  versionado ainda reflete a configuração anterior com duas tarefas da Bronze.
+  DE-02 e DE-03 mantêm o estado registrado no PRD.
   Decisões D46–D60 e §11.2–11.4 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
+
+## Gold e exportação
+
+`Silver_to_gold.ipynb` usa `workspace.silver_publicada` como fonte de dados e
+consulta os controles de publicação e execução da Silver. Ele lê o widget
+`AMBIENTE`, aceitando `dev`, `test` ou `prod`; para o Job de entrega, configure
+explicitamente `AMBIENTE=prod` e confira o valor no Workspace. Em `dev` e
+`test`, o notebook admite execução sintética em condições previstas no código.
+O catálogo `workspace` está definido no próprio notebook.
+
+O notebook gera `diagnostico_receita`, `indicadores_dec_fec`, `fila_inspecao`,
+`visao_360_uc`, `consumo_mensal_uc`, `consumo_receita_bairro` e
+`variacao_consumo_uc`, além do registro `gold.controle_gold`. A fila e a Visão
+360 projetam as colunas finais sem CPF/CNPJ, nome, endereço ou metadados internos.
+Os indicadores DEC/FEC são simplificados e não comprovam conformidade regulatória.
+
+`Exportacao_Gold_SQLite.ipynb` verifica a existência das sete tabelas e grava
+CSV com cabeçalho e separador `;` no Volume
+`/Volumes/workspace/gold/gold_export_volume/export_csv`. Cada tabela é gravada
+em um diretório próprio, com sobrescrita; a exportação não executa a carga no
+banco local nem comprova sua reconciliação. Confirme o catálogo, o destino e as
+permissões do Volume antes de executar e não versione os CSVs do case.
+
+A revisão da versão `c95bfc3` foi executada no Databricks e relatada no PR #36.
+Em 27/10/2026, a pessoa usuária confirmou que execução, reconciliação e Workflow
+já foram validados; a identificação e os resultados da validação mais recente
+devem ser vinculados ao PRD. As verificações finais da Gold ocorrem depois de
+gravações das tabelas; uma falha não garante que a versão anterior permaneça publicada.
+O teste de DEC recalcula a amostra da Silver, mas usa um alimentador e um mês
+fixos e não valida toda a tabela nem o FEC.
 
 ## Executar no Databricks
 
 1. Coloque a extração autorizada no Volume informado por `raw`. Não adicione
    arquivos do case ao Git.
-2. Importe os notebooks no Workspace e configure ou atualize o Job `v-energy-grid-360`
-   na interface do Databricks, com `Landing_to_Bronze` antes de `Bronze_perfilamento`.
-   O YAML versionado registra o Workflow existente e mantém os caminhos exportados
-   do Workspace de origem; ajuste os caminhos na interface para os notebooks do seu
-   Workspace. Se necessário, defina os parâmetros `catalog`, `raw` e `lote_origem`
-   nas tarefas do Job.
+2. Importe os notebooks no Workspace e confira o Job `v-energy-grid-360`: a ordem
+   necessária é `Landing_to_Bronze` → `Bronze_perfilamento` → `Bronze_to_Silver`
+   → `Silver_to_gold` → `Exportacao_Gold_SQLite`. Configure as dependências,
+   os caminhos do seu Workspace e os parâmetros aplicáveis, incluindo
+   `AMBIENTE=prod` para a Gold oficial. O YAML versionado é um registro anterior
+   com apenas as duas tarefas da Bronze; ainda precisa ser atualizado a partir
+   do Job completo e conferido após o run.
 3. Rode o Job manualmente e confira as 12 identidades de arquivo e as 14 origens
    reconciliadas (cinco CSVs
    simples/faturas, cinco leituras, JSON e três abas), além das oito tabelas de
@@ -103,10 +139,15 @@ Conflitos de CPF/CNPJ ou nome de titular ficam nulos e sinalizados na UC. Data f
    Confira hash, linhas físicas de exemplos autorizados, uma falha induzida e
    uma reexecução da mesma versão. Registre IDs dos runs, comandos e resultados
    no Registro de progresso do PRD antes de concluir DE-01.
+5. Confira a execução da Silver e suas vistas publicadas; execute a versão atual
+   da Gold com o parâmetro adequado e revise os controles e a reconciliação.
+   Execute a exportação somente após validar as saídas, confira os CSVs e registre
+   as evidências. A carga no banco local é uma etapa separada do notebook de
+   exportação; registre o processo e os resultados de reconciliação utilizados.
 
-O YAML versionado registra a configuração de execução existente, incluindo o
-compute serverless e o agendamento. Confira esses valores no Workspace antes de
-executar a versão atual do notebook.
+O YAML versionado registra uma configuração anterior, incluindo o compute
+serverless e o agendamento. Confira esses valores e a configuração atual no
+Workspace antes de executar os notebooks.
 
 ## Evidência anterior
 

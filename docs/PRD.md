@@ -2,7 +2,7 @@
 
 **Versão:** 1.4 documental · **Data:** 20/10/2026 · **Estado da implementação:** parcial — fundação, primeira fatia visual e consulta sintética integrada disponíveis; requisitos funcionais pendentes
 
-**Origem:** case final Visagio, Rocket Lab 2026.2, fornecido pela pessoa usuária em dez páginas de imagem. Este documento reescreve o enunciado em texto pesquisável, organiza critérios de aceite e separa exigências do case de decisões futuras do time. As imagens não integram o repositório.  
+**Origem:** case final Visagio, Rocket Lab 2026.2, fornecido pela pessoa usuária em dez páginas de imagem. Este documento reescreve o enunciado em texto pesquisável, organiza critérios de aceite e separa exigências do case de decisões futuras do time. As imagens não integram o repositório.
 **Classificação do material de origem:** o enunciado traz indicação de confidencialidade. O mesmo enunciado exige repositório GitHub público na entrega. Essa tensão precisa de confirmação com a organização antes da publicação de conteúdo ou dados do case.
 
 ## 0. Como usar este PRD
@@ -40,7 +40,7 @@ A V-Energy é uma distribuidora de energia elétrica com concessão na região m
 
 Os sistemas cresceram sem uma estratégia integrada. Cadastro comercial, medição, ocorrências de rede, atendimento e inspeções possuem versões desconectadas do cliente. Há exportações em CSV, JSON aninhado e planilhas Excel; chaves, formatos, duplicatas, ausências e inconsistências precisam ser examinados. Cada área usa números diferentes. O produto deve reconciliar essas fontes e oferecer uma fonte única de verdade rastreável.
 
-A pergunta que originou o projeto é: **por que a receita residencial caiu 8% nos últimos 12 meses em comparação com o primeiro ano da base, enquanto a tarifa residencial acumulou reajuste homologado de 10,5% desde meados de 2022 e o volume de energia faturada caiu quase 4%?** O time deve explicar a variação com dados, decompondo preço e quantidade, investigando município, bairro e classe, e encerrando com recomendações de negócio e ordem de grandeza do impacto esperado. Os percentuais são premissas do enunciado; o diagnóstico final precisa reconciliá-los com os dados recebidos e declarar qualquer divergência.
+A pergunta que originou o projeto é: **por que a receita residencial subiu apenas 8% nos últimos 12 meses em comparação com o primeiro ano da base, enquanto a tarifa residencial acumulou reajuste homologado de 10,5% desde meados de 2022 e o volume de energia faturada caiu quase 4%?** O time deve explicar a variação com dados, decompondo preço e quantidade, investigando município, bairro e classe, e encerrando com recomendações de negócio e ordem de grandeza do impacto esperado. Os percentuais são premissas do enunciado; o diagnóstico final precisa reconciliá-los com os dados recebidos e declarar qualquer divergência.
 
 A diretoria também quer que uma pessoa consiga fazer perguntas em português e receber uma resposta fundamentada sem abrir chamado técnico. Se o agente não souber, deve dizer que não sabe. A precisão da resposta e a integridade dos dados têm prioridade sobre funcionalidades extras.
 
@@ -54,7 +54,7 @@ A visão 360 precisa conectar os fragmentos da mesma UC sem apagar diferenças e
 
 | Pessoa / área | Problema relatado | Resposta que a solução deve permitir | IDs relacionados |
 | --- | --- | --- | --- |
-| Henrique Duarte, diretor comercial | Reajuste residencial homologado de 10,5% convive com volume faturado quase 4% menor e receita 8% menor. A diretoria não consegue localizar a razão. | Decompor a variação por preço/tarifa e quantidade; abrir por bairro, classe e município; perguntar rapidamente qual recorte mais perdeu volume e quanto cresceu a receita comercial em Jaboatão. | WEB-01, WEB-02, IA-01, IA-03, ENT-01 |
+| Henrique Duarte, diretor comercial | Reajuste residencial homologado de 10,5% convive com volume faturado quase 4% menor e receita apenas 8% maior. A diretoria não consegue localizar a razão. | Decompor a variação por preço/tarifa e quantidade; abrir por bairro, classe e município; perguntar rapidamente qual recorte mais perdeu volume e quanto cresceu a receita comercial em Jaboatão. | WEB-01, WEB-02, IA-01, IA-03, ENT-01 |
 | Patrícia Lins, diretora de tecnologia | Exportações heterogêneas e números divergentes tornam cada pergunta dependente de engenharia de dados. | Criar fonte rastreável; integrar portal e IA; responder em português com base identificável; dizer claramente quando os dados não sustentam resposta. | DE-01 a DE-08, IA-01 a IA-06 |
 | Camila Barreto, gerente de atendimento | Durante a ligação, o atendente precisa verificar se a conta realmente subiu e por quê. | Buscar por número da UC e ver cliente, consumo histórico, faturas em aberto, medidor, solar, interrupções e chamados na mesma jornada. | WEB-03, IA-01 |
 | Rafael Coutinho, gerente de perdas | Mais de 200 inspeções por mês, menos da metade com irregularidade; deslocamentos improdutivos. | Ver fila de UCs suspeitas, motivo, energia potencialmente recuperável e prioridade; escolher quem vai a campo, abrir ordem e registrar resultado. | WEB-04, WEB-05, WEB-08, WEB-09 |
@@ -100,7 +100,7 @@ Ao final, a banca deve conseguir acompanhar uma extração pelo Workflow do Data
 | Geração distribuída (GD) | Geração própria da UC, geralmente solar; energia gerada é abatida do consumo faturado. |
 | DEC e FEC | Indicadores regulatórios de duração e frequência equivalentes de interrupção por UC. O case pede cálculo simplificado conforme a definição da ANEEL para comparar alimentadores e períodos internos, **sem afirmar conformidade com limites regulatórios reais**. Cada ocorrência corresponde a uma UC afetada, e os valores são consolidados por alimentador. |
 
-Termos adicionais, campos reais, chaves de junção e fórmulas finais entram em `docs/data-dictionary.md` depois da inspeção dos arquivos. Não preencher com suposições não verificadas.
+Termos adicionais, campos reais, chaves de junção e fórmulas finais entram em `docs/dicionario_gold.md` depois da inspeção dos arquivos. Não preencher com suposições não verificadas.
 
 ## 4. Dados de origem e contrato de ingestão
 
@@ -201,7 +201,7 @@ O agente conversacional recebe perguntas em português, traduz para consultas so
 
 ### 5.4 Diagnóstico de negócio
 
-Cada time deve responder à pergunta sobre queda de receita residencial. A explicação tem de separar os efeitos de preço/tarifa e volume, sustentar causas com dados identificados, estimar ordem de grandeza do impacto das recomendações e ser comunicável à diretoria na apresentação final. Artefatos textuais do diagnóstico ficam em `docs/`; a apresentação pode ser produzida posteriormente conforme regras da atividade. Uma hipótese plausível não substitui prova nos dados.
+Cada time deve responder à pergunta sobre a evolução da receita residencial (volume quase 4% menor, receita apenas 8% maior). A explicação tem de separar os efeitos de preço/tarifa e volume, sustentar causas com dados identificados, estimar ordem de grandeza do impacto das recomendações e ser comunicável à diretoria na apresentação final. Artefatos textuais do diagnóstico ficam em `docs/`; a apresentação pode ser produzida posteriormente conforme regras da atividade. Uma hipótese plausível não substitui prova nos dados.
 
 ## 6. Histórias, critérios de aceite e rastreabilidade
 
@@ -216,7 +216,7 @@ Cada time deve responder à pergunta sobre queda de receita residencial. A expli
 | DE-05 | Obrigatório | Pendente | **DEC/FEC por alimentador.** Implementar a definição simplificada descrita no case/ANEEL com numerador, denominador, janela e UC afetada explícitos; conferir amostras e não apresentar resultado como conformidade regulatória oficial. |
 | DE-06 | Obrigatório | Em andamento | **Exportar Gold ao banco local.** CSVs de Gold podem ser carregados novamente sem duplicar resultados; conferir esquema, contagens, chaves e agregados entre Databricks e banco. |
 | DE-07 | Obrigatório | Pendente | **Orquestrar.** Databricks Workflow liga Bronze → Silver → Gold → exportação, possui dependências, logs de falha e execução reproduzível de ponta a ponta; arquivo de definição versionado. |
-| DE-08 | Obrigatório | Pendente | **Dicionário Gold.** Toda tabela e métrica exposta ao portal/IA tem definição, tipo, unidade, granularidade, origem, transformação, chave e limitação em `docs/data-dictionary.md`. |
+| DE-08 | Obrigatório | Pendente | **Dicionário Gold.** Toda tabela e métrica exposta ao portal/IA tem definição, tipo, unidade, granularidade, origem, transformação, chave e limitação em `docs/dicionario_gold.md`. |
 | DE-09 | Diferencial | Pendente | **Testes automatizados no pipeline.** Regras críticas de qualidade falham explicitamente antes de publicar Gold, incluindo unicidade, integridade, intervalos e reconciliação de totais. |
 
 ### 6.2 Portal web e backend — WEB
@@ -268,9 +268,9 @@ O case cobra de todos os grupos: **pipeline Databricks completo Bronze → Silve
 
 Selecionar períodos comparáveis e visualizar receita, energia faturada, consumo, UCs, continuidade e demais indicadores escolhidos. Cada KPI deve esclarecer se é faturado, pago, consumido ou entregue. Comparação por competência precisa usar janela coerente e exposição da base. A diretoria consegue navegar do agregado ao recorte sem perder os filtros.
 
-### 7.2 Comercial: queda residencial
+### 7.2 Comercial: volume e receita residenciais
 
-Partir da diferença de receita entre o primeiro ano disponível e os 12 meses mais recentes (definição exata após inspeção das competências), isolar classe residencial, decompor tarifa/preço efetivo e volume faturado, depois recortar por município/bairro/classe. Confirmar se a queda citada no enunciado se reproduz; se não, explicar cobertura, tratamento de qualidade ou base de comparação. Inspecionar hipóteses como GD, bandeiras, inadimplência, mix, perdas e cadastro apenas se os dados permitirem. O resultado é uma cadeia de evidências, não correlação apresentada como causalidade.
+Partir da diferença de receita entre o primeiro ano disponível e os 12 meses mais recentes (definição exata após inspeção das competências), isolar classe residencial, decompor tarifa/preço efetivo e volume faturado, depois recortar por município/bairro/classe. Confirmar se as variações de volume e receita citadas no enunciado se reproduzem; se não, explicar cobertura, tratamento de qualidade ou base de comparação. Inspecionar hipóteses como GD, bandeiras, inadimplência, mix, perdas e cadastro apenas se os dados permitirem. O resultado é uma cadeia de evidências, não correlação apresentada como causalidade.
 
 ### 7.3 Atendimento: chamada sobre conta alta
 
@@ -392,7 +392,7 @@ Esta é uma proposta de execução, não cronograma imposto. Entregas podem avan
 | Marco | Condição para avançar com confiança | Documentos que devem refletir o resultado |
 | --- | --- | --- |
 | Perfil das fontes | Oito conjuntos inventariados; problemas e relacionamentos prováveis registrados; contagens brutas reconciliadas. | PRD (dependências/estado), relatório de qualidade e dicionário inicial. |
-| Contrato Gold | Tabelas, grãos, chaves, fórmulas e amostras manuais suficientes para consumo dos fluxos prioritários. | `docs/data-dictionary.md`, guias de serviço e ADRs de decisões materiais. |
+| Contrato Gold | Tabelas, grãos, chaves, fórmulas e amostras manuais suficientes para consumo dos fluxos prioritários. | `docs/dicionario_gold.md`, guias de serviço e ADRs de decisões materiais. |
 | Integração mínima | Workflow executa; Gold exporta e carrega; API e uma jornada do portal consultam o mesmo lote com totais iguais. | README operacional em evolução, evidência no PRD e contrato de API. |
 | Cobertura do case | Diretoria, comercial, atendimento, perdas, operação e IA exercitados; cenários de ausência/erro tratados. | Tabela de IDs, registro de progresso, guias afetados e testes. |
 | Diagnóstico defendível | Variação reconciliada, decomposição fechada, hipóteses julgadas e recomendações com impacto limitado pela evidência. | `docs/revenue-diagnosis.md`, dicionário e roteiro da apresentação. |
@@ -431,7 +431,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 | P-01 | Dataset não fornecido junto com as imagens. | Não validar esquema, chaves, números reais ou hipóteses de receita até receber o `.zip`. |
 | P-02 | Narrativa cita 45 mil UCs e >2,1 milhões de leituras/faturas; tabela cita 46 mil e 2,18 milhões. | Tratar como aproximações de apresentação; registrar contagem real por arquivo após ingestão. |
 | P-03 | O texto sobre portal remete a “user stories da seção 6.2”, enquanto as páginas numeram essas histórias em 5.2. | IDs WEB deste PRD são a referência estável. |
-| P-04 | SQL local: SQLite/PostgreSQL/outro; framework e modelo de IA ainda abertos. | Decidir por ADR com razões e consequências antes de acoplar módulos. |
+| P-04 | SQL local: SQLite/PostgreSQL/outro; framework e modelo de IA ainda abertos. | Banco local resolvido pela [ADR-0017](decisions/0017-banco-local-postgresql.md), aprovada em 27/10/2026: PostgreSQL 16 como banco local da Gold, Backend como único executor de SQL e papel somente leitura `venergy_gold_reader` com `SELECT` no schema `gold` (papel ainda não criado; pendências na ADR). Framework e modelo de IA continuam abertos: decidir por ADR com razões e consequências antes de acoplar módulos. |
 | P-05 | Definição de DEC/FEC depende de campos e população de UCs por alimentador. | Documentar fórmula e limitar interpretação; não reivindicar cálculo regulatório oficial. |
 | P-06 | Case exige GitHub público e imprime aviso de confidencialidade. | Confirmar permissão de publicação; evitar subir dataset e informação identificável. |
 | P-07 | Não há ano explícito nas datas 04/11, 05/11 e 10/11. | Conferir calendário do programa. |
@@ -457,6 +457,39 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-10-28 — integração de develop na feat/gold
+
+- Branch Gold atualizada com `origin/develop` na versão `1957ae1`, sem concluir o PR #36 nem alterar a branch develop.
+- Bronze, perfilamento e Silver mantidos conforme develop; notebooks de transformação/exportação Gold e dicionário detalhado preservados conforme `ca73db5`. Documentos compartilhados combinados sem conflitos.
+- O relatório de cobertura recebido de develop teve os valores monetários reais omitidos para preservar a restrição de divulgação; fórmulas, referências e controles permanecem descritos.
+- Verificações: comparação dos notebooks com as versões indicadas sem diferenças; 13 cenários locais do exportador aprovados com `python -X utf8 work/revisar_guardas_exportacao_gold.py`; `git diff --check` passou. Nenhuma nova execução no Databricks ou conclusão de requisito. Todolist e dados locais preservados; Trello não alterado.
+
+
+### 2026-10-28 — DE-06 e DE-08 — exportação oficial e documentação sem resultados de lote
+
+- Estado: requisitos mantidos nos estados existentes; revisão local antes de nova validação no Databricks.
+- Mudança: dicionário concentra definições, grãos, fórmulas e limites; IDs, contagens e resultados de execuções específicas foram retirados. Totais monetários apurados foram removidos dos textos Gold, do PRD e do registro de decisões técnicas; exemplos sintéticos e regras de cálculo permanecem.
+- Exportação: a consulta ao controle e a validação do ambiente precedem a criação do Volume e a sobrescrita de CSVs. O último registro `CONCLUIDO` deve ser de `prod`; parâmetro opcional diferente de `prod` também falha. Ambiente ausente não recebe mais fallback de produção e o parâmetro não promove registros de desenvolvimento. A transformação Gold e o esquema dos dados foram preservados.
+- Verificações: `python -X utf8 work/revisar_guardas_exportacao_gold.py` (roteiro local ignorado pelo Git) executou as células reais do exportador com adaptadores artificiais de Spark/dbutils e interceptação das escritas em 13 cenários; todos aprovados. Casos cobrem produção, normalização, ambientes recusados, tentativa de promoção pelo parâmetro, controle vazio, erro de consulta e falha de exportação. As recusas ocorrem antes de criar Volume/gravar CSV e falhas de exportação não gravam novo manifesto; sucesso preserva as sete tabelas e a linhagem. Células Python compilaram; código de transformação Gold comparado com HEAD e inalterado; `git diff --check` passou. Revisão final retirou a contagem residual da categoria sem casos, preservou exemplos de categorias e passou a capturar o horário do manifesto após os CSVs.
+- Limites: testes locais não substituem execução no Databricks. Revalidar exportação oficial no Job e confirmar bloqueio em ambiente diferente de produção. A publicação dos CSVs continua sem atomicidade entre arquivos. Sem alterações no Trello, por solicitação.
+
+### 2026-10-28 — DE-04, DE-05, DE-06 e DE-08 — revisão semântica do dicionário Gold
+
+- Estado: estados dos requisitos preservados. Dicionário Gold ampliado para descrever o modelo implementado; não constitui aceite regulatório.
+- Arquivos: `docs/dicionario_gold.md` ampliado no próprio arquivo; Markdown do notebook Gold alinhado, preservando todas as células de código. `docs/data-dictionary.md` atualizado como índice do dicionário detalhado, com cobertura das métricas e relação com os contratos da aplicação. O texto anterior da integração CSV v1 foi preservado em contexto histórico recolhido, com as definições atuais em destaque. A simulação de combinação desse arquivo com origin/develop passou sem conflito; nenhum merge foi executado. Os arquivos extras de relatório e SQL foram retirados por solicitação.
+- Escopo: médias das leituras, flag estrita sobre percentual bruto, arredondamento após cálculo, eventos por UC afetada, grade com ocorrências, DEC/FEC simplificado, categorias reais, ausência de casos ALTA - CONSUMO ZERO e limites dos agregados por UC/GD. Retirados os acréscimos locais de publicação/contrato v2/testes extras, por solicitação. O notebook de exportação foi preservado conforme a versão commitada; esta revisão não altera seu funcionamento nem conclui DE-06.
+- Evidência e limites: CSVs locais de um run diferente do auditado no PR; 51.862 registros de bairro e 272 nomes distintos. Os 55.694 são referência documental registrada no PR; o contrato v1 e o CSV antigo não estão disponíveis localmente. A diferença não foi classificada como perda de dados. Recomposição independente por UC contra a Silver continua pendente.
+- Verificações: conferência local dos sete CSVs com o utilitário preexistente `work/validar_dicionario_gold.py --dictionary docs/dicionario_gold.md --output work/validacao-dicionario-oficial-revisado.json`: saída 0, sem divergências nos controles implementados. As 15 células de código do notebook Gold foram comparadas com HEAD e preservadas; compilação Python e `git diff --check` passaram. Não houve execução desta revisão no Databricks nem no banco do backend. Sem alterações no Trello por solicitação explícita. Revisão documental e resolução do conflito reunidas na mesma alteração.
+
+
+### 2026-10-27 — DE-04 a DE-08 — integração da branch Gold com a develop
+
+- Estado: DE-04, DE-05, DE-06, DE-07 e DE-08 mantêm os estados do PRD. A integração da branch e a documentação de evidências não alteram automaticamente os critérios de aceite.
+- Arquivos: `data-engineering/notebook/Silver_to_gold.ipynb`, `data-engineering/notebook/Exportacao_Gold_SQLite.ipynb` e `docs/dicionario_gold.md` foram mantidos da `feat/gold`; Bronze, perfilamento e Silver vieram da `develop`. A Gold gera sete tabelas analíticas e `gold.controle_gold`; o notebook de exportação grava CSV por tabela em Volume, sem carregar o banco local.
+- Evidências: na revisão do [PR #36](https://github.com/GuilhermeRangel1/git-or-treat/pull/36), foi registrada a execução da versão `c95bfc3` sobre a Silver `20261024T035426Z_c5ba30e0`, com reconciliação. Em 27/10/2026, a pessoa usuária confirmou que execução, reconciliação e Workflow já foram validados; os identificadores de execução, versões e resultados dessa validação mais recente não foram informados nesta revisão e devem ser vinculados ao registro.
+- Verificações desta integração: os cinco notebooks foram lidos como JSON válido; seus hashes, e o do dicionário, foram comparados às respectivas branches de origem; `git diff --cached --check origin/develop` passou na preparação do merge. Não houve execução dos notebooks no Databricks nesta revisão.
+- Documentação e limites: registrar os identificadores, versões e resultados das validações informadas e atualizar o YAML versionado para refletir o Job efetivamente executado. Os testes finais da Gold ocorrem após gravações, e a conferência de DEC no notebook usa um alimentador e competência fixos, sem validar toda a tabela ou o FEC. O dicionário original `docs/dicionario_gold.md` foi preservado, e sua revisão para as sete saídas permanece vinculada a DE-08.
+- Rastreador: descrições dos cartões DE-04 a DE-08 atualizadas com a evidência e a ressalva de alteração local ainda sem commit. DE-04 e DE-05 aparecem marcados como concluídos no Trello, embora permaneçam `Pendente` no PRD; a marcação precisa ser reconciliada no quadro.
 ### 2026-10-27 — Preparação pré-Gold — priorização de oito IDs
 
 - Escopo: FE-010, FE-015, FE-017, FE-018, BE-012, BE-013, BE-009 e TR-001, conforme a [ADR-0016](decisions/0016-priorizacao-melhorias-pre-gold.md) e o [plano da Fase 1 pré-Gold](plans/2026-10-27-melhorias-pre-gold-fase1.md). Os IDs WEB-03 e IA-01/03/04/05/06 aparecem como contexto de preparação; nenhum estado funcional ou critério de aceite do produto muda nesta entrada.
@@ -465,6 +498,11 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Evidência reproduzível permanente: [Verificações reproduzíveis do plano da Fase 1](plans/2026-10-27-melhorias-pre-gold-fase1.md#verificações-reproduzíveis) registra cwd, comandos, resultados, revisão pelo agente principal e limites. T1 revisada pelo principal; quatro critérios frontend exercitados. FE-010 cobre parte dos invariantes de paginação TR-003, sem alinhar todos os produtores/consumidores; TR-004 é o smoke produtor → decoder e continua pendente. A suíte frontend completa passou sequencialmente: 281 testes em 34 arquivos, 128,45 s. Uma tentativa anterior com dois workers teve 280 aprovados e um timeout de 5 s no teste existente de Operação; a reexecução isolada passou em 3629 ms e a suíte sequencial passou sem mudanças no código, teste ou timeout. A causa da diferença não está determinada. T2: 404 aprovados, 4 skips PostgreSQL e 1 aviso Starlette preexistente; `compileall` aprovado. T3: 426 aprovados, 4 skips PostgreSQL e 1 aviso Starlette/httpx preexistente; `compileall` aprovado. Os relatórios em `work/refactor-pre-gold/` são auxiliares locais e não a única fonte da evidência.
 - Limites: verificações backend foram feitas com Python 3.11.9 local, enquanto o alvo CI é Python 3.12; não substituem essa matriz. Os cenários PostgreSQL foram ignorados por falta de banco descartável configurado. Nenhuma validação de integração Gold é alegada. A documentação T4 e o checklist completo estão no plano da Fase 1; comandos e resultados documentais constam em `work/refactor-pre-gold/task-docs-report.md`.
 - Sincronização: pendente. A consulta MCP ao quadro Trello obrigatório retornou recurso não encontrado ou sem acesso; nenhuma escrita foi realizada. O principal tratará a sincronização quando houver acesso.
+
+### Correção datada de 2026-10-27 — premissa do case e P-04
+
+- A premissa do case foi corrigida nas §1, §1.2, §5.4, §7.2 e §15: o volume de energia caiu quase 4% e a receita subiu apenas 8%; o texto anterior dizia que a receita havia caído 8%.
+- O banco local da Gold, parte da P-04, foi resolvido pela [ADR-0017](decisions/0017-banco-local-postgresql.md). Framework e modelo de IA seguem abertos. Nenhum estado de requisito muda nesta entrada.
 
 ### Correção datada de 2026-10-27 — estado da ADR-0002 no registro GENAI-01
 
@@ -529,7 +567,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Arquivos/branch: `data-engineering/notebook/Bronze_to_Silver.ipynb`, `data-engineering/README.md`, `data-engineering/decisoes-tecnicas.md` (D46–D52, §11.2–11.3), `docs/services/data-engineering.md` e este PRD; branch `feat/silver`, criada a partir de `feat/bronze-rastreabilidade`.
 - Dados usados: dataset real do case no Volume autorizado do Databricks; nenhum dado foi copiado para o Git.
 - Verificações: Databricks Free Edition, serverless, em 21/10/2026. Bronze lote `20261021T095426Z_106436a4` (com o ajuste de tipo na migração, ver pendências), perfil com 108 linhas, Silver run `20261021T101818Z_223235ca` `CONCLUIDO` com 0 falhas em ≈ 7 min 45 s. Esta evidência corresponde à versão então executada e não valida a revisão atual.
-- Reconciliação ou amostra manual: `delta = 0` nas 8 tabelas e em `atendimentos_historico`; soma de faturas R$ 676.675.147,58 = aceitos 647.055.875,02 + quarentena 29.619.272,56. Os motivos batem com o perfil de 17/10 (leituras: data ambígua 102.878, medidor inexistente 8.609, cascata 58.214; faturas: emissão ambígua 61.226, UC inexistente 32.285). Contagens completas em `decisoes-tecnicas.md` §11.3.
+- Reconciliação ou amostra manual: `delta = 0` nas 8 tabelas e em `atendimentos_historico`; soma financeira das faturas reconciliada entre aceitos e quarentena; montantes preservados no ambiente autorizado. Os motivos batem com o perfil de 17/10 (leituras: data ambígua 102.878, medidor inexistente 8.609, cascata 58.214; faturas: emissão ambígua 61.226, UC inexistente 32.285). Contagens completas em `decisoes-tecnicas.md` §11.3.
 - Critérios de aceite e pendências: manter datas ambíguas em quarentena e usar o diagnóstico por arquivo de D53 antes de propor qualquer regra de interpretação; confirmar o significado da sentinela `9999-12-31` (14.2) e se o nome de `inspetor` é exibido ao usuário (14.4); revisar os 1.369 medidores com instalação ambígua. Bronze: a migração sobre tabelas anteriores exige o `cast("long")` de `_ordem_na_origem` em `Landing_to_Bronze.ipynb`, em commit separado. Trello não sincronizado (MCP não conectado).
 - Responsável/revisor: Júlia (juliatenoriocalado), com apoio do Claude Code; revisão humana pendente.
 ### 2026-10-23 — IA-01/IA-02/IA-03/IA-06 — pergunta HTTP com banco sintético controlado
@@ -1566,7 +1604,7 @@ Esta matriz é um índice de auditoria do material recebido. Ela ajuda a localiz
 | Página | Conteúdo específico preservado | Onde aparece / como será demonstrado |
 | --- | --- | --- |
 | 1 | Visagio, Rocket Lab 2026.2; caso final V-Energy Grid 360; três trilhas — engenharia de dados, web e IA — e aviso de confidencialidade. | Abertura, seções 5 e 12; decisão de publicação ainda aberta. |
-| 2 | Distribuidora na região metropolitana do Recife; 45 mil UCs, 14 municípios, quase 300 bairros, mais de 120 alimentadores, quatro anos, >2,1 milhões de leituras/faturas; fontes isoladas; reajuste 10,5%, volume quase −4%, receita −8%; missão de construir e defender solução integrada. | Seções 1, 1.1, 1.2, 2, 5.4 e 7.2; reconciliação em ENT-01. |
+| 2 | Distribuidora na região metropolitana do Recife; 45 mil UCs, 14 municípios, quase 300 bairros, mais de 120 alimentadores, quatro anos, >2,1 milhões de leituras/faturas; fontes isoladas; reajuste 10,5%, volume quase −4%, receita apenas +8%; missão de construir e defender solução integrada. | Seções 1, 1.1, 1.2, 2, 5.4 e 7.2; reconciliação em ENT-01. |
 | 3 | Extração bruta e heterogênea; oito conjuntos, com formato/volume/função, `.zip` disponibilizado na atividade; visão 360 que une consumo, faturamento, continuidade e atendimento. | Seções 2 e 4; DE-01 a DE-04, WEB-03. |
 | 4 | Fluxo conceitual de cinco origens para Grid 360, portal, IA, diagnóstico, fila e qualidade; glossário de UC, competência, classe, alimentador, bandeira, perdas, GD e DEC/FEC. | Seções 2, 3 e 5; vínculos testados nos cenários de 7.7. |
 | 5 | Três módulos técnicos e um entregável de negócio; Bronze original, Silver tratada, Gold modelada; Databricks/PySpark/Delta, exportação CSV ao banco local, Workflow e agenda futura justificada. | Seções 4 e 5; DE-01 a DE-08 e ENT-01. |
@@ -1591,7 +1629,7 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - [Status report intermediário a preencher](status-report.md)
 - [Fluxo de agentes e qualidade](agents/workflow.md)
 - [Ferramentas e hooks](agents/tooling.md)
-- [Dicionário de dados](data-dictionary.md)
+- [Dicionário de dados](dicionario_gold.md)
 
 ### 2026-10-21 — WEB-01 e WEB-07 — correções da integração Panorama
 
