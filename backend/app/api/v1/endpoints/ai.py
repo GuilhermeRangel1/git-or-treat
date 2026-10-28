@@ -148,12 +148,12 @@ async def ask_genai_question(
             payload,
             correlation_id=request.state.correlation_id,
         )
-    except GenAIServiceUnavailable:
+    except GenAIServiceUnavailable as exc:
         return _question_error(
             request,
             status_code=503,
             code="service_unavailable",
-            retryable=True,
+            retryable=exc.retryable,
             message="O serviço de resposta está temporariamente indisponível.",
         )
     except GenAITimeout:
@@ -231,12 +231,12 @@ async def generate_panorama_insight(
             insight_request,
             correlation_id=request.state.correlation_id,
         )
-    except GenAIServiceUnavailable:
+    except GenAIServiceUnavailable as exc:
         return _question_error(
             request,
             status_code=503,
             code="service_unavailable",
-            retryable=True,
+            retryable=exc.retryable,
             message="O serviço de insight está temporariamente indisponível.",
         )
     except GenAITimeout:

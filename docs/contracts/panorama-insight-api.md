@@ -51,6 +51,8 @@ Quando o recorte validado não contém registros, o Backend retorna HTTP 200 com
 | 503 | `service_unavailable` | Fonte ou serviço indisponível; repetir somente quando `retryable` for verdadeiro. |
 | 504 | `service_unavailable` | GenAI excedeu o timeout; repetir manualmente. |
 
+HTTP 503 recebido da GenAI é tratado como indisponibilidade. Um envelope v1 válido e correlacionado preserva `error.retryable`; resposta genérica de proxy permite tentativa manual. Envelope que declara o contrato com versão, correlação ou campos inválidos continua sendo HTTP 502. O Backend não repete a chamada automaticamente nem expõe o corpo da falha upstream.
+
 Erros públicos usam o envelope v1 com `message`, `error.code`, `error.retryable` e `correlation_id`. Nenhum detalhe interno, token, SQL ou conteúdo do modelo que não passe pelo contrato deve ser exposto.
 
 ## Limites desta versão

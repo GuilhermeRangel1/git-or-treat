@@ -255,7 +255,7 @@ def test_genai_clients_reject_missing_configuration_without_request(
                 json={"detail": "private detail"},
                 headers={"X-Correlation-ID": CORRELATION_ID},
             ),
-            GenAIResponseInvalid,
+            GenAIServiceUnavailable,
         ),
         (
             lambda request: httpx.Response(
