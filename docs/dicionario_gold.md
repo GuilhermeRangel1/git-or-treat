@@ -53,6 +53,8 @@ As sete primeiras tabelas são incluídas na exportação CSV. `controle_gold` �
 | `consumo_medio_kwh_por_uc` | número / kWh/UC | Média do consumo agregado por UC/mês no grupo. |
 | `tarifa_media_efetiva` | número / R$/kWh | Receita total dividida pelo consumo total, se o consumo for não nulo e diferente de zero; caso contrário, nulo. É preço observado, não tarifa homologada. |
 
+**Exemplos de categorias:** `classe_consumo` usa grafias como `COMERCIAL`, `INDUSTRIAL`, `PODER PUBLICO`, `RESIDENCIAL` e `RURAL`; `subgrupo_tarifario`, `A4`, `B1`, `B2` e `B3`; e `bandeira_tarifaria`, `AMARELA`, `VERDE`, `VERMELHA P1` e `VERMELHA P2`. São exemplos de valores da origem, não um domínio fechado imposto pela Gold.
+
 **Cobertura:** o cadastro entra por `left join`; faturas com leitura mas sem cadastro permanecem na base intermediária, sujeitas às validações das dimensões. A Gold não estima valores para pares sem leitura ou sem fatura.
 
 ## 2. `indicadores_dec_fec`
@@ -108,7 +110,7 @@ As sete primeiras tabelas são incluídas na exportação CSV. `controle_gold` �
 
 Prioridade indica uma regra de triagem; não é diagnóstico de fraude. O mapeamento de outros resultados de inspeção deve ser confirmado com a origem antes de ampliá-lo.
 
-Na exportação local examinada em 28/10/2026, `ALTA - CONSUMO ZERO` teve zero UCs. A regra continua documentada porque existe no código; a ausência de casos nesse lote não demonstra que a categoria seja inalcançável.
+A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações sem casos nessa categoria. A ausência de casos não demonstra que a categoria seja inalcançável.
 
 ## 4. `visao_360_uc`
 
@@ -213,38 +215,24 @@ Esses campos são declarados com nulabilidade física `False` no schema de cria�
 
 ## Exportação e verificações
 
-`Exportacao_Gold_SQLite.ipynb` verifica a existência das sete tabelas, cria o Volume `workspace.gold.gold_export_volume` se necessário e grava cada tabela como CSV no diretório correspondente em `/Volumes/workspace/gold/gold_export_volume/export_csv`. Usa cabeçalho, separador `;`, UTF-8, `quoteAll` e `overwrite` por tabela. A gravação Spark pode gerar vários arquivos `part-*` por diretório; não há garantia de um único CSV por tabela. O notebook de exportação não executa a carga no banco local nem faz reconciliação entre o banco e a Gold.
+`Exportacao_Gold_SQLite.ipynb` exige ambiente `prod` no último registro `CONCLUIDO` de `controle_gold`; o parâmetro opcional de ambiente também deve ser `prod` quando preenchido. A validação ocorre antes de qualquer gravação e não permite que o parâmetro sobrescreva o ambiente do controle. Em seguida, verifica a existência das sete tabelas, cria o Volume `workspace.gold.gold_export_volume` se necessário e grava cada tabela como CSV no diretório correspondente em `/Volumes/workspace/gold/gold_export_volume/export_csv`. Usa cabeçalho, separador `;`, UTF-8, `quoteAll` e `overwrite` por tabela. A gravação Spark pode gerar vários arquivos `part-*` por diretório; não há garantia de um único CSV por tabela. O notebook de exportação não executa a carga no banco local nem faz reconciliação entre o banco e a Gold.
 
 O notebook Gold contém verificações de presença de registros, chaves não nulas e únicas nas sete tabelas, além de regras de sanidade e reconciliação. A existência do código não prova execução para todo lote. O controle de DEC reconstitui o esperado da Silver para um alimentador e competência fixos; não é, sozinho, uma verificação independente de todos os alimentadores nem do FEC.
 
-Na revisão da versão `c95bfc3` relatada no PR #36, a amostra usou a Silver `20261024T035426Z_c5ba30e0` e registrou receita Gold de R$ 591.560.472,66 e reconciliação com a Silver. A revisão relatou que 8,58% da receita da Silver correspondia a faturas sem leitura; a análise anterior no PR também registrou aproximadamente 22,6 milhões de kWh em leituras sem fatura correspondente. Esses números são evidências das análises relatadas, não constantes válidas para qualquer execução. A pessoa usuária confirmou posteriormente validações de execução, reconciliação e Workflow; elas não foram vinculadas à execução `c95bfc3` nesta revisão.
+### Rastreabilidade e reconciliação por execução
 
-### Validação profunda e contagem de bairros
+IDs de execução, contagens, distribuições e totais apurados pertencem ao manifesto e às evidências do lote no ambiente autorizado. Esses resultados não são constantes do modelo e não integram este dicionário.
 
-O PR #36 registra que o Gold `GOLD_20261027T014656Z_81c5530b`, baseado na Silver `20261026T225331Z_c738405b`, tinha 51.862 linhas em `consumo_receita_bairro`, enquanto o CSV recebido pelo backend tinha 55.694. A diferença compara lotes cuja equivalência ainda precisa ser esclarecida.
+Diferenças entre exportações devem ser investigadas para o mesmo lote e grão completo: `competencia`, `municipio`, `bairro` e `classe_consumo`. Comparar chaves exclusivas, repetidas ou ausentes; a quantidade de nomes distintos de bairro, isoladamente, não explica diferenças de linhas.
 
-Na conversa da equipe, a contagem do CSV do Drive foi informada como 272 bairros distintos. A exportação local em `data/manifest.json` é de outro run: Gold `GOLD_20261028T024507Z_7f5f4fda`, Silver `20261028T022140Z_b5d60d92`. Seu `consumo_receita_bairro.csv` tem 51.862 registros, 272 valores distintos de `bairro` (também após trim e normalização de caixa) e 297 combinações normalizadas de município e bairro. Portanto, o número 272 coincide, mas não explica a diferença de 3.832 linhas nem prova que os arquivos vieram do mesmo lote. A hipótese de que o CSV discrepante teria cerca de 332 bairros não foi confirmada pela contagem informada.
-
-Os sete CSVs listados no manifesto local estavam presentes na revisão de 28/10/2026. `diagnostico_receita` tem 4.694 linhas; as demais contagens são: `consumo_mensal_uc` 1.928.920; `consumo_receita_bairro` 51.862; `fila_inspecao` 45.000; `indicadores_dec_fec` 5.856; `variacao_consumo_uc` 45.000; e `visao_360_uc` 45.000. Na conferência local de `diagnostico_receita` e `consumo_receita_bairro`, as chaves de grão não tinham nulos nem duplicatas. Receita (R$ 591.560.472,66) e consumo (790.691.150 kWh) fecharam entre as duas tabelas no total e nas 48 competências. Essa conferência local é de outro run; a diferença de 3.832 linhas entre os lotes continua sem causa identificada.
-
-Os achados textuais da revisão ficam tratados neste rascunho assim:
-
-- `media_consumo_historico` é calculada a partir das leituras, não do consumo faturado.
-- A flag de queda exige variação bruta estritamente menor que `-30%`; `-30%` exatos não entram.
-- Médias e variações são arredondadas conforme descrito por coluna; as variações são calculadas antes do arredondamento final.
-- FEC conta pares distintos UC–ocorrência; duração soma eventos incluídos. DEC/FEC são simplificados e a tabela não cria automaticamente grupos sem ocorrência.
-- Os nomes de categorias devem corresponder aos valores observados, em caixa e grafia como publicados; exemplos de um lote não são domínio fechado. Neste CSV atual, `classe_consumo` contém `COMERCIAL`, `INDUSTRIAL`, `PODER PUBLICO`, `RESIDENCIAL` e `RURAL`; `subgrupo_tarifario` contém `A4`, `B1`, `B2` e `B3`; `bandeira_tarifaria` contém `AMARELA`, `VERDE`, `VERMELHA P1` e `VERMELHA P2`.
-- A regra `ALTA - CONSUMO ZERO` permanece documentada mesmo sem ocorrências no lote local examinado.
-- Chamados, satisfação, interrupções/duração e `possui_gd` são definidos na seção de `visao_360_uc`, conforme as fontes e os agregados implementados no notebook.
-
-Para explicar a diferença de linhas, ainda é necessário comparar o CSV de 55.694 linhas com a exportação Gold do mesmo `run_id`, usando o grão completo (`competencia`, `municipio`, `bairro`, `classe_consumo`) e identificando chaves exclusivas, repetidas ou ausentes em cada lado. A contagem de bairros, isoladamente, não localiza essas linhas.
+A reconciliação deve conferir receita e energia entre as tabelas pertinentes, no total e por competência, e registrar as exclusões dos vínculos com a Silver. Controles de estrutura não substituem essa conferência semântica.
 
 ## Conferência no Databricks antes de homologar
 
 Para cada uma das sete tabelas e para `controle_gold`:
 
 1. Consultar `DESCRIBE TABLE` ou `printSchema` e registrar tipos físicos, precisão decimal e nulabilidade.
-2. Conferir as colunas publicadas com este rascunho e verificar chaves, nulos, contagens e relações entre tabelas para o mesmo lote.
+2. Conferir as colunas publicadas com este dicionário e verificar chaves, nulos, contagens e relações entre tabelas para o mesmo lote.
 3. Reconciliar receita e energia com as fontes Silver, incluindo os pares que ficaram fora do `inner join`, e registrar a evidência para o lote efetivo.
 4. Conferir DEC/FEC, janelas e população em amostras independentes; identificar competências sem linha, denominadores e limites do cadastro atual.
 5. Comparar esquema, contagens e agregados de Gold, CSV e banco local; verificar os arquivos de cada diretório, o lote e as condições de reexecução.

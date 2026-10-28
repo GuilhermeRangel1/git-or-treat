@@ -457,6 +457,14 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-10-28 — DE-06 e DE-08 — exportação oficial e documentação sem resultados de lote
+
+- Estado: requisitos mantidos nos estados existentes; revisão local antes de nova validação no Databricks.
+- Mudança: dicionário concentra definições, grãos, fórmulas e limites; IDs, contagens e resultados de execuções específicas foram retirados. Totais monetários apurados foram removidos dos textos Gold, do PRD e do registro de decisões técnicas; exemplos sintéticos e regras de cálculo permanecem.
+- Exportação: a consulta ao controle e a validação do ambiente precedem a criação do Volume e a sobrescrita de CSVs. O último registro `CONCLUIDO` deve ser de `prod`; parâmetro opcional diferente de `prod` também falha. Ambiente ausente não recebe mais fallback de produção e o parâmetro não promove registros de desenvolvimento. A transformação Gold e o esquema dos dados foram preservados.
+- Verificações: `python -X utf8 work/revisar_guardas_exportacao_gold.py` (roteiro local ignorado pelo Git) executou as células reais do exportador com adaptadores artificiais de Spark/dbutils e interceptação das escritas em 13 cenários; todos aprovados. Casos cobrem produção, normalização, ambientes recusados, tentativa de promoção pelo parâmetro, controle vazio, erro de consulta e falha de exportação. As recusas ocorrem antes de criar Volume/gravar CSV e falhas de exportação não gravam novo manifesto; sucesso preserva as sete tabelas e a linhagem. Células Python compilaram; código de transformação Gold comparado com HEAD e inalterado; `git diff --check` passou. Revisão final retirou a contagem residual da categoria sem casos, preservou exemplos de categorias e passou a capturar o horário do manifesto após os CSVs.
+- Limites: testes locais não substituem execução no Databricks. Revalidar exportação oficial no Job e confirmar bloqueio em ambiente diferente de produção. A publicação dos CSVs continua sem atomicidade entre arquivos. Sem alterações no Trello, por solicitação.
+
 ### 2026-10-28 — DE-04, DE-05, DE-06 e DE-08 — revisão semântica do dicionário Gold
 
 - Estado: estados dos requisitos preservados. Dicionário Gold ampliado para descrever o modelo implementado; não constitui aceite regulatório.
@@ -546,7 +554,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Arquivos/branch: `data-engineering/notebook/Bronze_to_Silver.ipynb`, `data-engineering/README.md`, `data-engineering/decisoes-tecnicas.md` (D46–D52, §11.2–11.3), `docs/services/data-engineering.md` e este PRD; branch `feat/silver`, criada a partir de `feat/bronze-rastreabilidade`.
 - Dados usados: dataset real do case no Volume autorizado do Databricks; nenhum dado foi copiado para o Git.
 - Verificações: Databricks Free Edition, serverless, em 21/10/2026. Bronze lote `20261021T095426Z_106436a4` (com o ajuste de tipo na migração, ver pendências), perfil com 108 linhas, Silver run `20261021T101818Z_223235ca` `CONCLUIDO` com 0 falhas em ≈ 7 min 45 s. Esta evidência corresponde à versão então executada e não valida a revisão atual.
-- Reconciliação ou amostra manual: `delta = 0` nas 8 tabelas e em `atendimentos_historico`; soma de faturas R$ 676.675.147,58 = aceitos 647.055.875,02 + quarentena 29.619.272,56. Os motivos batem com o perfil de 17/10 (leituras: data ambígua 102.878, medidor inexistente 8.609, cascata 58.214; faturas: emissão ambígua 61.226, UC inexistente 32.285). Contagens completas em `decisoes-tecnicas.md` §11.3.
+- Reconciliação ou amostra manual: `delta = 0` nas 8 tabelas e em `atendimentos_historico`; soma financeira das faturas reconciliada entre aceitos e quarentena; montantes preservados no ambiente autorizado. Os motivos batem com o perfil de 17/10 (leituras: data ambígua 102.878, medidor inexistente 8.609, cascata 58.214; faturas: emissão ambígua 61.226, UC inexistente 32.285). Contagens completas em `decisoes-tecnicas.md` §11.3.
 - Critérios de aceite e pendências: manter datas ambíguas em quarentena e usar o diagnóstico por arquivo de D53 antes de propor qualquer regra de interpretação; confirmar o significado da sentinela `9999-12-31` (14.2) e se o nome de `inspetor` é exibido ao usuário (14.4); revisar os 1.369 medidores com instalação ambígua. Bronze: a migração sobre tabelas anteriores exige o `cast("long")` de `_ordem_na_origem` em `Landing_to_Bronze.ipynb`, em commit separado. Trello não sincronizado (MCP não conectado).
 - Responsável/revisor: Júlia (juliatenoriocalado), com apoio do Claude Code; revisão humana pendente.
 ### 2026-10-23 — IA-01/IA-02/IA-03/IA-06 — pergunta HTTP com banco sintético controlado
