@@ -9,9 +9,9 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 **Objetivo:** Consolidar métricas operacionais, comerciais, de atendimento ao cliente e interrupções ao nível de Unidade Consumidora (UC), servindo como base analítica para o portal do atendente (WEB-03) e modelos de IA.  
 **Granularidade:** Unidade Consumidora (`id_uc`).  
 **Regras de Governança e Privacidade (LGPD):** 
-* **PII Zero (Minimização Estrita):** Remoção completa de dados pessoais (`cpf_cnpj` e `nome_titular`) para anonimização total da camada analítica.
-* **Privacidade Territorial:** Descarte de dados de endereço detalhado (`logradouro`, `cep`) e coordenadas geográficas (`latitude`, `longitude`).
-* **Saneamento de Controle:** Exclusão de metadados técnicos de ETL (`_lote_id`, `_run_id`, `_geo_invalida`).
+- **PII Zero (Minimização Estrita):** Remoção completa de dados pessoais (`cpf_cnpj` e `nome_titular`) para anonimização total da camada analítica.
+- **Privacidade Territorial:** Descarte de dados de endereço detalhado (`logradouro`, `cep`) e coordenadas geográficas (`latitude`, `longitude`).
+- **Saneamento de Controle:** Exclusão de metadados técnicos de ETL (`_lote_id`, `_run_id`, `_geo_invalida`).
 
 | Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
 | :--- | :--- | :--- | :--- |
@@ -29,7 +29,7 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 | `media_satisfacao_atendimento` | `double` | Sim | Média das notas de satisfação atribuídas pelo cliente nos atendimentos. |
 | `total_interrupcoes_sofridas` | `bigint` | Sim | Soma de ocorrências de falta de energia/interrupções que afetaram a UC. |
 | `duracao_total_interrupcoes_horas` | `double` | Sim | Duração acumulada total das interrupções sofridas pela UC em horas. |
-| `media_consumo_historico` | `double` | Sim | Média histórica do consumo de energia faturado em kWh. |
+| `media_consumo_historico` | `double` | Sim | Média histórica do consumo de energia baseada nas leituras em kWh (desconsidera faturamentos estimados sem leitura física). |
 
 ---
 
@@ -39,8 +39,8 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 **Granularidade:** Competência (Mensal), Município, Classe de Consumo, Subgrupo Tarifário, Bandeira Tarifária e Possui GD.  
 **Origem dos Dados (Silver):** `silver.faturas`, `silver.leituras`, `silver.unidades_consumidoras` e `silver.geracao_distribuida`.  
 **Regras de Negócio e Segurança:** 
-* Filtro de registros sintéticos: Exclusão de faturamentos de teste (`id_uc NOT LIKE 'TESTE%'`).
-* Eliminação de ambiguidade volumétrica: Distinção clara entre quantidade de UCs distintas e o acúmulo de faturas no mês.
+- Filtro de registros sintéticos: Exclusão de faturamentos de teste (`id_uc NOT LIKE 'TESTE%'`).
+- Eliminação de ambiguidade volumétrica: Distinção clara entre quantidade de UCs distintas e o acúmulo de faturas no mês.
 
 | Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
 | :--- | :--- | :--- | :--- |
@@ -55,7 +55,7 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 | `consumo_total_kwh` | `double` | Sim | Soma do consumo total de energia em kWh no mês. |
 | `receita_total_reais` | `decimal(38,2)` | Sim | Valor total da receita faturada em reais (R$). |
 | `ticket_medio_reais_por_uc` | `decimal(34,6)` | Sim | Valor médio faturado por UC (`receita_total_reais` / `qtd_ucs_distintas_faturadas_no_mes`). |
-| `consumo_medio_kwh_por_uc` | `double` | Sim | Consumo médio em kWh por unidade consumidora. |
+| `consumo_medio_kwh_por_uc` | `double` | Sim | Consumo médio em kWh por unidade consumidora calculado com base nas leituras válidas. |
 | `tarifa_media_efetiva` | `double` | Sim | Tarifa média efetiva praticada (`receita_total_reais` / `consumo_total_kwh`). |
 
 ---
@@ -65,14 +65,14 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 **Objetivo:** Consolidar indicadores de risco e anomalias de consumo por Unidade Consumidora (UC) para direcionamento e priorização das equipes de fiscalização de campo no combate a fraudes e furtos de energia (perdas não técnicas).  
 **Granularidade:** Unidade Consumidora (`id_uc`).  
 **Regras de Governança e Privacidade (LGPD):** 
-* **Saneamento Cadastral:** Remoção na origem de UCs fictícias de teste (`id_uc` iniciando com `TESTE`) e documentos zerados/nulos.
-* **PII Zero (Minimização Estrita):** Eliminação total dos dados pessoais (`cpf_cnpj` e `nome_titular`), além de endereços detalhados (`logradouro`, `cep`) e coordenadas geográficas, garantindo consumo analítico e de IA 100% anonimizado via chave técnica (`id_uc`).
-* **Hierarquia de Priorização (`prioridade_inspecao`):**
+- **Saneamento Cadastral:** Remoção na origem de UCs fictícias de teste (`id_uc` iniciando com `TESTE`) e documentos zerados/nulos.
+- **PII Zero (Minimização Estrita):** Eliminação total dos dados pessoais (`cpf_cnpj` e `nome_titular`), além de endereços detalhados (`logradouro`, `cep`) e coordenadas geográficas, garantindo consumo analítico e de IA 100% anonimizado via chave técnica (`id_uc`).
+- **Hierarquia de Priorização (`prioridade_inspecao`):**
   1. `ALTA - HISTORICO IRREGULAR`: `total_inspecoes_irregulares > 0`
   2. `REVISAR - SEM HISTORICO DE CONSUMO`: `media_consumo_historico IS NULL`
   3. `ALTA - CONSUMO ZERO`: `possui_geracao_solar = 'Não'` AND `media_consumo_historico = 0`
   4. `MEDIA - NUNCA INSPECIONADO`: `total_inspecoes_realizadas = 0`
-  5. `BAIXA`: Demais cenários de operação regular.
+  5. `BAIXA`: Demais cenários de operação regular (incluindo UCs com queda de consumo de até 30%).
 
 | Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
 | :--- | :--- | :--- | :--- |
@@ -88,18 +88,18 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 | `possui_geracao_solar` | `string` | Sim | Indicador de presença de Geração Distribuída Solar (`Sim` / `Não`). |
 | `total_inspecoes_realizadas` | `bigint` | Sim | Quantidade total de vistorias de campo executadas na UC. |
 | `total_inspecoes_irregulares` | `bigint` | Sim | Quantidade de vistorias onde foram confirmadas fraudes ou irregularidades. |
-| `media_consumo_historico` | `double` | Sim | Média histórica do consumo de energia faturado em kWh. |
+| `media_consumo_historico` | `double` | Sim | Média histórica do consumo de energia calculada com base nas leituras em kWh. |
 | `prioridade_inspecao` | `string` | Não | Métrica de decisão: Classificação do nível de risco da UC (`ALTA - HISTORICO IRREGULAR`, `REVISAR - SEM HISTORICO DE CONSUMO`, `ALTA - CONSUMO ZERO`, `MEDIA - NUNCA INSPECIONADO`, `BAIXA`). |
 
 ---
 
 ## 4. Indicadores Operacionais e Regulação ANEEL (`indicadores_dec_fec`)
 
-**Objetivo:** Calcular os indicadores regulatórios operacionais de Duração Equivalente de Interrupção por Unidade Consumidora (**DEC**) e Frequência Equivalente de Interrupção por Unidade Consumidora (**FEC**) segundo as normas do PRODIST Módulo 8 da ANEEL.  
+**Objetivo:** Calcular os indicadores regulatórios operacionais de Duração Equivalente de Interrupção por Unidade Consumidora (**DEC**) e Frequência Equivalente de Interrupção por Unidade Consumidora (**FEC**) segundo as normas simplificadas de apuração de continuidade.  
 **Granularidade:** Alimentador (`id_alimentador`), Município (`municipio`) e Competência (`competencia`).  
 **Regras de Negócio e Tratamento de Dados:** 
-* **Filtro de Segurança / Qualidade (N2):** Exclusão das UCs fictícias de teste (`id_uc` iniciando com `TESTE`), garantindo a base real de 45.000 UCs no denominador para evitar subestimação dos indicadores operacionais.
-* **Fórmulas Oficiais:**
+- **Filtro de Segurança / Qualidade (N2):** Exclusão das UCs fictícias de teste (`id_uc` iniciando com `TESTE`), garantindo a base real de 45.000 UCs no denominador para evitar subestimação dos indicadores operacionais.
+- **Fórmulas Simplificadas:**
   * **DEC:** `DEC` = `duracao_total_interrupcoes_horas` / `total_ucs_alimentador`
   * **FEC:** `FEC` = `frequencia_total_interrupcoes` / `total_ucs_alimentador`
 
@@ -112,8 +112,8 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 | `ucs_interrompidas` | `bigint` | Sim | Quantidade de unidades consumidoras impactadas por interrupções no período. |
 | `frequencia_total_interrupcoes` | `bigint` | Sim | Soma do número total de ocorrências de interrupção registradas no alimentador. |
 | `duracao_total_interrupcoes_horas` | `double` | Sim | Soma total da duração das interrupções em horas no alimentador. |
-| `DEC` | `double` | Sim | Indicador DEC (horas/UC): Duração equivalente de interrupção por unidade consumidora. |
-| `FEC` | `double` | Sim | Indicador FEC (interrupções/UC): Frequência equivalente de interrupção por unidade consumidora. |
+| `DEC` | `double` | Sim | Indicador DEC (horas/UC): Duração equivalente de interrupção por unidade consumidora (cálculo simplificado). |
+| `FEC` | `double` | Sim | Indicador FEC (interrupções/UC): Frequência equivalente de interrupção por unidade consumidora (cálculo simplificado). |
 
 ---
 
@@ -130,7 +130,7 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 | `municipio` | `string` | Sim | Nome do município associado à UC. |
 | `bairro` | `string` | Sim | Nome do bairro associado à UC. |
 | `classe_consumo` | `string` | Sim | Categoria da unidade consumidora (ex: Residencial, Comercial, Industrial). |
-| `consumo_total_kwh` | `double` | Sim | Soma do consumo em kWh faturado na combinação de mês/bairro/classe. |
+| `consumo_total_kwh` | `double` | Sim | Soma do consumo em kWh apurado via leituras na combinação de mês/bairro/classe. |
 | `receita_total_reais` | `decimal(38,2)` | Sim | Soma da receita faturada em Reais (R$) na combinação de mês/bairro/classe. |
 | `qtd_ucs_distintas_faturadas_no_mes` | `bigint` | Sim | Contagem distinta de Unidades Consumidoras únicas faturadas na combinação. |
 
@@ -142,12 +142,12 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 **Granularidade:** Unidade Consumidora (`id_uc`).  
 **Cobertura Base:** 45.000 Unidades Consumidoras (100% da rede ativa).  
 **Janelas Temporais de Análise:**
-* **Período Inicial (P1):** Média de consumo mensal de `2022-07` a `2023-06` (12 meses).
-* **Período Final (P2):** Média de consumo mensal de `2025-07` a `2026-06` (12 meses).
-* **Fórmulas e Regras de Negócio:**
+- **Período Inicial (P1):** Média de consumo mensal de `2022-07` a `2023-06` (12 meses, baseado nas leituras válidas).
+- **Período Final (P2):** Média de consumo mensal de `2025-07` a `2026-06` (12 meses, baseado nas leituras válidas).
+- **Fórmulas e Regras de Negócio:**
   * **Variação Absoluta:** `variacao_kwh` = `consumo_medio_final` - `consumo_medio_inicial`
   * **Variação Percentual:** `variacao_pct` = ((`consumo_medio_final` - `consumo_medio_inicial`) / `consumo_medio_inicial`) * 100
-* **Tratamento de Nulos:** Indicador `variacao_pct` mantido como `NULL` quando não há histórico de leitura em ambos os períodos (P1 e P2). Havendo ao menos 1 mês com medição em cada janela, o indicador é calculado sobre a média dos meses disponíveis.
+- **Tratamento de Nulos:** Indicador `variacao_pct` mantido como `NULL` quando não há histórico de leitura em ambos os períodos (P1 e P2). Havendo ao menos 1 mês com medição em cada janela, o indicador é calculado sobre a média dos meses disponíveis.
 
 | Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
 | :--- | :--- | :--- | :--- |
@@ -155,29 +155,28 @@ Este documento descreve a estrutura, esquemas de dados, e regras de negócio apl
 | `municipio` | `string` | Sim | Município de localização da UC. |
 | `bairro` | `string` | Sim | Bairro de localização da UC. |
 | `possui_gd` | `string` | Sim | Indicador de presença de Geração Distribuída (`Sim` / `Não`). |
-| `consumo_medio_inicial` | `double` | Sim | Média mensal de consumo em kWh no Período Inicial (P1: `2022-07` a `2023-06`). |
+| `consumo_medio_inicial` | `double` | Sim | Média mensal de consumo em kWh baseada nas leituras do Período Inicial (P1: `2022-07` a `2023-06`). |
 | `meses_com_leitura_p1` | `bigint` | Sim | Quantidade de meses com leituras válidas registradas no Período Inicial (P1). |
-| `consumo_medio_final` | `double` | Sim | Média mensal de consumo em kWh no Período Final (P2: `2025-07` a `2026-06`). |
+| `consumo_medio_final` | `double` | Sim | Média mensal de consumo em kWh baseada nas leituras do Período Final (P2: `2025-07` a `2026-06`). |
 | `meses_com_leitura_p2` | `bigint` | Sim | Quantidade de meses com leituras válidas registradas no Período Final (P2). |
 | `variacao_kwh` | `double` | Sim | Variação absoluta de consumo em kWh ($\text{P2} - \text{P1}$). |
-| `variacao_pct` | `double` | Sim | Variação percentual de consumo ($\%$). Mantido como `NULL` na ausência de histórico. |
-| `queda_consumo_superior_30_pct` | `boolean` | Sim | Flag de decisão (`True` / `False`): `True` se a variação percentual for menor ou igual a `-30.0%`. |
+| `variacao_pct` | `double` | Sim | Variação percentual de consumo ($\%$). Mantido como `NULL` na ausência de histórico de leituras. |
+| `queda_consumo_superior_30_pct` | `boolean` | Sim | Flag de decisão (`True` / `False`): `True` se a variação percentual for estritamente menor que `-30.0%` (`variacao_pct < -30.0`). |
 
 ---
 
 ## 7. Consumo e Receita Mensal por Unidade Consumidora (`consumo_mensal_uc`)
 
-**Objetivo:** Armazenar a série histórica temporal granular de consumo (kWh) e receita (R$) por Unidade Consumidora e competência. Serve como camada intermediária para alimentar a Visão 360° e permitir que agentes de GenAI respondam a consultas de histórico faturado sem reprocessamentos pesados.  
+**Objetivo:** Armazenar a série histórica temporal granular de consumo (kWh) e receita (R$) por Unidade Consumidora e competência. Serve como camada intermediária para alimentar a Visão 360° e permitir que agentes de GenAI respondam a consultas de histórico faturado e medições de consumo sem reprocessamentos pesados.  
 **Granularidade / Chave Primária:** Unidade Consumidora e Competência (`id_uc`, `competencia`).  
 **Regras de Negócio e Enriquecimento:**
-* **Junção de Fontes:** `INNER JOIN` entre faturas e leituras pré-agregadas por UC e mês, garantindo alinhamento financeiro total com a tabela `diagnostico_receita`.
-* **Padronização Monetária e Volumétrica:** Métrica `receita_reais` padronizada em duas casas decimais com precisão decimal estrita.
+- **Junção de Fontes:** `INNER JOIN` entre faturas e leituras pré-agregadas por UC e mês, garantindo alinhamento financeiro total com a tabela `diagnostico_receita`.
+- **Padronização Monetária e Volumétrica:** Métrica `receita_reais` padronizada em duas casas decimais com precisão decimal estrita, e `consumo_kwh` derivado da medição das leituras.
 
 | Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
 | :--- | :--- | :--- | :--- |
 | `id_uc` | `string` | Não | Chave primária parte 1: Identificador técnico único da Unidade Consumidora. |
 | `competencia` | `string` | Não | Chave primária parte 2: Ano e mês de referência da fatura (formato `YYYY-MM`). |
-| `consumo_kwh` | `double` | Sim | Volume total de consumo em kWh faturado na UC na competência. |
+| `consumo_kwh` | `double` | Sim | Volume total de consumo em kWh apurado via leituras na UC na competência. |
 | `receita_reais` | `decimal(31,2)` | Sim | Valor total da receita faturada em reais (R$) para a UC no mês. |
-
 
