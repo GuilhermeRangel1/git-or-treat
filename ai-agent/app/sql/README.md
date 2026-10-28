@@ -97,7 +97,7 @@ O registro **não** guarda linhas de resultado, a pergunta da pessoa, o texto SQ
 
 ## Limites conhecidos
 
-- O dicionário é provisório e não vem de `docs/data-dictionary.md`. Tipos e nomes precisam ser confirmados com a Gold.
+- O dicionário é provisório e não vem de `docs/dicionario_gold.md`. Tipos e nomes precisam ser confirmados com a Gold.
 - A lista branca de funções é deliberadamente pequena. Funções de janela, datas e strings adicionais precisam ser incluídas no TOML com teste.
 - Um nome de tabela em `CTE`/alias que coincida com o nome de uma coluna é recusado mesmo quando seria inofensivo.
 - `SqlPlanReader.read` exige o contexto de acesso e reaplica o `ReadPlanValidator` injetado antes de chamar o serviço SQL; contexto ausente ou escopo revogado impede a consulta. A fonte foi composta com o planner apenas em teste direto; identidade e permissões reais do banco não foram comprovadas.

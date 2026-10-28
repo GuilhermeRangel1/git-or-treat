@@ -176,4 +176,4 @@ O schema da API admite `is_demo: false`, e o repositório fornece a proveniênci
 
 Revisar chave de UC e vigência cadastral; granularidade e deduplicação de faturas/leituras; relógio de competência versus pagamento; receita faturada/paga e arredondamento; energia apurada versus faturada; GD como potência versus energia; universo de UCs; fórmula preço-volume e interação; regra/estimativa de inspeção; denominador e janela DEC/FEC; atualização/lote e qualidade. Conectar o adaptador não resolve essas decisões automaticamente.
 
-A conclusão funcional continua condicionada ao dicionário Gold e à reconciliação entre Databricks, banco, API, portal, IA e diagnóstico. O [dicionário](../data-dictionary.md) permanece a fonte das definições aprovadas dos dados reais.
+A conclusão funcional continua condicionada ao dicionário Gold e à reconciliação entre Databricks, banco, API, portal, IA e diagnóstico. O [dicionário](../dicionario_gold.md) permanece a fonte das definições aprovadas dos dados reais.

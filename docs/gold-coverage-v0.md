@@ -100,7 +100,7 @@ Estados: **coberta** = a Gold tem grão e colunas para responder, sujeita às re
 
 ## (c) Achados e riscos
 
-**Reconciliações que fecharam exatamente.** `consumo_receita_bairro`, `diagnostico_receita` e `consumo_mensal_uc` (com o município e a classe da Visão 360) somam o mesmo total por competência, por competência × município e por competência × classe: 790.691.150,0 kWh, R$ 591.560.472,66 e 1.928.920 UC-meses, com diferença zero nos 48, 672 e 240 grupos. O valor de receita coincide com o registrado no notebook. As UCs de `fila_inspecao` e `variacao_consumo_uc` são as mesmas 45.000 da Visão 360. Os 122 alimentadores do DEC/FEC são os mesmos da Visão 360. O GD e a `media_consumo_historico` coincidem entre visão, fila e variação em todas as UCs.
+**Reconciliações que fecharam exatamente.** `consumo_receita_bairro`, `diagnostico_receita` e `consumo_mensal_uc` (com o município e a classe da Visão 360) somam o mesmo total por competência, por competência × município e por competência × classe: 790.691.150,0 kWh, [valor financeiro omitido] e 1.928.920 UC-meses, com diferença zero nos 48, 672 e 240 grupos. O total de receita foi conciliado com a execução Gold; seu montante deve permanecer nas evidências do ambiente autorizado. As UCs de `fila_inspecao` e `variacao_consumo_uc` são as mesmas 45.000 da Visão 360. Os 122 alimentadores do DEC/FEC são os mesmos da Visão 360. O GD e a `media_consumo_historico` coincidem entre visão, fila e variação em todas as UCs.
 
 **Prioridade da fila concentrada.** 42.652 UCs (94,78%) estão em `MEDIA - NUNCA INSPECIONADO`; `ALTA - HISTORICO IRREGULAR` tem 808 (1,80%), `REVISAR - SEM HISTORICO DE CONSUMO` 1.023 (2,27%) e `BAIXA` 517 (1,15%). Só 1.344 UCs têm inspeção (no máximo uma), e 808 tiveram irregularidade. A faixa `ALTA - CONSUMO ZERO`, listada no `dictionary_gold.toml`, não tem nenhuma UC neste lote. Para a IA: "quais UCs inspecionar primeiro" quase não discrimina, e a fila não deve ser apresentada como ranking de suspeita. Das 808 `ALTA`, 23 não têm consumo histórico.
 
@@ -126,7 +126,7 @@ O sentido bate: o volume cai e a receita sobe menos do que a tarifa. Os valores 
 
 **DEC/FEC.** `DEC = duracao_total_interrupcoes_horas / total_ucs_alimentador` e `FEC = frequencia_total_interrupcoes / total_ucs_alimentador` em todas as 5.856 linhas. `total_ucs_alimentador` é igual ao número de UCs da Visão 360 no alimentador e não varia entre meses. A soma de `frequencia_total_interrupcoes` é 180.000, igual à soma de interrupções por UC da Visão 360.
 
-**Consumo e receita: sem negativos, zeros ou sentinelas.** Nas três tabelas de receita, consumo e receita são sempre positivos (mínimo mensal por UC: 8 kWh e R$ 6,37). Não há estorno visível. Não dá para saber, só pelo lote, se a origem não tinha estornos ou se a Silver os removeu.
+**Consumo e receita: sem negativos, zeros ou sentinelas.** Nas três tabelas de receita, consumo e receita são sempre positivos (mínimo mensal por UC: 8 kWh e [valor financeiro omitido]). Não há estorno visível. Não dá para saber, só pelo lote, se a origem não tinha estornos ou se a Silver os removeu.
 
 **Sentinela de data.** `data_ligacao` tem 90 UCs com ano anterior a 1950 (mínimo `1900-01-01`), na visão e na fila. Esse valor não é data real de ligação.
 
@@ -190,14 +190,14 @@ Texto dos itens copiado do checklist do cartão GENAI-02 no quadro "GenAI — Go
 
 ## (g) Controles candidatos (rascunho, não aprovados)
 
-Controles agregados calculados a partir dos CSVs por `scripts/gold_coverage.py` (seção "Controles candidatos" da saída). Nenhum identifica UC, alimentador ou pessoa. **Cada controle precisa de aprovação independente da Júlia (Dados), calculado por outro caminho e com tolerância definida, antes de virar fixture.** Os valores de kWh e R$ não têm arredondamento além do que vem no lote.
+Controles agregados calculados a partir dos CSVs por `scripts/gold_coverage.py` (seção "Controles candidatos" da saída). Nenhum identifica UC, alimentador ou pessoa. **Cada controle precisa de aprovação independente da Júlia (Dados), calculado por outro caminho e com tolerância definida, antes de virar fixture.** Os valores de kWh não têm arredondamento além do que vem no lote. Os montantes financeiros foram omitidos deste relatório público; os controles de receita devem ser conferidos no ambiente autorizado.
 
 | ID | Definição | Tabela e colunas | Janela | Valor calculado |
 | --- | --- | --- | --- | --- |
-| C01 | Total de energia faturada e de receita faturada no lote | `diagnostico_receita`: `consumo_total_kwh`, `receita_total_reais` | 2022-07 a 2026-06 | 790.691.150 kWh; R$ 591.560.472,66 |
-| C02 | Energia e receita faturadas por classe | `diagnostico_receita`: `classe_consumo`, `consumo_total_kwh`, `receita_total_reais` | 2022-07 a 2026-06 | Comercial 177.546.534 kWh, R$ 145.384.667,08; Industrial 305.167.405 kWh, R$ 209.565.176,05; Poder público 14.818.877 kWh, R$ 12.178.073,68; Residencial 285.113.458 kWh, R$ 217.901.925,69; Rural 8.044.876 kWh, R$ 6.530.630,16 |
+| C01 | Total de energia faturada e de receita faturada no lote | `diagnostico_receita`: `consumo_total_kwh`, `receita_total_reais` | 2022-07 a 2026-06 | 790.691.150 kWh; [valor financeiro omitido] |
+| C02 | Energia e receita faturadas por classe | `diagnostico_receita`: `classe_consumo`, `consumo_total_kwh`, `receita_total_reais` | 2022-07 a 2026-06 | Comercial 177.546.534 kWh, [valor financeiro omitido]; Industrial 305.167.405 kWh, [valor financeiro omitido]; Poder público 14.818.877 kWh, [valor financeiro omitido]; Residencial 285.113.458 kWh, [valor financeiro omitido]; Rural 8.044.876 kWh, [valor financeiro omitido] |
 | C03 | UC-meses com fatura e leitura (linhas da série mensal) | `consumo_mensal_uc`: contagem de (`id_uc`, `competencia`) | 2022-07 a 2026-06 | 1.928.920 |
-| C04 | Energia e receita no último mês do lote, no município de maior receita (escolha deste relatório) | `diagnostico_receita`: `competencia`, `municipio`, `consumo_total_kwh`, `receita_total_reais` | 2026-06, Recife | 5.253.939 kWh; R$ 3.970.482,49 |
+| C04 | Energia e receita no último mês do lote, no município de maior receita (escolha deste relatório) | `diagnostico_receita`: `competencia`, `municipio`, `consumo_total_kwh`, `receita_total_reais` | 2026-06, Recife | 5.253.939 kWh; [valor financeiro omitido] |
 | C05 | UCs por classe | `visao_360_uc`: contagem de `id_uc` por `classe` | cadastro atual, sem competência | Comercial 4.909; Industrial 877; Poder público 222; Residencial 38.336; Rural 656 (total 45.000) |
 | C06 | UCs por faixa de prioridade da fila | `fila_inspecao`: contagem de `id_uc` por `prioridade_inspecao` | cadastro atual, sem competência | `MEDIA - NUNCA INSPECIONADO` 42.652; `REVISAR - SEM HISTORICO DE CONSUMO` 1.023; `ALTA - HISTORICO IRREGULAR` 808; `BAIXA` 517 |
 | C07 | Caso de zero: UCs na faixa `ALTA - CONSUMO ZERO` | `fila_inspecao`: `prioridade_inspecao` | cadastro atual, sem competência | 0 UC. A resposta esperada é "nenhuma UC nesta faixa", não ausência de evidência. |
