@@ -1,6 +1,6 @@
 # Dicionário de dados Gold
 
-**Estado:** a Bronze e a Silver já têm colunas observadas e documentadas, mas ainda não há tabelas Gold nem métricas validadas. Este dicionário será preenchido durante DE-08 a partir das saídas implementadas e reconciliadas. Não tratar propostas de Gold como esquema publicado.
+**Estado:** os sete CSVs Gold v1 foram disponibilizados localmente em 27/10/2026. O [contrato físico observado](contracts/gold-csv-v1.md) orienta a carga provisória ao banco; não homologa as métricas. Este dicionário canônico continua pendente de definição e revisão pela engenharia de dados durante DE-08. O documento `dicionario_gold.md` da branch Gold é uma referência em elaboração e contém divergências em relação aos CSVs.
 
 Os [contratos de consumo DEV-01](contracts/analytics-api.md) e as definições de suas fixtures sintéticas são propostas de aplicação, separadas deste dicionário Gold. Sua existência não comprova nomes de colunas, fórmulas ou granularidades do dataset. A integração futura deve revisar os pontos provisórios indicados no catálogo antes de apresentar métricas reais.
 
