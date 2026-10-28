@@ -1,68 +1,73 @@
 # Cobertura do lote candidato da Gold — v0
 
 **Cartão:** GENAI-02 — Conferir o lote Gold e a cobertura dos dados obrigatórios
-**Data da conferência:** 27/10/2026
+**Data da conferência:** 27/10/2026; reanálise com o lote gerado em 28/10/2026
+**Lotes:** o "lote reanalisado" é um lote exportado em 28/10. Os controles C01 a C12 foram aprovados por Dados sobre a Gold oficial, que é outra execução. Rodada nos dois lotes (o primeiro e o reanalisado), a conferência cruzada pelo script produz os mesmos controles C01 a C12; os lotes só diferem na tabela de bairro, duplicada no primeiro.
 **IDs do PRD relacionados:** IA-01, IA-02, IA-03, IA-06; dependências DE-04, DE-05, DE-06, DE-08
 **Natureza:** relatório de **lote candidato**. Este documento não conclui requisito, não homologa métrica e não declara a Gold pronta para a GenAI. Os estados do PRD não mudam.
 
-> **Nota sobre o conteúdo.** Este documento contém apenas agregados e contagens do lote: nenhuma linha de dado, nenhum id de UC ou de alimentador e nenhum dado pessoal. Os CSVs não estão no repositório. Como o repositório de entrega é público e o material do case tem a marcação "Confidencial", **a publicação dos totais em R$ e kWh (seções c e g) precisa ser confirmada por Dados** antes de o documento sair da branch.
+> **Nota sobre o conteúdo.** Por regra de Dados e pela confidencialidade do case, este repositório não publica agregados além dos do diagnóstico da receita; os valores ficam com Dados. Para reproduzir localmente, ver [Como reproduzir](#como-reproduzir). O documento registra estrutura, método e conclusões em palavras: nenhuma linha de dado, nenhum total, contagem ou percentual do lote, nenhum id de UC ou de alimentador, nenhum nome de município ou bairro tirado do lote e nenhum dado pessoal. Os CSVs e o manifesto não estão no repositório.
 
 ## O que foi conferido e o que não foi
 
-**Lote conferido:** arquivo `rocket_dados-20261027T110204Z-1-001.zip`, com sete CSVs (separador `;`, UTF-8, todos os campos entre aspas), datados de 26/10/2026 no zip. Os CSVs ficam fora do repositório. Sem manifesto, a identificação possível é o hash dos arquivos:
+**Lote conferido:** sete CSVs exportados da Gold (separador `;`, UTF-8, todos os campos entre aspas), um por tabela. Os CSVs ficam fora do repositório; nome do arquivo, hashes e identificadores do lote também não são publicados aqui.
 
-| Arquivo | SHA-256 |
-| --- | --- |
-| zip | `017dc1ce8cf6843f4867c912f138bc5b0335ec10dc963bd90e21d2630e802ebf` |
-| `consumo_mensal_uc.csv` | `29098a94d27198a9256958602a17f44fb7acdb4cd5e7ab0d0a8fadc44c08ccd2` |
-| `consumo_receita_bairro.csv` | `7ef3a399882c5cd56afc97c15948fb86ced1f01a073d7335892cf8949d9004b7` |
-| `diagnostico_receita.csv` | `25629d076643ccb699a8314c98fcb83bf21cd3826e2dcb6073dc021ddfad709a` |
-| `fila_inspecao.csv` | `80b09dc97592f1bbe70f20b9951979ac5e0a1f6e72771b84f96fc95f04ab696c` |
-| `indicadores_dec_fec.csv` | `c9f1412051901ef280565c1bfdb62c59bc471e87142b5ff98d4ee5bbd1e46c76` |
-| `variacao_consumo_uc.csv` | `253b6fc0a88af7efee636f9531991add8543cae620cc7dc465cea04a19c17fb3` |
-| `visao_360_uc.csv` | `64206bede85b6b2a977d0c3c96739ad5aa1460ac7a8e8d8e84d1b40d74409571` |
-
-**Não há manifesto nem `controle_gold` neste lote.** O diretório contém apenas os sete CSVs. Portanto o `batch_ref` proposto no [contrato de consulta](contracts/genai-query-execution.md#lote-da-gold-batch_ref) e na [ADR-0002](decisions/0002-genai-gold-query-owner.md) **ainda não existe**: não é possível saber de qual `run_id_silver`/`lote_bronze_silver` o lote veio, se a execução foi `CONCLUIDO`, nem se usou os valores de reserva `SINTETICO_DEV`/`LOTE_DEV`. O notebook de exportação da branch `feat/gold` (`Exportacao_Gold_SQLite.ipynb`, commit `9664823`) também não grava manifesto.
+**Manifesto.** O primeiro lote não tinha manifesto nem `controle_gold`, então não havia como saber de qual `run_id_silver`/`lote_bronze_silver` ele veio, se a execução foi `CONCLUIDO`, nem se usou os valores de reserva `SINTETICO_DEV`/`LOTE_DEV`. O lote reanalisado traz manifesto (ver [Lote reanalisado](#lote-reanalisado)). No exportador da `develop` (commit `ca73db5`, PR #36), a exportação exige ambiente `prod` e falha se não for, o fallback para lote de reserva foi removido e o notebook lê a última execução com `status_gold = CONCLUIDO` em `controle_gold`. Falta só gravar o `status_gold` no manifesto (sugestão para Dados; ver e). O `batch_ref` proposto no [contrato de consulta](contracts/genai-query-execution.md#lote-da-gold-batch_ref) e na [ADR-0002](decisions/0002-genai-gold-query-owner.md) ainda não está definido a partir dele. O notebook de exportação da branch `feat/gold` (`Exportacao_Gold_SQLite.ipynb`, commit `9664823`) não gravava manifesto.
 
 **Não verificado nesta conferência:**
 
-- recarga dos CSVs no banco local sem duplicar resultados (DE-06). O carregador `backend/scripts/load_gold.py` ainda é esqueleto e não insere registros;
-- comparativo entre os CSVs e o banco do Backend: o esquema atual do Backend tem só `gold_indicadores`, não as sete tabelas;
+- recarga dos CSVs no banco local sem duplicar resultados (DE-06). Na primeira conferência, o carregador `backend/scripts/load_gold.py` ainda era esqueleto e não inseria registros;
+- comparativo entre os CSVs e o banco do Backend;
 - comparativo entre os CSVs e as tabelas no Databricks;
 - controles aprovados de catálogo, papel somente leitura, identidade e auditoria (pendências da ADR-0002).
 
-**Como reproduzir:** a partir de `ai-agent/`, `python scripts/gold_coverage.py <diretório do lote>` (ou `GOLD_DATA_DIR=<diretório> python scripts/gold_coverage.py --json <saída fora do repo>`). O script só lê, usa biblioteca padrão e imprime agregados; não imprime linhas, ids de UC nem ids de alimentador. Salvaguardas da saída:
+### Como reproduzir
+
+A partir de `ai-agent/`, `python scripts/gold_coverage.py <diretório do lote>` (ou `GOLD_DATA_DIR=<diretório> python scripts/gold_coverage.py --json <saída fora do repo>`). O script só lê, usa biblioteca padrão e imprime agregados; não imprime linhas, ids de UC nem ids de alimentador. Os agregados ficam no terminal ou no JSON local e não devem ser copiados para o repositório.
+
+O diretório do lote pode estar em um de dois layouts:
+
+- CSVs soltos na pasta: `<diretório>/<tabela>.csv`;
+- uma subpasta por tabela: `<diretório>/<tabela>/<tabela>.csv`, o layout que o carregador do Backend espera (uma subpasta com partes `*.csv` do Spark também é aceita).
+
+O manifesto é procurado em `<diretório>/manifest.json` (onde o exportador da Gold o grava) ou em `<diretório>/manifesto/manifest.json`; se existirem os dois, o script usa o da raiz e avisa. Ele mostra só qual arquivo leu e os campos técnicos de identificação (`ambiente`, `lote`, `run_id_silver`, `lote_bronze_silver`, `tabelas_exportadas`), sem nenhum valor de negócio, e avisa quando o `ambiente` não é de produção ou quando `tabelas_exportadas` não bate com as sete tabelas encontradas. Sem manifesto, a saída diz "nenhum".
+
+Salvaguardas da saída:
 
 - valores de coluna só aparecem para as dimensões autorizadas (município, classe, subgrupo, bandeira, GD, status, UF, prioridade e flag de queda), e nunca quando o nome ou os valores parecem dado pessoal (CPF, CEP, e-mail); mínimo e máximo de texto só em colunas de data e competência;
 - reconciliações e controles com medida nula ou inválida saem como `nao_verificavel`, com as contagens, e não como "0 divergências";
 - as janelas de 12 meses exigem competências contínuas; com lacuna, o percentual não é calculado (`janela incompleta`);
-- `--json` recusa destino dentro da pasta do lote, inclusive via link ou `..`, e sobre um arquivo de entrada.
+- `--json` recusa destino dentro da pasta do lote, inclusive nas subpastas de tabela e de manifesto, via link ou `..`, e sobre um arquivo de entrada.
 
-Testes com dados inventados: `python -m pytest tests/test_gold_coverage.py`. Execução sobre este lote: cerca de 2 min.
+Testes com dados inventados: `python -m pytest tests/test_gold_coverage.py`.
 
-**Fontes lidas:** [PRD](PRD.md) (§1, §1.2, §2.1, §4, §6.3, §7.6, §8), [contrato](contracts/genai-query-execution.md), [ADR-0002](decisions/0002-genai-gold-query-owner.md), `ai-agent/app/sql/dictionary_gold.toml` (**existe só na branch `feat/ia-gold-dicionario-sql`, commit `fd6db48`; não está na `develop`**), `docs/dicionario_gold.md` e `data-engineering/notebook/Silver_to_gold.ipynb` da branch `feat/gold` (commit `9664823`). O [dicionário Gold](data-dictionary.md) da `develop` ainda é modelo vazio.
+**Fontes lidas:** [PRD](PRD.md) (§1, §1.2, §2.1, §4, §6.3, §7.6, §8), [contrato](contracts/genai-query-execution.md), [ADR-0002](decisions/0002-genai-gold-query-owner.md), `ai-agent/app/sql/dictionary_gold.toml` (**existe só na branch `feat/ia-gold-dicionario-sql`, commit `fd6db48`; não está na `develop`**), `docs/dicionario_gold.md` e `data-engineering/notebook/Silver_to_gold.ipynb` da branch `feat/gold` (commit `9664823`), e o comentário de Dados no PR #60. O [dicionário Gold](data-dictionary.md) da `develop` ainda é modelo vazio.
+
+## Lote reanalisado
+
+A primeira conferência usou um lote gerado a partir de uma Silver sem o reparo de encoding do bairro, o que duplicava bairros em `consumo_receita_bairro`. O "lote reanalisado" é um lote exportado em 28/10, que corrigiu essa duplicação. Ele não é a Gold oficial sobre a qual Dados aprovou C01 a C12: é outra execução. Rodado no primeiro lote e no reanalisado, o script produz os mesmos controles C01 a C12; a diferença entre os dois está só na tabela de bairro. No lote reanalisado, as reconciliações entre as tabelas fecham sem divergência, não há nulo nem valor inválido nas medidas de consumo, receita e UCs usadas nas reconciliações e o manifesto traz ambiente de produção e a linhagem Silver/Bronze. O exportador atual só exporta a partir de uma execução `CONCLUIDO` em ambiente de produção, mas o manifesto ainda não grava o `status_gold`. Como o C12 compara totais por competência, ele não detecta bairro duplicado; o controle C13 (ver g) cobre esse caso, e Dados o conferiu na Gold oficial sem encontrar duplicidade de bairro por grafia. Resultados que dependem de bairro devem ser lidos no lote reanalisado, não no primeiro.
 
 ## (a) As sete tabelas
 
-Contagens de linhas sem o cabeçalho. "Nulos" lista só as colunas com nulos; as demais têm zero.
+"Nulos" lista só as colunas com nulos; as demais não têm nenhum.
 
-| Tabela | Grão (chave candidata) | Chave única? | Período | Linhas | Colunas | Nulos |
-| --- | --- | --- | --- | ---: | ---: | --- |
-| `visao_360_uc` | UC (`id_uc`) | sim | sem competência | 45.000 | 15 | `media_consumo_historico` 1.046 (2,32%); `media_satisfacao_atendimento` 66 (0,15%) |
-| `fila_inspecao` | UC (`id_uc`) | sim | sem competência | 45.000 | 14 | `media_consumo_historico` 1.046 (2,32%) |
-| `variacao_consumo_uc` | UC (`id_uc`) | sim | P1 = 2022-07 a 2023-06; P2 = 2025-07 a 2026-06 (fixos no notebook) | 45.000 | 11 | `consumo_medio_inicial`, `variacao_kwh`, `variacao_pct` 1.461 (3,25%); `consumo_medio_final` 1.046 (2,32%) |
-| `consumo_mensal_uc` | UC × competência | sim | 2022-07 a 2026-06, 48 meses, sem lacuna | 1.928.920 | 4 | nenhum |
-| `consumo_receita_bairro` | competência × município × bairro × classe | sim | 2022-07 a 2026-06, 48 meses, sem lacuna | 55.694 | 7 | nenhum |
-| `diagnostico_receita` | competência × município × classe × subgrupo × bandeira × GD | sim | 2022-07 a 2026-06, 48 meses, sem lacuna | 4.694 | 13 | nenhum |
-| `indicadores_dec_fec` | alimentador × competência | sim | 2022-07 a 2026-06, 48 meses, sem lacuna | 5.856 | 9 | nenhum |
+| Tabela | Grão (chave candidata) | Chave única? | Período | Colunas | Colunas com nulos |
+| --- | --- | --- | --- | ---: | --- |
+| `visao_360_uc` | UC (`id_uc`) | sim | sem competência | 15 | `media_consumo_historico`; `media_satisfacao_atendimento` |
+| `fila_inspecao` | UC (`id_uc`) | sim | sem competência | 14 | `media_consumo_historico` |
+| `variacao_consumo_uc` | UC (`id_uc`) | sim | P1 = 2022-07 a 2023-06; P2 = 2025-07 a 2026-06 (fixos no notebook) | 11 | `consumo_medio_inicial`, `variacao_kwh`, `variacao_pct`, `consumo_medio_final` |
+| `consumo_mensal_uc` | UC × competência | sim | 2022-07 a 2026-06, 48 meses, sem lacuna | 4 | nenhuma |
+| `consumo_receita_bairro` | competência × município × bairro × classe | sim | 2022-07 a 2026-06, 48 meses, sem lacuna | 7 | nenhuma |
+| `diagnostico_receita` | competência × município × classe × subgrupo × bandeira × GD | sim | 2022-07 a 2026-06, 48 meses, sem lacuna | 13 | nenhuma |
+| `indicadores_dec_fec` | alimentador × competência | sim | 2022-07 a 2026-06, 48 meses, sem lacuna | 9 | nenhuma |
 
 Dimensões observadas (todas as tabelas que as têm usam os mesmos valores):
 
-- 14 municípios, todos em `uf = PE`; 331 bairros; 122 alimentadores, cada um em um único município.
+- Uma única UF; cada alimentador pertence a um único município.
 - Classe: `COMERCIAL`, `INDUSTRIAL`, `PODER PUBLICO`, `RESIDENCIAL`, `RURAL`. Subgrupo: `A4`, `B1`, `B2`, `B3`.
 - Bandeira (`diagnostico_receita`): `VERDE`, `AMARELA`, `VERMELHA P1`, `VERMELHA P2`.
-- `status` da UC: só `ATIVA` (45.000).
-- Prioridade da fila: `MEDIA - NUNCA INSPECIONADO` 42.652; `REVISAR - SEM HISTORICO DE CONSUMO` 1.023; `ALTA - HISTORICO IRREGULAR` 808; `BAIXA` 517.
+- `status` da UC: só `ATIVA`.
+- Prioridade da fila: `MEDIA - NUNCA INSPECIONADO`, `REVISAR - SEM HISTORICO DE CONSUMO`, `ALTA - HISTORICO IRREGULAR`, `BAIXA`.
 
 Formatos: competência como texto `YYYY-MM`; `data_ligacao` como `YYYY-MM-DD`; decimal com ponto; números também entre aspas (`quoteAll`), então a carga precisa converter tipos. GD aparece como texto `Sim`/`Não` (com acento) em `possui_gd` e `possui_geracao_solar`; `queda_consumo_superior_30_pct` é `true`/`false` em minúsculas. As colunas `DEC` e `FEC` vêm em maiúsculas.
 
@@ -76,22 +81,22 @@ Estados: **coberta** = a Gold tem grão e colunas para responder, sujeita às re
 
 | # | Pergunta (origem) | Tabela / colunas | Estado | Observação |
 | --- | --- | --- | --- | --- |
-| P1 | Receita e energia faturada por competência, município e classe (§1, IA-01) | `diagnostico_receita`, `consumo_receita_bairro`: `receita_total_reais`, `consumo_total_kwh` | coberta | Os totais das três tabelas fecham exatamente (ver c). A receita é **faturada** (`valor_total` da fatura), não paga. |
-| P2 | Explicar a variação da receita diante do reajuste tarifário e da queda de volume, separando preço/tarifa e volume (§1, ENT-01) | `diagnostico_receita`: receita, consumo, `tarifa_media_efetiva`, bandeira, subgrupo, GD | parcial | Dá para calcular o preço médio efetivo e o volume. Faltam a tarifa homologada e o método de decomposição aprovado (PRD §8). Os percentuais do lote diferem em poucos pontos dos citados no case (ver c); a diferença precisa ser explicada com Dados. **Pendência de Dados.** |
-| P3 | Abrir a variação por bairro (§1, §1.2) | `consumo_receita_bairro` | parcial | Bairro só aparece com competência × classe; sem subgrupo, bandeira ou GD. A decomposição preço × volume por bairro fica limitada a receita/consumo. **Pendência de Dados** se for preciso bandeira ou GD por bairro. |
+| P1 | Receita e energia faturada por competência, município e classe (§1, IA-01) | `diagnostico_receita`, `consumo_receita_bairro`: `receita_total_reais`, `consumo_total_kwh` | coberta | Os totais das três tabelas conferem entre si, sem divergência (ver c). A receita é **faturada** (`valor_total` da fatura), não paga. |
+| P2 | Explicar a variação da receita diante do reajuste tarifário e da queda de volume, separando preço/tarifa e volume (§1, ENT-01) | `diagnostico_receita`: receita, consumo, `tarifa_media_efetiva`, bandeira, subgrupo, GD | parcial | Dá para calcular o preço médio efetivo e o volume. Faltam a tarifa homologada e o método de decomposição aprovado (PRD §8). As variações do lote têm o mesmo sentido das citadas no case, mas não os mesmos valores (ver c); a diferença precisa ser explicada com Dados. **Pendência de Dados.** |
+| P3 | Abrir a variação por bairro (§1, §1.2) | `consumo_receita_bairro` | parcial | Bairro só aparece com competência × classe; sem subgrupo, bandeira ou GD. A decomposição preço × volume por bairro fica limitada a receita/consumo. Usar o lote reanalisado, sem a duplicação de bairros. |
 | P4 | Qual recorte mais perdeu volume? (§1.2) | `consumo_receita_bairro`, `diagnostico_receita` | coberta | Calculável para município, bairro e classe. "Último ano" é ambíguo (últimos 12 meses contra os 12 anteriores ou contra o primeiro ano?): a IA deve pedir esclarecimento ou declarar a janela. |
-| P5 | Quanto cresceu a receita comercial em Jaboatão? (§1.2, §7.6) | `diagnostico_receita` ou `consumo_receita_bairro`, `municipio = JABOATÃO DOS GUARARAPES`, `classe_consumo = COMERCIAL` | coberta | Mesma ambiguidade de janela. No cálculo exploratório, a receita comercial de Jaboatão nos últimos 12 meses ficou abaixo da do primeiro ano (ver c). A IA deve responder com o que a evidência mostra e declarar a janela usada. |
-| P6 | Quantas UCs com solar em Olinda tiveram queda de consumo acima de 30%? (§7.6) | `variacao_consumo_uc`: `possui_gd`, `municipio`, `queda_consumo_superior_30_pct` | coberta, com ressalva | P1 e P2 são fixos na Gold; outra janela exige recálculo pela `consumo_mensal_uc`. Basta 1 mês com leitura em cada período. O GD é uma marcação do cadastro atual, sem data de instalação. |
-| P7 | A conta da UC subiu? Consumo e valor históricos da UC (§1.2 atendimento, WEB-03) | `consumo_mensal_uc` | coberta para 43.954 UCs | 1.046 UCs da Visão 360 não têm nenhum mês. "Por quê" só tem as hipóteses de consumo, bandeira e interrupções (estas sem mês por UC; ver P10). |
-| P8 | Faturas em aberto, pagamento, valor pago (§1.2, ENT-01) | — | não coberta | Nenhuma tabela traz status de fatura, vencimento ou pagamento. **Pendência de Dados.** |
-| P9 | Medidor instalado e histórico da UC (§1.2) | — | não coberta | **Pendência de Dados.** |
+| P5 | Quanto cresceu a receita comercial em Jaboatão? (§1.2, §7.6) | `diagnostico_receita` ou `consumo_receita_bairro`, filtro por município e `classe_consumo = COMERCIAL` | coberta | Mesma ambiguidade de janela. No cálculo exploratório, a receita comercial desse município nos últimos 12 meses não cresceu em relação ao primeiro ano (ver c). A IA deve responder com o que a evidência mostra e declarar a janela usada. |
+| P6 | Quantas UCs com solar em Olinda tiveram queda de consumo acima de 30%? (§7.6) | `variacao_consumo_uc`: `possui_gd`, `municipio`, `queda_consumo_superior_30_pct` | coberta, com ressalva | P1 e P2 são fixos na Gold e o case não define a janela da pergunta (premissa a documentar); outra janela exige recálculo pela `consumo_mensal_uc`. Basta um mês com leitura em cada período. O resultado é estável até cerca de 9 meses exigidos em cada janela, mas muda bastante se a pergunta exigir os 12 meses completos em P1 e em P2; isso reforça que a janela precisa ser definida por Dados. O GD é uma marcação do cadastro atual, sem data de instalação. |
+| P7 | A conta da UC subiu? Consumo e valor históricos da UC (§1.2 atendimento, WEB-03) | `consumo_mensal_uc` | coberta para a maior parte das UCs | Algumas UCs da Visão 360 não têm nenhum mês na série. "Por quê" só tem as hipóteses de consumo, bandeira e interrupções (estas sem mês por UC; ver P10). |
+| P8 | Faturas em aberto, pagamento, valor pago (§1.2, ENT-01) | — | não coberta | Nenhuma tabela traz status de fatura, vencimento ou pagamento. **Pendência de Dados** (`faturas_uc`). |
+| P9 | Medidor instalado e histórico da UC (§1.2) | — | não coberta | **Pendência de Dados** (`medidor_uc`). |
 | P10 | Interrupções sofridas pela UC (§1.2, IA-01 "falta de luz") | `visao_360_uc`: `total_interrupcoes_sofridas`, `duracao_total_interrupcoes_horas` | parcial | Só o total acumulado por UC, **sem mês**; não dá para dizer "em março a UC teve N interrupções". **Pendência de Dados.** |
 | P11 | Chamados e satisfação (§1.2, IA-01 "atendimento") | `visao_360_uc`: `total_chamados_callcenter`, `media_satisfacao_atendimento` | parcial | Totais por UC **sem mês** e sem motivo. Não há atendimento por competência nem por recorte temporal. **Pendência de Dados.** |
 | P12 | Geração solar da UC (§1.2, ENT-01) | `possui_gd` (visão, variação, diagnóstico), `possui_geracao_solar` (fila) | parcial | Só a marcação Sim/Não; sem potência, energia gerada ou compensada. Não sustenta afirmar o efeito do GD na receita (PRD §8). |
 | P13 | Cliente/titular da UC (§1.2) | — | não coberta, por desenho | Os campos pessoais foram removidos (LGPD). A IA deve dizer que não expõe titular. |
-| P14 | Fila de UCs suspeitas, motivo e prioridade (§1.2 perdas) | `fila_inspecao`: `prioridade_inspecao`, inspeções, `media_consumo_historico` | parcial | O motivo é o próprio rótulo da prioridade; não há escore para ordenar dentro da faixa, e 94,78% das UCs caem em uma única faixa (ver c). |
-| P15 | Energia potencialmente recuperável (§1.2 perdas) | — | não coberta | **Pendência de Dados.** |
-| P16 | DEC e FEC por alimentador ao longo do tempo; piores resultados (§1.2 operação) | `indicadores_dec_fec` | coberta, com ressalva | As fórmulas fecham em todas as linhas. O denominador é fixo nos 48 meses (UCs ativas de hoje), não a base de cada mês. Indicador simplificado, sem conformidade ANEEL. |
+| P14 | Fila de UCs suspeitas, motivo e prioridade (§1.2 perdas) | `fila_inspecao`: `prioridade_inspecao`, inspeções, `media_consumo_historico` | parcial | O motivo é o próprio rótulo da prioridade; não há escore para ordenar dentro da faixa, e a maior parte das UCs cai em uma única faixa (ver c). |
+| P15 | Energia potencialmente recuperável (§1.2 perdas) | — | não coberta | **Pendência de Dados** (energia estimada). |
+| P16 | DEC e FEC por alimentador ao longo do tempo; piores resultados (§1.2 operação) | `indicadores_dec_fec` | coberta, com ressalva | As fórmulas fecham em todas as linhas. O denominador é o cadastro atual por alimentador, constante nos 48 meses, não a base de cada mês. Indicador simplificado, sem conformidade ANEEL. |
 | P17 | DEC/FEC por município | `indicadores_dec_fec` | coberta | Cada alimentador pertence a um único município. Agregar somando numeradores e denominadores; nunca tirar média de DEC. |
 | P18 | Investigar as ocorrências de rede (§1.2 operação) | — | não coberta | Não há tabela por ocorrência, causa ou horário. **Pendência de Dados.** |
 | P19 | Efeito da bandeira na receita (glossário, ENT-01) | `diagnostico_receita`: `bandeira_tarifaria` | parcial | A bandeira é dimensão de cada linha (município × classe × mês); não separa o acréscimo de bandeira do preço base. |
@@ -100,35 +105,29 @@ Estados: **coberta** = a Gold tem grão e colunas para responder, sujeita às re
 
 ## (c) Achados e riscos
 
-**Reconciliações que fecharam exatamente.** `consumo_receita_bairro`, `diagnostico_receita` e `consumo_mensal_uc` (com o município e a classe da Visão 360) somam o mesmo total por competência, por competência × município e por competência × classe: 790.691.150,0 kWh, [valor financeiro omitido] e 1.928.920 UC-meses, com diferença zero nos 48, 672 e 240 grupos. O total de receita foi conciliado com a execução Gold; seu montante deve permanecer nas evidências do ambiente autorizado. As UCs de `fila_inspecao` e `variacao_consumo_uc` são as mesmas 45.000 da Visão 360. Os 122 alimentadores do DEC/FEC são os mesmos da Visão 360. O GD e a `media_consumo_historico` coincidem entre visão, fila e variação em todas as UCs.
+**Reconciliações que conferem sem divergência.** `consumo_receita_bairro`, `diagnostico_receita` e `consumo_mensal_uc` (com o município e a classe da Visão 360) somam os mesmos totais de energia, receita e UC-meses por competência, por competência × município e por competência × classe, sem divergência em nenhum grupo. O total de receita coincide com o registrado no notebook. As UCs de `fila_inspecao` e `variacao_consumo_uc` são as mesmas da Visão 360, e os alimentadores do DEC/FEC são os mesmos da Visão 360. O GD coincide entre visão, fila e variação em todas as UCs, e a `media_consumo_historico` coincide entre visão e fila (é a mesma coluna nas duas). A variação usa outras médias (`consumo_medio_inicial` e `consumo_medio_final`, por período).
 
-**Prioridade da fila concentrada.** 42.652 UCs (94,78%) estão em `MEDIA - NUNCA INSPECIONADO`; `ALTA - HISTORICO IRREGULAR` tem 808 (1,80%), `REVISAR - SEM HISTORICO DE CONSUMO` 1.023 (2,27%) e `BAIXA` 517 (1,15%). Só 1.344 UCs têm inspeção (no máximo uma), e 808 tiveram irregularidade. A faixa `ALTA - CONSUMO ZERO`, listada no `dictionary_gold.toml`, não tem nenhuma UC neste lote. Para a IA: "quais UCs inspecionar primeiro" quase não discrimina, e a fila não deve ser apresentada como ranking de suspeita. Das 808 `ALTA`, 23 não têm consumo histórico.
+**Prioridade da fila concentrada.** A maior parte das UCs cai em uma única faixa da fila, a de UCs nunca inspecionadas; as demais faixas somam uma parcela pequena. Poucas UCs têm inspeção registrada (no máximo uma por UC). A faixa `ALTA - CONSUMO ZERO`, listada no `dictionary_gold.toml`, não aparece neste lote. Para a IA: "quais UCs inspecionar primeiro" quase não discrimina, e a fila não deve ser apresentada como ranking de suspeita. Há UCs em `ALTA` sem consumo histórico.
 
-**Nulos em `media_consumo_historico` e `variacao_pct`.** As 1.046 UCs com `media_consumo_historico` nula são as mesmas que não aparecem em `consumo_mensal_uc` (conferido UC a UC). Na fila, elas estão em `REVISAR` (1.004 nunca inspecionadas e 19 inspecionadas sem irregularidade) e em `ALTA - HISTORICO IRREGULAR` (23). A `variacao_pct` é nula em 1.461 UCs: 1.046 sem leitura em P1 e em P2 (mesma contagem, mas o cruzamento UC a UC com o grupo anterior não foi feito) e 415 sem leitura só em P1. **O texto do notebook diz que a variação só fica nula sem leitura em nenhum dos períodos; o código e o lote mostram que ela fica nula quando falta qualquer um dos dois.** A documentação precisa ser corrigida.
+**Rótulos de resultado de inspeção.** A Silver tem outros rótulos de resultado de inspeção além de `IRREGULARIDADE CONFIRMADA` e `SEM IRREGULARIDADE`; a Gold conta como irregular apenas o primeiro. O mapeamento dos demais rótulos está pendente (issue #39). Até lá, a faixa de prioridade da fila e a contagem de inspeções irregulares podem estar subestimadas ou mal classificadas, e a IA não deve tratá-las como definitivas.
 
-**UCs de `consumo_mensal_uc` menos que as da Visão 360.** São 43.954 contra 45.000; as 1.046 ausentes são todas `ATIVA`. A tabela mensal nasce de um `INNER JOIN` entre faturas e leituras por UC/mês, então um mês só aparece quando tem as duas. Por UC, há de 2 a 48 meses (mediana 44). Uma UC sem linhas não significa consumo zero.
+**Nulos em `media_consumo_historico` e `variacao_pct`.** As UCs com `media_consumo_historico` nula são as mesmas que não aparecem em `consumo_mensal_uc` (conferido UC a UC): são UCs sem leitura na Silver. Isso não torna as duas médias equivalentes (ver as premissas abaixo). Na fila, essas UCs estão em `REVISAR` e em `ALTA - HISTORICO IRREGULAR`. A `variacao_pct` é nula nas UCs sem leitura em P1 e em P2 e nas UCs sem leitura só em P1. **O texto do notebook diz que a variação só fica nula sem leitura em nenhum dos períodos; o código, o lote e a resposta de Dados mostram que ela fica nula quando falta qualquer um dos dois (ou quando a média inicial é menor ou igual a zero).** A documentação do notebook precisa ser corrigida.
 
-**Duas médias de consumo diferentes para a mesma UC.** Em 17.123 UCs, a `media_consumo_historico` difere em mais de 1 kWh da média dos meses de `consumo_mensal_uc`; as duas vêm de bases diferentes (leituras contra meses com fatura e leitura). A IA não pode usar uma como prova da outra; o dicionário precisa nomear qual é qual.
+**UCs de `consumo_mensal_uc` menos que as da Visão 360.** Parte das UCs da Visão 360, todas `ATIVA`, não tem nenhum mês na série mensal. A tabela mensal nasce de um `INNER JOIN` entre faturas e leituras por UC/mês, então um mês só aparece quando tem as duas, e o número de meses por UC varia. Uma UC sem linhas não significa consumo zero.
 
-**Premissa do case: sentido confere, valores diferem (cálculo exploratório, não homologado).** Na fala do diretor comercial, o volume de energia faturada "caiu quase 4%" e a receita "subiu só 8%", comparando os últimos 12 meses com o primeiro ano da base, sem restringir à classe residencial. Neste lote, comparando os últimos 12 meses (2025-07 a 2026-06) com os primeiros 12 (2022-07 a 2023-06) em `consumo_receita_bairro`:
+**Duas médias de consumo diferentes para a mesma UC.** A `media_consumo_historico` é a média das leituras da Silver por UC; a média dos meses de `consumo_mensal_uc` usa só os meses com fatura e leitura. Para boa parte das UCs, as duas diferem em mais de 1 kWh. A IA não pode usar uma como prova da outra; o dicionário precisa nomear qual é qual.
 
-| Recorte | Consumo (kWh) | Receita (R$) |
-| --- | ---: | ---: |
-| Todas as classes | −5,11% | +6,75% |
-| Residencial | −6,54% | +5,63% |
-| Citado no case | cerca de −4% | cerca de +8% |
+**Premissa do case: sentido confere, valores diferem (cálculo exploratório, não homologado).** Na fala do diretor comercial, o volume de energia faturada "caiu quase 4%" e a receita "subiu só 8%", comparando os últimos 12 meses com o primeiro ano da base, sem restringir à classe residencial. Neste lote, comparando os últimos 12 meses (P2) com os primeiros 12 (P1) em `consumo_receita_bairro`, no total e na classe residencial, o sentido bate: o volume cai e a receita sobe menos do que a tarifa. Os valores diferem dos do case em poucos pontos, e o case não diz se o recorte é o total ou o residencial. Nas mesmas janelas, também foram calculados, de forma exploratória, a receita comercial em Jaboatão (que não cresceu em relação ao primeiro ano nem aos 12 meses anteriores), o bairro residencial com maior perda de kWh e as UCs com GD e queda acima de 30% (no total e em Olinda, com as janelas P1/P2 da própria Gold). As janelas de 12 meses foram escolha deste relatório. O diagnóstico (ENT-01) deve declarar a diferença em relação ao case, e a IA não deve repetir os números do case como fato da Gold.
 
-O sentido bate: o volume cai e a receita sobe menos do que a tarifa. Os valores diferem em poucos pontos, e o case não diz se o recorte é o total ou o residencial. Outros cálculos exploratórios, nas mesmas janelas: a receita comercial de Jaboatão ficou −1,99% abaixo da do primeiro ano (−5,41% contra os 12 meses anteriores); o bairro residencial com maior perda de kWh foi Iputinga (Recife), −22,95% contra o primeiro ano; e há 3.120 UCs com GD e queda acima de 30%, das quais 289 em Olinda (janelas P1/P2 da própria Gold). As janelas de 12 meses foram escolha deste relatório. O diagnóstico (ENT-01) deve declarar a diferença em relação ao case, e a IA não deve repetir os números do case como fato da Gold.
+**Classe e município são do cadastro atual.** A série mensal reagrupada pela classe da Visão 360 fecha exatamente com o diagnóstico; logo, a classe de cada fatura é a classe atual da UC, sem histórico de mudança (confirmado por Dados). Todas as UCs são `ATIVA`, em número menor que o do cadastro de origem citado no PRD; a questão do universo está fechada com Dados (ver e).
 
-**Classe e município são do cadastro atual.** A série mensal reagrupada pela classe da Visão 360 fecha exatamente com o diagnóstico; logo, a classe de cada fatura é a classe atual da UC, sem histórico de mudança. Todas as UCs são `ATIVA` e são 45.000 (o PRD cita cerca de 46 mil no cadastro de origem): UCs desligadas parecem ter ficado fora da Gold, o que afeta denominadores.
+**Contagem de UCs no diagnóstico.** `soma_faturamentos_mensais` é igual a `qtd_ucs_distintas_faturadas_no_mes` em todas as linhas (uma fatura por UC-mês depois da Silver). A soma de `qtd_ucs_distintas_faturadas_no_mes` entre meses dá UC-meses, não UCs distintas; o dicionário marca a coluna como `sum`, o que só vale dentro de uma competência.
 
-**Contagem de UCs no diagnóstico.** `soma_faturamentos_mensais` é igual a `qtd_ucs_distintas_faturadas_no_mes` em todas as 4.694 linhas (uma fatura por UC-mês depois da Silver). A soma de `qtd_ucs_distintas_faturadas_no_mes` entre meses dá UC-meses, não UCs distintas; o dicionário marca a coluna como `sum`, o que só vale dentro de uma competência.
+**DEC/FEC.** `DEC = duracao_total_interrupcoes_horas / total_ucs_alimentador` e `FEC = frequencia_total_interrupcoes / total_ucs_alimentador` em todas as linhas. `total_ucs_alimentador` é igual ao número de UCs da Visão 360 no alimentador e não varia entre meses. A soma de `frequencia_total_interrupcoes` é igual à soma de interrupções por UC da Visão 360.
 
-**DEC/FEC.** `DEC = duracao_total_interrupcoes_horas / total_ucs_alimentador` e `FEC = frequencia_total_interrupcoes / total_ucs_alimentador` em todas as 5.856 linhas. `total_ucs_alimentador` é igual ao número de UCs da Visão 360 no alimentador e não varia entre meses. A soma de `frequencia_total_interrupcoes` é 180.000, igual à soma de interrupções por UC da Visão 360.
+**Consumo e receita: sem negativos, zeros ou sentinelas.** Nas três tabelas de receita, consumo e receita são sempre positivos. Não há estorno visível, e Dados confirmou que a Silver publicada não tem faturas estornadas, negativas ou canceladas.
 
-**Consumo e receita: sem negativos, zeros ou sentinelas.** Nas três tabelas de receita, consumo e receita são sempre positivos (mínimo mensal por UC: 8 kWh e [valor financeiro omitido]). Não há estorno visível. Não dá para saber, só pelo lote, se a origem não tinha estornos ou se a Silver os removeu.
-
-**Sentinela de data.** `data_ligacao` tem 90 UCs com ano anterior a 1950 (mínimo `1900-01-01`), na visão e na fila. Esse valor não é data real de ligação.
+**Data de ligação inválida na origem.** Algumas UCs têm `data_ligacao` com ano anterior a 1950, na visão e na fila, sempre no dia 01-01. Não é um valor-marcador único: segundo Dados, são UCs reais com data de cadastro inválida na origem. O lote atual ainda traz o valor original; a sugestão de Dados para a próxima execução da Gold está nas premissas abaixo.
 
 **Divergências com o `dictionary_gold.toml`.** O snapshot `gold-v1-31a80e6` está desatualizado em relação ao lote:
 
@@ -140,36 +139,61 @@ O sentido bate: o volume cai e a receita sobe menos do que a tarifa. Os valores 
 | `indicadores_dec_fec` | `dec`, `fec` | `DEC`, `FEC` |
 | `consumo_mensal_uc`, `consumo_receita_bairro`, `variacao_consumo_uc` | ausentes | presentes |
 
-**Precisão numérica.** Há valores com cauda de ponto flutuante (por exemplo, DEC `15.169999999999998`) e 8 UCs em que a `variacao_pct` arredondada difere em mais de 0,02 ponto do recálculo a partir das médias arredondadas. O grounding compara valores após arredondamento declarado: a regra de arredondamento por métrica precisa estar no dicionário. Para "queda acima de 30%", usar a flag, que foi calculada antes do arredondamento.
+**Precisão numérica.** Há valores com cauda de ponto flutuante (por exemplo, em `DEC`) e algumas UCs em que a `variacao_pct` arredondada difere em mais de 0,02 ponto do recálculo a partir das médias arredondadas. O grounding compara valores após arredondamento declarado: a regra de arredondamento por métrica precisa estar no dicionário. Para "queda acima de 30%", usar a flag, que foi calculada antes do arredondamento.
+
+## Premissas e definições registradas por Dados
+
+Registradas a partir do comentário de Dados no PR #60. Valem para a GenAI até o dicionário Gold (DE-08) publicá-las.
+
+- **Classe da UC.** Vem do cadastro atual; o dado não tem histórico de classe.
+- **`media_consumo_historico`.** É a média das leituras da Silver por UC, não a média da série mensal faturada (`consumo_mensal_uc`). As duas diferem para boa parte das UCs; a média da Visão 360 e a média da série mensal não são equivalentes e não devem ser usadas uma pela outra.
+- **`variacao_pct`.** Fica nula quando falta histórico em P1 ou em P2, ou quando a média inicial é menor ou igual a zero. O case não define a janela da pergunta de GD em Olinda; usar P1/P2 da Gold é premissa a documentar na resposta. A contagem dessa pergunta é estável até cerca de 9 meses com leitura exigidos em cada janela, mas muda bastante se forem exigidos os 12 meses completos em P1 e em P2; por isso a janela (e o mínimo de meses) precisa ser definida por Dados.
+- **Denominador do DEC/FEC.** É o cadastro atual por alimentador, constante nos 48 meses.
+- **`data_ligacao` anterior a 1950.** São UCs reais com data de cadastro inválida na origem, todas com dia 01-01. Dados sugere tratar essas datas como nulas na Gold, na próxima execução, sem coluna nova; o lote atual ainda traz o valor original (contrato [Gold CSV v1](contracts/gold-csv-v1.md)); a Silver continua preservando o valor original.
+- **Estornos.** Não há faturas estornadas, negativas ou canceladas na Silver publicada.
 
 ## (d) Estados do lote que impedem resposta confiável
 
 | Estado | Como aparece | O que a GenAI deve fazer | Situação neste lote |
 | --- | --- | --- | --- |
-| **Sem identificação** | Sem manifesto/`batch_ref` | O Backend não deve servir evidência como Gold real; sem `batch_ref` não se reproduz a amostra (IA-03) | **É o estado atual.** Bloqueia o aceite. |
-| **Parcial** | Tabela ausente; competência faltante; mês com base menor que o normal | Recusar ou pedir esclarecimento nas perguntas da tabela ausente; não calcular percentual com janela incompleta | Sete tabelas presentes, 48 meses sem lacuna, nenhum mês abaixo de 80% da mediana de linhas. Sem data de corte, não dá para provar que 2026-06 está fechado. |
-| **Misto** | Tabelas de execuções diferentes | Não cruzar números de tabelas sem o mesmo `batch_ref` | Não verificável sem manifesto. As reconciliações exatas sugerem uma única execução, mas não provam. |
-| **Desatualizado** | Lote anterior ao último `CONCLUIDO` | Declarar a data do lote em cada resposta | Não verificável: falta `processado_em`. Só há as datas dos arquivos no zip (26/10/2026). |
+| **Sem identificação** | Sem manifesto/`batch_ref` | O Backend não deve servir evidência como Gold real; sem `batch_ref` não se reproduz a amostra (IA-03) | Era o estado do primeiro lote. O lote reanalisado traz manifesto com ambiente e linhagem, mas o manifesto ainda é parcial e o `batch_ref` do contrato não está definido (ver e). |
+| **Parcial** | Tabela ausente; competência faltante; mês com base menor que o normal | Recusar ou pedir esclarecimento nas perguntas da tabela ausente; não calcular percentual com janela incompleta | Sete tabelas presentes, 48 meses sem lacuna, nenhum mês abaixo de 80% da mediana de linhas. Sem data de corte, não dá para provar que o último mês está fechado. |
+| **Misto** | Tabelas de execuções diferentes | Não cruzar números de tabelas sem o mesmo `batch_ref` | As reconciliações exatas sugerem uma única execução, mas não provam; depende do manifesto completo. |
+| **Desatualizado** | Lote anterior ao último `CONCLUIDO` | Declarar a data do lote em cada resposta | O manifesto já grava `data_processamento`, derivada do `processado_em` da última execução `CONCLUIDO` em `controle_gold`, e `data_exportacao_csv`. A carga e a GenAI ainda precisam usar essas datas para comparar com o último `CONCLUIDO` e declarar a data do lote. |
 | **Vazio** | Tabela com zero linhas | `no_evidence`, nunca zero | Nenhuma tabela vazia. |
-| **Indisponível** | Banco local sem carga ou fora do ar | Erro recuperável, sem cair na fonte demonstrativa | **Atual:** não há carga das sete tabelas no banco do Backend. |
-| **Valor de reserva** | `SINTETICO_DEV`/`LOTE_DEV` no controle | A carga deve recusar o lote | Não verificável sem `controle_gold`. |
+| **Indisponível** | Banco local sem carga ou fora do ar | Erro recuperável, sem cair na fonte demonstrativa | Carga e reconciliação com o banco do Backend ainda em aberto (ver e). |
+| **Valor de reserva** | `SINTETICO_DEV`/`LOTE_DEV` no controle | A carga deve recusar o lote | Coberto na origem: o exportador da `develop` exige ambiente `prod` e não tem mais fallback para lote de reserva. Pelo manifesto, falta ainda o `status_gold` para a carga conferir a execução. |
 
 ## (e) Perguntas abertas para Dados e Backend
 
-1. **Manifesto.** Quem gera o manifesto (`run_id_silver`, `lote_bronze_silver`, `status_gold`, `processado_em`, contagens e hashes por tabela) e quando ele entra na exportação? O notebook de exportação atual não grava manifesto.
-2. **Universo de UCs.** A Gold tem só UCs `ATIVA` (45.000). As UCs desligadas foram excluídas de propósito? Como ficam as faturas antigas dessas UCs nos totais de receita?
-3. **Classe e município no tempo.** A classe das faturas é a do cadastro atual. Há mudança de classe no histórico? Isso altera a receita residencial por período?
-4. **Granularidade por UC sem mês.** Interrupções, chamados e satisfação por UC só existem como totais acumulados. Haverá tabela por UC × competência (ou por evento) para atendimento e interrupções?
-5. **Lacunas para atendimento e perdas.** Faturas em aberto/pagamento, medidor, ocorrências por evento e energia recuperável estão fora da Gold. Ficam fora do escopo (e a IA declara isso) ou entram em uma nova tabela?
-6. **Bairro.** `consumo_receita_bairro` precisará de subgrupo, bandeira ou GD para abrir a decomposição preço × volume por bairro?
-7. **Duas médias de consumo.** Qual é a definição de `media_consumo_historico` (fonte e meses)? Ela deve continuar diferente da média de `consumo_mensal_uc`?
-8. **`variacao_pct`.** Corrigir a documentação do notebook sobre quando a variação é nula. As janelas P1/P2 fixas são as janelas oficiais da pergunta de GD?
-9. **Fila.** Há um escore para ordenar dentro de `MEDIA - NUNCA INSPECIONADO`? A faixa `ALTA - CONSUMO ZERO` continua prevista?
-10. **Denominador do DEC/FEC.** O denominador fixo (UCs ativas de hoje) é a definição aprovada para DE-05, ou deve ser a base de cada mês?
-11. **Estornos.** A origem tinha faturas negativas, zeradas ou canceladas? Se a Silver removeu, onde está a contagem?
-12. **Nomes de colunas.** Congelar `possui_gd`, `subgrupo` e `DEC`/`FEC` (caixa alta), e atualizar o `dictionary_gold.toml` e o `docs/data-dictionary.md`. No PostgreSQL, uma coluna criada como `"DEC"` não casa com `dec`.
-13. **Data sentinela.** `data_ligacao = 1900-01-01` deve virar nulo com flag na Gold, como na Silver?
-14. **Carga no banco local.** Quem implementa a carga idempotente das sete tabelas e a conferência de esquema, contagens, chaves e agregados (DE-06)? Este relatório pode servir de lista de checagens.
+Estado depois da resposta de Dados no PR #60.
+
+**Fechadas:**
+
+- universo de UCs;
+- classe da UC no tempo (cadastro atual, sem histórico);
+- bairro (duplicação corrigida no lote reanalisado);
+- estornos (nenhum na Silver publicada);
+- controles C01 a C12 (recalculados e aprovados por Dados na Gold oficial; ver g);
+- C13 (conferido por Dados na Gold oficial, sem duplicidade de bairro por grafia; ver g).
+
+**Respondidas** (registradas em [Premissas e definições registradas por Dados](#premissas-e-definições-registradas-por-dados)):
+
+- as duas médias de consumo;
+- quando `variacao_pct` fica nula;
+- denominador do DEC/FEC.
+
+**Abertas:**
+
+- manifesto ainda parcial: falta gravar o `status_gold` (sugestão para Dados, com a Bia). Exigência de `prod`, remoção do lote de reserva e leitura da última execução `CONCLUIDO` já estão no exportador da `develop` (commit `ca73db5`);
+- mapeamento dos rótulos de resultado de inspeção da Silver além de `IRREGULARIDADE CONFIRMADA` e `SEM IRREGULARIDADE` (issue #39); afeta a faixa e a contagem de irregularidades da fila;
+- janela e mínimo de meses da pergunta de GD em Olinda: o resultado muda bastante quando se exigem os 12 meses completos em P1 e em P2;
+- eventos recentes por UC: interrupções, chamados e satisfação só existem como totais acumulados, sem mês;
+- `faturas_uc`, `medidor_uc`, energia estimada e escore da fila, exigidos pelo case;
+- congelar os nomes de colunas `possui_gd`, `subgrupo`, `DEC` e `FEC` e atualizar o `dictionary_gold.toml` e o `docs/data-dictionary.md`. No PostgreSQL, uma coluna criada como `"DEC"` não casa com `dec`;
+- identificador do lote: se faltar `run_id_gold` no controle, o notebook de exportação gera um identificador manual (`batch_<usuário>_<data e hora>`) em vez de falhar. Sugestão para Dados: falhar nesse caso ou registrar no manifesto que a origem do identificador é manual;
+- carga e reconciliação Databricks → CSV → banco (DE-06): esquema, contagens, chaves e agregados em cada passo;
+- aplicar, na próxima execução da Gold, o tratamento como nulo de `data_ligacao` anterior a 1950 (sugestão de Dados, sem coluna nova); até lá, o lote traz o valor original. Responsável: Dados.
 
 ## (f) Situação dos itens do cartão GENAI-02
 
@@ -179,30 +203,34 @@ Texto dos itens copiado do checklist do cartão GENAI-02 no quadro "GenAI — Go
 | --- | --- | --- | --- | --- |
 | Implementação e validação | Conferir schema, tipos, chaves, grão, contagens, nulos, períodos disponíveis e regras de qualidade no ambiente autorizado. | parcial | (a); (c) | Dados: confirmar o ambiente autorizado e as regras de qualidade. A conferência foi feita sobre os CSVs em máquina local, não no Databricks nem no banco do Backend. |
 | Implementação e validação | Validar as tabelas candidatas do dicionário v1 contra a versão final, incluindo fontes de receita, consumo, continuidade, GD e atendimento. | parcial | (b); (c), tabela de divergências com o `dictionary_gold.toml` | Dados: congelar nomes e publicar o dicionário Gold (DE-08). GenAI: atualizar o catálogo (GENAI-03). Atendimento só tem totais por UC, sem mês. |
-| Implementação e validação | Conferir identificação do lote e agregados entre origem Gold, processo de carga, banco autorizado do Backend e fonte do portal; testar recarga sem duplicar resultados, sem fixar fornecedor da fonte no contrato. | pendente | "O que foi conferido e o que não foi" | Dados: manifesto do lote. Backend: carga idempotente e banco com as sete tabelas. Só foram conferidos agregados entre os próprios CSVs. |
+| Implementação e validação | Conferir identificação do lote e agregados entre origem Gold, processo de carga, banco autorizado do Backend e fonte do portal; testar recarga sem duplicar resultados, sem fixar fornecedor da fonte no contrato. | pendente | "O que foi conferido e o que não foi"; "Lote reanalisado" | Dados: completar o manifesto do lote. Backend: carga idempotente e banco com as sete tabelas. Só foram conferidos agregados entre os próprios CSVs. |
 | Implementação e validação | Registrar cobertura por domínio obrigatório e solicitar complemento de Gold quando faltar fonte ou granularidade; não preencher com demonstração. | preparado neste relatório | (b); (e) | Dados: responder às perguntas abertas. GenAI: enviar a solicitação formal de complemento. |
-| Implementação e validação | Distinguir lote parcial, misto, desatualizado, vazio e indisponível; definir o que bloqueia uma resposta confiável. | preparado neste relatório | (d) | Backend e GenAI: acordar o comportamento do executor e os estados do contrato. Sem manifesto, "misto" e "desatualizado" não são verificáveis. |
-| Implementação e validação | Preparar consultas de controle independentes e exemplos sanitizados para a primeira fatia de integração. | parcial | (g) | Dados (Júlia): conferência independente de cada controle. Os controles de (g) foram calculados pelo mesmo script deste relatório, então ainda não são independentes. |
-| Robustez e evidência de integração | Versionar manifesto com fonte, esquema, lote, horário, contagens, janelas e estado de qualidade/reconciliação; testar carga parcial, repetida e troca de lote sem duplicar fatos ou misturar versões. | pendente | "O que foi conferido e o que não foi"; (d) | Dados: manifesto. Backend: testes de carga parcial, repetida e troca de lote. |
-| Robustez e evidência de integração | Conferir chaves, unicidade, cardinalidades, dimensão historizada e regras de sentinelas, estornos/estimativas que afetem as métricas; registrar regra aprovada e seu impacto no dicionário. | parcial | (a), chaves; (c), sentinela de data, estornos e classe sem histórico | Dados: aprovar as regras e registrá-las no dicionário. |
-| Robustez e evidência de integração | Aprovar ao menos um controle independente por domínio e recorte relevante, incluindo zero, nulo, ausência e período parcial; guardar somente controles e evidências autorizados, com tolerância justificada. | pendente | (g): rascunho com zero (C07), nulo (C10) e período parcial (C09) | Dados (Júlia): aprovar os controles e as tolerâncias. GenAI: transformar em fixture só depois da aprovação. Falta um controle de ausência por domínio (ex.: atendimento por mês). |
+| Implementação e validação | Distinguir lote parcial, misto, desatualizado, vazio e indisponível; definir o que bloqueia uma resposta confiável. | preparado neste relatório | (d) | Backend e GenAI: acordar o comportamento do executor e os estados do contrato. Sem manifesto completo, "misto" e "desatualizado" não são verificáveis. |
+| Implementação e validação | Preparar consultas de controle independentes e exemplos sanitizados para a primeira fatia de integração. | parcial | (g) | Dados (Júlia) recalculou C01 a C12 de forma independente no Databricks e os aprovou como referência, e conferiu o C13 na Gold oficial. Faltam os exemplos sanitizados. |
+| Robustez e evidência de integração | Versionar manifesto com fonte, esquema, lote, horário, contagens, janelas e estado de qualidade/reconciliação; testar carga parcial, repetida e troca de lote sem duplicar fatos ou misturar versões. | pendente | "O que foi conferido e o que não foi"; (d) | Dados: completar o manifesto. Backend: testes de carga parcial, repetida e troca de lote. |
+| Robustez e evidência de integração | Conferir chaves, unicidade, cardinalidades, dimensão historizada e regras de sentinelas, estornos/estimativas que afetem as métricas; registrar regra aprovada e seu impacto no dicionário. | parcial | (a), chaves; (c); premissas de Dados (classe sem histórico, data de ligação inválida, estornos) | Dados: registrar as regras no dicionário. |
+| Robustez e evidência de integração | Aprovar ao menos um controle independente por domínio e recorte relevante, incluindo zero, nulo, ausência e período parcial; guardar somente controles e evidências autorizados, com tolerância justificada. | parcial | (g): C01 a C12 aprovados por Dados, com zero (C07), nulo (C10) e período parcial (C09) | Dados (Júlia) aprovou C01 a C12 com tolerâncias definidas por Dados. GenAI: transformar em fixture a partir da referência de Dados, sem gravar valores no repositório. Falta um controle de ausência por domínio (ex.: atendimento por mês). |
 | Robustez e evidência de integração | Definir prontidão por capacidade: tabela ou período ausente impede liberar a métrica afetada. Entregar versões e compatibilidade a GENAI-03/06/13; uma migração incompatível precisa de diagnóstico e plano de retorno. | parcial | (b), matriz por pergunta; (d) | GenAI: transformar a matriz em prontidão versionada por capacidade. Backend: depende do `batch_ref`. Ainda não há versão de catálogo nem de lote para entregar. |
 
-## (g) Controles candidatos (rascunho, não aprovados)
+## (g) Controles do lote
 
-Controles agregados calculados a partir dos CSVs por `scripts/gold_coverage.py` (seção "Controles candidatos" da saída). Nenhum identifica UC, alimentador ou pessoa. **Cada controle precisa de aprovação independente da Júlia (Dados), calculado por outro caminho e com tolerância definida, antes de virar fixture.** Os valores de kWh não têm arredondamento além do que vem no lote. Os montantes financeiros foram omitidos deste relatório público; os controles de receita devem ser conferidos no ambiente autorizado.
+Controles agregados que `scripts/gold_coverage.py` calcula a partir dos CSVs (seção "Controles candidatos" da saída). Nenhum identifica UC, alimentador, bairro ou pessoa. **Os valores não são publicados aqui; ficam com Dados.**
 
-| ID | Definição | Tabela e colunas | Janela | Valor calculado |
+- **C01 a C12: aprovados.** Dados (Júlia) recalculou C01 a C12 de forma independente no Databricks, sobre a Gold oficial, e os aprovou como referência, com tolerâncias definidas por Dados. A Gold oficial é outra execução, diferente do primeiro lote e do lote reanalisado (exportado em 28/10). O script serve apenas de conferência cruzada: rodado nos dois lotes, produz os mesmos C01 a C12, e os lotes só diferem na tabela de bairro, duplicada no primeiro.
+- **C13: candidato conferido por Dados.** O C12 compara totais por competência, e um bairro duplicado por grafia não altera esses totais; por isso o C12 não detecta duplicidade de bairro, e o C13 foi acrescentado para esse caso. Dados conferiu o C13 no Databricks, na Gold oficial, sem duplicidade de bairro por grafia; pela regra de agregados, os valores não são publicados. Limitação: o C13 não cobre texto com caracteres perdidos; esse caso é coberto pela varredura de encoding da `validacao_gold_v4`, de Dados, que não encontrou ocorrências.
+
+| ID | O que verifica | Tabela e colunas | Janela | Como se calcula |
 | --- | --- | --- | --- | --- |
-| C01 | Total de energia faturada e de receita faturada no lote | `diagnostico_receita`: `consumo_total_kwh`, `receita_total_reais` | 2022-07 a 2026-06 | 790.691.150 kWh; [valor financeiro omitido] |
-| C02 | Energia e receita faturadas por classe | `diagnostico_receita`: `classe_consumo`, `consumo_total_kwh`, `receita_total_reais` | 2022-07 a 2026-06 | Comercial 177.546.534 kWh, [valor financeiro omitido]; Industrial 305.167.405 kWh, [valor financeiro omitido]; Poder público 14.818.877 kWh, [valor financeiro omitido]; Residencial 285.113.458 kWh, [valor financeiro omitido]; Rural 8.044.876 kWh, [valor financeiro omitido] |
-| C03 | UC-meses com fatura e leitura (linhas da série mensal) | `consumo_mensal_uc`: contagem de (`id_uc`, `competencia`) | 2022-07 a 2026-06 | 1.928.920 |
-| C04 | Energia e receita no último mês do lote, no município de maior receita (escolha deste relatório) | `diagnostico_receita`: `competencia`, `municipio`, `consumo_total_kwh`, `receita_total_reais` | 2026-06, Recife | 5.253.939 kWh; [valor financeiro omitido] |
-| C05 | UCs por classe | `visao_360_uc`: contagem de `id_uc` por `classe` | cadastro atual, sem competência | Comercial 4.909; Industrial 877; Poder público 222; Residencial 38.336; Rural 656 (total 45.000) |
-| C06 | UCs por faixa de prioridade da fila | `fila_inspecao`: contagem de `id_uc` por `prioridade_inspecao` | cadastro atual, sem competência | `MEDIA - NUNCA INSPECIONADO` 42.652; `REVISAR - SEM HISTORICO DE CONSUMO` 1.023; `ALTA - HISTORICO IRREGULAR` 808; `BAIXA` 517 |
-| C07 | Caso de zero: UCs na faixa `ALTA - CONSUMO ZERO` | `fila_inspecao`: `prioridade_inspecao` | cadastro atual, sem competência | 0 UC. A resposta esperada é "nenhuma UC nesta faixa", não ausência de evidência. |
-| C08 | UCs com GD e queda de consumo acima de 30%, em Olinda e no total | `variacao_consumo_uc`: `municipio`, `possui_gd = Sim`, `queda_consumo_superior_30_pct = true` | P1 = 2022-07 a 2023-06; P2 = 2025-07 a 2026-06 | Olinda 289; total 3.120 |
-| C09 | Caso de período parcial: UCs sem leitura em P1, em P2 ou nos dois | `variacao_consumo_uc`: `meses_com_leitura_p1`, `meses_com_leitura_p2`, `variacao_pct` | P1 e P2 | sem leitura só em P1: 415; só em P2: 0; nos dois: 1.046; `variacao_pct` nula: 1.461 |
-| C10 | Caso de nulo: UCs sem média de consumo histórico e quantas delas faltam na série mensal | `visao_360_uc`: `media_consumo_historico`; `consumo_mensal_uc`: `id_uc` | cadastro atual | 1.046 com média nula; nenhuma delas tem mês em `consumo_mensal_uc` |
-| C11 | O alimentador de maior DEC em 2026-06: DEC e FEC do mês e média simples dos 48 meses (identificador omitido) | `indicadores_dec_fec`: `id_alimentador`, `competencia`, `DEC`, `FEC` | 2026-06; média de 2022-07 a 2026-06 | No mês: DEC 1,8020 h, FEC 1,1471. Médias mensais: DEC 1,5109 h, FEC 0,8511. A média simples entre meses serve só como controle, não é métrica aprovada. |
-| C12 | Competências em que bairro e diagnóstico divergem em kWh, R$ ou UC-meses | `consumo_receita_bairro`, `diagnostico_receita`: `competencia`, consumo, receita, `qtd_ucs_distintas_faturadas_no_mes` | 2022-07 a 2026-06 | 0 de 48 |
+| C01 | Total de energia faturada e de receita faturada no lote | `diagnostico_receita`: `consumo_total_kwh`, `receita_total_reais` | todas as competências | Soma das duas colunas em todas as linhas. |
+| C02 | Energia e receita faturadas por classe | `diagnostico_receita`: `classe_consumo`, `consumo_total_kwh`, `receita_total_reais` | todas as competências | Soma das duas colunas agrupada por `classe_consumo`. |
+| C03 | UC-meses com fatura e leitura (linhas da série mensal) | `consumo_mensal_uc`: contagem de (`id_uc`, `competencia`) | todas as competências | Contagem de pares distintos (`id_uc`, `competencia`). |
+| C04 | Energia e receita no último mês do lote, no município de maior receita (escolha deste relatório) | `diagnostico_receita`: `competencia`, `municipio`, `consumo_total_kwh`, `receita_total_reais` | última competência | Na última competência, soma por `municipio`; reporta o município de maior receita e seus totais. |
+| C05 | UCs por classe | `visao_360_uc`: contagem de `id_uc` por `classe` | cadastro atual, sem competência | Contagem de `id_uc` agrupada por `classe`. |
+| C06 | UCs por faixa de prioridade da fila | `fila_inspecao`: contagem de `id_uc` por `prioridade_inspecao` | cadastro atual, sem competência | Contagem de `id_uc` agrupada por `prioridade_inspecao`. |
+| C07 | Caso de zero: UCs na faixa `ALTA - CONSUMO ZERO` | `fila_inspecao`: `prioridade_inspecao` | cadastro atual, sem competência | Contagem de `id_uc` com essa faixa. Se a faixa estiver vazia, a resposta esperada é "nenhuma UC nesta faixa", não ausência de evidência. |
+| C08 | UCs com GD e queda de consumo acima de 30%, em Olinda e no total | `variacao_consumo_uc`: `municipio`, `possui_gd = Sim`, `queda_consumo_superior_30_pct = true` | P1 e P2 da Gold | Contagem de `id_uc` com as duas condições, no total e no município. |
+| C09 | Caso de período parcial: UCs sem leitura em P1, em P2 ou nos dois | `variacao_consumo_uc`: `meses_com_leitura_p1`, `meses_com_leitura_p2`, `variacao_pct` | P1 e P2 | Contagem de `id_uc` sem leitura só em P1, só em P2 e nos dois, e de `variacao_pct` nula. |
+| C10 | Caso de nulo: UCs sem média de consumo histórico e quantas delas faltam na série mensal | `visao_360_uc`: `media_consumo_historico`; `consumo_mensal_uc`: `id_uc` | cadastro atual | Contagem de `id_uc` com média nula e, dessas, quantas não têm mês em `consumo_mensal_uc`. Não compara os valores das duas médias. |
+| C11 | O alimentador de maior DEC na última competência: DEC e FEC do mês e média simples dos 48 meses (identificador omitido) | `indicadores_dec_fec`: `id_alimentador`, `competencia`, `DEC`, `FEC` | última competência; média de todas as competências | Escolhe o alimentador de maior `DEC` no mês e calcula a média simples mensal de `DEC` e `FEC` dele, só com meses contínuos. A média simples entre meses serve só como controle, não é métrica aprovada. |
+| C12 | Competências em que bairro e diagnóstico divergem em kWh, R$ ou UC-meses | `consumo_receita_bairro`, `diagnostico_receita`: `competencia`, consumo, receita, `qtd_ucs_distintas_faturadas_no_mes` | todas as competências | Soma por competência nas duas tabelas e contagem das competências com diferença. Não detecta bairro duplicado (ver C13). |
+| C13 | Linhas e bairros distintos de `consumo_receita_bairro`; detecta duplicidade de bairro (candidato conferido por Dados na Gold oficial, sem duplicidade) | `consumo_receita_bairro`: `competencia`, `municipio`, `bairro`, `classe_consumo` | todas as competências | Conta as linhas e os pares distintos município × bairro, antes e depois de normalizar a grafia (acentos, caixa, espaços e texto UTF-8 lido como latin-1). Menos pares depois da normalização indica bairro duplicado por grafia; a saída marca `possivel_duplicidade_de_bairro`. Não detecta grafias que perderam caracteres (por exemplo, trocados por `?`); esse caso é coberto pela varredura de encoding da `validacao_gold_v4`, que não encontrou ocorrências. Valores não publicados. |

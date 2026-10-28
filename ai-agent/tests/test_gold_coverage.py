@@ -241,6 +241,56 @@ def test_candidate_controls_cover_totals_zero_null_and_mismatch(tmp_path):
     assert "C08" not in controls and "C11" not in controls
 
 
+def _bairros(lote: Path, rows: list[list[str]]) -> None:
+    path = lote / "consumo_receita_bairro" / "consumo_receita_bairro.csv"
+    header = path.read_text(encoding="utf-8").splitlines()[0]
+    lines = [";".join(f'"{v}"' for v in row) for row in rows]
+    path.write_text("\n".join([header, *lines]) + "\n", encoding="utf-8")
+
+
+def test_c13_counts_rows_and_distinct_bairros_without_duplicity(tmp_path):
+    _batch(tmp_path)
+    _bairros(tmp_path, [
+        ["2025-01", "MUNICIPIO A", "SÃO JOSÉ FICTICIO", "RESIDENCIAL", "100.0", "15.00", "1"],
+        ["2025-01", "MUNICIPIO A", "BAIRRO X", "RESIDENCIAL", "100.0", "15.00", "1"],
+        ["2025-01", "MUNICIPIO B", "BAIRRO X", "RESIDENCIAL", "0.0", "0.00", "0"],
+    ])
+
+    controls = _controls(gold_coverage.build_report(tmp_path))
+
+    # O mesmo nome em municípios diferentes são bairros diferentes.
+    assert controls["C13"] == {
+        "linhas": 3,
+        "bairros_distintos": 3,
+        "bairros_distintos_normalizados": 3,
+        "possivel_duplicidade_de_bairro": False,
+    }
+
+
+def test_c13_flags_bairro_duplicated_by_encoding_that_c12_misses(tmp_path, capsys):
+    _batch(tmp_path)
+    mojibake = "SÃO JOSÉ FICTICIO".encode().decode("latin-1")
+    # Mesmo bairro em três grafias; os totais por competência continuam iguais ao diagnóstico.
+    _bairros(tmp_path, [
+        ["2025-01", "MUNICIPIO A", "SÃO JOSÉ FICTICIO", "RESIDENCIAL", "100.0", "10.00", "1"],
+        ["2025-01", "MUNICIPIO A", mojibake, "RESIDENCIAL", "50.0", "10.00", "1"],
+        ["2025-01", "MUNICIPIO A", "Sao Jose  Ficticio", "COMERCIAL", "50.0", "10.00", "0"],
+    ])
+
+    assert gold_coverage.main([str(tmp_path)]) == 0
+
+    out = capsys.readouterr().out
+    assert "FICTICIO" not in out.upper() and mojibake not in out
+    controls = _controls(gold_coverage.build_report(tmp_path))
+    assert controls["C12"] == 0
+    assert controls["C13"] == {
+        "linhas": 3,
+        "bairros_distintos": 3,
+        "bairros_distintos_normalizados": 1,
+        "possivel_duplicidade_de_bairro": True,
+    }
+
+
 def test_worst_feeder_control_reports_values_without_identifier(tmp_path, capsys):
     _batch(tmp_path)
     header = ["id_alimentador", "municipio", "competencia", "total_ucs_alimentador",
@@ -401,6 +451,178 @@ def test_json_target_outside_batch_is_written(tmp_path):
 
     assert json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))["tabelas"]
     assert not list(lote.rglob("*.json"))
+
+
+def test_json_target_inside_table_subfolder_is_refused(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _batch(lote)
+
+    _refused(lote, lote / "visao_360_uc" / "out.json", capsys)
+    assert not (lote / "visao_360_uc" / "out.json").exists()
+
+
+def _flatten(lote: Path) -> None:
+    """Converte o lote para o layout de CSVs soltos na pasta."""
+    for folder in [p for p in lote.iterdir() if p.is_dir() and p.name in gold_coverage.TABLES]:
+        (folder / f"{folder.name}.csv").rename(lote / f"{folder.name}.csv")
+        folder.rmdir()
+
+
+def _seven_tables(lote: Path) -> None:
+    _batch(lote)
+    _write(
+        lote,
+        "variacao_consumo_uc",
+        ["id_uc", "municipio", "possui_gd", "consumo_medio_inicial", "consumo_medio_final"],
+        [[uc, "MUNICIPIO A", "Não", "100.0", "100.0"] for uc in UC_IDS],
+    )
+    _write(
+        lote,
+        "indicadores_dec_fec",
+        ["id_alimentador", "municipio", "competencia", "total_ucs_alimentador",
+         "duracao_total_interrupcoes_horas", "frequencia_total_interrupcoes", "DEC", "FEC"],
+        [["ALFICT01", "MUNICIPIO A", "2025-01", "3", "3.0", "3", "1.0", "1.0"]],
+    )
+
+
+def _manifest(base: Path, where: str = "manifesto/manifest.json", **overrides) -> None:
+    data = {
+        "ambiente": "PROD",
+        "lote": "LOTEFICT01",
+        "run_id_silver": "RUNFICT01",
+        "lote_bronze_silver": "BRONZEFICT01",
+        "tabelas_exportadas": list(gold_coverage.TABLES),
+        # Campos de negócio inventados: nunca podem sair na saída.
+        "receita_total_reais": "987654.32",
+        "contagens": {"visao_360_uc": 31337},
+    }
+    data.update(overrides)
+    target = base / where
+    target.parent.mkdir(exist_ok=True)
+    target.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_loose_and_subfolder_layouts_give_the_same_profile(tmp_path):
+    soltos, subpastas = tmp_path / "soltos", tmp_path / "subpastas"
+    _seven_tables(soltos)
+    _flatten(soltos)
+    _seven_tables(subpastas)
+    assert (soltos / "visao_360_uc.csv").is_file() and not (soltos / "visao_360_uc").exists()
+    assert (subpastas / "visao_360_uc" / "visao_360_uc.csv").is_file()
+
+    loose, nested = (gold_coverage.build_report(base) for base in (soltos, subpastas))
+
+    for report in (loose, nested):
+        assert all(info["estado"] == "presente" for info in report["tabelas"].values())
+        assert report["manifesto"] is None
+    assert loose["tabelas"] == nested["tabelas"]
+    assert loose["reconciliacoes"] == nested["reconciliacoes"]
+
+
+def test_prod_manifest_prints_only_technical_identification(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    _manifest(lote)
+    json_path = tmp_path / "out.json"
+
+    assert gold_coverage.main([str(lote), "--json", str(json_path)]) == 0
+
+    manifest = json.loads(json_path.read_text(encoding="utf-8"))["manifesto"]
+    assert manifest == {
+        "arquivo": "manifesto/manifest.json",
+        "ambiente": "PROD",
+        "lote": "LOTEFICT01",
+        "run_id_silver": "RUNFICT01",
+        "lote_bronze_silver": "BRONZEFICT01",
+        "tabelas_exportadas": sorted(gold_coverage.TABLES),
+        "avisos": [],
+    }
+    out = capsys.readouterr().out
+    assert "LOTEFICT01" in out and "AVISO" not in out
+    for printed in (out, json_path.read_text(encoding="utf-8")):
+        assert "987654.32" not in printed and "31337" not in printed
+
+
+def test_manifest_at_batch_root_is_read(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    # O exportador da Gold grava o manifesto na raiz, com o ambiente em minúsculas.
+    _manifest(lote, where="manifest.json", ambiente="prod")
+
+    assert gold_coverage.main([str(lote)]) == 0
+
+    out = capsys.readouterr().out
+    assert '"arquivo": "manifest.json"' in out and "LOTEFICT01" in out
+    assert "AVISO" not in out
+    assert "987654.32" not in out and "31337" not in out
+
+
+def test_manifest_in_both_paths_uses_root_and_warns(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    _manifest(lote, where="manifest.json", lote="LOTEFICTRAIZ")
+    _manifest(lote, where="manifesto/manifest.json", lote="LOTEFICTSUB", ambiente="DEV")
+
+    assert gold_coverage.main([str(lote)]) == 0
+
+    out = capsys.readouterr().out
+    assert "LOTEFICTRAIZ" in out and "LOTEFICTSUB" not in out
+    assert "AVISO: manifesto em dois caminhos: usado manifest.json" in out
+    assert "não é PROD" not in out
+
+
+def test_json_target_over_root_manifest_is_refused(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    _manifest(lote, where="manifest.json")
+    original = (lote / "manifest.json").read_bytes()
+
+    _refused(lote, lote / "manifest.json", capsys)
+    assert (lote / "manifest.json").read_bytes() == original
+
+
+def test_manifest_outside_prod_is_flagged(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    _manifest(lote, ambiente="DEV")
+
+    assert gold_coverage.main([str(lote)]) == 0
+
+    assert "AVISO: ambiente do manifesto não é PROD: DEV" in capsys.readouterr().out
+
+
+def test_manifest_with_divergent_table_list_is_flagged(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    exported = [t for t in gold_coverage.TABLES if t != "fila_inspecao"] + ["tabela_ficticia"]
+    _manifest(lote, tabelas_exportadas=exported)
+
+    assert gold_coverage.main([str(lote)]) == 0
+
+    out = capsys.readouterr().out
+    assert "AVISO: tabelas_exportadas não batem" in out
+    assert "faltam no manifesto ['fila_inspecao']" in out
+    assert "só no manifesto ['tabela_ficticia']" in out
+
+
+def test_manifest_listing_seven_tables_with_one_missing_is_flagged(tmp_path):
+    lote = tmp_path / "lote"
+    _batch(lote)  # cinco tabelas: faltam variacao_consumo_uc e indicadores_dec_fec
+    _manifest(lote)
+
+    avisos = gold_coverage.build_report(lote)["manifesto"]["avisos"]
+
+    assert len(avisos) == 1 and "encontradas 5 de 7" in avisos[0]
+
+
+def test_json_target_inside_manifest_folder_is_refused(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    _manifest(lote)
+    original = (lote / "manifesto" / "manifest.json").read_bytes()
+
+    _refused(lote, lote / "manifesto" / "manifest.json", capsys)
+    assert (lote / "manifesto" / "manifest.json").read_bytes() == original
 
 
 def test_json_target_with_missing_parent_is_refused(tmp_path, capsys):

@@ -12,17 +12,23 @@ Uso:
     python scripts/gold_coverage.py <diretório do lote>
     GOLD_DATA_DIR=<diretório do lote> python scripts/gold_coverage.py [--json <arquivo>]
 
-Cada tabela é procurada em ``<dir>/<tabela>/<tabela>.csv`` ou, na falta dele, nos ``*.csv`` de
-``<dir>/<tabela>/`` (pasta de partes do Spark) ou em ``<dir>/<tabela>.csv``.
+Cada tabela é procurada em ``<dir>/<tabela>/<tabela>.csv`` (layout do carregador do Backend) ou,
+na falta dele, nos ``*.csv`` de ``<dir>/<tabela>/`` (pasta de partes do Spark) ou em
+``<dir>/<tabela>.csv`` (CSVs soltos). Se existir ``<dir>/manifest.json`` ou
+``<dir>/manifesto/manifest.json`` (com os dois, vale o da raiz), a saída mostra só a
+identificação técnica do lote e avisa quando o ambiente não é PROD ou quando
+``tabelas_exportadas`` não bate com as tabelas encontradas.
 """
 
 import argparse
+import contextlib
 import csv
 import json
 import os
 import re
 import statistics
 import sys
+import unicodedata
 from collections import Counter, defaultdict
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -107,6 +113,10 @@ CPF_LIKE = re.compile(r"\d{3}\.?\d{3}\.?\d{3}-?\d{2}")
 CEP_LIKE = re.compile(r"^\d{5}-?\d{3}$")
 EMAIL_LIKE = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", re.IGNORECASE)
 MONEY_TOLERANCE = Decimal("0.05")
+# Raiz do lote (exportador da Gold) ou subpasta manifesto/; com os dois, vale o da raiz.
+MANIFEST_PATHS = (Path("manifest.json"), Path("manifesto") / "manifest.json")
+# Só campos técnicos de identificação; nenhum valor de negócio do manifesto vai para a saída.
+MANIFEST_FIELDS = ("ambiente", "lote", "run_id_silver", "lote_bronze_silver")
 
 
 def _decimal(value: str) -> Decimal | None:
@@ -133,6 +143,16 @@ def _measure(value: str | None) -> tuple[Decimal | None, str | None]:
     return (number, None) if number.is_finite() else (None, "invalido")
 
 
+def _normalize_name(text: str) -> str:
+    """Grafia comparável: desfaz mojibake latin-1/UTF-8, tira acentos, caixa e espaços extras."""
+    with contextlib.suppress(UnicodeEncodeError, UnicodeDecodeError):
+        text = text.encode("latin-1").decode("utf-8")
+    stripped = "".join(
+        c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)
+    )
+    return " ".join(stripped.upper().split())
+
+
 def _is_sensitive_name(name: str) -> bool:
     return bool(SENSITIVE_TOKENS & set(name.lower().strip("_").split("_")))
 
@@ -157,6 +177,7 @@ class ColumnProfile:
         self.zeros = 0
         self.negatives = 0
         self.sentinels = 0
+        self.out_of_range_dates = 0
         self.min_text: str | None = None
         self.max_text: str | None = None
         self.cpf_like = 0
@@ -187,7 +208,8 @@ class ColumnProfile:
         elif kind in {"ano_mes", "data"}:
             self.min_text = value if self.min_text is None else min(self.min_text, value)
             self.max_text = value if self.max_text is None else max(self.max_text, value)
-            self.sentinels += kind == "data" and not ("1950" <= value[:4] < "2100")
+            # Data fora de 1950-2099 é data inválida na origem, não marcador de ausência.
+            self.out_of_range_dates += kind == "data" and not ("1950" <= value[:4] < "2100")
         elif kind == "texto":
             self.cpf_like += bool(CPF_LIKE.search(value))
             self.cep_like += bool(CEP_LIKE.match(value))
@@ -234,7 +256,7 @@ class ColumnProfile:
             # Mínimo e máximo de texto só em coluna inteira de data/competência, nunca texto livre.
             if set(self.kinds) <= DATE_KINDS:
                 result.update(minimo_texto=self.min_text, maximo_texto=self.max_text)
-            result["datas_fora_de_1950_2099"] = self.sentinels
+            result["datas_fora_de_1950_2099"] = self.out_of_range_dates
         if self.cpf_like or self.cep_like or self.email_like:
             result.update(
                 padrao_cpf=self.cpf_like, padrao_cep=self.cep_like, padrao_email=self.email_like
@@ -265,6 +287,55 @@ def find_table_files(base: Path, table: str) -> list[Path]:
     if (base / f"{table}.csv").is_file():
         return [base / f"{table}.csv"]
     return []
+
+
+def read_manifest(base: Path, present: list[str]) -> dict | None:
+    """Lê o manifesto do lote e devolve só a identificação técnica e os avisos."""
+    found = [relative for relative in MANIFEST_PATHS if (base / relative).is_file()]
+    if not found:
+        return None
+    result: dict = {"arquivo": found[0].as_posix()}
+    avisos = []
+    if len(found) > 1:
+        avisos.append(
+            f"manifesto em dois caminhos: usado {found[0].as_posix()}, "
+            f"ignorado {found[1].as_posix()}"
+        )
+    try:
+        data = json.loads((base / found[0]).read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {**result, "avisos": [*avisos, "manifesto ilegível: JSON inválido"]}
+    if not isinstance(data, dict):
+        return {**result, "avisos": [*avisos, "manifesto ilegível: o topo não é um objeto"]}
+    for field in MANIFEST_FIELDS:
+        value = data.get(field)
+        if value is None:
+            result[field] = "ausente"
+        elif isinstance(value, (str, int)) and not isinstance(value, bool):
+            result[field] = str(value)
+        else:
+            result[field] = "formato_inesperado"
+    if str(data.get("ambiente", "")).strip().upper() != "PROD":
+        avisos.append(f"ambiente do manifesto não é PROD: {result['ambiente']}")
+    exported = data.get("tabelas_exportadas")
+    # Em objeto, só as chaves (nomes de tabela) são lidas; os valores podem ter contagens.
+    if isinstance(exported, dict):
+        exported = list(exported)
+    if isinstance(exported, list) and all(isinstance(name, str) for name in exported):
+        result["tabelas_exportadas"] = sorted(exported)
+        missing = sorted(set(present) - set(exported))
+        extra = sorted(set(exported) - set(present))
+        if missing or extra or len(present) != len(TABLES):
+            avisos.append(
+                "tabelas_exportadas não batem com as tabelas encontradas: "
+                f"faltam no manifesto {missing}, só no manifesto {extra}, "
+                f"encontradas {len(present)} de {len(TABLES)}"
+            )
+    else:
+        result["tabelas_exportadas"] = "ausente" if exported is None else "formato_inesperado"
+        avisos.append("manifesto sem lista de tabelas_exportadas legível")
+    result["avisos"] = avisos
+    return result
 
 
 def iter_rows(files: list[Path]):
@@ -1164,6 +1235,27 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
                 mismatch,
             )
         )
+    bairro_info = tables.get("consumo_receita_bairro", {})
+    if bairro_info.get("estado") == "presente":
+        # O C12 compara totais por competência; bairro duplicado por grafia não altera os totais.
+        pairs = {(key[1], key[2]) for key in recon.bairro_cells}
+        normalized = {(_normalize_name(m or ""), _normalize_name(b or "")) for m, b in pairs}
+        controls.append(
+            control(
+                "C13",
+                "Linhas e bairros distintos (município × bairro) de consumo_receita_bairro; "
+                "bairros que só diferem por acento, caixa ou encoding indicam duplicidade",
+                "consumo_receita_bairro",
+                ["competencia", "municipio", "bairro", "classe_consumo"],
+                full if bairro else "sem competência",
+                {
+                    "linhas": bairro_info["linhas"],
+                    "bairros_distintos": len(pairs),
+                    "bairros_distintos_normalizados": len(normalized),
+                    "possivel_duplicidade_de_bairro": len(normalized) < len(pairs),
+                },
+            )
+        )
     return controls
 
 
@@ -1178,10 +1270,12 @@ def build_report(base: Path) -> dict:
         for name in extras
         if any(token in name.lower() for token in ("manifest", "controle", "lote", "batch"))
     ]
+    present = [table for table, info in tables.items() if info["estado"] == "presente"]
     return {
         "tabelas": tables,
         "outros_itens_no_diretorio": len(extras),
         "manifesto_ou_controle_encontrado": lote_meta,
+        "manifesto": read_manifest(base, present),
         "reconciliacoes": reconcile(recon),
         "exemplos_exploratorios_prd_7_6": exploratory_examples(recon),
         "controles_candidatos": candidate_controls(recon, tables),
@@ -1190,7 +1284,15 @@ def build_report(base: Path) -> dict:
 
 def _print(report: dict) -> None:
     print("# Conferência do lote candidato da Gold (somente agregados)\n")
-    print(f"Manifesto/controle do lote: {report['manifesto_ou_controle_encontrado'] or 'nenhum'}")
+    manifest = report["manifesto"]
+    if manifest is None:
+        found = report["manifesto_ou_controle_encontrado"] or "nenhum"
+        print(f"Manifesto/controle do lote: {found}")
+    else:
+        identity = {key: value for key, value in manifest.items() if key != "avisos"}
+        print(f"Manifesto do lote: {json.dumps(identity, ensure_ascii=False)}")
+        for aviso in manifest["avisos"]:
+            print(f"  AVISO: {aviso}")
     for table, info in report["tabelas"].items():
         print(f"\n## {table}")
         if info["estado"] != "presente":
