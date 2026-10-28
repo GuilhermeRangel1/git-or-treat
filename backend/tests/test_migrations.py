@@ -1,8 +1,9 @@
 import os
+from decimal import Decimal
 
 import pytest
 from alembic import command
-from sqlalchemy import Column, MetaData, String, create_engine, inspect, text
+from sqlalchemy import Column, MetaData, String, create_engine, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -177,6 +178,7 @@ def test_alembic_upgrade_and_downgrade_on_explicit_disposable_postgres_database(
                 text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
             ), "Use um usuário de migração sem SUPERUSER no banco descartável *_test."
             with migrated_database(connection):
+                assert_gold_audit_migration_preserves_the_previous_batch(connection)
                 assert_timestamp_migration_preserves_existing_orders(connection)
                 assert_order_persistence(engine)
                 assert_direct_insert_timestamps(engine)
@@ -224,3 +226,40 @@ def assert_order_persistence(engine):
             assert persisted.status == expected_status
             assert persisted.created_at is not None
             assert persisted.updated_at is not None
+
+
+def assert_gold_audit_migration_preserves_the_previous_batch(connection):
+    from datetime import datetime, timezone
+    from app.models import gold_v1
+    from app.models.gold_load import BATCH
+
+    config = alembic_config(connection)
+    command.downgrade(config, "goldv1000001")
+    connection.execute(gold_v1.BATCH.insert().values(
+        id=1, lote="synthetic-before-migration", fingerprint="a" * 64,
+        importado_em=datetime(2025, 1, 1, tzinfo=timezone.utc), manifesto={"synthetic": {"rows": 2}},
+    ))
+    connection.execute(gold_v1.TABLES["consumo_mensal_uc"].insert().values(
+        id_uc="FAKE-MIGRATION", competencia="2025-01", consumo_kwh=30, receita_reais="25.50",
+    ))
+    connection.commit()
+    before = connection.execute(select(gold_v1.BATCH)).mappings().one()
+    for revision in ("head", "goldv1000001", "head"):
+        if revision == "head":
+            command.upgrade(config, revision)
+            assert connection.scalar(select(BATCH.c.schema_version)) == "gold-csv-v1"
+        else:
+            command.downgrade(config, revision)
+        assert connection.execute(select(gold_v1.BATCH)).mappings().one() == before
+        assert connection.scalar(text("SELECT receita_reais FROM gold_consumo_mensal_uc")) == Decimal("25.50")
+        connection.commit()
+
+
+def test_gold_audit_upgrade_and_downgrade_preserve_the_published_batch():
+    engine = create_engine("sqlite:///:memory:")
+    try:
+        with engine.connect() as connection:
+            with migrated_database(connection):
+                assert_gold_audit_migration_preserves_the_previous_batch(connection)
+    finally:
+        engine.dispose()

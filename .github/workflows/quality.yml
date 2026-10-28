@@ -86,6 +86,7 @@ jobs:
           --health-retries 5
     env:
       TEST_POSTGRES_URL: postgresql+psycopg://venergy_migrator:venergy_migrator@localhost:5432/v_energy_test
+      TEST_GOLD_POSTGRES_URL: postgresql+psycopg://venergy_migrator:venergy_migrator@localhost:5432/gold_import_test
 
     defaults:
       run:
@@ -136,6 +137,7 @@ jobs:
           docker run --rm venergy-backend:ci python -m pip check
           docker run --rm --network host \
             -e TEST_POSTGRES_URL \
+            -e TEST_GOLD_POSTGRES_URL \
             venergy-backend:ci python -m pytest -q
 
   qualidade-frontend:

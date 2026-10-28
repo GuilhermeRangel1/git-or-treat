@@ -1,52 +1,35 @@
-"""
-Esqueleto do futuro carregador CSV da camada Gold.
-
-O script ainda não lê nem insere registros e não implementa idempotência.
-
-Uso:
-    python scripts/load_gold.py
-"""
-import sys
+"""Carga explícita dos CSVs Gold em banco previamente migrado."""
+import argparse
 import csv
+import json
+import sys
 from pathlib import Path
+from sqlalchemy.exc import SQLAlchemyError
 
-# Adiciona o diretório backend ao sys.path para importação de app
-backend_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(backend_dir))
-
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.core.config import settings
-from app.core.database import SessionLocal, engine, Base
-from app.models.analytical import GoldIndicador
+from app.core.database import engine
+from app.services.gold_import import GoldImportError, import_gold
+from app.models.gold_load import SCHEMA_VERSION
 
 
-def load_gold_data():
-    data_dir = Path(settings.GOLD_DATA_DIR)
-    print(f"[*] Verificando diretório de dados Gold: {data_dir.resolve()}")
-
-    if not data_dir.exists():
-        print(f"[!] Diretório {data_dir} não encontrado; nenhuma carga foi realizada.")
-        return
-
-    csv_files = list(data_dir.glob("*.csv"))
-    if not csv_files:
-        print(f"[i] Nenhum CSV encontrado em {data_dir}; nenhuma carga foi realizada.")
-        return
-
-    print(f"[+] Arquivos encontrados: {[f.name for f in csv_files]}")
-
-    # Inicializa sessão
-    db = SessionLocal()
-
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--directory", type=Path, default=settings.GOLD_DATA_DIR / "v1")
+    parser.add_argument("--batch", default="v1")
+    parser.add_argument("--schema-version", default=SCHEMA_VERSION)
+    args = parser.parse_args()
     try:
-        for csv_path in csv_files:
-            print(f"[*] Arquivo encontrado, mas não processado: {csv_path.name}")
-        print("[i] Leitura e inserção ainda não implementadas; nenhum registro foi gravado.")
-    except Exception as e:
-        db.rollback()
-        print(f"[✘] Erro durante a carga: {e}")
-    finally:
-        db.close()
+        result = import_gold(engine, args.directory, args.batch, args.schema_version)
+    except (GoldImportError, SQLAlchemyError, OSError, UnicodeError, csv.Error) as error:
+        message = str(error) if isinstance(error, GoldImportError) else "Falha de leitura ou persistência. Confira o banco migrado e os arquivos."
+        if isinstance(error, GoldImportError):
+            message = f"{message} Código: {error.code}. Tentativa: {error.attempt_id}."
+        print(message, file=sys.stderr)
+        return 1
+    print(json.dumps(result, ensure_ascii=True))
+    return 0
 
 
 if __name__ == "__main__":
-    load_gold_data()
+    raise SystemExit(main())
