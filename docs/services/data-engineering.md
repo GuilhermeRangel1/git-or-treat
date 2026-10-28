@@ -98,3 +98,8 @@ Agenda proposta para essa operação futura: **mensal, dia 5, às 03:00 (America
 ## Aceite do serviço
 
 Rodar a extração completa de ponta a ponta e comparar contagens, chaves e métricas em cada transição. Exercitar reexecução sem duplicação. Demonstrar pelo menos um cálculo manual por métrica crítica e uma falha de qualidade detectada. Registrar comandos, Job run e resultados no PRD; concluir os IDs separadamente.
+
+
+## Integração local dos CSVs v1 — 27/10/2026
+
+As sete exportações da `feat/gold` foram recebidas localmente e têm um [contrato físico provisório](../contracts/gold-csv-v1.md), observado nos cabeçalhos. O backend implementa carga transacional/repetível para tabelas próprias `gold_*`, com validação CSV → banco. Isso não homologa fórmulas, não prova reconciliação Delta → CSV e não corrige a publicação antecipada ou o exportador da branch Gold. O dicionário canônico DE-08, manifesto de execução Gold e adaptação dos consumidores permanecem pendentes. Este adendo atualiza apenas a disponibilidade da carga local; evidências históricas anteriores continuam delimitadas às versões executadas.

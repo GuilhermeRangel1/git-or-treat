@@ -6,9 +6,13 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV não insere linhas nem implementa idempotência. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV v1 é transacional e repetível, conforme o [contrato provisório](../contracts/gold-csv-v1.md); as rotas ainda não consomem essas tabelas. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
 ## DEV-01: contratos antes da Gold
+
+### Infraestrutura de carga — DEV-12
+
+O carregador registra cada tentativa em `gold_carga_tentativas`, publica versão `gold-csv-v1`, contagens e controles em `gold_carga_atual` e confirma sucesso junto das sete tabelas em uma transação. Rejeições preservam a publicação anterior e mantêm auditoria sem valores dos registros. Migração `goldv1000002`, gerador de CSVs artificiais e [runbook de execução/recuperação](../contracts/gold-load-dev12.md). Isso completa a infraestrutura sintética DEV-12; DE-06 continua em andamento até reconciliação com a origem real. Adaptação de consultas e portal fica na DEV-13.
 
 O [catálogo](../contracts/analytics-api.md), [desenho](../design/2026-10-20-dev01-design.md) e [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md) definem a fronteira entre fonte, serviços e HTTP. `ANALYTICS_SOURCE=synthetic` ativa explicitamente a demonstração; o padrão indisponível falha com 503. Os contratos incluem disponibilidade, unidade, competências, filtros efetivos, origem/versão e limitações. Zero legítimo não equivale a ausência.
 
@@ -92,7 +96,7 @@ A DEV-07 acrescenta histórico persistido com ator/versão, registro dedicado de
 
 ## Carga da Gold e consistência
 
-O script `backend/scripts/load_gold.py` é um esqueleto: não carrega linhas CSV nem garante idempotência. Quando a ingestão for implementada, registrar lote, esquema e contagens por tabela; só disponibilizar consultas após validar consistência entre tabelas. A segunda execução do mesmo lote deve produzir os mesmos totais. Alterações na fórmula Gold exigem atualização coordenada do dicionário, API, portal, IA e diagnóstico. Testar o mesmo recorte no Databricks, banco local e resposta da API. Se o banco escolhido não suportar separação robusta de permissões, documentar controles compensatórios para o agente de IA antes de afirmar que consultas são somente leitura.
+O script `backend/scripts/load_gold.py` importa as sete tabelas CSV do lote v1 após `alembic upgrade head`, em transação única, com chaves, tipos, contagens, somas e hashes validados. Não altera ordens operacionais nem ativa a fonte da API. Consulte organização, comandos e limites no [contrato CSV v1](../contracts/gold-csv-v1.md). A prova Databricks → CSV, as definições DE-08 e a adaptação API/portal permanecem pendentes.
 
 ## Qualidade
 
