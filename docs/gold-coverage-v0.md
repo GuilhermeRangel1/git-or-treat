@@ -11,7 +11,7 @@
 
 **Lote conferido:** sete CSVs exportados da Gold (separador `;`, UTF-8, todos os campos entre aspas), um por tabela. Os CSVs ficam fora do repositório; nome do arquivo, hashes e identificadores do lote também não são publicados aqui.
 
-**Manifesto.** O primeiro lote não tinha manifesto nem `controle_gold`, então não havia como saber de qual `run_id_silver`/`lote_bronze_silver` ele veio, se a execução foi `CONCLUIDO`, nem se usou os valores de reserva `SINTETICO_DEV`/`LOTE_DEV`. O lote reanalisado traz manifesto (ver [Lote reanalisado](#lote-reanalisado)), ainda parcial: faltam o `status_gold` e o filtro de ambiente de produção e de valores sintéticos (ver e). O `batch_ref` proposto no [contrato de consulta](contracts/genai-query-execution.md#lote-da-gold-batch_ref) e na [ADR-0002](decisions/0002-genai-gold-query-owner.md) ainda não está definido a partir dele. O notebook de exportação da branch `feat/gold` (`Exportacao_Gold_SQLite.ipynb`, commit `9664823`) não gravava manifesto.
+**Manifesto.** O primeiro lote não tinha manifesto nem `controle_gold`, então não havia como saber de qual `run_id_silver`/`lote_bronze_silver` ele veio, se a execução foi `CONCLUIDO`, nem se usou os valores de reserva `SINTETICO_DEV`/`LOTE_DEV`. O lote reanalisado traz manifesto (ver [Lote reanalisado](#lote-reanalisado)). No exportador da `develop` (commit `ca73db5`, PR #36), a exportação exige ambiente `prod` e falha se não for, o fallback para lote de reserva foi removido e o notebook lê a última execução com `status_gold = CONCLUIDO` em `controle_gold`. Falta só gravar o `status_gold` no manifesto (sugestão para Dados; ver e). O `batch_ref` proposto no [contrato de consulta](contracts/genai-query-execution.md#lote-da-gold-batch_ref) e na [ADR-0002](decisions/0002-genai-gold-query-owner.md) ainda não está definido a partir dele. O notebook de exportação da branch `feat/gold` (`Exportacao_Gold_SQLite.ipynb`, commit `9664823`) não gravava manifesto.
 
 **Não verificado nesta conferência:**
 
@@ -29,7 +29,7 @@ O diretório do lote pode estar em um de dois layouts:
 - CSVs soltos na pasta: `<diretório>/<tabela>.csv`;
 - uma subpasta por tabela: `<diretório>/<tabela>/<tabela>.csv`, o layout que o carregador do Backend espera (uma subpasta com partes `*.csv` do Spark também é aceita).
 
-Se houver `<diretório>/manifesto/manifest.json`, o script mostra só os campos técnicos de identificação (`ambiente`, `lote`, `run_id_silver`, `lote_bronze_silver`, `tabelas_exportadas`), sem nenhum valor de negócio, e avisa quando o `ambiente` não é `PROD` ou quando `tabelas_exportadas` não bate com as sete tabelas encontradas. Sem manifesto, a saída diz "nenhum".
+O manifesto é procurado em `<diretório>/manifest.json` (onde o exportador da Gold o grava) ou em `<diretório>/manifesto/manifest.json`; se existirem os dois, o script usa o da raiz e avisa. Ele mostra só qual arquivo leu e os campos técnicos de identificação (`ambiente`, `lote`, `run_id_silver`, `lote_bronze_silver`, `tabelas_exportadas`), sem nenhum valor de negócio, e avisa quando o `ambiente` não é de produção ou quando `tabelas_exportadas` não bate com as sete tabelas encontradas. Sem manifesto, a saída diz "nenhum".
 
 Salvaguardas da saída:
 
@@ -44,7 +44,7 @@ Testes com dados inventados: `python -m pytest tests/test_gold_coverage.py`.
 
 ## Lote reanalisado
 
-A primeira conferência usou um lote gerado a partir de uma Silver sem o reparo de encoding do bairro, o que duplicava bairros em `consumo_receita_bairro`. O lote gerado em 28/10 corrigiu essa duplicação. Nele, as reconciliações entre as tabelas fecham sem divergência, não há nulo nem valor inválido nas medidas de consumo, receita e UCs usadas nas reconciliações e o manifesto traz ambiente `PROD` e a linhagem Silver/Bronze, mas ainda não traz o `status_gold` nem o filtro de ambiente de produção e de valores sintéticos. Como o C12 compara totais por competência, ele não detecta bairro duplicado; o controle C13 (ver g) cobre esse caso. Resultados que dependem de bairro devem ser lidos no lote reanalisado, não no primeiro.
+A primeira conferência usou um lote gerado a partir de uma Silver sem o reparo de encoding do bairro, o que duplicava bairros em `consumo_receita_bairro`. O lote gerado em 28/10 corrigiu essa duplicação. Nele, as reconciliações entre as tabelas fecham sem divergência, não há nulo nem valor inválido nas medidas de consumo, receita e UCs usadas nas reconciliações e o manifesto traz ambiente de produção e a linhagem Silver/Bronze. O exportador atual só exporta a partir de uma execução `CONCLUIDO` em ambiente de produção, mas o manifesto ainda não grava o `status_gold`. Como o C12 compara totais por competência, ele não detecta bairro duplicado; o controle C13 (ver g) cobre esse caso. Resultados que dependem de bairro devem ser lidos no lote reanalisado, não no primeiro.
 
 ## (a) As sete tabelas
 
@@ -156,10 +156,10 @@ Registradas a partir do comentário de Dados no PR #60. Valem para a GenAI até 
 | **Sem identificação** | Sem manifesto/`batch_ref` | O Backend não deve servir evidência como Gold real; sem `batch_ref` não se reproduz a amostra (IA-03) | Era o estado do primeiro lote. O lote reanalisado traz manifesto com ambiente e linhagem, mas o manifesto ainda é parcial e o `batch_ref` do contrato não está definido (ver e). |
 | **Parcial** | Tabela ausente; competência faltante; mês com base menor que o normal | Recusar ou pedir esclarecimento nas perguntas da tabela ausente; não calcular percentual com janela incompleta | Sete tabelas presentes, 48 meses sem lacuna, nenhum mês abaixo de 80% da mediana de linhas. Sem data de corte, não dá para provar que o último mês está fechado. |
 | **Misto** | Tabelas de execuções diferentes | Não cruzar números de tabelas sem o mesmo `batch_ref` | As reconciliações exatas sugerem uma única execução, mas não provam; depende do manifesto completo. |
-| **Desatualizado** | Lote anterior ao último `CONCLUIDO` | Declarar a data do lote em cada resposta | Não verificável enquanto o manifesto não trouxer `processado_em`. |
+| **Desatualizado** | Lote anterior ao último `CONCLUIDO` | Declarar a data do lote em cada resposta | O manifesto já grava `data_processamento`, derivada do `processado_em` da última execução `CONCLUIDO` em `controle_gold`, e `data_exportacao_csv`. A carga e a GenAI ainda precisam usar essas datas para comparar com o último `CONCLUIDO` e declarar a data do lote. |
 | **Vazio** | Tabela com zero linhas | `no_evidence`, nunca zero | Nenhuma tabela vazia. |
 | **Indisponível** | Banco local sem carga ou fora do ar | Erro recuperável, sem cair na fonte demonstrativa | Carga e reconciliação com o banco do Backend ainda em aberto (ver e). |
-| **Valor de reserva** | `SINTETICO_DEV`/`LOTE_DEV` no controle | A carga deve recusar o lote | Não verificável: o manifesto ainda não traz o filtro de ambiente de produção e de valores sintéticos. |
+| **Valor de reserva** | `SINTETICO_DEV`/`LOTE_DEV` no controle | A carga deve recusar o lote | Coberto na origem: o exportador da `develop` exige ambiente `prod` e não tem mais fallback para lote de reserva. Pelo manifesto, falta ainda o `status_gold` para a carga conferir a execução. |
 
 ## (e) Perguntas abertas para Dados e Backend
 
@@ -181,11 +181,12 @@ Estado depois da resposta de Dados no PR #60.
 
 **Abertas:**
 
-- manifesto ainda parcial: faltam o `status_gold` e o filtro de ambiente de produção e de valores sintéticos (com a Bia);
+- manifesto ainda parcial: falta gravar o `status_gold` (sugestão para Dados, com a Bia). Exigência de `prod`, remoção do lote de reserva e leitura da última execução `CONCLUIDO` já estão no exportador da `develop` (commit `ca73db5`);
 - conferência do C13 por Dados;
 - eventos recentes por UC: interrupções, chamados e satisfação só existem como totais acumulados, sem mês;
 - `faturas_uc`, `medidor_uc`, energia estimada e escore da fila, exigidos pelo case;
 - congelar os nomes de colunas `possui_gd`, `subgrupo`, `DEC` e `FEC` e atualizar o `dictionary_gold.toml` e o `docs/data-dictionary.md`. No PostgreSQL, uma coluna criada como `"DEC"` não casa com `dec`;
+- identificador do lote: se faltar `run_id_gold` no controle, o notebook de exportação gera um identificador manual (`batch_<usuário>_<data e hora>`) em vez de falhar. Sugestão para Dados: falhar nesse caso ou registrar no manifesto que a origem do identificador é manual;
 - carga e reconciliação Databricks → CSV → banco (DE-06): esquema, contagens, chaves e agregados em cada passo;
 - aplicar, na próxima execução da Gold, o tratamento como nulo de `data_ligacao` anterior a 1950 (sugestão de Dados, sem coluna nova); até lá, o lote traz o valor original. Responsável: Dados.
 

@@ -14,8 +14,9 @@ Uso:
 
 Cada tabela é procurada em ``<dir>/<tabela>/<tabela>.csv`` (layout do carregador do Backend) ou,
 na falta dele, nos ``*.csv`` de ``<dir>/<tabela>/`` (pasta de partes do Spark) ou em
-``<dir>/<tabela>.csv`` (CSVs soltos). Se existir ``<dir>/manifesto/manifest.json``, a saída mostra
-só a identificação técnica do lote e avisa quando o ambiente não é PROD ou quando
+``<dir>/<tabela>.csv`` (CSVs soltos). Se existir ``<dir>/manifest.json`` ou
+``<dir>/manifesto/manifest.json`` (com os dois, vale o da raiz), a saída mostra só a
+identificação técnica do lote e avisa quando o ambiente não é PROD ou quando
 ``tabelas_exportadas`` não bate com as tabelas encontradas.
 """
 
@@ -112,7 +113,8 @@ CPF_LIKE = re.compile(r"\d{3}\.?\d{3}\.?\d{3}-?\d{2}")
 CEP_LIKE = re.compile(r"^\d{5}-?\d{3}$")
 EMAIL_LIKE = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", re.IGNORECASE)
 MONEY_TOLERANCE = Decimal("0.05")
-MANIFEST_PATH = Path("manifesto") / "manifest.json"
+# Raiz do lote (exportador da Gold) ou subpasta manifesto/; com os dois, vale o da raiz.
+MANIFEST_PATHS = (Path("manifest.json"), Path("manifesto") / "manifest.json")
 # Só campos técnicos de identificação; nenhum valor de negócio do manifesto vai para a saída.
 MANIFEST_FIELDS = ("ambiente", "lote", "run_id_silver", "lote_bronze_silver")
 
@@ -288,18 +290,23 @@ def find_table_files(base: Path, table: str) -> list[Path]:
 
 
 def read_manifest(base: Path, present: list[str]) -> dict | None:
-    """Lê ``manifesto/manifest.json`` e devolve só a identificação técnica e os avisos."""
-    path = base / MANIFEST_PATH
-    if not path.is_file():
+    """Lê o manifesto do lote e devolve só a identificação técnica e os avisos."""
+    found = [relative for relative in MANIFEST_PATHS if (base / relative).is_file()]
+    if not found:
         return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return {"avisos": ["manifesto ilegível: JSON inválido"]}
-    if not isinstance(data, dict):
-        return {"avisos": ["manifesto ilegível: o topo não é um objeto"]}
-    result: dict = {}
+    result: dict = {"arquivo": found[0].as_posix()}
     avisos = []
+    if len(found) > 1:
+        avisos.append(
+            f"manifesto em dois caminhos: usado {found[0].as_posix()}, "
+            f"ignorado {found[1].as_posix()}"
+        )
+    try:
+        data = json.loads((base / found[0]).read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {**result, "avisos": [*avisos, "manifesto ilegível: JSON inválido"]}
+    if not isinstance(data, dict):
+        return {**result, "avisos": [*avisos, "manifesto ilegível: o topo não é um objeto"]}
     for field in MANIFEST_FIELDS:
         value = data.get(field)
         if value is None:
@@ -308,7 +315,7 @@ def read_manifest(base: Path, present: list[str]) -> dict | None:
             result[field] = str(value)
         else:
             result[field] = "formato_inesperado"
-    if str(data.get("ambiente", "")).upper() != "PROD":
+    if str(data.get("ambiente", "")).strip().upper() != "PROD":
         avisos.append(f"ambiente do manifesto não é PROD: {result['ambiente']}")
     exported = data.get("tabelas_exportadas")
     # Em objeto, só as chaves (nomes de tabela) são lidas; os valores podem ter contagens.

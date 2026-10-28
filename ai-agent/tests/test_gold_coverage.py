@@ -485,7 +485,7 @@ def _seven_tables(lote: Path) -> None:
     )
 
 
-def _manifest(lote: Path, **overrides) -> None:
+def _manifest(base: Path, where: str = "manifesto/manifest.json", **overrides) -> None:
     data = {
         "ambiente": "PROD",
         "lote": "LOTEFICT01",
@@ -497,8 +497,9 @@ def _manifest(lote: Path, **overrides) -> None:
         "contagens": {"visao_360_uc": 31337},
     }
     data.update(overrides)
-    (lote / "manifesto").mkdir()
-    (lote / "manifesto" / "manifest.json").write_text(json.dumps(data), encoding="utf-8")
+    target = base / where
+    target.parent.mkdir(exist_ok=True)
+    target.write_text(json.dumps(data), encoding="utf-8")
 
 
 def test_loose_and_subfolder_layouts_give_the_same_profile(tmp_path):
@@ -528,6 +529,7 @@ def test_prod_manifest_prints_only_technical_identification(tmp_path, capsys):
 
     manifest = json.loads(json_path.read_text(encoding="utf-8"))["manifesto"]
     assert manifest == {
+        "arquivo": "manifesto/manifest.json",
         "ambiente": "PROD",
         "lote": "LOTEFICT01",
         "run_id_silver": "RUNFICT01",
@@ -539,6 +541,44 @@ def test_prod_manifest_prints_only_technical_identification(tmp_path, capsys):
     assert "LOTEFICT01" in out and "AVISO" not in out
     for printed in (out, json_path.read_text(encoding="utf-8")):
         assert "987654.32" not in printed and "31337" not in printed
+
+
+def test_manifest_at_batch_root_is_read(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    # O exportador da Gold grava o manifesto na raiz, com o ambiente em minúsculas.
+    _manifest(lote, where="manifest.json", ambiente="prod")
+
+    assert gold_coverage.main([str(lote)]) == 0
+
+    out = capsys.readouterr().out
+    assert '"arquivo": "manifest.json"' in out and "LOTEFICT01" in out
+    assert "AVISO" not in out
+    assert "987654.32" not in out and "31337" not in out
+
+
+def test_manifest_in_both_paths_uses_root_and_warns(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    _manifest(lote, where="manifest.json", lote="LOTEFICTRAIZ")
+    _manifest(lote, where="manifesto/manifest.json", lote="LOTEFICTSUB", ambiente="DEV")
+
+    assert gold_coverage.main([str(lote)]) == 0
+
+    out = capsys.readouterr().out
+    assert "LOTEFICTRAIZ" in out and "LOTEFICTSUB" not in out
+    assert "AVISO: manifesto em dois caminhos: usado manifest.json" in out
+    assert "não é PROD" not in out
+
+
+def test_json_target_over_root_manifest_is_refused(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    _seven_tables(lote)
+    _manifest(lote, where="manifest.json")
+    original = (lote / "manifest.json").read_bytes()
+
+    _refused(lote, lote / "manifest.json", capsys)
+    assert (lote / "manifest.json").read_bytes() == original
 
 
 def test_manifest_outside_prod_is_flagged(tmp_path, capsys):
