@@ -124,7 +124,7 @@ Estados: **coberta** = a Gold tem grão e colunas para responder, sujeita às re
 
 **Consumo e receita: sem negativos, zeros ou sentinelas.** Nas três tabelas de receita, consumo e receita são sempre positivos. Não há estorno visível, e Dados confirmou que a Silver publicada não tem faturas estornadas, negativas ou canceladas.
 
-**Data de ligação inválida na origem.** Algumas UCs têm `data_ligacao` com ano anterior a 1950, na visão e na fila, sempre no dia 01-01. Não é um valor-marcador único: segundo Dados, são UCs reais com data de cadastro inválida na origem. A regra de Dados para a Gold está nas premissas abaixo.
+**Data de ligação inválida na origem.** Algumas UCs têm `data_ligacao` com ano anterior a 1950, na visão e na fila, sempre no dia 01-01. Não é um valor-marcador único: segundo Dados, são UCs reais com data de cadastro inválida na origem. O lote atual ainda traz o valor original; a sugestão de Dados para a próxima execução da Gold está nas premissas abaixo.
 
 **Divergências com o `dictionary_gold.toml`.** O snapshot `gold-v1-31a80e6` está desatualizado em relação ao lote:
 
@@ -146,7 +146,7 @@ Registradas a partir do comentário de Dados no PR #60. Valem para a GenAI até 
 - **`media_consumo_historico`.** É a média das leituras da Silver por UC, não a média da série mensal faturada (`consumo_mensal_uc`). As duas diferem para boa parte das UCs; a média da Visão 360 e a média da série mensal não são equivalentes e não devem ser usadas uma pela outra.
 - **`variacao_pct`.** Fica nula quando falta histórico em P1 ou em P2, ou quando a média inicial é menor ou igual a zero. O case não define a janela da pergunta de GD em Olinda; usar P1/P2 da Gold é premissa a documentar na resposta.
 - **Denominador do DEC/FEC.** É o cadastro atual por alimentador, constante nos 48 meses.
-- **`data_ligacao` anterior a 1950.** São UCs reais com data de cadastro inválida na origem, todas com dia 01-01. Dados trata essas datas como nulas na Gold, sem coluna nova (contrato [Gold CSV v1](contracts/gold-csv-v1.md)); a Silver continua preservando o valor original.
+- **`data_ligacao` anterior a 1950.** São UCs reais com data de cadastro inválida na origem, todas com dia 01-01. Dados sugere tratar essas datas como nulas na Gold, na próxima execução, sem coluna nova; o lote atual ainda traz o valor original (contrato [Gold CSV v1](contracts/gold-csv-v1.md)); a Silver continua preservando o valor original.
 - **Estornos.** Não há faturas estornadas, negativas ou canceladas na Silver publicada.
 
 ## (d) Estados do lote que impedem resposta confiável
@@ -171,7 +171,6 @@ Estado depois da resposta de Dados no PR #60.
 - classe da UC no tempo (cadastro atual, sem histórico);
 - bairro (duplicação corrigida no lote reanalisado);
 - estornos (nenhum na Silver publicada);
-- `data_ligacao` anterior a 1950 (data inválida na origem, nula na Gold, sem coluna nova);
 - controles C01 a C12 (recalculados e aprovados por Dados; ver g).
 
 **Respondidas** (registradas em [Premissas e definições registradas por Dados](#premissas-e-definições-registradas-por-dados)):
@@ -187,7 +186,8 @@ Estado depois da resposta de Dados no PR #60.
 - eventos recentes por UC: interrupções, chamados e satisfação só existem como totais acumulados, sem mês;
 - `faturas_uc`, `medidor_uc`, energia estimada e escore da fila, exigidos pelo case;
 - congelar os nomes de colunas `possui_gd`, `subgrupo`, `DEC` e `FEC` e atualizar o `dictionary_gold.toml` e o `docs/data-dictionary.md`. No PostgreSQL, uma coluna criada como `"DEC"` não casa com `dec`;
-- carga e reconciliação Databricks → CSV → banco (DE-06): esquema, contagens, chaves e agregados em cada passo.
+- carga e reconciliação Databricks → CSV → banco (DE-06): esquema, contagens, chaves e agregados em cada passo;
+- aplicar, na próxima execução da Gold, o tratamento como nulo de `data_ligacao` anterior a 1950 (sugestão de Dados, sem coluna nova); até lá, o lote traz o valor original. Responsável: Dados.
 
 ## (f) Situação dos itens do cartão GENAI-02
 
