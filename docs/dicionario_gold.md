@@ -1,182 +1,251 @@
-# Dicionário de Dados — Camada Gold
+# Dicionário de dados — camada Gold
 
-Este documento descreve a estrutura, esquemas de dados, e regras de negócio aplicadas às tabelas da **Camada Gold**.
+**Escopo:** contrato conceitual e regras implementadas nas sete tabelas analíticas Gold e na tabela de controle `controle_gold`. O documento descreve código e evidências disponíveis; não substitui a validação física do Delta, aceite do portal/IA ou homologação regulatória.
 
----
+**Fontes:** `data-engineering/notebook/Silver_to_gold.ipynb`, notebook de exportação, contrato Silver em `docs/services/data-engineering.md`, PR #36 e manifestos/CSV locais disponíveis.
 
-## 1. Visão 360 da Unidade Consumidora (`visao_360_uc`)
+**Como ler os tipos:** as tabelas abaixo indicam o tipo **conceitual** ou o tipo explicitamente construído no código. Precisão e escala de decimais, nulabilidade física do Delta e tipos herdados da Silver precisam ser confirmados com `DESCRIBE TABLE` ou `printSchema` na execução escolhida. Uma coluna verificada por `assert_no_nulls` pode continuar com metadado físico `nullable=true` no Spark; isso não invalida a verificação dos valores daquele lote.
 
-**Objetivo:** Consolidar métricas operacionais, comerciais, de atendimento ao cliente e interrupções ao nível de Unidade Consumidora (UC), servindo como base analítica para o portal do atendente (WEB-03) e modelos de IA.  
-**Granularidade:** Unidade Consumidora (`id_uc`).  
-**Regras de Governança e Privacidade (LGPD):** 
-- **PII Zero (Minimização Estrita):** Remoção completa de dados pessoais (`cpf_cnpj` e `nome_titular`) para anonimização total da camada analítica.
-- **Privacidade Territorial:** Descarte de dados de endereço detalhado (`logradouro`, `cep`) e coordenadas geográficas (`latitude`, `longitude`).
-- **Saneamento de Controle:** Exclusão de metadados técnicos de ETL (`_lote_id`, `_run_id`, `_geo_invalida`).
+## Visão geral
 
-| Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
-| :--- | :--- | :--- | :--- |
-| `id_uc` | `string` | Não | Chave primária: Identificador técnico único da Unidade Consumidora. |
-| `municipio` | `string` | Não | Município de localização da UC. |
-| `bairro` | `string` | Não | Bairro de localização da UC. |
-| `uf` | `string` | Sim | Unidade Federativa (ex: `PE`). |
-| `classe` | `string` | Sim | Categoria de consumo da UC (ex: Residencial, Comercial, Industrial). |
-| `subgrupo` | `string` | Sim | Subgrupo tarifário de enquadramento (ex: B1, B3). |
-| `alimentador` | `string` | Não | Código/Identificador do alimentador elétrico ao qual a UC está conectada. |
-| `data_ligacao` | `date` | Sim | Data de ligação inicial do fornecimento de energia na UC. |
-| `status` | `string` | Sim | Status operacional da UC (ex: Ativa, Desligada). |
-| `possui_gd` | `string` | Sim | Indicador de presença de Geração Distribuída (`Sim` / `Não`). |
-| `total_chamados_callcenter` | `bigint` | Sim | Quantidade total de chamados de atendimento registrados pelo cliente no call center. |
-| `media_satisfacao_atendimento` | `double` | Sim | Média das notas de satisfação atribuídas pelo cliente nos atendimentos. |
-| `total_interrupcoes_sofridas` | `bigint` | Sim | Soma de ocorrências de falta de energia/interrupções que afetaram a UC. |
-| `duracao_total_interrupcoes_horas` | `double` | Sim | Duração acumulada total das interrupções sofridas pela UC em horas. |
-| `media_consumo_historico` | `double` | Sim | Média histórica do consumo de energia baseada nas leituras em kWh (desconsidera faturamentos estimados sem leitura física). |
+| Tabela Gold | Uma linha representa | Chave verificada no notebook | Origem principal |
+| --- | --- | --- | --- |
+| `diagnostico_receita` | Uma combinação de competência, município, classe, subgrupo, bandeira e GD | Essas seis dimensões | Faturas, leituras, UCs e GD da Silver |
+| `indicadores_dec_fec` | Um alimentador com ocorrências em uma competência | `id_alimentador`, `competencia` | Ocorrências e cadastro de UCs da Silver |
+| `fila_inspecao` | Uma UC da base cadastral usada para priorização | `id_uc` | UCs, inspeções, atendimentos, leituras e GD da Silver |
+| `visao_360_uc` | Uma UC da base cadastral com indicadores agregados | `id_uc` | UCs, atendimentos, ocorrências, leituras e GD da Silver |
+| `consumo_receita_bairro` | Uma combinação de competência, município, bairro e classe | Essas quatro dimensões | Faturas, leituras e cadastro da Silver |
+| `variacao_consumo_uc` | Uma UC comparada entre duas janelas fixas | `id_uc` | Leituras mensais e `visao_360_uc` |
+| `consumo_mensal_uc` | Uma UC e competência com fatura e leitura correspondentes | `id_uc`, `competencia` | Faturas e leituras da Silver |
+| `controle_gold` | Registro de uma execução Gold concluída pelo notebook | `run_id_gold` identifica a execução; não há teste de unicidade explícito para essa tabela | Metadados da execução e dos controles Silver |
 
----
+As sete primeiras tabelas são incluídas na exportação CSV. `controle_gold` é uma tabela operacional de linhagem e não está na lista de exportação do notebook.
 
-## 2. Diagnóstico de Receita e Variação Tarifária (`diagnostico_receita`)
+## Regras compartilhadas e limites
 
-**Objetivo:** Atender ao pedido da Diretoria Comercial explicando variações no volume faturado e o impacto na receita por município, classe de consumo, subgrupo e presença de geração distribuída (GD).  
-**Granularidade:** Competência (Mensal), Município, Classe de Consumo, Subgrupo Tarifário, Bandeira Tarifária e Possui GD.  
-**Origem dos Dados (Silver):** `silver.faturas`, `silver.leituras`, `silver.unidades_consumidoras` e `silver.geracao_distribuida`.  
-**Regras de Negócio e Segurança:** 
-- Filtro de registros sintéticos: Exclusão de faturamentos de teste (`id_uc NOT LIKE 'TESTE%'`).
-- Eliminação de ambiguidade volumétrica: Distinção clara entre quantidade de UCs distintas e o acúmulo de faturas no mês.
+- **Fonte e lote:** a Gold lê as vistas `silver_publicada.*` e consulta `silver.controle_publicacao` e `silver.controle_silver`. O notebook aceita `AMBIENTE` igual a `prod`, `dev` ou `test`; a execução em `prod` exige controles físicos e Silver com status `CONCLUIDO`. Os modos `dev`/`test` têm caminho de linhagem sintética quando os controles não estão disponíveis.
+- **Cadastro:** os fluxos mostrados descartam UCs sem `id_uc` e identificadores iniciados por `TESTE`. A fila constrói sua base com `dropDuplicates(id_uc)`; o diagnóstico e a rede também fazem verificações de unicidade em suas bases. O cadastro é uma fotografia atual: classe, município, bairro, alimentador, status e GD não comprovam sua vigência histórica.
+- **Receita e consumo:** faturas e leituras são agregadas separadamente por UC e competência e depois unidas por `inner join`. Portanto, `diagnostico_receita`, `consumo_receita_bairro` e `consumo_mensal_uc` usam somente pares UC/mês presentes nas duas fontes. Faturas sem leitura e leituras sem fatura não entram nessas tabelas. A variação por UC usa a base mensal de leituras, independentemente de existir fatura correspondente.
+- **GD:** `Sim` significa que há pelo menos uma linha da UC em `geracao_distribuida`; a regra atual não considera vigência nem comprova geração, injeção ou compensação em uma competência. `Não` é atribuído quando a junção não encontra essa linha.
+- **Privacidade:** a projeção final de `fila_inspecao` e `visao_360_uc` não inclui CPF/CNPJ, nome, endereço, CEP, coordenadas ou metadados internos da Silver. `id_uc` continua sendo identificador de unidade: a ausência desses campos não torna o conjunto automaticamente anônimo.
+- **Publicação:** as tabelas Gold são gravadas com `overwrite`; algumas verificações gerais ocorrem depois da gravação. Uma falha tardia não garante que todas as tabelas anteriores permaneçam preservadas ou que haja uma troca atômica do conjunto inteiro.
+- **Ausência e zero:** verifique a regra específica de cada tabela. Algumas contagens são preenchidas com zero quando uma junção não encontra registro; isso não demonstra, por si só, cobertura completa da fonte. Uma linha ausente em `indicadores_dec_fec` não prova ausência de interrupções.
 
-| Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
-| :--- | :--- | :--- | :--- |
-| `competencia` | `string` | Sim | Ano e mês de referência do faturamento (formato `YYYY-MM`). |
-| `municipio` | `string` | Sim | Nome do município correspondente. |
-| `classe_consumo` | `string` | Sim | Categoria da unidade consumidora (ex: Residencial, Comercial, Industrial). |
-| `subgrupo_tarifario` | `string` | Sim | Subgrupo tarifário de enquadramento (ex: B1, B3). |
-| `bandeira_tarifaria` | `string` | Sim | Bandeira tarifária aplicada no período (ex: Verde, Amarela, Vermelha). |
-| `possui_gd` | `string` | Sim | Indicador de presença de Geração Distribuída (GD Solar). |
-| `qtd_ucs_distintas_faturadas_no_mes` | `bigint` | Sim | Contagem distinta de Unidades Consumidoras faturadas no período mensal. |
-| `soma_faturamentos_mensais` | `bigint` | Sim | Total acumulado de faturas/faturamentos processados na competência. |
-| `consumo_total_kwh` | `double` | Sim | Soma do consumo total de energia em kWh no mês. |
-| `receita_total_reais` | `decimal(38,2)` | Sim | Valor total da receita faturada em reais (R$). |
-| `ticket_medio_reais_por_uc` | `decimal(34,6)` | Sim | Valor médio faturado por UC (`receita_total_reais` / `qtd_ucs_distintas_faturadas_no_mes`). |
-| `consumo_medio_kwh_por_uc` | `double` | Sim | Consumo médio em kWh por unidade consumidora calculado com base nas leituras válidas. |
-| `tarifa_media_efetiva` | `double` | Sim | Tarifa média efetiva praticada (`receita_total_reais` / `consumo_total_kwh`). |
+## 1. `diagnostico_receita`
 
----
+**Finalidade:** explorar receita faturada e consumo medido por recorte comercial.
+**Grão e chave de verificação:** (`competencia`, `municipio`, `classe_consumo`, `subgrupo_tarifario`, `bandeira_tarifaria`, `possui_gd`). O teste geral exige chave não nula e única; se uma dimensão estiver nula, essa validação falha, mesmo que o agrupamento Spark aceite nulos.
+**Fontes:** `silver_publicada.faturas`, `leituras`, `unidades_consumidoras` e `geracao_distribuida`.
 
-## 3. Fila de Inspeção e Risco de Perdas Não Técnicas (`fila_inspecao`)
+| Coluna | Tipo conceitual / unidade | Definição |
+| --- | --- | --- |
+| `competencia` | texto `YYYY-MM` | Mês de referência comum às faturas e leituras. |
+| `municipio` | texto | Município do cadastro atual da UC. |
+| `classe_consumo` | texto | `classe` do cadastro atual. |
+| `subgrupo_tarifario` | texto | Subgrupo do cadastro atual. |
+| `bandeira_tarifaria` | texto | Primeira bandeira não nula da UC/mês; se houver mais de uma bandeira distinta para a mesma UC/mês, o notebook falha. Se a coluna de origem estiver ausente, é criada nula. |
+| `possui_gd` | texto: `Sim`/`Não` | Presença de linha de GD para a UC, sem vigência temporal. |
+| `qtd_ucs_distintas_faturadas_no_mes` | inteiro / UCs | Contagem distinta de UCs no grupo após o `inner join` de faturas e leituras. |
+| `soma_faturamentos_mensais` | inteiro / faturas | Soma das contagens de faturas por UC/mês no grupo; não é necessariamente igual à contagem de UCs. |
+| `consumo_total_kwh` | número / kWh | Soma do consumo das leituras agregadas das UCs/mês elegíveis. |
+| `receita_total_reais` | decimal / R$ | Soma de `valor_total` das faturas das UCs/mês elegíveis; não é receita paga. |
+| `ticket_medio_reais_por_uc` | número / R$/UC | Média da receita agregada por UC/mês no grupo. |
+| `consumo_medio_kwh_por_uc` | número / kWh/UC | Média do consumo agregado por UC/mês no grupo. |
+| `tarifa_media_efetiva` | número / R$/kWh | Receita total dividida pelo consumo total, se o consumo for não nulo e diferente de zero; caso contrário, nulo. É preço observado, não tarifa homologada. |
 
-**Objetivo:** Consolidar indicadores de risco e anomalias de consumo por Unidade Consumidora (UC) para direcionamento e priorização das equipes de fiscalização de campo no combate a fraudes e furtos de energia (perdas não técnicas).  
-**Granularidade:** Unidade Consumidora (`id_uc`).  
-**Regras de Governança e Privacidade (LGPD):** 
-- **Saneamento Cadastral:** Remoção na origem de UCs fictícias de teste (`id_uc` iniciando com `TESTE`) e documentos zerados/nulos.
-- **PII Zero (Minimização Estrita):** Eliminação total dos dados pessoais (`cpf_cnpj` e `nome_titular`), além de endereços detalhados (`logradouro`, `cep`) e coordenadas geográficas, garantindo consumo analítico e de IA 100% anonimizado via chave técnica (`id_uc`).
-- **Hierarquia de Priorização (`prioridade_inspecao`):**
-  1. `ALTA - HISTORICO IRREGULAR`: `total_inspecoes_irregulares > 0`
-  2. `REVISAR - SEM HISTORICO DE CONSUMO`: `media_consumo_historico IS NULL`
-  3. `ALTA - CONSUMO ZERO`: `possui_geracao_solar = 'Não'` AND `media_consumo_historico = 0`
-  4. `MEDIA - NUNCA INSPECIONADO`: `total_inspecoes_realizadas = 0`
-  5. `BAIXA`: Demais cenários de operação regular (incluindo UCs com queda de consumo de até 30%).
+**Cobertura:** o cadastro entra por `left join`; faturas com leitura mas sem cadastro permanecem na base intermediária, sujeitas às validações das dimensões. A Gold não estima valores para pares sem leitura ou sem fatura.
 
-| Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
-| :--- | :--- | :--- | :--- |
-| `id_uc` | `string` | Não | Chave primária: Identificador técnico único da Unidade Consumidora. |
-| `municipio` | `string` | Não | Município de localização da UC. |
-| `bairro` | `string` | Não | Bairro de localização da UC. |
-| `uf` | `string` | Sim | Unidade Federativa (ex: `PE`). |
-| `classe` | `string` | Sim | Categoria de consumo da UC (ex: Residencial, Comercial, Industrial). |
-| `subgrupo` | `string` | Sim | Subgrupo tarifário de enquadramento (ex: B1, B3). |
-| `alimentador` | `string` | Não | Código/Identificador do alimentador elétrico ao qual a UC está conectada. |
-| `data_ligacao` | `date` | Sim | Data de ligação inicial do fornecimento de energia na UC. |
-| `status` | `string` | Sim | Status operacional da UC (ex: Ativa, Desligada). |
-| `possui_geracao_solar` | `string` | Sim | Indicador de presença de Geração Distribuída Solar (`Sim` / `Não`). |
-| `total_inspecoes_realizadas` | `bigint` | Sim | Quantidade total de vistorias de campo executadas na UC. |
-| `total_inspecoes_irregulares` | `bigint` | Sim | Quantidade de vistorias onde foram confirmadas fraudes ou irregularidades. |
-| `media_consumo_historico` | `double` | Sim | Média histórica do consumo de energia calculada com base nas leituras em kWh. |
-| `prioridade_inspecao` | `string` | Não | Métrica de decisão: Classificação do nível de risco da UC (`ALTA - HISTORICO IRREGULAR`, `REVISAR - SEM HISTORICO DE CONSUMO`, `ALTA - CONSUMO ZERO`, `MEDIA - NUNCA INSPECIONADO`, `BAIXA`). |
+## 2. `indicadores_dec_fec`
 
----
+**Finalidade:** indicadores internos simplificados de continuidade por alimentador e mês.
+**Grão e chave:** (`id_alimentador`, `competencia`).
+**Fontes:** `ocorrencias_rede` e `unidades_consumidoras`; a competência vem de `data_abertura` da ocorrência.
 
-## 4. Indicadores Operacionais e Regulação ANEEL (`indicadores_dec_fec`)
+| Coluna | Tipo conceitual / unidade | Definição |
+| --- | --- | --- |
+| `id_alimentador` | texto | Alimentador associado pelo cadastro atual da UC. |
+| `municipio` | texto | Município associado ao alimentador pelo cadastro; mais de um município distinto para o mesmo alimentador faz o notebook falhar. |
+| `competencia` | texto `YYYY-MM` | Mês da abertura das ocorrências incluídas. |
+| `total_ucs_alimentador` | inteiro / UCs | Contagem distinta de UCs do cadastro atual no alimentador, excluídas as UCs de teste. É um denominador cadastral, não uma população histórica mensal. |
+| `ucs_interrompidas` | inteiro / UCs | UCs distintas com ocorrência no alimentador e mês. |
+| `frequencia_total_interrupcoes` | inteiro / pares UC–ocorrência | Contagem distinta de (`id_uc`, `id_ocorrencia`); uma UC com ocorrências diferentes pode contribuir mais de uma vez. |
+| `duracao_total_interrupcoes_horas` | número / horas | Soma de `duracao_min / 60` para as ocorrências incluídas. |
+| `DEC` | número / horas por UC | `duracao_total_interrupcoes_horas / total_ucs_alimentador`. |
+| `FEC` | número / interrupções por UC | `frequencia_total_interrupcoes / total_ucs_alimentador`. |
 
-**Objetivo:** Calcular os indicadores regulatórios operacionais de Duração Equivalente de Interrupção por Unidade Consumidora (**DEC**) e Frequência Equivalente de Interrupção por Unidade Consumidora (**FEC**) segundo as normas simplificadas de apuração de continuidade.  
-**Granularidade:** Alimentador (`id_alimentador`), Município (`municipio`) e Competência (`competencia`).  
-**Regras de Negócio e Tratamento de Dados:** 
-- **Filtro de Segurança / Qualidade (N2):** Exclusão das UCs fictícias de teste (`id_uc` iniciando com `TESTE`), garantindo a base real de 45.000 UCs no denominador para evitar subestimação dos indicadores operacionais.
-- **Fórmulas Simplificadas:**
-  * **DEC:** `DEC` = `duracao_total_interrupcoes_horas` / `total_ucs_alimentador`
-  * **FEC:** `FEC` = `frequencia_total_interrupcoes` / `total_ucs_alimentador`
+**Filtros e limites:** exige UC, ocorrência e data de abertura não nulas; verifica unicidade do par UC–ocorrência e rejeita duração negativa. A atribuição usa o cadastro atual e não prova vigência histórica. A tabela parte das ocorrências agregadas: não cria automaticamente linhas para alimentadores/mês sem ocorrência. O teste geral rejeita denominador inválido e DEC/FEC nulos ou negativos. Estes indicadores são simplificados e não constituem apuração ou conformidade regulatória oficial.
 
-| Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
-| :--- | :--- | :--- | :--- |
-| `id_alimentador` | `string` | Sim | Identificador único do alimentador elétrico. |
-| `municipio` | `string` | Sim | Nome do município atendido pelo alimentador. |
-| `competencia` | `string` | Sim | Ano e mês de referência do indicador (formato `YYYY-MM`). |
-| `total_ucs_alimentador` | `bigint` | Sim | Denominador: Quantidade total de UCs ativas vinculadas ao alimentador (sem UCs sintéticas de teste). |
-| `ucs_interrompidas` | `bigint` | Sim | Quantidade de unidades consumidoras impactadas por interrupções no período. |
-| `frequencia_total_interrupcoes` | `bigint` | Sim | Soma do número total de ocorrências de interrupção registradas no alimentador. |
-| `duracao_total_interrupcoes_horas` | `double` | Sim | Soma total da duração das interrupções em horas no alimentador. |
-| `DEC` | `double` | Sim | Indicador DEC (horas/UC): Duração equivalente de interrupção por unidade consumidora (cálculo simplificado). |
-| `FEC` | `double` | Sim | Indicador FEC (interrupções/UC): Frequência equivalente de interrupção por unidade consumidora (cálculo simplificado). |
+## 3. `fila_inspecao`
 
----
+**Finalidade:** apresentar atributos e prioridades para triagem de UCs.
+**Grão e chave:** uma linha por `id_uc`; o notebook verifica unicidade e ausência de nulos em `id_uc`, `municipio`, `bairro`, `alimentador` e `prioridade_inspecao`.
+**Fontes:** cadastro, inspeções, atendimentos, leituras e GD da Silver. Os agregados de atendimento são construídos no processamento, mas não são projetados na tabela final da fila.
 
-## 5. Consumo e Receita por Bairro e Mês (`consumo_receita_bairro`)
+| Coluna | Tipo conceitual / unidade | Definição |
+| --- | --- | --- |
+| `id_uc` | texto | Identificador da unidade consumidora. |
+| `municipio` | texto | Município do cadastro atual. |
+| `bairro` | texto | Bairro do cadastro atual. |
+| `uf` | texto | Unidade federativa do cadastro. |
+| `classe` | texto | Classe do cadastro atual. |
+| `subgrupo` | texto | `subgrupo_tarifario` da Silver, renomeado na projeção. |
+| `alimentador` | texto | Alimentador do cadastro atual. |
+| `data_ligacao` | data | Data de ligação cadastrada. |
+| `status` | texto | Status cadastral da UC. |
+| `possui_geracao_solar` | texto: `Sim`/`Não` | Presença de linha de GD; o nome da coluna não prova geração ou compensação mensal. |
+| `total_inspecoes_realizadas` | inteiro / inspeções | Contagem distinta de `id_inspecao` com UC e ID não nulos; zero quando não há agregado associado. |
+| `total_inspecoes_irregulares` | inteiro / inspeções | Contagem distinta cujo `resultado` é exatamente `IRREGULARIDADE CONFIRMADA`; outros valores não entram nessa contagem. |
+| `media_consumo_historico` | número / kWh por leitura | Média de `consumo_kwh` das leituras não nulas da UC; não é necessariamente média mensal. Nula se não houver leitura válida associada. |
+| `prioridade_inspecao` | texto | Categoria produzida pela hierarquia abaixo. |
 
-**Objetivo:** Permitir que agentes de IA e aplicações de backend respondam a consultas de desempenho territorial (ex: *"Qual bairro teve maior receita no mês?"*) de forma otimizada, eliminando a necessidade de varrer séries temporais individuais de UCs.  
-**Granularidade:** Competência (`competencia`), Município (`municipio`), Bairro (`bairro`) e Classe de Consumo (`classe_consumo`).  
-**Origem dos Dados (Silver):** Cruzamento da base de faturamento e leituras válidas com a base cadastral de UCs.  
-**Auditoria e Conciliação Financeira:** Aprovada com 100% de conciliação (R$ 0,00 de divergência) contra a tabela `diagnostico_receita` no valor total de R$ 591.560.472,66.
+**Prioridade, na ordem aplicada:**
 
-| Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
-| :--- | :--- | :--- | :--- |
-| `competencia` | `string` | Sim | Mês e ano de referência do faturamento (formato `YYYY-MM`). |
-| `municipio` | `string` | Sim | Nome do município associado à UC. |
-| `bairro` | `string` | Sim | Nome do bairro associado à UC. |
-| `classe_consumo` | `string` | Sim | Categoria da unidade consumidora (ex: Residencial, Comercial, Industrial). |
-| `consumo_total_kwh` | `double` | Sim | Soma do consumo em kWh apurado via leituras na combinação de mês/bairro/classe. |
-| `receita_total_reais` | `decimal(38,2)` | Sim | Soma da receita faturada em Reais (R$) na combinação de mês/bairro/classe. |
-| `qtd_ucs_distintas_faturadas_no_mes` | `bigint` | Sim | Contagem distinta de Unidades Consumidoras únicas faturadas na combinação. |
+1. `ALTA - HISTORICO IRREGULAR`: há inspeção com resultado exatamente `IRREGULARIDADE CONFIRMADA`.
+2. `REVISAR - SEM HISTORICO DE CONSUMO`: não há média de consumo disponível.
+3. `ALTA - CONSUMO ZERO`: média de consumo igual a zero e `possui_geracao_solar = Não`.
+4. `MEDIA - NUNCA INSPECIONADO`: não se enquadrou acima e não há inspeções realizadas.
+5. `BAIXA`: demais casos.
 
----
+Prioridade indica uma regra de triagem; não é diagnóstico de fraude. O mapeamento de outros resultados de inspeção deve ser confirmado com a origem antes de ampliá-lo.
 
-## 6. Variação de Consumo por UC (`variacao_consumo_uc`)
+Na exportação local examinada em 28/10/2026, `ALTA - CONSUMO ZERO` teve zero UCs. A regra continua documentada porque existe no código; a ausência de casos nesse lote não demonstra que a categoria seja inalcançável.
 
-**Objetivo:** Permitir que agentes de IA e modelos analíticos identifiquem variações temporais e anomalias de consumo individualizado (ex: *"Quais UCs com geração distribuída apresentaram queda de consumo superior a 30%?"*).  
-**Granularidade:** Unidade Consumidora (`id_uc`).  
-**Cobertura Base:** 45.000 Unidades Consumidoras (100% da rede ativa).  
-**Janelas Temporais de Análise:**
-- **Período Inicial (P1):** Média de consumo mensal de `2022-07` a `2023-06` (12 meses, baseado nas leituras válidas).
-- **Período Final (P2):** Média de consumo mensal de `2025-07` a `2026-06` (12 meses, baseado nas leituras válidas).
-- **Fórmulas e Regras de Negócio:**
-  * **Variação Absoluta:** `variacao_kwh` = `consumo_medio_final` - `consumo_medio_inicial`
-  * **Variação Percentual:** `variacao_pct` = ((`consumo_medio_final` - `consumo_medio_inicial`) / `consumo_medio_inicial`) * 100
-- **Tratamento de Nulos:** Indicador `variacao_pct` mantido como `NULL` quando não há histórico de leitura em ambos os períodos (P1 e P2). Havendo ao menos 1 mês com medição em cada janela, o indicador é calculado sobre a média dos meses disponíveis.
+## 4. `visao_360_uc`
 
-| Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
-| :--- | :--- | :--- | :--- |
-| `id_uc` | `string` | Não | Chave primária: Identificador técnico único da Unidade Consumidora. |
-| `municipio` | `string` | Sim | Município de localização da UC. |
-| `bairro` | `string` | Sim | Bairro de localização da UC. |
-| `possui_gd` | `string` | Sim | Indicador de presença de Geração Distribuída (`Sim` / `Não`). |
-| `consumo_medio_inicial` | `double` | Sim | Média mensal de consumo em kWh baseada nas leituras do Período Inicial (P1: `2022-07` a `2023-06`). |
-| `meses_com_leitura_p1` | `bigint` | Sim | Quantidade de meses com leituras válidas registradas no Período Inicial (P1). |
-| `consumo_medio_final` | `double` | Sim | Média mensal de consumo em kWh baseada nas leituras do Período Final (P2: `2025-07` a `2026-06`). |
-| `meses_com_leitura_p2` | `bigint` | Sim | Quantidade de meses com leituras válidas registradas no Período Final (P2). |
-| `variacao_kwh` | `double` | Sim | Variação absoluta de consumo em kWh ($\text{P2} - \text{P1}$). |
-| `variacao_pct` | `double` | Sim | Variação percentual de consumo ($\%$). Mantido como `NULL` na ausência de histórico de leituras. |
-| `queda_consumo_superior_30_pct` | `boolean` | Sim | Flag de decisão (`True` / `False`): `True` se a variação percentual for estritamente menor que `-30.0%` (`variacao_pct < -30.0`). |
+**Finalidade:** reunir atributos cadastrais e indicadores agregados por UC.
+**Grão e chave:** `id_uc`; o notebook também exige `municipio`, `bairro` e `alimentador` não nulos.
+**Fontes:** cadastro, atendimentos, ocorrências, leituras e GD da Silver.
 
----
+| Coluna | Tipo conceitual / unidade | Definição |
+| --- | --- | --- |
+| `id_uc` | texto | Identificador da unidade consumidora. |
+| `municipio` | texto | Município do cadastro atual. |
+| `bairro` | texto | Bairro do cadastro atual. |
+| `uf` | texto | Unidade federativa do cadastro. |
+| `classe` | texto | Classe de consumo atual. |
+| `subgrupo` | texto | `subgrupo_tarifario` renomeado. |
+| `alimentador` | texto | Alimentador do cadastro atual. |
+| `data_ligacao` | data | Data de ligação cadastrada. |
+| `status` | texto | Status cadastral da UC. |
+| `possui_gd` | texto: `Sim`/`Não` | Presença de linha de GD, sem vigência temporal. |
+| `total_chamados_callcenter` | inteiro / protocolos | Contagem distinta de protocolos associados; zero quando não há agregado associado. |
+| `media_satisfacao_atendimento` | número / nota | Média de `nota_satisfacao` dos atendimentos válidos; pode ser nula. |
+| `total_interrupcoes_sofridas` | inteiro / ocorrências | Contagem distinta de IDs de ocorrência por UC; zero quando não há agregado associado. |
+| `duracao_total_interrupcoes_horas` | número / horas | Soma das durações das ocorrências associadas divididas por 60; preenchida com zero quando o agregado é nulo. |
+| `media_consumo_historico` | número / kWh por leitura | Média das leituras não nulas associadas à UC; pode ser nula e não equivale necessariamente a média mensal. |
 
-## 7. Consumo e Receita Mensal por Unidade Consumidora (`consumo_mensal_uc`)
+**Limite:** esta tabela não contém nome, endereço, histórico de faturas, medidores ou registros individuais de atendimento/interrupção. Esses dados não podem ser deduzidos da presença desta tabela; a jornada do portal deve usar fontes adequadas para cada detalhe.
 
-**Objetivo:** Armazenar a série histórica temporal granular de consumo (kWh) e receita (R$) por Unidade Consumidora e competência. Serve como camada intermediária para alimentar a Visão 360° e permitir que agentes de GenAI respondam a consultas de histórico faturado e medições de consumo sem reprocessamentos pesados.  
-**Granularidade / Chave Primária:** Unidade Consumidora e Competência (`id_uc`, `competencia`).  
-**Regras de Negócio e Enriquecimento:**
-- **Junção de Fontes:** `INNER JOIN` entre faturas e leituras pré-agregadas por UC e mês, garantindo alinhamento financeiro total com a tabela `diagnostico_receita`.
-- **Padronização Monetária e Volumétrica:** Métrica `receita_reais` padronizada em duas casas decimais com precisão decimal estrita, e `consumo_kwh` derivado da medição das leituras.
+## 5. `consumo_receita_bairro`
 
-| Nome da Coluna | Tipo de Dado | Permite Nulo | Descrição / Regra de Negócio |
-| :--- | :--- | :--- | :--- |
-| `id_uc` | `string` | Não | Chave primária parte 1: Identificador técnico único da Unidade Consumidora. |
-| `competencia` | `string` | Não | Chave primária parte 2: Ano e mês de referência da fatura (formato `YYYY-MM`). |
-| `consumo_kwh` | `double` | Sim | Volume total de consumo em kWh apurado via leituras na UC na competência. |
-| `receita_reais` | `decimal(31,2)` | Sim | Valor total da receita faturada em reais (R$) para a UC no mês. |
+**Finalidade:** analisar receita e consumo por bairro, município, classe e competência.
+**Grão e chave:** (`competencia`, `municipio`, `bairro`, `classe_consumo`), validados como não nulos e únicos.
+**Fontes:** faturas e leituras pré-agregadas por UC/mês, com cadastro associado por `left join`.
 
+| Coluna | Tipo conceitual / unidade | Definição |
+| --- | --- | --- |
+| `competencia` | texto `YYYY-MM` | Mês de referência da fatura e leitura agregadas. |
+| `municipio` | texto | Município do cadastro; ausência recebe `Não informado`. |
+| `bairro` | texto | Bairro do cadastro; ausência recebe `Não informado`. |
+| `classe_consumo` | texto | Classe do cadastro; ausência recebe `Não informado`. |
+| `consumo_total_kwh` | número / kWh | Soma do consumo das UCs/mês elegíveis no recorte. |
+| `receita_total_reais` | decimal / R$ | Soma do faturamento das UCs/mês elegíveis no recorte. |
+| `qtd_ucs_distintas_faturadas_no_mes` | inteiro / UCs | Contagem distinta das UCs elegíveis no recorte. |
+
+**Limite:** os nomes `Não informado` representam ausência de dimensão cadastral; não são um município, bairro ou classe reais. A fonte é a interseção entre faturas e leituras, e os recortes devem ser reconciliados com `diagnostico_receita` no mesmo lote.
+
+## 6. `variacao_consumo_uc`
+
+**Finalidade:** comparar o consumo mensal médio de cada UC entre dois períodos fixos.
+**Grão e chave:** `id_uc`; população de referência herdada de `visao_360_uc`.
+**Fontes:** `gold_visao_360` e leituras pré-agregadas por UC e mês.
+
+**Janelas inclusivas:** P1 = julho/2022 a junho/2023; P2 = julho/2025 a junho/2026. Cada média usa as competências com consumo não nulo disponíveis na janela; o código não exige 12 meses completos.
+
+| Coluna | Tipo conceitual / unidade | Definição |
+| --- | --- | --- |
+| `id_uc` | texto | Identificador da unidade. |
+| `municipio` | texto | Município da Visão 360; ausência recebe `Não informado`. |
+| `bairro` | texto | Bairro da Visão 360; ausência recebe `Não informado`. |
+| `possui_gd` | texto: `Sim`/`Não` | Presença de linha de GD; sem vigência histórica. |
+| `consumo_medio_inicial` | número / kWh por mês observado | Média de `consumo_uc_mes` em P1, arredondada a duas casas; pode ser nula. |
+| `meses_com_leitura_p1` | inteiro / meses | Número de competências distintas com consumo não nulo em P1; zero se não houver agregado. |
+| `consumo_medio_final` | número / kWh por mês observado | Média de `consumo_uc_mes` em P2, arredondada a duas casas; pode ser nula. |
+| `meses_com_leitura_p2` | inteiro / meses | Número de competências distintas com consumo não nulo em P2; zero se não houver agregado. |
+| `variacao_kwh` | número / kWh | Média final menos inicial, calculada antes do arredondamento de exibição e arredondada a duas casas; nula se uma média estiver ausente. |
+| `variacao_pct` | número / % | `(média final − média inicial) / média inicial × 100`, arredondada a duas casas; nula quando a média inicial não é positiva ou a final está ausente. |
+| `queda_consumo_superior_30_pct` | booleano | Verdadeiro quando a variação percentual **bruta** é estritamente menor que −30%; comparações sem valor viram `false`. Uma queda exatamente de 30% não atende à regra. |
+
+**Interpretação:** `false` na flag também pode representar comparação indisponível; consulte as médias e contagens de meses antes de concluir que não houve queda. A variação usa leituras, enquanto as tabelas financeiras usam a interseção de leituras e faturas.
+
+## 7. `consumo_mensal_uc`
+
+**Finalidade:** série por unidade e competência para consumo e receita.
+**Grão e chave:** (`id_uc`, `competencia`), com não nulidade e unicidade verificadas.
+**Fontes:** faturas e leituras agregadas por UC/mês, unidas por `inner join`.
+
+| Coluna | Tipo conceitual / unidade | Definição |
+| --- | --- | --- |
+| `id_uc` | texto | Identificador da unidade. |
+| `competencia` | texto `YYYY-MM` | Mês de referência comum às duas fontes. |
+| `consumo_kwh` | número / kWh | Soma do consumo das leituras da UC/mês, arredondada a duas casas. |
+| `receita_reais` | decimal / R$ | Soma de `valor_total` das faturas da UC/mês, arredondada a duas casas. |
+
+**Limite:** não há linha para UC/mês que exista somente em faturas ou somente em leituras. A tabela informa valor faturado, não valor pago, e não contém as dimensões territoriais; qualquer junção adicional precisa preservar o grão.
+
+## 8. `controle_gold` — linhagem da execução
+
+O notebook gera um registro de controle ao final das verificações e usa `append` quando a tabela já existe. Não é uma das sete tabelas do CSV de exportação. Uma falha anterior a essa etapa não garante um registro de falha nesta tabela.
+
+| Coluna | Tipo declarado | Definição |
+| --- | --- | --- |
+| `run_id_gold` | `string` | ID da execução Gold, com data/hora UTC e sufixo aleatório. |
+| `run_id_silver` | `string` | Identificador da execução Silver usada. |
+| `lote_bronze_silver` | `string` | Identificador do lote Bronze informado pela linhagem Silver. |
+| `status_silver` | `string` | Estado Silver registrado para a execução. |
+| `silver_lineage_status` | `string` | Identifica se a linhagem veio de controle físico ou do caminho sintético. |
+| `status_gold` | `string` | `CONCLUIDO` quando o registro final é criado. |
+| `tabelas_geradas` | `string` | Lista textual das sete tabelas verificadas. |
+| `ambiente` | `string` | `prod`, `dev` ou `test`. |
+| `processado_em` | `timestamp` | Instante UTC usado para o registro. |
+
+Esses campos são declarados com nulabilidade física `False` no schema de criação. O notebook verifica que as sete tabelas existem antes de inserir o registro; isso não transforma as gravações anteriores em uma publicação atômica.
+
+## Exportação e verificações
+
+`Exportacao_Gold_SQLite.ipynb` verifica a existência das sete tabelas, cria o Volume `workspace.gold.gold_export_volume` se necessário e grava cada tabela como CSV no diretório correspondente em `/Volumes/workspace/gold/gold_export_volume/export_csv`. Usa cabeçalho, separador `;`, UTF-8, `quoteAll` e `overwrite` por tabela. A gravação Spark pode gerar vários arquivos `part-*` por diretório; não há garantia de um único CSV por tabela. O notebook de exportação não executa a carga no banco local nem faz reconciliação entre o banco e a Gold.
+
+O notebook Gold contém verificações de presença de registros, chaves não nulas e únicas nas sete tabelas, além de regras de sanidade e reconciliação. A existência do código não prova execução para todo lote. O controle de DEC reconstitui o esperado da Silver para um alimentador e competência fixos; não é, sozinho, uma verificação independente de todos os alimentadores nem do FEC.
+
+Na revisão da versão `c95bfc3` relatada no PR #36, a amostra usou a Silver `20261024T035426Z_c5ba30e0` e registrou receita Gold de R$ 591.560.472,66 e reconciliação com a Silver. A revisão relatou que 8,58% da receita da Silver correspondia a faturas sem leitura; a análise anterior no PR também registrou aproximadamente 22,6 milhões de kWh em leituras sem fatura correspondente. Esses números são evidências das análises relatadas, não constantes válidas para qualquer execução. A pessoa usuária confirmou posteriormente validações de execução, reconciliação e Workflow; elas não foram vinculadas à execução `c95bfc3` nesta revisão.
+
+### Validação profunda e contagem de bairros
+
+O PR #36 registra que o Gold `GOLD_20261027T014656Z_81c5530b`, baseado na Silver `20261026T225331Z_c738405b`, tinha 51.862 linhas em `consumo_receita_bairro`, enquanto o CSV recebido pelo backend tinha 55.694. A diferença compara lotes cuja equivalência ainda precisa ser esclarecida.
+
+Na conversa da equipe, a contagem do CSV do Drive foi informada como 272 bairros distintos. A exportação local em `data/manifest.json` é de outro run: Gold `GOLD_20261028T024507Z_7f5f4fda`, Silver `20261028T022140Z_b5d60d92`. Seu `consumo_receita_bairro.csv` tem 51.862 registros, 272 valores distintos de `bairro` (também após trim e normalização de caixa) e 297 combinações normalizadas de município e bairro. Portanto, o número 272 coincide, mas não explica a diferença de 3.832 linhas nem prova que os arquivos vieram do mesmo lote. A hipótese de que o CSV discrepante teria cerca de 332 bairros não foi confirmada pela contagem informada.
+
+Os sete CSVs listados no manifesto local estavam presentes na revisão de 28/10/2026. `diagnostico_receita` tem 4.694 linhas; as demais contagens são: `consumo_mensal_uc` 1.928.920; `consumo_receita_bairro` 51.862; `fila_inspecao` 45.000; `indicadores_dec_fec` 5.856; `variacao_consumo_uc` 45.000; e `visao_360_uc` 45.000. Na conferência local de `diagnostico_receita` e `consumo_receita_bairro`, as chaves de grão não tinham nulos nem duplicatas. Receita (R$ 591.560.472,66) e consumo (790.691.150 kWh) fecharam entre as duas tabelas no total e nas 48 competências. Essa conferência local é de outro run; a diferença de 3.832 linhas entre os lotes continua sem causa identificada.
+
+Os achados textuais da revisão ficam tratados neste rascunho assim:
+
+- `media_consumo_historico` é calculada a partir das leituras, não do consumo faturado.
+- A flag de queda exige variação bruta estritamente menor que `-30%`; `-30%` exatos não entram.
+- Médias e variações são arredondadas conforme descrito por coluna; as variações são calculadas antes do arredondamento final.
+- FEC conta pares distintos UC–ocorrência; duração soma eventos incluídos. DEC/FEC são simplificados e a tabela não cria automaticamente grupos sem ocorrência.
+- Os nomes de categorias devem corresponder aos valores observados, em caixa e grafia como publicados; exemplos de um lote não são domínio fechado. Neste CSV atual, `classe_consumo` contém `COMERCIAL`, `INDUSTRIAL`, `PODER PUBLICO`, `RESIDENCIAL` e `RURAL`; `subgrupo_tarifario` contém `A4`, `B1`, `B2` e `B3`; `bandeira_tarifaria` contém `AMARELA`, `VERDE`, `VERMELHA P1` e `VERMELHA P2`.
+- A regra `ALTA - CONSUMO ZERO` permanece documentada mesmo sem ocorrências no lote local examinado.
+- Chamados, satisfação, interrupções/duração e `possui_gd` são definidos na seção de `visao_360_uc`, conforme as fontes e os agregados implementados no notebook.
+
+Para explicar a diferença de linhas, ainda é necessário comparar o CSV de 55.694 linhas com a exportação Gold do mesmo `run_id`, usando o grão completo (`competencia`, `municipio`, `bairro`, `classe_consumo`) e identificando chaves exclusivas, repetidas ou ausentes em cada lado. A contagem de bairros, isoladamente, não localiza essas linhas.
+
+## Conferência no Databricks antes de homologar
+
+Para cada uma das sete tabelas e para `controle_gold`:
+
+1. Consultar `DESCRIBE TABLE` ou `printSchema` e registrar tipos físicos, precisão decimal e nulabilidade.
+2. Conferir as colunas publicadas com este rascunho e verificar chaves, nulos, contagens e relações entre tabelas para o mesmo lote.
+3. Reconciliar receita e energia com as fontes Silver, incluindo os pares que ficaram fora do `inner join`, e registrar a evidência para o lote efetivo.
+4. Conferir DEC/FEC, janelas e população em amostras independentes; identificar competências sem linha, denominadores e limites do cadastro atual.
+5. Comparar esquema, contagens e agregados de Gold, CSV e banco local; verificar os arquivos de cada diretório, o lote e as condições de reexecução.
+6. Revisar permissões e uso de identificadores no portal/IA. Só alterar o estado de DE-08 após revisão humana e evidências correspondentes; este dicionário documenta o contrato, não conclui o requisito.

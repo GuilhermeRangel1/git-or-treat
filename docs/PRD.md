@@ -2,7 +2,7 @@
 
 **Versão:** 1.4 documental · **Data:** 20/10/2026 · **Estado da implementação:** parcial — fundação, primeira fatia visual e consulta sintética integrada disponíveis; requisitos funcionais pendentes
 
-**Origem:** case final Visagio, Rocket Lab 2026.2, fornecido pela pessoa usuária em dez páginas de imagem. Este documento reescreve o enunciado em texto pesquisável, organiza critérios de aceite e separa exigências do case de decisões futuras do time. As imagens não integram o repositório.  
+**Origem:** case final Visagio, Rocket Lab 2026.2, fornecido pela pessoa usuária em dez páginas de imagem. Este documento reescreve o enunciado em texto pesquisável, organiza critérios de aceite e separa exigências do case de decisões futuras do time. As imagens não integram o repositório.
 **Classificação do material de origem:** o enunciado traz indicação de confidencialidade. O mesmo enunciado exige repositório GitHub público na entrega. Essa tensão precisa de confirmação com a organização antes da publicação de conteúdo ou dados do case.
 
 ## 0. Como usar este PRD
@@ -457,11 +457,20 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-10-28 — DE-04, DE-05, DE-06 e DE-08 — revisão semântica do dicionário Gold
+
+- Estado: estados dos requisitos preservados. Dicionário Gold ampliado para descrever o modelo implementado; não constitui aceite regulatório.
+- Arquivos: `docs/dicionario_gold.md` ampliado no próprio arquivo; Markdown do notebook Gold alinhado, preservando todas as células de código. `docs/data-dictionary.md` atualizado como índice do dicionário detalhado, com cobertura das métricas e relação com os contratos da aplicação. O texto anterior da integração CSV v1 foi preservado em contexto histórico recolhido, com as definições atuais em destaque. A simulação de combinação desse arquivo com origin/develop passou sem conflito; nenhum merge foi executado. Os arquivos extras de relatório e SQL foram retirados por solicitação.
+- Escopo: médias das leituras, flag estrita sobre percentual bruto, arredondamento após cálculo, eventos por UC afetada, grade com ocorrências, DEC/FEC simplificado, categorias reais, ausência de casos ALTA - CONSUMO ZERO e limites dos agregados por UC/GD. Retirados os acréscimos locais de publicação/contrato v2/testes extras, por solicitação. O notebook de exportação foi preservado conforme a versão commitada; esta revisão não altera seu funcionamento nem conclui DE-06.
+- Evidência e limites: CSVs locais de um run diferente do auditado no PR; 51.862 registros de bairro e 272 nomes distintos. Os 55.694 são referência documental registrada no PR; o contrato v1 e o CSV antigo não estão disponíveis localmente. A diferença não foi classificada como perda de dados. Recomposição independente por UC contra a Silver continua pendente.
+- Verificações: conferência local dos sete CSVs com o utilitário preexistente `work/validar_dicionario_gold.py --dictionary docs/dicionario_gold.md --output work/validacao-dicionario-oficial-revisado.json`: saída 0, sem divergências nos controles implementados. As 15 células de código do notebook Gold foram comparadas com HEAD e preservadas; compilação Python e `git diff --check` passaram. Não houve execução desta revisão no Databricks nem no banco do backend. Sem alterações no Trello por solicitação explícita. Revisão documental e resolução do conflito reunidas na mesma alteração.
+
+
 ### 2026-10-27 — DE-04 a DE-08 — integração da branch Gold com a develop
 
 - Estado: DE-04, DE-05, DE-06, DE-07 e DE-08 mantêm os estados do PRD. A integração da branch e a documentação de evidências não alteram automaticamente os critérios de aceite.
 - Arquivos: `data-engineering/notebook/Silver_to_gold.ipynb`, `data-engineering/notebook/Exportacao_Gold_SQLite.ipynb` e `docs/dicionario_gold.md` foram mantidos da `feat/gold`; Bronze, perfilamento e Silver vieram da `develop`. A Gold gera sete tabelas analíticas e `gold.controle_gold`; o notebook de exportação grava CSV por tabela em Volume, sem carregar o banco local.
-- Evidências: na revisão do [PR #36](https://github.com/GuilhermeRangel1/git-or-treat/pull/36), Júlia relatou execução da versão `c95bfc3` sobre a Silver `20261024T035426Z_c5ba30e0`, com reconciliação. Em 27/10/2026, a pessoa usuária confirmou que execução, reconciliação e Workflow já foram validados; os identificadores de execução, versões e resultados dessa validação mais recente não foram informados nesta revisão e devem ser vinculados ao registro.
+- Evidências: na revisão do [PR #36](https://github.com/GuilhermeRangel1/git-or-treat/pull/36), foi registrada a execução da versão `c95bfc3` sobre a Silver `20261024T035426Z_c5ba30e0`, com reconciliação. Em 27/10/2026, a pessoa usuária confirmou que execução, reconciliação e Workflow já foram validados; os identificadores de execução, versões e resultados dessa validação mais recente não foram informados nesta revisão e devem ser vinculados ao registro.
 - Verificações desta integração: os cinco notebooks foram lidos como JSON válido; seus hashes, e o do dicionário, foram comparados às respectivas branches de origem; `git diff --cached --check origin/develop` passou na preparação do merge. Não houve execução dos notebooks no Databricks nesta revisão.
 - Documentação e limites: registrar os identificadores, versões e resultados das validações informadas e atualizar o YAML versionado para refletir o Job efetivamente executado. Os testes finais da Gold ocorrem após gravações, e a conferência de DEC no notebook usa um alimentador e competência fixos, sem validar toda a tabela ou o FEC. O dicionário original `docs/dicionario_gold.md` foi preservado, e sua revisão para as sete saídas permanece vinculada a DE-08.
 - Rastreador: descrições dos cartões DE-04 a DE-08 atualizadas com a evidência e a ressalva de alteração local ainda sem commit. DE-04 e DE-05 aparecem marcados como concluídos no Trello, embora permaneçam `Pendente` no PRD; a marcação precisa ser reconciliada no quadro.

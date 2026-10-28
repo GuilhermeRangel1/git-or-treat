@@ -118,8 +118,7 @@ já foram validados; a identificação e os resultados da validação mais recen
 devem ser vinculados ao PRD. As verificações finais da Gold ocorrem depois de
 gravações das tabelas; uma falha não garante que a versão anterior permaneça publicada.
 O teste de DEC recalcula a amostra da Silver, mas usa um alimentador e um mês
-fixos e não valida toda a tabela nem o FEC. O dicionário existente permanece
-pendente de reconciliação com as sete saídas e suas limitações.
+fixos e não valida toda a tabela nem o FEC.
 
 ## Executar no Databricks
 

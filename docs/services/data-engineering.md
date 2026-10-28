@@ -58,7 +58,6 @@ Toda linha aceita mantém `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_
 
 `Exportacao_Gold_SQLite.ipynb` verifica a existência das sete tabelas e grava CSVs separados por tabela no Volume `workspace.gold.gold_export_volume`, com sobrescrita. O notebook não carrega os CSVs no banco local: essa carga é uma etapa separada. A pessoa usuária confirmou a validação da execução, da reconciliação e do Workflow; os detalhes da evidência mais recente devem ser registrados no PRD. As tabelas Gold são gravadas antes de todas as verificações finais, portanto uma falha não garante preservação automática da versão anterior. O teste de DEC recalcula o esperado da Silver para um alimentador e mês fixos; não valida toda a tabela nem o FEC.
 
-O dicionário original [`dicionario_gold.md`](../dicionario_gold.md) foi mantido sem alterações. Algumas descrições divergem das projeções atuais e ele não cobre as sete saídas; sua revisão permanece vinculada ao aceite de DE-08.
 
 ## Pontos críticos de modelagem
 
