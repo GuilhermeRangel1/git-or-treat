@@ -10,6 +10,8 @@ Formato observado: UTF-8, separador `;`, cabeçalho, decimal com ponto, datas IS
 
 O contrato físico histórico é `backend/app/models/gold_v1.py`; os metadados atuais são registrados por `backend/app/models/gold_load.py`, com versão `gold-csv-v1`. Cada CSV corresponde a `gold_<nome_da_tabela>` no banco; campos mantêm os nomes observados. Receita usa `Numeric(38,2)`/Decimal; campos double da exportação usam Float, contagens usam BigInteger, datas usam Date. Ticket médio é uma medida derivada com casas adicionais, não um valor monetário total. Essa escolha física não valida sua fórmula.
 
+Campos financeiros anuláveis permanecem distintos entre ausência e zero: CSV vazio gera `NULL`; o manifesto registra `totals[field]=null` e `present_counts[field]=0` quando todos os valores estão ausentes. Um zero explícito soma `0.00` e incrementa a contagem de presentes. A validação compara `SUM` nulo somente com expectativa ausente e reconcilia as três tabelas financeiras exigindo ausência nas três ou totais numéricos iguais. A conversão e a soma Decimal não dependem do contexto decimal global; SQLite não serve como prova de exatidão `Numeric(38,2)` por armazenar valores numéricos via ponto flutuante.
+
 Chaves: UC/competência em `consumo_mensal_uc`; competência/município/bairro/classe em `consumo_receita_bairro`; competência/município/classe/subgrupo/bandeira/GD em `diagnostico_receita`; alimentador/competência em `indicadores_dec_fec`; UC nas outras três tabelas.
 
 ## Carga e publicação no banco local

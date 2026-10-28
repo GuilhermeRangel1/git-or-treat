@@ -5,7 +5,7 @@ import json
 import math
 import re
 from datetime import date, datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, localcontext
 from pathlib import Path
 from uuid import uuid4
 
@@ -75,9 +75,14 @@ def _convert(value, column):
             if not math.isfinite(converted):
                 raise ValueError("número fora do intervalo")
             return converted
-        if number != number.quantize(Decimal(1).scaleb(-column.type.scale)):
+        with localcontext() as context:
+            context.prec = max(column.type.precision + 1, len(number.as_tuple().digits) + abs(column.type.scale) + 2)
+            quantum = Decimal((0, (1,), -column.type.scale))
+            quantized = number.quantize(quantum)
+        if number != quantized:
             raise ValueError("escala excedida")
-        if abs(number) >= Decimal(10) ** (column.type.precision - column.type.scale):
+        limit = Decimal((0, (1,), column.type.precision - column.type.scale))
+        if number.copy_abs() >= limit:
             raise ValueError("precisão excedida")
         return number
     if isinstance(column.type, Date):
@@ -118,6 +123,34 @@ def _finish_attempt(connection, attempt_id, status, manifest, signature, error=N
     ))
     if result.rowcount != 1:
         raise GoldImportError("Estado da tentativa não permite finalização; confira o lote publicado.", "audit_unavailable")
+
+
+def _sum_matches(actual, expected):
+    if expected is None:
+        return actual is None
+    if actual is None:
+        return False
+    observed = Decimal(str(actual))
+    difference = _exact_add(observed, expected.copy_negate()).copy_abs()
+    return difference <= Decimal("0.0001")
+
+
+def _exact_add(left: Decimal, right: Decimal) -> Decimal:
+    """Use the operand range plus one carry digit for exact addition."""
+    least_exponent = min(left.as_tuple().exponent, right.as_tuple().exponent)
+    greatest_adjusted = max(
+        left.adjusted() if left else 0,
+        right.adjusted() if right else 0,
+    )
+    with localcontext() as context:
+        context.prec = max(1, greatest_adjusted - least_exponent + 2)
+        return left + right
+
+
+def _optional_decimal_matches(left, right):
+    if left is None or right is None:
+        return left is right
+    return Decimal(left) == Decimal(right)
 
 
 def import_gold(engine: Engine, directory: Path, batch_name: str, schema_version: str = SCHEMA_VERSION) -> dict:
@@ -188,17 +221,21 @@ def _publish(engine, directory, batch_name, files, signature, hashes, attempt_id
             connection.execute(table.delete())
             count = 0
             rows = []
-            totals = {field: Decimal(0) for field in table.c.keys() if field in {
+            totals = {field: None for field in table.c.keys() if field in {
                 "consumo_kwh", "consumo_total_kwh", "receita_reais", "receita_total_reais",
             }}
-            progress = {"rows": 0, "files": hashes[name], "totals": totals, "validated": False}
+            present_counts = dict.fromkeys(totals, 0)
+            progress = {"rows": 0, "files": hashes[name], "totals": totals,
+                        "present_counts": present_counts, "validated": False}
             manifest[name] = progress
             for row in _read_rows(files[name], table):
                 count += 1
                 progress["rows"] = count
                 for field in totals:
                     if row[field] is not None:
-                        totals[field] += Decimal(str(row[field]))
+                        value = Decimal(str(row[field]))
+                        totals[field] = value if totals[field] is None else _exact_add(totals[field], value)
+                        present_counts[field] += 1
                 rows.append(row)
                 if len(rows) == 1000:
                     connection.execute(table.insert(), rows)
@@ -212,16 +249,20 @@ def _publish(engine, directory, batch_name, files, signature, hashes, attempt_id
                 raise GoldImportError(f"{name}: contagem divergente após a carga.")
             for field, expected in totals.items():
                 actual = connection.scalar(select(func.sum(table.c[field])))
-                if actual is None or abs(Decimal(str(actual)) - expected) > Decimal("0.0001"):
+                if not _sum_matches(actual, expected):
                     raise GoldImportError(f"{name}: soma divergente após a carga ({field}).")
-            manifest[name] = {"rows": count, "files": hashes[name], "totals": {k: str(v) for k, v in totals.items()}, "validated": True}
+            manifest[name] = {
+                "rows": count, "files": hashes[name],
+                "totals": {k: str(v) if v is not None else None for k, v in totals.items()},
+                "present_counts": present_counts, "validated": True,
+            }
         reference = manifest["diagnostico_receita"]["totals"]
         for name, energy, revenue in (
             ("consumo_receita_bairro", "consumo_total_kwh", "receita_total_reais"),
             ("consumo_mensal_uc", "consumo_kwh", "receita_reais"),
         ):
             totals = manifest[name]["totals"]
-            if any(Decimal(totals[left]) != Decimal(reference[right]) for left, right in (
+            if any(not _optional_decimal_matches(totals[left], reference[right]) for left, right in (
                 (energy, "consumo_total_kwh"), (revenue, "receita_total_reais"),
             )):
                 raise GoldImportError("As tabelas financeiras não reconciliam entre si.")

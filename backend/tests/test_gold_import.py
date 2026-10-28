@@ -11,7 +11,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.models.gold_load import ATTEMPTS, BATCH, SCHEMA_VERSION, TABLES
-from app.services.gold_import import GoldImportError, import_gold
+from app.services.gold_import import GoldImportError, _convert, _sum_matches, import_gold
 
 
 # Dados artificiais, com total independente: 2 UCs, 30 kWh e R$ 25,50.
@@ -131,6 +131,123 @@ def test_financial_mismatch_rolls_back(database, batch):
     p.write_text(p.read_text(encoding="utf-8").replace("15.40", "15.41"), encoding="utf-8")
     with pytest.raises(GoldImportError, match="não reconciliam"):
         import_gold(database, batch, "v1")
+
+
+def _set_csv_column(batch, table_name, field, values):
+    path = batch / table_name / "part-1.csv"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    column_index = lines[0].split(";").index(field)
+    for row_index, value in enumerate(values, 1):
+        cells = lines[row_index].split(";")
+        cells[column_index] = value
+        lines[row_index] = ";".join(cells)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_all_null_financial_totals_are_preserved_as_absent(database, batch):
+    _set_csv_column(batch, "consumo_mensal_uc", "consumo_kwh", ["", ""])
+    _set_csv_column(batch, "consumo_mensal_uc", "receita_reais", ["", ""])
+    _set_csv_column(batch, "consumo_receita_bairro", "consumo_total_kwh", [""])
+    _set_csv_column(batch, "consumo_receita_bairro", "receita_total_reais", [""])
+    _set_csv_column(batch, "diagnostico_receita", "consumo_total_kwh", [""])
+    _set_csv_column(batch, "diagnostico_receita", "receita_total_reais", [""])
+
+    result = import_gold(database, batch, "all-null")
+
+    for table_name, fields in {
+        "consumo_mensal_uc": ("consumo_kwh", "receita_reais"),
+        "consumo_receita_bairro": ("consumo_total_kwh", "receita_total_reais"),
+        "diagnostico_receita": ("consumo_total_kwh", "receita_total_reais"),
+    }.items():
+        assert all(result["tables"][table_name]["totals"][field] is None for field in fields)
+        assert all(result["tables"][table_name]["present_counts"][field] == 0 for field in fields)
+    with database.connect() as connection:
+        for table_name, fields in {
+            "consumo_mensal_uc": ("consumo_kwh", "receita_reais"),
+            "consumo_receita_bairro": ("consumo_total_kwh", "receita_total_reais"),
+            "diagnostico_receita": ("consumo_total_kwh", "receita_total_reais"),
+        }.items():
+            for field in fields:
+                assert connection.scalar(select(func.sum(TABLES[table_name].c[field]))) is None
+        published = connection.scalar(select(BATCH.c.manifesto))
+        attempt = connection.execute(select(ATTEMPTS).where(ATTEMPTS.c.id == result["attempt_id"])).mappings().one()
+        assert published["consumo_mensal_uc"]["totals"]["receita_reais"] is None
+        assert attempt["manifesto"]["consumo_mensal_uc"]["present_counts"]["receita_reais"] == 0
+    previous = published_snapshot(database)
+    repeated = import_gold(database, batch, "all-null")
+    assert repeated["status"] == "unchanged"
+    assert published_snapshot(database) == previous
+
+
+def test_mixed_null_and_zero_financial_totals_keep_present_count(database, batch):
+    _set_csv_column(batch, "consumo_mensal_uc", "receita_reais", ["", "0.00"])
+    _set_csv_column(batch, "consumo_receita_bairro", "receita_total_reais", ["0.00"])
+    _set_csv_column(batch, "diagnostico_receita", "receita_total_reais", ["0.00"])
+
+    result = import_gold(database, batch, "mixed-null-zero")
+
+    assert result["tables"]["consumo_mensal_uc"]["totals"]["receita_reais"] == "0.00"
+    assert result["tables"]["consumo_mensal_uc"]["present_counts"]["receita_reais"] == 1
+
+
+def test_absence_does_not_reconcile_with_zero_and_rolls_back(database, batch):
+    import_gold(database, batch, "valid")
+    previous = published_snapshot(database)
+    _set_csv_column(batch, "consumo_mensal_uc", "receita_reais", ["", ""])
+    _set_csv_column(batch, "consumo_receita_bairro", "receita_total_reais", ["0.00"])
+    _set_csv_column(batch, "diagnostico_receita", "receita_total_reais", ["0.00"])
+
+    with pytest.raises(GoldImportError, match="não reconciliam"):
+        import_gold(database, batch, "absence-vs-zero")
+
+    assert published_snapshot(database) == previous
+
+
+def test_numeric_38_2_conversion_preserves_values_beyond_decimal_context():
+    column = TABLES["consumo_mensal_uc"].c.receita_reais
+    value = "12345678901234567890123456789.12"
+
+    assert _convert(value, column) == Decimal(value)
+
+
+def test_numeric_38_2_accepts_its_maximum_and_rejects_overflow_or_scale():
+    column = TABLES["consumo_mensal_uc"].c.receita_reais
+    maximum = "9" * 36 + ".99"
+
+    assert _convert(maximum, column) == Decimal(maximum)
+    for invalid in ("1" + "0" * 36 + ".00", "1.001"):
+        with pytest.raises((ValueError, ArithmeticError)):
+            _convert(invalid, column)
+
+
+def test_sum_comparison_does_not_hide_small_difference_at_large_magnitude():
+    stored = Decimal("9" * 35 + ".99")
+    expected = Decimal("1" + "0" * 35 + ".00")
+
+    assert _sum_matches(stored, stored)
+    assert not _sum_matches(stored, expected)
+
+
+def test_postgresql_high_precision_total_preserves_carry_and_cancellation(database, batch):
+    if database.dialect.name != "postgresql":
+        pytest.skip("SQLite Numeric usa ponto flutuante e não comprova precisão de 38 dígitos.")
+    large = "9" * 36 + ".99"
+    monthly = batch / "consumo_mensal_uc" / "part-1.csv"
+    monthly.write_text(
+        SAMPLES["consumo_mensal_uc"][0]
+        + f"\nFAKE-A;2025-01;10;{large}"
+        + "\nFAKE-B;2025-01;20;0.01"
+        + f"\nFAKE-C;2025-01;0;-{large}\n",
+        encoding="utf-8",
+    )
+    _set_csv_column(batch, "consumo_receita_bairro", "receita_total_reais", ["0.01"])
+    _set_csv_column(batch, "diagnostico_receita", "receita_total_reais", ["0.01"])
+
+    result = import_gold(database, batch, "precision-carry-cancel")
+
+    assert result["tables"]["consumo_mensal_uc"]["totals"]["receita_reais"] == "0.01"
+    with database.connect() as connection:
+        assert connection.scalar(select(func.sum(TABLES["consumo_mensal_uc"].c.receita_reais))) == Decimal("0.01")
 
 
 def published_snapshot(engine):
