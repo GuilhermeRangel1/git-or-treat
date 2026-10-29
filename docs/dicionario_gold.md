@@ -196,7 +196,27 @@ A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações
 
 **Limite:** não há linha para UC/mês que exista somente em faturas ou somente em leituras. A tabela informa valor faturado, não valor pago, e não contém as dimensões territoriais; qualquer junção adicional precisa preservar o grão.
 
-## 8. `controle_gold` — linhagem da execução
+## 8.`faturas_uc`
+
+**Finalidade:** série histórica e granular de 100% das faturas emitidas por Unidade Consumidora, contornando o descarte relacional de faturas sem leitura pareada para conciliação financeira estrita e auditoria de receita.
+**Grão e chave:** (`id_fatura`), com não nulidade e unicidade verificadas.
+**Fontes:** `silver_publicada.faturas` (100% da base Silver preservada).
+
+| Coluna | Tipo conceitual / unidade | Definição |
+| --- | --- | --- |
+| `id_fatura` | texto | Identificador único e unívoco da fatura de energia elétrica. |
+| `id_uc` | texto | Identificador da Unidade Consumidora associada à cobrança. |
+| `mes_referencia` | texto `YYYY-MM` | Mês/ano de competência do faturamento. |
+| `data_emissao` | data `YYYY-MM-DD` | Data de emissão oficial do documento fiscal de cobrança. |
+| `data_vencimento` | data `YYYY-MM-DD` | Data limite para pagamento da fatura sem encargos. |
+| `data_pagamento` | data `YYYY-MM-DD` | Data do registro da liquidação financeira (nulo para faturas em aberto). |
+| `valor_total` | decimal / R$ | Valor financeiro total bruto cobrado na fatura, arredondado a duas casas decimais. |
+| `status_pagamento` | texto | Situação financeira da cobrança (ex.: `PAGO`, `EM_ABERTO`, `ATRASADO`). |
+| `ingestao_data` | timestamp | Timestamp de auditoria do processamento e gravação do registro na camada Gold. |
+
+**Limite:** não contém métricas de consumo físico (`kWh`) nem dimensões territoriais. Retrata o valor faturado (cobrado), independente de ter ocorrido pagamento efetivo ou medição pareada. Qualquer junção com tabelas de clientes ou leituras deve considerar que uma UC pode ter múltiplas faturas ou nenhuma leitura associada na mesma competência.
+
+## 9. `controle_gold` — linhagem da execução
 
 O notebook gera um registro de controle ao final das verificações e usa `append` quando a tabela já existe. Não é uma das sete tabelas do CSV de exportação. Uma falha anterior a essa etapa não garante um registro de falha nesta tabela.
 
