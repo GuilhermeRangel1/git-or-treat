@@ -44,7 +44,8 @@ def _synthesis() -> dict:
     request = _plan_request()
     planned = _planned()
     return {
-        **request,
+        **{k: v for k, v in request.items() if k not in {"batch_ref", "temporal_coverage"}},
+        "expected_batch_ref": request["batch_ref"],
         "plan": planned["plan"],
         "plan_fingerprint": planned["plan_fingerprint"],
         "lookup": _lookup_example(),
@@ -263,3 +264,88 @@ def test_access_scope_rejects_invalid_correlation() -> None:
 
     with pytest.raises(ValidationError):
         scope.to_context("não-é-correlação")
+
+
+@pytest.mark.parametrize("field", ["batch_ref", "temporal_coverage"])
+def test_gold_planning_requires_publication_metadata(field) -> None:
+    payload = _plan_request()
+    payload.pop(field)
+    with pytest.raises(ValidationError):
+        QuestionPlanRequest.model_validate(payload)
+
+
+def test_gold_synthesis_requires_expected_publication() -> None:
+    payload = _synthesis()
+    payload.pop("expected_batch_ref")
+    with pytest.raises(ValidationError):
+        QuestionSynthesisRequest.model_validate(payload)
+
+
+@pytest.mark.parametrize("value", [None, "", "gold-csv-v2:invalid", "SINTETICO_DEV", 42])
+@pytest.mark.parametrize("synthesis", [False, True])
+def test_gold_envelopes_reject_invalid_publication(value, synthesis) -> None:
+    model = QuestionSynthesisRequest if synthesis else QuestionPlanRequest
+    payload = _synthesis() if synthesis else _plan_request()
+    payload["expected_batch_ref" if synthesis else "batch_ref"] = value
+    with pytest.raises(ValidationError):
+        model.model_validate(payload)
+
+
+@pytest.mark.parametrize("coverage", [
+    {"kind": "monthly", "competencies": ["2025-13"]},
+    {"kind": "monthly", "competencies": ["0000-01"]},
+    {"kind": "monthly", "competencies": ["2025-03", "2025-01"]},
+    {"kind": "monthly", "competencies": ["2025-03", "2025-03"]},
+    {"kind": "none", "competencies": ["2025-03"]},
+    {"kind": "monthly", "competencies": [202503]},
+])
+def test_planning_rejects_invalid_temporal_coverage(coverage) -> None:
+    payload = _plan_request()
+    payload["temporal_coverage"] = [{"metric_id": "energia_faturada", **coverage}]
+    with pytest.raises(ValidationError):
+        QuestionPlanRequest.model_validate(payload)
+
+
+@pytest.mark.parametrize("kind,competencies", [
+    ("none", []), ("monthly", []), ("monthly", ["2025-01", "2025-03"]),
+])
+def test_planning_preserves_absence_and_gaps(kind, competencies) -> None:
+    payload = _plan_request()
+    payload["temporal_coverage"] = [
+        {"metric_id": "energia_faturada", "kind": kind, "competencies": competencies}
+    ]
+    result = QuestionPlanRequest.model_validate_json(
+        QuestionPlanRequest.model_validate(payload).model_dump_json()
+    )
+    assert result.batch_ref == payload["batch_ref"]
+    assert result.temporal_coverage[0].competencies == tuple(competencies)
+
+
+def test_planning_rejects_duplicate_or_unauthorized_metric_coverage() -> None:
+    payload = _plan_request()
+    payload["temporal_coverage"] *= 2
+    with pytest.raises(ValidationError):
+        QuestionPlanRequest.model_validate(payload)
+    payload["temporal_coverage"] = [
+        {"metric_id": "forbidden.metric", "kind": "none"}
+    ]
+    with pytest.raises(ValidationError):
+        QuestionPlanRequest.model_validate(payload)
+
+
+def test_synthesis_preserves_expected_publication_independently_of_lookup() -> None:
+    payload = _synthesis()
+    payload["lookup"] = {
+        "status": "no_evidence", "message": "Sem registros na publicação consultada."
+    }
+    result = QuestionSynthesisRequest.model_validate(payload)
+    assert result.expected_batch_ref == _plan_request()["batch_ref"]
+
+
+def test_scope_without_permissions_can_reach_the_core_for_refusal() -> None:
+    payload = _plan_request()
+    payload["access_scope"]["allowed_metric_ids"] = []
+    payload["temporal_coverage"] = []
+    result = QuestionPlanRequest.model_validate(payload)
+    assert result.access_scope.allowed_metric_ids == frozenset()
+    assert result.temporal_coverage == ()

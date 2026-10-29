@@ -4,15 +4,16 @@ Seguem docs/contracts/genai-query-execution.md. Só a borda interna os recebe; a
 O escopo vem do Backend sem correlação: ela chega pelo cabeçalho X-Correlation-ID.
 """
 
+from datetime import date
 from enum import StrEnum
-from typing import Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.access import AccessContext
 from app.schemas.analysis import LogicalIdentifier
 from app.schemas.domain_profile import CatalogOperation
-from app.schemas.evidence import EvidenceLookupResult
+from app.schemas.evidence import EvidenceLookupResult, GoldBatchRef
 from app.schemas.questions import QuestionRequest, QuestionResponse, QuestionStatus
 from app.schemas.read_plan import LogicalReadPlan
 from app.schemas.responses import CorrelationId
@@ -39,10 +40,50 @@ class AccessScope(BaseModel):
         return AccessContext(**self.model_dump(), correlation_id=correlation_id)
 
 
+class TemporalCoverage(BaseModel):
+    """Cobertura publicada de uma métrica lógica; ausência de período é explícita."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    metric_id: LogicalIdentifier
+    kind: Literal["monthly", "none"]
+    competencies: tuple[
+        Annotated[str, Field(strict=True, pattern=r"^[0-9]{4}-(0[1-9]|1[0-2])$")], ...
+    ] = Field(default=(), max_length=1200)
+
+    @model_validator(mode="after")
+    def validate_coverage(self) -> Self:
+        if self.kind == "none" and self.competencies:
+            raise ValueError("métrica sem período não admite competências")
+        for competency in self.competencies:
+            date.fromisoformat(competency + "-01")
+        if tuple(sorted(set(self.competencies))) != self.competencies:
+            raise ValueError("competências devem ser únicas e ordenadas")
+        return self
+
+
 class QuestionPlanRequest(QuestionRequest):
     """Pergunta e até três turnos de contexto, com o escopo enviado pelo Backend."""
 
     access_scope: AccessScope
+    batch_ref: GoldBatchRef | None = None
+    temporal_coverage: tuple[TemporalCoverage, ...] = Field(default=(), max_length=100)
+
+    @model_validator(mode="after")
+    def validate_publication(self) -> Self:
+        if self.access_scope.source_id.startswith("gold."):
+            if self.batch_ref is None or (
+                self.access_scope.allowed_metric_ids and not self.temporal_coverage
+            ):
+                raise ValueError("planejamento Gold exige publicação e cobertura explícitas")
+        elif self.batch_ref is not None or self.temporal_coverage:
+            raise ValueError("metadados Gold exigem fonte Gold")
+        metrics = [item.metric_id for item in self.temporal_coverage]
+        if len(set(metrics)) != len(metrics):
+            raise ValueError("cobertura repetida para a mesma métrica")
+        if not set(metrics) <= self.access_scope.allowed_metric_ids:
+            raise ValueError("cobertura fora do escopo permitido")
+        return self
 
 
 class QuestionPlanStatus(StrEnum):
@@ -89,11 +130,15 @@ class QuestionSynthesisRequest(QuestionRequest):
     plan: LogicalReadPlan
     plan_fingerprint: str = Field(pattern=_FINGERPRINT_PATTERN)
     lookup: EvidenceLookupResult
-    # A publicação esperada (batch_ref) exigida pelo EvidenceGuard ainda não tem campo:
-    # o transporte depende de acordo com o Backend.
+    expected_batch_ref: GoldBatchRef | None = None
 
     @model_validator(mode="after")
     def validate_fingerprint(self) -> Self:
+        if self.plan.source_id.startswith("gold."):
+            if self.expected_batch_ref is None:
+                raise ValueError("síntese Gold exige publicação esperada")
+        elif self.expected_batch_ref is not None:
+            raise ValueError("publicação Gold exige plano Gold")
         if self.plan_fingerprint != self.plan.fingerprint():
             raise ValueError("fingerprint divergente do plano")
         return self
