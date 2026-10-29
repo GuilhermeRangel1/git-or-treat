@@ -54,6 +54,8 @@ O plano é construído de forma determinística a partir do perfil e do catálog
   "contract_version": "v1",
   "question": "Qual foi a energia faturada em Recife em março de 2025?",
   "context": [],
+  "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+  "temporal_coverage": [{"metric_id": "energia_faturada", "kind": "monthly", "competencies": ["2025-03"]}],
   "access_scope": {
     "caller_ref": "user.7f3c2a",
     "profile_id": "grid360_gold",
@@ -70,6 +72,7 @@ O plano é construído de forma determinística a partir do perfil e do catálog
 | `contract_version` | existente (`INTERNAL_CONTRACT_VERSION`) | Literal `v1`. |
 | `question`, `context` | existentes (`QuestionRequest`) | Mesmas regras do contrato público: até 1.000 caracteres e até três turnos. |
 | `access_scope` | **proposto** | Mesmos campos de `AccessContext`, exceto `correlation_id`, que vem do cabeçalho. Aceito só nas rotas internas e com token de serviço válido. A GenAI o converte em `AccessContext` pelo `access_context_resolver` já usado em `create_app(source_mode="external")`. |
+| `batch_ref`, `temporal_coverage` | implementados no schema | Publicação Gold e cobertura por métrica lógica; ver B1 a B5. |
 | Campos adicionais | existente | Rejeitados (`extra="forbid"`). |
 
 `caller_ref` é um identificador opaco da pessoa usuária, sem nome, e-mail, CPF ou outro dado pessoal. Os IDs dos exemplos são ilustrativos; a fonte dos identificadores do catálogo é o dicionário Gold (DE-08).
@@ -115,7 +118,8 @@ A mesma revalidação vale para um resultado servido de cache: a chave inclui es
 | --- | --- | --- |
 | `contract_version` | existente | `v1`. |
 | `question`, `context` | existentes | Os mesmos enviados ao planejamento. |
-| `access_scope` | **proposto** | O mesmo escopo enviado ao planejamento. |
+| `access_scope` | implementado no schema | O mesmo escopo enviado ao planejamento. |
+| `expected_batch_ref` | implementado no schema | Publicação Gold esperada, obrigatória para plano Gold, obtida pelo Backend separadamente do lookup. |
 | `plan` | existente (`LogicalReadPlan`) | O plano devolvido em `planned`, sem alteração. |
 | `plan_fingerprint` | existente | O mesmo devolvido em `planned`. |
 | `lookup` | existente (`EvidenceLookupResult`) | Resultado da execução no Backend. |
@@ -386,3 +390,16 @@ Um `lookup` ou plano com texto SQL, nome de tabela ou coluna física em qualquer
 Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. O motor do P-04 foi escolhido na [ADR-0017](../decisions/0017-banco-local-postgresql.md); o fluxo depende da configuração efetiva do papel de leitura preparado pelo Backend, da homologação do dicionário Gold (DE-08) e da reconciliação da carga real (DE-06).
 
 `ai-agent/tests/test_internal_contract_examples.py` confere os exemplos deste contrato com os schemas existentes da GenAI. Lacunas documentadas, sem teste até existir modelo: envelopes completos de planejar e sintetizar, estados `planned` e `refused` desses envelopes e `access_scope` sem correlação. A referência de publicação dispõe de exemplos comuns e testes nos dois serviços; a GenAI testa a aceitação do lookup completo, a preservação da referência e a recusa de referência ausente, inválida ou divergente. A integração HTTP e a fixação transacional do lote durante uma consulta de negócio continuam fora desta preparação.
+
+
+## Definições dos envelopes Gold — B1 a B5 (29/10/2026)
+
+Esta revisão prepara os envelopes; não implementa rotas, execução SQL nem aceite Gold.
+
+- B1: `QuestionSynthesisRequest.expected_batch_ref` é obrigatório para planos `gold.*`, separado de `lookup`. Usa `GoldBatchRef` existente. O Backend fixa essa publicação e a GenAI a entrega ao EvidenceGuard; a conferência de correspondência é comportamento do núcleo, tratado no PR #78.
+- B2: `QuestionPlanRequest.batch_ref` e `temporal_coverage` são obrigatórios para Gold. A cobertura contém IDs lógicos de métricas permitidas no escopo, com `kind: monthly` e competências únicas ordenadas AAAA-MM, ou `kind: none` sem competências. Lista mensal vazia significa ausência de cobertura; lacunas são preservadas. O Backend fornece metadados validados da mesma publicação e preserva a publicação e o escopo até a síntese. Esses campos não autorizam consulta nem ampliam permissões.
+- B3: o Backend recalcula o fingerprint sobre o plano validado, incluindo defaults e nulos, com JSON de chaves ordenadas, separadores compactos, escape Unicode padrão do Python, UTF-8 e SHA-256. A ordem das listas é preservada. O exemplo de plano pronto e seu hash são o vetor de compatibilidade existente. Fingerprint não substitui autorização ou vínculo de lote.
+- B4: identificadores de implantação acordados: `source_id: gold.local` e `profile_id: v-energy-grid-360-gold`. Os IDs dos exemplos históricos continuam ilustrativos. O schema aceita perfis substituíveis; não fixa um único perfil no núcleo.
+- B5: capacidades mensais devem produzir janela `bounded`, com primeiro e último dia dos meses selecionados. O executor Backend rejeita frases não resolvidas, revalida cobertura e publicação. Fontes sem período não recebem competência inventada. A semântica de expressões relativas e lacunas aguarda confirmação de Dados; estes envelopes não implementam o resolvedor.
+
+A síntese usa o mesmo corpo público e escopo, o plano e fingerprint devolvidos no planejamento, `lookup` e `expected_batch_ref`. `batch_ref` e `temporal_coverage` pertencem somente ao planejamento. Fonte sintética não recebe metadados Gold. Mesmo `no_evidence` exige publicação esperada na síntese Gold.
