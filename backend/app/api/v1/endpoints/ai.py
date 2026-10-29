@@ -14,6 +14,7 @@ from app.schemas.ai import (
     AIQuestionResponse,
 )
 from app.schemas.ai_insight import (
+    AIInsightResponse,
     PanoramaInsightEnvelope,
     PanoramaInsightRequest,
 )
@@ -147,12 +148,12 @@ async def ask_genai_question(
             payload,
             correlation_id=request.state.correlation_id,
         )
-    except GenAIServiceUnavailable:
+    except GenAIServiceUnavailable as exc:
         return _question_error(
             request,
             status_code=503,
             code="service_unavailable",
-            retryable=True,
+            retryable=exc.retryable,
             message="O serviço de resposta está temporariamente indisponível.",
         )
     except GenAITimeout:
@@ -217,17 +218,25 @@ async def generate_panorama_insight(
             message="Os filtros do insight não são válidos para o Panorama.",
         )
 
+    if isinstance(insight_request, AIInsightResponse):
+        return PanoramaInsightEnvelope(
+            insight=insight_request.model_copy(
+                update={"correlation_id": request.state.correlation_id}
+            ),
+            metric=metric, source=source, analysis=analysis,
+        )
+
     try:
         result = await genai.generate(
             insight_request,
             correlation_id=request.state.correlation_id,
         )
-    except GenAIServiceUnavailable:
+    except GenAIServiceUnavailable as exc:
         return _question_error(
             request,
             status_code=503,
             code="service_unavailable",
-            retryable=True,
+            retryable=exc.retryable,
             message="O serviço de insight está temporariamente indisponível.",
         )
     except GenAITimeout:

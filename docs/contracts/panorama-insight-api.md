@@ -39,6 +39,8 @@ O envelope contém:
 
 `observation.values` representa números calculados pelo Backend. O bloco `analysis` identifica a direção e o percentual da mudança, além dos grupos que mais contribuíram ou compensaram a variação quando o recorte permite essa decomposição. `participacaoPercentual` é a parcela do movimento entre grupos que apontam na mesma direção (quedas para a contribuição principal; altas ou quedas compensatórias para a compensação), não a parcela do total líquido. Esses valores são recalculados a partir dos mesmos registros usados pelo Panorama. A interface apresenta a leitura e um próximo passo para investigar, sem atribuir causa aos dados. Se não houver comparação ou detalhamento suficiente, os campos correspondentes ficam indisponíveis.
 
+Quando o recorte validado não contém registros, o Backend retorna HTTP 200 com `insight.status=no_evidence`, mensagem de ausência e listas de observações/evidências vazias, sem chamar a GenAI. Contexto, lote, definição da métrica e correlação são preservados; a análise fica indisponível. Registros existentes com valor zero continuam sendo observações válidas. A validação de filtros, lote e fonte ocorre antes dessa decisão.
+
 ## Erros
 
 | HTTP | Código | Comportamento |
@@ -48,6 +50,8 @@ O envelope contém:
 | 502 | `invalid_upstream_response` | Contrato, correlação ou recorte devolvido pela GenAI é inválido. |
 | 503 | `service_unavailable` | Fonte ou serviço indisponível; repetir somente quando `retryable` for verdadeiro. |
 | 504 | `service_unavailable` | GenAI excedeu o timeout; repetir manualmente. |
+
+HTTP 503 recebido da GenAI é tratado como indisponibilidade. Um envelope v1 válido e correlacionado preserva `error.retryable`; resposta genérica de proxy permite tentativa manual. Envelope que declara o contrato com versão, correlação ou campos inválidos continua sendo HTTP 502. O Backend não repete a chamada automaticamente nem expõe o corpo da falha upstream.
 
 Erros públicos usam o envelope v1 com `message`, `error.code`, `error.retryable` e `correlation_id`. Nenhum detalhe interno, token, SQL ou conteúdo do modelo que não passe pelo contrato deve ser exposto.
 

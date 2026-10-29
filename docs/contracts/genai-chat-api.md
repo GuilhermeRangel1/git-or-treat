@@ -81,8 +81,8 @@ Erros de protocolo usam o envelope seguro `status: "error"`, `contract_version`,
 | HTTP | Código | Retry | Condição |
 | --- | --- | --- | --- |
 | 422 | `invalid_request` | Não | Campo ausente/inválido, versão incompatível ou campo extra. |
-| 502 | `invalid_upstream_response` | Não | Status, JSON, correlação ou envelope do GenAI incompatível. |
-| 503 | `service_unavailable` | Sim | URL ausente ou serviço não alcançável. Configurar URL sem token impede a inicialização do Backend. |
+| 502 | `invalid_upstream_response` | Não | Status diferente de 200/503, JSON de sucesso inválido ou envelope/correlação incompatível. |
+| 503 | `service_unavailable` | Conforme a origem | URL ausente, serviço não alcançável ou HTTP 503 genérico da GenAI. Em HTTP 503 com envelope v1 válido e correlacionado, preservar `error.retryable` (inclusive falso). Configurar URL sem token impede a inicialização do Backend. |
 | 504 | `service_unavailable` | Sim | Chamada excedeu `AI_AGENT_TIMEOUT_SECONDS`. |
 
 O Backend não repete chamadas automaticamente. O campo `retryable` informa ao consumidor se uma nova tentativa pode ser útil; não garante que repetir produza resultado diferente.

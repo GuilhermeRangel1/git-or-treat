@@ -5,12 +5,20 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
+from app.schemas.ai import (
+    AIQuestionErrorResponse,
+    AIQuestionRequest,
+    AIQuestionResponse,
+)
 from app.schemas.ai_insight import AIInsightRequest, AIInsightResponse
 
 
 class GenAIServiceUnavailable(Exception):
     """A integração não está configurada ou o serviço não pôde ser alcançado."""
+
+    def __init__(self, message: str = "", *, retryable: bool = True) -> None:
+        super().__init__(message)
+        self.retryable = retryable
 
 
 class GenAITimeout(Exception):
@@ -52,6 +60,29 @@ async def _post_genai_json(
         raise GenAITimeout from exc
     except httpx.RequestError as exc:
         raise GenAIServiceUnavailable from exc
+
+    if response.status_code == 503:
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        # Proxies podem retornar HTML ou JSON genérico durante indisponibilidade.
+        # Um envelope que declara o contrato, porém, precisa ser válido e correlacionado.
+        if isinstance(body, dict) and (
+            "contract_version" in body or body.get("status") == "error"
+        ):
+            try:
+                error = AIQuestionErrorResponse.model_validate(body)
+            except ValueError as exc:
+                raise GenAIResponseInvalid from exc
+            if (
+                error.correlation_id != correlation_id
+                or response.headers.get("x-correlation-id") != correlation_id
+                or error.error.code != "service_unavailable"
+            ):
+                raise GenAIResponseInvalid
+            raise GenAIServiceUnavailable(retryable=error.error.retryable)
+        raise GenAIServiceUnavailable
 
     if response.status_code != 200:
         raise GenAIResponseInvalid
