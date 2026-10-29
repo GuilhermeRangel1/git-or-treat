@@ -12,8 +12,10 @@ from uuid import uuid4
 from sqlalchemy import BigInteger, Boolean, Date, Float, Numeric, func, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from pydantic import ValidationError
 
 from app.models.gold_load import ATTEMPTS, BATCH, SCHEMA_VERSION, TABLES
+from app.schemas.gold_publication import PublicationReference, read_export_manifest
 
 
 class GoldImportError(ValueError):
@@ -112,7 +114,8 @@ def _read_rows(paths, table):
                     raise GoldImportError(f"{table.name}: tipo ou chave inválida no registro {index}.") from None
 
 
-def _finish_attempt(connection, attempt_id, status, manifest, signature, error=None):
+def _finish_attempt(connection, attempt_id, status, manifest, signature, error=None, origin=None, publication_id=None):
+    identity = {"schema_version": origin["schema_version"], "lote": origin["run_id"]} if origin else {}
     result = connection.execute(ATTEMPTS.update().where(
         ATTEMPTS.c.id == attempt_id, ATTEMPTS.c.status == "running",
     ).values(
@@ -120,6 +123,9 @@ def _finish_attempt(connection, attempt_id, status, manifest, signature, error=N
         manifesto=json.loads(json.dumps(manifest, default=str)),
         erro_codigo=error.code if error else None,
         erro_mensagem=str(error) if error else None,
+        origem=origin,
+        publication_id=publication_id,
+        **identity,
     ))
     if result.rowcount != 1:
         raise GoldImportError("Estado da tentativa não permite finalização; confira o lote publicado.", "audit_unavailable")
@@ -153,10 +159,12 @@ def _optional_decimal_matches(left, right):
     return Decimal(left) == Decimal(right)
 
 
-def import_gold(engine: Engine, directory: Path, batch_name: str, schema_version: str = SCHEMA_VERSION) -> dict:
+def import_gold(engine: Engine, directory: Path, batch_name: str | None = None, schema_version: str | None = None) -> dict:
     """Audita a tentativa; sucesso é confirmado na mesma transação da publicação."""
     attempt_id = str(uuid4())
-    batch_valid = isinstance(batch_name, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", batch_name)
+    if engine.dialect.name == "sqlite":
+        engine = engine.execution_options(schema_translate_map={"gold": None})
+    batch_valid = isinstance(batch_name, str) and re.fullmatch(r"GOLD_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}", batch_name)
     version_valid = isinstance(schema_version, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,32}", schema_version)
     try:
         with engine.begin() as connection:
@@ -172,14 +180,23 @@ def import_gold(engine: Engine, directory: Path, batch_name: str, schema_version
         ) from None
     manifest = {}
     signature = None
+    origin = None
     try:
-        if not batch_valid:
+        if batch_name is not None and not batch_valid:
             raise GoldImportError("Identificador do lote inválido.", "invalid_batch")
-        if schema_version != SCHEMA_VERSION:
+        if schema_version is not None and schema_version != SCHEMA_VERSION:
             raise GoldImportError("Versão do esquema não suportada.", "unsupported_schema")
+        try:
+            source = read_export_manifest(directory, set(TABLES), schema_version)
+        except (ValueError, ValidationError, OSError, UnicodeError):
+            raise GoldImportError("Manifesto de origem ausente ou inválido. Confira ambiente, versão, linhagem e inventário.", "invalid_manifest") from None
+        origin = source.model_dump(mode="json")
+        if batch_name is not None and batch_name != source.run_id:
+            raise GoldImportError("Identificador informado diverge do manifesto.", "invalid_batch")
+        batch_name = source.run_id
         files = discover_files(directory)
         signature, hashes = fingerprint(files)
-        return _publish(engine, directory, batch_name, files, signature, hashes, attempt_id, manifest)
+        return _publish(engine, directory, batch_name, files, signature, hashes, attempt_id, manifest, origin, schema_version)
     except (Exception, KeyboardInterrupt) as error:
         if isinstance(error, GoldImportError):
             public = error
@@ -197,7 +214,7 @@ def import_gold(engine: Engine, directory: Path, batch_name: str, schema_version
         # O contexto da publicação já encerrou; nunca sobrescrever sucesso confirmado.
         try:
             with engine.begin() as connection:
-                _finish_attempt(connection, attempt_id, "failed", manifest, signature, public)
+                _finish_attempt(connection, attempt_id, "failed", manifest, signature, public, origin)
         except (SQLAlchemyError, GoldImportError):
             raise GoldImportError(
                 "Falha ao finalizar a auditoria. Confira o lote publicado antes de repetir a carga.",
@@ -206,16 +223,21 @@ def import_gold(engine: Engine, directory: Path, batch_name: str, schema_version
         raise public from None
 
 
-def _publish(engine, directory, batch_name, files, signature, hashes, attempt_id, manifest):
+def _publish(engine, directory, batch_name, files, signature, hashes, attempt_id, manifest, origin, schema_version):
     """Substitui só as tabelas Gold; publica metadados após reconciliar."""
     with engine.begin() as connection:
         if connection.dialect.name == "postgresql":
             connection.execute(text("SELECT pg_advisory_xact_lock(73460127)"))
         previous = connection.execute(select(BATCH)).mappings().first()
         if (previous and previous["fingerprint"] == signature and previous["lote"] == batch_name
-                and previous["schema_version"] == SCHEMA_VERSION):
-            _finish_attempt(connection, attempt_id, "unchanged", previous["manifesto"], signature)
+                and previous["schema_version"] == SCHEMA_VERSION and previous["origem"] == origin
+                and previous["publication_id"]):
+            if read_export_manifest(directory, set(TABLES), schema_version).model_dump(mode="json") != origin or fingerprint(discover_files(directory))[0] != signature:
+                raise GoldImportError("Os arquivos mudaram durante a carga; lote revertido.")
+            reference = PublicationReference(schema_version=SCHEMA_VERSION, run_id=batch_name, publication_id=previous["publication_id"])
+            _finish_attempt(connection, attempt_id, "unchanged", previous["manifesto"], signature, origin=origin, publication_id=previous["publication_id"])
             return {"status": "unchanged", "lote": batch_name, "schema_version": SCHEMA_VERSION,
+                    "publication_id": previous["publication_id"], "batch_ref": reference.batch_ref,
                     "attempt_id": attempt_id, "tables": previous["manifesto"]}
         for name, table in TABLES.items():
             connection.execute(table.delete())
@@ -266,13 +288,17 @@ def _publish(engine, directory, batch_name, files, signature, hashes, attempt_id
                 (energy, "consumo_total_kwh"), (revenue, "receita_total_reais"),
             )):
                 raise GoldImportError("As tabelas financeiras não reconciliam entre si.")
-        if fingerprint(discover_files(directory))[0] != signature:
+        if fingerprint(discover_files(directory))[0] != signature or read_export_manifest(directory, set(TABLES), schema_version).model_dump(mode="json") != origin:
             raise GoldImportError("Os arquivos mudaram durante a carga; lote revertido.")
+        publication_id = str(uuid4())
+        reference = PublicationReference(schema_version=SCHEMA_VERSION, run_id=batch_name, publication_id=publication_id)
         connection.execute(BATCH.delete())
         connection.execute(BATCH.insert().values(
             id=1, lote=batch_name, fingerprint=signature, schema_version=SCHEMA_VERSION,
             importado_em=datetime.now(timezone.utc), manifesto=manifest,
+            publication_id=publication_id, origem=origin,
         ))
-        _finish_attempt(connection, attempt_id, "loaded", manifest, signature)
+        _finish_attempt(connection, attempt_id, "loaded", manifest, signature, origin=origin, publication_id=publication_id)
     return {"status": "loaded", "lote": batch_name, "schema_version": SCHEMA_VERSION,
+            "publication_id": publication_id, "batch_ref": reference.batch_ref,
             "attempt_id": attempt_id, "tables": manifest}

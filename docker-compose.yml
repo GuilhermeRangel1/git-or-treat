@@ -1,10 +1,11 @@
 ﻿services:
   db:
-    image: postgres:18
+    image: postgres:16
     env_file:
       - .env.db
     volumes:
-      - pgdata:/var/lib/postgresql
+      # Volume novo: não montar arquivos de um PostgreSQL 18 no servidor 16.
+      - pgdata16:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -65,4 +66,4 @@
       - /app/node_modules
 
 volumes:
-  pgdata:
+  pgdata16:

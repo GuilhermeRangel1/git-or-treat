@@ -2,7 +2,7 @@
 
 **Versão:** v1, proposta.
 
-**Estado:** proposta para revisão de Backend, Engenharia de Dados e GenAI, ligada à [ADR-0002](../decisions/0002-genai-gold-query-owner.md). Nada deste contrato está implementado. Os símbolos citados com nome de código existem hoje em `ai-agent/` ou `backend/`; tudo marcado como **proposto** ainda não existe.
+**Estado:** proposta para revisão de Backend, Engenharia de Dados e GenAI, ligada à [ADR-0002](../decisions/0002-genai-gold-query-owner.md). A identidade de publicação e sua validação no Backend estão implementadas como preparação; as operações completas de planejamento/síntese continuam propostas. Os símbolos citados com nome de código existem hoje em `ai-agent/` ou `backend/`; tudo marcado como **proposto** ainda não existe.
 
 **Escopo:** perguntas conversacionais respondidas com evidência da Gold no banco local. Não altera os contratos públicos [genai-chat-api.md](genai-chat-api.md) e [panorama-insight-api.md](panorama-insight-api.md), não define o esquema físico do banco, nomes de tabela ou coluna, fórmulas de métricas nem o mecanismo de autenticação da pessoa usuária.
 
@@ -135,13 +135,14 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
 
 ### Lote da Gold (`batch_ref`)
 
-**Proposta**, a combinar com quem é dona da exportação da Gold:
+**Preparação implementada no Backend; consumo na GenAI e aprovação final ainda pendentes.**
 
-- O `batch_ref` é derivado dos registros da tabela de controle da Gold, `gold.controle_gold`, com as colunas `run_id_silver`, `lote_bronze_silver`, `status_gold`, `tabelas_geradas` e `processado_em` (conferidas no notebook `data-engineering/notebook/Silver_to_gold.ipynb` da branch `feat/gold`). Só contam execuções com `status_gold = CONCLUIDO`.
-- A exportação dos CSV leva um pequeno manifesto com esses valores.
-- A carga no banco local registra qual manifesto foi carregado e validado. O Backend lê o `batch_ref` desse registro, e não da última execução no Databricks.
-- O formato exato do identificador fica em aberto.
-- **A combinar com quem é dona da exportação:** quando faltam metadados de execução, o notebook da Gold grava os valores de reserva `SINTETICO_DEV` e `LOTE_DEV` em `controle_gold`, e `status_gold` é sempre `CONCLUIDO`. Filtrar só por `CONCLUIDO` não descarta esses registros. O manifesto da exportação deve excluí-los ou sinalizá-los, e a carga no banco local deve recusar um lote com esses valores de reserva.
+- A carga valida o manifesto de origem da Gold (ambiente `prod`, IDs de linhagem, versão e inventário), conforme [Gold CSV v1](gold-csv-v1.md#origem-e-publicação). O Backend lê a publicação efetivamente carregada, nunca a última execução no Databricks.
+- `batch_ref` tem formato canônico `gold-csv-v1:<run_id>:<publication_id>`. O run vem do manifesto; `publication_id` é UUID4 gerado e persistido na mesma transação da publicação. `unchanged` preserva essa identidade; nova publicação muda o UUID; tentativa rejeitada conserva os fatos e a referência anteriores. `attempt_id` identifica outra coisa: cada tentativa de carga.
+- O modelo `PublicationReference` e parser do Backend rejeitam formato, UUID e versão incompatíveis. Exemplos artificiais válidos/inválidos estão em `backend/tests/fixtures/gold_publication_contract.json` para o alinhamento com GenAI. Isso não implementa `batch_ref` em `EvidenceProvenance`, ainda pendente do lado GenAI.
+- Publicações legadas sem origem validada não podem fornecer `batch_ref`. Falta de manifesto, ambiente não produtivo e identificadores manuais/de reserva são recusados pela carga. A versão ausente do exportador legado só é adaptada com `--schema-version` explicitamente informado.
+- A vista `gold.publicacao_atual` expõe a identidade mínima ao leitor restrito. O helper Backend consegue rejeitar uma referência esperada diferente; a prova de ausência de mistura durante uma consulta real pertence ao futuro executor transacional GENAI-06/07.
+- O manifesto atual não certifica sozinho os CSVs contra Delta. Controles de origem e reconciliação entre as camadas continuam dependências de DE-06/GENAI-02.
 
 ### Processamento na GenAI
 
@@ -382,6 +383,6 @@ Um `lookup` ou plano com texto SQL, nome de tabela ou coluna física em qualquer
 
 ## Limites desta versão
 
-Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. O motor do P-04 foi escolhido na [ADR-0017](../decisions/0017-banco-local-postgresql.md); o fluxo ainda depende do papel somente leitura criado pelo Backend, do dicionário Gold (DE-08) e da carga no banco local (DE-06).
+Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. O motor do P-04 foi escolhido na [ADR-0017](../decisions/0017-banco-local-postgresql.md); o fluxo depende da configuração efetiva do papel de leitura preparado pelo Backend, da homologação do dicionário Gold (DE-08) e da reconciliação da carga real (DE-06).
 
-`ai-agent/tests/test_internal_contract_examples.py` confere os exemplos deste contrato com os schemas existentes da GenAI. Lacunas documentadas, sem teste até existir modelo: envelopes completos de planejar e sintetizar, estados `planned` e `refused` desses envelopes, `access_scope` sem correlação e exigência de `batch_ref`. Elas dependem do formato do `batch_ref`. Os testes do lado Backend (revalidação, execução e papel somente leitura) ficam com o Backend (Felipe).
+`ai-agent/tests/test_internal_contract_examples.py` confere os exemplos deste contrato com os schemas existentes da GenAI. Lacunas documentadas, sem teste até existir modelo: envelopes completos de planejar e sintetizar, estados `planned` e `refused` desses envelopes, `access_scope` sem correlação e exigência de `batch_ref`. O formato de `batch_ref` agora dispõe de modelo e exemplos no Backend; sua integração aos envelopes GenAI continua pendente. Os testes do lado Backend (revalidação, execução e papel somente leitura) ficam com o Backend (Felipe).
