@@ -10,6 +10,10 @@ As ordens têm persistência operacional inicial, separada da tabela `gold_indic
 
 ## DEV-01: contratos antes da Gold
 
+### Infraestrutura de carga — DEV-12
+
+O carregador registra cada tentativa em `gold_carga_tentativas`, publica versão `gold-csv-v1`, contagens e controles em `gold_carga_atual` e confirma sucesso junto das sete tabelas em uma transação. Rejeições preservam a publicação anterior e mantêm auditoria sem valores dos registros. Migração `goldv1000002`, gerador de CSVs artificiais e [runbook de execução/recuperação](../contracts/gold-load-dev12.md). Isso completa a infraestrutura sintética DEV-12; DE-06 continua em andamento até reconciliação com a origem real. Adaptação de consultas e portal fica na DEV-13.
+
 O [catálogo](../contracts/analytics-api.md), [desenho](../design/2026-10-20-dev01-design.md) e [ADR-0004](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md) definem a fronteira entre fonte, serviços e HTTP. `ANALYTICS_SOURCE=synthetic` ativa explicitamente a demonstração; o padrão indisponível falha com 503. Os contratos incluem disponibilidade, unidade, competências, filtros efetivos, origem/versão e limitações. Zero legítimo não equivale a ausência.
 
 O adaptador sintético não depende de PostgreSQL e não altera ordens. A implementação Gold futura precisa mapear os conceitos e reconciliar números; contratos provisórios da aplicação não definem colunas reais. Os contratos operacionais existentes e os endpoints de perguntas/insights do serviço IA permanecem preservados.
@@ -47,9 +51,13 @@ O Backend expõe `POST /api/v1/ai/questions` para o portal e encaminha a solicit
 
 O Backend valida pergunta/contexto, aplica timeout, encaminha token interno e correlação, e valida o envelope de resposta antes de devolvê-lo. Não acessa SQL nem Gold nessa jornada. O contrato completo, limites, exemplos e erros estão em [genai-chat-api.md](../contracts/genai-chat-api.md). A integração é stateless e demonstrativa: não persiste sessão, não autentica usuário do portal e não concede escopo Gold. O token interno autentica Backend → GenAI; autorização real de usuário e retenção precisam ser decididas antes da implantação.
 
+HTTP 503 da GenAI mantém indisponibilidade no contrato público. Envelope v1 válido e correlacionado preserva a política `retryable`; resposta genérica de proxy permite retentativa manual. Envelopes declarados inválidos continuam em 502 e detalhes privados não são encaminhados.
+
 ### Insight contextual do Panorama — IA-04
 
 O portal envia filtros aplicados e `loteVersao` a `POST /api/v1/ai/insights`; nunca envia observações numéricas. O Backend valida o recorte com `build_panorama`, recalcula energia faturada na fonte corrente e deriva a variação percentual e, quando os filtros permitem, o município ou a classe que mais contribuiu para a mudança. Em seguida, encaminha o contexto estruturado a `POST /api/v1/insights` com o token de serviço e correlação. Antes de devolver um insight `answered`, confere se a GenAI retornou o mesmo período, filtros, métrica, unidade e observações calculados no servidor. Lote desatualizado retorna HTTP 409 `invalid_context`; indisponibilidade, timeout e resposta inválida têm envelopes v1 estáveis. Veja o [contrato Portal → Backend → GenAI](../contracts/panorama-insight-api.md).
+
+Recorte sem registros retorna `no_evidence` com observações vazias antes da chamada à GenAI; zero observado em registros existentes continua elegível para interpretação. Os controles de filtro, lote e fonte são aplicados antes da decisão de ausência.
 
 Na versão atual, o serviço só gera o contexto com a fonte sintética do Panorama; fonte não compatível falha fechada. Isso conecta o caminho da interface, mas não comprova Gold, autorização de usuário, auditoria persistida ou uma geração ao vivo de provedor. A evolução para Gold precisa revisar a métrica com o dicionário e continuar recalculando os valores no Backend.
 
@@ -124,7 +132,10 @@ Na revisão DEV-08, todas as rotas de Operação passaram a recusar parâmetros 
 
 A refatoração de alinhamento DEV-08 move a composição e paginação do detalhe para `build_feeder_detail`, com resposta tipada. As rotas de Operação retornam modelos explícitos; `StrictAnalyticsRoute` fica na fronteira HTTP comum. Receita e Operação compartilham `repeated_query_parameters`, preservando seus contratos e políticas de erro.
 
-
 ## Integração provisória Gold v1 — 27/10/2026
 
 Receita, UC 360 e fila de inspeção têm composição executável com `ANALYTICS_SOURCE=gold`, consultas SQL parametrizadas, agregação/paginação no banco e catálogo de filtros real. O portal preserva rotas e valida envelopes; apresenta lote, importação local, limitações e ausências. `priority_label` preserva a categoria textual; score e estimativa são nulos. Histórico mensal da UC distingue agregado financeiro de fatura individual. Modo sintético permanece explícito e não solicita banco. Panorama/Operação e GenAI não foram homologados para essa fonte; os requisitos continuam abertos. Veja [contrato e execução local](../contracts/gold-csv-v1.md#consumo-provisório-pela-api-e-pelo-portal).
+
+## Preparação da identidade de publicação Gold — 28/10/2026
+
+O Backend passa a validar a origem do manifesto e persistir a origem e `publication_id`, derivando deles o `batch_ref`. A identidade permanece em repetição e muda atomicamente em nova publicação. O schema analítico e o papel de leitura seguem a ADR-0017; [manifesto e compatibilidade](../contracts/gold-csv-v1.md#origem-e-publicação) e [migração, permissões e recuperação](../contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação) descrevem o uso. O campo nos envelopes GenAI, os endpoints de planejar/sintetizar e o executor de consultas de negócio continuam pendentes. Esta preparação não ativa a fonte real nem conclui GENAI-01 ou requisitos IA/DE.

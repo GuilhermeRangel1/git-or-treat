@@ -8,9 +8,9 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import settings
 from app.core.database import get_analytics_db
 from app.main import app
-from app.models.gold_v1 import BATCH, TABLES
+from app.models.gold_load import ATTEMPTS, BATCH, TABLES
 from app.services.gold_import import import_gold
-from tests.test_gold_import import SAMPLES
+from tests.test_gold_import import SAMPLES, write_origin
 
 
 @pytest.fixture
@@ -22,9 +22,11 @@ def gold_client(tmp_path, monkeypatch):
             rows = [*rows, rows[0].replace("FAKE-A;", "FAKE-B;", 1).replace(";FAKE-AL;", ";FAKE-OTHER;")]
         (folder / "part.csv").write_text(header + "\n" + "\n".join(rows) + "\n", encoding="utf-8")
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    for table in [BATCH, *TABLES.values()]:
+    engine = engine.execution_options(schema_translate_map={"gold": None})
+    for table in [ATTEMPTS, BATCH, *TABLES.values()]:
         table.create(engine)
-    import_gold(engine, tmp_path, "test-v1")
+    write_origin(tmp_path, "test-v1")
+    import_gold(engine, tmp_path)
     def database():
         with Session(engine) as session:
             yield session
@@ -68,7 +70,7 @@ def test_revenue_feeder_uses_monthly_source_with_current_registration(gold_clien
     assert response.status_code == 200, response.text
     assert response.json()["data"]["total_billed_amount"] == 10.10
     assert response.json()["data"]["total_measured_energy_kwh"] == 10
-    assert any("JOIN gold_visao_360_uc" in sql and "GROUP BY" in sql for sql in statements)
+    assert any("JOIN main.gold_visao_360_uc" in sql and "GROUP BY" in sql for sql in statements)
 
 
 def test_missing_month_is_not_zero_and_unknown_filter_is_rejected(gold_client):

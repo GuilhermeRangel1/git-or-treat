@@ -2,7 +2,7 @@
 from sqlalchemy import select
 from decimal import Decimal
 
-from app.models.gold_v1 import TABLES
+from app.models.gold_load import TABLES
 from app.services.analytics import AnalyticsAPIError
 
 ABSENT = "Detalhe não fornecido nos CSVs Gold desta versão; ausência não equivale a zero."

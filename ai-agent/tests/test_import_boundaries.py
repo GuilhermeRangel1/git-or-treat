@@ -94,3 +94,26 @@ def test_concrete_adapters_do_not_import_the_agent_or_composition_root() -> None
                     violations.append(f"{path.relative_to(APP_ROOT)} imports {module}")
 
     assert violations == []
+
+
+def test_http_application_does_not_import_core_or_concrete_adapters() -> None:
+    api_application = APP_ROOT / "api" / "application.py"
+    assert api_application.is_file()
+
+    forbidden_prefixes = (
+        "app.agent",
+        "app.providers",
+        "app.sql",
+        "app.tools",
+    )
+
+    violations = [
+        module
+        for module in _imported_modules(api_application)
+        if any(
+            module == prefix or module.startswith(f"{prefix}.")
+            for prefix in forbidden_prefixes
+        )
+    ]
+
+    assert violations == []

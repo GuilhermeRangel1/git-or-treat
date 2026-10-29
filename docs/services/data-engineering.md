@@ -1,6 +1,6 @@
 # Serviço: engenharia de dados
 
-**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** a Bronze anterior foi executada na Databricks Free Edition; a revisão que reconcilia registros lógicos, preserva posições físicas e publica por ponteiro ainda exige execução e evidência no Databricks. A Silver (`Bronze_to_Silver.ipynb`) foi executada em 24/10/2026 (run `20261024T035426Z_c5ba30e0`, `CONCLUIDO`, 0 falhas), com a evidência de qualidade registrada no PRD. O Job `v-energy-grid-360` tem as quatro tarefas montadas (Bronze, perfil, Silver e Gold), mas a tarefa Gold ainda usa uma versão antiga e o run completo só será feito com a Gold final. A Gold está em desenvolvimento (`feat/gold`) e a exportação CSV ainda não faz parte do Job. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
+**Escopo:** DE-01 a DE-09 do [PRD](../PRD.md). **Estado:** há registros de execução da Bronze e da Silver no Databricks; a Silver `20261024T035426Z_c5ba30e0` terminou `CONCLUIDO` em 24/10/2026, com zero falhas. A branch `feat/gold` contém os notebooks de Gold e exportação. O PR #36 registra a execução da Gold na versão `c95bfc3`; em 27/10/2026, a pessoa usuária confirmou que execução, reconciliação e Workflow já foram validados. Os identificadores e resultados dessa validação mais recente ainda devem ser vinculados ao PRD. O YAML versionado registra uma configuração anterior, com duas tarefas da Bronze. **Tecnologia exigida:** Databricks, PySpark e tabelas Delta para Bronze/Silver/Gold.
 
 ## Responsabilidade
 
@@ -30,7 +30,7 @@ Montar um mapa de relacionamento **com chaves verificadas**, cobrindo UC, client
 
 - **Bronze:** reprocessar o mesmo lote deve conservar o conteúdo e permitir localizar arquivo/aba/registro de origem. Quando um formato não for interpretável, contar e isolar a falha sem alterar silenciosamente o restante. O perfil registra, por arquivo/aba, padrões observados de data, fuso e pontuação numérica sem inferir decimal versus milhar.
 - **Silver:** toda regra que remove, substitui ou agrega registros precisa de contagem antes/depois e motivo. A soma de aceitos, quarentenados e rejeitados deve reconciliar com a entrada adequada ao grão, por arquivo/aba, competência e classe quando aplicável. A versão em preparo não substitui as vistas publicadas antes da validação.
-- **Silver:** datas ambíguas de leitura/emissão permanecem em quarentena (B), enquanto o diagnóstico C mede evidências por arquivo sem inferir datas; medidor com instalação ambígua fica em quarentena, e leituras dependentes são bloqueadas com `medidor_em_quarentena` (A); CPF/CNPJ ou nome conflitante não é escolhido por completude; data registrada ou futura não comprova quitação, e `9999-12-31` é preservada sem uso como data real. Rejeitados preservam payload integral em `silver_hist.quarentena._registro`; aceitos carregam metadados técnicos de linhagem. Consulte D36–D38 e D48–D60 em [decisões técnicas](../../data-engineering/decisoes-tecnicas.md). O diagnóstico e esta revisão ainda precisam ser executados no lote real.
+- **Silver:** datas ambíguas de leitura/emissão permanecem em quarentena (B), enquanto o diagnóstico C mede evidências por arquivo sem inferir datas; medidor com instalação ambígua fica em quarentena, e leituras dependentes são bloqueadas com `medidor_em_quarentena` (A); CPF/CNPJ ou nome conflitante não é escolhido por completude; data registrada ou futura não comprova quitação, e `9999-12-31` é preservada sem uso como data real. Rejeitados preservam payload integral em `silver_hist.quarentena._registro`; aceitos carregam metadados técnicos de linhagem. Consulte D36–D38 e D48–D60 em [decisões técnicas](../../data-engineering/decisoes-tecnicas.md). A evidência de 24/10 está no PRD; a pessoa usuária confirmou que execução, reconciliação e Workflow foram validados e os identificadores mais recentes devem ser registrados.
 - **Gold:** publicar uma métrica apenas depois de declarar grão, chave, fórmula e população. Verificar que joins não multiplicam receita/energia e que recortes geográficos/classes somam ao total quando compõem uma partição válida.
 - **Exportação:** carregar CSVs Gold em banco local de modo repetível; segunda carga do mesmo lote não duplica linhas ou valores. Comparar contagem, chave e amostras de agregados em ambos os lados.
 
@@ -40,7 +40,7 @@ A Gold deve ler apenas `silver_publicada.*` depois de conferir uma única linha 
 
 | Vista Silver | Grão e chave para consumo | Limite para agregação |
 | --- | --- | --- |
-| `unidades_consumidoras` | Uma UC por `id_uc` aceito | Cadastro atual não prova titularidade ou classe histórica; CPF/CNPJ e nome não saem em Gold/CSV sem regra de mascaramento aprovada. |
+| `unidades_consumidoras` | Uma UC por `id_uc` aceito | Cadastro atual não prova titularidade ou classe histórica; CPF/CNPJ, nome, endereço, CEP e coordenadas são excluídos da projeção Gold/CSV, sem hash ou mascaramento (D20). |
 | `medidores` | Um medidor por `id_medidor` aceito | Datas ambíguas de instalação ficam fora; não inferir troca ou vigência não observada. |
 | `leituras` | Uma leitura por `id_leitura` aceito | `consumo_kwh` soma no grão de leitura; datas ambíguas e vínculos bloqueados ficam fora, flags de vigência e leitura decrescente seguem para avaliação. |
 | `faturas` | Uma fatura por `id_fatura` aceito | `valor_total` é R$ decimal com duas casas; competência e classe não tornam fatura única por UC. Status ou data isolada não comprovam pagamento; sentinela não é data real. |
@@ -50,7 +50,14 @@ A Gold deve ler apenas `silver_publicada.*` depois de conferir uma única linha 
 | `atendimentos_historico` | Uma tratativa por `(protocolo, posicao_historico)` | `sequencia` do JSON não é chave confiável; não somar chamados após explodir tratativas. |
 | `inspecoes` | Uma inspeção por `id_inspecao` aceito, com `_aba_origem` | Resultado desconhecido continua explícito; inspeção histórica não é ordem operacional criada no portal. |
 
-Toda linha aceita mantém `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_id_registro`; inspeções mantêm `_aba_origem` e tratativas mantêm `posicao_historico`. Esses campos são para auditoria, não dimensões de negócio. A população excluída e os motivos são recuperáveis no histórico da quarentena por execução; cobertura e impacto devem acompanhar qualquer métrica publicada. Juntar fatos pela UC antes de agregar pode multiplicar valores, portanto agregar cada fato no próprio grão e só depois unir os resultados. O dicionário de métricas Gold permanece a preencher quando as tabelas Gold forem implementadas.
+Toda linha aceita mantém `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_id_registro`; inspeções mantêm `_aba_origem` e tratativas mantêm `posicao_historico`. Esses campos são para auditoria, não dimensões de negócio. A população excluída e os motivos são recuperáveis no histórico da quarentena por execução; cobertura e impacto devem acompanhar qualquer métrica publicada. Juntar fatos pela UC antes de agregar pode multiplicar valores, portanto agregar cada fato no próprio grão e só depois unir os resultados. O dicionário Gold existente ainda precisa ser reconciliado com as sete tabelas implementadas e suas limitações antes do aceite de DE-08.
+
+### Implementação Gold e exportação disponíveis na branch
+
+`Silver_to_gold.ipynb` lê `silver_publicada.*`, consulta os controles da Silver e gera sete tabelas analíticas e `gold.controle_gold`. Em `prod`, exige os controles e bloqueia execução sintética; o valor de `AMBIENTE` deve ser configurado e conferido no Job. A Visão 360 e a fila projetam as colunas finais sem CPF/CNPJ, nome, endereço ou metadados internos. DEC/FEC são simplificados; a definição usa o cadastro atual como denominador e não comprova conformidade regulatória.
+
+`Exportacao_Gold_SQLite.ipynb` exige ambiente `prod` no registro mais recente `CONCLUIDO` de `controle_gold` e, quando informado, no parâmetro `ambiente`, antes de criar Volume ou sobrescrever CSVs. Ambiente ausente ou diferente é recusado; o parâmetro não promove um lote de desenvolvimento. O notebook verifica a existência das sete tabelas e grava CSVs separados por tabela no Volume `workspace.gold.gold_export_volume`, com sobrescrita. O notebook não carrega os CSVs no banco local: essa carga é uma etapa separada. A pessoa usuária confirmou a validação da execução, da reconciliação e do Workflow; os detalhes da evidência mais recente devem ser registrados no PRD. As tabelas Gold são gravadas antes de todas as verificações finais, portanto uma falha não garante preservação automática da versão anterior. O teste de DEC recalcula o esperado da Silver para um alimentador e mês fixos; não valida toda a tabela nem o FEC.
+
 
 ## Pontos críticos de modelagem
 
@@ -64,11 +71,11 @@ Toda linha aceita mantém `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_
 
 O Job deve mostrar dependências explícitas entre ingestão, tratamento, Gold e exportação, com parâmetros de ambiente/lote, status observável, logs úteis e falha que interrompe publicação de dados inválidos. Testar uma execução completa e uma reexecução do mesmo lote. Se uma etapa falhar, registrar quais saídas permanecem válidas e como retomar sem mistura de versões.
 
-O job `v-energy-grid-360` encadeia `Landing_to_Bronze` → `Bronze_perfilamento` (`depends_on` + `run_if: ALL_SUCCESS`). A configuração exportada do Workflow está em [`v-energy-grid-360.yaml`](../../data-engineering/configuracao/databricks/v-energy-grid-360.yaml); ela preserva os caminhos do Workspace de origem e deve ser ajustada na interface para outro Workspace. O run `14313419965490` (21m 03s, `Succeeded`) comprova a versão anterior das duas tarefas, não a revisão atual. A evidência histórica está no [README do módulo](../../data-engineering/README.md#evidência-anterior).
+O YAML versionado em [`v-energy-grid-360.yaml`](../../data-engineering/configuracao/databricks/v-energy-grid-360.yaml) registra uma configuração anterior com `Landing_to_Bronze` → `Bronze_perfilamento` e caminhos do Workspace de origem. O run `14313419965490` (21m 03s, `Succeeded`) comprova essa versão anterior das duas tarefas. A pessoa usuária confirmou que o Workflow também foi validado; o identificador e os detalhes dessa validação ainda devem ser associados ao PRD, e o YAML versionado deve refletir a configuração efetivamente executada. A evidência histórica está no [README do módulo](../../data-engineering/README.md#evidência-anterior).
 
 O case fornece uma extração única e pede que o time proponha agendamento para uma operação futura. A periodicidade, a janela de chegada das fontes, o tratamento de atrasos/retificações e o custo da atualização são decisões a justificar após inspecionar o material. Não apresentar uma simulação de agenda como integração de produção existente.
 
-Agenda proposta para essa operação futura: **mensal, dia 5, às 03:00 (America/Recife)** — o insumo é mensal por natureza; o dia 5 dá folga ao fechamento. A configuração exportada registra o agendamento do Workflow existente; a proposta operacional e a validação da versão nova ainda precisam ser conferidas no Workspace. A versão nova prepara cada execução em schema próprio, preserva lotes em `bronze_hist` e muda uma linha em `bronze.controle_publicacao` para selecionar o lote exposto pelas vistas `bronze.*`. A reexecução da mesma versão não deve duplicar a vista publicada, mas essa recuperação ainda precisa de prova no Databricks. A janela real de chegada continua desconhecida.
+Agenda proposta para essa operação futura: **mensal, dia 5, às 03:00 (America/Recife)** — o insumo é mensal por natureza; o dia 5 dá folga ao fechamento. A configuração exportada registra o agendamento da versão anterior do Workflow; a proposta operacional precisa ser confirmada para a operação futura. A versão nova prepara cada execução em schema próprio, preserva lotes em `bronze_hist` e muda uma linha em `bronze.controle_publicacao` para selecionar o lote exposto pelas vistas `bronze.*`. A janela real de chegada continua desconhecida.
 
 ## Dependências e decisões pendentes
 
@@ -83,10 +90,10 @@ Agenda proposta para essa operação futura: **mensal, dia 5, às 03:00 (America
 ## Entregáveis futuros
 
 1. Notebooks PySpark ou equivalente versionado, parâmetros e instruções de execução.
-2. Definição YAML/JSON do Databricks Workflow com dependências Bronze → Silver → Gold → exportação (**já existe com as duas tarefas da Bronze**; os demais elos entram quando os notebooks existirem).
+2. Atualização e validação da definição YAML/JSON do Databricks Workflow com dependências Bronze → perfilamento → Silver → Gold → exportação e parâmetros do Job; o YAML versionado registra apenas as duas tarefas da Bronze.
 3. Relatório de perfil e qualidade por origem, decisões de tratamento e testes automatizados se DE-09 for perseguido.
 4. CSVs Gold exportados no ambiente de execução, esquema e processo de carga ao banco local; dados reais não entram no Git sem autorização.
-5. [Dicionário de dados](../data-dictionary.md) preenchido a partir do dataset real.
+5. [Dicionário de dados](../dicionario_gold.md) preenchido a partir do dataset real.
 
 ## Aceite do serviço
 
@@ -96,3 +103,7 @@ Rodar a extração completa de ponta a ponta e comparar contagens, chaves e mét
 ## Integração local dos CSVs v1 — 27/10/2026
 
 As sete exportações da `feat/gold` foram recebidas localmente e têm um [contrato físico provisório](../contracts/gold-csv-v1.md), observado nos cabeçalhos. O backend implementa carga transacional/repetível para tabelas próprias `gold_*`, com validação CSV → banco. Isso não homologa fórmulas, não prova reconciliação Delta → CSV e não corrige a publicação antecipada ou o exportador da branch Gold. O dicionário canônico DE-08, manifesto de execução Gold e adaptação dos consumidores permanecem pendentes. Este adendo atualiza apenas a disponibilidade da carga local; evidências históricas anteriores continuam delimitadas às versões executadas.
+
+### Atualização da entrada local — preparação GENAI-01, 28/10/2026
+
+A carga Backend agora exige o manifesto de origem e vincula sua linhagem à publicação local. A versão ausente do exportador atual requer argumento explícito `--schema-version gold-csv-v1`; a carga não substitui IDs ausentes por valores de reserva. No PostgreSQL, as relações analíticas locais ficam no schema `gold`, sem alterar os nomes/colunas exportados. Veja [contrato](../contracts/gold-csv-v1.md#origem-e-publicação) e [runbook](../contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação). Controles de contagens, chaves e somas da origem para o mesmo lote ainda são necessários para comprovar Delta → CSV → banco; esta preparação não modifica notebooks nem homologa métricas.

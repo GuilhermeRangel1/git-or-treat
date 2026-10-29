@@ -5,10 +5,10 @@ deve usar nova revisão e módulo, preservando esta definição histórica.
 """
 from sqlalchemy import (
     BigInteger, Boolean, CheckConstraint, Column, Date, DateTime, Float,
-    Index, JSON, Numeric, String, Table, Text,
+    Index, JSON, MetaData, Numeric, String, Table, Text,
 )
 
-from app.db.base import Base
+METADATA = MetaData()  # Snapshot imutável da revisão goldv1000001.
 
 
 def _table(name, key, strings, integers="", numbers="", money="", dates="", booleans=""):
@@ -19,7 +19,7 @@ def _table(name, key, strings, integers="", numbers="", money="", dates="", bool
     ):
         for field in names.split():
             columns.append(Column(field, factory(), primary_key=field in key, nullable=field not in key))
-    return Table(f"gold_{name}", Base.metadata, *columns)
+    return Table(f"gold_{name}", METADATA, *columns)
 
 
 TABLES = {
@@ -55,7 +55,7 @@ TABLES = {
 }
 Index("ix_gold_mensal_competencia", TABLES["consumo_mensal_uc"].c.competencia)
 BATCH = Table(
-    "gold_carga_atual", Base.metadata,
+    "gold_carga_atual", METADATA,
     Column("id", BigInteger, primary_key=True), Column("lote", String(100), nullable=False),
     Column("fingerprint", String(64), nullable=False), Column("importado_em", DateTime(timezone=True), nullable=False),
     Column("manifesto", JSON, nullable=False), CheckConstraint("id = 1", name="ck_gold_carga_unica"),

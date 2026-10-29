@@ -1,7 +1,7 @@
 """Fila publicada na Gold; preserva prioridade categórica e não inventa score."""
 from sqlalchemy import select
 
-from app.models.gold_v1 import TABLES
+from app.models.gold_load import TABLES
 from app.schemas.analytics import AnalyticsFilters
 from app.schemas.inspection_queue import QueueResponse, SuspicionResponse
 from app.services.analytics import AnalyticsAPIError, metadata

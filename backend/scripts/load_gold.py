@@ -15,12 +15,15 @@ from app.services.gold_import import GoldImportError, import_gold
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, default=settings.GOLD_DATA_DIR / "v1")
-    parser.add_argument("--batch", default="v1")
+    parser.add_argument("--batch", help="Conferência opcional do run_id do manifesto; não substitui a origem.")
+    parser.add_argument("--schema-version", help="Versão explícita para manifestos legados sem schema_version.")
     args = parser.parse_args()
     try:
-        result = import_gold(engine, args.directory, args.batch)
+        result = import_gold(engine, args.directory, args.batch, args.schema_version)
     except (GoldImportError, SQLAlchemyError, OSError, UnicodeError, csv.Error) as error:
         message = str(error) if isinstance(error, GoldImportError) else "Falha de leitura ou persistência. Confira o banco migrado e os arquivos."
+        if isinstance(error, GoldImportError):
+            message = f"{message} Código: {error.code}. Tentativa: {error.attempt_id}."
         print(message, file=sys.stderr)
         return 1
     print(json.dumps(result, ensure_ascii=True))

@@ -8,7 +8,7 @@ Pendente. Informar diferença de receita, componentes de preço/volume, principa
 
 ## 2. Recorte e definições
 
-Pendente. Especificar competências do primeiro ano e dos 12 meses mais recentes, população de UCs, classe/subgrupo residencial e conceito de receita. Referenciar versões de Gold e [dicionário](data-dictionary.md).
+Pendente. Especificar competências do primeiro ano e dos 12 meses mais recentes, população de UCs, classe/subgrupo residencial e conceito de receita. Referenciar versões de Gold e [dicionário](dicionario_gold.md).
 
 ## 3. Qualidade e reconciliação
 

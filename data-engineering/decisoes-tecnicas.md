@@ -623,7 +623,7 @@ de negócio da versão atual.
 ## 9. Camada Gold — proposta e decisões a tomar
 
 > A Gold **não existe ainda**. Esta seção é a **proposta de modelagem** para não repetir a modelagem quando o
-> notebook for escrito; cada item é decisão a registrar em `docs/data-dictionary.md` (DE-08) e, se alterar
+> notebook for escrito; cada item é decisão a registrar em `docs/dicionario_gold.md` (DE-08) e, se alterar
 > arquitetura/métrica, em ADR (workflow §4).
 
 ### 9.1 Tabelas propostas (grão e chave)
@@ -651,35 +651,15 @@ de negócio da versão atual.
 - **GD:** potência instalada **não** prova energia gerada/abatida por competência (PRD §4.2, GD).
 - **Inspeção:** separar suspeita, ordem operacional e resultado; `inspecoes.xlsx` é histórico (PRD §5.4).
 
-### 9.3 Hashing / mascaramento de dado pessoal — **por que e como** (D20, pendente)
+### 9.3 Exclusão de dados pessoais na projeção Gold (D20, decidido)
 
-**Por quê.** A Silver preserva `cpf_cnpj` e `nome_titular` como **dígitos/texto reais** porque a Bronze é a fonte
-rastreável e a Silver resolve qualidade — a proteção não é papel delas. Mas a Gold alimenta **CSV exportado para o
-banco local**, que por sua vez alimenta **API, portal e agente Text-to-SQL**. Expor CPF/nome nessa ponta é risco
-de LGPD e de vazamento no Git. Marcar/anonimizar na Gold resolve isso sem perder o rastro, porque o dado cru segue
-íntegro na Bronze/Silver dentro do ambiente autorizado (`AGENTS.md`: não copiar dado pessoal para commits/logs).
+**Decisão — 28/10/2026:** publicar a Visão 360 e a fila de inspeção com as colunas analíticas necessárias, excluindo CPF/CNPJ, nome do titular, endereço, CEP, coordenadas e metadados técnicos iniciados por `_`. Esses campos não são substituídos por hash nem por versões mascaradas. A projeção é definida em `notebook/Silver_to_gold.ipynb` e descrita no [dicionário Gold](../docs/dicionario_gold.md).
 
-**Por que hashing e não simplesmente "apagar" ou "substituir por sequencial".** Existem três usos concorrentes:
+**Motivo:** os consumidores identificam a unidade por `id_uc` e usam classe e território como contexto. O escopo analítico combinado não exige agrupar por titular; manter identificadores pessoais transformados acrescentaria dados sem necessidade demonstrada. A exclusão reduz a exposição na Gold e nos CSVs. `id_uc` continua sendo um identificador da unidade; esta projeção não constitui garantia de anonimização do conjunto.
 
-- o **portal** mostra o titular (talvez mascarado, ex.: `***.***.***-09`);
-- o **agente/IA** às vezes precisa **contar** UCs por titular ou reconhecer "mesmo titular" sem ler o nome;
-- a **reconciliação** precisa continuar possível entre Gold e Silver.
+**Limite:** a decisão não apaga os registros de origem. Bronze e Silver permanecem no ambiente autorizado, com acesso restrito e rastreabilidade. A recomendação anterior de hash com salt mais mascaramento fica substituída por esta decisão.
 
-O hash **determinístico** (mesma entrada → mesma saída) permite agrupar/contar por titular sem revelar o valor; um
-sequencial arbitrário até permitiria isso, mas quebraria a reprodutibilidade entre execuções (reimportar a Gold
-renumeraria titulares). O hash determinístico mantém a chave estável.
-
-**Opções e custo:**
-
-| Opção | O que faz | Ganho | Custo / risco |
-|---|---|---|---|
-| **A. Hash determinístico com *salt* secreto** (ex.: SHA-256 de `salt + cpf`) | substitui CPF/nome reais pelo hash na Gold | agrupa/conta sem revelar; estável entre execuções | o *salt* precisa ser segredo (não versionar); hash de domínio pequeno (CPF) ainda é atacável por força bruta se o *salt* vazar |
-| **B. Mascaramento parcial** (`***.***.***-09`, primeiro nome) | mostra o suficiente para o usuário humano | baixo risco, legível para o operador | não serve para agrupar por titular no agente |
-| **C. Não expor** (Gold sem CPF/nome; só `id_uc`) | nenhum dado pessoal sai | risco zero | o portal perde "de quem é a UC"; a IA não responde por titular |
-
-**Recomendação conservadora:** **A + B** — o hash substitui o identificador pessoal nos fatos exportados (para
-agrupar), e uma versão mascarada **B** fica só para exibição; o CPF/`nome_titular` real **não** sai da camada
-Bronze/Silver. Decidir o *salt* e onde guardá-lo é requisito para a Gold (pendência).
+**Verificação:** a projeção da Gold foi reportada como conferida nas tabelas Delta oficiais, com 15 colunas na Visão 360 e 14 na fila. Os cabeçalhos dos sete CSVs recebidos foram conferidos localmente contra o contrato do Backend; Visão 360 e fila mantêm as 15 e 14 colunas esperadas, sem campos pessoais adicionais. No portal, confirmar que número da UC, classe e município/bairro atendem à identificação na tela do atendente antes de registrar essa suposição como validada.
 
 ### 9.4 Exportação (DE-06)
 
@@ -941,12 +921,12 @@ Dataset real no Volume autorizado, compute serverless, notebooks importados à m
   UCs 46.461 → 45.200 + 1.261; medidores 51.812 → 49.930 + 1.882; leituras 2.182.468 → 1.981.032 + 201.436;
   faturas 2.184.623 → 2.091.968 + 92.655; GD 3.510, ocorrências 180.000 e atendimentos 318.871 sem quarentena;
   inspeções 1.389 → 1.344 + 45; `atendimentos_historico` 636.857 tratativas. Soma de controle com `delta = 0,00`:
-  faturas R$ 676.675.147,58 = 647.055.875,02 + 29.619.272,56.
+  faturas: total financeiro reconciliado entre aceitos e quarentena; montantes preservados no ambiente autorizado.
 - **Bate com o perfil de 17/10** (somando as combinações de motivos): leituras com data ambígua 102.878, medidor
   inexistente 8.609, cascata `medidor_em_quarentena` 58.214; faturas com emissão ambígua 61.226, UC inexistente 32.285.
 - **Consumo negativo:** 7.592 leituras somam −366,7 milhões de kWh (≈ −48 mil kWh por leitura). Por isso a soma bruta
   de `consumo_kwh` na Bronze (509,2 milhões) é **menor** que a aceita (813,3 milhões). Não somar consumo direto da Bronze.
-- **Quarentena por data ambígua:** faturas R$ 19,4 milhões só por esse motivo (60.368 linhas) e leituras 39,7 milhões
+- **Quarentena por data ambígua:** faturas com impacto financeiro registrado no ambiente autorizado só por esse motivo (60.368 linhas) e leituras 39,7 milhões
   de kWh (98.168 linhas). D52 é diagnóstico exploratório; a política vigente mantém B + C e não autoriza recuperar essas datas antes da análise por arquivo.
 
 **Próximas verificações:** executar perfil e Silver revisados no lote autorizado, analisar os contadores de formato por arquivo, confirmar no contexto de produto se `inspetor` é exibido e encadear a Silver no Workflow. Instalação ambígua e datas ambíguas continuam segregadas pela política A/B enquanto a análise não justificar outra regra.
@@ -960,7 +940,7 @@ O run de §11.3 valida somente a revisão anterior, não D53–D60. Nesta revis�
 - [PRD](../docs/PRD.md) — IDs DE-01 a DE-09; §4 (regras de tratamento, perfil, reconciliação), §5 (arquitetura), §6.1.
 - [Índice de decisões arquiteturais de outros módulos](../docs/decisions/README.md).
 - [Serviço: engenharia de dados](../docs/services/data-engineering.md) — contrato por camada e invariantes.
-- [Dicionário de dados Gold](../docs/data-dictionary.md) — a preencher em DE-08.
+- [Dicionário de dados Gold](../docs/dicionario_gold.md) — a preencher em DE-08.
 - [Workflow de desenvolvimento e qualidade](../docs/agents/workflow.md).
 - Notebooks (`data-engineering/notebook/`): `Landing_to_Bronze.ipynb` (reconciliação por origem, `_ordem_na_origem`,
   `bronze.arquivos_lote` e publicação por lote — R34–R37), `Bronze_perfilamento.ipynb` (R38) e

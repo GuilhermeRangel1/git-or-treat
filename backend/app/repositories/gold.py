@@ -4,7 +4,7 @@ from datetime import timezone
 from sqlalchemy import case, func, select, text
 from sqlalchemy.orm import Session
 
-from app.models.gold_v1 import BATCH, TABLES
+from app.models.gold_load import BATCH, TABLES
 
 LIMITATIONS = [
     "Gold CSV provisória: definições e cobertura aguardam o dicionário da engenharia de dados.",
