@@ -457,6 +457,25 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-10-29 — IA-01 / IA-03 / IA-06 — GENAI-01 (parte A1): envelopes internos de planejar e sintetizar
+
+- Estado: IA-01, IA-03 e IA-06 permanecem nos estados existentes. Entrega de preparação: só schemas e testes, sem rota interna, sem mudança no núcleo e sem ativação Gold.
+- Mudança: `ai-agent/app/schemas/internal.py` modela os envelopes propostos no [contrato interno](contracts/genai-query-execution.md), reaproveitando `QuestionRequest`, `LogicalReadPlan`, `EvidenceLookupResult`, `QuestionResponse` e `AccessContext`:
+  - `AccessScope` não carrega correlação, e `to_context(correlation_id)` devolve o `AccessContext` usado pelo núcleo.
+  - `QuestionPlanRequest` e `QuestionSynthesisRequest` herdam a pergunta, a versão e o limite de três turnos de contexto.
+  - `QuestionPlanResponse` liga estado e campos: `planned` exige plano e fingerprint e proíbe resposta; os outros estados exigem resposta com o mesmo estado e a mesma correlação e proíbem plano e fingerprint.
+  - Em `planned` e na requisição de síntese, `plan_fingerprint` precisa ser igual a `plan.fingerprint()`; um plano adulterado com o fingerprint antigo é recusado.
+  - Todos usam `extra="forbid"` e recusam versão de contrato diferente de `v1`.
+  - A publicação esperada (`batch_ref`) ainda não tem campo na síntese: o transporte depende de acordo com o Backend.
+- Arquivos: novos `ai-agent/app/schemas/internal.py` e `ai-agent/tests/test_internal_envelopes.py`; nota no [guia GenAI](services/ai-agent.md) e este registro. O contrato, o planejador, o orquestrador, as rotas e o `EvidenceGuard` não mudaram.
+- Verificações: em `ai-agent/`, em 29/10/2026:
+  - `python -m pytest -q tests/test_internal_envelopes.py`: 42 aprovados. As entradas válidas são os exemplos JSON do contrato;
+  - `python -m pytest -q`: 3075 aprovados e 4 ignorados;
+  - `python -m ruff check` nos dois arquivos novos: sem erros;
+  - `python -m compileall -q app tests scripts`: sem erros;
+  - `git diff --check`: passou.
+- Limites: os envelopes ainda não são usados por nenhuma rota nem pelo núcleo. Os IDs dos exemplos do contrato continuam ilustrativos. Pendências com o Backend: campo da publicação esperada na síntese, canonicalização do fingerprint no Backend e `source_id` Gold. Cartões não alterados.
+
 ### 2026-10-28 — DE-06 / IA-03 — exemplo compartilhado disponível nos testes Docker
 
 - Correção: `backend/Dockerfile` copia explicitamente `docs/contracts/examples/gold-publication-v1.json` para `/docs/contracts/examples/gold-publication-v1.json`. Na imagem, os testes ficam em `/app/tests`, e a resolução do caminho do contrato aponta para `/docs`. A cópia preserva o mesmo arquivo versionado usado nos testes locais e GenAI, sem duplicar exemplos nem ignorar a ausência da fixture.
@@ -2007,3 +2026,12 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Arquivos: `backend/app/services/genai_client.py`, tratamento das rotas em `backend/app/api/v1/endpoints/ai.py`, regressões em `backend/tests/test_ai_chat.py`, `backend/tests/test_genai_client.py` e `backend/tests/test_genai_http_unavailability.py`; contratos de chat/insight e guia Backend alinhados.
 - Evidência: os testes HTTP inicialmente retornaram 502 onde se esperava 503. Após o ajuste e a ampliação da primeira suíte, em `backend/`, `python -m pytest tests/test_ai_insights.py tests/test_ai_chat.py tests/test_genai_client.py tests/test_genai_http_unavailability.py -q`: **86 aprovados**. Ruff nos sete arquivos Python alterados, `python -m compileall` nos mesmos arquivos e `git diff --check` passaram.
 - Limites: teste com fonte sintética e transporte HTTP controlado; sem chamada a provedor real ou Gold. Não houve mudança de estado nem aceite integral de IA-05. Revisão humana e CI remota pendentes.
+
+
+### 2026-10-29 — IA-01/IA-03/IA-06 — envelopes Gold do GENAI-01 (PR #77)
+
+- Estados oficiais preservados; preparação de contrato, sem aceite Gold. O planejamento recebe publicação validada e cobertura temporal por métrica lógica; a síntese recebe `expected_batch_ref` independente do lookup. Reutiliza `GoldBatchRef` e os envelopes existentes; mantém o núcleo sem SQL e sem nomes físicos.
+- Cobertura mensal preserva lacunas e ausência de dados; fontes sem período são explícitas. Métricas duplicadas, fora do escopo, meses inválidos e referências incompatíveis são rejeitados. Escopo sem métricas pode chegar ao núcleo para recusa. A confirmação semântica dos períodos permanece com Dados.
+- Arquivos: `ai-agent/app/schemas/internal.py`, `ai-agent/tests/test_internal_envelopes.py`, contrato interno e guia do serviço. B1 a B5 registrados no contrato; estes schemas não implementam a revalidação do Backend nem a resolução temporal.
+- Evidência: `python -m pytest ai-agent/tests -q -rs`: 3100 aprovados, 4 pulados (provedor externo, link simbólico, executor PostgreSQL e permissões PostgreSQL). Execução fora do sandbox com dependências isoladas; dentro do sandbox a inicialização assíncrona ficou bloqueada. Ruff dos dois arquivos Python alterados e compileall passaram. Exemplos documentais são exercitados pela suíte, sem CSV real nem provedor.
+- Limites: sem rotas internas ou coordenação Backend; aplicação do lote esperado no núcleo pertence ao PR #78. Identificadores de implantação e compatibilidade de fingerprint estão documentados; a implementação consumidora do Backend permanece pendente. Não conclui GENAI-01 inteiro. Revisão humana e CI da alteração ainda pendentes; evidência no Trello será vinculada ao commit/PR publicado, sem marcar itens nesta etapa local.
