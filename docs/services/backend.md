@@ -6,7 +6,9 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; o modo `gold` lê os CSVs importados em Receita, UC e fila, conforme o contrato provisório. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV v1 é transacional e repetível, conforme o [contrato provisório](../contracts/gold-csv-v1.md); as rotas ainda não consomem essas tabelas. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; o modo `gold` lê os CSVs importados em Receita, UC e fila, conforme o contrato provisório. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV v1 é transacional e repetível, conforme o [contrato provisório](../contracts/gold-csv-v1.md). O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+
+A entrega local em `data/gold/v2` conserva o esquema `gold-csv-v1`; selecionar o diretório explicitamente na carga, sem apagar a v1. O [mapeamento DEV-13.2](../contracts/gold-v2-jornadas-dev132.md) registra campos, chaves, grãos, ausências e a verificação nas três jornadas. O período informado na fila é cobertura do consumo do lote, não uma janela própria da suspeita.
 
 ## DEV-01: contratos antes da Gold
 

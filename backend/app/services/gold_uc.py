@@ -58,7 +58,10 @@ def overview(repository, uc_id, start, end):
                      "current_meter": {"item": None, "status": "unavailable", "limitations": [ABSENT]},
                      "distributed_generation": {"items": [], "status": "unavailable", "limitations": [ABSENT, f"Indicador cadastral de GD: {row['possui_gd'] or 'não informado'}; sem potência ou histórico."]},
                      "section_status": {name: "partial" if name == "consumption" else "unavailable" for name in ("consumption", "invoices", "meters", "distributed_generation", "interruptions", "calls")}},
-            "status": "partial", "limitations": [ABSENT, "Consumo e receita mensais são agregados publicados; não são faturas individuais."]}
+            "status": "partial", "limitations": [ABSENT,
+                "Consumo e receita mensais são agregados publicados; não são faturas individuais.",
+                "Cliente/titular, pagamentos, medidores e históricos individuais de faturas, chamados e interrupções não foram exportados.",
+                "GD é um indicador cadastral; potência, geração e compensação mensal não são fornecidas."]}
 
 
 def history(repository, uc_id, section, start, end, page, page_size, order_by):

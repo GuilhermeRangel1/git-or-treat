@@ -4,6 +4,7 @@ import { ApiError } from "@/shared/api/client";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
 import { useSourceOptions } from "@/shared/analytics/sourceOptions";
+import DataProvenance from "@/shared/analytics/DataProvenance";
 import RevenueFiltersForm from "./RevenueFiltersForm";
 import RevenueBreakdown from "./RevenueBreakdown";
 import RevenueDecomposition from "./RevenueDecomposition";
@@ -446,16 +447,13 @@ export default function ReceitaPage() {
       {envelope ? (
         <>
           {envelope.metadata.source.kind === "gold_csv" ? (
-            <aside
-              aria-label="Limitações da Gold"
-              className="rounded-xl border border-border bg-surface p-4 text-sm text-muted"
-            >
-              <ul className="list-disc space-y-1 pl-5">
-                {envelope.metadata.limitations.map((text) => (
-                  <li key={text}>{text}</li>
-                ))}
-              </ul>
-            </aside>
+            <DataProvenance
+              source={envelope.metadata.source}
+              period={envelope.metadata.period}
+              units={["R$", "kWh", "UCs"]}
+              limitations={envelope.metadata.limitations}
+              periodNote="Competências do consumo e faturamento agregados; o cadastro usado nos recortes é atual."
+            />
           ) : null}
           <RevenueSummary envelope={envelope} />
           <div className="grid min-w-0 gap-4 min-[1850px]:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">

@@ -8,9 +8,10 @@ from app.services.analytics import AnalyticsAPIError, metadata
 
 LIMITATIONS = [
     "Prioridade textual fornecida pela Gold; ordem categórica Alta, Média, Revisar e Baixa, sem score numérico.",
-    "Critério de priorização ainda aguarda homologação no dicionário; suspeita não confirma irregularidade.",
+    "Categorias de triagem descritas no dicionário Gold; a prioridade e o histórico não confirmam uma nova irregularidade.",
     "Energia recuperável indisponível: os CSVs não fornecem estimativa homologada.",
     "Criação de ordens a partir da fila Gold aguarda homologação e identidade autorizada; consulta disponível.",
+    "O período da resposta é a cobertura do consumo mensal no lote; a fila e seus históricos acumulados não informam janela temporal própria.",
 ]
 
 

@@ -131,3 +131,30 @@ def test_no_fallback_for_unsupported_gold_consumers(gold_client):
     client, _ = gold_client
     assert client.get("/api/v1/panorama").status_code == 503
     assert client.get("/api/v1/operations/summary").status_code == 503
+
+
+@pytest.mark.parametrize("path", [
+    "/api/v1/revenue", "/api/v1/ucs?q=FAKE",
+    "/api/v1/ucs/FAKE-A/overview", "/api/v1/ucs/FAKE-A/history/consumption",
+    "/api/v1/inspections/queue", "/api/v1/inspections/queue/FAKE-A",
+])
+def test_gold_journeys_preserve_period_lot_and_limits(path, gold_client):
+    client, _ = gold_client
+    response = client.get(path)
+    assert response.status_code == 200
+    metadata = response.json()["metadata"]
+    assert metadata["period"]["start"] == metadata["period"]["end"] == "2025-01"
+    assert metadata["source"]["kind"] == "gold_csv"
+    assert metadata["source"]["is_demo"] is False
+    assert metadata["source"]["version"].startswith("GOLD_")
+    assert len(metadata["source"]["version"].rsplit(":", 1)[-1]) == 64
+    assert metadata["source"]["updated_at"]
+    assert metadata["limitations"]
+    if "inspections" in path:
+        assert any("não informam janela temporal própria" in note for note in metadata["limitations"])
+    if path.endswith("/overview"):
+        assert any("medidores" in note for note in metadata["limitations"])
+    if path == "/api/v1/revenue":
+        assert any("Receita paga" in note for note in metadata["limitations"])
+        assert response.json()["data"]["currency_unit"] == "BRL"
+        assert response.json()["data"]["energy_unit"] == "kWh"

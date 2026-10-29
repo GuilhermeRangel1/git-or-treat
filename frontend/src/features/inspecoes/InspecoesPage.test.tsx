@@ -118,6 +118,34 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
+it("mostra origem e unidades sem atribuir à fila o período do consumo", async () => {
+  const gold = envelope([
+    { ...item, priority: 0.92, potential_recoverable_energy_kwh: null },
+  ]);
+  gold.metadata = {
+    ...gold.metadata,
+    source: {
+      ...metadata.source,
+      kind: "gold_csv",
+      version: "GOLD-ARTIFICIAL:hash",
+      is_demo: false,
+    },
+    limitations: ["A fila não informa janela temporal própria."],
+  };
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(gold)));
+  mount();
+  const panel = await screen.findByRole("region", {
+    name: "Período, unidades e fonte dos dados",
+  });
+  expect(within(panel).getByText("Cobertura do consumo no lote")).toBeVisible();
+  expect(within(panel).getByText("01/2025 a 02/2025")).toBeVisible();
+  expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
+  expect(within(panel).getByText(/UCs · inspeções · kWh/)).toBeVisible();
+  expect(
+    within(panel).getByText("A fila não informa janela temporal própria."),
+  ).toBeVisible();
+});
+
 it("abre evidências reproduzíveis e volta preservando a página e os filtros", async () => {
   const fetch = vi
     .fn()

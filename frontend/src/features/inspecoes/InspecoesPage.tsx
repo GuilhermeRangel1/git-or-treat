@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
 import Modal from "@/shared/ui/Modal";
+import DataProvenance from "@/shared/analytics/DataProvenance";
 import { queueQuery } from "./queue-query";
 import { useInspectionQueue, useSuspicion } from "./useInspectionQueue";
 import SuspicionDetail from "./SuspicionDetail";
@@ -173,6 +174,16 @@ export default function InspecoesPage() {
 
       {!invalid && active.data && metadata ? (
         <>
+          {metadata.source.kind === "gold_csv" && (
+            <DataProvenance
+              source={metadata.source}
+              period={metadata.period}
+              units={["UCs", "inspeções", "kWh (estimativa indisponível)"]}
+              limitations={metadata.limitations}
+              periodLabel="Cobertura do consumo no lote"
+              periodNote="A fila não fornece competência própria nem janela dos históricos acumulados. A cobertura acima não é o período da suspeita."
+            />
+          )}
           {parsed?.detail && detail.data ? (
             <>
               <SuspicionDetail data={detail.data.data} metadata={metadata} />
@@ -211,7 +222,7 @@ export default function InspecoesPage() {
                   <p className="mt-1 text-sm leading-[22px]">
                     {metadata.source.is_demo
                       ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
-                      : "Categorias e histórico vêm dos CSVs. Score e energia recuperável não foram fornecidos; critérios aguardam o dicionário."}
+                      : "Categorias e histórico vêm dos CSVs e são descritos no dicionário Gold. Score e energia recuperável não foram fornecidos."}
                   </p>
                 </div>
               </aside>
@@ -231,7 +242,7 @@ export default function InspecoesPage() {
                 : metadata.source.kind}
               {metadata.source.is_demo
                 ? ". Nenhuma consulta à Gold."
-                : ". Gold CSV provisória; critérios aguardam o dicionário."}
+                : ". Gold CSV; consulte cobertura e limitações desta publicação."}
             </p>
             <button
               ref={foundationsTriggerRef}

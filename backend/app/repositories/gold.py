@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.gold_load import BATCH, TABLES
 
 LIMITATIONS = [
-    "Gold CSV provisória: definições e cobertura aguardam o dicionário da engenharia de dados.",
+    "Gold CSV: interpretação orientada pelo dicionário; reconciliação e cobertura dependem de cada publicação da origem.",
     "Receita e consumo publicados incluem apenas UC/competência com fatura e leitura correspondentes; não representam a totalidade da Silver.",
     "Cadastro e classificação da UC são atuais; não comprovam vigência histórica.",
     "Atualização indica a importação local, não a data de processamento da Gold.",

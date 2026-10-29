@@ -1,4 +1,5 @@
 import { Search } from "lucide-react";
+import DataProvenance from "@/shared/analytics/DataProvenance";
 import type { RefObject } from "react";
 import type { UCHistory, UCOverview } from "./contract";
 import { ErrorMessage, EvidenceDialog, HistoryPanel } from "./UC360History";
@@ -121,6 +122,15 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
           )}
           {selected && metadata && (
             <>
+              {metadata.source.kind === "gold_csv" && (
+                <DataProvenance
+                  source={metadata.source}
+                  period={metadata.period}
+                  units={["R$", "kWh"]}
+                  limitations={metadata.limitations}
+                  periodNote="O período se aplica ao histórico mensal e à comparação. Cadastro e indicadores acumulados não comprovam vigência nesse período."
+                />
+              )}
               <UC360PeriodForm
                 appliedStart={unit.filters.start}
                 appliedEnd={unit.filters.end}

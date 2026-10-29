@@ -108,7 +108,10 @@ export type UCSearchResponse = {
     total: number;
     total_pages: number;
   };
-  metadata: { status: UCStatus };
+  metadata: {
+    status: UCStatus;
+    provenance?: Pick<UCMetadata, "source" | "period" | "limitations">;
+  };
 };
 export type UCConsumptionItem = Record<string, unknown> & {
   competencia: string;
@@ -242,24 +245,30 @@ function period(value: unknown, path: string): UCPeriod {
   if (start > end) throw new UCContractError(`${path} está invertido.`);
   return { start, end, granularity: "month" };
 }
+function sourceMetadata(value: unknown, path: string): UCSource {
+  const source = obj(value, path);
+  if (typeof source.is_demo !== "boolean")
+    throw new UCContractError(`${path}.is_demo inválido.`);
+  const updated_at = str(source.updated_at, `${path}.updated_at`);
+  if (!Number.isFinite(Date.parse(updated_at)))
+    throw new UCContractError(`${path}.updated_at inválido.`);
+  return {
+    kind: str(source.kind, `${path}.kind`),
+    version: str(source.version, `${path}.version`),
+    is_demo: source.is_demo,
+    updated_at,
+  };
+}
 function meta(value: unknown, path: string): UCMetadata {
   const input = obj(value, path);
   if (input.contract_version !== "1.1.0")
     throw new UCContractError(`${path}.contract_version incompatível.`);
-  const source = obj(input.source, `${path}.source`);
-  if (typeof source.is_demo !== "boolean")
-    throw new UCContractError(`${path}.source.is_demo inválido.`);
   return {
     contract_version: "1.1.0",
     status: state(input.status, `${path}.status`),
     period: period(input.period, `${path}.period`),
     filters: obj(input.filters, `${path}.filters`),
-    source: {
-      kind: str(source.kind, "source.kind"),
-      version: str(source.version, "source.version"),
-      is_demo: source.is_demo,
-      updated_at: str(source.updated_at, "source.updated_at"),
-    },
+    source: sourceMetadata(input.source, `${path}.source`),
     limitations: strings(input.limitations, `${path}.limitations`),
   };
 }
@@ -434,7 +443,18 @@ export function decodeUCSearch(value: unknown): UCSearchResponse {
       }),
     },
     pagination: pagination(p, "pagination"),
-    metadata: { status: state(m.status, "metadata.status") },
+    metadata: {
+      status: state(m.status, "metadata.status"),
+      ...(m.source === undefined
+        ? {}
+        : {
+            provenance: {
+              source: sourceMetadata(m.source, "metadata.source"),
+              period: period(m.period, "metadata.period"),
+              limitations: strings(m.limitations, "metadata.limitations"),
+            },
+          }),
+    },
   };
 }
 export function decodeUCHistory(

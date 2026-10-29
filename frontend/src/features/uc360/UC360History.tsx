@@ -522,9 +522,9 @@ export function EvidenceDialog({
                 </p>
               )}
               <p className="text-sm text-muted">
-                Chamados nesta demonstração incluem apenas identificador,
-                abertura e categoria. Nenhuma lacuna deve ser interpretada como
-                valor zero ou causa da variação da conta.
+                Consulte a cobertura informada para os dados de atendimento.
+                Nenhuma lacuna deve ser interpretada como valor zero ou causa da
+                variação da conta.
               </p>
             </section>
           </div>

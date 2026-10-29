@@ -206,6 +206,33 @@ function mountPage(initialEntry = "/receita") {
   );
 }
 
+it("expõe período, unidades, lote e limitações na Receita Gold", async () => {
+  const gold = structuredClone(response);
+  gold.metadata.source = {
+    ...gold.metadata.source,
+    kind: "gold_csv",
+    is_demo: false,
+    version: "GOLD-ARTIFICIAL:hash",
+  };
+  gold.metadata.limitations = ["Receita paga não fornecida nesta exportação."];
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(gold), { status: 200 })),
+  );
+  mountPage("/receita?competencia_inicio=2025-01&competencia_fim=2025-02");
+  const panel = await screen.findByRole("region", {
+    name: "Período, unidades e fonte dos dados",
+  });
+  expect(within(panel).getByText("01/2025 a 02/2025")).toBeVisible();
+  expect(within(panel).getByText("R$ · kWh · UCs")).toBeVisible();
+  expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
+  expect(
+    within(panel).getByText("Receita paga não fornecida nesta exportação."),
+  ).toBeVisible();
+});
+
 function LocationProbe() {
   const location = useLocation();
   return (

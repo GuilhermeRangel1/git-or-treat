@@ -50,9 +50,17 @@ export default function SuspicionDetail({
           O que motivou a investigação
         </h2>
         <p className="mt-4 text-xs leading-[18px] text-muted">
-          Janela da evidência: {periodLabel(metadata.period.start)} a{" "}
+          {metadata.source.kind === "gold_csv"
+            ? "Cobertura do consumo no lote"
+            : "Janela da evidência"}
+          : {periodLabel(metadata.period.start)} a{" "}
           {periodLabel(metadata.period.end)}
         </p>
+        {metadata.source.kind === "gold_csv" && (
+          <p className="mt-1 text-xs text-muted">
+            A fila não informa uma janela temporal própria para esta suspeita.
+          </p>
+        )}
         <div className="mt-4 text-sm leading-[22px]">
           <p className="font-medium">Motivo da suspeita</p>
           <p className="mt-1">{data.reason}</p>

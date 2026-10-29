@@ -42,7 +42,10 @@ export default function InspectionFoundations({
           · {metadata.source.kind} · {metadata.source.version}
         </p>
         <p className="text-sm">
-          Janela: {monthLabel(metadata.period.start)} a{" "}
+          {metadata.source.kind === "gold_csv"
+            ? "Cobertura do consumo no lote"
+            : "Janela"}
+          : {monthLabel(metadata.period.start)} a{" "}
           {monthLabel(metadata.period.end)} · Energia em kWh · Atualizado em{" "}
           {new Date(metadata.source.updated_at).toLocaleString("pt-BR", {
             timeZone: "UTC",

@@ -85,7 +85,11 @@ export default function InspectionFilters({
       >
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-4">
           <div>
-            <p className="text-xs text-muted">Competência</p>
+            <p className="text-xs text-muted">
+              {metadata?.source.kind === "gold_csv"
+                ? "Cobertura do consumo"
+                : "Competência"}
+            </p>
             <p className="mt-1 font-medium">
               {periodLabel(metadata?.period.start, metadata?.period.end)}
             </p>
