@@ -87,6 +87,7 @@ jobs:
     env:
       TEST_POSTGRES_URL: postgresql+psycopg://venergy_migrator:venergy_migrator@localhost:5432/v_energy_test
       TEST_GOLD_POSTGRES_URL: postgresql+psycopg://venergy_migrator:venergy_migrator@localhost:5432/gold_import_test
+      TEST_GOLD_READER_ADMIN_URL: postgresql+psycopg://venergy_test:venergy_test@localhost:5432/gold_reader_test
 
     defaults:
       run:
@@ -138,6 +139,7 @@ jobs:
           docker run --rm --network host \
             -e TEST_POSTGRES_URL \
             -e TEST_GOLD_POSTGRES_URL \
+            -e TEST_GOLD_READER_ADMIN_URL \
             venergy-backend:ci python -m pytest -q
 
   qualidade-frontend:

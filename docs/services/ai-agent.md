@@ -365,3 +365,7 @@ Esses exemplos não são respostas esperadas; os números só podem ser preenchi
 ## Avaliação
 
 Preparar casos representativos para consumo, faturamento, rede, atendimento, geografia, classe, GD e perguntas impossíveis. Conferir correção numérica e recusa adequada. IA-08 é diferencial de automação; mesmo sem ele, evidência manual reproduzível é necessária para IA-01 a IA-06.
+
+## Preparação da identidade de publicação Gold — 28/10/2026
+
+O Backend passa a validar a origem do manifesto e persistir a origem e `publication_id`, derivando deles o `batch_ref`. A identidade permanece em repetição e muda atomicamente em nova publicação. O schema analítico e o papel de leitura seguem a ADR-0017; [manifesto e compatibilidade](../contracts/gold-csv-v1.md#origem-e-publicação) e [migração, permissões e recuperação](../contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação) descrevem o uso. `EvidenceProvenance` aceita `batch_ref` canônico e o `EvidenceGuard` exige a referência esperada para fonte Gold, preservando-a na evidência reduzida e recusando divergência. Backend e GenAI testam os mesmos exemplos em `docs/contracts/examples/gold-publication-v1.json`. Os envelopes completos, os endpoints de planejar/sintetizar e o executor de consultas de negócio continuam pendentes. Esta preparação não ativa a fonte real nem conclui GENAI-01 ou requisitos IA/DE.

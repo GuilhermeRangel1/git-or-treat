@@ -17,6 +17,18 @@ EvidenceSourceId = Annotated[
     ),
 ]
 
+GoldBatchRef = Annotated[
+    str,
+    StringConstraints(
+        strict=True,
+        max_length=100,
+        pattern=(
+            r"^gold-csv-v1:GOLD_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}:"
+            r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        ),
+    ),
+]
+
 
 class EvidenceReference(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -40,6 +52,7 @@ class EvidenceProvenance(BaseModel):
     window: ReadWindow
     filters: tuple[ReadFilter, ...] = Field(default=(), max_length=20)
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
+    batch_ref: GoldBatchRef | None = None
 
 
 class EvidenceResult(BaseModel):

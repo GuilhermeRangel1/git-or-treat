@@ -40,7 +40,7 @@ A Gold deve ler apenas `silver_publicada.*` depois de conferir uma única linha 
 
 | Vista Silver | Grão e chave para consumo | Limite para agregação |
 | --- | --- | --- |
-| `unidades_consumidoras` | Uma UC por `id_uc` aceito | Cadastro atual não prova titularidade ou classe histórica; CPF/CNPJ e nome não saem em Gold/CSV sem regra de mascaramento aprovada. |
+| `unidades_consumidoras` | Uma UC por `id_uc` aceito | Cadastro atual não prova titularidade ou classe histórica; CPF/CNPJ, nome, endereço, CEP e coordenadas são excluídos da projeção Gold/CSV, sem hash ou mascaramento (D20). |
 | `medidores` | Um medidor por `id_medidor` aceito | Datas ambíguas de instalação ficam fora; não inferir troca ou vigência não observada. |
 | `leituras` | Uma leitura por `id_leitura` aceito | `consumo_kwh` soma no grão de leitura; datas ambíguas e vínculos bloqueados ficam fora, flags de vigência e leitura decrescente seguem para avaliação. |
 | `faturas` | Uma fatura por `id_fatura` aceito | `valor_total` é R$ decimal com duas casas; competência e classe não tornam fatura única por UC. Status ou data isolada não comprovam pagamento; sentinela não é data real. |
@@ -103,3 +103,7 @@ Rodar a extração completa de ponta a ponta e comparar contagens, chaves e mét
 ## Integração local dos CSVs v1 — 27/10/2026
 
 As sete exportações da `feat/gold` foram recebidas localmente e têm um [contrato físico provisório](../contracts/gold-csv-v1.md), observado nos cabeçalhos. O backend implementa carga transacional/repetível para tabelas próprias `gold_*`, com validação CSV → banco. Isso não homologa fórmulas, não prova reconciliação Delta → CSV e não corrige a publicação antecipada ou o exportador da branch Gold. O dicionário canônico DE-08, manifesto de execução Gold e adaptação dos consumidores permanecem pendentes. Este adendo atualiza apenas a disponibilidade da carga local; evidências históricas anteriores continuam delimitadas às versões executadas.
+
+### Atualização da entrada local — preparação GENAI-01, 28/10/2026
+
+A carga Backend agora exige o manifesto de origem e vincula sua linhagem à publicação local. A versão ausente do exportador atual requer argumento explícito `--schema-version gold-csv-v1`; a carga não substitui IDs ausentes por valores de reserva. No PostgreSQL, as relações analíticas locais ficam no schema `gold`, sem alterar os nomes/colunas exportados. Veja [contrato](../contracts/gold-csv-v1.md#origem-e-publicação) e [runbook](../contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação). Controles de contagens, chaves e somas da origem para o mesmo lote ainda são necessários para comprovar Delta → CSV → banco; esta preparação não modifica notebooks nem homologa métricas.

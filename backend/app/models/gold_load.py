@@ -5,9 +5,11 @@ from app.db.base import Base
 from app.models import gold_v1
 
 SCHEMA_VERSION = "gold-csv-v1"
-TABLES = {name: table.to_metadata(Base.metadata) for name, table in gold_v1.TABLES.items()}
+TABLES = {name: table.to_metadata(Base.metadata, schema="gold") for name, table in gold_v1.TABLES.items()}
 BATCH = gold_v1.BATCH.to_metadata(Base.metadata)
 BATCH.append_column(Column("schema_version", String(32), nullable=False, server_default="gold-csv-v1"))
+BATCH.append_column(Column("publication_id", String(36)))
+BATCH.append_column(Column("origem", JSON))
 
 ATTEMPTS = Table(
     "gold_carga_tentativas", Base.metadata,
@@ -19,6 +21,8 @@ ATTEMPTS = Table(
     Column("iniciado_em", DateTime(timezone=True), nullable=False),
     Column("finalizado_em", DateTime(timezone=True)),
     Column("manifesto", JSON, nullable=False),
+    Column("origem", JSON),
+    Column("publication_id", String(36)),
     Column("erro_codigo", String(40)),
     Column("erro_mensagem", Text),
     CheckConstraint("status IN ('running', 'loaded', 'unchanged', 'failed')", name="ck_gold_tentativa_status"),
