@@ -2003,3 +2003,37 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
   - DEC/FEC: o Backend cria `Column("DEC")`/`Column("FEC")` em `gold_v1.py`, e a migração `goldv1000001` usa esse modelo. No PostgreSQL as colunas ficam `"DEC"`/`"FEC"`, sensíveis a caixa, enquanto o carregador do dicionário exige `dec`/`fec`. Uma consulta sem aspas pode não encontrar a coluna. Não foi decidido; o executor PostgreSQL não deve ler `indicadores_dec_fec` até haver decisão.
   - Prefixo: o Backend grava as tabelas como `gold_<nome>`, e o dicionário usa o nome sem prefixo.
 - Responsável: laura-amiranda; revisão pendente. Trello não sincronizado nesta etapa.
+
+### 2026-10-29 — IA-01, IA-03 e IA-06 — GENAI-03 (parte 2): catálogo lógico e mapeamento físico da Gold
+
+- Estado anterior → novo estado: IA-01 `Pendente` → `Pendente`; IA-03 e IA-06 sem mudança de estado. É preparação: nem o perfil nem o mapeamento estão ligados a `app/main.py` ou a uma composição da aplicação.
+- Mudança: novo perfil lógico `GRID360_GOLD_PROFILE` (`v-energy-grid-360-gold`), derivado do vocabulário demonstrativo e sem nomes físicos. Tem sete métricas das quatro capacidades aprovadas na prontidão (`faturamento.receita`, `faturamento.receita_bairro`, `consumo.mensal_uc`, `interrupcoes.dec_fec`):
+  - receita faturada (`billing.revenue`) e consumo medido (`energy.consumption`), reaproveitando os ids demonstrativos;
+  - três razões: ticket médio, tarifa média efetiva e consumo médio por UC;
+  - DEC e FEC, com ids novos (`network.equivalent_interruption_duration`/`_frequency`), porque `network.interruptions` tinha outro significado.
+
+  Também foi criado o mapeamento físico versionado `GRID360_GOLD_MAPPING` (`gold-catalog-v1`), em Pydantic imutável. Para cada métrica, ele declara as fontes candidatas com sua capacidade, a coluna da medida ou o numerador e o denominador, a coluna temporal, o grão, as anuláveis, o mapa dimensão → coluna, a nulidade e o arredondamento.
+  - Escolha de fonte: uma única fonte, a primeira que cobre as dimensões e está disponível.
+  - Razões: calculadas como razão de somas.
+  - DEC/FEC: só leitura no grão alimentador × competência.
+
+  As oito capacidades indisponíveis ficam declaradas com o motivo da prontidão. `out_of_scope_terms` não foi usado: o filtro de segurança recusaria essas perguntas como fora do escopo, e a resposta de capacidade indisponível ficou como pendência do GENAI-04.
+- Arquivos: novos `ai-agent/app/profiles/grid360_gold.py`, `ai-agent/app/profiles/grid360_gold_mapping.py`, `ai-agent/tests/test_gold_catalog.py`, `ai-agent/tests/test_gold_catalog_mapping.py` e [catálogo Gold](gold-catalog.md); alterados o [guia do serviço](services/ai-agent.md), que passa a citar as 7 tabelas e o catálogo, e este PRD. Interpretador, planejador, orquestrador, `app/main.py`, perfis demonstrativos, validador SQL e prontidão não foram alterados.
+- Testes, todos sintéticos:
+  - o perfil valida e não contém nome de tabela nem identificador físico;
+  - cada métrica tem um mapeamento e capacidades aprovadas, com tabelas da capacidade;
+  - colunas, tipos, grão e período batem com `dictionary_gold.toml` carregado por `load_dictionary`;
+  - dimensões são sustentadas pelas fontes; razões nunca são somadas; DEC/FEC nunca agregam;
+  - cópias alteradas do dicionário (coluna renomeada, tipo divergente, grão, tabela removida, período, versão) e da prontidão (capacidade sem a tabela, fora da Gold, não aprovada ou ausente) fazem a validação falhar com mensagem clara;
+  - pelo núcleo composto, receita, receita residencial, consumo e DEC viram o plano lógico esperado, e "falta de luz" e "conta de luz" pedem esclarecimento sem consultar a fonte.
+- Verificações: em `ai-agent/`, em 29/10/2026, com `.venv`:
+  - `python -m pytest -q tests/test_gold_catalog.py tests/test_gold_catalog_mapping.py`: 46 aprovados;
+  - `python -m pytest -q`: 3208 aprovados, 4 pulados e 1 xfail (antes: 3162 aprovados, 4 pulados e 1 xfail);
+  - `python -m ruff check` nos quatro arquivos Python novos: sem erros;
+  - `python -m compileall -q app tests scripts`: sem erros;
+  - `git diff --check` na raiz: passou.
+- Limites: o catálogo não prova a Gold real; a liberação para consulta real depende de GENAI-06, GENAI-07 e GENAI-10.
+  - Pendências com Dados: definição, unidade e fórmula de cada métrica, janela temporal, nulos e arredondamento, em checklist no catálogo.
+  - Pendências com o Backend: `"DEC"`/`"FEC"` entre aspas no PostgreSQL e o prefixo `gold_`, anotadas sem decisão.
+  - Pendências do GENAI-04: "ticket médio" e "consumo médio por UC" ainda não são alcançáveis pelo interpretador atual, e município e bairro não têm valores no perfil.
+- Responsável: laura-amiranda; revisão pendente. Trello não sincronizado nesta etapa.
