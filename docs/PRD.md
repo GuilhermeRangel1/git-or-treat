@@ -473,6 +473,12 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Carga do lote local: PostgreSQL 16 descartável dedicado, sem volumes do projeto; `alembic upgrade head` e duas chamadas `import_gold(engine, directory, schema_version="gold-csv-v1")`. CSVs recebidos na raiz foram apresentados por links físicos em diretório temporário, com uma pasta por tabela conforme o contrato, sem mudar os originais. A tentativa inicial na disposição plana foi recusada e auditada sem publicação. Na estrutura prevista: `loaded` seguido de `unchanged`, `publication_id` e `batch_ref` iguais, `attempt_id` distintos; contagens independentes por leitura CSV iguais a `COUNT(*)` nas sete tabelas, um registro de publicação e duas novas tentativas. Hashes dos oito arquivos de entrada iguais antes/depois; 95 s na validação bem-sucedida. Saída sem valores financeiros, linhas ou identificadores do lote. Diretório temporário e contêiner/volume de teste removidos ao fim. Isso comprova a carga CSV → banco e sua repetição; a comparação independente com Delta exige os controles da origem.
 
 
+### 2026-10-28 — DE-04 / DE-08 — decisão de minimização na projeção Gold
+
+- Decisão: D20 registra a exclusão de CPF/CNPJ, nome, endereço, CEP, coordenadas e metadados técnicos iniciados por `_` na Visão 360 e na fila, substituindo a proposta de hash/mascaramento. Identificação analítica por `id_uc`, com classe e território como contexto; fontes restritas preservadas.
+- Arquivos: [decisões técnicas, §9.3](../data-engineering/decisoes-tecnicas.md#93-exclusão-de-dados-pessoais-na-projeção-gold-d20-decidido) e [guia de engenharia de dados](services/data-engineering.md). Alteração documental; estados dos requisitos preservados.
+- Evidência: relato de conferência das projeções Delta oficiais recebido nesta data. Cabeçalhos dos CSVs recebidos conferidos localmente contra o contrato, incluindo as 15 colunas da Visão 360 e as 14 da fila, sem campos pessoais adicionais. Adequação da identificação na tela do atendente ainda não verificada nesta mudança. Revisão textual e `git diff --check`; sem nova execução dos notebooks ou alteração de cartões.
+
 ### 2026-10-28 — DE-06 / IA-03 / IA-06 — preparação Backend para GENAI-01
 
 - Estado: DE-06 permanece `Em andamento`; IA-01, IA-03 e IA-06 permanecem nos estados existentes. Entrega de preparação, sem executor de perguntas, endpoints novos ou ativação da fonte real.

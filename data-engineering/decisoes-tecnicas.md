@@ -651,35 +651,15 @@ de negócio da versão atual.
 - **GD:** potência instalada **não** prova energia gerada/abatida por competência (PRD §4.2, GD).
 - **Inspeção:** separar suspeita, ordem operacional e resultado; `inspecoes.xlsx` é histórico (PRD §5.4).
 
-### 9.3 Hashing / mascaramento de dado pessoal — **por que e como** (D20, pendente)
+### 9.3 Exclusão de dados pessoais na projeção Gold (D20, decidido)
 
-**Por quê.** A Silver preserva `cpf_cnpj` e `nome_titular` como **dígitos/texto reais** porque a Bronze é a fonte
-rastreável e a Silver resolve qualidade — a proteção não é papel delas. Mas a Gold alimenta **CSV exportado para o
-banco local**, que por sua vez alimenta **API, portal e agente Text-to-SQL**. Expor CPF/nome nessa ponta é risco
-de LGPD e de vazamento no Git. Marcar/anonimizar na Gold resolve isso sem perder o rastro, porque o dado cru segue
-íntegro na Bronze/Silver dentro do ambiente autorizado (`AGENTS.md`: não copiar dado pessoal para commits/logs).
+**Decisão — 28/10/2026:** publicar a Visão 360 e a fila de inspeção com as colunas analíticas necessárias, excluindo CPF/CNPJ, nome do titular, endereço, CEP, coordenadas e metadados técnicos iniciados por `_`. Esses campos não são substituídos por hash nem por versões mascaradas. A projeção é definida em `notebook/Silver_to_gold.ipynb` e descrita no [dicionário Gold](../docs/dicionario_gold.md).
 
-**Por que hashing e não simplesmente "apagar" ou "substituir por sequencial".** Existem três usos concorrentes:
+**Motivo:** os consumidores identificam a unidade por `id_uc` e usam classe e território como contexto. O escopo analítico combinado não exige agrupar por titular; manter identificadores pessoais transformados acrescentaria dados sem necessidade demonstrada. A exclusão reduz a exposição na Gold e nos CSVs. `id_uc` continua sendo um identificador da unidade; esta projeção não constitui garantia de anonimização do conjunto.
 
-- o **portal** mostra o titular (talvez mascarado, ex.: `***.***.***-09`);
-- o **agente/IA** às vezes precisa **contar** UCs por titular ou reconhecer "mesmo titular" sem ler o nome;
-- a **reconciliação** precisa continuar possível entre Gold e Silver.
+**Limite:** a decisão não apaga os registros de origem. Bronze e Silver permanecem no ambiente autorizado, com acesso restrito e rastreabilidade. A recomendação anterior de hash com salt mais mascaramento fica substituída por esta decisão.
 
-O hash **determinístico** (mesma entrada → mesma saída) permite agrupar/contar por titular sem revelar o valor; um
-sequencial arbitrário até permitiria isso, mas quebraria a reprodutibilidade entre execuções (reimportar a Gold
-renumeraria titulares). O hash determinístico mantém a chave estável.
-
-**Opções e custo:**
-
-| Opção | O que faz | Ganho | Custo / risco |
-|---|---|---|---|
-| **A. Hash determinístico com *salt* secreto** (ex.: SHA-256 de `salt + cpf`) | substitui CPF/nome reais pelo hash na Gold | agrupa/conta sem revelar; estável entre execuções | o *salt* precisa ser segredo (não versionar); hash de domínio pequeno (CPF) ainda é atacável por força bruta se o *salt* vazar |
-| **B. Mascaramento parcial** (`***.***.***-09`, primeiro nome) | mostra o suficiente para o usuário humano | baixo risco, legível para o operador | não serve para agrupar por titular no agente |
-| **C. Não expor** (Gold sem CPF/nome; só `id_uc`) | nenhum dado pessoal sai | risco zero | o portal perde "de quem é a UC"; a IA não responde por titular |
-
-**Recomendação conservadora:** **A + B** — o hash substitui o identificador pessoal nos fatos exportados (para
-agrupar), e uma versão mascarada **B** fica só para exibição; o CPF/`nome_titular` real **não** sai da camada
-Bronze/Silver. Decidir o *salt* e onde guardá-lo é requisito para a Gold (pendência).
+**Verificação:** a projeção da Gold foi reportada como conferida nas tabelas Delta oficiais, com 15 colunas na Visão 360 e 14 na fila. Os cabeçalhos dos sete CSVs recebidos foram conferidos localmente contra o contrato do Backend; Visão 360 e fila mantêm as 15 e 14 colunas esperadas, sem campos pessoais adicionais. No portal, confirmar que número da UC, classe e município/bairro atendem à identificação na tela do atendente antes de registrar essa suposição como validada.
 
 ### 9.4 Exportação (DE-06)
 
