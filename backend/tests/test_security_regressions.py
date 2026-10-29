@@ -36,7 +36,7 @@ def test_orders_deny_anonymous_requests(client, method, path, payload):
 def test_read_only_credential_cannot_write(client, tokens):
     assert client.get(ORDER_URL, headers=tokens["read"]).status_code == 200
     assert client.post(ORDER_URL, headers=tokens["read"], json={"uc_id": "TEST", "reason": "Inspeção"}).status_code == 403
-    assert client.patch(ORDER_URL + "/1", headers=tokens["read"], json={"notes": "Não permitido"}).status_code == 403
+    assert client.patch(ORDER_URL + "/1", headers=tokens["read"], json={"version": 1, "notes": "Não permitido"}).status_code == 403
     assert client.get(ORDER_URL, headers=tokens["write"]).json() == []
 
 
@@ -54,7 +54,7 @@ def test_orders_fail_closed_when_no_credentials_are_configured(client, monkeypat
 
 @pytest.mark.parametrize("order_id", ["0", "-1", "9223372036854775808", "9" * 100])
 def test_order_identifier_bounds_are_validated_before_database(client, tokens, order_id):
-    response = client.patch(ORDER_URL + "/" + order_id, headers=tokens["write"], json={"status": "EM_ANDAMENTO"})
+    response = client.patch(ORDER_URL + "/" + order_id, headers=tokens["write"], json={"version": 1, "status": "EM_ANDAMENTO"})
     assert response.status_code == 422
     assert client.get(ORDER_URL, headers=tokens["read"]).json() == []
 
@@ -67,7 +67,7 @@ def test_order_identifier_bounds_are_validated_before_database(client, tokens, o
 ])
 def test_order_input_cannot_persist_invalid_fields(client, tokens, field, value):
     payload = {"uc_id": "TEST", "reason": "Inspeção", field: value}
-    assert client.post(ORDER_URL, headers=tokens["write"], json=payload).status_code == 422
+    assert client.post(ORDER_URL, headers=tokens["write"], json={"version": 1, **payload}).status_code == 422
     assert client.get(ORDER_URL, headers=tokens["read"]).json() == []
 
 
@@ -80,27 +80,27 @@ def test_order_strings_trim_spaces_and_accept_column_boundaries(client, tokens):
 @pytest.mark.parametrize("payload", [{}, {"status": None}, {"notes": "x" * 4001}, {"result": "x" * 4001}, {"uc_id": "OTHER"}])
 def test_invalid_updates_are_rejected(client, tokens, payload):
     oid = create(client, tokens)
-    assert client.patch(f"{ORDER_URL}/{oid}", headers=tokens["write"], json=payload).status_code == 422
+    assert client.patch(f"{ORDER_URL}/{oid}", headers=tokens["write"], json={"version": 1, **payload}).status_code == 422
 
 
 def test_cancelled_orders_cannot_be_reopened_or_changed(client, tokens):
     oid = create(client, tokens)
     url = f"{ORDER_URL}/{oid}"
-    assert client.patch(url, headers=tokens["write"], json={"status": "CANCELADA"}).status_code == 200
-    assert client.patch(url, headers=tokens["write"], json={"status": "PENDENTE"}).status_code == 409
-    assert client.patch(url, headers=tokens["write"], json={"notes": "Alteração indevida"}).status_code == 409
-    assert client.patch(url, headers=tokens["write"], json={"status": "CANCELADA"}).status_code == 200
+    assert client.post(url + "/cancel", headers=tokens["write"], json={"version": 1, "confirmed_order_id": oid}).status_code == 200
+    assert client.patch(url, headers=tokens["write"], json={"version": 2, "status": "PENDENTE"}).status_code == 409
+    assert client.patch(url, headers=tokens["write"], json={"version": 2, "notes": "Alteração indevida"}).status_code == 409
+    assert client.post(url + "/cancel", headers=tokens["write"], json={"version": 2, "confirmed_order_id": oid}).status_code == 200
     assert client.get(ORDER_URL, headers=tokens["read"]).json()[0]["status"] == "CANCELADA"
 
 
 def test_valid_completion_requires_started_order_and_result(client, tokens):
     oid = create(client, tokens)
     url = f"{ORDER_URL}/{oid}"
-    assert client.patch(url, headers=tokens["write"], json={"status": "CONCLUIDA", "result": "Conferido"}).status_code == 409
-    assert client.patch(url, headers=tokens["write"], json={"status": "EM_ANDAMENTO"}).status_code == 200
-    assert client.patch(url, headers=tokens["write"], json={"status": "CONCLUIDA", "result": "  "}).status_code == 422
-    assert client.patch(url, headers=tokens["write"], json={"status": "CONCLUIDA", "result": "Conferido"}).status_code == 200
-    assert client.patch(url, headers=tokens["write"], json={"status": "EM_ANDAMENTO"}).status_code == 409
+    assert client.patch(url, headers=tokens["write"], json={"version": 1, "status": "CONCLUIDA", "result": "Conferido"}).status_code == 409
+    assert client.patch(url, headers=tokens["write"], json={"version": 1, "status": "EM_ANDAMENTO"}).status_code == 200
+    assert client.patch(url, headers=tokens["write"], json={"version": 2, "status": "CONCLUIDA", "result": "  "}).status_code == 422
+    assert client.patch(url, headers=tokens["write"], json={"version": 2, "status": "CONCLUIDA", "result": "Conferido"}).status_code == 200
+    assert client.patch(url, headers=tokens["write"], json={"version": 3, "status": "EM_ANDAMENTO"}).status_code == 409
     assert client.get(ORDER_URL, headers=tokens["read"]).json()[0]["result"] == "Conferido"
 
 
@@ -122,7 +122,10 @@ def test_large_body_rejected_even_without_content_length(client):
 def test_json_structure_characters_inside_strings_do_not_count_as_depth(client):
     payload = {"intent": "[" * 200 + '\\"' + "}" * 200, "target_table": "gold_indicadores"}
     response = client.post("/api/v1/ai/query", json=payload)
-    assert response.status_code == 200
+    assert response.status_code == 503
+    assert response.json()["status"] == "error"
+    assert response.json()["error"] == {"code": "service_unavailable", "retryable": False}
+    assert response.json()["correlation_id"] == response.headers["x-correlation-id"]
 
 
 def test_adversarial_content_length_does_not_overflow_integer_parser(client):
@@ -161,7 +164,7 @@ def test_transition_event_does_not_log_credentials_or_payload(client, tokens, ca
     import logging
     oid = create(client, tokens)
     with caplog.at_level(logging.INFO, logger='app.services.inspections'):
-        response = client.patch(f'{ORDER_URL}/{oid}', headers=tokens['write'], json={'status': 'EM_ANDAMENTO', 'notes': 'Private audit sample'})
+        response = client.patch(f'{ORDER_URL}/{oid}', headers=tokens['write'], json={"version": 1, 'status': 'EM_ANDAMENTO', 'notes': 'Private audit sample'})
     assert response.status_code == 200
     event = next(record for record in caplog.records if record.message == 'inspection_order_status_changed')
     assert event.order_id == oid
@@ -195,4 +198,7 @@ def test_invalid_unicode_and_nul_in_json_are_rejected_before_storage(client, enc
 
 def test_valid_unicode_surrogate_pair_remains_supported(client):
     response = client.post('/api/v1/ai/query', content=r'{"intent":"\ud83d\ude00","target_table":"gold_indicadores"}', headers={'Content-Type': 'application/json'})
-    assert response.status_code == 200
+    assert response.status_code == 503
+    assert response.json()["status"] == "error"
+    assert response.json()["error"] == {"code": "service_unavailable", "retryable": False}
+    assert response.json()["correlation_id"] == response.headers["x-correlation-id"]

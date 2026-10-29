@@ -9,6 +9,7 @@ from app.schemas.domain_profile import (
     DimensionRole,
     DomainProfile,
     MetricDefinition,
+    UnitDefinition,
 )
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
@@ -17,6 +18,13 @@ _PERCENTAGE_THRESHOLD = re.compile(
     r"(?<!\w)(?:acima de|abaixo de|mais de|menos de)\s+\d+(?:[.,]\d+)?\s*%",
     re.IGNORECASE,
 )
+_LOCATION_AFTER_PREPOSITION = re.compile(r"\b(?:em|no|na)\s+([\wÀ-ÿ-]+)", re.IGNORECASE)
+# Sem preposição de lugar, só a grafia de nome próprio sinaliza local: "de Recife" e
+# "do Recife" sim, "de energia" e "de 2025" não. Siglas e nomes com hífen ficam de fora.
+_PROPER_NAME_AFTER_DE = re.compile(
+    r"(?<!\w)(?i:de|do|da|dos|das)\s+([A-ZÀ-Ý][a-zà-ÿ]+)(?![\w-])"
+)
+_ENDS_WITH_EM = re.compile(r"(?:^|\W)em\s+$")
 
 
 def _normalize(value: str) -> str:
@@ -45,6 +53,9 @@ class QuestionInterpreter:
 
     def __init__(self, profile: DomainProfile) -> None:
         self._profile = profile
+        self._comparison_period_phrases = frozenset(
+            _normalize(item) for item in profile.comparison_period_phrases
+        )
         self._metric_aliases = tuple(
             (metric, alias) for metric in profile.metrics for alias in metric.aliases
         )
@@ -58,16 +69,80 @@ class QuestionInterpreter:
             for dimension in profile.dimensions
             if dimension.role is DimensionRole.CLASSIFICATION
         )
+        # Em "queda de energia" o termo de direção nomeia o próprio evento; em "queda de
+        # consumo" ele qualifica outro sinônimo da mesma métrica e continua sendo direção.
+        self._aliases_absorbing_direction = frozenset(
+            _normalize(alias)
+            for metric, alias in self._metric_aliases
+            if _find_phrases(alias, profile.direction_terms)
+            and not any(
+                _find_phrases(alias, (other,))
+                for other in metric.aliases
+                if _normalize(other) != _normalize(alias)
+            )
+        )
+        self._unit_aliases = tuple(alias for unit in profile.units for alias in unit.aliases)
+        self._units_by_alias: dict[str, UnitDefinition] = {
+            _normalize(alias): unit for unit in profile.units for alias in unit.aliases
+        }
+        self._detail_phrases = tuple(
+            phrase for rule in profile.detail_rules for phrase in rule.phrases
+        )
+        # Palavra já usada em alguma frase do perfil ("Energia" de "falta de energia")
+        # não é tratada como nome de lugar desconhecido.
+        self._profile_words = frozenset(
+            word
+            for phrase in (
+                *(alias for _, alias in self._metric_aliases),
+                *profile.period_phrases,
+                *profile.comparison_terms,
+                *profile.direction_terms,
+                *profile.correction_terms,
+                *self._unit_aliases,
+                *self._detail_phrases,
+                *(
+                    alias
+                    for dimension in profile.dimensions
+                    for alias in (
+                        *dimension.aliases,
+                        *(item for value in dimension.values for item in value.aliases),
+                    )
+                ),
+            )
+            for word in re.findall(r"\w+", _normalize(phrase))
+        )
 
     def interpret(
         self,
         question: str,
         context: list[ConversationTurn] | None = None,
     ) -> IntentInterpretation:
-        previous_intent = self._previous_intent(context or [])
+        turns = context or []
+        pending_period_question = self._pending_period_question(turns)
+        current_question_has_metric = bool(
+            _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
+        )
+        if pending_period_question is not None and not current_question_has_metric:
+            combined_question = f"{pending_period_question} {question}"
+            return self._interpret(combined_question, None)
+
+        previous_intent = self._previous_intent(turns)
         if previous_intent is not None and not self._is_follow_up(question, previous_intent):
             previous_intent = None
         return self._interpret(question, previous_intent)
+
+    def _pending_period_question(self, context: list[ConversationTurn]) -> str | None:
+        if len(context) < 2:
+            return None
+
+        previous_user, previous_assistant = context[-2:]
+        if (
+            previous_user.role == "user"
+            and previous_assistant.role == "assistant"
+            and previous_assistant.content == self._profile.clarifications.missing_period
+        ):
+            return previous_user.content
+        return None
 
     def _is_follow_up(self, question: str, previous_intent: AnalysisIntent) -> bool:
         normalized = _normalize(question).strip()
@@ -141,9 +216,24 @@ class QuestionInterpreter:
         selected_metric = self._select_metric(matched_metrics, base_intent)
         domain = next(iter(matched_domains)) if matched_domains else base_intent.domain
 
+        breakdown = self._requested_breakdown(question)
+        breakdown_message = self._profile.clarifications.unsupported_breakdown
+        if breakdown is not None and breakdown_message is not None:
+            # Sem agrupamento no plano, responder o total seria um falso acerto.
+            return self._clarify(
+                breakdown_message.replace("{dimension}", breakdown.label.lower())
+            )
+
         geography = self._dimension_value_matches(question, self._geography_dimensions)
         if self._has_unrecognized_location_phrase(question, geography):
             return self._clarify(self._profile.clarifications.unknown_geography)
+        unit_surface = self._incompatible_unit(question, selected_metric)
+        unit_message = self._profile.clarifications.unit_mismatch
+        if unit_surface is not None and unit_message is not None:
+            return self._clarify(unit_message.replace("{unit}", unit_surface))
+        detail_clarification = self._unsupported_detail(question)
+        if detail_clarification is not None:
+            return self._clarify(detail_clarification)
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
         if self._has_unresolved_multiple_values(question, geography):
             return self._clarify(self._profile.clarifications.multiple_geographies)
@@ -163,27 +253,60 @@ class QuestionInterpreter:
             base_intent.metric_phrase if base_intent else None,
         )
         periods = _find_phrases(question, self._profile.period_phrases)
+        default_period_context_requested = bool(
+            _find_phrases(question, self._profile.default_period_context_phrases)
+        )
+        configured_comparison_window = any(
+            _normalize(surface) in self._comparison_period_phrases
+            for _, _, surface in periods
+        )
         normalized_question = _normalize(question)
         comparison_requested = len(periods) > 1 and " entre " in f" {normalized_question} "
         comparison_requested = comparison_requested or self._has_comparison(normalized_question)
-        if not periods and base_intent is None:
+        comparison_requested = comparison_requested or configured_comparison_window
+        if (
+            not periods
+            and base_intent is None
+            and (
+                self._profile.default_period_phrase is None
+                or (
+                    self._profile.default_period_context_phrases
+                    and not default_period_context_requested
+                )
+            )
+        ):
             return self._clarify(self._profile.clarifications.missing_period)
         if not periods and comparison_requested:
             return self._clarify(self._profile.clarifications.comparison_baseline)
-        if comparison_requested and len(periods) < 2:
+        if comparison_requested and len(periods) < 2 and not configured_comparison_window:
             return self._clarify(self._profile.clarifications.comparison_baseline)
         if len(periods) > 1 and not comparison_requested:
             return self._clarify(self._profile.clarifications.multiple_periods)
         if len(periods) > 1:
             period_phrase = question[periods[0][0] : periods[-1][1]]
         elif periods:
-            period_phrase = periods[0][2]
+            period_phrase = (
+                self._profile.comparison_period_phrases[0]
+                if configured_comparison_window
+                else periods[0][2]
+            )
+        elif base_intent is None:
+            assert self._profile.default_period_phrase is not None
+            period_phrase = self._profile.default_period_phrase
         else:
             assert base_intent is not None
             period_phrase = base_intent.period_phrase
 
         filters: dict[str, str] = dict(base_intent.filters) if base_intent else {}
-        directions = _find_phrases(question, self._profile.direction_terms)
+        directions = [
+            direction
+            for direction in _find_phrases(question, self._profile.direction_terms)
+            if not any(
+                start <= direction[0] and direction[1] <= end
+                and _normalize(surface) in self._aliases_absorbing_direction
+                for start, end, surface in metric_hits
+            )
+        ]
         if directions:
             filters["direction_phrase"] = directions[0][2]
         threshold = _PERCENTAGE_THRESHOLD.search(question)
@@ -264,6 +387,58 @@ class QuestionInterpreter:
         )
         return _find_phrases(question, phrases)
 
+    def _requested_breakdown(self, question: str) -> DimensionDefinition | None:
+        """Dimensão pedida em "por <alias>", exceto quando um valor dela vem logo depois."""
+
+        normalized = _normalize(question)
+        for dimension in self._profile.dimensions:
+            aliases = sorted(
+                {_normalize(item) for item in dimension.aliases}, key=len, reverse=True
+            )
+            alternatives = "|".join(re.escape(alias) for alias in aliases)
+            pattern = rf"(?<!\w)por\s+(?:cada\s+)?(?:{alternatives})(?!\w)"
+            values = {_normalize(item) for value in dimension.values for item in value.aliases}
+            for match in re.finditer(pattern, normalized):
+                # "por classe residencial" e "por município de Olinda" são filtros.
+                rest = normalized[match.end() :]
+                if any(
+                    re.match(rf"\s+(?:(?:de|da|do)\s+)?{re.escape(value)}(?!\w)", rest)
+                    for value in values
+                ):
+                    continue
+                return dimension
+        return None
+
+    def _incompatible_unit(self, question: str, metric: MetricDefinition | None) -> str | None:
+        """Unidade citada em "em <unidade>" cujo tipo a métrica não aceita."""
+
+        if metric is None or not metric.accepted_unit_kinds:
+            return None
+        for start, _end, surface in _find_phrases(question, self._unit_aliases):
+            if not _ENDS_WITH_EM.search(_normalize(question[:start])):
+                continue
+            if self._units_by_alias[_normalize(surface)].kind not in metric.accepted_unit_kinds:
+                return surface
+        return None
+
+    def _unsupported_detail(self, question: str) -> str | None:
+        """Pedido de detalhe que o perfil não atende, fora de um período do catálogo."""
+
+        period_spans = [
+            (start, end)
+            for start, end, _ in _find_phrases(question, self._profile.period_phrases)
+        ]
+        for rule in self._profile.detail_rules:
+            if rule.clarification is None:
+                continue
+            for start, end, _ in _find_phrases(question, rule.phrases):
+                if not any(
+                    period_start <= start and end <= period_end
+                    for period_start, period_end in period_spans
+                ):
+                    return rule.clarification
+        return None
+
     def _has_comparison(self, normalized_question: str) -> bool:
         return bool(_find_phrases(normalized_question, self._profile.comparison_terms))
 
@@ -297,27 +472,42 @@ class QuestionInterpreter:
         protected = [
             *recognized,
             *self._dimension_value_matches(question, self._classification_dimensions),
+            *_find_phrases(question, self._profile.non_location_phrases),
             *_find_phrases(
                 question,
                 (
                     *self._profile.period_phrases,
                     *self._profile.comparison_terms,
                     *self._profile.direction_terms,
+                    *self._profile.correction_terms,
                     *(alias for _, alias in self._metric_aliases),
                     *(
                         alias
                         for dimension in self._profile.dimensions
                         for alias in dimension.aliases
                     ),
+                    *self._unit_aliases,
+                    *self._detail_phrases,
                 ),
             ),
         ]
         recognized_spans = [(start, end) for start, end, _ in protected]
-        pattern = re.compile(r"\b(?:em|no|na)\s+([\wÀ-ÿ-]+)", re.IGNORECASE)
-        for match in pattern.finditer(question):
+        for match in _LOCATION_AFTER_PREPOSITION.finditer(question):
             start, end = match.span(1)
+            # O trecho conhecido pode começar na palavra ou na própria preposição ("na verdade").
             if not any(
-                recognized_start == start and recognized_end >= end
+                recognized_start in (start, match.start()) and recognized_end >= end
+                for recognized_start, recognized_end in recognized_spans
+            ):
+                return True
+        # Contido em qualquer trecho conhecido: "Falta de Luz" e "período de Demonstração"
+        # não são nomes de lugar.
+        for match in _PROPER_NAME_AFTER_DE.finditer(question):
+            start, end = match.span(1)
+            if _normalize(match.group(1)) in self._profile_words:
+                continue
+            if not any(
+                recognized_start <= start and end <= recognized_end
                 for recognized_start, recognized_end in recognized_spans
             ):
                 return True

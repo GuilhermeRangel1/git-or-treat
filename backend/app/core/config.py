@@ -1,7 +1,9 @@
-from typing import List, Union
-from pydantic import AnyHttpUrl, SecretStr, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List, Literal, Union
+from urllib.parse import urlsplit
 from pathlib import Path
+
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -17,11 +19,20 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
 
+    AI_AGENT_BASE_URL: AnyHttpUrl | None = None
+    AI_AGENT_SERVICE_API_TOKEN: SecretStr | None = None
+    AI_AGENT_TIMEOUT_SECONDS: float = Field(default=35.0, ge=0.1, le=120.0)
+
     # Explicitly opt in to the in-memory demonstration analytics source.
     ANALYTICS_SOURCE: str = "unavailable"
 
     ORDERS_READ_TOKEN: SecretStr | None = None
     ORDERS_WRITE_TOKEN: SecretStr | None = None
+    APP_ENV: Literal["development", "production"] = "development"
+    ORDERS_AUTH_MODE: Literal["demo", "service", "oidc"] = "service"
+    OIDC_ISSUER: str | None = None
+    OIDC_AUDIENCE: str | None = None
+    OIDC_JWKS_URL: str | None = None
 
     @model_validator(mode="after")
     def validate_order_tokens(self):
@@ -30,6 +41,25 @@ class Settings(BaseSettings):
             raise ValueError("Credenciais de ordens devem ter ao menos 32 caracteres.")
         if len(tokens) == 2 and tokens[0] == tokens[1]:
             raise ValueError("Credenciais de leitura e escrita devem ser distintas.")
+        if self.APP_ENV == "production" and self.ORDERS_AUTH_MODE != "oidc":
+            raise ValueError("Produção exige autenticação individual OIDC nas ordens.")
+        if self.ORDERS_AUTH_MODE == "demo" and self.ANALYTICS_SOURCE != "synthetic":
+            raise ValueError("Modo demo exige fonte exclusivamente sintética.")
+        if self.ORDERS_AUTH_MODE == "oidc":
+            if tokens:
+                raise ValueError("OIDC não aceita credenciais compartilhadas de serviço em paralelo.")
+            if not self.OIDC_AUDIENCE or not self.OIDC_AUDIENCE.strip():
+                raise ValueError("Configure a audiência OIDC da API.")
+            for value in (self.OIDC_ISSUER, self.OIDC_JWKS_URL):
+                parsed = urlsplit(value or "")
+                if (parsed.scheme != "https" or not parsed.hostname or parsed.username
+                        or parsed.password or parsed.query or parsed.fragment):
+                    raise ValueError("Emissor e JWKS OIDC devem ser URLs HTTPS explícitas, sem credenciais ou parâmetros.")
+        if self.AI_AGENT_BASE_URL is not None:
+            if self.AI_AGENT_SERVICE_API_TOKEN is None:
+                raise ValueError("AI_AGENT_SERVICE_API_TOKEN é obrigatório quando AI_AGENT_BASE_URL é configurada.")
+            if len(self.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()) < 32:
+                raise ValueError("AI_AGENT_SERVICE_API_TOKEN deve ter ao menos 32 caracteres.")
         return self
 
     # Database (PostgreSQL com driver psycopg 3)
@@ -43,10 +73,10 @@ class Settings(BaseSettings):
     # Data directory (Mocks now, Gold exported CSVs later)
     GOLD_DATA_DIR: Path = Path(__file__).resolve().parent.parent.parent / "data" / "gold"
 
-    BACKEND_ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "backend", "testserver"]
+    BACKEND_ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1", "backend", "testserver"]
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = [
+    BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
@@ -54,7 +84,7 @@ class Settings(BaseSettings):
 
     @field_validator("BACKEND_CORS_ORIGINS", "BACKEND_ALLOWED_HOSTS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+    def assemble_cors_origins(cls, v: str | list[str]) -> list[str]:
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, (list, str)):

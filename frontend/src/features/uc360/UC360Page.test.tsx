@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import UC360Page from "./UC360Page";
@@ -264,6 +270,68 @@ describe("UC 360 search flow", () => {
     renderPage("/uc-360?uc=UC-1001");
     expect((await screen.findAllByText("0 kWh")).length).toBeGreaterThan(0);
     expect(
+      screen.getByRole("group", { name: "Selecionar período" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("form", { name: "Período da consulta" }).textContent,
+    ).toContain("Período aplicado: 01/2025 a 02/2025");
+    const energyComparison = screen.getByRole("region", {
+      name: "Comparação de energia e consumo",
+    });
+    const financialComparison = screen.getByRole("region", {
+      name: "Comparação de valores financeiros",
+    });
+    expect(
+      screen.getByRole("heading", { name: "Indicadores comparativos" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: /^Consumo medido$/ }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: /^Valor faturado$/ }),
+    ).toBeNull();
+    expect(
+      within(energyComparison).getByRole("heading", {
+        name: "Energia e consumo",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(energyComparison).getByRole("heading", {
+        name: "Consumo medido (kWh)",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(energyComparison).getByRole("heading", {
+        name: "Energia faturada (kWh)",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(financialComparison).getByRole("heading", {
+        name: "Valores financeiros",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(financialComparison).getByRole("heading", {
+        name: "Valor faturado (BRL)",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(financialComparison).getByRole("heading", {
+        name: "Valor pago (BRL)",
+      }),
+    ).toBeTruthy();
+    const billingSupport = screen.getByRole("region", {
+      name: "Apoio ao atendimento",
+    });
+    expect(
+      within(billingSupport).getByRole("heading", {
+        name: "Faturas em aberto",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(billingSupport).getByText(/contagem, sem saldo ou atraso/),
+    ).toBeTruthy();
+    expect(
       screen.getByRole("columnheader", { name: "Competência" }),
     ).toBeTruthy();
     const historyDisclosure = screen
@@ -300,6 +368,8 @@ describe("UC 360 search flow", () => {
     expect(screen.getAllByText("R$ 70,00").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Data do pagamento").length).toBeGreaterThan(0);
     expect(screen.getAllByText("75 kWh").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("20/03/2025").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("05/03/2025").length).toBeGreaterThan(0);
   });
 
   it("states meter and comparison gaps in plain language when the final reading is missing", async () => {

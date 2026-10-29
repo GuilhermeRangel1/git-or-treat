@@ -20,13 +20,21 @@ SYNTHETIC_SCENARIOS = (
                 is_demo=True,
             ),
             records=[
-                {"period_label": "período A", "value": 100, "unit": "unidades fictícias"},
-                {"period_label": "período B", "value": 95, "unit": "unidades fictícias"},
+                {
+                    "period": "2025-01",
+                    "value": 100,
+                    "unit": "unidades fictícias",
+                },
+                {
+                    "period": "2025-02",
+                    "value": 95,
+                    "unit": "unidades fictícias",
+                },
             ],
         ),
         limitations=[
-            "Valores inventados; não representam faturamento, receita ou fórmula oficial "
-            "da V-Energy."
+            "Períodos e valores inventados; não representam faturamento, receita ou fórmula "
+            "oficial da V-Energy."
         ],
     ),
     SyntheticScenario(
@@ -35,6 +43,7 @@ SYNTHETIC_SCENARIOS = (
         intent=AnalysisIntent(
             domain="consumption",
             metric_phrase="consumo",
+            period_phrase="período de demonstração",
         ),
         evidence=EvidenceResult(
             reference=EvidenceReference(
@@ -54,6 +63,7 @@ SYNTHETIC_SCENARIOS = (
         intent=AnalysisIntent(
             domain="network",
             metric_phrase="interrupções",
+            period_phrase="período de demonstração",
         ),
         evidence=EvidenceResult(
             reference=EvidenceReference(
@@ -73,6 +83,7 @@ SYNTHETIC_SCENARIOS = (
         intent=AnalysisIntent(
             domain="service",
             metric_phrase="atendimentos",
+            period_phrase="período de demonstração",
         ),
         evidence=EvidenceResult(
             reference=EvidenceReference(

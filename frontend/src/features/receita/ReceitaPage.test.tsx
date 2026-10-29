@@ -284,6 +284,11 @@ describe("Receita", () => {
     const summary = await screen.findByRole("region", {
       name: "Resumo da receita",
     });
+    expect(within(summary).getAllByText("Mês: Fev/2025")).toHaveLength(3);
+    expect(
+      within(summary).getByText("Período: Jan/2025 → Fev/2025"),
+    ).toBeVisible();
+    expect(within(summary).queryByText(/Mês: 2025-/)).not.toBeInTheDocument();
     expect(within(summary).getAllByText("R$ 76.500,00")[0]).toBeVisible();
     expect(within(summary).getAllByText(/Antes: R\$ 80\.000,00/i)).toHaveLength(
       1,
@@ -336,10 +341,14 @@ describe("Receita", () => {
 
     const series = screen.getByRole("region", { name: /Série mensal/i });
     expect(within(series).getByRole("table")).toBeVisible();
+    expect(
+      within(series).getByText(/Escala vertical inclui R\$ 0,00/),
+    ).toBeVisible();
     expect(within(series).getAllByText("Jan/2025")).toHaveLength(2);
     expect(within(series).getAllByText("Fev/2025")).toHaveLength(2);
+    expect(within(series).queryByText("2025-01")).not.toBeInTheDocument();
     const chart = within(series).getByRole("img", {
-      name: /Receita faturada por competência/i,
+      name: /Receita faturada por mês/i,
     });
     expect(within(chart).getByText("Jan/2025")).toBeVisible();
     expect(within(chart).getByText("Fev/2025")).toBeVisible();
@@ -536,6 +545,34 @@ describe("Receita", () => {
     expect(request[1]?.signal).toBeInstanceOf(AbortSignal);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(filtersTrigger).toHaveFocus();
+  });
+
+  it("allows filtering by neighborhood across municipalities", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(
+        () => new Response(JSON.stringify(response), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    mountPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Ajustar filtros" }),
+    );
+    await user.selectOptions(
+      await screen.findByLabelText("Bairro"),
+      "Bairro Novo",
+    );
+    await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const requestUrl = new URL(
+      String(fetchMock.mock.calls[1][0]),
+      window.location.origin,
+    );
+    expect(requestUrl.searchParams.get("bairro")).toBe("Bairro Novo");
+    expect(requestUrl.searchParams.has("municipio")).toBe(false);
   });
 
   it("preserves a URL feeder through requests, form apply, context, and cache identity", async () => {
@@ -930,6 +967,13 @@ describe("Receita", () => {
     const municipalityLink = await screen.findByRole("link", {
       name: /Município: Olinda/,
     });
+    const explored = screen.getByRole("region", { name: "Recorte explorado" });
+    expect(explored).toHaveTextContent(
+      "Explorando: Município: Olinda · Bairro: Centro · Classe: Comercial",
+    );
+    expect(
+      within(explored).getByRole("button", { name: "Voltar ao total" }),
+    ).toBeVisible();
     expect(municipalityLink).toHaveAttribute("href", `?${municipalitySearch}`);
     const neighborhoodLink = screen.getByRole("link", {
       name: /Bairro: Centro/,
@@ -963,7 +1007,7 @@ describe("Receita", () => {
     );
     const totalLink = await screen.findByRole("link", { name: "Total" });
     expect(totalLink).toHaveAttribute("href", `?${totalSearch}`);
-    await user.click(totalLink);
+    await user.click(screen.getByRole("button", { name: "Voltar ao total" }));
     await waitFor(() =>
       expect(screen.getByLabelText("URL atual")).toHaveTextContent(totalSearch),
     );
@@ -1162,8 +1206,7 @@ describe("Receita", () => {
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
-    await user.clear(screen.getByLabelText("Competência final"));
-    await user.type(screen.getByLabelText("Competência final"), "2025-03");
+    await user.selectOptions(screen.getByLabelText("Mês do fim"), "03");
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 

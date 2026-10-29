@@ -7,9 +7,9 @@ escolha e um registro de decisões com evidência.
 
 Regras deste documento:
 
-- **Fonte de verdade:** o [PRD](../docs/PRD.md) (IDs, estados, critérios) e o
-  [ADR-0003](../docs/decisions/0003-reconciliacao-e-captura-de-registros-malformados.md). Em divergência, PRD e ADR
-  vencem; aqui é a leitura consolidada.
+- **Fonte de requisitos:** o [PRD](../docs/PRD.md) (IDs, estados e critérios). Este arquivo é o registro
+  consolidado das decisões técnicas de Engenharia de Dados, incluindo o contexto e as alternativas da Bronze.
+  Decisões de outros módulos continuam registradas em [`docs/decisions/`](../docs/decisions/README.md).
 - **Só entra afirmação com número ou prova.** Todo número citado vem do perfil da Bronze
   (`quality.perfil_bronze`, execução de 17/10/2026, 113 linhas), da reconciliação da ingestão
   (`bronze.reconciliacao`), da execução do Workflow, ou de verificação local reprodutível — e a origem está dita.
@@ -17,8 +17,8 @@ Regras deste documento:
   "só no runtime".
 - **Camada Gold ainda não existe.** A seção da Gold é **proposta de modelagem** (decisão a tomar), não código.
 
-Nomes de arquivo: `Landing_to_Bronze.ipynb`, `Bronze_perfilamento.ipynb`, `Bronze_to_Silver.ipynb`,
-`v-energy-grid-360.yaml`, todos em `data-engineering/`. O contêiner é `workspace`; as tabelas são
+Nomes de arquivo: `Landing_to_Bronze.ipynb` e `Bronze_perfilamento.ipynb` em `data-engineering/notebook/`;
+`v-energy-grid-360.yaml` em `data-engineering/configuracao/databricks/`. O contêiner é `workspace`; as tabelas são
 `workspace.bronze.*`, `workspace.quality.perfil_bronze` e `workspace.silver.*`.
 
 ---
@@ -27,9 +27,9 @@ Nomes de arquivo: `Landing_to_Bronze.ipynb`, `Bronze_perfilamento.ipynb`, `Bronz
 
 ```text
 8 fontes brutas (Volume)
-      │  Landing_to_Bronze.ipynb      → bronze_stg.* (preparo) e, no fim, a publicação do lote em
-      │                                 workspace.bronze.*, bronze.rejeitados, bronze.reconciliacao,
-      │                                 bronze.arquivos_lote e bronze.controle_lote
+      │  Landing_to_Bronze.ipynb      → schema de preparo por execução → bronze_hist.*
+      │                                 → vistas workspace.bronze.* selecionadas por controle_publicacao
+      │                                 + bronze.arquivos_lote e bronze.controle_lote
       ▼
    Bronze (Delta, conteúdo original preservado)
       │  Bronze_perfilamento.ipynb    → workspace.quality.perfil_bronze   (mede, não altera)
@@ -45,8 +45,8 @@ Nomes de arquivo: `Landing_to_Bronze.ipynb`, `Bronze_perfilamento.ipynb`, `Bronz
 
 Cada seta só existe se a anterior fechou a conta. As duas contas que governam o pipeline:
 
-- **Ingestão:** `linhas físicas de origem = gravadas + rejeitadas` (com `delta = 0`), **por origem** (arquivo e aba);
-  o total da tabela é a soma das origens (D39).
+- **Ingestão:** `registros lógicos de origem = gravadas + rejeitadas` (com `delta = 0`), **por origem** (arquivo e aba);
+  a posição em linhas físicas é registrada separadamente; o total da tabela é a soma das origens (D39).
 - **Silver:** `bronze = aceitos + quarentenados` (com `delta = 0`), por tabela, no grão certo.
 
 ---
@@ -55,17 +55,17 @@ Cada seta só existe se a anterior fechou a conta. As duas contas que governam o
 
 | # | Camada | Decisão | Por quê (motivo) | Evidência / número | Estado |
 |---|---|---|---|---|---|
-| D1 | Bronze | Schema explícito **100% string** | Bronze não interpreta tipo; tipo é decisão da Silver | `Landing_to_Bronze.ipynb` §0 | implementado |
-| D2 | Bronze | `_corrupt_record` para erros de parse; largura CSV validada antes do Spark | `PERMISSIVE` pode completar campos ausentes e descartar excedentes sem marcá-los | ADR-0003; autoteste da guarda CSV (2 divergências bloqueadas) e JSON 1/1 | revisão local 19/10; falta executar no Databricks |
-| D3 | Bronze | Colunas de auditoria `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro`, `_data_carga` (+`_aba_origem`) | rastrear lote e identificar a origem | `_id_registro` localiza na Bronze; `_ordem_na_origem` auxilia a busca, com limite em D40 | implementado, **revisado** |
+| D1 | Bronze | Campos CSV/XLSX em texto; JSON aninhado preserva a estrutura e guarda o bruto | evitar inferência em campos tabulares sem achatar a estrutura original do JSON | `Landing_to_Bronze.ipynb` §§2–6; `_registro_bruto` | implementação local; falta validar no Databricks |
+| D2 | Bronze | Scanner CSV/JSON antes do Spark; rejeições preservam bruto, motivo e posição | `PERMISSIVE` pode completar campos ausentes e descartar excedentes sem marcá-los | §2.11; autoteste sintético: CSV 2 larguras inválidas e JSON 1 objeto inválido | implementação local 20/10; falta executar no Databricks |
+| D3 | Bronze | Auditoria inclui origem, ordinal, linhas físicas, registro bruto e metadados do lote | rastrear o conteúdo aceito/rejeitado até o arquivo ou aba | `_id_registro` identifica a linha na Bronze; arquivo + ordinal + intervalo físico identificam a origem (D40) | implementação local; falta validar no Databricks |
 | D4 | Bronze | `unionByName(..., allowMissingColumns=True)` nos 5 arquivos de leitura | coluna ausente num ano vira `null` em vez de derrubar a leitura | 5 arquivos 2022–2026 | implementado |
-| D5 | Bronze | Carga por **`overwrite`** (não `append`), **na área de preparo** (`bronze_stg`) | a extração vem completa; sem isso, rodar 2× dobraria a base; e preparo separado permite trocar a publicada só no fim | 2.184.623 faturas virariam 4.369.246 | implementado, **revisado (D42)** |
+| D5 | Bronze | Carga por **`overwrite`** no schema de preparo da execução (não `append` na tabela publicada) | a extração vem completa; sem isso, rodar 2× dobraria a base; preparo separado protege o lote ativo durante a ingestão | 2.184.623 faturas virariam 4.369.246 | implementado, **revisado (D42)** |
 | D6 | Bronze | Reconciliação **por origem** (arquivo e aba) + `bronze.rejeitados` | "diferenças de parse e rejeições contadas e explicadas" (DE-01), **para cada fonte e lote** (§4.3) | 5 linhas em `leituras` + 3 em `inspecoes`; `delta = 0` nas origens | implementado, **revisado (D39)** |
 | D7 | Perfil | Notebook **separado** da ingestão | medir ≠ alterar; o perfil só investiga e grava o plano de limpeza | `quality.perfil_bronze`, 113 linhas | implementado |
 | D8 | Perfil | Deduplicação e nulos contados **só nas colunas de negócio** | `_id_registro` é único por linha e daria 0 duplicatas sempre (falso negativo) | `Bronze_perfilamento.ipynb` §2 | implementado |
 | D9 | Perfil | Normalizar **moeda/vírgula** antes de chamar valor de "não numérico" | senão formato vira "podridão" | `valor_total` não numérico: 196.624 → 2 | implementado |
 | D10 | Perfil | Data fora do ISO conta como **ambígua**, não inválida | ordem dia/mês é decisão de negócio, não defeito do dado | 102.878 (leituras) + 61.226 (faturas) | implementado |
-| D11 | Silver | **Rastreio na Silver (revisado):** `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro` (+`_aba_origem` em `inspecoes`) **entram** como metadados técnicos | localizam o registro aceito na Bronze sem serem atributo de negócio; o rastro inteiro segue no `_registro` da quarentena | decisão do time (opção A), 18/10; `_ordem` entrou em 2 (D43) | implementado |
+| D11 | Silver | **Rastreio na Silver:** `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro` (+`_aba_origem` em `inspecoes`) entram como metadados técnicos | localizam o registro aceito na Bronze sem serem atributo de negócio; o rastro inteiro segue no `_registro` da quarentena | comportamento implementado no notebook; a issue #18 registra posições diferentes sobre a linhagem | implementado na branch; sem alegar consenso da discussão |
 | D12 | Silver | Fim da **releitura** de tabela depois de `saveAsTable` | evitar custo e ponto de inconsistência; usa o DataFrame em memória | seção 5.1 | implementado |
 | D13 | Silver | Data ambígua de dia/mês → **quarentena** | a Silver não chuta ordem dia/mês | seção 5.3 / 8 | implementado, mas **regra pendente** |
 | D14 | Silver | Deduplicação por **chave de negócio**, mantendo o registro mais completo | uma verdade por registro; empate por `_data_carga` | duplicata exata 21.523/900/513/1 | implementado |
@@ -92,12 +92,27 @@ Cada seta só existe se a anterior fechou a conta. As duas contas que governam o
 | D37 | Silver | Achados que não rejeitam + `inspetor`: **manter as regras atuais**, quantificar no próximo perfil e **confirmar se `inspetor` é exibido ao usuário** antes de padronizar | decisão do time: não criar regra sem justificativa; padronizar nome de pessoa pode afetar a exibição | §14.4 do notebook | **decidido** 18/10 |
 | D38 | Silver | **Cascata de órfão — decidido:** validar a FK contra a **Silver** (A) e dar **motivo próprio** ao bloqueio (`uc_em_quarentena`/`medidor_em_quarentena`) quando a chave existe na Bronze e o cadastro pai caiu na quarentena | decisão do time: a linha bloqueada não é registro malformado; mantê-la na Bronze e no `_registro` permite reprocessar depois de 14.1 | `medidor_inexistente` volta a 8.609 e as 58.214 leituras ficam identificadas | **decidido** 19/10 (R41) |
 | D39 | Bronze | Reconciliação **por origem** (uma linha por arquivo e por aba), com `_aba_origem` | o §4.3 pede a conta "para cada fonte e lote"; por tabela, um ano das leituras ou uma aba do Excel que encolhesse ficava invisível | `leituras` 5 linhas, `inspecoes` 3; a Silver soma por `_tabela` (§13.1b) | **implementado** 19/10 (revê D6) |
-| D40 | Bronze | `_ordem_na_origem`: ordem de leitura por arquivo/aba | `_id_registro` localiza na tabela; a ordem do Spark depende do particionamento e não prova a linha física de CSV/JSON | Excel: índice da aba; CSV/JSON: localizar por arquivo, hash e valores brutos | limitação explicitada 19/10; linha física CSV/JSON ainda pendente |
-| D41 | Bronze | `bronze.arquivos_lote`: nome, caminho, tamanho, modificação e **SHA-256** por lote | provar **qual versão** do arquivo entrou e comparar reexecuções; fecha a pendência de hash do §4.3 / DE-01 | `status_hash = OK` ou `INDISPONIVEL` (a limitação fica visível) | **implementado** 19/10 |
-| D42 | Bronze | **Publicação por lote:** ingestão escreve em `bronze_stg.*` e só troca `bronze.*` no fim, com `bronze.controle_lote` (`EM_ANDAMENTO`/`PUBLICADO`/`FALHOU`) e conferência de contagem | uma falha no fim da carga deixava a Bronze metade nova, metade velha (o `raise` do `bcc3022` só protege o que não foi publicado) | falha antes da publicação deixa o lote anterior intacto; após falha no meio, consumidores precisam bloquear leitura enquanto o lote atual não estiver `PUBLICADO`; recuperação por reexecução ainda requer teste com falha induzida | publicação em staging implementada; gate do consumidor e recuperação comprovada pendentes |
-| D43 | Silver | `_ordem_na_origem` entra no rastreio publicado, no contrato de tipos e nas `AUDITORIA` do perfilador e da Silver | preserva a ordem auxiliar até a Silver; no perfilador, incluí-la como dado zeraria a duplicata exata | §13 compara as 4 colunas; contrato confere `bigint`; limite da posição física em D40 | **implementado** 19/10 (revê D11) |
+| D40 | Bronze | `_ordem_na_origem` e intervalo de linhas físicas por arquivo/aba | `_id_registro` localiza na tabela; o scanner localiza o registro lógico no arquivo sem depender do particionamento do Spark | CSV/JSON: ordinal e linhas inicial/final do scanner; Excel: linha da planilha | implementação local 20/10; falta conferir no Databricks |
+| D41 | Bronze | `bronze.arquivos_lote`: nome, caminho, tamanho, modificação e **SHA-256** por lote | provar **qual versão** do arquivo entrou e comparar reexecuções; fecha a pendência de hash do §4.3 / DE-01 | arquivos publicados com `status_hash = OK`; hash indisponível bloqueia a carga | implementação local; validar o acesso aos arquivos no Databricks |
+| D42 | Bronze | **Publicação por lote:** ingestão grava em schema de preparo e `bronze_hist`; vistas `bronze.*` filtram o lote de `bronze.controle_publicacao` | uma falha antes da troca do ponteiro deve manter o conjunto anterior visível | a troca do ponteiro é uma operação Delta; migração inicial de tabelas legadas exige janela controlada | implementação local 20/10; falta validar falhas, reexecução e migração no Databricks |
+| D43 | Silver | `_ordem_na_origem` entra no rastreio publicado, no contrato de tipos e nas `AUDITORIA` do perfilador e da Silver | preserva a ordem auxiliar até a Silver; no perfilador, incluí-la como dado zeraria a duplicata exata | §13 compara as 4 colunas e confere `bigint`; o intervalo físico fica registrado na Bronze conforme D40 | **implementado** 19/10 (revê D11) |
 | D44 | Silver | **UF/CEP/endereço:** `uf` publicada no **código de 2 letras** (mapa das 27 UFs); `cep` só com **8 dígitos**; `logradouro`/`numero` aparados; `nome_titular` preserva a caixa | a seção 5.2 já dizia "UF padronizada", mas a carga só fazia maiúscula — o arquivo tem **5 grafias** cruas para PE (`PE` 39.470, `pe` 1.826, `pernambuco` 1.729, `P.E.` 1.726, `Pernambuco` 1.709); `cep = "-1"` (162 linhas) virava `"1"`; 2.797 logradouros tinham espaço nas pontas e 1.551, espaço duplo | 45.200 UCs, todas `PE`; CEP nulo onde não há 8 dígitos; 1.557 grafias de logradouro → 217 | **implementado** 19/10 (R42–R44) |
 | D45 | Silver | **Tipo de medidor:** mapa canônico `ELETRO-MECANICO` → `ELETROMECANICO` e `SMART METER` → `SMART` | o arquivo tem **5 valores (10 grafias cruas) para 3 tipos**; o perfil mediu 3 grupos cosméticos, mas o hífen e o nome em inglês ficavam fora do colapso — o mesmo tipo apareceria duas vezes na saída e a Gold agruparia errado | 51.812 medidores, 3 tipos na saída (§13.6) | **implementado** 19/10 (R48) |
+| D46 | Silver | **Lote fixado:** a Silver lê `bronze_hist.<tabela>` filtrada por `_lote_id`, com o lote lido de `bronze.controle_publicacao` no início e exigido `PUBLICADO` em `bronze.controle_lote`; não lê as vistas `bronze.*` | o ponteiro da Bronze pode mudar no meio da execução; a vista misturaria lotes entre tabelas. É o mesmo padrão do `Bronze_perfilamento` | execução local: ponteiro verificado no início e no fim; aviso se andar | implementado; executado no Databricks em 21/10 (§11.3) |
+| D47 | Silver | **Portão de qualidade e controle de execução:** `silver.controle_silver` (`EM_ANDAMENTO` → `CONCLUIDO`/`FALHOU`) e `FALHAS`: qualquer invariante violado (reconciliação, chave, órfão, negativo, tipo, rastreio, lote) falha a tarefa | a seção 13 precisa impedir a publicação de dados reprovados; a Gold só consome execução `CONCLUIDO` do lote desejado | controle de estado e invariantes descritos na seção 13 do notebook | implementado no notebook; a execução registrada em 21/10 antecede a revisão atual |
+| D48 | Silver | **Auditoria da Bronze:** `_linha_fisica_inicial/_final`, `_registro_bruto`, `_lote_origem`, `_versao_origem` entram em `AUDITORIA` (fora da completude e duplicata exata); `_registro_bruto` também integra o JSON completo da quarentena; os localizadores ficam como colunas consultáveis | registros rejeitados precisam ser autocontidos e reprocessáveis; localizadores consultáveis evitam parsear o JSON para achar a origem | `_arquivo_origem`, `_ordem_na_origem`, `_lote_id`, `_id_registro`, `_valor_controle` e payload íntegro | implementado no notebook; conferir no lote autorizado |
+| D49 | Silver | **Conta em valor e detecção de multiplicação:** soma de `faturas.valor_total` (R$) e `leituras.consumo_kwh` (kWh) na entrada = aceitos + quarentena; a entrada medida depois dos joins deve igualar a contagem independente da Bronze | PRD §4.3 pede reconciliar somas; DE-03 pede detectar multiplicação de fatos | reconciliação em R$/kWh e contagem independente após joins, seção 13 | implementado no notebook; conferir no lote autorizado |
+| D50 | Silver | **`try_element_at` para `primeira_acao`/`ultima_acao`** (em vez de `historico[0]` e `historico[size-1]`) | com ANSI ligado, índice fora do limite **estoura** (`INVALID_ARRAY_INDEX`); histórico vazio não deve interromper a execução | `try_element_at` aplicado às posições inicial e final | implementado no notebook; a execução registrada em 21/10 antecede a revisão atual |
+| D51 | Silver | **Conta ponta a ponta inclui `bronze_hist.rejeitados`:** origem lógica = rejeitados no parse + aceitos na Bronze; aceitos na Bronze = quarentena + Silver. Rejeitados do parse **não** entram na quarentena da Silver | a quarentena mede a Silver; misturar os dois quebraria o invariante D18 | §13.2 imprime a conta por origem e por tabela | implementado; executado no Databricks em 21/10 (§11.3) |
+| D52 | Silver | **Diagnóstico de competência, não decisão de formato:** o run anterior encontrou uma interpretação compatível com a competência em todas as datas ambíguas medidas; os arquivos misturam dia/mês e mês/dia | compatibilidade com competência é evidência, mas não prova que todas as datas de um mesmo arquivo seguem a mesma ordem; D36 mantém B + C | consultas do run `20261021T101818Z_223235ca`; novo perfil por arquivo mede evidências direcionais, mistura e consistência | dado exploratório; não autoriza inferência nem altera a quarentena |
+| D53 | Silver | **Opção B + diagnóstico C (mantém D36):** datas ambíguas de leitura e emissão permanecem em quarentena. O diagnóstico mede por arquivo ordem evidente, compatibilidade das datas inequívocas com a competência, competência ausente/inválida e impacto por competência/classe; não publica uma interpretação | componente acima de 12 e consistência com competência ajudam a avaliar o arquivo, mas não provam que ele todo use a mesma ordem; revisar o contexto antes de qualquer regra | seções 13.6 e 14.1 | implementado no notebook; analisar os resultados do próximo perfil/lote antes de reavaliar |
+| D54 | Silver | **Instalação ambígua e cascata:** mantém a opção A de D38. Medidor com `data_instalacao` ambígua fica em quarentena; leitura que referencia esse medidor recebe `medidor_em_quarentena`. Só reavaliar identidade com data pendente se o negócio confirmar que ela é válida sem a data | não inventar vigência nem publicar FK cujo pai não entrou na Silver; cascata é bloqueio, não defeito individual | 1.369 medidores e 58.214 leituras na execução anterior; reprocessáveis pela origem e payload completos | **implementado localmente; não recupera medidor/leitura por padrão** |
+| D55 | Silver | **Data registrada não equivale a quitação:** preservar `9999-12-31` e datas futuras, manter status e flags de sentinela/futuro; `_data_pagamento_inconclusiva` e `_paga_sem_data_valida` impedem que data isolada prove pagamento | a pessoa usuária não conhece o significado na origem; 61.335 faturas `EM ABERTO` têm data registrada no perfil anterior | política conservadora: `EM ABERTO` não é pago, `PAGA` sem data válida não é pagamento comprovado; Gold deve distinguir status de comprovação | **política Silver implementada; sem atribuir significado à data futura** |
+| D56 | Silver | **Titular conflitante não é resolvido por completude:** em duplicatas da mesma UC, publicar `cpf_cnpj`/`nome_titular` como nulo quando houver mais de um valor normalizado; flags sinalizam conflito e candidatos ficam na Bronze/quarentena | 360 grupos com cópias não exatas; linha mais preenchida não prova titularidade nem vigência | a UC segue vinculável por `id_uc` sem publicar titular concorrente como verdade | **política Silver implementada; origem pode corrigir identidade depois** |
+| D57 | Silver | **Publicação isolada por execução:** preparar as tabelas em schema próprio, reconciliar cada fonte, copiar o run para `silver_hist` e só então trocar `silver.controle_publicacao`; a Gold lê `silver_publicada.*` | sobrescrever `silver.*` durante a execução poderia expor tabelas de versões diferentes | notebook Silver, seção 15; o ponteiro só avança após preparar e reconciliar a execução | implementação no notebook; a transação Delta ainda requer validação no Databricks |
+| D58 | Silver | **Qualidade por achado e recorte:** todo achado relevante do perfil recebe destino explícito; aceitos, quarentena e rejeitados de parse são confrontados por origem, e os fatos de R$/kWh também por competência e classe | uma listagem de achados ou o fechamento agregado por tabela não revelam lacunas em arquivos ou segmentos | notebook Silver, seções 13.2 e 13.7; DE-02/DE-03 permanecem em validação até o lote autorizado | implementado no notebook; validar no lote autorizado |
+| D59 | Silver | **Nulo tipado exige destino explícito:** timestamp inválido de ocorrência/atendimento vai à quarentena; nota de satisfação inválida fica nula com `_nota_invalida`; coordenadas inválidas ficam nulas com `_geo_invalida`. Medidas necessárias malformadas vão à quarentena | conversão silenciosa para nulo esconderia perda de significado; o histórico de R24/R25 descreve versões anteriores, não a regra atual | notebook Silver, transformações e relatório por arquivo/aba na seção 13 | **implementado localmente; conferir volumes no lote autorizado** |
+| D60 | Silver | **Tratativa localizável:** `atendimentos_historico` usa `(protocolo, posicao_historico)` como chave, com posição de 1 em diante no array original | `sequencia` vem do JSON e pode ser ausente, inválida ou repetida; sem ordinal não é possível localizar uma tratativa específica na Bronze | `posexplode` e verificação de unicidade no notebook; amostra de linhagem sem exposição de identificadores | **implementado localmente; validar no lote autorizado** |
 | D19 | Gold | Modelo de métricas (receita, DEC/FEC, GD, UC 360) | responder às perguntas do portal/IA | PRD §5, dicionário | **proposta** |
 | D20 | Gold | **Mascaramento/hash** de dado pessoal | LGPD: não expor CPF/nome a portal, IA e CSV local | seção 9 | **pendente** |
 
@@ -110,22 +125,23 @@ Cada seta só existe se a anterior fechou a conta. As duas contas que governam o
 A Bronze é uma **cópia fiel da Landing**, sem tratar nada: limpar é trabalho da Silver. Isso é o que permite
 reprocessar a partir do bruto a qualquer momento e comparar "o que veio" com "o que a Silver publicou".
 
-### 2.2 Por que schema 100% string (D1)
+### 2.2 Tipos armazenados por formato (D1)
 
-Ler tudo como texto impede que o Spark infira tipo errado (ex.: CEP `"05001-000"` virar número, ou um código com
-zero à esquerda perder o zero) e mantém a Bronze "original". A consequência assumida: **nenhum tipo é confiável na
-Bronze** e a tipagem é a primeira coisa que a Silver faz.
+Os campos CSV usam schema explícito string; as células do XLSX também são convertidas para texto. Isso evita que
+códigos como CEP `"05001-000"` virem números ou percam zero à esquerda. O JSON de atendimentos permanece aninhado e
+o Spark determina os tipos físicos de armazenamento a partir dos objetos; `_registro_bruto` guarda o texto exato de
+cada objeto para preservar sua representação original. A Bronze não aplica tipagem semântica nem regras de negócio;
+a interpretação dos valores continua sendo trabalho da Silver. As colunas de auditoria mantêm tipos próprios.
 
 ### 2.3 Captura de registro malformado (D2)
 
-Alternativas testadas no ADR-0003: `badRecordsPath` (arquivo lateral) **gravou 0 bytes** com corrupção certa e não
-pode ser combinado com `mode=overwrite`. A validação externa para fazer todo o parse foi descartada;
-a revisão de 19/10 usa `csv.reader` somente para conferir a largura em fluxo contínuo.
-Decisão: `columnNameOfCorruptRecord="_corrupt_record"` com schema explícito — a linha ruim
-fica na própria linha, vai para `bronze.rejeitados` com o bruto, e um **autoteste** roda a cada execução para provar
-que o mecanismo continua funcionando (CSV: 2 larguras divergentes bloqueadas; JSON: 1 válida/1 rejeitada). Sem o autoteste,
-`rejeitadas = 0` poderia significar só "o detector parou", não "o dado está limpo". A leitura adicional
-consome tempo e só bloqueia o lote; linhas de largura divergente permanecem na Landing para investigação.
+O contexto, as alternativas e a decisão estão consolidados na §2.11. Antes do Spark, o scanner percorre registros
+lógicos com `csv.reader(strict=True)` ou separa objetos do array JSON. Campos CSV com largura
+incorreta e objetos JSON inválidos ficam em `bronze.rejeitados`, com conteúdo bruto, motivo, ordinal e intervalo
+físico. Erros estruturais sem ponto seguro de retomada interrompem o lote. O autoteste sintético roda em cada
+execução: confere três registros CSV (um aceito e dois rejeitados por largura) e três objetos JSON (dois aceitos e
+um rejeitado). Assim, `rejeitadas = 0` pode ser interpretado junto da prova de que os scanners continuam ativos.
+O Spark recebe JSONL preparado para persistência; não é o modo permissivo do Spark que decide a largura CSV.
 
 ### 2.4 Colunas de auditoria (D3)
 
@@ -133,7 +149,8 @@ consome tempo e só bloqueia o lote; linhas de largura divergente permanecem na 
 |---|---|---|
 | `_arquivo_origem` | arquivo/ano de onde a linha veio | localiza a origem (ex.: `leituras_2023.csv`) |
 | `_aba_origem` | aba do Excel (só em inspeções: `ago-set`, `dez`, `out-nov`) | o Excel tem 3 abas com grãos possivelmente distintos |
-| `_ordem_na_origem` | ordem de leitura por arquivo/aba (1-based) | localizador auxiliar; só no Excel equivale ao índice da aba |
+| `_ordem_na_origem` | ordinal lógico no arquivo ou aba (1-based) | localiza o registro em conjunto com o arquivo; não substitui o intervalo físico |
+| `_linha_fisica_inicial` / `_linha_fisica_final` | linhas que contêm o registro original em CSV/JSON/XLSX | aponta a posição física; em CSV/JSON multilinha, o registro pode cobrir mais de uma linha |
 | `_lote_id` | identificador da execução de ingestão | série de volumes por lote; uma queda fica visível |
 | `_id_registro` | id técnico **único dentro do lote** | chave técnica de linha; **não** é o número da linha física |
 | `_data_carga` | carimbo da ingestão | ordena a deduplicação na Silver (qual cópia é a mais recente) |
@@ -143,10 +160,10 @@ duplicatas nem no grão de negócio (D8). Ele é chave técnica de lote, não at
 `_ordem_na_origem` também está nas colunas de auditoria do perfilador (D43) — como ela é única por arquivo, deixá-la
 fora faria a checagem de duplicata exata dar **0 sempre**.
 
-Como ler `_ordem_na_origem` (D40): no XLSX, ela vem do índice da aba e a linha física é
-`_ordem_na_origem + 1`. Em CSV e JSON, é a ordem observada pelo Spark. O particionamento e as rejeições
-podem deslocá-la da posição original. Para localizar um registro, conferir arquivo, hash e valores na
-Landing; a posição física garantida dessas fontes permanece pendente em DE-01.
+Como ler o rastro (D40): `_ordem_na_origem` vem do scanner em CSV/JSON e da iteração da planilha em XLSX;
+`_linha_fisica_inicial`/`_linha_fisica_final` preservam o intervalo físico antes do Spark. Para CSV e JSON, um
+registro multilinha pode ocupar mais de uma linha; no XLSX, a linha original é armazenada diretamente. A conferência
+no Databricks ainda precisa comprovar que o caminho no Volume e o leitor do runtime preservam esse contrato.
 
 Na Silver, `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_id_registro` (e `_aba_origem` em inspeções) são
 **publicados** como **metadados de rastreio** dos registros aceitos (D11 revisado 2, §5.4); `_data_carga` fica de fora.
@@ -156,18 +173,20 @@ Na Silver, `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_id_registro` (e
 A extração do case é completa, não incremental — não existe a chave de "só o que chegou de novo" que o `append`
 exigiria. Sem `overwrite`, reexecutar dobraria a base **sem erro visível** (2.184.623 faturas → 4.369.246) e o
 estrago só apareceria na Silver como número dobrado. O histórico de cargas não se perde: cada execução carimba
-`_lote_id`, registra `lidas × rejeitadas × gravadas` em `bronze.reconciliacao` e fecha o status em
-`bronze.controle_lote`. Risco assumido de olho aberto: se a Landing estiver incompleta na hora da carga, a
-sobrescrita encolhe a tabela em silêncio — por isso a reconciliação grava o volume por lote e a Bronze é
-reconstruível a partir da Landing.
+`_lote_id`, registra `lidas × rejeitadas × gravadas` em `bronze.reconciliacao` e atualiza `bronze.controle_lote`.
+Se a Landing estiver incompleta mas ainda for um arquivo válido, a contagem pode fechar sobre a entrada incompleta;
+a reconciliação não prova que o fornecedor entregou o conteúdo completo. A identidade/hash detecta alterações de
+versão, mas a completude exige comparação com contagem ou manifesto externo autorizado.
 
-O `overwrite` continua sendo o modo de escrita, mas **na área de preparo** (`bronze_stg.*`), não na Bronze publicada:
-a troca só acontece na publicação do lote (§2.9).
+O `overwrite` é usado somente no schema de preparo isolado da execução. A publicação acrescenta esse lote ao
+histórico e atualiza a vista ativa por ponteiro (§2.9).
 
 ### 2.6 Reconciliação e rejeitados (D6, revisado em D39)
 
-`bronze.reconciliacao` fecha, **por origem**, `linhas físicas de origem × gravadas × rejeitadas`, com
-`delta = gravadas + rejeitadas − linhas` que **precisa ser 0** (delta ≠ 0 é falha declarada, não ruído).
+`bronze.reconciliacao` fecha, **por origem**, `registros lógicos de origem × gravadas × rejeitadas`, com
+`delta = registros lógicos − gravadas − rejeitadas` que **precisa ser 0** (delta ≠ 0 é falha declarada, não ruído).
+Para CSV/JSON, o scanner conta registros/objetos de forma independente do Spark e também registra linhas físicas;
+para XLSX, `linhas_dados` é a contagem de linhas lidas por aba e `linhas_arquivo` fica nulo.
 `bronze.rejeitados` guarda o bruto do que não parseou.
 
 Cada linha da reconciliação é uma **origem**: um arquivo ou uma aba. As 5 leituras anuais, por exemplo, não entram
@@ -176,12 +195,11 @@ como uma linha só — cada ano tem a sua, com `_arquivo_origem = leituras/leitu
 Silver compara (§13.1b): somar as origens sem somar a tabela daria `DIVERGE` em toda leitura. A motivação vem do §4.3 ("para cada fonte e lote"): com uma linha por tabela, um ano que encolhesse ou uma aba que
 sumisse do Excel ficava invisível dentro do agregado.
 
-Três exceções documentadas, todas visíveis na própria linha: `atendimentos` sai `SEM_BASE` porque o JSON indentado
-não tem contagem de linhas físicas comparável — o número de **objetos interpretados** vai no campo
-`objetos_interpretados`; `inspecoes` sai com `linhas_arquivo = null` (origem XLSX, lida por pandas), com
-`linhas_dados` vindo do próprio arquivo; e `_autoteste_badrecords` (tabela começando com `_`) é o resultado do
-autoteste, fora das checagens. Para tornar a conta de `leituras` independente do próprio parser, ela é conferida
-contra a contagem **física** do Volume: 2.182.473 linhas − 5 cabeçalhos = **2.182.468**, igual à tabela.
+O JSON `atendimentos` já não sai `SEM_BASE`: `objetos_interpretados` e `linhas_dados` vêm do scanner independente.
+Em `inspecoes`, `linhas_arquivo = null` porque XLSX não tem contagem de linhas físicas comparável; `linhas_dados`
+conta registros por aba. A linha `_autoteste_scanners` registra fixtures sintéticas e é excluída dos totais reais.
+As contagens de 17/10 abaixo são evidência histórica da versão anterior, baseada em contagem física de `leituras`;
+na versão atual, a unidade principal de reconciliação é o registro lógico, que continua fechando em aceitos + rejeitados.
 
 **Lacuna do §4.3 fechada em D41:** a reconciliação guardava o **nome** do arquivo, mas não a **versão/hash** do
 arquivo ingerido. Agora `bronze.arquivos_lote` traz o SHA-256 por lote (§2.9).
@@ -210,42 +228,92 @@ manual (PRD §4.1).
 
 ### 2.9 Publicação por lote (D42)
 
-O problema que isto resolve é de **momento da falha**, não de dado. A ingestão valida no fim (autoteste, contagem da
-quarentena, reconciliação) e, até esta versão, gravava cada tabela com `overwrite` **enquanto** lia: quando o `raise`
-do fim disparava, as 8 tabelas já tinham sido trocadas — o notebook falhava com a Bronze metade nova, metade velha.
-O README declarava essa lacuna com todas as letras.
-
-Agora a ingestão escreve em `bronze_stg.*` e a Bronze publicada só é trocada no fim:
+O contexto, as alternativas e a decisão estão consolidados na §2.11. O problema tratado é a exposição de fontes de lotes diferentes durante a publicação. A versão atual grava em schema
+de preparo e depois acrescenta cada fonte a `bronze_hist.*`, conferindo as contagens. As tabelas legadas são
+migradas para o histórico na primeira execução, em janela controlada. As vistas `bronze.*` leem o mesmo
+`lote_ativo` em `bronze.controle_publicacao`; após preparar as vistas, uma única atualização Delta do ponteiro
+publica o lote inteiro:
 
 | Etapa | O que acontece |
 |---|---|
-| 1 | `CREATE TABLE IF NOT EXISTS bronze.controle_lote` + linha do lote com status `EM_ANDAMENTO` |
-| 2 | leitura, separação de rejeitados, escrita das 10 tabelas em `bronze_stg.*`, reconciliação por origem |
-| 3 | validações (autoteste, quarentena, reconciliação) — qualquer falha **aqui** deixa a Bronze publicada intacta |
-| 4 | grava `bronze.arquivos_lote` (identidade do lote, §2.10) |
-| 5 | publica: `CREATE OR REPLACE TABLE bronze.<t> AS SELECT * FROM bronze_stg.<t>` para as 10 tabelas |
-| 6 | confere publicado × preparo e fecha `controle_lote` como `PUBLICADO` (ou `FALHOU`, se divergir) |
+| 1 | cria/atualiza `bronze.controle_lote` com o novo lote em `EM_ANDAMENTO` |
+| 2 | lê fontes, prepara tabelas e reconciliação no schema isolado da execução |
+| 3 | valida scanners, quarentena, reconciliação e identidade/hash dos arquivos |
+| 4 | copia legado, se necessário, e acrescenta as dez tabelas publicadas ao histórico Delta |
+| 5 | cria/atualiza as vistas `bronze.*` para filtrar `bronze.controle_publicacao.lote_ativo` |
+| 6 | marca o lote como `PUBLICADO` e atualiza o ponteiro numa operação Delta |
 
-**O que isto não garante (declarado, não escondido):** o Delta não tem transação entre tabelas. A troca da etapa 5 é
-tabela a tabela, então uma falha de infraestrutura **no meio dela** pode deixar um lote misto. `controle_lote` fica
-`EM_ANDAMENTO`, mas isso só protege os dados se cada consumidor bloquear a leitura do lote até o status atual ser
-`PUBLICADO`; esse gate ainda não está implementado neste PR e deve entrar com a Silver. A reexecução deve substituir
-todas as tabelas de forma idempotente, mas não foi comprovada com falha induzida seguida de nova execução no Databricks.
-A alternativa atômica por *view* mudaria o contrato de leitura de todos os consumidores; fica como evolução possível,
-sem necessidade de adotá-la agora.
+**Limites ainda abertos:** a migração inicial substitui tabelas legadas por vistas uma a uma, por isso exige janela
+controlada e conferência antes de liberar leitores. Depois de as vistas estarem estabelecidas, falha antes da troca
+do ponteiro conserva o lote anterior visível. A implementação, a recuperação após falha induzida e a reexecução ainda
+precisam ser verificadas no Databricks; essa mudança local não comprova o comportamento do runtime.
 
-Custo assumido: o lote é escrito **duas vezes** (preparo + publicação). Uma falha antes da publicação preserva o lote
-anterior; durante a troca, o controle de status precisa ser respeitado pelos consumidores.
+Custo assumido: o lote é escrito **duas vezes** (preparo + histórico), e o histórico cresce a cada execução. Uma
+falha antes da atualização do ponteiro preserva o lote anterior. Consumidores que executam várias consultas e
+precisam da mesma versão devem capturar o `lote_ativo` no início e manter essa versão durante a análise.
 
 ### 2.10 Identidade do arquivo ingerido (D41)
 
 `bronze.arquivos_lote` guarda uma linha por arquivo e lote: nome, caminho relativo, **tamanho em bytes**, data de
 modificação e **SHA-256**. É o que permite provar *qual versão* do arquivo entrou e comparar duas execuções do mesmo
 nome de arquivo (retificação na Landing). O hash é calculado no driver, por streaming em blocos de 1 MB, sem
-carregar o arquivo na memória; se o runtime não expuser o arquivo para leitura local, a linha grava
-`status_hash = INDISPONIVEL` em vez de derrubar a carga — a limitação fica visível, não silenciosa. A tabela é
-`append` por lote, e reexecutar o mesmo `_lote_id` não duplica (o notebook apaga as linhas do lote antes de gravar).
-A Silver mostra o lote no §13.1c (caminho, tamanho, 16 primeiros dígitos do hash).
+carregar o arquivo inteiro na memória. Se o driver não conseguir ler o arquivo para calcular o hash, a carga é
+bloqueada antes da publicação: um lote sem identidade comprovada não deve aparecer como válido. Nos lotes publicados,
+`status_hash` deve ser `OK`. A tabela é `append` por lote, e reexecutar o mesmo `_lote_id` não duplica (o notebook
+apaga as linhas do lote antes de gravar). A Silver mostra o lote no §13.1c (caminho, tamanho, 16 primeiros dígitos
+do hash).
+
+### 2.11 Registro consolidado da decisão técnica (DE-01)
+
+- **Data:** 20/10/2026
+- **Estado:** implementação local; validação no Databricks pendente
+- **Requisito afetado:** DE-01
+
+#### Contexto
+
+O PRD pede preservação rastreável da origem e reconciliação de aceitos e rejeitados por arquivo ou aba. A leitura
+permissiva de CSV pelo Spark pode preencher campos ausentes com `null` e descartar campos excedentes sem marcar o
+registro como corrompido. A contagem do JSON feita pelo próprio parser também não confere, de forma independente,
+quantos objetos havia na origem. Além disso, substituir tabelas publicadas uma a uma pode deixar fontes de execuções
+diferentes visíveis se uma publicação falhar no meio.
+
+#### Alternativas consideradas
+
+1. **Ler diretamente CSV e JSON com o parser permissivo do Spark e substituir as tabelas publicadas.** É simples,
+   mas não garante a detecção de toda divergência de largura CSV, deixa a contagem JSON dependente do mesmo parser e
+   pode expor uma publicação parcial entre tabelas.
+2. **Fazer todo o processamento em Python fora do Delta.** Permite controlar a leitura e as contagens, mas não
+   cumpre o contrato de persistência da Bronze em tabelas Delta no Databricks.
+3. **Usar transação multi-tabela do Databricks.** Pode agrupar a publicação, mas depende de recursos e versão do
+   runtime cuja disponibilidade no ambiente do projeto não foi confirmada.
+4. **Separar registros lógicos com scanner Python, persistir em Delta e publicar por um ponteiro único.** Escolhida:
+   o scanner controla a contagem e a posição dos registros; as vistas expõem um lote selecionado por uma única
+   atualização do controle de publicação.
+
+#### Decisão
+
+O `Landing_to_Bronze.ipynb` percorre CSV e arrays JSON antes da leitura Spark, preserva o texto bruto e registra
+arquivo, ordinal e posição física. Registros com largura CSV incorreta ou objeto JSON inválido vão para a
+quarentena com motivo. Erros estruturais sem ponto seguro de retomada bloqueiam a publicação. JSONL temporário no
+Volume autorizado serve de entrada para a persistência Delta; após publicação bem-sucedida, os temporários são
+removidos, e em falha ficam disponíveis para diagnóstico.
+
+Cada execução prepara seus dados em schema próprio e acrescenta os resultados validados a `bronze_hist.*`. As
+vistas estáveis `bronze.*` filtram o lote indicado por `bronze.controle_publicacao`. A troca desse ponteiro publica
+o conjunto de fontes; uma falha antes dela mantém visível o lote anterior. O perfilador fixa o lote ativo que lê.
+O autoteste sintético verifica largura CSV, preservação do bruto, posição e contagem independente dos objetos JSON.
+
+#### Consequências, limites e validação
+
+- `bronze.reconciliacao` fecha registros lógicos de origem = aceitos + rejeitados por arquivo ou aba; `delta` fora
+  de zero impede a publicação.
+- O histórico aumenta o armazenamento e cada execução grava dados no preparo e no histórico. A migração inicial
+  das tabelas legadas para histórico/vistas requer janela controlada e conferência antes de liberar leitores.
+- Arrays JSON estruturalmente inválidos, CSV sem ponto seguro de retomada, hash indisponível ou divergência de
+  reconciliação exigem investigação; a execução não deve anunciar o lote como publicado.
+- A validação local cobre sintaxe, scanner sintético e documentação. Ainda faltam execução no Databricks Free
+  Edition, conferência das 14 origens autorizadas, verificação de hash e posição física, migração inicial, falha
+  induzida e reexecução. DE-01 permanece `Em validação` até essas evidências serem registradas no PRD.
 
 ---
 
@@ -253,7 +321,7 @@ A Silver mostra o lote no §13.1c (caminho, tamanho, 16 primeiros dígitos do ha
 
 A pergunta "por que não medir a qualidade dentro da ingestão?" tem três respostas, e todas são de engenharia:
 
-1. **Medir não é alterar.** A ingestão **grava** (e por isso assume `overwrite`, `_corrupt_record`, etc.). O
+1. **Medir não é alterar.** A ingestão **grava** (e por isso assume `overwrite`, `_falha_scanner`, etc.). O
    perfilamento **só lê e conta** — não grava nem corrige nada. Separar mantém a ingestão com uma
    responsabilidade só e permite rodar o perfil quantas vezes for preciso sem risco.
 2. **O perfil é insumo, não efeito colateral.** O produto dele é a tabela `quality.perfil_bronze`, que vira o
@@ -325,8 +393,8 @@ depois as regras específicas de negócio. `_data_processamento` carimba toda sa
 
 ### 5.1 Sem releitura de tabela (D12)
 
-O rascunho `03_silver.py` fazia `spark.table(DESTINO.t).select(...)` logo depois do `saveAsTable` só para montar as
-chaves de integridade. Isso é custo e ponto de inconsistência. Agora a Silver usa o **DataFrame em memória**
+Uma versão anterior relia a tabela logo depois do `saveAsTable` apenas para montar as chaves de integridade. Isso
+adicionava custo e um ponto de inconsistência. Agora a Silver usa o **DataFrame em memória**
 (`silver_uc`, `silver_med`) para as chaves de UC e medidor. A releitura continua **só onde é proposital**: na
 verificação final e na conferência de chaves, que devem olhar a **tabela gravada**, e não o DataFrame.
 
@@ -367,7 +435,8 @@ Os registros **aceitos** preservam a linhagem com **metadados técnicos**: `_arq
 abas do Excel). `_data_carga` fica de fora — serve só para ordenar a deduplicação. Não são atributo de negócio (ficam
 fora da completude) e o rastro inteiro segue no `_registro` da quarentena. Em `atendimentos_historico` o rastreio é
 **herdado do protocolo** (a tratativa localiza-se pela linha do protocolo na Bronze). `_ordem_na_origem` é o único
-deles que auxilia a busca no arquivo, mas só no Excel prova a linha física (D40); `_id_registro`
+deles que auxilia a busca no arquivo; a Bronze também guarda `_linha_fisica_inicial`/`_linha_fisica_final` para
+CSV/JSON/XLSX (D40), enquanto o contrato Silver descrito aqui carrega apenas o ordinal. `_id_registro`
 aponta para a linha na tabela Bronze. Um hash pode entrar como **complemento de integridade** (seção 9), mas não
 substitui esses identificadores. A reconciliação **por arquivo/aba** continua disponível na Bronze, e a verificação
 final imprime `bronze.leituras` por arquivo, `bronze.inspecoes` por aba, a identidade dos arquivos do lote
@@ -495,8 +564,8 @@ Padronizar o motivo é o que permite **confrontar a quarentena com o número do 
   (não por rejeição) ou é regra de negócio exposta como coluna (D32).
 
 **Só no runtime:** `delta`, contagens por motivo e invariantes só se confirmam executando o notebook na Free
-Edition. Localmente dá para provar que o código compila, que a conversão `.py → .ipynb` não muda lógica e que os
-links da documentação estão íntegros — não que as contas fecham.
+Edition. O histórico de revisão não substitui a execução do notebook no lote autorizado nem comprova os resultados
+de negócio da versão atual.
 
 ---
 
@@ -518,29 +587,27 @@ links da documentação estão íntegros — não que as contas fecham.
    confirmar, virar nulo na Silver e documentar o efeito em `data_retirada` e `_tem_pagamento` (Gold). (D15)
 3. **`inspetor` — decidido pelo time (18/10): manter a padronização atual.** Medir no próximo perfilamento e
    **confirmar se o nome do inspetor é exibido ao usuário** antes de qualquer mudança. (D37)
-4. **Rastro linha a linha do que foi aceito — decidido pelo time (18/10): preservar (opção A).**
+4. **Rastro linha a linha do que foi aceito — comportamento atual da branch:**
    `_arquivo_origem`/`_lote_id`/`_id_registro` (e `_aba_origem` em inspeções) entram na Silver como metadados
-   técnicos; `_data_carga` fica de fora; um hash pode complementar a integridade (D11 revisado, §5.4). (D37)
+   técnicos; `_data_carga` fica de fora; um hash pode complementar a integridade (D11 revisado, §5.4). A issue #18
+   registra posições diferentes sobre a linhagem; este registro descreve a implementação, sem atribuir consenso.
 5. **`mes_referencia` de `leituras` e chave duplicada de `ocorrencias_rede`/`atendimentos`.** **Resolvido na 3ª
    revisão:** o perfil mede os três (o dict `CHAVES` dele inclui as duas fontes e o laço dele checa `mes_referencia`
    nas duas); a Silver passou a aplicar `mes_referencia_invalido` em `leituras` e a deduplicar `ocorrencias_rede` e
    `atendimentos`. Não era "sem número" — era número não capturado na nota.
-6. **Quarentena dos rejeitados da Bronze.** A ADR-0003 deixou em aberto: decidir se `bronze.rejeitados` é
-   reprocessado ou apenas auditado (hoje sem linhas).
+6. **Quarentena dos rejeitados da Bronze.** Ainda falta decidir se a Silver reprocessará ou apenas auditará
+   `bronze.rejeitados` (ver a decisão consolidada na §2.11; a última execução registrada não tinha rejeições).
 7. **Divergências conscientes Silver × perfil.** A verificação final pode divergir do perfil por (a) `vazio` mais
    estrito na Silver (placeholder), (b) cascata de órfão (FK validada na Silver, não na Bronze) e (c) chave repetida
    × linha excedente. Não são bug — estão explicadas na seção 14.5 do notebook, e `vazio` e cascata são **medidos**
    pela seção 13. Dois pontos de julgamento também são declarados: (d) o perfil mede "valor não numérico" em
-   **todas** as colunas numéricas, mas só `faturas.valor_total` teve ocorrência não-zero (2) — só ele **rejeita**
-   quando não converte; nas demais, valor ruim vira nulo (padronização), não rejeição; e (e) o negativo de
-   `nota_satisfacao` vira flag (`_nota_negativa`, lido como "sem avaliação"), embora o perfil o classifique como
-   negativo impossível (ALTA) — assunção a confirmar com o negócio (o perfil não reportou ocorrência aqui).
-8. **Datas inválidas em `atendimentos`.** Diferente das outras tabelas com data, `data_abertura`/`data_fechamento`
-   de `atendimentos` **não** vão para a quarentena quando não convertem: viram **nulo** (só tipagem). O perfil mede
-   data inválida nessas duas colunas (o `DATAS` dele inclui `atendimentos`), mas as contagens de data de
-   `atendimentos`/`ocorrencias_rede` saíram infladas em 17/10 e serão refeitas; sem número confiável, a Silver
-   mantém a tipagem e **declara a pendência** em vez de fixar regra nova. Alinhar (quarentenar como as demais)
-   quando a contagem for reconferida.
+   **todas** as colunas numéricas. Medidas necessárias malformadas vão à quarentena; coordenadas e nota de
+   satisfação inválidas ficam nulas com flag explícita; e (e) valores negativos em `nota_satisfacao` são mantidos
+   com `_nota_negativa`. Não está confirmado que signifiquem "sem avaliação"; a interpretação de negócio deve ser
+   confirmada antes de lhes atribuir esse significado.
+8. **Datas inválidas em `atendimentos` e `ocorrencias_rede`.** A versão atual envia timestamps inválidos à
+   quarentena nas duas tabelas. As contagens do perfil de 17/10 são históricas; conferir os volumes após atualizar
+   o perfil e executar a Silver no mesmo lote.
 9. **Cascata de órfão — decidido em 19/10: A (validar contra a Silver) + rótulo do bloqueio (§14.7).** A validação
    continua contra a **Silver** (garante integridade referencial interna), mas a linha que aponta para cadastro que
    **existe na Bronze** e caiu na quarentena deixa de ser contada como órfã: recebe o motivo
@@ -556,7 +623,7 @@ links da documentação estão íntegros — não que as contas fecham.
 ## 9. Camada Gold — proposta e decisões a tomar
 
 > A Gold **não existe ainda**. Esta seção é a **proposta de modelagem** para não repetir a modelagem quando o
-> notebook for escrito; cada item é decisão a registrar em `docs/data-dictionary.md` (DE-08) e, se alterar
+> notebook for escrito; cada item é decisão a registrar em `docs/dicionario_gold.md` (DE-08) e, se alterar
 > arquitetura/métrica, em ADR (workflow §4).
 
 ### 9.1 Tabelas propostas (grão e chave)
@@ -624,10 +691,9 @@ Decisão de banco ainda aberta (PRD §5).
 
 ## 10. Decisões transversais e de processo
 
-- **Workflow (DE-07):** o job `v-energy-grid-360` hoje tem `Landing_to_Bronze → Bronze_perfilamento`
-  (elo `depends_on` + `run_if: ALL_SUCCESS`), definido em `data-engineering/v-energy-grid-360.yaml` e comprovado
-  na Free Edition (run `14313419965490`, 21m 03s = 15m 22s + 5m 39s, `Succeeded`). As tarefas de **Silver** e
-  **Gold** entram como novos elos quando os notebooks existirem (**pendente**).
+- **Workflow (DE-07):** a definição continua com `Landing_to_Bronze → Bronze_perfilamento`
+  (elo `depends_on` + `run_if: ALL_SUCCESS`); o Workflow permanece inalterado conforme `43c2e590`. A Silver ainda
+  não está encadeada ao Job; a integração depende de execução e revisão próprias.
 - **Agenda proposta:** mensal, dia 5, 03:00 (America/Recife) — o insumo é mensal (competência) e a reexecução é
   segura porque a Bronze é `overwrite` com `delta = 0`. É proposta para operação futura, **não** integração de
   produção existente (o case entrega extração única).
@@ -635,28 +701,13 @@ Decisão de banco ainda aberta (PRD §5).
   conversões são à prova de ANSI.
 - **Idempotência:** reexecutar Bronze/Silver não acumula versões (Bronze `overwrite`; Silver `overwrite` com
   `overwriteSchema`).
-- **Processo:** Bronze fechada (branch `feat/bronze`, PR #8); a Silver nasce **depois** do merge do #8, como
-  `feat/silver`. Enquanto o #8 não estiver mesclado, o notebook da Silver e este documento ficam **não rastreados**
-  e o texto de PRD vai para fora do repositório.
+- **Processo:** a Silver está versionada na branch `feat/silver`, derivada de `feat/bronze-rastreabilidade`; o PR #29
+  reúne a implementação desta branch.
 
-## 11. Verificações locais desta entrega (o que dá para provar sem Databricks)
+## 11. Histórico de revisão e execução da Silver
 
-Feitas em 18/10/2026 sobre `Bronze_to_Silver.ipynb`:
-
-- `python -m py_compile` no fonte: OK.
-- Conversão `.py → .ipynb` com **round-trip idêntico** célula a célula (32 células: 17 markdown, 15 de código;
-  932 linhas de código + 312 de markdown) e **hash das linhas de código igual** entre fonte e `.ipynb`
-  (`75d91c8c7b86c51e`) — prova de que a conversão não mudou lógica.
-- `nbformat` 4.5 válido, ids de célula únicos, UTF-8 sem BOM, sem CRLF.
-- Varredura AST de nomes indefinidos: limpa (932 linhas, 172 nomes).
-- `check_docs.py` na raiz: 36 documentos, nenhum link quebrado.
-- **Teste diferencial das funções de normalização** (`teste_helper.py`): portando `num_br`/`numero` e
-  `data_br`/`data_normalizada` para Python e rodando uma bateria de casos, o valor convertido e a ambiguidade
-  dão **0 divergência** entre a Silver e o perfil; a única divergência é no guarda `vazio` (placeholder), que é
-  consciente (§11.1/R8 e 14.5 do notebook).
-
-**Só se prova no runtime:** reconciliação com `delta = 0`, contagem da quarentena por motivo, remoção de
-órfãos/negativos/grafia divergente, contrato de tipos de saída e o índice `historico[0]`/`historico[size-1]`.
+As revisões abaixo registram decisões e resultados de versões anteriores. A execução real disponível está em §11.3;
+ela não comprova a revisão atual, cujo estado está descrito em §11.4 e no PRD.
 
 ### 11.1 Revisão pós-execução (18/10/2026)
 
@@ -671,8 +722,8 @@ tabelas). O que a revisão encontrou e o que foi corrigido **na fonte**, com bas
 | R4 | `atendimentos_historico` usava `explode_outer`, inflando o grão (protocolo sem tratativa gerava 1 linha) | média | `explode` (D24); grão de saída = `sum(size(historico))` |
 | R5 | Doc dizia que a sentinela `9999-12-31` "explica parte dos nulos" de `data_retirada` | baixa | Corrigido: os 31.796 nulos medidos são **vazios**, não sentinela; o tratamento da sentinela é defensivo (assunção) |
 
-**Segunda revisão (18/10/2026), depois da anterior** — desta vez com um **teste diferencial** das funções de
-normalização (Silver × perfil) e confronto do notebook com o `Landing_to_Bronze.ipynb`:
+**Segunda revisão (18/10/2026), depois da anterior** — comparação das funções de normalização (Silver × perfil) e
+confronto do notebook com o `Landing_to_Bronze.ipynb`:
 
 | # | Achado | Gravidade | Correção |
 |---|---|---|---|
@@ -681,7 +732,7 @@ normalização (Silver × perfil) e confronto do notebook com o `Landing_to_Bron
 | R8 | `vazio`/`texto` checavam placeholder **antes** de colapsar espaço: `SEM  INFORMACAO` (espaço duplo) não era reconhecido como vazio | baixa | Colapsa antes de checar; `numero`/`data` provados iguais ao perfil, divergência só no `vazio` (documentada em 14.5) (D27) |
 | R9 | Se uma execução não rejeitasse nada, a `silver.quarentena` **anterior** ficava viva e era lida como se fosse desta rodada | baixa | `DROP TABLE IF EXISTS` no ramo vazio (D28) |
 | R10 | O confronto não mostrava **data inválida**, **chave duplicada** das fontes não deduplicadas (GD/inspeções/ocorrências/atendimentos) nem a **cascata de órfão** | média | Seção 13 ganhou esses três blocos (D29); a cascata explica por que o órfão pode superar o perfil |
-| R11 | As funções `numero`/`data` **não tinham prova** de equivalência com o perfil (só leitura humana) | média | Teste diferencial em Python: **0 divergência** no valor/ambiguidade; divergência só no guarda `vazio` (consciente) |
+| R11 | A regra de normalização precisava de comparação explícita com o perfil | média | `numero`/`data` seguem os critérios do perfil; placeholders permanecem documentados como diferença consciente |
 
 Conclusão da segunda revisão: nenhuma incoerência de contrato, de vocabulário de motivos ou de grão foi
 encontrada; o que restou é **comportamento deliberado** (medido e documentado em 14.5) e pendência de negócio.
@@ -713,7 +764,8 @@ Com o bloco de cobertura da seção 13, a próxima execução prova item a item.
 | R22 | O notebook (§1, decisão 9) sugeria que o perfil não classifica `nota_satisfacao` negativa como impossível; o perfil a inclui em `NEGATIVO_IMPOSSIVEL` (ALTA) | baixa | Redação corrigida + bullet na §14.4 (só markdown) |
 
 Conclusão da quarta revisão: os ajustes são de **documentação** — nenhuma linha de código mudou (o hash do código
-segue `bfd3ce6d6e72be37`). As decisões de negócio (§14.1–14.4) seguem abertas, dependentes do time.
+segue `bfd3ce6d6e72be37`). Naquele momento, as interpretações de negócio das seções 14.1–14.4 aguardavam discussão;
+as regras implementadas posteriormente estão descritas no registro D53–D60 e no notebook atual.
 
 **Quinta revisão (18/10/2026)** — foco no **núcleo do código** (helpers, `rejeitar`/`gravar`, contadores e a
 reconciliação), lido linha a linha:
@@ -722,7 +774,7 @@ reconciliação), lido linha a linha:
 |---|---|---|---|
 | R23 | `rejeitar` dava `append` na quarentena **incondicionalmente**, então `QUARENTENA` nunca ficava vazia e o ramo que **remove** a quarentena de uma execução anterior (D28/R9) era **inalcançável** — o código não fazia o que a decisão documentava | média | `append` só quando há rejeição (`n_rej > 0`); o `DROP TABLE IF EXISTS` passa a valer de fato (código — muda o hash) |
 | R24 | A decisão "só `faturas.valor_total` rejeita não numérico" (as demais colunas viram nulo) estava só na doc; o notebook não a expunha | baixa | Bullet em §14.4 do notebook (markdown) |
-| R25 | `atendimentos` só **tipa** as datas de abertura/fechamento (inválida → nulo), enquanto **as outras** tabelas com data quarentenam inválida — e o perfil mede "data inválida" nas duas colunas (o `DATAS` dele inclui `atendimentos`) | baixa | **Pendência declarada** (§8 item 8 + §14.4 do notebook): sem número confiável (as contagens de data de `atendimentos`/`ocorrências` serão refeitas), a Silver não fixa regra nova; alinhar após a reconferência |
+| R25 | `atendimentos` só **tipava** as datas de abertura/fechamento (inválida → nulo), enquanto **as outras** tabelas com data quarentenavam inválida — e o perfil mede "data inválida" nas duas colunas (o `DATAS` dele inclui `atendimentos`) | baixa | Histórico da versão anterior; D59 registra a regra atual de enviar timestamps inválidos de `atendimentos` e `ocorrencias_rede` à quarentena |
 
 Conclusão da quinta revisão: R23 é a única correção de **código** desde a terceira revisão; as demais foram de
 documentação. Não há número novo — o ajuste é de **controle de fluxo** (não herdar quarentena antiga), não de
@@ -809,17 +861,17 @@ produto** (D38): documentada no notebook (§14.7) e na seção 10 item 9. O hash
 `d3c43b74214baf8b` (inalterado pela §14.7 — markdown).
 
 **Revisão da contribuição do colega (19/10/2026)** — quatro itens propostos na revisão do PR #8, todos aceitos, mais
-o efeito colateral que a revisão dele não previa (o perfilador). Os itens 2 e 3 fecham lacunas que o **próprio
-ADR-0003** já declarava; os outros dois são da mesma família (rastreabilidade e momento da falha). O **R39** e o
+o efeito colateral que a revisão dele não previa (o perfilador). Os itens 2 e 3 fecham lacunas que o **ADR de Bronze
+vigente naquela revisão** já declarava; os outros dois são da mesma família (rastreabilidade e momento da falha). O **R39** e o
 **R40** não vêm da revisão: apareceram na primeira execução real no Databricks (R39) e na revisão do código de
 verificação depois dela (R40):
 
 | # | Achado | Gravidade | Correção |
 |---|---|---|---|
 | R34 | **Reconciliação por tabela** (item 1): `_arquivo_origem` era rótulo (`leituras/*.csv`) e cada tabela tinha **uma** linha. O §4.3 pede a conta "para cada fonte e lote": um ano das leituras que encolhesse, ou uma aba que sumisse do Excel, não apareceria em lugar nenhum | média | Uma linha por **origem**: 5 em `leituras` e 3 em `inspecoes`, com `_aba_origem` (D39). A Silver passou a **somar por `_tabela`** antes de comparar (§13.1b) — sem isso o confronto daria `DIVERGE` em toda leitura |
-| R35 | **Localizador do registro** (item 2): `_id_registro` acha a linha **na tabela**, não no arquivo; o ADR-0003 (§38) já declarava isso como lacuna do DE-01 | média | `_ordem_na_origem` (D40) auxilia a busca e segue à Silver (D43); somente no Excel corresponde à posição física. A garantia para CSV/JSON continua pendente |
+| R35 | **Localizador do registro** (item 2): `_id_registro` acha a linha **na tabela**, não no arquivo; o ADR de Bronze vigente naquela revisão já declarava isso como lacuna do DE-01 | média | Em 19/10, `_ordem_na_origem` apenas auxiliava a busca; em 20/10, o scanner passou a registrar ordinal e intervalo físico em CSV/JSON, e o leitor Excel guarda a linha da planilha (D40). Falta validar no Databricks |
 | R36 | **Identidade do arquivo** (item 3): nada provava a **versão** do arquivo ingerido — o mesmo nome retificado na Landing entraria sem diferença visível | média | `bronze.arquivos_lote` com SHA-256, tamanho e modificação (D41); hash calculado no driver por streaming, com `status_hash` explícito quando não for possível |
-| R37 | **Publicação por lote** (item 4): o `raise` do fim da carga protegia só o que **ainda não** tinha sido escrito — as 8 tabelas eram sobrescritas durante a leitura, então uma falha no fim deixava a Bronze metade nova, metade velha (o README declarava a lacuna) | alta | Ingestão escreve em `bronze_stg.*` e publica no fim, com `bronze.controle_lote` e conferência de contagem (D42). Limite: Delta não tem transação entre tabelas; uma falha durante a troca pode deixar lote misto. O status `EM_ANDAMENTO` só protege consumidores que o verificam; falha induzida seguida de reexecução ainda precisa de evidência no Databricks |
+| R37 | **Publicação por lote** (item 4): a versão revisada em 19/10 ainda sobrescrevia tabelas durante a leitura, então uma falha no fim podia expor lotes mistos | alta | A implementação de 20/10 grava no histórico e publica as vistas por atualização de um único ponteiro Delta (D42). Migração inicial, falha induzida e reexecução ainda precisam de evidência no Databricks |
 | R38 | **Efeito colateral de R35 no perfilador:** o `AUDITORIA` do `Bronze_perfilamento.ipynb` não conhecia `_ordem_na_origem`; a coluna entraria como **dado** e, sendo única por arquivo, zeraria a duplicata exata — o mesmo falso negativo que `_id_registro` causava (D8) | alta | Coluna acrescentada ao `AUDITORIA` do perfilador (D43). Nenhum número do perfil muda: as três colunas de lote/posição seguem fora do cálculo |
 
 | R39 | **A célula de dependência não executava** (achado na execução de 19/10): `%pip install openpyxl` estava numa célula **markdown** (a conversão `.py → .ipynb` tratou `# MAGIC %pip` como markdown), então nunca instalava nada. A carga parou na seção 6 com `ImportError: Missing optional dependency 'openpyxl'` — ambiente serverless sem o pacote | alta | Célula passou a ser **de código** (o conversor agora distingue `%md` de comando mágico) e a seção 6 traduz o `ImportError` do pandas numa mensagem que diz o que rodar. Nada muda no dado; muda o notebook abrir e executar |
@@ -834,13 +886,11 @@ inteiro (origem + ordem) e podem ser reprocessadas quando a decisão da data amb
 |---|---|---|---|
 | R41 | **Cascata contada como defeito:** o motivo `medidor_inexistente` misturava dois fatos diferentes — 8.609 chaves que **não existem** na Bronze (erro de dado) e 58.214 leituras cujo medidor **existe** e caiu na quarentena (bloqueio). O confronto com o perfil aparecia como divergência (66.823 × 8.609) e o reprocessamento futuro não tinha como separar os dois | média | `uc_chk`/`med_chk` passam a levar o **status da chave** (`OK`/`QUARENTENA`); o motivo vira `uc_em_quarentena`/`medidor_em_quarentena`, e `*_inexistente` fica só para a chave ausente da Bronze. A validação continua contra a Silver; muda o **motivo**, não o destino (a linha já ia para a quarentena) |
 
-Conclusão: os quatro itens são de **rastreabilidade e momento da falha**; nenhum toca regra de negócio da Silver
-além do rastreio (R35/D43). O item 4 muda o desenho de `write_bronze` — a escrita deixou de ser "direto na Bronze",
-e é a razão de a ingestão ganhar uma **seção 7** e o schema `bronze_stg`. O R39 é de **execução** (a célula nunca
-rodou); foi encontrado no primeiro teste de verdade, e é por isso que a verificação local não bastava. O R41 é de
-**semântica do motivo** (não muda o destino da linha) e fecha a última pendência de modelagem da Silver. O hash do
-código da Silver passa a `85d0c0a88c058a3f`; o da ingestão muda e a versão **ainda não rodou** até o fim na Free
-Edition.
+Conclusão histórica da revisão de 19/10: os quatro itens eram de **rastreabilidade e momento da falha**; nenhum
+tocava regra de negócio da Silver além do rastreio. A implementação Bronze foi revisada novamente em 20/10: D40
+agora descreve o rastro físico por scanner, e D42 descreve o histórico com ponteiro único; as provas no Databricks
+continuam pendentes. O R39 era um problema de **execução** encontrado em runtime. O R41 trata da semântica do motivo
+de cascata na Silver e não muda o destino da linha.
 
 **Pendências que continuam abertas:** data ambígua (D36) e os achados que não rejeitam / `inspetor` (D37) — as duas
 dependentes de resposta do time. A cascata de órfão (D38) foi **decidida e implementada** (R41).
@@ -874,12 +924,43 @@ mais de uma grafia de caixa/acento; a identidade é o `cpf_cnpj`), `mes_referenc
 no arquivo; o perfil mede o formato) e a Silver não é atômica **entre tabelas** (cada `saveAsTable` é atômico; uma
 falha no meio deixa tabelas de versões diferentes — visível na §13 e reparável por reexecução).
 
+### 11.2 Estado da revisão por lote (21/10/2026)
+
+A revisão local desta etapa não é evidência de aceite de DE-02/DE-03. A única execução real disponível está em §11.3 e
+corresponde à versão anterior; a versão atual aguarda execução no lote autorizado.
+
+### 11.3 Execução no Databricks Free Edition (21/10/2026)
+
+Dataset real no Volume autorizado, compute serverless, notebooks importados à mão (o Workflow ainda não inclui a Silver).
+
+- **Bronze** (`Landing_to_Bronze` com o `cast("long")` de `_ordem_na_origem` na migração): lote `20261021T095426Z_106436a4`
+  publicado, 10 fontes, 4.969.149 linhas, migrando as tabelas da Bronze anterior (`_ordem_na_origem` era `int`). Sem o
+  cast, a migração falharia como em §11.2. 14 origens com `delta = 0` e 0 rejeitados no parse.
+- **Perfil** (`Bronze_perfilamento`): `quality.perfil_bronze` com 108 linhas para o mesmo lote.
+- **Silver**: run `20261021T101818Z_223235ca`, `CONCLUIDO`, 0 falhas, ≈ 7 min 45 s. Entrada → aceitos + quarentena:
+  UCs 46.461 → 45.200 + 1.261; medidores 51.812 → 49.930 + 1.882; leituras 2.182.468 → 1.981.032 + 201.436;
+  faturas 2.184.623 → 2.091.968 + 92.655; GD 3.510, ocorrências 180.000 e atendimentos 318.871 sem quarentena;
+  inspeções 1.389 → 1.344 + 45; `atendimentos_historico` 636.857 tratativas. Soma de controle com `delta = 0,00`:
+  faturas: total financeiro reconciliado entre aceitos e quarentena; montantes preservados no ambiente autorizado.
+- **Bate com o perfil de 17/10** (somando as combinações de motivos): leituras com data ambígua 102.878, medidor
+  inexistente 8.609, cascata `medidor_em_quarentena` 58.214; faturas com emissão ambígua 61.226, UC inexistente 32.285.
+- **Consumo negativo:** 7.592 leituras somam −366,7 milhões de kWh (≈ −48 mil kWh por leitura). Por isso a soma bruta
+  de `consumo_kwh` na Bronze (509,2 milhões) é **menor** que a aceita (813,3 milhões). Não somar consumo direto da Bronze.
+- **Quarentena por data ambígua:** faturas com impacto financeiro registrado no ambiente autorizado só por esse motivo (60.368 linhas) e leituras 39,7 milhões
+  de kWh (98.168 linhas). D52 é diagnóstico exploratório; a política vigente mantém B + C e não autoriza recuperar essas datas antes da análise por arquivo.
+
+**Próximas verificações:** executar perfil e Silver revisados no lote autorizado, analisar os contadores de formato por arquivo, confirmar no contexto de produto se `inspetor` é exibido e encadear a Silver no Workflow. Instalação ambígua e datas ambíguas continuam segregadas pela política A/B enquanto a análise não justificar outra regra.
+
+### 11.4 Revisão posterior ao run de 21/10/2026
+
+O run de §11.3 valida somente a revisão anterior, não D53–D60. Nesta revisão, datas ambíguas permanecem em quarentena e a seção 13.6 mede evidências por arquivo, inclusive a compatibilidade das datas inequívocas com a competência; medidores com instalação ambígua e suas leituras ficam bloqueados pela cascata A; conflitos cadastrais não são resolvidos por completude; data futura ou sentinela não comprova quitação. A confirmação no Databricks exige executar perfil e Silver no mesmo lote, revisar os resultados por arquivo e reconciliar contagens e somas; o significado de `9999-12-31` não é presumido.
+
 ## 12. Referências
 
 - [PRD](../docs/PRD.md) — IDs DE-01 a DE-09; §4 (regras de tratamento, perfil, reconciliação), §5 (arquitetura), §6.1.
-- [ADR-0003 — reconciliação e captura de registros malformados](../docs/decisions/0003-reconciliacao-e-captura-de-registros-malformados.md).
+- [Índice de decisões arquiteturais de outros módulos](../docs/decisions/README.md).
 - [Serviço: engenharia de dados](../docs/services/data-engineering.md) — contrato por camada e invariantes.
-- [Dicionário de dados Gold](../docs/data-dictionary.md) — a preencher em DE-08.
+- [Dicionário de dados Gold](../docs/dicionario_gold.md) — a preencher em DE-08.
 - [Workflow de desenvolvimento e qualidade](../docs/agents/workflow.md).
 - Notebooks (`data-engineering/notebook/`): `Landing_to_Bronze.ipynb` (reconciliação por origem, `_ordem_na_origem`,
   `bronze.arquivos_lote` e publicação por lote — R34–R37), `Bronze_perfilamento.ipynb` (R38) e

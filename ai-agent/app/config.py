@@ -2,6 +2,7 @@
 
 import json
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
@@ -16,6 +17,9 @@ class Settings(BaseSettings):
     service_name: str = "V-Energy Grid 360 GenAI"
     environment: str = "production"
     enable_demo_access: bool = False
+    demo_source: Literal["fixture", "sqlite"] = "fixture"
+    demo_sqlite_path: Path | None = None
+    service_api_token: SecretStr | None = None
     model_provider: Literal["unavailable", "gemini", "groq"] = "unavailable"
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_api_key: SecretStr | None = None
@@ -90,6 +94,13 @@ class Settings(BaseSettings):
 
         normalized = value.strip() if value is not None else None
         return normalized or None
+
+    @field_validator("service_api_token")
+    @classmethod
+    def _validate_service_api_token(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError("GENAI_SERVICE_API_TOKEN deve ter ao menos 32 caracteres.")
+        return value
 
 
 @lru_cache

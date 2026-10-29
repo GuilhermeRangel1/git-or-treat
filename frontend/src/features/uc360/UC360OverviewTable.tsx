@@ -1,5 +1,5 @@
 import type { UCMeasure, UCOverview } from "./contract";
-import { statusLabel } from "./uc360-format";
+import { formatUCCompetence, statusLabel } from "./uc360-format";
 
 type Comparison = UCOverview["data"]["comparison"];
 type Snapshot = Comparison["initial"];
@@ -12,11 +12,6 @@ const money = new Intl.NumberFormat("pt-BR", {
 const decimal = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 2,
 });
-
-function competenceLabel(competence: string) {
-  const [year, month] = competence.split("-");
-  return `${month}/${year}`;
-}
 
 function measureValue(measure: UCMeasure, kind: MeasureKind) {
   if (measure.value === null) return "Sem dado";
@@ -50,7 +45,7 @@ function MobileSnapshot({ snapshot }: { snapshot: Snapshot }) {
       <h3 className="mb-3 grid gap-1">
         <span className="text-xs font-medium text-muted">Competência</span>
         <span className="text-base font-semibold text-content">
-          {competenceLabel(snapshot.competencia)}
+          {formatUCCompetence(snapshot.competencia)}
         </span>
       </h3>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -140,7 +135,7 @@ export default function UC360OverviewTable({
                   className="pr-2 text-sm font-semibold text-content"
                   scope="row"
                 >
-                  {competenceLabel(snapshot.competencia)}
+                  {formatUCCompetence(snapshot.competencia)}
                 </th>
                 <td className="pr-2 text-sm text-content">
                   {measureValue(snapshot.measured_energy_kwh, "energy")}

@@ -43,6 +43,24 @@ function signedPercent(value: number | null, eligible: boolean) {
   );
 }
 
+function competenceLabel(value: string) {
+  const monthNames = [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez",
+  ];
+  return `${monthNames[Number(value.slice(5, 7)) - 1]}/${value.slice(0, 4)}`;
+}
+
 function MetricCard({
   label,
   value,
@@ -65,7 +83,7 @@ function MetricCard({
         {value}
       </p>
       <p className="text-xs text-muted">Antes: {before}</p>
-      <p className="text-xs text-muted">Competência: {competence}</p>
+      <p className="text-xs text-muted">Mês: {competence}</p>
     </article>
   );
 }
@@ -98,19 +116,19 @@ export default function RevenueSummary({
           label="Valor faturado"
           value={money(final.billed_amount)}
           before={money(initial.billed_amount)}
-          competence={final.competencia}
+          competence={competenceLabel(final.competencia)}
         />
         <MetricCard
           label="Energia faturada"
           value={energy(final.billed_energy_kwh)}
           before={energy(initial.billed_energy_kwh)}
-          competence={final.competencia}
+          competence={competenceLabel(final.competencia)}
         />
         <MetricCard
           label="Preço observado"
           value={price(final.observed_price_brl_per_kwh)}
           before={price(initial.observed_price_brl_per_kwh)}
-          competence={final.competencia}
+          competence={competenceLabel(final.competencia)}
           valueClassName="text-[32px]"
         />
         <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
@@ -127,7 +145,8 @@ export default function RevenueSummary({
             {signedMoney(change)}
           </p>
           <p className="text-xs text-muted">
-            Competência: {initial.competencia} → {final.competencia}
+            Período: {competenceLabel(initial.competencia)} →{" "}
+            {competenceLabel(final.competencia)}
           </p>
           <p className="text-xs text-muted">
             {signedPercent(

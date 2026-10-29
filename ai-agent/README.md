@@ -1,8 +1,36 @@
 # Agente de IA
 
-Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; os adaptadores Gemini e Groq são opcionais e ficam desativados por padrão. As evidências ainda são sintéticas: não há integração com Gold, backend do portal ou interface. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md) e [PRD](../docs/PRD.md).
+Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; os adaptadores Gemini e Groq são opcionais. A rota `/assistente` do portal encaminha perguntas pelo Backend até este serviço. As evidências continuam sintéticas, sem integração com Gold. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md), [contrato de chat](../docs/contracts/genai-chat-api.md) e [PRD](../docs/PRD.md).
 
 Os endpoints podem ser exercitados localmente com adaptadores simulados. Resultados sintéticos demonstram fluxo e contrato, não números reais nem requisitos concluídos no PRD.
+
+## Preparação para uma fonte externa
+
+`create_app(source_mode="external", ...)` exige um `DomainProfile` próprio, `source_id` não sintético, um adaptador `EvidenceSource`, um resolvedor de `AccessContext` por requisição, token interno e um `EventSink` durável com `require_durable_audit=True`. O modo demonstrativo deve estar desligado. A aplicação recusa inicialização parcial; o contrato público de perguntas continua `v1`. O resolvedor deve derivar identidade e permissões de uma autenticação verificada pelo servidor, nunca do corpo enviado pelo navegador. A política de leitura e o `EvidenceGuard` conferem o plano lógico e a proveniência devolvida pela fonte antes da geração; uma evidência marcada como demonstração é recusada no modo externo.
+
+Essa composição é apenas um ponto de extensão programático. `app.main:app`, usado pelo Docker Compose, ainda chama `create_app()` no modo padrão e usa fixtures sintéticas; `GENAI_DEMO_SOURCE=sqlite` seleciona apenas outra fonte **demonstrativa**, não a fonte externa ou a Gold. O Backend encaminha pergunta, contexto transitório, token de serviço e correlação, sem identidade ou permissões da pessoa usuária. Portanto, o resolvedor externo não tem hoje um principal verificado para autorizar uma consulta Gold na jornada do portal. A rota de insight devolve `503` no modo externo: seu contrato atual aceita apenas dados sintéticos e precisa ser evoluído junto com o Backend antes de usar a Gold.
+
+Antes de instalar um adaptador Gold, aprovar o dicionário de métricas, a divisão de responsabilidade da consulta em [ADR-0002](../docs/decisions/0002-genai-gold-query-owner.md), o contrato de identidade entre serviços e as permissões de leitura; implementar a composição de implantação e o destino durável de auditoria, testar a consulta e reconciliar seus números com o mesmo recorte na Gold. O adaptador deve devolver evidência agregada com unidade, janela, filtros e referência pelo contrato `EvidenceLookupResult`. Esse contrato ainda não possui um campo próprio para versão do lote Gold; a versão e sua validação de atualidade devem entrar na revisão do contrato antes da conexão real. O endpoint de insight ainda exige contexto demonstrativo e precisa de uma evolução separada quando o Backend puder produzir observações Gold autorizadas.
+
+| Ponto de troca | Contrato que a Gold precisa cumprir |
+| --- | --- |
+| `DomainProfile` | IDs lógicos, sinônimos, grão, unidade, dimensões, valores e campos de evidência homologados pelo dicionário. |
+| `EvidenceSource.retrieve` | Receber apenas `LogicalReadPlan` aprovado e `AccessContext` atual; delegar ao dono da consulta decidido na ADR-0002; devolver agregado e proveniência validável, sem SQL ou campos sensíveis no retorno público. A versão do lote ainda exige campo e validação no contrato. |
+| `AccessContextResolver` | Obter identidade e permissões verificadas no servidor, vinculadas ao ID de correlação da requisição. O token entre serviços sozinho não prova o usuário do portal. |
+| `EventSink` | Persistir eventos mínimos sem pergunta, dados pessoais ou SQL; falha do destino impede a leitura em modo externo. |
+| Composição de implantação | Construir esses colaboradores, desligar `GENAI_ENABLE_DEMO_ACCESS` e chamar `create_app(source_mode="external", ...)`; `app.main:app` continua demonstrativo até essa composição existir. |
+
+Como teste de aceite da troca, consultar um agregado permitido e reconciliá-lo diretamente com a Gold do mesmo lote; confirmar também ausência de evidência, escopo revogado, filtro fora do catálogo, timeout e indisponibilidade da auditoria. Os testes atuais com fonte falsa verificam o contrato do núcleo, não essa reconciliação.
+
+## Chat do portal com Docker Compose
+
+O Compose inicia o serviço GenAI junto com Backend e frontend; a porta 8001 fica somente na rede interna. Para usar o Gemini localmente, configure `ai-agent/.env` com `GENAI_ENVIRONMENT=local`, `GENAI_ENABLE_DEMO_ACCESS=true`, `GENAI_SERVICE_API_TOKEN`, `GENAI_MODEL_PROVIDER=gemini` e `GENAI_GEMINI_API_KEY`. Configure o mesmo token em `backend/.env` como `AI_AGENT_SERVICE_API_TOKEN` e a URL interna `AI_AGENT_BASE_URL=http://ai-agent:8001`. Os arquivos `.env` são privados e ignorados pelo Git.
+
+Na raiz do repositório, execute `docker compose up --build` e abra `http://localhost:5173/assistente`. A tela chama apenas o Backend; a chave do Gemini permanece no serviço GenAI. As respostas usam cenários artificiais, mostram evidências e limitações e não representam dados da Gold. Contexto de conversa existe somente na memória da tela e é limitado a três turnos enviados por chamada.
+
+Para exercitar a consulta a um **banco sintético** pelo mesmo chat, acrescente `GENAI_DEMO_SOURCE=sqlite` e `GENAI_DEMO_SQLITE_PATH=/app/demo.sqlite` ao `ai-agent/.env` privado e recrie a imagem com `docker compose up --build`. A imagem gera essa base fictícia durante o build. O modo exige `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true`; se a base faltar, a inicialização falha, sem retornar à fixture. O perfil SQL consulta faturamento, consumo, interrupções e chamados mensais por `Município Fictício A` ou `B` em janeiro, fevereiro e março de 2025; abril de 2025 serve para exercitar falta de evidência. Por exemplo: “Qual foi o faturamento no Município Fictício A em janeiro de 2025?” retorna **3500,5 unidades fictícias** antes da formatação da interface. “Quanto ficou a conta de luz em janeiro de 2025?” pede esclarecimento. O modelo de linguagem continua necessário para compor uma resposta quantitativa no serviço em execução; os testes HTTP usam um adaptador de modelo falso e um banco real de teste.
+
+Fora do Docker, crie a mesma base em um caminho temporário com `python -m app.sql.seed_demo <caminho-absoluto>` dentro de `ai-agent/`, configure `GENAI_DEMO_SQLITE_PATH` para esse caminho e inicie o serviço. O leitor abre o arquivo em modo somente leitura, revalida o plano e a consulta, impõe limites e timeout e emite uma linha JSON de auditoria por tentativa com `correlation_id`, versões, hash do arquivo, template sanitizado e contagem de linhas, sem pergunta nem valores de filtro. A referência pública opaca muda quando o arquivo muda; alteração após a inicialização produz erro recuperável antes da leitura. Esse log de processo ainda não é uma auditoria durável.
 
 ## Preparar o ambiente local
 
@@ -20,6 +48,8 @@ Copy-Item .env.example .env
 O arquivo `.env` é local e ignorado pelo Git. Não adicione chaves ou credenciais ao `.env.example`.
 
 Por padrão, o serviço inicia sem identidade autorizada. Para testar as perguntas e insights com fixtures sintéticas, defina **ambas** `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true` no `.env` local. O modo demonstrativo concede acesso fictício às métricas não pessoais do perfil; não o habilite numa implantação com Gold ou dados reais. `GET /health` e a documentação OpenAPI funcionam sem essa opção.
+
+Na integração com o Backend, configure `GENAI_SERVICE_API_TOKEN` com o mesmo valor privado de `AI_AGENT_SERVICE_API_TOKEN` do Backend, de pelo menos 32 caracteres. O GenAI exige `Authorization: Bearer` nas rotas de perguntas e insights quando esse token está configurado. Fora do ambiente `local`, uma chamada sem token configurado falha antes da orquestração. Mesmo com token de serviço válido, o modo real continua sem identidade de pessoa usuária e recusa consultas; o token não libera acesso à Gold. Para o fluxo demonstrativo no host, use também `GENAI_ENVIRONMENT=local` e `GENAI_ENABLE_DEMO_ACCESS=true`.
 
 Para preparar o adaptador Gemini opcional, instale `python -m pip install -e ".[dev,gemini]"` e configure no `.env` `GENAI_MODEL_PROVIDER=gemini`, `GENAI_GEMINI_MODEL=gemini-3.5-flash-lite` e `GENAI_GEMINI_API_KEY`. Para tarefas que precisem de mais capacidade geral, selecione `gemini-3.6-flash` em `GENAI_GEMINI_MODEL`. O identificador `gemini-3.5-flash` foi descontinuado e é redirecionado pelo provedor para 3.6 Flash. O timeout pode ser ajustado em `GENAI_MODEL_TIMEOUT_MS` (milissegundos). O padrão do provedor continua `unavailable`; a chave não é necessária para iniciar a aplicação nem para executar os testes. Quando configurado como `gemini`, o `create_app` seleciona o adaptador pela factory e o usa nos endpoints de perguntas e insights. O adaptador só recebe pergunta/contexto e evidências fornecidas; não tem ferramentas para consultar ou alterar o banco.
 
@@ -115,7 +145,17 @@ A chamada é faturável conforme o plano da conta Groq. Use só dados sintético
 - `POST /api/v1/questions` recebe `contract_version` (opcional; padrão `v1`), `question` e até três mensagens de contexto (`role` `user` ou `assistant`), cada uma limitada a 1.000 caracteres. Versão nula ou não suportada é rejeitada.
 - `POST /api/v1/insights` recebe um objeto `screen` com métrica, unidade, período, filtros, observações numéricas, referência e limitações. Nesta etapa, `reference.is_demo` precisa ser `true`.
 
+As afirmações quantitativas opcionais do modelo (`claims`) são conferidas por observação,
+métrica, unidade, período e filtros/operadores. Insights podem copiar uma referência de contexto
+válida somente na chamada atual, sem enviar novos valores de filtros ao provedor. Rascunhos
+com números sem suporte são recusados também sem roteador; valores observados permanecem
+disponíveis no insight. O texto livre não é publicado. Adaptadores sem `claims` continuam
+compatíveis, com conferência lexical auxiliar e renderização controlada, sem garantia semântica
+de toda a prosa. Veja o [contrato e os limites](../docs/services/ai-agent.md#fundamentação-de-afirmações-quantitativas).
+
 Exemplo de pergunta no PowerShell:
+
+Com `GENAI_SERVICE_API_TOKEN` configurado, inclua também `-Headers @{ Authorization = "Bearer <token local>" }` na chamada direta. O exemplo abaixo pressupõe a demonstração local sem token.
 
 ```powershell
 Invoke-RestMethod -Method Post `
@@ -132,7 +172,7 @@ O fluxo padrão usa ferramentas e fixtures sintéticas; se não houver adaptador
 
 O interpretador recebe um `DomainProfile` pela raiz de composição (`create_app(domain_profile=...)`). A configuração atual, `GRID360_DEMO_PROFILE`, mantém o vocabulário, métricas, dimensões e períodos de demonstração fora do mecanismo genérico. Os IDs são lógicos; unidades, granularidades, aliases, operadores e sensibilidades do catálogo são demonstrativos e não correspondem a uma definição Gold aprovada.
 
-`app/agent/composition.py` monta os fluxos de pergunta e insight com o mesmo perfil, política, fonte, modelo, controlador de execução e destino opcional de eventos. `create_app` injeta as implementações locais; testes e futuros integradores podem fornecer `evidence_source`, `source_id`, `model_adapter`, `access_policy` e `event_sink` sem alterar os orquestradores. A fonte e sua política devem usar o mesmo ID lógico. As instruções genéricas de geração ficam em `app/generation/prompts.py`; vocabulário e exemplos de negócio continuam no perfil. O modelo apenas seleciona IDs de observações da evidência aprovada, e o serviço valida a seleção e monta a resposta pública. Eventos por estágio têm correlação e campos controlados; o destino padrão descarta os eventos, e auditoria durável ainda não está disponível.
+`app/agent/composition.py` monta os fluxos de pergunta e insight com o mesmo perfil, política, fonte, modelo, controlador de execução e destino opcional de eventos. `app/main.py` é a raiz de composição: seleciona a fonte e os provedores, monta o núcleo e preserva `app.main:create_app` e `app.main:app` como entrypoints. `app/api/application.py` configura somente a borda HTTP — middleware de correlação, handlers, estado da aplicação e rotas — e recebe os casos de uso por protocolos tipados, sem conhecer agentes ou adaptadores concretos. Testes e futuros integradores podem fornecer `evidence_source`, `source_id`, `model_adapter`, `access_policy` e `event_sink` sem alterar os orquestradores. A fonte e sua política devem usar o mesmo ID lógico. As instruções genéricas de geração ficam em `app/generation/prompts.py`; vocabulário e exemplos de negócio continuam no perfil. O modelo apenas seleciona IDs de observações da evidência aprovada, e o serviço valida a seleção e monta a resposta pública. Eventos por estágio têm correlação e campos controlados; o destino padrão descarta os eventos, e auditoria durável ainda não está disponível.
 
 O [guia de reuso e conformidade](../docs/services/ai-agent-reuse.md) mostra como compor outro perfil e fonte pelo contrato. A suíte `python -m pytest -q tests/test_reusable_core.py tests/test_import_boundaries.py` exercita Grid 360 e clima com dados artificiais, inclusive isolamento de cache, escopos e eventos.
 

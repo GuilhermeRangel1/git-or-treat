@@ -41,8 +41,8 @@ Receita declara `currency_unit: BRL` e `energy_unit: kWh`; faturas também decla
 | Perdas | `GET /api/v1/inspections/queue` | Fila, prioridade, motivo, indicadores e estimativa demonstrativos | Regra e estimativa auditáveis sobre a Gold |
 | Ordens | `GET/POST /api/v1/inspections/orders` e `PATCH /api/v1/inspections/orders/{order_id}` | Schemas e persistência existentes, separados dos dados analíticos | Ciclo de estados, histórico, idempotência e UI nos cards DEV-06/07 |
 | Operação | `GET /api/v1/operations/continuity` | Indicadores por alimentador, denominador e lacunas | Fórmula/denominador por período conforme DE-05 e dados reais |
-| Conversa IA | `POST /api/v1/questions`, no serviço `ai-agent` | Contrato existente de pergunta, contexto limitado, resposta e evidências | Integração backend/portal e consultas Gold nos cards DEV-09/11/14 |
-| Insight IA | `POST /api/v1/insights`, no serviço `ai-agent` | Contrato existente de contexto estruturado, observação e hipótese | Contexto autorizado vindo do backend e vínculo com o recorte no DEV-10 |
+| Conversa IA | Portal → `POST /api/v1/ai/questions` no Backend → `POST /api/v1/questions` no `ai-agent` | Contrato v1 de pergunta, contexto transitório limitado, resposta e evidências | Integração da tela, autenticação de usuário, sessões reais e consultas Gold |
+| Insight IA (IA-04) | Portal `POST /api/v1/ai/insights` → Backend → GenAI `POST /api/v1/insights` | Backend recalcula observações do recorte; contrato de insight existente separa observação e hipótese | Esta etapa usa a fonte sintética; Gold, autorização de usuário e reconciliação continuam pendentes |
 
 ### Listagem e erros
 
@@ -57,7 +57,7 @@ Parâmetros por operação:
 | `/ucs/{uc_id}` | Identificador no caminho; histórico sintético completo de janeiro/fevereiro, sem parâmetro de janela nesta etapa |
 | `/ucs/{uc_id}/overview` | Identificador canônico e janela mensal opcional `start`/`end` fornecidos juntos; comparação dos extremos e contexto com cobertura declarada |
 | `/ucs/{uc_id}/history/{section}` | Seção do enum DEV-04, mesma janela, `page`, `page_size` e `order_by` permitido por seção; ver [contrato UC](uc360-dev04.md) |
-| `/inspections/queue` | Município/bairro/classe/alimentador, `page`, `page_size`, `order_by`; fila do snapshot sintético |
+| `/inspections/queue` | Município/bairro/classe/alimentador, `page`, `page_size`, `order_by`, `direction`; fila do snapshot sintético; [regra DEV-05 e detalhe por UC](inspection-dev05.md) |
 | `/operations/continuity` | Janela comum e `alimentador`; alias `periodo` para competência única |
 
 Filtros vazios, desconhecidos ou geografia contraditória são inválidos; combinações válidas sem fatos geram ausência explícita. A busca `q` repete seu comportamento no resultado, sem aceitar pesquisa de documento pessoal.
@@ -73,7 +73,8 @@ Erros analíticos possuem `error.code`, `error.message` e `error.details` (itens
 - Ordem: criação recebe `uc_id`, `reason`, `priority` e `notes`; atualização recebe `status`, `notes` e `result`. A resposta inclui ID, UC, motivo, prioridade, estado, observações, resultado e datas de criação/alteração. A listagem atual retorna uma lista, não o novo envelope analítico paginado; essa compatibilidade é intencional até DEV-06.
 - Pergunta: recebe `question` e `context` opcional com até três turnos. Responde `status`, `answer`, `message`, `evidence` e `limitations`. Estados existentes: `answered`, `needs_clarification`, `refused`, `no_evidence` e `recoverable_error`.
 - Insight: recebe `screen` com métrica, unidade, período, filtros, observações, referência e limitações. Responde contexto, valores observados, hipótese, evidências e limitações; mantém referência sintética nesta etapa. O endpoint não autentica nem autoriza o consumidor por si só.
-- `/api/v1/ai/query` no backend continua um placeholder legado. A lista de tabelas ali presente não é contrato real da Gold nem comprovação de executor seguro; DEV-11 é responsável por essa implementação.
+- `/api/v1/ai/query` no backend é uma rota legada indisponível: após validar a entrada, devolve 503 sem registros ou lista de tabelas. DEV-11 depende da decisão sobre o dono da consulta e de um novo contrato tipado para executar Gold.
+- O contrato conversacional está detalhado em [genai-chat-api.md](genai-chat-api.md). A chamada atual encaminha ao serviço GenAI e não consulta o banco nem persiste sessões.
 
 ## Conferência com o protótipo
 
@@ -111,7 +112,7 @@ Os pagamentos são associados à competência da fatura, mesmo quando a data do 
 
 O preço observado acumulado é valor faturado dividido por energia faturada: 1.727 / 1.585 = 1,0896 BRL/kWh. Não equivale à tarifa homologada. A decomposição `endpoint_price_volume` compara exclusivamente os meses inicial e final solicitados: com preço `p` e energia faturada `q`, volume = `p0 × (q1 − q0)`, preço = `q0 × (p1 − p0)` e interação = `(p1 − p0) × (q1 − q0)`. Janeiro contra fevereiro resulta em +136,99, −8,53 e −1,46 BRL, somando +127 BRL com ajuste zero; o método permanece demonstrativo. Extremos ausentes, iguais, cobertura financeira incompleta ou energia faturada não positiva tornam a decomposição indisponível. Dinheiro e componentes são quantizados a centavos, preço observado a quatro casas; o [contrato DEV-03](revenue-dev03.md) fixa arredondamento, deltas publicados, ajustes, mix e reconciliação dos grupos.
 
-DEC/FEC usam eventos individuais por UC, duração em horas e denominador fixo por alimentador; ainda não implementam todas as regras de DE-05. A cobertura usa o cadastro do snapshot, sem reconstrução temporal. Prioridades, motivos e estimativas das suspeitas são valores artificiais da fixture, não resultado de um modelo ou regra validada. A potência GD permanece em kW e não é tratada como energia gerada. Essas definições precisam de revisão com a Gold.
+DEC/FEC usam eventos individuais por UC, duração em horas e denominador fixo por alimentador; ainda não implementam todas as regras de DE-05. A cobertura usa o cadastro do snapshot, sem reconstrução temporal. Desde DEV-05, prioridades e estimativas são calculadas por uma [regra sintética auditável](inspection-dev05.md), com insumos e limitações no detalhe; não são critérios validados com dados reais. A potência GD permanece em kW e não é tratada como energia gerada. Essas definições precisam de revisão com a Gold.
 
 A fonte de interrupções declara separadamente sua cobertura temporal inclusiva: janeiro a fevereiro de 2025. `coverage_ratio`, `covered_uc_count` e `coverage_status` descrevem a cobertura cadastral/espacial, não comprovam observação em qualquer competência. Uma janela totalmente fora da cobertura temporal ou uma fonte com cobertura temporal desconhecida resulta em DEC/FEC nulos e estado `unavailable`, com motivo. Uma janela parcialmente coberta retorna `partial`, calcula somente os eventos da interseção e informa o trecho observado nas limitações; `metadata.period` mantém a janela solicitada. Zero dentro de uma janela conhecida continua disponível. Se alguns alimentadores estiverem disponíveis e outros indisponíveis, o estado agregado é `partial`; se todos estiverem indisponíveis, é `unavailable`. O adaptador Gold futuro precisará declarar sua cobertura real, sem inferi-la apenas das datas dos eventos encontrados.
 
@@ -119,7 +120,7 @@ A fonte de interrupções declara separadamente sua cobertura temporal inclusiva
 
 A [ADR-0006](../decisions/0006-panorama-fonte-produto-e-contrato-dev01.md) define que o contrato de produto do Panorama é servido em `GET /api/v1/panorama`, com repositório, serviço e base sintética próprios, e que o contrato analítico da DEV-01 permanece intacto em `GET /api/v1/kpis`.
 
-A base do Panorama é o lote `Lote Gold 2024.04-sintetico-v1`, com competências 2024-03 a 2024-05, municípios Recife, Olinda e Jaboatão e classes Residencial, Comercial e Industrial. Não é o lote `dev01-v1` nem uma linha Gold: os números são controles de demonstração derivados do protótipo Figma e do PRD.
+A base do Panorama é o lote `panorama-sintetico-2024.04-v1`, com competências 2024-03 a 2024-05, municípios Recife, Olinda e Jaboatão e classes Residencial, Comercial e Industrial. Não é o lote `dev01-v1` nem uma linha Gold: os números são controles de demonstração derivados do protótipo Figma e do PRD.
 
 O envelope traz `data.filtros` (competência, comparação, município e classe aplicados), `data.periodoIncompleto`, `data.totalRegistros`, `data.dataAtualizacao`, `data.loteVersao`, `data.metricas` e `data.serieMensal`, com `metadata` de período, filtros, unidade, versão do lote e qualidade da cobertura. Cada métrica declara id, nome, subtítulo, categoria, tipo de grandeza, valor atual e anterior, variação absoluta e percentual, unidade, definição, fórmula, marcação de base zero e o sentido favorável do indicador.
 
@@ -175,4 +176,4 @@ O schema da API admite `is_demo: false`, e o repositório fornece a proveniênci
 
 Revisar chave de UC e vigência cadastral; granularidade e deduplicação de faturas/leituras; relógio de competência versus pagamento; receita faturada/paga e arredondamento; energia apurada versus faturada; GD como potência versus energia; universo de UCs; fórmula preço-volume e interação; regra/estimativa de inspeção; denominador e janela DEC/FEC; atualização/lote e qualidade. Conectar o adaptador não resolve essas decisões automaticamente.
 
-A conclusão funcional continua condicionada ao dicionário Gold e à reconciliação entre Databricks, banco, API, portal, IA e diagnóstico. O [dicionário](../data-dictionary.md) permanece a fonte das definições aprovadas dos dados reais.
+A conclusão funcional continua condicionada ao dicionário Gold e à reconciliação entre Databricks, banco, API, portal, IA e diagnóstico. O [dicionário](../dicionario_gold.md) permanece a fonte das definições aprovadas dos dados reais.

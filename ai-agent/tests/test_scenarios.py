@@ -30,8 +30,8 @@ def test_synthetic_catalog_values_match_explicit_demo_expectations() -> None:
     scenarios = {scenario.scenario_id: scenario for scenario in SYNTHETIC_SCENARIOS}
 
     assert scenarios["revenue_comparison_demo"].evidence.records == [
-        {"period_label": "período A", "value": 100, "unit": "unidades fictícias"},
-        {"period_label": "período B", "value": 95, "unit": "unidades fictícias"},
+        {"period": "2025-01", "value": 100, "unit": "unidades fictícias"},
+        {"period": "2025-02", "value": 95, "unit": "unidades fictícias"},
     ]
     assert scenarios["consumption_demo"].evidence.records == [
         {"value": 420, "unit": "unidades fictícias"}

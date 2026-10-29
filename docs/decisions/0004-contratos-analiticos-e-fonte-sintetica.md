@@ -32,4 +32,4 @@ Uma rota somente de desenvolvimento exercita o contrato através do transporte e
 
 ## Referências
 
-[PRD](../PRD.md), [arquitetura frontend](../architecture/frontend.md), [backend](../services/backend.md), [IA](../services/ai-agent.md) e [dicionário](../data-dictionary.md).
+[PRD](../PRD.md), [arquitetura frontend](../architecture/frontend.md), [backend](../services/backend.md), [IA](../services/ai-agent.md) e [dicionário](../dicionario_gold.md).

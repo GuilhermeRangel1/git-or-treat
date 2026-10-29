@@ -76,6 +76,7 @@ class ReadOnlySqlService:
             ),
             "catalog_version": audit_context.catalog_version if audit_context is not None else None,
             "correlation_id": audit_context.correlation_id if audit_context is not None else None,
+            "source_version": audit_context.source_version if audit_context is not None else None,
         }
         try:
             if not isinstance(sql, str):

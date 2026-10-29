@@ -10,6 +10,38 @@ const limitationFieldLabels: Record<string, string> = {
   competencia: "competência",
 };
 
+const moneyFormat = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+const decimalFormat = new Intl.NumberFormat("pt-BR", {
+  maximumFractionDigits: 2,
+});
+
+export function formatUCAmount(value: number | null, unit: "BRL" | "kWh") {
+  return value === null
+    ? "Sem dado"
+    : unit === "BRL"
+      ? moneyFormat.format(value)
+      : `${decimalFormat.format(value)} kWh`;
+}
+
+export function formatUCPower(value: number) {
+  return `${decimalFormat.format(value)} kW`;
+}
+
+export function formatUCCompetence(value: string) {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+  return match ? `${match[2]}/${match[1]}` : value;
+}
+
+export function formatUCDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}))?/.exec(value);
+  if (!match) return value;
+  const date = `${match[3]}/${match[2]}/${match[1]}`;
+  return match[4] ? `${date} · ${match[4]}` : date;
+}
+
 export function statusLabel(status: UCStatus) {
   return {
     available: "Disponível",

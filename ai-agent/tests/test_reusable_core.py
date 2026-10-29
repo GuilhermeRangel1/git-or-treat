@@ -497,7 +497,12 @@ def test_second_domain_runs_insight_without_grid_specific_response_text() -> Non
     )
 
     assert response.status == "answered"
-    assert "chuva observada: 12 mm fictícios" in response.hypothesis
+    assert response.observation.model_dump() == {
+        "values": [{"label": "chuva observada", "value": 12}]
+    }
+    assert response.context.unit == "mm fictícios"
+    assert "chuva demonstrativa" in response.hypothesis
+    assert "12" not in response.hypothesis
     assert "V-Energy" not in response.model_dump_json()
     assert source.calls == 0
     assert model.calls == 1

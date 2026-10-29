@@ -2,7 +2,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from app.api.v1.analytics_route import AnalyticsRoute
+from app.api.v1.analytics_route import AnalyticsRoute, repeated_query_parameters
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
 from app.schemas.analytics import RevenueResponse
 from app.services.analytics import AnalyticsAPIError, filters_model, metadata, validate_period
@@ -23,7 +23,7 @@ def get_revenue_analysis(
     group_by: Literal["municipio", "bairro", "classe"] = Query("municipio"),
     repository: AnalyticsRepository = Depends(get_analytics_repository),
 ):
-    repeated = sorted(name for name in request.query_params.keys() if len(request.query_params.getlist(name)) > 1)
+    repeated = repeated_query_parameters(request.query_params)
     if repeated:
         raise AnalyticsAPIError(
             422,

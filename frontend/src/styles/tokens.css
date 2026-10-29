@@ -5,6 +5,7 @@
   /* Modo Claro (Default) */
   --bg-page: #f5f0e7;
   --bg-surface: #fffcf6;
+  --bg-elevated: #ffffff;
   --bg-surface-hover: #f7f2eb;
   --text-primary: #29201f;
   --text-secondary: #73645f;
@@ -22,9 +23,19 @@
   --line-subtle: #eee9e0;
 
   --status-success: #2e7d32;
+  --status-success-bg: #e7f2e8;
+  --status-success-text: #315f44;
   --status-warning: #ed6c02;
   --status-danger: #d32f2f;
+  --action-neutral-bg: #29201f;
+  --action-neutral-text: #fffcf6;
+  --action-danger-bg: #fdecec;
+  --action-danger-text: #b3261e;
   --status-info: #0288d1;
+  --status-info-bg: #e8f2f8;
+  --status-info-text: #295b75;
+  --status-warning-bg: #fff0d5;
+  --status-warning-text: #754b13;
 
   --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
   --font-title: "Manrope", var(--font-sans);
@@ -45,6 +56,7 @@
   /* Modo Escuro */
   --bg-page: #211a1c;
   --bg-surface: #2e2427;
+  --bg-elevated: #382b30;
   --bg-surface-hover: #382c30;
   --text-primary: #f5f0e7;
   --text-secondary: #c2afa8;
@@ -62,9 +74,19 @@
   --line-subtle: #2d2427;
 
   --status-success: #66bb6a;
+  --status-success-bg: #243b2b;
+  --status-success-text: #a4d6ae;
   --status-warning: #ffa726;
   --status-danger: #ef5350;
+  --action-neutral-bg: #f5f0e7;
+  --action-neutral-text: #211a1c;
+  --action-danger-bg: #48292c;
+  --action-danger-text: #ffb4ab;
   --status-info: #29b6f6;
+  --status-info-bg: #22343a;
+  --status-info-text: #c6e6f0;
+  --status-warning-bg: #3c3322;
+  --status-warning-text: #f2d28e;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);

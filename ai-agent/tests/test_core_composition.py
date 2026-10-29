@@ -21,7 +21,7 @@ from app.ports.events import EventCode, EventOutcome, EventStage
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.providers.fallback import FallbackModelAdapter
 from app.providers.gemini import GeminiModelAdapter
-from app.providers.protocols import ModelProviderUnavailable
+from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
 from app.providers.routing import ModelRouter, ModelTier, RoutingPolicy
 from app.schemas.insights import ScreenContext
 from app.schemas.questions import QuestionRequest
@@ -114,6 +114,30 @@ def test_direct_core_runs_authorized_question_and_records_only_safe_outcome() ->
     assert sink.events[-1].plan_id is not None
     assert sink.events[-1].evidence_ref is not None
     assert QUESTION not in repr(sink.events)
+
+
+def test_direct_question_uses_single_authorized_observation_after_model_refusal() -> None:
+    refusing_model = FakeModelAdapter(
+        result=GeneratedAnswer(
+            status="refused",
+            answer="Não posso atender a essa solicitação.",
+        )
+    )
+    sink = RecordingSink()
+    core = _core(RecordingSource(), refusing_model, sink)
+
+    response = asyncio.run(
+        core.question.answer(
+            QuestionRequest(question="Qual valor de leitura foi usado no cenário sintético?"),
+            demo_access_context(GRID360_DEMO_PROFILE, CORRELATION_ID),
+        )
+    )
+
+    assert response.status == "answered"
+    assert "420 unidades fictícias" in response.answer
+    assert response.evidence[0].is_demo is True
+    assert sink.events[-2].code is EventCode.REFUSED
+    assert sink.events[-1].code is EventCode.COMPLETED
 
 
 def test_http_uses_injected_source_model_and_sink_with_the_same_flow() -> None:
@@ -230,7 +254,7 @@ def test_direct_insight_uses_injected_model_and_sink_without_reading_source() ->
     )
 
     assert response.status == "answered"
-    assert "valor observado: 42 unidades fictícias" in response.hypothesis
+    assert "valor observado: 42 unidades fictícias" not in response.hypothesis
     assert source.calls == 0
     assert model.calls == 1
     assert sink.events[0].flow == "insight"
@@ -376,9 +400,13 @@ def test_fallback_model_uses_the_same_authorized_evidence_and_output_validation(
 
 
 def test_generic_task_instructions_do_not_embed_grid_vocabulary() -> None:
-    instructions = f"{SYSTEM_INSTRUCTION} {INSIGHT_TASK}".casefold()
+    instructions = " ".join(f"{SYSTEM_INSTRUCTION} {INSIGHT_TASK}".casefold().split())
 
     assert "observation_ids" in instructions
+    assert "o serviço já autorizou o plano" in instructions
+    assert (
+        "n\u00e3o recuse apenas porque a refer\u00eancia \u00e9 demonstrativa" in instructions
+    )
     assert "jaboatão" not in instructions
     assert "gold_indicadores" not in instructions
     assert "v-energy" not in instructions

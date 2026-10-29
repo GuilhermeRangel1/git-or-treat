@@ -1,92 +1,20 @@
 import os
-from contextlib import contextmanager
-from pathlib import Path
+from decimal import Decimal
 
 import pytest
 from alembic import command
-from alembic.autogenerate import produce_migrations
-from alembic.config import Config
-from alembic.runtime.migration import MigrationContext
-from sqlalchemy import Column, MetaData, String, create_engine, inspect, text
+from sqlalchemy import Column, MetaData, String, create_engine, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
-
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_TABLES = {"gold_indicadores", "operational_inspection_orders"}
-
-
-def alembic_config(connection):
-    config = Config(str(BACKEND_ROOT / "alembic.ini"))
-    config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
-    config.attributes["connection"] = connection
-    return config
-
-
-def assert_clean_database(connection):
-    inspector = inspect(connection)
-    tables = set(inspector.get_table_names())
-    residual = sorted((tables - {"alembic_version"}) | set(inspector.get_view_names()))
-    has_revision = "alembic_version" in tables and connection.execute(
-        text("SELECT version_num FROM alembic_version")
-    ).first() is not None
-    if residual or has_revision:
-        pytest.fail(
-            "O banco descartável precisa estar limpo antes do teste. "
-            "Recrie somente o banco *_test ou limpe seus objetos manualmente; "
-            "nenhuma tabela existente foi removida pelo teste."
-        )
-
-
-def assert_upgraded(connection):
-    assert EXPECTED_TABLES <= set(inspect(connection).get_table_names())
-
-
-def assert_downgraded(connection):
-    assert not EXPECTED_TABLES.intersection(inspect(connection).get_table_names())
-
-
-def assert_schema_matches_models(connection, metadata=None):
-    if metadata is None:
-        import app.models  # Registra todos os modelos antes da comparação.
-        from app.db.base import Base
-
-        metadata = Base.metadata
-    context = MigrationContext.configure(
-        connection, opts={"compare_type": True, "compare_server_default": True}
-    )
-    changes = produce_migrations(context, metadata).upgrade_ops
-    assert changes.is_empty(), f"Modelo sem migração correspondente: {changes.as_diffs()}"
-
-
-@contextmanager
-def migrated_database(connection):
-    assert_clean_database(connection)
-    config = alembic_config(connection)
-    connection.commit()
-    original_error = None
-    try:
-        command.upgrade(config, "head")
-        assert_upgraded(connection)
-        assert_schema_matches_models(connection)
-        connection.commit()
-        yield connection
-    except BaseException as error:
-        original_error = error
-        raise
-    finally:
-        try:
-            connection.rollback()
-            command.downgrade(config, "base")
-            assert_downgraded(connection)
-            connection.commit()
-        except Exception as cleanup_error:
-            if original_error is None:
-                raise
-            original_error.add_note(
-                "A limpeza do banco descartável também falhou: "
-                f"{type(cleanup_error).__name__}. Recrie o banco antes de repetir."
-            )
+from tests.support.migrations import (
+    BACKEND_ROOT,
+    alembic_config,
+    assert_downgraded,
+    assert_schema_matches_models,
+    assert_upgraded,
+    migrated_database,
+)
 
 
 def run_migration_cycle(connection):
@@ -200,7 +128,7 @@ def assert_timestamp_migration_preserves_existing_orders(connection):
         )
     )
     before = connection.execute(
-        text("SELECT * FROM operational_inspection_orders WHERE uc_id = 'BEFORE-MIGRATION'")
+        text("SELECT id, uc_id, reason, priority, status, notes, result, created_at, updated_at FROM operational_inspection_orders WHERE uc_id = 'BEFORE-MIGRATION'")
     ).one()
     connection.commit()
     for target in ("head", "2d848fa6f44a", "head"):
@@ -209,7 +137,7 @@ def assert_timestamp_migration_preserves_existing_orders(connection):
         else:
             command.downgrade(config, target)
         after = connection.execute(
-            text("SELECT * FROM operational_inspection_orders WHERE uc_id = 'BEFORE-MIGRATION'")
+            text("SELECT id, uc_id, reason, priority, status, notes, result, created_at, updated_at FROM operational_inspection_orders WHERE uc_id = 'BEFORE-MIGRATION'")
         ).one()
         assert after == before
         defaults = {
@@ -250,6 +178,7 @@ def test_alembic_upgrade_and_downgrade_on_explicit_disposable_postgres_database(
                 text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
             ), "Use um usuário de migração sem SUPERUSER no banco descartável *_test."
             with migrated_database(connection):
+                assert_gold_audit_migration_preserves_the_previous_batch(connection)
                 assert_timestamp_migration_preserves_existing_orders(connection)
                 assert_order_persistence(engine)
                 assert_direct_insert_timestamps(engine)
@@ -297,3 +226,40 @@ def assert_order_persistence(engine):
             assert persisted.status == expected_status
             assert persisted.created_at is not None
             assert persisted.updated_at is not None
+
+
+def assert_gold_audit_migration_preserves_the_previous_batch(connection):
+    from datetime import datetime, timezone
+    from app.models import gold_v1
+    from app.models.gold_load import BATCH
+
+    config = alembic_config(connection)
+    command.downgrade(config, "goldv1000001")
+    connection.execute(gold_v1.BATCH.insert().values(
+        id=1, lote="synthetic-before-migration", fingerprint="a" * 64,
+        importado_em=datetime(2025, 1, 1, tzinfo=timezone.utc), manifesto={"synthetic": {"rows": 2}},
+    ))
+    connection.execute(gold_v1.TABLES["consumo_mensal_uc"].insert().values(
+        id_uc="FAKE-MIGRATION", competencia="2025-01", consumo_kwh=30, receita_reais="25.50",
+    ))
+    connection.commit()
+    before = connection.execute(select(gold_v1.BATCH)).mappings().one()
+    for revision in ("head", "goldv1000001", "head"):
+        if revision == "head":
+            command.upgrade(config, revision)
+            assert connection.scalar(select(BATCH.c.schema_version)) == "gold-csv-v1"
+        else:
+            command.downgrade(config, revision)
+        assert connection.execute(select(gold_v1.BATCH)).mappings().one() == before
+        assert connection.scalar(text("SELECT receita_reais FROM gold_consumo_mensal_uc")) == Decimal("25.50")
+        connection.commit()
+
+
+def test_gold_audit_upgrade_and_downgrade_preserve_the_published_batch():
+    engine = create_engine("sqlite:///:memory:")
+    try:
+        with engine.connect() as connection:
+            with migrated_database(connection):
+                assert_gold_audit_migration_preserves_the_previous_batch(connection)
+    finally:
+        engine.dispose()
