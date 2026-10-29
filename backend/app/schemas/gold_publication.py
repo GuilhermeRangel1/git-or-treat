@@ -20,7 +20,7 @@ class GoldOrigin(BaseModel):
     run_id: GoldRun
     run_id_silver: SourceRun
     lote_bronze_silver: SourceRun
-    data_processamento: datetime
+    data_processamento_gold: datetime
     schema_version: Literal["gold-csv-v1"]
 
     @field_validator("ambiente", mode="before")
@@ -28,7 +28,7 @@ class GoldOrigin(BaseModel):
     def normalize_environment(cls, value):
         return value.strip().lower() if isinstance(value, str) else value
 
-    @field_validator("data_processamento")
+    @field_validator("data_processamento_gold")
     @classmethod
     def normalize_timestamp(cls, value: datetime) -> datetime:
         # Exportador atual usa America/Recife sem offset. Compatibilidade explícita.

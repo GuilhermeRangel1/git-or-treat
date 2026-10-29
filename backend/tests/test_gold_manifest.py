@@ -26,7 +26,7 @@ def update_manifest(batch, **changes):
     {"run_id": "LOTE_DEV"}, {"run_id_silver": "SINTETICO_DEV"}, {"lote_bronze_silver": "LOTE_DEV"},
     {"lote": source_id("other")}, {"schema_version": "gold-csv-v2"},
     {"tabelas_exportadas": []}, {"tabelas_exportadas": ["../private"]},
-    {"data_processamento": "private invalid date"}, {"status_gold": "FALHOU"},
+    {"data_processamento_gold": "private invalid date"}, {"status_gold": "FALHOU"},
     {"unexpected": "private payload"},
 ])
 def test_invalid_origin_preserves_publication_and_hides_payload(database, batch, changes):
@@ -68,7 +68,7 @@ def test_nested_manifest_and_legacy_explicit_version(database, batch):
     payload = json.loads((batch / "manifest.json").read_text(encoding="utf-8"))
     payload.pop("schema_version")
     payload["ambiente"] = " PROD "
-    payload["data_processamento"] = "2025-01-01 00:00:00"
+    payload["data_processamento_gold"] = "2025-01-01 00:00:00"
     (batch / "manifesto").mkdir()
     (batch / "manifesto" / "manifest.json").write_text(json.dumps(payload), encoding="utf-8")
     (batch / "manifest.json").unlink()
@@ -79,7 +79,7 @@ def test_nested_manifest_and_legacy_explicit_version(database, batch):
     with database.connect() as connection:
         origin = connection.scalar(select(BATCH.c.origem))
         assert origin["ambiente"] == "prod"
-        assert origin["data_processamento"] == "2025-01-01T03:00:00Z"
+        assert origin["data_processamento_gold"] == "2025-01-01T03:00:00Z"
 
 
 def test_batch_argument_cannot_replace_the_manifest_run(database, batch):
@@ -160,9 +160,16 @@ def test_batch_reference_rejects_invalid_envelopes(value):
 
 
 def test_shared_publication_envelope_examples():
-    examples = json.loads((Path(__file__).parent / "fixtures/gold_publication_contract.json").read_text(encoding="utf-8"))
+    examples = json.loads((Path(__file__).parents[2] / "docs/contracts/examples/gold-publication-v1.json").read_text(encoding="utf-8"))
     assert PublicationReference.model_validate(examples["valid"]).batch_ref == examples["batch_ref"]
     assert PublicationReference.parse(examples["batch_ref"]).model_dump(mode="json") == examples["valid"]
     for changes in examples["invalid_changes"]:
         with pytest.raises(ValueError):
             PublicationReference.model_validate({**examples["valid"], **changes})
+
+
+def test_shared_invalid_batch_references():
+    path = Path(__file__).parents[2] / "docs/contracts/examples/gold-publication-v1.json"
+    for value in json.loads(path.read_text(encoding="utf-8"))["invalid_batch_refs"]:
+        with pytest.raises(ValueError):
+            PublicationReference.parse(value)
