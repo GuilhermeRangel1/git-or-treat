@@ -124,6 +124,8 @@ Histórico da revisão de 25/10/2026 (GENAI-01): a descrição original apresent
 
 Envelopes internos (GENAI-01, parte A1): `app/schemas/internal.py` modela as duas operações do [contrato interno](../contracts/genai-query-execution.md). São eles: `AccessScope` (escopo sem correlação, convertido por `to_context`), `QuestionPlanRequest`, `QuestionPlanResponse` (estados `planned`, `needs_clarification`, `refused` e `recoverable_error`, com fingerprint conferido contra o plano) e `QuestionSynthesisRequest`. Ainda não há rotas internas nem uso pelo núcleo, e a síntese ainda não tem campo para a publicação esperada (`batch_ref`).
 
+Operações do núcleo (GENAI-01, parte A2): `QuestionOrchestrator.plan()` aplica guardrail, interpretação e aprovação do plano e devolve `QuestionPlanResponse`, sem chamar a fonte nem o modelo. `QuestionOrchestrator.synthesize()` reaprova o plano no escopo recebido, confere o fingerprint e aplica o `EvidenceGuard` ao lookup, com a publicação esperada como parâmetro opcional (`expected_batch_ref`). Só chama o modelo quando há evidência. No planejador, os passos equivalentes são `plan()` e `accept_lookup()`. `answer()` continua atendendo `POST /api/v1/questions` com o mesmo comportamento, compondo planejar, fonte local e a mesma geração. Ainda não há rotas internas para as duas operações.
+
 Qualquer adaptador de fonte, inclusive uma implementação futura do Backend, deve manter os nomes de parâmetros do protocolo: `retrieve(self, plan, access_context)`. Isso permite chamadas por palavra-chave compatíveis com `EvidenceSource`. O contexto é recebido por chamada e não deve ser guardado entre consultas.
 
 ### Perfil de domínio e catálogo de capacidades

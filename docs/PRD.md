@@ -457,6 +457,22 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-10-29 — IA-01 / IA-03 / IA-06 — GENAI-01 (parte A2): núcleo dividido em planejar e sintetizar
+
+- Estado: IA-01, IA-03 e IA-06 permanecem nos estados existentes. Entrega de preparação: sem rota interna e sem ativação Gold. `POST /api/v1/questions` mantém o mesmo comportamento.
+- Mudança:
+  - Planejador: `QuestionAnalysisPlanner.plan()` interpreta, monta e aprova o plano sem chamar a fonte. `accept_lookup()` reaprova o plano no escopo recebido, exige o mesmo fingerprint e aplica o `EvidenceGuard` com a publicação esperada opcional (`expected_batch_ref`), sem chamar a fonte. `prepare()` e `execute_plan()` continuam existindo e compõem os novos passos com a fonte local.
+  - Orquestrador: `QuestionOrchestrator.plan(QuestionPlanRequest, correlation_id)` devolve `QuestionPlanResponse` (`planned`, `needs_clarification`, `refused` ou `recoverable_error`), sem fonte nem modelo. `synthesize(QuestionSynthesisRequest, correlation_id, expected_batch_ref=None)` confere o lookup e só chama o modelo quando há evidência; `no_evidence` e `needs_clarification` recebem a mensagem fixa do guard. O fluxo `answer()` passa a compor planejar, fonte local e a mesma geração e grounding.
+  - Cada operação usa orçamento próprio; a divisão do prazo entre as três etapas depende do acordo com o Backend.
+- Arquivos: `ai-agent/app/agent/planner.py` e `ai-agent/app/agent/orchestrator.py` (código movido, sem reescrever a validação, o guard, o grounding nem a geração); novo `ai-agent/tests/test_core_plan_synthesis.py`; nota no [guia GenAI](services/ai-agent.md) e este registro. Nenhum teste existente foi alterado. Rotas, `main.py`, contrato, `schemas/evidence.py`, `schemas/internal.py` e `EvidenceGuard` não mudaram.
+- Verificações: em `ai-agent/`, em 29/10/2026:
+  - `python -m pytest -q tests/test_core_plan_synthesis.py`: 35 aprovados. Cobre fonte e modelo não chamados, determinismo do fingerprint, os quatro estados de planejar, fingerprint divergente e plano adulterado, publicação esperada igual, ausente, divergente ou inválida para `gold.test`, escopo da síntese que não cobre o plano, mensagens fixas sem modelo, evidência fora do plano, repetição do guardrail na síntese (pergunta fora de escopo, pergunta insegura e conteúdo inseguro só no contexto) e equivalência entre `answer()` e planejar + fonte + sintetizar em cinco perguntas sintéticas;
+  - `python -m pytest -q`: 3110 aprovados e 4 ignorados (base: 3075 e 4; diferença igual aos 35 novos);
+  - `python -m ruff check` nos três arquivos tocados: sem erros;
+  - `python -m compileall -q app tests scripts`: sem erros;
+  - `git diff --check`: passou.
+- Limites: as operações ainda não têm rota. A publicação esperada entra só como parâmetro, porque o campo no envelope depende do Backend. A GenAI não guarda estado entre as operações; um plano adulterado só é detectado quando o fingerprint, a reaprovação no escopo ou a proveniência divergem. Cartões não alterados.
+
 ### 2026-10-29 — IA-01 / IA-03 / IA-06 — GENAI-01 (parte A1): envelopes internos de planejar e sintetizar
 
 - Estado: IA-01, IA-03 e IA-06 permanecem nos estados existentes. Entrega de preparação: só schemas e testes, sem rota interna, sem mudança no núcleo e sem ativação Gold.
