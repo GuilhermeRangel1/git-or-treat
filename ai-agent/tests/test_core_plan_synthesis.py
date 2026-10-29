@@ -125,8 +125,19 @@ def _scope(*, profile=PROFILE, source_id=SOURCE_ID, **overrides) -> AccessScope:
     return AccessScope(**{**values, **overrides})
 
 
+def _publication(scope):
+    if not scope.source_id.startswith("gold."):
+        return {}
+    return {"batch_ref": BATCH, "temporal_coverage": [
+        {"metric_id": metric, "kind": "none"}
+        for metric in sorted(scope.allowed_metric_ids)
+    ]}
+
+
 def _plan(core, question: str = READY, scope: AccessScope | None = None) -> QuestionPlanResponse:
-    request = QuestionPlanRequest(question=question, access_scope=scope or _scope())
+    request = QuestionPlanRequest(
+        question=question, access_scope=scope or _scope(), **_publication(scope or _scope())
+    )
     return asyncio.run(core.plan(request, CORRELATION))
 
 
@@ -137,16 +148,38 @@ def _synthesis(planned: QuestionPlanResponse, lookup, *, question=READY, scope=N
         plan=plan or planned.plan,
         plan_fingerprint=(plan or planned.plan).fingerprint(),
         lookup=lookup,
+        expected_batch_ref=BATCH if (plan or planned.plan).source_id.startswith("gold.") else None,
     )
 
 
 def _synthesize(core, request, expected_batch_ref: str | None = BATCH):
-    return asyncio.run(core.synthesize(request, CORRELATION, expected_batch_ref))
+    return asyncio.run(core.synthesize(
+        request.model_copy(update={"expected_batch_ref": expected_batch_ref})
+        if request.plan.source_id.startswith("gold.") else request, CORRELATION
+    ))
 
 
 def _tampered(plan: LogicalReadPlan) -> LogicalReadPlan:
     station = ReadFilter(dimension_id="weather.station", operator="eq", values=("Bela",))
     return plan.model_copy(update={"filters": (station,)})
+
+
+@pytest.mark.parametrize("expected", [BATCH, OTHER_BATCH])
+def test_synthesis_uses_publication_from_envelope_without_separate_argument(expected) -> None:
+    source, model = SpySource(), SpyModel()
+    core = _core(source, model)
+    planned = _plan(core)
+    payload = _synthesis(planned, _lookup(planned.plan)).model_dump(mode="json")
+    payload["expected_batch_ref"] = expected
+    request = QuestionSynthesisRequest.model_validate(payload)
+
+    response = asyncio.run(core.synthesize(request, CORRELATION))
+
+    assert response.status is (
+        QuestionStatus.ANSWERED if expected == BATCH else QuestionStatus.RECOVERABLE_ERROR
+    )
+    assert model.calls == (1 if expected == BATCH else 0)
+    assert source.calls == 0
 
 
 # (1) Planejar e sintetizar não chamam o que não devem
@@ -424,7 +457,9 @@ def test_synthesize_repeats_the_guardrail(question: str, context: list, code: st
     request = _synthesis(planned, _lookup(planned.plan), question=question).model_copy(
         update={"context": [ConversationTurn(**turn) for turn in context]}
     )
-    plan_request = QuestionPlanRequest(question=question, context=context, access_scope=_scope())
+    plan_request = QuestionPlanRequest(
+        question=question, context=context, access_scope=_scope(), **_publication(_scope())
+    )
 
     response = _synthesize(core, request)
     refused_plan = asyncio.run(core.plan(plan_request, CORRELATION))

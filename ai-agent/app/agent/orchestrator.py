@@ -171,12 +171,10 @@ class QuestionOrchestrator:
         self,
         request: QuestionSynthesisRequest,
         correlation_id: str,
-        expected_batch_ref: str | None = None,
     ) -> QuestionResponse:
         """Operação sintetizar: confere o lookup recebido e gera a resposta, sem chamar a fonte.
 
-        ``expected_batch_ref`` é a publicação fixada pelo chamador confiável; o envelope ainda
-        não tem campo para ela.
+        `request.expected_batch_ref` vem do Backend confiável e é independente do lookup.
         """
 
         access_context = request.access_scope.to_context(correlation_id)
@@ -185,7 +183,7 @@ class QuestionOrchestrator:
         return await self._run(
             trace,
             lambda budget: self._synthesize_with_budget(
-                request, access_context, expected_batch_ref, budget, trace
+                request, access_context, request.expected_batch_ref, budget, trace
             ),
         )
 
