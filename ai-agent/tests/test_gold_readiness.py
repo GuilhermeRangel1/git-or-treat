@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 import app.readiness.evaluate as evaluate_module
 from app.readiness import (
@@ -21,6 +21,7 @@ from app.readiness import (
     evaluate_readiness,
 )
 from app.readiness.requirements import DOCUMENTED_CONTROLS, TABLES_WITH_COMPETENCIA
+from app.schemas.evidence import GoldBatchRef
 
 DICTIONARY = Path(__file__).resolve().parents[2] / "docs" / "dicionario_gold.md"
 
@@ -92,6 +93,51 @@ def test_ready_lot_releases_only_capabilities_with_approved_definition_and_contr
     for capability_id in NOT_IN_GOLD:
         assert _reasons(report, capability_id) == (ReasonCode.SOURCE_NOT_IN_GOLD,)
     assert set(report.capabilities) == {req.id for req in CAPABILITY_REQUIREMENTS}
+
+
+@pytest.mark.parametrize("reference", [REF_A, REF_B])
+def test_publication_reference_round_trips_through_readiness(reference: str) -> None:
+    validated = TypeAdapter(GoldBatchRef).validate_python(reference)
+    data = _facts(batch_ref=validated, expected_batch_ref=validated)
+    for table in data["tables"].values():
+        table["batch_ref"] = validated
+
+    report = _evaluate(data)
+
+    assert report.lot_state is LotState.READY
+    assert report.batch_ref == validated
+    assert ReadinessReport.model_validate_json(report.model_dump_json()) == report
+
+
+@pytest.mark.parametrize("field", ["batch_ref", "expected_batch_ref", "table", "report"])
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "SINTETICO_DEV",
+        "LOTE_DEV",
+        REF_A.replace("-4000-", "-1000-"),
+        f" {REF_A}",
+        f"{REF_A} ",
+        123,
+    ],
+)
+def test_invalid_reference_is_rejected_at_every_readiness_boundary(field, reference) -> None:
+    with pytest.raises(ValidationError):
+        TypeAdapter(GoldBatchRef).validate_python(reference)
+
+    data = _facts()
+    if field == "report":
+        report = _evaluate(data).model_dump(mode="json")
+        report["batch_ref"] = reference
+        with pytest.raises(ValidationError):
+            ReadinessReport.model_validate(report)
+        return
+    if field == "table":
+        data["tables"]["visao_360_uc"]["batch_ref"] = reference
+    else:
+        data[field] = reference
+    with pytest.raises(ValidationError):
+        PublicationFacts.model_validate(data)
 
 
 def test_unreachable_backend_takes_precedence_and_never_reads_as_empty() -> None:

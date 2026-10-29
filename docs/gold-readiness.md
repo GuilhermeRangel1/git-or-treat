@@ -12,6 +12,8 @@ Uma função pura, `evaluate_readiness(facts) -> ReadinessReport`, sem I/O, banc
 
 **Saída (`ReadinessReport`):** `readiness_version`, `lot_state`, `batch_ref` e, por capacidade, `status` (`available` ou `unavailable`) e `reasons`. A saída tem só códigos e estados.
 
+`GoldBatchRef` é importado de `app.schemas.evidence`, a mesma definição usada pelos envelopes internos e pela proveniência; a prontidão não mantém um formato paralelo.
+
 ## Estados do lote e precedência
 
 A primeira regra que se aplica define o estado:
@@ -29,6 +31,8 @@ A primeira regra que se aplica define o estado:
 Nos estados 1 a 4, as capacidades fora da Gold também levam `source_not_in_gold`. Uma capacidade bloqueada nunca derruba as outras.
 
 `invalid` e `mixed` são casos distintos: `mixed` exige que todos os `batch_ref` estejam presentes e que haja divergência entre eles; a falta de identificação é sempre `invalid`, nunca `mixed` nem `ready`. Uma publicação legada, sem origem validada, cai em `invalid`, como prevê o [contrato de consulta](contracts/genai-query-execution.md#lote-da-gold-batch_ref) para lote sem manifesto carregado e validado.
+
+`invalid` pertence somente a `ReadinessReport.lot_state`; não acrescenta um estado ao chat público e não equivale a `no_evidence`. Uma referência ausente gera esse estado e bloqueia todas as capacidades; uma referência preenchida fora do formato é recusada na validação de entrada. A futura coordenação do Backend deve impedir consulta e síntese para publicação sem identificação e traduzir a falha conforme o contrato de consulta, cuja política HTTP/repetição permanece proposta. Este módulo não implementa essa tradução.
 
 ## Avaliação por capacidade
 

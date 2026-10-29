@@ -6,23 +6,11 @@ from typing import Annotated, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.schemas.analysis import LogicalIdentifier
+from app.schemas.evidence import GoldBatchRef
 
 READINESS_VERSION = "gold-readiness-v1"
 ReadinessVersion = Literal["gold-readiness-v1"]
 
-# Mesmo formato do GoldBatchRef proposto para a proveniência da evidência; quando ele estiver
-# em app.schemas.evidence, este alias passa a importá-lo.
-GoldBatchRef = Annotated[
-    str,
-    StringConstraints(
-        strict=True,
-        max_length=100,
-        pattern=(
-            r"^gold-csv-v1:GOLD_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}:"
-            r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        ),
-    ),
-]
 ControlId = Annotated[str, StringConstraints(strict=True, pattern=r"^C[0-9]{2}$")]
 Competencia = Annotated[
     str, StringConstraints(strict=True, pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")
@@ -42,6 +30,8 @@ class GoldTable(StrEnum):
 
 
 class LotState(StrEnum):
+    """Estado interno da publicação; não é um status do chat público."""
+
     READY = "ready"
     PARTIAL = "partial"
     MIXED = "mixed"
