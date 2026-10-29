@@ -1,0 +1,158 @@
+{
+  "contract_version": "v1",
+  "vectors": [
+    {
+      "id": "contract-ready",
+      "plan": {
+        "contract_version": "v1",
+        "catalog_version": "v1",
+        "operation": "read",
+        "profile_id": "grid360_gold",
+        "source_id": "gold.local",
+        "domain_id": "faturamento",
+        "metric_id": "energia_faturada",
+        "dimension_ids": [
+          "municipio"
+        ],
+        "group_by_dimension_ids": [],
+        "unit": "kWh",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "municipio",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "limit": 100
+      },
+      "canonical_json": "{\"catalog_version\":\"v1\",\"contract_version\":\"v1\",\"dimension_ids\":[\"municipio\"],\"domain_id\":\"faturamento\",\"filters\":[{\"dimension_id\":\"municipio\",\"operator\":\"eq\",\"values\":[\"Recife\"]}],\"group_by_dimension_ids\":[],\"limit\":100,\"metric_id\":\"energia_faturada\",\"operation\":\"read\",\"order\":null,\"profile_id\":\"grid360_gold\",\"source_id\":\"gold.local\",\"unit\":\"kWh\",\"window\":{\"end\":\"2025-03-31\",\"granularity\":\"month\",\"kind\":\"bounded\",\"phrase\":null,\"start\":\"2025-03-01\"}}",
+      "fingerprint": "9002cbfb7cb8ad373f7b471e41b1092b82d2e5fa8cc269553c73713a8d26fccb"
+    },
+    {
+      "id": "omitted-defaults",
+      "plan": {
+        "catalog_version": "v1",
+        "operation": "read",
+        "profile_id": "grid360_gold",
+        "source_id": "gold.local",
+        "domain_id": "faturamento",
+        "metric_id": "energia_faturada",
+        "unit": "kWh",
+        "window": {
+          "kind": "bounded",
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "limit": 100
+      },
+      "canonical_json": "{\"catalog_version\":\"v1\",\"contract_version\":\"v1\",\"dimension_ids\":[],\"domain_id\":\"faturamento\",\"filters\":[],\"group_by_dimension_ids\":[],\"limit\":100,\"metric_id\":\"energia_faturada\",\"operation\":\"read\",\"order\":null,\"profile_id\":\"grid360_gold\",\"source_id\":\"gold.local\",\"unit\":\"kWh\",\"window\":{\"end\":\"2025-03-31\",\"granularity\":\"month\",\"kind\":\"bounded\",\"phrase\":null,\"start\":\"2025-03-01\"}}",
+      "fingerprint": "016256a3e1d3c5f7915806133856900b9b0c2fa143c3df8c571bec640fd89083"
+    },
+    {
+      "id": "unicode-and-scalars",
+      "plan": {
+        "contract_version": "v1",
+        "catalog_version": "v1",
+        "operation": "read",
+        "profile_id": "grid360_gold",
+        "source_id": "gold.local",
+        "domain_id": "faturamento",
+        "metric_id": "energia_faturada",
+        "dimension_ids": [
+          "municipio",
+          "classe",
+          "quantidade",
+          "indice",
+          "possui_gd"
+        ],
+        "group_by_dimension_ids": [
+          "classe",
+          "municipio"
+        ],
+        "unit": "R$ / m³",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "municipio",
+            "operator": "in",
+            "values": [
+              "São José",
+              "Água Clara"
+            ]
+          },
+          {
+            "dimension_id": "classe",
+            "operator": "eq",
+            "values": [
+              "Comércio"
+            ]
+          },
+          {
+            "dimension_id": "quantidade",
+            "operator": "gte",
+            "values": [
+              2
+            ]
+          },
+          {
+            "dimension_id": "indice",
+            "operator": "lt",
+            "values": [
+              1.5
+            ]
+          },
+          {
+            "dimension_id": "possui_gd",
+            "operator": "eq",
+            "values": [
+              true
+            ]
+          }
+        ],
+        "order": {
+          "field_id": "energia_faturada",
+          "direction": "desc"
+        },
+        "limit": 100
+      },
+      "canonical_json": "{\"catalog_version\":\"v1\",\"contract_version\":\"v1\",\"dimension_ids\":[\"municipio\",\"classe\",\"quantidade\",\"indice\",\"possui_gd\"],\"domain_id\":\"faturamento\",\"filters\":[{\"dimension_id\":\"municipio\",\"operator\":\"in\",\"values\":[\"S\\u00e3o Jos\\u00e9\",\"\\u00c1gua Clara\"]},{\"dimension_id\":\"classe\",\"operator\":\"eq\",\"values\":[\"Com\\u00e9rcio\"]},{\"dimension_id\":\"quantidade\",\"operator\":\"gte\",\"values\":[2]},{\"dimension_id\":\"indice\",\"operator\":\"lt\",\"values\":[1.5]},{\"dimension_id\":\"possui_gd\",\"operator\":\"eq\",\"values\":[true]}],\"group_by_dimension_ids\":[\"classe\",\"municipio\"],\"limit\":100,\"metric_id\":\"energia_faturada\",\"operation\":\"read\",\"order\":{\"direction\":\"desc\",\"field_id\":\"energia_faturada\"},\"profile_id\":\"grid360_gold\",\"source_id\":\"gold.local\",\"unit\":\"R$ / m\\u00b3\",\"window\":{\"end\":\"2025-03-31\",\"granularity\":\"month\",\"kind\":\"bounded\",\"phrase\":null,\"start\":\"2025-03-01\"}}",
+      "fingerprint": "8c07aaaa755efedc28dcc6f75a3fd43cbe8b39ff7744f73a4c3787d8bd2f75fc"
+    },
+    {
+      "id": "catalog-phrase",
+      "plan": {
+        "catalog_version": "v1",
+        "operation": "read",
+        "profile_id": "grid360_gold",
+        "source_id": "gold.local",
+        "domain_id": "faturamento",
+        "metric_id": "energia_faturada",
+        "unit": "kWh",
+        "window": {
+          "kind": "catalog_phrase",
+          "phrase": "últimos três meses"
+        },
+        "limit": 100
+      },
+      "canonical_json": "{\"catalog_version\":\"v1\",\"contract_version\":\"v1\",\"dimension_ids\":[],\"domain_id\":\"faturamento\",\"filters\":[],\"group_by_dimension_ids\":[],\"limit\":100,\"metric_id\":\"energia_faturada\",\"operation\":\"read\",\"order\":null,\"profile_id\":\"grid360_gold\",\"source_id\":\"gold.local\",\"unit\":\"kWh\",\"window\":{\"end\":null,\"granularity\":null,\"kind\":\"catalog_phrase\",\"phrase\":\"\\u00faltimos tr\\u00eas meses\",\"start\":null}}",
+      "fingerprint": "4c407ad54d89c362b370ceba41a14050bff65caad7f6aec1e2fd8f14645ac33b"
+    }
+  ]
+}

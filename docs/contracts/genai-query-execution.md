@@ -403,3 +403,13 @@ Esta revisão prepara os envelopes; não implementa rotas, execução SQL nem ac
 - B5: capacidades mensais devem produzir janela `bounded`, com primeiro e último dia dos meses selecionados. O executor Backend rejeita frases não resolvidas, revalida cobertura e publicação. Fontes sem período não recebem competência inventada. A semântica de expressões relativas e lacunas aguarda confirmação de Dados; estes envelopes não implementam o resolvedor.
 
 A síntese usa o mesmo corpo público e escopo, o plano e fingerprint devolvidos no planejamento, `lookup` e `expected_batch_ref`. `batch_ref` e `temporal_coverage` pertencem somente ao planejamento. Fonte sintética não recebe metadados Gold. Mesmo `no_evidence` exige publicação esperada na síntese Gold.
+
+### Revalidação B3 no Backend — preparação
+
+`backend/app/services/genai_plan.py::validate_genai_plan(payload, fingerprint)` valida o objeto recebido com o schema v1 independente de `backend/app/schemas/genai_plan.py`, recalcula o SHA-256 sobre o plano normalizado e recusa divergências com `GenAIResponseInvalid`. Valida versão de contrato e catálogo v1, operação de leitura, campos conhecidos, janela, limites, filtros, agrupamento e ordenação estruturalmente consistentes. A referência é o plano validado, incluindo campos omitidos com seus defaults e nulos; não o JSON bruto ou um hash de CSV.
+
+Os [vetores compartilhados v1](examples/genai-plan-fingerprints-v1.json) são executados pelas suítes dos dois serviços sem imports entre eles. Incluem o exemplo de plano pronto acima com seu hash original, defaults omitidos, Unicode, escalares tipados, listas e janela por frase. Essa janela é aceita pelo contrato genérico; a execução Gold continua exigindo a resolução mensal da B5. A ordem das listas não é normalizada, mesmo quando uma política de autorização considera filtros equivalentes.
+
+Esta etapa não conecta novas rotas ou o executor. A futura coordenação Backend deve chamar a revalidação em todo plano recebido ou recuperado do cache e depois conferir catálogo permitido, escopo, cobertura e publicação antes de consultar a Gold. Um fingerprint correto comprova integridade do plano, não sua autorização. O erro reutiliza a categoria interna existente; sua tradução no futuro fluxo planejar → executar → sintetizar permanece com esse consumidor. Não há aceite Gold nesta preparação.
+
+Referência de serialização: Pydantic 2.14.1, [`model_dump(mode="json")`](https://github.com/pydantic/pydantic/blob/v2.14.1/docs/concepts/serialization.md), consultada via Context7 em 29/10/2026; não usar exclusão de defaults, nulos ou campos omitidos no cálculo.
