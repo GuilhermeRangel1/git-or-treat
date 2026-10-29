@@ -233,7 +233,7 @@ def test_public_question_route_reaches_internal_http_contract(client, monkeypatc
         ),
         (
             lambda request: httpx.Response(503, json={"detail": "private upstream detail"}),
-            GenAIResponseInvalid,
+            GenAIServiceUnavailable,
         ),
         (
             lambda request: (_ for _ in ()).throw(

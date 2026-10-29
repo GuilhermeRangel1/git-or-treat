@@ -5,10 +5,13 @@ from datetime import date
 
 from app.repositories.panorama import PanoramaRepository
 from app.schemas.ai_insight import (
+    AIInsightContextSummary,
+    AIInsightObservation,
     AIInsightObservationValue,
     AIInsightPeriod,
     AIInsightReference,
     AIInsightRequest,
+    AIInsightResponse,
     AIInsightScreenContext,
     PanoramaInsightAnalysis,
     PanoramaInsightContribution,
@@ -37,12 +40,12 @@ def build_panorama_insight(
     repository: PanoramaRepository,
     request: PanoramaInsightRequest,
 ) -> tuple[
-    AIInsightRequest,
+    AIInsightRequest | AIInsightResponse,
     PanoramaInsightMetric,
     PanoramaInsightSource,
     PanoramaInsightAnalysis,
 ]:
-    """Valida o recorte e calcula sinais comparativos na mesma fonte do Panorama."""
+    """Prepara a chamada GenAI ou uma resposta local de ausência para o recorte."""
 
     filters = request.filters
     data = build_panorama(
@@ -103,22 +106,43 @@ def build_panorama_insight(
         "A interpretação é uma sugestão de investigação, não uma causa comprovada."
     )
 
-    screen = AIInsightScreenContext(
-        metric=metric.nome,
-        unit=metric.unidade,
-        period=period,
-        filters=data.filtros,
-        observations=observations,
-        reference=AIInsightReference(
-            source="synthetic.panorama",
-            description=(
-                f"Dados sintéticos do Panorama; lote {data.loteVersao}; "
-                f"atualização {data.dataAtualizacao}."
-            ),
-            is_demo=True,
-        ),
-        limitations=limitations,
+    context = AIInsightContextSummary(
+        metric=metric.nome, unit=metric.unidade, period=period, filters=data.filtros
     )
+    prepared: AIInsightRequest | AIInsightResponse
+    if data.totalRegistros == 0:
+        prepared = AIInsightResponse(
+            contract_version="v1",
+            correlation_id=None,
+            audit_reference=None,
+            error=None,
+            status="no_evidence",
+            context=context,
+            observation=AIInsightObservation(values=[]),
+            hypothesis=None,
+            message="Não há dados para gerar uma interpretação deste recorte.",
+            evidence=[],
+            limitations=limitations,
+        )
+    else:
+        prepared = AIInsightRequest(
+            screen=AIInsightScreenContext(
+                metric=metric.nome,
+                unit=metric.unidade,
+                period=period,
+                filters=data.filtros,
+                observations=observations,
+                reference=AIInsightReference(
+                    source="synthetic.panorama",
+                    description=(
+                        f"Dados sintéticos do Panorama; lote {data.loteVersao}; "
+                        f"atualização {data.dataAtualizacao}."
+                    ),
+                    is_demo=True,
+                ),
+                limitations=limitations,
+            )
+        )
     source = PanoramaInsightSource(
         kind=repository.source_kind,
         loteVersao=data.loteVersao,
@@ -131,7 +155,7 @@ def build_panorama_insight(
         definicao=metric.definicao,
         formula=metric.formula,
     )
-    return AIInsightRequest(screen=screen), metric_detail, source, analysis
+    return prepared, metric_detail, source, analysis
 
 
 def _build_analysis(

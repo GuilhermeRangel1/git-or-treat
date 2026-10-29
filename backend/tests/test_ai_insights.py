@@ -6,7 +6,10 @@ import httpx
 import pytest
 
 from app.main import app
-from app.repositories.panorama import get_panorama_repository
+from app.repositories.panorama import (
+    SyntheticPanoramaRepository,
+    get_panorama_repository,
+)
 from app.schemas.ai_insight import AIInsightResponse, PanoramaInsightRequest
 from app.services.genai_client import (
     GenAIInsightClient,
@@ -69,16 +72,28 @@ def _request(
     municipio: str = "Recife",
     classe: str = "Residencial",
     lote_versao: str = "panorama-sintetico-2024.04-v1",
+    periodo: str = "2024-04",
+    comparacao: str = "anterior",
 ) -> dict[str, Any]:
     return {
         "filters": {
-            "periodo": "2024-04",
-            "comparacao": "anterior",
+            "periodo": periodo,
+            "comparacao": comparacao,
             "municipio": municipio,
             "classe": classe,
         },
         "loteVersao": lote_versao,
     }
+
+
+@pytest.fixture
+def insight_repository(monkeypatch):
+    repository = SyntheticPanoramaRepository()
+    repository.records = [dict(row) for row in repository.records]
+    monkeypatch.setitem(
+        app.dependency_overrides, get_panorama_repository, lambda: repository
+    )
+    return repository
 
 
 def test_panorama_insight_context_is_recomputed_from_the_active_source():
@@ -103,6 +118,187 @@ def test_panorama_insight_context_is_recomputed_from_the_active_source():
     assert analysis.variacaoPercentual == -13.79
     assert "PRD" not in source.limitacoes[0]
     assert "WEB-01" not in source.limitacoes[0]
+
+
+def test_empty_slice_returns_no_evidence_without_calling_genai(client, monkeypatch):
+    gateway = RecordingInsightGateway()
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+
+    response = client.post("/api/v1/ai/insights", json=_request(classe="Rural"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["insight"]["status"] == "no_evidence"
+    assert body["insight"]["observation"]["values"] == []
+    assert body["insight"]["hypothesis"] is None
+    assert body["insight"]["evidence"] == []
+    assert body["insight"]["error"] is None
+    assert body["insight"]["context"]["filters"]["classe"] == "Rural"
+    assert body["insight"]["correlation_id"] == response.headers["x-correlation-id"]
+    assert body["source"]["loteVersao"] == _request()["loteVersao"]
+    assert body["analysis"]["direcao"] == "indisponivel"
+    assert gateway.calls == []
+
+
+def test_observed_zero_still_reaches_genai(client, monkeypatch):
+    repository = SyntheticPanoramaRepository()
+    repository.records = [
+        {**row, "energia_faturada_kwh": 0.0}
+        for row in repository.records
+    ]
+    previous = app.dependency_overrides.copy()
+    app.dependency_overrides[get_panorama_repository] = lambda: repository
+    gateway = RecordingInsightGateway()
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+    try:
+        response = client.post("/api/v1/ai/insights", json=_request())
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous)
+
+    assert response.status_code == 200
+    assert response.json()["insight"]["status"] == "answered"
+    assert response.json()["insight"]["observation"]["values"][0]["value"] == 0
+    assert len(gateway.calls) == 1
+
+
+def test_empty_slice_still_rejects_stale_batch(client, monkeypatch):
+    gateway = RecordingInsightGateway()
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+    response = client.post(
+        "/api/v1/ai/insights", json=_request(classe="Rural", lote_versao="old-batch")
+    )
+    assert response.status_code == 409
+    assert gateway.calls == []
+
+
+@pytest.mark.parametrize("comparacao", ["anterior", "ano_anterior", "nenhuma"])
+@pytest.mark.parametrize(
+    "periodo,classe,end",
+    [
+        ("2024-04", "Rural", "2024-04-30"),
+        ("2024-06", "Residencial", "2024-06-30"),
+        ("2024-02", "Residencial", "2024-02-29"),
+    ],
+)
+def test_empty_period_or_class_preserves_context_without_observations(
+    client, monkeypatch, comparacao, periodo, classe, end
+):
+    gateway = RecordingInsightGateway(error=RuntimeError("must not be called"))
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+    payload = _request(periodo=periodo, classe=classe, comparacao=comparacao)
+
+    response = client.post("/api/v1/ai/insights", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    insight = body["insight"]
+    assert insight["status"] == "no_evidence"
+    assert insight["context"] == {
+        "metric": "Energia Faturada", "unit": "kWh",
+        "period": {"start": f"{periodo}-01", "end": end, "granularity": "month"},
+        "filters": payload["filters"],
+    }
+    assert insight["observation"]["values"] == []
+    assert insight["evidence"] == []
+    assert insight["hypothesis"] is None
+    assert insight["message"]
+    assert insight["error"] is None
+    assert insight["audit_reference"] is None
+    assert insight["correlation_id"] == response.headers["x-correlation-id"]
+    assert body["source"]["loteVersao"] == payload["loteVersao"]
+    assert body["source"]["isDemo"] is True
+    assert body["source"]["dataAtualizacao"] == "2024-04-30T18:00:00Z"
+    assert body["metric"]["formula"]
+    assert body["analysis"]["direcao"] == "indisponivel"
+    assert body["analysis"]["variacaoPercentual"] is None
+    assert gateway.calls == []
+
+
+def test_empty_repository_returns_absence_with_its_own_batch(
+    client, monkeypatch, insight_repository
+):
+    insight_repository.records = []
+    insight_repository.source_version = "empty-batch-v2"
+    insight_repository.source_limitations = ["Sem cobertura nesta extração sintética."]
+    gateway = RecordingInsightGateway()
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+    response = client.post("/api/v1/ai/insights", json=_request(
+        municipio="todos", classe="todas", lote_versao="empty-batch-v2"
+    ))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["insight"]["status"] == "no_evidence"
+    assert body["insight"]["observation"]["values"] == []
+    assert body["source"]["loteVersao"] == "empty-batch-v2"
+    assert "Sem cobertura nesta extração sintética." in body["insight"]["limitations"]
+    assert gateway.calls == []
+
+
+@pytest.mark.parametrize("changes", [
+    {"periodo": "2024-13"}, {"municipio": "Cidade inexistente"},
+    {"classe": "Classe inexistente"}, {"comparacao": "inexistente"},
+])
+def test_invalid_empty_slice_is_not_misclassified_as_no_evidence(
+    client, monkeypatch, changes
+):
+    gateway = RecordingInsightGateway()
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+    payload = _request(classe="Rural")
+    payload["filters"].update(changes)
+    response = client.post("/api/v1/ai/insights", json=payload)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_request"
+    assert gateway.calls == []
+
+
+def test_unsupported_source_precedes_absence(client, monkeypatch, insight_repository):
+    insight_repository.source_is_demo = False
+    gateway = RecordingInsightGateway()
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+    response = client.post("/api/v1/ai/insights", json=_request(classe="Rural"))
+    assert response.status_code == 503
+    assert response.json()["error"] == {"code": "service_unavailable", "retryable": False}
+    assert gateway.calls == []
+
+
+def test_unconfigured_source_precedes_absence(client, monkeypatch):
+    monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "unavailable")
+    gateway = RecordingInsightGateway()
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+    response = client.post("/api/v1/ai/insights", json=_request(classe="Rural"))
+    assert response.status_code == 503
+    assert gateway.calls == []
+
+
+@pytest.mark.parametrize("zero_previous,expected", [
+    (False, [0, 29000, -29000]), (True, [0, 0, 0]),
+])
+def test_observed_zero_keeps_comparison_values(
+    client, monkeypatch, insight_repository, zero_previous, expected
+):
+    for row in insight_repository.records:
+        if row["competencia"] == "2024-04" or zero_previous:
+            row["energia_faturada_kwh"] = 0.0
+    gateway = RecordingInsightGateway()
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+    response = client.post("/api/v1/ai/insights", json=_request())
+    assert response.status_code == 200
+    insight = response.json()["insight"]
+    assert insight["status"] == "answered"
+    assert [item["value"] for item in insight["observation"]["values"]] == expected
+    assert len(gateway.calls) == 1
+
+
+def test_current_data_without_comparison_is_not_absence(client, monkeypatch):
+    gateway = RecordingInsightGateway()
+    monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
+    response = client.post("/api/v1/ai/insights", json=_request(comparacao="ano_anterior"))
+    assert response.status_code == 200
+    insight = response.json()["insight"]
+    assert insight["status"] == "answered"
+    assert [item["value"] for item in insight["observation"]["values"]] == [25000]
+    assert len(gateway.calls) == 1
 
 
 def test_panorama_insight_explains_largest_class_contribution_to_decline():
