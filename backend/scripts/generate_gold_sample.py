@@ -1,5 +1,6 @@
 """Gera sete CSVs inteiramente artificiais para verificar a infraestrutura DEV-12."""
 import argparse
+import json
 from pathlib import Path
 
 # Duas UCs fictícias; controle independente: 30 kWh e R$ 25,50.
@@ -33,6 +34,15 @@ def main():
         folder = args.directory / name
         folder.mkdir()
         (folder / "part-000.csv").write_text(header + "\n" + "\n".join(rows) + "\n", encoding="utf-8")
+    # Metadados inteiramente artificiais; prod exercita a validação do contrato.
+    manifest = {
+        "ambiente": "prod", "schema_version": "gold-csv-v1",
+        "run_id": "GOLD_20250101T000000Z_aaaaaaaa", "lote": "GOLD_20250101T000000Z_aaaaaaaa",
+        "run_id_silver": "20250101T000000Z_bbbbbbbb", "lote_bronze_silver": "20250101T000000Z_cccccccc",
+        "data_processamento_gold": "2025-01-01T00:00:00Z", "tabelas_exportadas": list(SAMPLES),
+        "responsavel": "Amostra inteiramente artificial",
+    }
+    (args.directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     print("Amostra sintética criada: 7 tabelas, 2 UCs mensais, 30 kWh e R$ 25,50.")
     return 0
 

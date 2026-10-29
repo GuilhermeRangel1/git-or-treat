@@ -8,7 +8,7 @@ from alembic import command
 from alembic.autogenerate import produce_migrations
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
-from sqlalchemy import inspect, text
+from sqlalchemy import MetaData, inspect, text
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -51,11 +51,16 @@ def assert_clean_database(connection):
 
 
 def assert_upgraded(connection):
-    assert EXPECTED_TABLES <= set(inspect(connection).get_table_names())
+    tables = set(inspect(connection).get_table_names())
+    if connection.dialect.name == "postgresql":
+        tables |= set(inspect(connection).get_table_names(schema="gold"))
+    assert EXPECTED_TABLES <= tables
 
 
 def assert_downgraded(connection):
     assert not EXPECTED_TABLES.intersection(inspect(connection).get_table_names())
+    if connection.dialect.name == "postgresql" and inspect(connection).has_schema("gold"):
+        assert not EXPECTED_TABLES.intersection(inspect(connection).get_table_names(schema="gold"))
 
 
 def assert_schema_matches_models(connection, metadata=None):
@@ -64,15 +69,24 @@ def assert_schema_matches_models(connection, metadata=None):
         from app.db.base import Base
 
         metadata = Base.metadata
-    context = MigrationContext.configure(
-        connection, opts={"compare_type": True, "compare_server_default": True}
-    )
+    if connection.dialect.name == "sqlite":
+        translated = MetaData()
+        for table in metadata.tables.values():
+            table.to_metadata(translated, schema=None)
+        metadata = translated
+    context = MigrationContext.configure(connection, opts={
+        "compare_type": True, "compare_server_default": True,
+        "include_schemas": connection.dialect.name == "postgresql",
+        "include_name": lambda name, type_, parent: type_ != "schema" or name in {None, "gold"},
+    })
     changes = produce_migrations(context, metadata).upgrade_ops
     assert changes.is_empty(), f"Modelo sem migração correspondente: {changes.as_diffs()}"
 
 
 @contextmanager
 def migrated_database(connection):
+    if connection.dialect.name == "sqlite":
+        connection.execution_options(schema_translate_map={"gold": None})
     assert_clean_database(connection)
     config = alembic_config(connection)
     connection.commit()

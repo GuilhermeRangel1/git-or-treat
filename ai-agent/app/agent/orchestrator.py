@@ -3,7 +3,9 @@
 import asyncio
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from typing import TypeVar
 
 from pydantic import ValidationError
 
@@ -14,7 +16,8 @@ from app.agent.execution import (
     authorized_cache_scope,
 )
 from app.agent.grounding import has_unsupported_claims
-from app.agent.planner import AnalysisPlanStatus, QuestionAnalysisPlanner
+from app.agent.planner import PlannedQuestion, QuestionAnalysisPlanner
+from app.agent.read_plan import PlanCapabilityUnavailable
 from app.agent.safety import QuestionSafetyGate, SafetyRefusalCode
 from app.ports.events import (
     AuditUnavailable,
@@ -39,16 +42,24 @@ from app.providers.protocols import (
 )
 from app.providers.routing import ModelRouter, ModelTier, escalate
 from app.schemas.access import AccessContext
-from app.schemas.evidence import EvidenceLookupStatus, EvidenceResult
+from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus, EvidenceResult
+from app.schemas.internal import (
+    QuestionPlanRequest,
+    QuestionPlanResponse,
+    QuestionPlanStatus,
+    QuestionSynthesisRequest,
+)
 from app.schemas.questions import (
     AppliedQueryContext,
     QuestionRequest,
     QuestionResponse,
     QuestionStatus,
 )
+from app.schemas.read_plan import LogicalReadPlan
 from app.schemas.responses import FailureCode, map_failure
 
 logger = logging.getLogger(__name__)
+_Outcome = TypeVar("_Outcome", QuestionResponse, QuestionResponse | PlannedQuestion)
 
 
 def _describe_observation(observation: dict[str, object]) -> str:
@@ -120,17 +131,78 @@ class QuestionOrchestrator:
         access_context: AccessContext | None = None,
         correlation_id: str | None = None,
     ) -> QuestionResponse:
-        trace = EventTrace(
+        trace = self._trace(
+            correlation_id or (access_context.correlation_id if access_context else None)
+        )
+        return await self._run(
+            trace,
+            lambda budget: self._answer_with_budget(request, access_context, budget, trace),
+        )
+
+    async def plan(
+        self, request: QuestionPlanRequest, correlation_id: str
+    ) -> QuestionPlanResponse:
+        """Operação planejar: guardrail, interpretação e plano aprovado, sem fonte nem modelo."""
+
+        access_context = request.access_scope.to_context(correlation_id)
+        trace = self._trace(correlation_id)
+
+        async def plan_only(_budget: RequestBudget) -> QuestionResponse | PlannedQuestion:
+            return self._plan_step(request, access_context, trace)
+
+        # Cada operação usa orçamento próprio; a divisão do prazo entre planejar, executar e
+        # sintetizar depende do acordo com o Backend.
+        outcome = await self._run(trace, plan_only)
+        if isinstance(outcome, PlannedQuestion):
+            assert outcome.read_plan is not None
+            return QuestionPlanResponse(
+                correlation_id=correlation_id,
+                status=QuestionPlanStatus.PLANNED,
+                plan=outcome.read_plan,
+                plan_fingerprint=outcome.read_plan.fingerprint(),
+            )
+        return QuestionPlanResponse(
+            correlation_id=correlation_id,
+            status=QuestionPlanStatus(outcome.status.value),
+            response=outcome.model_copy(update={"correlation_id": correlation_id}),
+        )
+
+    async def synthesize(
+        self,
+        request: QuestionSynthesisRequest,
+        correlation_id: str,
+    ) -> QuestionResponse:
+        """Operação sintetizar: confere o lookup recebido e gera a resposta, sem chamar a fonte.
+
+        `request.expected_batch_ref` vem do Backend confiável e é independente do lookup.
+        """
+
+        access_context = request.access_scope.to_context(correlation_id)
+        trace = self._trace(correlation_id)
+        # Orçamento próprio, como em plan(); a divisão do prazo total depende do Backend.
+        return await self._run(
+            trace,
+            lambda budget: self._synthesize_with_budget(
+                request, access_context, request.expected_batch_ref, budget, trace
+            ),
+        )
+
+    def _trace(self, correlation_id: str | None) -> EventTrace:
+        return EventTrace(
             self._events,
             "question",
-            correlation_id or (access_context.correlation_id if access_context else None),
+            correlation_id,
             require_durable=self._require_durable_audit,
         )
+
+    async def _run(
+        self,
+        trace: EventTrace,
+        action: Callable[[RequestBudget], Awaitable[_Outcome]],
+    ) -> _Outcome | QuestionResponse:
         try:
             trace.emit(EventStage.REQUEST, EventCode.STARTED, EventOutcome.STARTED)
-            response = await self._execution.run(
-                lambda budget: self._answer_with_budget(request, access_context, budget, trace)
-            )
+            response = await self._execution.run(action)
         except AuditUnavailable:
             return self._recoverable_error(FailureCode.AUDIT_UNAVAILABLE)
         except asyncio.CancelledError:
@@ -140,6 +212,9 @@ class QuestionOrchestrator:
         except ExecutionLimitExceeded:
             response = self._recoverable_error(FailureCode.EXECUTION_LIMIT)
         try:
+            if isinstance(response, PlannedQuestion):
+                trace.emit(EventStage.RESPONSE, EventCode.READY, EventOutcome.SUCCESS)
+                return response
             trace.emit(
                 EventStage.RESPONSE,
                 EventCode.COMPLETED
@@ -172,26 +247,13 @@ class QuestionOrchestrator:
         budget: RequestBudget,
         trace: EventTrace,
     ) -> QuestionResponse:
-        if access_context is None:
-            trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
-            return self._refused(FailureCode.ACCESS_DENIED)
-        refusal = self._safety_gate.refusal_code(request.question)
-        for turn in request.context:
-            if refusal is not None:
-                break
-            refusal = self._safety_gate.refusal_code(turn.content)
-        if refusal is not None:
-            trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
-            code = (
-                FailureCode.OUT_OF_SCOPE
-                if refusal is SafetyRefusalCode.OUT_OF_SCOPE
-                else FailureCode.SECURITY_VIOLATION
-            )
-            return self._refused(code)
-
+        planned = self._plan_step(request, access_context, trace)
+        if isinstance(planned, QuestionResponse):
+            return planned
+        assert planned.read_plan is not None
         try:
-            plan = await self._analysis_planner.prepare(
-                request.question, request.context, access_context, budget, trace
+            lookup = await self._analysis_planner.retrieve(
+                planned.read_plan, access_context, budget, trace
             )
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)
@@ -201,41 +263,121 @@ class QuestionOrchestrator:
         except EvidenceToolUnavailable:
             logger.warning("Falha ao consultar a fonte de evidências.")
             return self._recoverable_error(FailureCode.SOURCE_UNAVAILABLE)
-        if plan.status is AnalysisPlanStatus.NEEDS_CLARIFICATION:
-            question = plan.interpretation.clarification_question
-            if plan.evidence_result is not None:
-                question = plan.evidence_result.message
+        assert access_context is not None
+        return await self._respond(
+            request, planned.read_plan, lookup, access_context, budget, trace
+        )
+
+    async def _synthesize_with_budget(
+        self,
+        request: QuestionSynthesisRequest,
+        access_context: AccessContext,
+        expected_batch_ref: str | None,
+        budget: RequestBudget,
+        trace: EventTrace,
+    ) -> QuestionResponse:
+        refusal = self._safety_refusal(request, trace)
+        if refusal is not None:
+            return refusal
+        try:
+            read_plan, lookup = self._analysis_planner.accept_lookup(
+                request.plan,
+                request.plan_fingerprint,
+                request.lookup,
+                access_context,
+                expected_batch_ref=expected_batch_ref,
+                trace=trace,
+            )
+        except EvidenceAccessDenied:
+            return self._refused(FailureCode.ACCESS_DENIED)
+        except (PlanCapabilityUnavailable, EvidenceContractInvalid):
+            logger.warning("O plano ou o resultado recebido para síntese é inválido.")
+            return self._recoverable_error(FailureCode.INVALID_SOURCE_RESPONSE)
+        return await self._respond(request, read_plan, lookup, access_context, budget, trace)
+
+    def _plan_step(
+        self,
+        request: QuestionRequest,
+        access_context: AccessContext | None,
+        trace: EventTrace,
+    ) -> QuestionResponse | PlannedQuestion:
+        """Plano aprovado ou a resposta final de recusa ou esclarecimento; sem fonte."""
+
+        if access_context is None:
+            trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
+            return self._refused(FailureCode.ACCESS_DENIED)
+        refusal = self._safety_refusal(request, trace)
+        if refusal is not None:
+            return refusal
+
+        try:
+            planned = self._analysis_planner.plan(
+                request.question, request.context, access_context, trace
+            )
+        except EvidenceAccessDenied:
+            return self._refused(FailureCode.ACCESS_DENIED)
+        if planned.read_plan is None:
+            question = planned.interpretation.clarification_question
+            if planned.clarification is not None:
+                question = planned.clarification.message
             return QuestionResponse(
                 status=QuestionStatus.NEEDS_CLARIFICATION,
                 message=question,
             )
-        if plan.status is AnalysisPlanStatus.NO_EVIDENCE:
-            assert plan.evidence_result is not None
+        return planned
+
+    def _safety_refusal(
+        self, request: QuestionRequest, trace: EventTrace
+    ) -> QuestionResponse | None:
+        refusal = self._safety_gate.refusal_code(request.question)
+        for turn in request.context:
+            if refusal is not None:
+                break
+            refusal = self._safety_gate.refusal_code(turn.content)
+        if refusal is None:
+            return None
+        trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
+        code = (
+            FailureCode.OUT_OF_SCOPE
+            if refusal is SafetyRefusalCode.OUT_OF_SCOPE
+            else FailureCode.SECURITY_VIOLATION
+        )
+        return self._refused(code)
+
+    async def _respond(
+        self,
+        request: QuestionRequest,
+        read_plan: LogicalReadPlan,
+        lookup: EvidenceLookupResult,
+        access_context: AccessContext,
+        budget: RequestBudget,
+        trace: EventTrace,
+    ) -> QuestionResponse:
+        """Resposta a partir de um lookup já conferido; só chama o modelo com evidência."""
+
+        if lookup.status is EvidenceLookupStatus.NEEDS_CLARIFICATION:
+            return QuestionResponse(
+                status=QuestionStatus.NEEDS_CLARIFICATION,
+                message=lookup.message,
+            )
+        if lookup.status is EvidenceLookupStatus.NO_EVIDENCE:
             return QuestionResponse(
                 status=QuestionStatus.NO_EVIDENCE,
-                message=plan.evidence_result.message,
-                limitations=plan.evidence_result.limitations,
+                message=lookup.message,
+                limitations=lookup.limitations,
             )
-        if (
-            plan.evidence_result is None
-            or plan.evidence_result.status is not EvidenceLookupStatus.AVAILABLE
-            or plan.evidence_result.evidence is None
-        ):
+        if lookup.status is not EvidenceLookupStatus.AVAILABLE or lookup.evidence is None:
             return self._recoverable_error(FailureCode.INVALID_SOURCE_RESPONSE)
-        evidence = plan.evidence_result.evidence
-        read_plan = plan.read_plan
-        assert read_plan is not None
-        assert access_context is not None
-        evidence = evidence.model_copy(
+        evidence = lookup.evidence.model_copy(
             update={"cache_scope": authorized_cache_scope(access_context, read_plan)}
         )
         observations = {row["observation_id"]: row for row in evidence.records}
         tier: ModelTier | None = None
         adapter = self._model_adapter
         if self._model_router is not None:
-            intent = plan.interpretation.intent
+            # O builder copia o domínio da intenção para o plano aprovado.
             tier, adapter = self._model_router.route(
-                intent=intent.domain if intent is not None else None,
+                intent=read_plan.domain_id,
                 evidence_records=len(evidence.records),
                 evidence_chars=_serialized_evidence_chars(evidence),
             )
@@ -301,7 +443,7 @@ class QuestionOrchestrator:
                 status=QuestionStatus.REFUSED,
                 message=map_failure(FailureCode.UNGROUNDED_OUTPUT).message,
                 evidence=[evidence.reference],
-                limitations=plan.evidence_result.limitations,
+                limitations=lookup.limitations,
                 error=map_failure(FailureCode.UNGROUNDED_OUTPUT).error,
                 model_tier=tier,
             )
@@ -330,7 +472,7 @@ class QuestionOrchestrator:
                 else None
             ),
             evidence=[evidence.reference],
-            limitations=plan.evidence_result.limitations,
+            limitations=lookup.limitations,
             error=error,
             model_tier=tier,
             analysis_context=AppliedQueryContext(
