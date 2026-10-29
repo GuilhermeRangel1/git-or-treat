@@ -49,7 +49,7 @@ def _gold_profile() -> DomainProfile:
 
     data = profile_data()
     data.update(
-        profile_id="grid360_gold",
+        profile_id="v-energy-grid-360-gold",
         domains=[
             {"id": "faturamento", "label": "Faturamento", "example_questions": ["Quanto?"]}
         ],

@@ -6,8 +6,15 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
+
+from app.schemas.genai_plan import LogicalReadPlan
 from app.services.genai_client import GenAIResponseInvalid
-from app.services.genai_plan import validate_genai_plan
+from app.services.genai_plan import (
+    GOLD_PROFILE_ID,
+    GOLD_SOURCE_ID,
+    validate_genai_plan,
+    validate_gold_genai_plan,
+)
 
 VECTORS = json.loads(
     (
@@ -145,3 +152,38 @@ def test_filter_scalar_types_are_part_of_fingerprint(index, value):
 def test_non_object_plan_is_rejected(payload):
     with pytest.raises(GenAIResponseInvalid):
         validate_genai_plan(payload, VECTORS[0]["fingerprint"])
+
+
+@pytest.mark.parametrize("vector", VECTORS, ids=lambda vector: vector["id"])
+def test_gold_contract_vectors_use_agreed_deployment_identity(vector):
+    plan = validate_gold_genai_plan(vector["plan"], vector["fingerprint"])
+
+    assert plan.source_id == GOLD_SOURCE_ID == "gold.local"
+    assert plan.profile_id == GOLD_PROFILE_ID == "v-energy-grid-360-gold"
+
+
+@pytest.mark.parametrize(
+    "source_id,profile_id",
+    [
+        ("gold.local", "grid360_gold"),
+        ("gold.other", "v-energy-grid-360-gold"),
+        ("synthetic.fixture", "v-energy-grid-360-gold"),
+        ("gold.local", "v-energy-grid-360-demo"),
+        ("synthetic.fixture", "v-energy-grid-360-demo"),
+    ],
+)
+def test_gold_integration_rejects_other_identity_even_with_matching_fingerprint(
+    source_id, profile_id
+):
+    payload = {**VECTORS[0]["plan"], "source_id": source_id, "profile_id": profile_id}
+    fingerprint = LogicalReadPlan.model_validate(payload).fingerprint()
+
+    # A restrição é da implantação Gold; o contrato genérico permanece reutilizável.
+    assert validate_genai_plan(payload, fingerprint).source_id == source_id
+    with pytest.raises(GenAIResponseInvalid):
+        validate_gold_genai_plan(payload, fingerprint)
+
+
+def test_gold_identity_does_not_bypass_fingerprint_validation():
+    with pytest.raises(GenAIResponseInvalid):
+        validate_gold_genai_plan(VECTORS[0]["plan"], "0" * 64)

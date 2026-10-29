@@ -58,7 +58,7 @@ O plano é construído de forma determinística a partir do perfil e do catálog
   "temporal_coverage": [{"metric_id": "energia_faturada", "kind": "monthly", "competencies": ["2025-03"]}],
   "access_scope": {
     "caller_ref": "user.7f3c2a",
-    "profile_id": "grid360_gold",
+    "profile_id": "v-energy-grid-360-gold",
     "source_id": "gold.local",
     "allowed_operations": ["read"],
     "allowed_metric_ids": ["energia_faturada", "consumo_medido"],
@@ -287,7 +287,7 @@ Os IDs são ilustrativos e não representam o catálogo aprovado. O contrato é 
     "contract_version": "v1",
     "catalog_version": "v1",
     "operation": "read",
-    "profile_id": "grid360_gold",
+    "profile_id": "v-energy-grid-360-gold",
     "source_id": "gold.local",
     "domain_id": "faturamento",
     "metric_id": "energia_faturada",
@@ -299,7 +299,7 @@ Os IDs são ilustrativos e não representam o catálogo aprovado. O contrato é 
     "order": null,
     "limit": 100
   },
-  "plan_fingerprint": "9002cbfb7cb8ad373f7b471e41b1092b82d2e5fa8cc269553c73713a8d26fccb",
+  "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
   "response": null
 }
 ```
@@ -308,7 +308,7 @@ O `plan_fingerprint` dos exemplos é o SHA-256 real do plano acima, reproduzíve
 
 ### Válido — resposta fundamentada (sintetizar)
 
-A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "9002cbfb7cb8ad373f7b471e41b1092b82d2e5fa8cc269553c73713a8d26fccb"`. Trecho do `lookup` enviado pelo Backend:
+A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a"`. Trecho do `lookup` enviado pelo Backend:
 
 ```json
 {
@@ -321,7 +321,7 @@ A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "9002cbfb
     "provenance": {
       "source_id": "gold.local",
       "reference_source": "gold_local:9b1e",
-      "plan_fingerprint": "9002cbfb7cb8ad373f7b471e41b1092b82d2e5fa8cc269553c73713a8d26fccb",
+      "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
       "catalog_version": "v1",
       "metric_id": "energia_faturada",
       "unit": "kWh",
@@ -399,7 +399,7 @@ Esta revisão prepara os envelopes; não implementa rotas, execução SQL nem ac
 - B1: `QuestionSynthesisRequest.expected_batch_ref` é obrigatório para planos `gold.*`, separado de `lookup`. Usa `GoldBatchRef` existente. O Backend fixa essa publicação e a GenAI a entrega ao EvidenceGuard; a conferência de correspondência é comportamento do núcleo, tratado no PR #78.
 - B2: `QuestionPlanRequest.batch_ref` e `temporal_coverage` são obrigatórios para Gold. A cobertura contém IDs lógicos de métricas permitidas no escopo, com `kind: monthly` e competências únicas ordenadas AAAA-MM, ou `kind: none` sem competências. Lista mensal vazia significa ausência de cobertura; lacunas são preservadas. O Backend fornece metadados validados da mesma publicação e preserva a publicação e o escopo até a síntese. Esses campos não autorizam consulta nem ampliam permissões.
 - B3: o Backend recalcula o fingerprint sobre o plano validado, incluindo defaults e nulos, com JSON de chaves ordenadas, separadores compactos, escape Unicode padrão do Python, UTF-8 e SHA-256. A ordem das listas é preservada. O exemplo de plano pronto e seu hash são o vetor de compatibilidade existente. Fingerprint não substitui autorização ou vínculo de lote.
-- B4: identificadores de implantação acordados: `source_id: gold.local` e `profile_id: v-energy-grid-360-gold`. Os IDs dos exemplos históricos continuam ilustrativos. O schema aceita perfis substituíveis; não fixa um único perfil no núcleo.
+- B4: identificadores de implantação acordados: `source_id: gold.local` e `profile_id: v-energy-grid-360-gold`. Os exemplos de planejamento e os vetores B3 usam esse mesmo par; os demais IDs de métricas continuam ilustrativos. O schema aceita perfis substituíveis; não fixa um único perfil no núcleo.
 - B5: capacidades mensais devem produzir janela `bounded`, com primeiro e último dia dos meses selecionados. O executor Backend rejeita frases não resolvidas, revalida cobertura e publicação. Fontes sem período não recebem competência inventada. A semântica de expressões relativas e lacunas aguarda confirmação de Dados; estes envelopes não implementam o resolvedor.
 
 A síntese usa o mesmo corpo público e escopo, o plano e fingerprint devolvidos no planejamento, `lookup` e `expected_batch_ref`. `batch_ref` e `temporal_coverage` pertencem somente ao planejamento. Fonte sintética não recebe metadados Gold. Mesmo `no_evidence` exige publicação esperada na síntese Gold.
@@ -408,8 +408,16 @@ A síntese usa o mesmo corpo público e escopo, o plano e fingerprint devolvidos
 
 `backend/app/services/genai_plan.py::validate_genai_plan(payload, fingerprint)` valida o objeto recebido com o schema v1 independente de `backend/app/schemas/genai_plan.py`, recalcula o SHA-256 sobre o plano normalizado e recusa divergências com `GenAIResponseInvalid`. Valida versão de contrato e catálogo v1, operação de leitura, campos conhecidos, janela, limites, filtros, agrupamento e ordenação estruturalmente consistentes. A referência é o plano validado, incluindo campos omitidos com seus defaults e nulos; não o JSON bruto ou um hash de CSV.
 
-Os [vetores compartilhados v1](examples/genai-plan-fingerprints-v1.json) são executados pelas suítes dos dois serviços sem imports entre eles. Incluem o exemplo de plano pronto acima com seu hash original, defaults omitidos, Unicode, escalares tipados, listas e janela por frase. Essa janela é aceita pelo contrato genérico; a execução Gold continua exigindo a resolução mensal da B5. A ordem das listas não é normalizada, mesmo quando uma política de autorização considera filtros equivalentes.
+Os [vetores compartilhados v1](examples/genai-plan-fingerprints-v1.json) são executados pelas suítes dos dois serviços sem imports entre eles. Incluem o exemplo de plano pronto acima com seu hash correspondente, defaults omitidos, Unicode, escalares tipados, listas e janela por frase. Essa janela é aceita pelo contrato genérico; a execução Gold continua exigindo a resolução mensal da B5. A ordem das listas não é normalizada, mesmo quando uma política de autorização considera filtros equivalentes.
 
 Esta etapa não conecta novas rotas ou o executor. A futura coordenação Backend deve chamar a revalidação em todo plano recebido ou recuperado do cache e depois conferir catálogo permitido, escopo, cobertura e publicação antes de consultar a Gold. Um fingerprint correto comprova integridade do plano, não sua autorização. O erro reutiliza a categoria interna existente; sua tradução no futuro fluxo planejar → executar → sintetizar permanece com esse consumidor. Não há aceite Gold nesta preparação.
 
 Referência de serialização: Pydantic 2.14.1, [`model_dump(mode="json")`](https://github.com/pydantic/pydantic/blob/v2.14.1/docs/concepts/serialization.md), consultada via Context7 em 29/10/2026; não usar exclusão de defaults, nulos ou campos omitidos no cálculo.
+
+### Identidade B4 da integração Gold — preparação
+
+O catálogo do PR #73 já declara `GOLD_PROFILE_ID = "v-energy-grid-360-gold"`. A integração Backend declara o mesmo perfil e `GOLD_SOURCE_ID = "gold.local"` em `app/services/genai_plan.py`. `validate_gold_genai_plan(payload, fingerprint)` executa a revalidação B3 e exige o par exato; rejeita outros perfis/fontes mesmo com hash correto, sem promover demonstração a Gold. O schema e `validate_genai_plan` continuam genéricos para os demais consumidores.
+
+Os exemplos de escopo, plano e síntese e os vetores compartilhados usam agora a identidade B4. Os fingerprints foram recalculados porque o perfil anterior `grid360_gold` era ilustrativo; a regra B3 não mudou. Os demais IDs lógicos dos exemplos não substituem o catálogo do PR #73.
+
+A futura coordenação Gold deve usar `validate_gold_genai_plan`, construir o escopo autorizado com esse mesmo par e manter a correspondência até a síntese. Isso ainda não está conectado à rota HTTP atual. O par de identificadores não concede permissões nem substitui catálogo, validação temporal, publicação ou composição de runtime. A ativação do catálogo permanece no trabalho de integração, sem duplicar o PR #73.

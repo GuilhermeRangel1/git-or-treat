@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 import pytest
+
 from app.schemas.read_plan import LogicalReadPlan
 
 CONTRACTS = Path(__file__).parents[2] / "docs/contracts"
@@ -31,3 +32,18 @@ def test_shared_ready_vector_is_the_existing_contract_example():
 
     assert VECTORS[0]["plan"] == envelope["plan"]
     assert VECTORS[0]["fingerprint"] == envelope["plan_fingerprint"]
+
+
+def test_contract_scope_and_shared_plans_use_agreed_gold_identity():
+    text = (CONTRACTS / "genai-query-execution.md").read_text(encoding="utf-8")
+    section = text.split("### Requisição (proposta: `QuestionPlanRequest`)", 1)[1]
+    envelope = json.loads(re.search(r"```json\n(.*?)\n```", section, re.DOTALL).group(1))
+    scope = envelope["access_scope"]
+
+    assert scope["source_id"] == "gold.local"
+    assert scope["profile_id"] == "v-energy-grid-360-gold"
+    assert all(
+        (vector["plan"]["source_id"], vector["plan"]["profile_id"])
+        == (scope["source_id"], scope["profile_id"])
+        for vector in VECTORS
+    )
