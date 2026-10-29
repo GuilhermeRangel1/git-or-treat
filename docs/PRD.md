@@ -2037,3 +2037,26 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
   - Pendências com o Backend: `"DEC"`/`"FEC"` entre aspas no PostgreSQL e o prefixo `gold_`, anotadas sem decisão.
   - Pendências do GENAI-04: "ticket médio" e "consumo médio por UC" ainda não são alcançáveis pelo interpretador atual, e município e bairro não têm valores no perfil.
 - Responsável: laura-amiranda; revisão pendente. Trello não sincronizado nesta etapa.
+
+### 2026-10-29 — IA-02, IA-06 e IA-08 — GENAI-04 (parte 04a): vocabulário, filtros e matriz de perguntas da Gold
+
+- Estado anterior → novo estado: sem mudança de estado em IA-01, IA-02, IA-06 ou IA-08. É preparação: o perfil Gold continua fora de `app/main.py`.
+- Mudança: perguntas representativas sobre a Gold passam a virar plano correto ou esclarecimento específico. Nenhum filtro ou período é descartado em silêncio.
+  - Perfil Gold: declara como valores de município só os três municípios do case, com grafia canônica em maiúsculas, com acento preservado (`JABOATÃO DOS GUARARAPES`). A grafia foi confirmada em conferência local do lote de 28/10, só pela existência dos três valores e sem imprimir outros; Dados ainda deve confirmar que essa é a convenção da Gold. Os aliases são reconhecidos com ou sem acento e em qualquer caixa. Ganha uma regra de ambiguidade por grupo de capacidade indisponível: faturas em aberto, atendimento, medidor, energia a recuperar, preço × volume, variação de consumo e fila de inspeção. A mensagem diz que o dado "ainda não está disponível na Gold carregada" e oferece uma métrica existente. Também ganha regras para recortes que antes eram ignorados: "solar", classes fora do perfil, ranking, e bairro, bandeira, subgrupo, alimentador ou UC nomeados. A mensagem de "média" genérica passa a citar as médias por UC.
+  - Interpretador: um termo dentro de um alias de métrica reconhecido não dispara regra de ambiguidade, detalhe ou quebra (helper `_within`). Com isso, "ticket médio", "consumo médio por UC", "tarifa média efetiva" e "duração/frequência equivalente de interrupção" chegam às suas métricas. "média do consumo" continua pedindo o total, e "consumo por UC" continua sendo quebra. A mudança é aditiva: com ela isolada, a suíte inteira teve o mesmo resultado anterior (3208 aprovados, 4 pulados, 1 xfail).
+  - Matriz: 51 casos escritos à mão (19 `ready`, 32 `needs_clarification`), com 3 lacunas conhecidas como `xfail(strict=True)`.
+  - Teste do GENAI-03 `test_only_closed_or_documented_dimension_values_are_declared` ajustado com autorização: passa a aceitar valores de município e exige exatamente os três do case, sem outro município nem bairro.
+  - Script local `check_gold_dimension_values.py`: confere cada valor declarado nas colunas do lote e imprime só o valor declarado e `PASS exato`, `PASS normalizado` ou `FAIL`. Valor declarado com acento passa exato quando a coluna tem a mesma grafia e normalizado quando só há a forma sem acento ou em outra caixa (teste sintético).
+- Arquivos: alterados `ai-agent/app/profiles/grid360_gold.py`, `ai-agent/app/agent/interpreter.py`, `ai-agent/tests/test_gold_catalog.py` (um teste), o [catálogo Gold](gold-catalog.md) e este PRD; novos `ai-agent/tests/fixtures/gold_question_matrix.json`, `ai-agent/tests/test_gold_question_matrix.py`, `ai-agent/scripts/check_gold_dimension_values.py`, `ai-agent/tests/test_check_gold_dimension_values.py` e a [matriz de perguntas Gold](gold-question-matrix.md). Planejador, orquestrador, `app/main.py`, camada SQL, prontidão e mapeamento físico não foram alterados.
+- Verificações: em `ai-agent/`, em 29/10/2026, com `.venv`:
+  - `python -m pytest -q tests/test_gold_question_matrix.py tests/test_check_gold_dimension_values.py tests/test_gold_catalog.py`: 84 aprovados e 3 xfail estritos (as lacunas conhecidas);
+  - `python -m pytest -q`: 3279 aprovados, 4 pulados e 4 xfail (antes: 3208 aprovados, 4 pulados e 1 xfail). Os 4 xfail são as 3 lacunas da matriz e o JOIN não declarado de `test_sql_gold_dictionary.py`, que já existia; todos são estritos;
+  - `python -m ruff check` nos seis arquivos Python tocados: sem erros;
+  - `python -m compileall -q app tests scripts`: sem erros;
+  - `git diff --check` na raiz: passou;
+  - varredura dos arquivos novos e alterados: sem CPF, CEP, e-mail, total ou contagem do lote, e nenhum lugar real além dos três do case.
+- Limites: a matriz não prova a Gold real nem resultado numérico.
+  - Lacunas conhecidas: DEC/FEC sem alimentador chega à fonte, porque o perfil não declara dimensão obrigatória e mudar isso altera dois testes do GENAI-03; classe desconhecida depois de "classe" é ignorada; classe e GD juntas pedem "qual classe".
+  - Parte 04b: catálogo de períodos com mês e ano isolados. Hoje, "em 2025" é lido como local.
+  - Pendências com Dados: confirmar que maiúsculas com acento é a convenção de `municipio` na Gold, e uso de GD para "solar".
+- Responsável: laura-amiranda; revisão pendente. Trello não sincronizado nesta etapa.

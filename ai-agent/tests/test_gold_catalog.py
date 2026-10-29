@@ -116,14 +116,20 @@ def test_billed_revenue_is_never_described_as_paid_and_consumption_as_billed_ene
 
 
 def test_only_closed_or_documented_dimension_values_are_declared() -> None:
-    """Sem valores de município, bairro, subgrupo, bandeira, alimentador nem UC do lote."""
+    """Só os três municípios do case (GENAI-04); sem bairro, subgrupo, bandeira, alimentador
+    nem UC do lote."""
 
     dimensions = {dimension.id: dimension for dimension in GRID360_GOLD_PROFILE.dimensions}
     documented = GOLD_DATA_DICTIONARY.read_text(encoding="utf-8")
 
     assert {
         dimension_id for dimension_id, dimension in dimensions.items() if dimension.values
-    } == {"generation.distributed", "customer.consumption_class"}
+    } == {"generation.distributed", "customer.consumption_class", "geography.municipality"}
+    assert sorted(value.value for value in dimensions["geography.municipality"].values) == [
+        "JABOATÃO DOS GUARARAPES",
+        "OLINDA",
+        "RECIFE",
+    ]
     assert [value.value for value in dimensions["generation.distributed"].values] == [
         "Sim",
         "Não",
