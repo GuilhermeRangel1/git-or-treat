@@ -113,6 +113,9 @@ CPF_LIKE = re.compile(r"\d{3}\.?\d{3}\.?\d{3}-?\d{2}")
 CEP_LIKE = re.compile(r"^\d{5}-?\d{3}$")
 EMAIL_LIKE = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", re.IGNORECASE)
 MONEY_TOLERANCE = Decimal("0.05")
+ATENDIMENTO_COLUMNS = ("total_chamados_callcenter", "media_satisfacao_atendimento")
+# Premissa registrada por Dados, não regra confirmada: notas de satisfação de 1 a 5.
+SATISFACAO_ESCALA = (Decimal(1), Decimal(5))
 # Raiz do lote (exportador da Gold) ou subpasta manifesto/; com os dois, vale o da raiz.
 MANIFEST_PATHS = (Path("manifest.json"), Path("manifesto") / "manifest.json")
 # Só campos técnicos de identificação; nenhum valor de negócio do manifesto vai para a saída.
@@ -400,6 +403,8 @@ class Recon:
             lambda: [Decimal(0), Decimal(0)]
         )
         self.gd_drop_by_municipio: Counter[str] = Counter()
+        # C14: só contadores de estado e de inconsistência; nenhuma UC nem valor é guardado.
+        self.atendimento: Counter[str] = Counter()
 
 
 def _get(row: list[str], idx: dict[str, int], column: str) -> str | None:
@@ -455,6 +460,8 @@ def feed(recon: Recon, table: str, row: list[str], idx: dict[str, int]) -> None:
         recon.uc_alimentador[uc] = g("alimentador")
         recon.uc_status[uc] = g("status")
         recon.uc_classe[uc] = g("classe")
+        if all(column in idx for column in ATENDIMENTO_COLUMNS):
+            _feed_atendimento(recon, g)
     elif table == "fila_inspecao":
         _feed_fila(recon, g)
     elif table == "variacao_consumo_uc":
@@ -520,6 +527,36 @@ def _feed_fila(recon: Recon, g) -> None:
     recon.fila_priority_by_rule[(g("prioridade_inspecao"), f"{realized}/{consumption}")] += 1
     if irregulares is not None and realizadas is not None and irregulares > realizadas:
         recon.fila["irregulares_maior_que_realizadas"] += 1
+
+
+def _feed_atendimento(recon: Recon, g) -> None:
+    """Consistência interna de chamados e satisfação da UC; média ausente nunca vira zero."""
+    table = "visao_360_uc"
+    chamados = _track(recon, table, "chamados", g("total_chamados_callcenter"))
+    # Média nula é estado válido (UC sem chamado ou sem nota); só a inválida bloqueia a conferência.
+    media, media_issue = _measure(g("media_satisfacao_atendimento"))
+    if media_issue == "invalido":
+        recon.measure_issues[table]["media_satisfacao_invalido"] += 1
+    if chamados is None or media_issue == "invalido":
+        return
+    c = recon.atendimento
+    if chamados < 0:
+        c["chamados_negativo"] += 1
+        return
+    if chamados != chamados.to_integral_value():
+        c["chamados_nao_inteiro"] += 1
+        return
+    com_chamados = "com_chamados" if chamados > 0 else "sem_chamados"
+    if media is None:
+        c[f"{com_chamados}_sem_media"] += 1
+        return
+    c[f"{com_chamados}_com_media"] += 1
+    if chamados == 0:
+        c["media_presente_sem_chamados"] += 1
+    if media == 0:
+        c["media_zero"] += 1
+    elif not SATISFACAO_ESCALA[0] <= media <= SATISFACAO_ESCALA[1]:
+        c["media_fora_da_escala"] += 1
 
 
 def _feed_variacao(recon: Recon, g) -> None:
@@ -1256,7 +1293,57 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
                 },
             )
         )
+    visao_info = tables.get("visao_360_uc", {})
+    if visao_info.get("estado") == "presente":
+        controls.append(
+            control(
+                "C14",
+                "Atendimento por UC: protocolos distintos (exato) e média das notas de "
+                "satisfação (tolerância 0,005), recalculados por Dados na Silver; aqui, só a "
+                "consistência interna entre total de chamados e média",
+                "visao_360_uc",
+                ["id_uc", *ATENDIMENTO_COLUMNS],
+                "cadastro atual (sem competência)",
+                _atendimento_control(recon, visao_info),
+            )
+        )
     return controls
+
+
+def _atendimento_control(recon: Recon, visao_info: dict) -> dict:
+    """Só estados e contadores de inconsistência; nunca UC, identificador ou valor da coluna."""
+    missing = [c for c in ATENDIMENTO_COLUMNS if c not in visao_info["colunas"]]
+    if missing:
+        return {"estado": "nao_verificavel", "colunas_ausentes": missing}
+    issues = _issues(recon, "visao_360_uc")
+    if issues:
+        return _unverifiable(issues)
+    c = recon.atendimento
+    inconsistencies = {
+        name: c.get(name, 0)
+        for name in (
+            "chamados_negativo",
+            "chamados_nao_inteiro",
+            "media_presente_sem_chamados",
+            "media_zero",
+        )
+    }
+    return {
+        "estado": "verificada",
+        "ucs_por_estado": {
+            name: c.get(name, 0)
+            for name in (
+                "sem_chamados_sem_media",
+                "sem_chamados_com_media",
+                "com_chamados_sem_media",
+                "com_chamados_com_media",
+            )
+        },
+        "inconsistencias": inconsistencies,
+        "consistente": not any(inconsistencies.values()),
+        # Fora da escala é inconsistência da premissa 1 a 5, não erro de dado.
+        "premissa_escala_1_a_5": {"medias_fora_da_escala": c.get("media_fora_da_escala", 0)},
+    }
 
 
 def build_report(base: Path) -> dict:

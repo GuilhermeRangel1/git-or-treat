@@ -291,6 +291,139 @@ def test_c13_flags_bairro_duplicated_by_encoding_that_c12_misses(tmp_path, capsy
     }
 
 
+def _c14(base: Path, chamados=None, medias=None) -> dict:
+    columns = {}
+    if chamados is not None:
+        columns["total_chamados_callcenter"] = chamados
+    if medias is not None:
+        columns["media_satisfacao_atendimento"] = medias
+    _batch(base, extra_uc=columns)
+    return _controls(gold_coverage.build_report(base))["C14"]
+
+
+def _c14_states(**counts: int) -> dict:
+    states = ("sem_chamados_sem_media", "sem_chamados_com_media", "com_chamados_sem_media",
+              "com_chamados_com_media")
+    return {state: counts.get(state, 0) for state in states}
+
+
+def test_c14_clean_batch_is_consistent(tmp_path):
+    c14 = _c14(tmp_path, ("1", "2", "3"), ("4.0", "3.5", "5"))
+
+    assert c14 == {
+        "estado": "verificada",
+        "ucs_por_estado": _c14_states(com_chamados_com_media=3),
+        "inconsistencias": {
+            "chamados_negativo": 0,
+            "chamados_nao_inteiro": 0,
+            "media_presente_sem_chamados": 0,
+            "media_zero": 0,
+        },
+        "consistente": True,
+        "premissa_escala_1_a_5": {"medias_fora_da_escala": 0},
+    }
+
+
+def test_c14_uc_without_calls_has_null_average_not_zero(tmp_path):
+    c14 = _c14(tmp_path, ("0", "2", "0"), ("", "4", ""))
+
+    assert c14["ucs_por_estado"] == _c14_states(sem_chamados_sem_media=2, com_chamados_com_media=1)
+    assert c14["inconsistencias"]["media_zero"] == 0
+    assert c14["consistente"] is True
+
+
+def test_c14_uc_with_calls_but_no_rating_is_valid(tmp_path):
+    c14 = _c14(tmp_path, ("2", "1", "3"), ("", "4", ""))
+
+    assert c14["ucs_por_estado"] == _c14_states(com_chamados_sem_media=2, com_chamados_com_media=1)
+    assert c14["consistente"] is True
+
+
+def test_c14_flags_average_present_without_calls_and_zero_average(tmp_path):
+    # Média zero é ausência que virou zero: inconsistência de dado, com ou sem chamados.
+    c14 = _c14(tmp_path, ("0", "0", "2"), ("3.0", "0", "0"))
+
+    assert c14["ucs_por_estado"] == _c14_states(sem_chamados_com_media=2, com_chamados_com_media=1)
+    assert c14["inconsistencias"] == {
+        "chamados_negativo": 0,
+        "chamados_nao_inteiro": 0,
+        "media_presente_sem_chamados": 2,
+        "media_zero": 2,
+    }
+    assert c14["consistente"] is False
+    assert c14["premissa_escala_1_a_5"] == {"medias_fora_da_escala": 0}
+
+
+def test_c14_average_outside_scale_breaks_premise_not_data(tmp_path):
+    c14 = _c14(tmp_path, ("1", "1", "1"), ("0.5", "5.5", "3"))
+
+    assert c14["premissa_escala_1_a_5"] == {"medias_fora_da_escala": 2}
+    assert not any(c14["inconsistencias"].values())
+    assert c14["consistente"] is True
+
+
+def test_c14_negative_or_fractional_calls_are_inconsistent(tmp_path):
+    c14 = _c14(tmp_path, ("-1", "2.5", "3"), ("4", "4", "4"))
+
+    assert c14["inconsistencias"]["chamados_negativo"] == 1
+    assert c14["inconsistencias"]["chamados_nao_inteiro"] == 1
+    assert c14["ucs_por_estado"] == _c14_states(com_chamados_com_media=1)
+    assert c14["consistente"] is False
+
+
+def test_c14_null_or_invalid_measure_is_not_verifiable(tmp_path):
+    c14 = _c14(tmp_path, ("", "abc", "1"), ("", "4", "n/d"))
+
+    assert c14 == {
+        "estado": "nao_verificavel",
+        "medidas_nulas_ou_invalidas": {
+            "visao_360_uc": {
+                "chamados_invalido": 1,
+                "chamados_nulo": 1,
+                "media_satisfacao_invalido": 1,
+            }
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("chamados", "medias", "missing"),
+    [
+        (("1", "2", "3"), None, ["media_satisfacao_atendimento"]),
+        (None, ("4", "4", "4"), ["total_chamados_callcenter"]),
+        (None, None, ["total_chamados_callcenter", "media_satisfacao_atendimento"]),
+    ],
+)
+def test_c14_missing_column_is_not_verifiable_not_zero(tmp_path, chamados, medias, missing):
+    c14 = _c14(tmp_path, chamados, medias)
+
+    assert c14 == {"estado": "nao_verificavel", "colunas_ausentes": missing}
+
+
+def test_c14_output_has_no_identifiers_or_values(tmp_path, capsys):
+    lote = tmp_path / "lote"
+    chamados, medias = ("7", "13", "29"), ("2.111", "4.321", "4.987")
+    _batch(lote, extra_uc={
+        "total_chamados_callcenter": chamados,
+        "media_satisfacao_atendimento": medias,
+    })
+    json_path = tmp_path / "out.json"
+
+    assert gold_coverage.main([str(lote), "--json", str(json_path)]) == 0
+
+    out = capsys.readouterr().out
+    saved = json.loads(json_path.read_text(encoding="utf-8"))
+    c14 = next(c for c in saved["controles_candidatos"] if c["id"] == "C14")
+    c14_line = next(line for line in out.splitlines() if line.startswith("  - C14 "))
+    for printed in (json.dumps(c14["valor"]), c14_line.split(":", 1)[1]):
+        for value in (*chamados, *medias):
+            assert value not in printed
+    for printed in (out, json_path.read_text(encoding="utf-8")):
+        assert not any(uc in printed for uc in UC_IDS)
+        assert "4.321" not in printed  # nem mínimo nem máximo: não aparece no perfil
+    assert c14["valor"]["ucs_por_estado"]["com_chamados_com_media"] == 3
+
+
 def test_worst_feeder_control_reports_values_without_identifier(tmp_path, capsys):
     _batch(tmp_path)
     header = ["id_alimentador", "municipio", "competencia", "total_ucs_alimentador",
