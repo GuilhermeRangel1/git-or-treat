@@ -5,9 +5,12 @@ neste teste: resolve um plano declarativo contra os metadados do TOML, monta SQL
 parametrizado e o entrega a ``ReadOnlySqlService``, que valida, regenera e executa.
 """
 
+import ast
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -29,7 +32,9 @@ from app.sql.service import ReadOnlySqlService
 from app.sql.validator import SqlRejected, validate_sql
 from tests.gold_mock import (
     GOLD_ROWS,
-    JABOATAO,
+    MUNICIPIO_A,
+    MUNICIPIO_B,
+    MUNICIPIO_C,
     PRIORIDADES_ALTAS,
     build_gold_v1_sqlite,
     load_gold_dictionary,
@@ -37,7 +42,19 @@ from tests.gold_mock import (
     load_gold_snapshot,
 )
 
-GOLD_TABLES = {"diagnostico_receita", "indicadores_dec_fec", "fila_inspecao", "visao_360_uc"}
+REPO_ROOT = Path(__file__).resolve().parents[2]
+GOLD_DATA_DICTIONARY = REPO_ROOT / "docs" / "dicionario_gold.md"
+BACKEND_GOLD_MODEL = REPO_ROOT / "backend" / "app" / "models" / "gold_v1.py"
+
+GOLD_TABLES = {
+    "diagnostico_receita",
+    "indicadores_dec_fec",
+    "fila_inspecao",
+    "visao_360_uc",
+    "consumo_receita_bairro",
+    "variacao_consumo_uc",
+    "consumo_mensal_uc",
+}
 PERSONAL_COLUMNS = (
     "cpf_cnpj", "nome_titular", "logradouro", "numero", "cep", "latitude", "longitude"
 )
@@ -46,6 +63,25 @@ _V1_TO_DICTIONARY_TYPE = {
     "long": "bigint",
     "double": "double",
     "date": "date",
+    "boolean": "boolean",
+}
+# Fábricas de coluna de backend/app/models/gold_v1.py -> tipo do snapshot.
+_BACKEND_TO_V1_TYPE = {
+    "strings": "string",
+    "integers": "long",
+    "numbers": "double",
+    "money": "decimal(38,2)",
+    "dates": "date",
+    "booleans": "boolean",
+}
+# Primeira palavra do "Tipo conceitual" de docs/dicionario_gold.md -> tipo do dicionário.
+_DOC_TO_DICTIONARY_TYPE = {
+    "texto": "text",
+    "inteiro": "bigint",
+    "número": "double",
+    "decimal": "decimal(38,2)",
+    "data": "date",
+    "booleano": "boolean",
 }
 
 
@@ -66,11 +102,12 @@ def gold_service(tmp_path_factory) -> tuple[ReadOnlySqlService, InMemoryAuditSin
 # --- (a) carga e coerência do dicionário -------------------------------------------------
 
 
-def test_gold_dictionary_loads_with_the_four_v1_tables() -> None:
+def test_gold_dictionary_loads_with_the_seven_v1_tables() -> None:
     dictionary = load_gold_dictionary()
 
     assert set(dictionary.tables) == GOLD_TABLES
-    assert dictionary.version == "gold-v1-31a80e6"
+    assert dictionary.version == "gold-v1-develop-c9580cd"
+    assert dictionary.status == "gold-v1-nao-homologado"
     assert set(PERSONAL_COLUMNS) <= dictionary.sensitive_columns
     for table in dictionary.tables.values():
         assert not set(table.columns) & dictionary.sensitive_columns
@@ -87,11 +124,15 @@ def test_semantic_metadata_only_points_to_allowed_columns() -> None:
     raw = load_gold_metadata()
     dictionary = load_gold_dictionary()
 
+    assert set(raw["tables"]) == GOLD_TABLES
     for name, spec in raw["tables"].items():
         allowed = set(dictionary.tables[name].columns)
+        assert spec["description"], name
+        assert spec["grain"], name
         assert set(spec["key"]) <= allowed, name
         assert set(spec["dimensions"]) <= allowed, name
         assert set(spec["metrics"]) <= allowed, name
+        assert set(spec.get("known_values", {})) <= allowed, name
         if "period_column" in spec:
             assert spec["period_column"] in allowed, name
         assert {m["aggregation"] for m in spec["metrics"].values()} <= {"sum", "count", "ratio"}
@@ -99,23 +140,53 @@ def test_semantic_metadata_only_points_to_allowed_columns() -> None:
     assert raw["relationships"] == []
 
 
+def test_nullable_columns_point_only_to_existing_columns_outside_the_key() -> None:
+    """O Backend marca como anulável toda coluna fora da chave; a chave nunca é anulável."""
+
+    raw = load_gold_metadata()["tables"]
+    dictionary = load_gold_dictionary()
+
+    for name, spec in raw.items():
+        allowed = set(dictionary.tables[name].columns)
+        nullable = spec["nullable_columns"]
+        assert len(nullable) == len(set(nullable)), name
+        assert set(nullable) <= allowed, name
+        assert set(nullable) == allowed - set(spec["key"]), name
+
+
 def test_each_concept_maps_to_the_real_column_of_each_table() -> None:
     concepts = load_gold_metadata()["concepts"]
     dictionary = load_gold_dictionary()
 
     assert concepts["geracao_distribuida"] == {
-        "diagnostico_receita": "possuo_gd",
+        "diagnostico_receita": "possui_gd",
         "visao_360_uc": "possui_gd",
+        "variacao_consumo_uc": "possui_gd",
         "fila_inspecao": "possui_geracao_solar",
     }
-    assert concepts["classe_consumo"]["diagnostico_receita"] == "classe_consumo"
+    assert concepts["subgrupo_tarifario"] == {
+        "diagnostico_receita": "subgrupo_tarifario",
+        "visao_360_uc": "subgrupo",
+        "fila_inspecao": "subgrupo",
+    }
+    assert concepts["classe_consumo"]["consumo_receita_bairro"] == "classe_consumo"
     assert concepts["classe_consumo"]["visao_360_uc"] == "classe"
     for mapping in concepts.values():
         for table, column in mapping.items():
             assert column in dictionary.tables[table].columns, (table, column)
 
 
-# --- (b) snapshot do dicionário v1 ------------------------------------------------------
+def test_attendance_columns_exist_only_in_visao_360() -> None:
+    """A fila agrega atendimentos no processamento, mas não os projeta na tabela final."""
+
+    dictionary = load_gold_dictionary()
+    attendance = {"total_chamados_callcenter", "media_satisfacao_atendimento"}
+
+    assert attendance <= set(dictionary.tables["visao_360_uc"].columns)
+    assert not attendance & set(dictionary.tables["fila_inspecao"].columns)
+
+
+# --- (b) snapshot e coerência com as fontes ---------------------------------------------
 
 
 def test_allowed_plus_excluded_columns_match_the_v1_snapshot() -> None:
@@ -144,8 +215,92 @@ def test_allowed_plus_excluded_columns_match_the_v1_snapshot() -> None:
 def test_snapshot_records_its_source_commit() -> None:
     source = load_gold_snapshot()["_source"]
 
-    assert source["commit"].startswith("31a80e6")
+    assert source["commit"].startswith("c9580cd")
     assert source["columns_from"] == "docs/dicionario_gold.md"
+    assert source["types_keys_and_nullability_from"] == "backend/app/models/gold_v1.py"
+
+
+def _documented_tables() -> dict[str, dict[str, str]]:
+    """Colunas e primeira palavra do tipo conceitual de cada seção ``## N. `tabela` ``."""
+
+    tables: dict[str, dict[str, str]] = {}
+    current: dict[str, str] | None = None
+    for line in GOLD_DATA_DICTIONARY.read_text(encoding="utf-8").splitlines():
+        heading = re.match(r"^## \d+\. `(\w+)`", line)
+        if heading:
+            current = tables.setdefault(heading.group(1), {})
+            continue
+        if line.startswith("## "):
+            current = None
+            continue
+        row = re.match(r"^\| `(\w+)` \| ([^|]+) \|", line)
+        if current is not None and row:
+            current[row.group(1)] = row.group(2).strip().split()[0].rstrip(":")
+    return tables
+
+
+def test_documented_columns_are_exactly_the_dictionary_columns() -> None:
+    """docs/dicionario_gold.md é a fonte: o dicionário não pode derivar da documentação."""
+
+    documented = _documented_tables()
+    dictionary = load_gold_dictionary()
+    snapshot = load_gold_snapshot()["tables"]
+
+    assert set(documented) - {"controle_gold"} == GOLD_TABLES
+    for name in GOLD_TABLES:
+        assert list(documented[name]) == list(snapshot[name]["columns"]), name
+        columns = dict(dictionary.tables[name].columns)
+        assert {column.casefold() for column in documented[name]} == set(columns), name
+        for column, doc_type in documented[name].items():
+            assert _DOC_TO_DICTIONARY_TYPE[doc_type] == columns[column.casefold()], (
+                name,
+                column,
+            )
+
+
+def _backend_tables() -> dict[str, tuple[list[str], dict[str, str]]]:
+    """Chave e colunas tipadas declaradas em ``TABLES`` de backend/app/models/gold_v1.py."""
+
+    module = ast.parse(BACKEND_GOLD_MODEL.read_text(encoding="utf-8"))
+    tables_node = next(
+        node.value
+        for node in module.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "TABLES" for t in node.targets)
+    )
+    tables: dict[str, tuple[list[str], dict[str, str]]] = {}
+    for call in tables_node.values:
+        name, key, strings = (ast.literal_eval(arg) for arg in call.args)
+        groups = {"strings": strings} | {
+            keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords
+        }
+        columns = {
+            column: _BACKEND_TO_V1_TYPE[group]
+            for group, names in groups.items()
+            for column in names.split()
+        }
+        tables[name] = (sorted(key), columns)
+    return tables
+
+
+def test_snapshot_types_and_keys_match_the_backend_physical_contract() -> None:
+    backend = _backend_tables()
+    snapshot = load_gold_snapshot()["tables"]
+
+    assert set(backend) == GOLD_TABLES
+    for name, (key, columns) in backend.items():
+        assert sorted(snapshot[name]["key"]) == key, name
+        assert snapshot[name]["columns"] == columns, name
+
+
+def test_mock_rows_have_exactly_the_snapshot_columns() -> None:
+    snapshot = load_gold_snapshot()["tables"]
+
+    assert set(GOLD_ROWS) == GOLD_TABLES
+    for name, rows in GOLD_ROWS.items():
+        assert rows, name
+        for row in rows:
+            assert set(row) == set(snapshot[name]["columns"]), name
 
 
 # --- (c) validador com o dicionário da Gold ---------------------------------------------
@@ -158,20 +313,36 @@ def test_snapshot_records_its_source_commit() -> None:
             "SELECT municipio, classe_consumo, SUM(receita_total_reais) AS receita "
             "FROM diagnostico_receita WHERE competencia = '2026-08' "
             "GROUP BY municipio, classe_consumo ORDER BY municipio, classe_consumo",
-            [(JABOATAO, "COMERCIAL", 960.0), (JABOATAO, "RESIDENCIAL", 480.0),
-             ("RECIFE", "COMERCIAL", 400.0)],
+            [(MUNICIPIO_A, "COMERCIAL", 320.0), (MUNICIPIO_A, "RESIDENCIAL", 190.0),
+             (MUNICIPIO_B, "COMERCIAL", 400.0), (MUNICIPIO_C, "RESIDENCIAL", 80.0)],
         ),
         (
             "SELECT id_alimentador, competencia, DEC, FEC FROM indicadores_dec_fec "
             "ORDER BY id_alimentador, competencia",
-            [("ALIM-FIC-01", "2026-08", 1.5, 0.75), ("ALIM-FIC-01", "2026-09", 0.5, 0.25),
-             ("ALIM-FIC-02", "2026-08", 2.5, 1.0), ("ALIM-FIC-02", "2026-09", 0.0, 0.0)],
+            [("ALIM-FIC-01", "2026-08", 2.0, 1.0), ("ALIM-FIC-01", "2026-09", 0.5, 1.0),
+             ("ALIM-FIC-02", "2026-08", 2.5, 1.0)],
         ),
         (
             "SELECT prioridade_inspecao, COUNT(id_uc) AS ucs FROM fila_inspecao "
             "GROUP BY prioridade_inspecao ORDER BY prioridade_inspecao",
             [("ALTA - CONSUMO ZERO", 1), ("ALTA - HISTORICO IRREGULAR", 1), ("BAIXA", 2),
              ("MEDIA - NUNCA INSPECIONADO", 1), ("REVISAR - SEM HISTORICO DE CONSUMO", 1)],
+        ),
+        (
+            "SELECT competencia, SUM(consumo_kwh) AS kwh, SUM(receita_reais) AS reais "
+            "FROM consumo_mensal_uc GROUP BY competencia ORDER BY competencia",
+            [("2026-08", 1200.0, 990.0), ("2026-09", 1060.0, 931.0)],
+        ),
+        (
+            "SELECT id_uc FROM variacao_consumo_uc "
+            "WHERE queda_consumo_superior_30_pct AND possui_gd = 'Sim' ORDER BY id_uc",
+            [("UC100003",), ("UC100005",)],
+        ),
+        (
+            "SELECT bairro, SUM(consumo_total_kwh) AS kwh FROM consumo_receita_bairro "
+            "WHERE competencia = '2026-09' GROUP BY bairro ORDER BY bairro",
+            [("BAIRRO FICTICIO 1", 300.0), ("BAIRRO FICTICIO 2", 150.0),
+             ("BAIRRO FICTICIO 3", 520.0), ("BAIRRO FICTICIO 4", 90.0)],
         ),
     ],
 )
@@ -183,6 +354,32 @@ def test_correct_gold_queries_are_accepted_and_run_on_the_mock(
     result = service.run(sql)
 
     assert [tuple(row) for row in result.rows] == expected
+
+
+@pytest.mark.parametrize(
+    ("table", "energy", "revenue"),
+    [
+        ("consumo_mensal_uc", "consumo_kwh", "receita_reais"),
+        ("consumo_receita_bairro", "consumo_total_kwh", "receita_total_reais"),
+        ("diagnostico_receita", "consumo_total_kwh", "receita_total_reais"),
+    ],
+)
+def test_financial_tables_of_the_mock_reconcile_by_period(
+    gold_service, table: str, energy: str, revenue: str
+) -> None:
+    """Mesma interseção fatura × leitura nas três tabelas: totais iguais por competência."""
+
+    service, _audit = gold_service
+
+    result = service.run(
+        f"SELECT competencia, SUM({energy}), SUM({revenue}) FROM {table} "
+        "GROUP BY competencia ORDER BY competencia"
+    )
+
+    assert [tuple(row) for row in result.rows] == [
+        ("2026-08", 1200.0, 990.0),
+        ("2026-09", 1060.0, 931.0),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -214,7 +411,7 @@ def test_masked_personal_value_cannot_be_aliased_out(gold_service) -> None:
 
 @pytest.mark.parametrize(
     "table",
-    ["consumo_receita_bairro", "variacao_consumo_uc", "silver_faturas", "gold_indicadores"],
+    ["controle_gold", "gold_diagnostico_receita", "silver_faturas", "gold_indicadores"],
 )
 def test_tables_outside_the_gold_dictionary_are_rejected(table: str) -> None:
     with pytest.raises(SqlRejected) as caught:
@@ -230,6 +427,7 @@ def test_tables_outside_the_gold_dictionary_are_rejected(table: str) -> None:
         "UPDATE fila_inspecao SET prioridade_inspecao = 'BAIXA'",
         "INSERT INTO indicadores_dec_fec (id_alimentador) VALUES ('X')",
         "DROP TABLE visao_360_uc",
+        "DELETE FROM consumo_mensal_uc",
     ],
 )
 def test_writes_are_rejected(sql: str) -> None:
@@ -239,15 +437,30 @@ def test_writes_are_rejected(sql: str) -> None:
     assert caught.value.code in {"not_select", "forbidden_construct"}
 
 
-def test_column_from_another_gold_table_is_rejected() -> None:
-    """bairro existe na Gold, mas não em diagnostico_receita."""
-
-    with pytest.raises(SqlRejected, match="unknown_column"):
-        validate_sql(
+@pytest.mark.parametrize(
+    ("sql", "reason"),
+    [
+        (
             "SELECT bairro, SUM(consumo_total_kwh) FROM diagnostico_receita GROUP BY bairro",
-            load_gold_dictionary(),
-            "sqlite",
-        )
+            "bairro existe na Gold, mas não em diagnostico_receita",
+        ),
+        (
+            "SELECT id_uc, total_chamados_callcenter FROM fila_inspecao",
+            "atendimento existe em visao_360_uc, não na fila",
+        ),
+        (
+            "SELECT id_uc, subgrupo_tarifario FROM visao_360_uc",
+            "nas tabelas por UC o nome real é subgrupo",
+        ),
+        (
+            "SELECT possuo_gd FROM diagnostico_receita",
+            "possuo_gd era grafia antiga; o real é possui_gd",
+        ),
+    ],
+)
+def test_column_from_another_table_or_old_name_is_rejected(sql: str, reason: str) -> None:
+    with pytest.raises(SqlRejected, match="unknown_column"):
+        validate_sql(sql, load_gold_dictionary(), "sqlite")
 
 
 @pytest.mark.xfail(
@@ -280,7 +493,7 @@ class GoldPlan:
     """Plano declarativo de teste. Nomes podem ser coluna ou conceito de [concepts]."""
 
     measure: str
-    filters: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    filters: Mapping[str, tuple[str | bool, ...]] = field(default_factory=dict)
     group_by: str | None = None
     by_period: bool = False
     period_range: tuple[str, str] | None = None
@@ -340,7 +553,7 @@ def _run_plan(plan, table, spec, columns, metric, service) -> GoldAnswer:
         "ratio": f'"{plan.measure}"',
     }[aggregation]
     conditions: list[str] = []
-    parameters: list[str] = []
+    parameters: list[str | bool] = []
     for name, values in plan.filters.items():
         if len(values) == 1:
             conditions.append(f'"{columns[name]}" = ?')
@@ -370,25 +583,27 @@ def _run_plan(plan, table, spec, columns, metric, service) -> GoldAnswer:
     )
 
 
-def test_e2e_commercial_revenue_in_jaboatao(gold_service) -> None:
+def test_e2e_commercial_revenue_in_one_municipality(gold_service) -> None:
+    """Duas tabelas declaram a receita por município e classe; ambas reconciliam no mock."""
+
     service, audit = gold_service
     plan = GoldPlan(
         measure="receita_total_reais",
-        filters={"municipio": (JABOATAO,), "classe_consumo": ("COMERCIAL",)},
+        filters={"municipio": (MUNICIPIO_A,), "classe_consumo": ("COMERCIAL",)},
         by_period=True,
     )
 
     answer = answer_from_gold(plan, service)
 
     assert answer.status == "ok"
-    assert answer.table == "diagnostico_receita"
+    assert answer.table == "consumo_receita_bairro"
     assert answer.unit == "R$"
-    assert answer.rows == (("2026-08", 960.0), ("2026-09", 680.0))
+    assert answer.rows == (("2026-08", 320.0), ("2026-09", 255.0))
     record = audit.records[-1]
     assert record.status == "accepted"
-    assert record.tables == ("diagnostico_receita",)
-    assert JABOATAO not in str(record.to_dict())
-    assert '"diagnostico_receita"."classe_consumo" = ?' in record.query_template
+    assert record.tables == ("consumo_receita_bairro",)
+    assert MUNICIPIO_A not in str(record.to_dict())
+    assert '"consumo_receita_bairro"."classe_consumo" = ?' in record.query_template
 
 
 def test_e2e_dec_of_one_feeder(gold_service) -> None:
@@ -404,8 +619,8 @@ def test_e2e_dec_of_one_feeder(gold_service) -> None:
 
     assert answer.status == "ok"
     assert answer.table == "indicadores_dec_fec"
-    assert answer.unit == "horas"
-    assert answer.rows == (("2026-08", 1.5), ("2026-09", 0.5))
+    assert answer.unit == "horas por UC"
+    assert answer.rows == (("2026-08", 2.0), ("2026-09", 0.5))
 
 
 def test_dec_without_fixing_the_feeder_is_not_summed(gold_service) -> None:
@@ -434,49 +649,71 @@ def test_e2e_count_of_high_priority_ucs(gold_service) -> None:
     ) == 2
 
 
-def test_e2e_neighbourhood_that_lost_most_volume_has_no_evidence(gold_service) -> None:
-    """Gold v1 não tem consumo mensal por bairro.
+def test_e2e_neighbourhood_that_lost_most_volume(gold_service) -> None:
+    """consumo_receita_bairro responde consumo mensal por bairro, antes sem evidência."""
 
-    O volume mensal (consumo_total_kwh) só existe em diagnostico_receita, sem bairro; o bairro
-    só existe em visao_360_uc e fila_inspecao, com média histórica e sem competência. Sem a
-    tabela consumo_receita_bairro da issue #40, a resposta correta é "não sei".
-    """
-
-    service, audit = gold_service
-    before = len(audit.records)
+    service, _audit = gold_service
     plan = GoldPlan(measure="consumo_total_kwh", group_by="bairro", by_period=True)
 
     answer = answer_from_gold(plan, service)
 
-    assert answer.status == "no_evidence"
-    assert answer.reason == "diagnostico_receita não tem bairro"
-    assert len(audit.records) == before
+    assert answer.status == "ok"
+    assert answer.table == "consumo_receita_bairro"
+    assert answer.unit == "kWh"
+    assert answer.rows == (
+        ("2026-08", "BAIRRO FICTICIO 1", 400.0),
+        ("2026-08", "BAIRRO FICTICIO 2", 200.0),
+        ("2026-08", "BAIRRO FICTICIO 3", 500.0),
+        ("2026-08", "BAIRRO FICTICIO 4", 100.0),
+        ("2026-09", "BAIRRO FICTICIO 1", 300.0),
+        ("2026-09", "BAIRRO FICTICIO 2", 150.0),
+        ("2026-09", "BAIRRO FICTICIO 3", 520.0),
+        ("2026-09", "BAIRRO FICTICIO 4", 90.0),
+    )
+    by_month = {(period, bairro): value for period, bairro, value in answer.rows}
+    loss = {
+        bairro: by_month[("2026-08", bairro)] - by_month[("2026-09", bairro)]
+        for _period, bairro in by_month
+    }
+    assert max(loss, key=loss.get) == "BAIRRO FICTICIO 1"
 
 
-def test_e2e_solar_ucs_with_drop_above_30_percent_has_no_evidence(gold_service) -> None:
-    """Gold v1 não tem consumo mensal por UC.
+def test_e2e_solar_ucs_with_drop_above_30_percent(gold_service) -> None:
+    """variacao_consumo_uc responde a queda acima de 30% por UC com GD."""
 
-    Queda acima de 30% exige consumo por UC em pelo menos dois meses. diagnostico_receita tem
-    competência e GD (possuo_gd), mas não id_uc; visao_360_uc e fila_inspecao têm id_uc e GD,
-    mas só média histórica, sem competência. Depende da variacao_consumo_uc da issue #40.
-    """
-
-    service, audit = gold_service
-    before = len(audit.records)
+    service, _audit = gold_service
     plan = GoldPlan(
-        measure="consumo_total_kwh",
-        filters={"geracao_distribuida": ("Sim",)},
-        group_by="id_uc",
-        by_period=True,
+        measure="id_uc",
+        filters={"geracao_distribuida": ("Sim",), "queda_consumo_superior_30_pct": (True,)},
     )
 
     answer = answer_from_gold(plan, service)
 
-    assert answer.status == "no_evidence"
-    assert answer.reason == "diagnostico_receita não tem id_uc"
-    assert len(audit.records) == before
+    assert answer.status == "ok"
+    assert answer.table == "variacao_consumo_uc"
+    assert answer.unit == "UCs"
+    assert answer.rows == ((2,),)
 
-    history = answer_from_gold(
+
+def test_e2e_monthly_consumption_of_one_uc(gold_service) -> None:
+    service, _audit = gold_service
+    plan = GoldPlan(measure="consumo_kwh", filters={"id_uc": ("UC100003",)}, by_period=True)
+
+    answer = answer_from_gold(plan, service)
+
+    assert answer.status == "ok"
+    assert answer.table == "consumo_mensal_uc"
+    assert answer.unit == "kWh"
+    assert answer.rows == (("2026-08", 500.0), ("2026-09", 520.0))
+
+
+def test_e2e_historical_average_by_period_has_no_evidence(gold_service) -> None:
+    """media_consumo_historico só existe nas tabelas por UC, sem competência."""
+
+    service, audit = gold_service
+    before = len(audit.records)
+
+    answer = answer_from_gold(
         GoldPlan(
             measure="media_consumo_historico",
             filters={"geracao_distribuida": ("Sim",)},
@@ -485,8 +722,10 @@ def test_e2e_solar_ucs_with_drop_above_30_percent_has_no_evidence(gold_service) 
         ),
         service,
     )
-    assert history.status == "no_evidence"
-    assert history.reason == "fila_inspecao não tem competência; visao_360_uc não tem competência"
+
+    assert answer.status == "no_evidence"
+    assert answer.reason == "fila_inspecao não tem competência; visao_360_uc não tem competência"
+    assert len(audit.records) == before
 
 
 def test_logical_plan_reader_reads_gold_revenue_with_real_column_names(gold_service) -> None:
@@ -500,7 +739,7 @@ def test_logical_plan_reader_reads_gold_revenue_with_real_column_names(gold_serv
     dictionary = load_gold_dictionary()
     profile_data = GRID360_DEMO_PROFILE.model_dump(mode="python")
     profile_data["dimensions"][0]["values"] = [
-        DimensionValue(value=JABOATAO, aliases=("Jaboatão",))
+        DimensionValue(value=MUNICIPIO_A, aliases=("municipio ficticio a",))
     ]
     profile_data["dimensions"][1]["values"] = [
         DimensionValue(value="COMERCIAL", aliases=("comercial",))
@@ -554,7 +793,7 @@ def test_logical_plan_reader_reads_gold_revenue_with_real_column_names(gold_serv
             ReadFilter(
                 dimension_id="geography.municipality",
                 operator=FilterOperator.EQ,
-                values=(JABOATAO,),
+                values=(MUNICIPIO_A,),
             ),
             ReadFilter(
                 dimension_id="customer.consumption_class",
@@ -568,6 +807,6 @@ def test_logical_plan_reader_reads_gold_revenue_with_real_column_names(gold_serv
 
     result = reader.read(validator.approve(plan, context), context)
 
-    assert result.rows == (("2026-08", 960.0), ("2026-09", 680.0))
+    assert result.rows == (("2026-08", 320.0), ("2026-09", 255.0))
     assert audit.records[-1].status == "accepted"
     assert audit.records[-1].tables == ("diagnostico_receita",)

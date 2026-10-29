@@ -1,50 +1,12 @@
 {
   "_source": {
-    "branch": "origin/feat/gold",
-    "commit": "31a80e6162fe123f0ae27b12ebdacc60f36aa6a3",
+    "branch": "origin/develop",
+    "commit": "c9580cd",
     "columns_from": "docs/dicionario_gold.md",
-    "keys_from": "data-engineering/notebook/Silver_to_gold.ipynb (tables_gold_pk)",
-    "note": "Cópia dos nomes e tipos declarados no dicionário v1, sem dados. Atualize junto com o commit quando a Engenharia de Dados publicar outra versão."
+    "types_keys_and_nullability_from": "backend/app/models/gold_v1.py",
+    "note": "Cópia dos nomes, tipos e chaves das sete tabelas Gold v1, sem dados. Tipos: Text -> string, BigInteger -> long, Float -> double, Numeric(38,2) -> decimal(38,2), Date -> date, Boolean -> boolean. Atualize junto com o commit quando a Engenharia de Dados ou o Backend publicarem outra versão."
   },
   "tables": {
-    "visao_360_uc": {
-      "key": ["id_uc"],
-      "columns": {
-        "id_uc": "string",
-        "cpf_cnpj": "string",
-        "nome_titular": "string",
-        "_cpf_cnpj_conflitante": "boolean",
-        "_nome_titular_conflitante": "boolean",
-        "logradouro": "string",
-        "numero": "string",
-        "bairro": "string",
-        "municipio": "string",
-        "uf": "string",
-        "cep": "string",
-        "classe": "string",
-        "subgrupo_tarifario": "string",
-        "alimentador": "string",
-        "data_ligacao": "date",
-        "status": "string",
-        "latitude": "double",
-        "longitude": "double",
-        "_geo_invalida": "boolean",
-        "_ligacao_futura": "boolean",
-        "_ligacao_sentinela": "boolean",
-        "_arquivo_origem": "string",
-        "_ordem_na_origem": "long",
-        "_lote_id": "string",
-        "_id_registro": "long",
-        "_data_processamento": "timestamp",
-        "_run_id": "string",
-        "possui_gd": "string",
-        "total_chamados_callcenter": "long",
-        "media_satisfacao_atendimento": "double",
-        "total_interrupcoes_sofridas": "long",
-        "duracao_total_interrupcoes_horas": "double",
-        "media_consumo_historico": "double"
-      }
-    },
     "diagnostico_receita": {
       "key": [
         "competencia",
@@ -52,7 +14,7 @@
         "classe_consumo",
         "subgrupo_tarifario",
         "bandeira_tarifaria",
-        "possuo_gd"
+        "possui_gd"
       ],
       "columns": {
         "competencia": "string",
@@ -60,42 +22,14 @@
         "classe_consumo": "string",
         "subgrupo_tarifario": "string",
         "bandeira_tarifaria": "string",
-        "possuo_gd": "string",
+        "possui_gd": "string",
         "qtd_ucs_distintas_faturadas_no_mes": "long",
         "soma_faturamentos_mensais": "long",
         "consumo_total_kwh": "double",
         "receita_total_reais": "decimal(38,2)",
-        "ticket_medio_reais_por_uc": "decimal(34,6)",
+        "ticket_medio_reais_por_uc": "double",
         "consumo_medio_kwh_por_uc": "double",
         "tarifa_media_efetiva": "double"
-      }
-    },
-    "fila_inspecao": {
-      "key": ["id_uc"],
-      "columns": {
-        "id_uc": "string",
-        "cpf_cnpj": "string",
-        "nome_titular": "string",
-        "logradouro": "string",
-        "numero": "string",
-        "bairro": "string",
-        "municipio": "string",
-        "uf": "string",
-        "cep": "string",
-        "classe": "string",
-        "subgrupo_tarifario": "string",
-        "alimentador": "string",
-        "data_ligacao": "date",
-        "status": "string",
-        "latitude": "double",
-        "longitude": "double",
-        "media_consumo_historico": "double",
-        "total_inspecoes_realizadas": "long",
-        "total_inspecoes_irregulares": "long",
-        "total_chamados_callcenter": "long",
-        "media_satisfacao_atendimento": "double",
-        "possui_geracao_solar": "string",
-        "prioridade_inspecao": "string"
       }
     },
     "indicadores_dec_fec": {
@@ -110,6 +44,82 @@
         "duracao_total_interrupcoes_horas": "double",
         "DEC": "double",
         "FEC": "double"
+      }
+    },
+    "fila_inspecao": {
+      "key": ["id_uc"],
+      "columns": {
+        "id_uc": "string",
+        "municipio": "string",
+        "bairro": "string",
+        "uf": "string",
+        "classe": "string",
+        "subgrupo": "string",
+        "alimentador": "string",
+        "data_ligacao": "date",
+        "status": "string",
+        "possui_geracao_solar": "string",
+        "total_inspecoes_realizadas": "long",
+        "total_inspecoes_irregulares": "long",
+        "media_consumo_historico": "double",
+        "prioridade_inspecao": "string"
+      }
+    },
+    "visao_360_uc": {
+      "key": ["id_uc"],
+      "columns": {
+        "id_uc": "string",
+        "municipio": "string",
+        "bairro": "string",
+        "uf": "string",
+        "classe": "string",
+        "subgrupo": "string",
+        "alimentador": "string",
+        "data_ligacao": "date",
+        "status": "string",
+        "possui_gd": "string",
+        "total_chamados_callcenter": "long",
+        "media_satisfacao_atendimento": "double",
+        "total_interrupcoes_sofridas": "long",
+        "duracao_total_interrupcoes_horas": "double",
+        "media_consumo_historico": "double"
+      }
+    },
+    "consumo_receita_bairro": {
+      "key": ["competencia", "municipio", "bairro", "classe_consumo"],
+      "columns": {
+        "competencia": "string",
+        "municipio": "string",
+        "bairro": "string",
+        "classe_consumo": "string",
+        "consumo_total_kwh": "double",
+        "receita_total_reais": "decimal(38,2)",
+        "qtd_ucs_distintas_faturadas_no_mes": "long"
+      }
+    },
+    "variacao_consumo_uc": {
+      "key": ["id_uc"],
+      "columns": {
+        "id_uc": "string",
+        "municipio": "string",
+        "bairro": "string",
+        "possui_gd": "string",
+        "consumo_medio_inicial": "double",
+        "meses_com_leitura_p1": "long",
+        "consumo_medio_final": "double",
+        "meses_com_leitura_p2": "long",
+        "variacao_kwh": "double",
+        "variacao_pct": "double",
+        "queda_consumo_superior_30_pct": "boolean"
+      }
+    },
+    "consumo_mensal_uc": {
+      "key": ["id_uc", "competencia"],
+      "columns": {
+        "id_uc": "string",
+        "competencia": "string",
+        "consumo_kwh": "double",
+        "receita_reais": "decimal(38,2)"
       }
     }
   }

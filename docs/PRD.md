@@ -1976,3 +1976,30 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Arquivos: `backend/app/services/genai_client.py`, tratamento das rotas em `backend/app/api/v1/endpoints/ai.py`, regressões em `backend/tests/test_ai_chat.py`, `backend/tests/test_genai_client.py` e `backend/tests/test_genai_http_unavailability.py`; contratos de chat/insight e guia Backend alinhados.
 - Evidência: os testes HTTP inicialmente retornaram 502 onde se esperava 503. Após o ajuste e a ampliação da primeira suíte, em `backend/`, `python -m pytest tests/test_ai_insights.py tests/test_ai_chat.py tests/test_genai_client.py tests/test_genai_http_unavailability.py -q`: **86 aprovados**. Ruff nos sete arquivos Python alterados, `python -m compileall` nos mesmos arquivos e `git diff --check` passaram.
 - Limites: teste com fonte sintética e transporte HTTP controlado; sem chamada a provedor real ou Gold. Não houve mudança de estado nem aceite integral de IA-05. Revisão humana e CI remota pendentes.
+
+### 2026-10-29 — IA-01 e IA-06 — GENAI-03 (parte 1): dicionário SQL da Gold com as 7 tabelas
+
+- Estado anterior → novo estado: IA-01 `Pendente` → `Pendente`; IA-06 `Pendente` → `Pendente`. O dicionário passa a cobrir a Gold v1 atual, mas continua `gold-v1-nao-homologado` e não está ligado à aplicação.
+- Mudança: `dictionary_gold.toml` passa de 4 para 7 tabelas, com `consumo_receita_bairro`, `variacao_consumo_uc` e `consumo_mensal_uc`. A fonte agora é `origin/develop` (`c9580cd`): colunas e regras de `docs/dicionario_gold.md`; tipos, chaves e anuláveis de `backend/app/models/gold_v1.py`. Correções nas tabelas existentes: `possuo_gd` → `possui_gd` em `diagnostico_receita` (colunas, chave e `[concepts]`); `subgrupo_tarifario` → `subgrupo` em `fila_inspecao` e `visao_360_uc`; a fila perde `total_chamados_callcenter` e `media_satisfacao_atendimento` e fica com as 14 colunas reais; `ticket_medio_reais_por_uc` passa de decimal a `double`, como no Backend; as colunas pessoais e de pipeline saem do snapshot porque nenhuma tabela as projeta. `sensitive_columns` continua bloqueando esses nomes. Também foram acrescentados por tabela `nullable_columns` (ignorado pelo carregador), o conceito `subgrupo_tarifario` e `known_values` só para domínios fechados (`Sim`/`Não` e prioridades).
+- Conferência local: novo `ai-agent/scripts/check_gold_dictionary.py` compara um diretório `<tabela>/*.csv` com o dicionário. Os nomes são comparados sem diferenciar caixa, e o tipo é inferido de forma grosseira só nas primeiras linhas. A saída tem apenas tabela, coluna e PASS/FAIL com motivo, sem valores nem contagens, e termina com código 1 se houver falha. Não foi executado contra o lote real.
+- Arquivos: `ai-agent/app/sql/dictionary_gold.toml`, `ai-agent/app/sql/README.md` (seção do dicionário Gold e pontos abertos), `ai-agent/tests/gold_mock.py`, `ai-agent/tests/test_sql_gold_dictionary.py`, `ai-agent/tests/fixtures/gold_dictionary_v1_snapshot.json`, `ai-agent/scripts/check_gold_dictionary.py` (novo), `ai-agent/tests/test_check_gold_dictionary.py` (novo) e este PRD. Branch `feat/ia-gold-dicionario-sql`, PR #46.
+- Testes: o mock sintético cria as 7 tabelas com nomes `FICTICIO`, e as três tabelas financeiras reconciliam por competência. Novos testes:
+  - coerência com `docs/dicionario_gold.md`: colunas exatas e tipo conceitual de cada tabela;
+  - coerência com o modelo do Backend, lido por análise sintática: tipos e chaves;
+  - `nullable_columns` só aponta para colunas existentes fora da chave;
+  - cada `[concepts]` aponta para coluna real;
+  - nomes antigos são recusados.
+
+  Os e2e de bairro e de queda acima de 30% com GD, antes sem evidência, agora respondem pelas tabelas novas. Mantidos os testes de segurança e o `xfail` estrito do `JOIN` sem relacionamento declarado.
+- Dados usados: somente nomes e tipos dos documentos e do modelo citados, além de linhas inventadas. Nenhum valor, total, contagem ou percentual do lote; nenhum dado pessoal ou chamada a modelo.
+- Verificações: em `ai-agent/`, em 29/10/2026, com `.venv`:
+  - `python -m pytest -q tests/test_sql_gold_dictionary.py tests/test_check_gold_dictionary.py`: 76 aprovados e 1 xfail (60 + 1 xfail no dicionário; 16 no script);
+  - `python -m pytest -q`: 3105 aprovados, 4 pulados e 1 xfail (antes: 3072 aprovados, 4 pulados e 1 xfail);
+  - `python -m ruff check` nos quatro arquivos Python tocados: sem erros;
+  - `python -m compileall -q app tests scripts`: sem erros;
+  - `git diff --check` na raiz: passou.
+- Limites: o dicionário não foi homologado nem ligado a nenhuma composição da aplicação. Não há credencial, papel de leitura nem reconciliação com a Gold real. O planejador que escolhe a tabela existe só no teste. `docs/services/ai-agent.md` ainda descreve 4 tabelas.
+- Pontos abertos com o Backend:
+  - DEC/FEC: o Backend cria `Column("DEC")`/`Column("FEC")` em `gold_v1.py`, e a migração `goldv1000001` usa esse modelo. No PostgreSQL as colunas ficam `"DEC"`/`"FEC"`, sensíveis a caixa, enquanto o carregador do dicionário exige `dec`/`fec`. Uma consulta sem aspas pode não encontrar a coluna. Não foi decidido; o executor PostgreSQL não deve ler `indicadores_dec_fec` até haver decisão.
+  - Prefixo: o Backend grava as tabelas como `gold_<nome>`, e o dicionário usa o nome sem prefixo.
+- Responsável: laura-amiranda; revisão pendente. Trello não sincronizado nesta etapa.
