@@ -1,7 +1,7 @@
 import pytest
 
 from app.main import app
-from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository
+from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository_provider
 
 
 @pytest.mark.parametrize("alimentador", ["", "   ", "AL-99", " AL-01 "])
@@ -148,7 +148,7 @@ def test_continuity_keeps_missing_denominator_and_temporal_limitations(client, m
 def test_continuity_unknown_temporal_coverage_does_not_infer_availability_from_events(client, monkeypatch):
     repository = SyntheticAnalyticsRepository()
     repository.continuity_coverage = None
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
 
     response = client.get("/api/v1/operations/continuity?alimentador=AL-01")
 

@@ -1,7 +1,7 @@
 import pytest
 
 from app.main import app
-from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository
+from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository_provider
 
 
 @pytest.fixture(autouse=True)
@@ -68,7 +68,7 @@ def test_ranking_metric_order_ties_and_missing_denominator(client, metric, perio
 def test_denominator_does_not_hide_occurrences_or_create_zero(client, monkeypatch, denominator):
     repository = SyntheticAnalyticsRepository()
     repository.feeders[0]["denominator_uc_count"] = denominator
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
     detail = client.get("/api/v1/operations/feeders/AL-01").json()
     summary = detail["data"]["summary"]
     assert summary["status"] == "unavailable"
@@ -86,7 +86,7 @@ def test_denominator_does_not_hide_occurrences_or_create_zero(client, monkeypatc
 def test_invalid_typed_denominator_is_unavailable_without_hiding_valid_feeders(client, monkeypatch, denominator):
     repository = SyntheticAnalyticsRepository()
     repository.feeders[0]["denominator_uc_count"] = denominator
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
 
     series_response = client.get("/api/v1/operations/series")
     ranking_response = client.get("/api/v1/operations/ranking")
@@ -134,7 +134,7 @@ def test_unknown_or_partial_windows_cannot_compete_in_ranking(client, monkeypatc
     repository = SyntheticAnalyticsRepository()
     if not coverage:
         repository.continuity_coverage = None
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
     params = {"competencia_inicio": start, "competencia_fim": end, "alimentador": "AL-01"}
     response = client.get("/api/v1/operations/ranking", params=params)
     assert response.status_code == 200
@@ -171,7 +171,7 @@ def test_repeated_uc_interruptions_count_separately_and_order_is_stable(client, 
         {"event_id": "EV-B", "uc_id": "UC-1001", "feeder_id": "AL-01", "competencia": "2025-01", "duration_hours": 2.0},
         {"event_id": "EV-A", "uc_id": "UC-1001", "feeder_id": "AL-01", "competencia": "2025-01", "duration_hours": 1.0},
     ]
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
     body = client.get("/api/v1/operations/feeders/AL-01?periodo=2025-01").json()
     assert body["data"]["summary"]["fec_interruptions_per_uc"] == 1.0
     assert body["data"]["summary"]["dec_hours_per_uc"] == 1.5
@@ -223,7 +223,14 @@ def test_invalid_period_is_validated_before_unavailable_source(client, monkeypat
 @pytest.mark.parametrize("path", ["series", "ranking", "feeders/{feeder_id}"])
 def test_openapi_documents_models_and_errors(client, path):
     operation = client.get("/openapi.json").json()["paths"][f"/api/v1/operations/{path}"]["get"]
-    assert "$ref" in operation["responses"]["200"]["content"]["application/json"]["schema"]
+    response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    response_refs = {response_schema.get("$ref", "")} | {
+        variant.get("$ref", "") for variant in response_schema.get("anyOf", [])
+    }
+    assert any(reference.endswith(("OperationSeriesResponse", "GoldOperationSeriesResponse",
+                                   "OperationRankingResponse", "GoldOperationRankingResponse",
+                                   "OperationDetailResponse", "GoldOperationDetailResponse"))
+               for reference in response_refs)
     for status in ("422", "503"):
         assert operation["responses"][status]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/AnalyticsErrorResponse"}
 
@@ -267,7 +274,7 @@ def test_rounded_coverage_cannot_hide_population_mismatch(client, monkeypatch):
     repository.feeders[0]["denominator_uc_count"] = 2001
     template = next(unit for unit in repository.units if unit["alimentador"] == "AL-01")
     repository.units.extend(dict(template, uc_id=f"UC-TEST-{index}") for index in range(1998))
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
     response = client.get("/api/v1/operations/ranking?alimentador=AL-01")
     assert response.status_code == 200
     body = response.json()

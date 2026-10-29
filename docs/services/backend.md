@@ -1,6 +1,6 @@
 # Serviço: backend e banco local
 
-**Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** API FastAPI, conexão SQLAlchemy, modelos ORM e migração Alembic existem. A DEV-01 acrescenta contratos analíticos e uma fonte sintética explícita; os requisitos funcionais seguem pendentes de Gold e aceite integrado conforme o PRD. **Stack atual:** Python 3.12 no Docker/CI, FastAPI, SQLAlchemy e PostgreSQL com driver psycopg 3; os testes HTTP usam SQLite.
+**Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** API FastAPI, SQLAlchemy, ORM e Alembic; demonstração sintética preservada. A DEV-13.1 acrescenta modo Gold explícito para Panorama, fila/Ordens e Operação, com contrato v2 e limitações reais; o aceite integrado do portal permanece pendente. **Stack atual:** Python 3.12 no Docker/CI, FastAPI, SQLAlchemy e PostgreSQL com psycopg 3; testes HTTP sintéticos usam SQLite e os de integração Gold usam PostgreSQL descartável.
 
 ## Responsabilidade
 
@@ -61,7 +61,7 @@ Recorte sem registros retorna `no_evidence` com observações vazias antes da ch
 
 Na versão atual, o serviço só gera o contexto com a fonte sintética do Panorama; fonte não compatível falha fechada. Isso conecta o caminho da interface, mas não comprova Gold, autorização de usuário, auditoria persistida ou uma geração ao vivo de provedor. A evolução para Gold precisa revisar a métrica com o dicionário e continuar recalculando os valores no Backend.
 
-O cálculo do Panorama recebe `PanoramaRepository`: a fonte informa `incomplete_periods`, versão, atualização e limitações do lote. O serviço usa essa cobertura para impedir comparação com competências abertas e gera rótulos da série a partir da competência, sem consultar constantes da fixture. O restante do cálculo ainda espera linhas agregadas em memória com o formato demonstrativo e fórmulas provisórias; o modo de implantação `ANALYTICS_SOURCE` aceita apenas `synthetic` ou `unavailable`. Um adaptador Gold precisa homologar grão e fórmulas, oferecer filtros válidos e preservar a mesma versão do lote entre indicadores e insight antes de ser habilitado.
+O cálculo sintético do Panorama recebe `PanoramaRepository`, com cobertura e comparações demonstrativas preservadas. `ANALYTICS_SOURCE` aceita `synthetic`, `unavailable` e `gold`. O modo Gold usa consultas agregadas específicas, publica opções reais e ausências, e mantém identidade de lote/fingerprint por resposta. O insight continua exclusivamente sintético e falha fechado em Gold; sua adaptação precisa recalcular contexto na fonte real antes de ser habilitada. Veja o [contrato DEV-13.1](../contracts/analytics-gold-dev13-1.md).
 
 ### Envelope conceitual de uma resposta analítica
 
@@ -100,7 +100,15 @@ A DEV-07 acrescenta histórico persistido com ator/versão, registro dedicado de
 
 ## Carga da Gold e consistência
 
-O script `backend/scripts/load_gold.py` importa as sete tabelas CSV do lote v1 após `alembic upgrade head`, em transação única, com chaves, tipos, contagens, somas e hashes validados. Não altera ordens operacionais nem ativa a fonte da API. Consulte organização, comandos e limites no [contrato CSV v1](../contracts/gold-csv-v1.md). A prova Databricks → CSV, as definições DE-08 e a adaptação API/portal permanecem pendentes.
+O script `backend/scripts/load_gold.py` importa as sete tabelas CSV do lote v1 após `alembic upgrade head`, em transação única, com chaves, tipos, contagens, somas e hashes validados. Não altera ordens operacionais nem ativa a fonte da API. Consulte organização, comandos e limites no [contrato CSV v1](../contracts/gold-csv-v1.md). A DEV-13.1 adiciona os consumidores da API descritos abaixo; prova Databricks → CSV, homologação integral de DE-08 e adaptação do portal continuam pendentes.
+
+### DEV-13.1 — Panorama, fila/Ordens e Operação sobre a Gold
+
+O [contrato Gold v2](../contracts/analytics-gold-dev13-1.md) e a [ADR-0018](../decisions/0018-api-gold-dev13-1.md) definem seleção, autenticação, temporalidade, métricas e campos ausentes. Metadados e agregados são consultados em um mesmo snapshot PostgreSQL somente leitura; lote e fingerprint esperados impedem misturar publicações entre chamadas. A criação Gold usa a transação operacional e a trava compartilhada da publicação, sem tornar a escrita somente leitura.
+
+Panorama agrega receita faturada/consumo medido na interseção fatura–leitura, compara valores observados com limitações e distingue UCs faturadas mensais do cadastro ativo histórico indisponível. Fila usa categorias originais, não score/energia recuperável inventados. Operação soma numeradores e uma base válida por alimentador; lacunas e base variável impedem indicadores da janela inteira. Ocorrências individuais permanecem indisponíveis.
+
+Ordens novas preservam evidência v2; ordens existentes e reenvios confirmados mantêm independência da Gold atual, incluindo v1 e legado. A API real reutiliza autorização de leitura existente no servidor; modo demo continua sintético. Nenhum decoder/layout frontend foi adaptado nesta fatia.
 
 ## Qualidade
 

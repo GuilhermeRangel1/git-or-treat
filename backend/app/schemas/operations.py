@@ -4,6 +4,110 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.analytics import AnalyticsMetadata, AnalyticsPeriod, ContinuityItem, Pagination
+from app.schemas.gold import GoldMetadata
+
+
+class GoldOperationPoint(BaseModel):
+    feeder_id: str
+    municipality: str
+    period: AnalyticsPeriod
+    observed_period: AnalyticsPeriod | None
+    observed_competencies: list[str] = Field(default_factory=list)
+    missing_competencies: list[str] = Field(default_factory=list)
+    duration_hours_sum: float | None
+    interruption_count: int | None
+    denominator_uc_count: int | None
+    dec_hours_per_uc: float | None
+    fec_interruptions_per_uc: float | None
+    status: Literal["available", "empty", "partial", "unavailable"]
+    dec_status: Literal["available", "empty", "partial", "unavailable"]
+    fec_status: Literal["available", "empty", "partial", "unavailable"]
+    limitations: list[str] = Field(default_factory=list)
+
+
+class GoldContinuityDefinition(BaseModel):
+    reference: str = "docs/dicionario_gold.md#2-indicadores_dec_fec"
+    dec_formula: str = "Soma das durações observadas em horas / denominador cadastral atual, uma vez por alimentador quando constante na janela."
+    fec_formula: str = "Soma das frequências originais de pares UC–ocorrência / denominador cadastral atual, uma vez por alimentador quando constante na janela."
+    dec_unit: str = "h/UC"
+    fec_unit: str = "interrupções/UC"
+    event_grain: str = "A Gold contém agregado por alimentador e competência; ocorrências individuais não estão disponíveis."
+    population: str = "Cadastro atual de UCs por alimentador; não é uma população histórica mensal."
+    completeness: str = "Competências e linhas observadas não declaram fechamento nem completude da origem."
+
+
+class GoldContinuityResponse(BaseModel):
+    data: list[GoldOperationPoint]
+    definition: GoldContinuityDefinition = Field(default_factory=GoldContinuityDefinition)
+    metadata: GoldMetadata
+
+
+class GoldOperationSeriesData(BaseModel):
+    items: list[GoldOperationPoint]
+    definition: GoldContinuityDefinition = Field(default_factory=GoldContinuityDefinition)
+
+
+class GoldOperationSeriesResponse(BaseModel):
+    data: GoldOperationSeriesData
+    metadata: GoldMetadata
+
+
+class GoldRankedFeeder(GoldOperationPoint):
+    rank: int
+
+
+class GoldOperationRankingData(BaseModel):
+    items: list[GoldRankedFeeder]
+    excluded: list[GoldOperationPoint]
+    metric: Literal["dec", "fec"]
+    order: str = "Decrescente pelo indicador observado; empate desfeito pelo ID do alimentador."
+    definition: GoldContinuityDefinition = Field(default_factory=GoldContinuityDefinition)
+
+
+class GoldOperationRankingResponse(BaseModel):
+    data: GoldOperationRankingData
+    metadata: GoldMetadata
+
+
+class GoldOperationSummary(BaseModel):
+    period: AnalyticsPeriod
+    observed_period: AnalyticsPeriod | None
+    duration_hours_sum: float | None
+    interruption_count: int | None
+    denominator_uc_count: int | None
+    dec_hours_per_uc: float | None
+    fec_interruptions_per_uc: float | None
+    dec_denominator_uc_count: int | None
+    fec_denominator_uc_count: int | None
+    dec_included_feeder_ids: list[str]
+    fec_included_feeder_ids: list[str]
+    dec_excluded_feeder_ids: list[str]
+    fec_excluded_feeder_ids: list[str]
+    included_feeder_ids: list[str] | None
+    excluded_feeder_ids: list[str] | None
+    dec_status: Literal["available", "empty", "partial", "unavailable"]
+    fec_status: Literal["available", "empty", "partial", "unavailable"]
+    status: Literal["available", "empty", "partial", "unavailable"]
+    limitations: list[str] = Field(default_factory=list)
+
+
+class GoldOperationSummaryResponse(BaseModel):
+    data: GoldOperationSummary
+    definition: GoldContinuityDefinition = Field(default_factory=GoldContinuityDefinition)
+    metadata: GoldMetadata
+
+
+class GoldOperationDetailData(BaseModel):
+    summary: GoldOperationPoint
+    series: list[GoldOperationPoint]
+    occurrences: None = None
+    occurrences_status: Literal["unavailable"] = "unavailable"
+    definition: GoldContinuityDefinition = Field(default_factory=GoldContinuityDefinition)
+
+
+class GoldOperationDetailResponse(BaseModel):
+    data: GoldOperationDetailData
+    metadata: GoldMetadata
 
 
 class ContinuityDefinition(BaseModel):

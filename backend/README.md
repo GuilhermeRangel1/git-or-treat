@@ -149,6 +149,12 @@ Para verificar sem dataset real, `venv/Scripts/python.exe scripts/generate_gold_
 
 Os testes de carga usam `TEST_GOLD_POSTGRES_URL`, separada da `TEST_POSTGRES_URL` de migrações. Ambas devem apontar para bancos descartáveis vazios `*_test`, com usuário sem superusuário. A CI fornece as duas URLs ao runner e ao contêiner. Sem configuração, variantes PostgreSQL são ignoradas.
 
+## API Gold — DEV-13.1
+
+Depois de aplicar migrações e carregar a Gold, o perfil `ANALYTICS_SOURCE=gold` permite consultar Panorama, fila/criação de Ordens e Operação. Use `ORDERS_AUTH_MODE=service` no desenvolvimento com tokens de leitura/escrita configurados, ou OIDC conforme o ambiente. O modo `demo` permanece exclusivo de dados sintéticos. Consulte o [contrato de consumo](../docs/contracts/analytics-gold-dev13-1.md) para identidade por lote/fingerprint, campos indisponíveis e exemplos artificiais. A troca é explícita; esta entrega não altera `.env` nem adapta os decoders das telas.
+
+Para os testes de integração novos, configure também `TEST_GOLD_ANALYTICS_POSTGRES_URL` e `TEST_GOLD_ORDERS_POSTGRES_URL`, cada uma apontando para banco PostgreSQL descartável exclusivo, inicialmente vazio, nome terminado em `_test` e usuário sem superusuário. Não apontar essas variáveis para a Gold real. O bootstrap da CI cria quatro bancos separados e propaga as quatro URLs ao runner e ao contêiner. Execute a suíte sequencialmente; processos diferentes não devem compartilhar um desses bancos ao mesmo tempo. Ausência das variáveis ignora os testes PostgreSQL correspondentes.
+
 ## Contrato de alterações das ordens — DEV-07
 
 Todas as mutações exigem `version` inteiro positivo retornado pelo GET. Sem versão ou com tipo inválido: 422; versão obsoleta: 409 `version_conflict`, sem gravar ordem/histórico. Após 409, consulte novamente e permita que a pessoa revise a alteração. Não reenvie automaticamente a intenção com uma versão nova.

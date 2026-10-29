@@ -19,3 +19,13 @@ ALTER SCHEMA public OWNER TO venergy_migrator;
 CREATE DATABASE gold_import_test OWNER venergy_migrator;
 \connect gold_import_test
 ALTER SCHEMA public OWNER TO venergy_migrator;
+\connect v_energy_test
+
+-- Gold analytics and orders use separate disposable databases and fixtures.
+CREATE DATABASE gold_analytics_test OWNER venergy_migrator;
+\connect gold_analytics_test
+ALTER SCHEMA public OWNER TO venergy_migrator;
+\connect v_energy_test
+CREATE DATABASE gold_orders_test OWNER venergy_migrator;
+\connect gold_orders_test
+ALTER SCHEMA public OWNER TO venergy_migrator;
