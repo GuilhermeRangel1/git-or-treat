@@ -457,6 +457,12 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-10-28 — DE-06 / IA-03 — exemplo compartilhado disponível nos testes Docker
+
+- Correção: `backend/Dockerfile` copia explicitamente `docs/contracts/examples/gold-publication-v1.json` para `/docs/contracts/examples/gold-publication-v1.json`. Na imagem, os testes ficam em `/app/tests`, e a resolução do caminho do contrato aponta para `/docs`. A cópia preserva o mesmo arquivo versionado usado nos testes locais e GenAI, sem duplicar exemplos nem ignorar a ausência da fixture.
+- Verificação: imagem `venergy-backend:fixture-check` construída com o Dockerfile corrigido e a base DHI Python 3.12 Alpine, usando contexto temporário composto apenas pelos arquivos versionados de Backend e pelo JSON artificial. `python -m pip check` sem dependências quebradas; `python -m compileall -q app tests scripts` aprovado. Suíte completa dentro da imagem com PostgreSQL 16 descartável e as três URLs de teste configuradas: `python -m pytest -q -rs -p no:cacheprovider`, 600 aprovados, 1 ignorado, em 39,85 s. O skip é a precisão numérica SQLite; a variante PostgreSQL foi executada. Permanece o aviso preexistente do TestClient/httpx.
+- Isolamento: sem mounts ou dados do projeto, rede e contêiner PostgreSQL exclusivos removidos ao fim. Estados dos requisitos preservados e cartões não alterados.
+
 ### 2026-10-28 — IA-03 / IA-06 — compatibilidade da referência de publicação entre serviços
 
 - Mudança: `EvidenceProvenance` passa a aceitar `batch_ref` no formato canônico combinado. Para `source_id` iniciado por `gold.`, `EvidenceGuard.validate` exige a publicação esperada do chamador confiável, valida seu formato e recusa ausência ou divergência na proveniência antes de aceitar a evidência. A redução conserva a referência. O chamador não deve inferir a publicação esperada do próprio lookup.
