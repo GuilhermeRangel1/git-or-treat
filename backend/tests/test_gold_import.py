@@ -1,5 +1,7 @@
 from decimal import Decimal
 import os
+import hashlib
+import re
 import json
 import subprocess
 import sys
@@ -11,7 +13,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.models.gold_load import ATTEMPTS, BATCH, SCHEMA_VERSION, TABLES
-from app.services.gold_import import GoldImportError, _convert, _sum_matches, import_gold
+from app.services.gold_import import GoldImportError, _convert, _sum_matches, import_gold as import_gold_real
 
 
 # Dados artificiais, com total independente: 2 UCs, 30 kWh e R$ 25,50.
@@ -47,12 +49,35 @@ SAMPLES = {
 }
 
 
+def source_id(label):
+    return "GOLD_20250101T000000Z_" + hashlib.sha256(label.encode()).hexdigest()[:8]
+
+
+def write_origin(directory, label="v1"):
+    payload = {
+        "ambiente": "prod", "schema_version": "gold-csv-v1",
+        "run_id": source_id(label), "lote": source_id(label),
+        "run_id_silver": "20250101T000000Z_bbbbbbbb", "lote_bronze_silver": "20250101T000000Z_cccccccc",
+        "data_processamento_gold": "2025-01-01T00:00:00Z", "tabelas_exportadas": list(SAMPLES),
+    }
+    (directory / "manifest.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
+def import_gold(engine, directory, label, **kwargs):
+    # Conveniência dos cenários antigos: cada label representa outra origem artificial.
+    if re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", label):
+        write_origin(directory, label)
+        return import_gold_real(engine, directory, source_id(label), **kwargs)
+    return import_gold_real(engine, directory, label, **kwargs)
+
+
 @pytest.fixture
 def batch(tmp_path):
     for name, (header, rows) in SAMPLES.items():
         folder = tmp_path / name
         folder.mkdir()
         (folder / "part-1.csv").write_text(header + "\n" + "\n".join(rows) + "\n", encoding="utf-8")
+    write_origin(tmp_path)
     return tmp_path
 
 
@@ -66,6 +91,11 @@ def database(request):
         parsed = make_url(url)
         assert parsed.get_backend_name() == "postgresql" and parsed.database.endswith("_test")
     engine = create_engine(url, hide_parameters=True)
+    if request.param == "sqlite":
+        engine = engine.execution_options(schema_translate_map={"gold": None})
+    else:
+        with engine.begin() as connection:
+            connection.execute(text("CREATE SCHEMA IF NOT EXISTS gold"))
     with engine.connect() as connection:
         assert not inspect(connection).get_table_names(), "Use banco descartável vazio."
         if request.param == "postgresql":
@@ -102,7 +132,7 @@ def test_failure_in_last_table_rolls_back_all_changes(database, batch):
     with pytest.raises(GoldImportError, match="cabeçalho"):
         import_gold(database, batch, "v2")
     with database.connect() as connection:
-        assert connection.scalar(select(BATCH.c.lote)) == "v1"
+        assert connection.scalar(select(BATCH.c.lote)) == source_id("v1")
         assert connection.scalar(select(func.count()).select_from(TABLES["consumo_mensal_uc"])) == 2
         assert connection.scalar(select(func.count()).select_from(TABLES["visao_360_uc"])) == 1
 
@@ -430,7 +460,7 @@ def test_changed_file_before_commit_preserves_the_previous_batch(database, batch
     path = batch / "visao_360_uc" / "part-1.csv"
 
     def change_file(connection, cursor, statement, parameters, context, executemany):
-        if statement.startswith("INSERT INTO gold_visao_360_uc"):
+        if context.compiled is not None and getattr(context.compiled.statement, "is_insert", False) and context.compiled.statement.table.name == "gold_visao_360_uc":
             path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
 
     event.listen(database, "before_cursor_execute", change_file)
@@ -454,11 +484,11 @@ def test_synthetic_generator_and_cli_load_repetition_failure_and_recovery(tmp_pa
     assert len(list(directory.glob("*/*.csv"))) == 7
     assert subprocess.run(command, capture_output=True).returncode != 0
     url = f"sqlite:///{tmp_path / 'cli_test.db'}"
-    engine = create_engine(url)
+    engine = create_engine(url).execution_options(schema_translate_map={"gold": None})
     environment = {**os.environ, "DATABASE_URL": url, "APP_ENV": "development",
                    "ANALYTICS_SOURCE": "unavailable", "ORDERS_AUTH_MODE": "service"}
     cli = [sys.executable, str(backend / "scripts/load_gold.py"), "--directory", str(directory),
-           "--batch", "synthetic-01", "--schema-version", "gold-csv-v1"]
+           "--schema-version", "gold-csv-v1"]
     try:
         with engine.connect() as connection:
             with migrated_database(connection):

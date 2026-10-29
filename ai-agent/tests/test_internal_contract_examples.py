@@ -3,11 +3,9 @@
 Os exemplos JSON são lidos de docs/contracts/genai-query-execution.md; se um bloco sumir
 ou mudar de lugar, o teste falha em vez de ignorá-lo.
 
-Lacunas documentadas, sem modelo de produção ainda: os envelopes completos de planejar e
-sintetizar (QuestionPlanRequest, QuestionPlanResponse, QuestionSynthesisRequest), os
-estados planned/refused desses envelopes, access_scope sem correlation_id e a exigência
-de batch_ref na proveniência. Dependem do formato do batch_ref, ainda em aberto com Dados.
-Os testes do lado Backend (revalidação, execução, papel somente leitura) são do Felipe.
+Envelopes completos de planejar e sintetizar continuam propostos. O formato do batch_ref
+é conferido contra os mesmos exemplos usados pelo Backend, e o guard exige a publicação
+esperada para uma fonte Gold antes de aceitar a evidência.
 """
 
 import json
@@ -100,13 +98,9 @@ def _plan_example() -> dict:
 
 
 def _lookup_example() -> dict:
-    """Trecho do lookup sem batch_ref, campo ainda proposto (ver lacunas no topo)."""
+    """Lookup completo, com a referência de publicação ilustrativa do contrato."""
 
-    lookup = _json_example("Válido — resposta fundamentada (sintetizar)")
-    provenance = lookup["evidence"]["provenance"]
-    assert "batch_ref" in provenance, "o exemplo deixou de mostrar o batch_ref proposto"
-    del provenance["batch_ref"]
-    return lookup
+    return _json_example("Válido — resposta fundamentada (sintetizar)")
 
 
 def _access_context() -> AccessContext:
@@ -130,13 +124,16 @@ def test_ready_plan_example_is_accepted_and_fingerprint_matches() -> None:
     assert _validator(_gold_profile()).approve(envelope["plan"], _access_context()) == plan
 
 
-def test_lookup_example_without_batch_ref_is_accepted_by_schema_and_guard() -> None:
+def test_lookup_example_is_accepted_and_preserves_batch_ref() -> None:
     plan = LogicalReadPlan.model_validate(_plan_example()["plan"])
     lookup = EvidenceLookupResult.model_validate(_lookup_example())
 
     assert lookup.status is EvidenceLookupStatus.AVAILABLE
     assert lookup.evidence.provenance.plan_fingerprint == plan.fingerprint()
-    safe = EvidenceGuard(_gold_profile()).validate(plan, lookup)
+    safe = EvidenceGuard(_gold_profile()).validate(
+        plan, lookup, expected_batch_ref=lookup.evidence.provenance.batch_ref
+    )
+    assert safe.evidence.provenance.batch_ref == lookup.evidence.provenance.batch_ref
     assert safe.evidence.records == [
         {
             "observation_id": "row_1", "value": 1234567.8, "unit": "kWh",
@@ -145,11 +142,45 @@ def test_lookup_example_without_batch_ref_is_accepted_by_schema_and_guard() -> N
     ]
 
 
-def test_proposed_batch_ref_is_still_rejected_by_current_provenance() -> None:
-    lookup = _json_example("Válido — resposta fundamentada (sintetizar)")
+def test_gold_guard_requires_trusted_expected_publication() -> None:
+    plan = LogicalReadPlan.model_validate(_plan_example()["plan"])
+    lookup = EvidenceLookupResult.model_validate(_lookup_example())
+    with pytest.raises(EvidenceContractInvalid, match="publicação esperada ausente"):
+        EvidenceGuard(_gold_profile()).validate(plan, lookup)
 
-    with pytest.raises(ValidationError, match="batch_ref"):
-        EvidenceLookupResult.model_validate(lookup)
+
+@pytest.mark.parametrize("missing", [True, False])
+def test_gold_guard_rejects_missing_or_changed_publication(missing: bool) -> None:
+    plan = LogicalReadPlan.model_validate(_plan_example()["plan"])
+    raw = _lookup_example()
+    expected = raw["evidence"]["provenance"]["batch_ref"]
+    raw["evidence"]["provenance"]["batch_ref"] = (
+        None if missing else expected.replace("8b9502c2", "9b9502c2")
+    )
+    lookup = EvidenceLookupResult.model_validate(raw)
+    with pytest.raises(EvidenceContractInvalid, match="publicação incompatível"):
+        EvidenceGuard(_gold_profile()).validate(plan, lookup, expected_batch_ref=expected)
+
+
+def test_gold_guard_rejects_invalid_expected_publication() -> None:
+    plan = LogicalReadPlan.model_validate(_plan_example()["plan"])
+    lookup = EvidenceLookupResult.model_validate(_lookup_example())
+    with pytest.raises(EvidenceContractInvalid, match="referência de publicação inválida"):
+        EvidenceGuard(_gold_profile()).validate(plan, lookup, expected_batch_ref="LOTE_DEV")
+
+
+def test_shared_batch_reference_examples_are_accepted_or_rejected() -> None:
+    path = CONTRACT.parent / "examples/gold-publication-v1.json"
+    examples = json.loads(path.read_text(encoding="utf-8"))
+    lookup = EvidenceLookupResult.model_validate(_lookup_example())
+    assert lookup.evidence.provenance.batch_ref == examples["batch_ref"]
+    assert _lookup_example()["evidence"]["provenance"]["batch_ref"] == examples["batch_ref"]
+    for value in examples["invalid_batch_refs"]:
+        invalid = _lookup_example()
+        invalid["evidence"]["provenance"]["batch_ref"] = value
+        with pytest.raises(ValidationError):
+            EvidenceLookupResult.model_validate(invalid)
+
 
 
 def test_clarification_example_response_is_a_public_envelope() -> None:
@@ -324,7 +355,9 @@ def test_guard_rejects_evidence_incompatible_with_plan(change: str) -> None:
     lookup = EvidenceLookupResult.model_validate(_tampered_lookup(change))
 
     with pytest.raises(EvidenceContractInvalid):
-        EvidenceGuard(_gold_profile()).validate(plan, lookup)
+        EvidenceGuard(_gold_profile()).validate(
+            plan, lookup, expected_batch_ref=lookup.evidence.provenance.batch_ref
+        )
 
 
 @pytest.mark.parametrize(
@@ -339,4 +372,6 @@ def test_guard_rejects_evidence_for_tampered_plan(change: dict) -> None:
     lookup = EvidenceLookupResult.model_validate(_lookup_example())
 
     with pytest.raises(EvidenceContractInvalid):
-        EvidenceGuard(_gold_profile()).validate(tampered, lookup)
+        EvidenceGuard(_gold_profile()).validate(
+            tampered, lookup, expected_batch_ref=lookup.evidence.provenance.batch_ref
+        )

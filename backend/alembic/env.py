@@ -2,6 +2,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy import MetaData
 
 from alembic import context
 
@@ -61,6 +62,21 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def configure_online(connection):
+    metadata = target_metadata
+    if connection.dialect.name == "sqlite":
+        connection.execution_options(schema_translate_map={"gold": None})
+        metadata = MetaData()
+        for table in target_metadata.tables.values():
+            table.to_metadata(metadata, schema=None)
+    context.configure(
+        connection=connection, target_metadata=metadata,
+        compare_type=True, compare_server_default=True,
+        include_schemas=connection.dialect.name == "postgresql",
+        include_name=lambda name, type_, parent: type_ != "schema" or name in {None, "gold"},
+    )
+
+
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
@@ -70,12 +86,7 @@ def run_migrations_online() -> None:
     """
     connection = config.attributes.get("connection")
     if connection is not None:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-            compare_server_default=True,
-        )
+        configure_online(connection)
         with context.begin_transaction():
             context.run_migrations()
         return
@@ -87,12 +98,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-            compare_server_default=True,
-        )
+        configure_online(connection)
 
         with context.begin_transaction():
             context.run_migrations()

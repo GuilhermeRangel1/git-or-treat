@@ -83,6 +83,23 @@ class AnalysisPlan(BaseModel):
         return self
 
 
+class PlannedQuestion(BaseModel):
+    """Resultado de planejar, sem fonte: plano aprovado ou o motivo do esclarecimento."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    interpretation: IntentInterpretation
+    read_plan: LogicalReadPlan | None = None
+    clarification: EvidenceLookupResult | None = None
+
+    @model_validator(mode="after")
+    def validate_single_outcome(self) -> Self:
+        ambiguous = self.interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION
+        if ambiguous + (self.read_plan is not None) + (self.clarification is not None) != 1:
+            raise ValueError("planejamento exige um único resultado")
+        return self
+
+
 class QuestionAnalysisPlanner:
     """Prepara a interpretação e consulta a fonte só após resolver ambiguidades."""
 
@@ -115,52 +132,51 @@ class QuestionAnalysisPlanner:
         budget: RequestBudget | None = None,
         trace: EventTrace | None = None,
     ) -> AnalysisPlan:
+        planned = self.plan(question, context, access_context, trace)
+        if planned.read_plan is None:
+            return AnalysisPlan(
+                status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
+                interpretation=planned.interpretation,
+                evidence_result=planned.clarification,
+            )
+        evidence_result = await self.retrieve(planned.read_plan, access_context, budget, trace)
+        return AnalysisPlan(
+            status=self._status_for(evidence_result),
+            interpretation=planned.interpretation,
+            evidence_result=evidence_result,
+            read_plan=planned.read_plan,
+        )
+
+    def plan(
+        self,
+        question: str,
+        context: list[ConversationTurn] | None = None,
+        access_context: AccessContext | None = None,
+        trace: EventTrace | None = None,
+    ) -> PlannedQuestion:
+        """Interpreta, monta e aprova o plano; nunca chama a fonte nem o modelo."""
+
         interpretation = self._interpreter.interpret(question, context)
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
             if trace is not None:
                 trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
-            return AnalysisPlan(
-                status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
-                interpretation=interpretation,
-            )
+            return PlannedQuestion(interpretation=interpretation)
 
         assert interpretation.intent is not None
         try:
             proposed = self._plan_builder.build(interpretation.intent)
+            approved = self._approve(proposed, access_context, trace)
         except PlanCapabilityUnavailable as exc:
             if trace is not None:
                 trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
-            result = EvidenceLookupResult(
-                status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
-                message=str(exc),
-            )
-            return AnalysisPlan(
-                status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
+            return PlannedQuestion(
                 interpretation=interpretation,
-                evidence_result=result,
+                clarification=EvidenceLookupResult(
+                    status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
+                    message=str(exc),
+                ),
             )
-        try:
-            approved, evidence_result = await self.execute_plan(
-                proposed, access_context, budget, trace
-            )
-        except PlanCapabilityUnavailable as exc:
-            if trace is not None:
-                trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
-            result = EvidenceLookupResult(
-                status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
-                message=str(exc),
-            )
-            return AnalysisPlan(
-                status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
-                interpretation=interpretation,
-                evidence_result=result,
-            )
-        return AnalysisPlan(
-            status=self._status_for(evidence_result),
-            interpretation=interpretation,
-            evidence_result=evidence_result,
-            read_plan=approved,
-        )
+        return PlannedQuestion(interpretation=interpretation, read_plan=approved)
 
     async def execute_plan(
         self,
@@ -171,6 +187,47 @@ class QuestionAnalysisPlanner:
     ) -> tuple[LogicalReadPlan, EvidenceLookupResult]:
         """Ponto único de validação, inclusive para planos propostos futuramente por LLM."""
 
+        approved = self._approve(proposed, access_context, trace)
+        return approved, await self.retrieve(approved, access_context, budget, trace)
+
+    def accept_lookup(
+        self,
+        plan: LogicalReadPlan,
+        plan_fingerprint: str,
+        lookup: EvidenceLookupResult,
+        access_context: AccessContext | None,
+        *,
+        expected_batch_ref: str | None = None,
+        trace: EventTrace | None = None,
+    ) -> tuple[LogicalReadPlan, EvidenceLookupResult]:
+        """Confere o resultado recebido de quem executou o plano; nunca chama a fonte.
+
+        Reaprova o plano no escopo atual e exige o mesmo fingerprint do planejamento. A
+        publicação esperada vem do chamador confiável, nunca do próprio lookup.
+        """
+
+        approved = self._approve(plan, access_context, trace)
+        try:
+            if plan_fingerprint != approved.fingerprint():
+                raise EvidenceContractInvalid("fingerprint divergente do plano aprovado")
+            evidence_result = self._check_lookup(approved, lookup, expected_batch_ref)
+        except EvidenceContractInvalid:
+            if trace is not None:
+                trace.emit(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
+            raise
+        except (TypeError, ValidationError) as exc:
+            if trace is not None:
+                trace.emit(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
+            raise EvidenceContractInvalid("Evidence source returned an invalid result.") from exc
+        self._emit_evidence(evidence_result, trace)
+        return approved, evidence_result
+
+    def _approve(
+        self,
+        proposed: LogicalReadPlan | dict[str, object],
+        access_context: AccessContext | None,
+        trace: EventTrace | None,
+    ) -> LogicalReadPlan:
         try:
             if access_context is None:
                 raise EvidenceAccessDenied("Contexto de acesso ausente.")
@@ -184,6 +241,44 @@ class QuestionAnalysisPlanner:
             trace.catalog_version = approved.catalog_version
             trace.emit(EventStage.POLICY, EventCode.ALLOWED, EventOutcome.SUCCESS)
             trace.emit(EventStage.PLAN, EventCode.READY, EventOutcome.SUCCESS)
+        return approved
+
+    def _check_lookup(
+        self,
+        approved: LogicalReadPlan,
+        evidence_result: object,
+        expected_batch_ref: str | None,
+    ) -> EvidenceLookupResult:
+        if not isinstance(evidence_result, EvidenceLookupResult):
+            raise TypeError("Evidence source returned an unsupported result type.")
+        evidence_result = EvidenceLookupResult.model_validate(evidence_result.model_dump())
+        return self._evidence_guard.validate(
+            approved, evidence_result, expected_batch_ref=expected_batch_ref
+        )
+
+    @staticmethod
+    def _emit_evidence(evidence_result: EvidenceLookupResult, trace: EventTrace | None) -> None:
+        if trace is None:
+            return
+        if evidence_result.evidence is not None:
+            trace.evidence_ref = safe_reference_id(evidence_result.evidence.reference.source)
+            trace.row_count = len(evidence_result.evidence.records)
+            trace.emit(EventStage.EVIDENCE, EventCode.AVAILABLE, EventOutcome.SUCCESS)
+        elif evidence_result.status is EvidenceLookupStatus.NO_EVIDENCE:
+            trace.emit(EventStage.EVIDENCE, EventCode.NO_EVIDENCE, EventOutcome.SUCCESS)
+        else:
+            trace.emit(EventStage.EVIDENCE, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
+
+    async def retrieve(
+        self,
+        approved: LogicalReadPlan,
+        access_context: AccessContext | None,
+        budget: RequestBudget | None = None,
+        trace: EventTrace | None = None,
+    ) -> EvidenceLookupResult:
+        """Consulta a fonte local com um plano já aprovado e confere o resultado."""
+
+        if trace is not None:
             trace.source_calls += 1
             trace.emit(EventStage.SOURCE, EventCode.STARTED, EventOutcome.STARTED)
         try:
@@ -194,22 +289,10 @@ class QuestionAnalysisPlanner:
                 if budget is not None
                 else await self._evidence_source.retrieve(approved, access_context)
             )
-            if not isinstance(evidence_result, EvidenceLookupResult):
-                raise TypeError("Evidence source returned an unsupported result type.")
-            evidence_result = EvidenceLookupResult.model_validate(evidence_result.model_dump())
-            evidence_result = self._evidence_guard.validate(approved, evidence_result)
+            evidence_result = self._check_lookup(approved, evidence_result, None)
             if trace is not None:
                 trace.emit(EventStage.SOURCE, EventCode.COMPLETED, EventOutcome.SUCCESS)
-                if evidence_result.evidence is not None:
-                    trace.evidence_ref = safe_reference_id(
-                        evidence_result.evidence.reference.source
-                    )
-                    trace.row_count = len(evidence_result.evidence.records)
-                    trace.emit(EventStage.EVIDENCE, EventCode.AVAILABLE, EventOutcome.SUCCESS)
-                elif evidence_result.status is EvidenceLookupStatus.NO_EVIDENCE:
-                    trace.emit(EventStage.EVIDENCE, EventCode.NO_EVIDENCE, EventOutcome.SUCCESS)
-                else:
-                    trace.emit(EventStage.EVIDENCE, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
+            self._emit_evidence(evidence_result, trace)
         except AuditUnavailable:
             raise
         except EvidenceToolUnavailable:
@@ -234,7 +317,7 @@ class QuestionAnalysisPlanner:
             if trace is not None:
                 trace.emit(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             raise EvidenceToolUnavailable("Evidence source failed.") from exc
-        return approved, evidence_result
+        return evidence_result
 
     @staticmethod
     def _status_for(result: EvidenceLookupResult) -> AnalysisPlanStatus:

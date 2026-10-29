@@ -2,7 +2,7 @@
 
 **Versão:** v1, proposta.
 
-**Estado:** proposta para revisão de Backend, Engenharia de Dados e GenAI, ligada à [ADR-0002](../decisions/0002-genai-gold-query-owner.md). Nada deste contrato está implementado. Os símbolos citados com nome de código existem hoje em `ai-agent/` ou `backend/`; tudo marcado como **proposto** ainda não existe.
+**Estado:** proposta para revisão de Backend, Engenharia de Dados e GenAI, ligada à [ADR-0002](../decisions/0002-genai-gold-query-owner.md). A identidade de publicação e sua validação no Backend estão implementadas como preparação; as operações completas de planejamento/síntese continuam propostas. Os símbolos citados com nome de código existem hoje em `ai-agent/` ou `backend/`; tudo marcado como **proposto** ainda não existe.
 
 **Escopo:** perguntas conversacionais respondidas com evidência da Gold no banco local. Não altera os contratos públicos [genai-chat-api.md](genai-chat-api.md) e [panorama-insight-api.md](panorama-insight-api.md), não define o esquema físico do banco, nomes de tabela ou coluna, fórmulas de métricas nem o mecanismo de autenticação da pessoa usuária.
 
@@ -54,6 +54,8 @@ O plano é construído de forma determinística a partir do perfil e do catálog
   "contract_version": "v1",
   "question": "Qual foi a energia faturada em Recife em março de 2025?",
   "context": [],
+  "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+  "temporal_coverage": [{"metric_id": "energia_faturada", "kind": "monthly", "competencies": ["2025-03"]}],
   "access_scope": {
     "caller_ref": "user.7f3c2a",
     "profile_id": "grid360_gold",
@@ -70,6 +72,7 @@ O plano é construído de forma determinística a partir do perfil e do catálog
 | `contract_version` | existente (`INTERNAL_CONTRACT_VERSION`) | Literal `v1`. |
 | `question`, `context` | existentes (`QuestionRequest`) | Mesmas regras do contrato público: até 1.000 caracteres e até três turnos. |
 | `access_scope` | **proposto** | Mesmos campos de `AccessContext`, exceto `correlation_id`, que vem do cabeçalho. Aceito só nas rotas internas e com token de serviço válido. A GenAI o converte em `AccessContext` pelo `access_context_resolver` já usado em `create_app(source_mode="external")`. |
+| `batch_ref`, `temporal_coverage` | implementados no schema | Publicação Gold e cobertura por métrica lógica; ver B1 a B5. |
 | Campos adicionais | existente | Rejeitados (`extra="forbid"`). |
 
 `caller_ref` é um identificador opaco da pessoa usuária, sem nome, e-mail, CPF ou outro dado pessoal. Os IDs dos exemplos são ilustrativos; a fonte dos identificadores do catálogo é o dicionário Gold (DE-08).
@@ -115,7 +118,8 @@ A mesma revalidação vale para um resultado servido de cache: a chave inclui es
 | --- | --- | --- |
 | `contract_version` | existente | `v1`. |
 | `question`, `context` | existentes | Os mesmos enviados ao planejamento. |
-| `access_scope` | **proposto** | O mesmo escopo enviado ao planejamento. |
+| `access_scope` | implementado no schema | O mesmo escopo enviado ao planejamento. |
+| `expected_batch_ref` | implementado no schema | Publicação Gold esperada, obrigatória para plano Gold, obtida pelo Backend separadamente do lookup. |
 | `plan` | existente (`LogicalReadPlan`) | O plano devolvido em `planned`, sem alteração. |
 | `plan_fingerprint` | existente | O mesmo devolvido em `planned`. |
 | `lookup` | existente (`EvidenceLookupResult`) | Resultado da execução no Backend. |
@@ -127,7 +131,7 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
   - `reference` (`EvidenceReference`): `source` igual ao `source_id` do plano ou no formato `<source_id com pontos trocados por _>:<referência opaca>`, `description` e `is_demo: false` para a Gold;
   - `records`: até `plan.limit` linhas agregadas, com os nomes lógicos de campo declarados em `evidence_fields` da métrica no catálogo (papéis medida, unidade, período e dimensão). Nenhum campo de sensibilidade pessoal;
   - `provenance` (`EvidenceProvenance`): `source_id`, `reference_source`, `plan_fingerprint`, `catalog_version`, `metric_id`, `unit`, `window`, `filters` (com `operator`) e `dimension_ids` efetivamente aplicados;
-  - `batch_ref` em `provenance` (**proposto**): identificador do lote efetivamente carregado e validado no banco local, não apenas da última execução no Databricks. Ver "Lote da Gold (`batch_ref`)" abaixo.
+  - `batch_ref` em `provenance` (implementado no schema): identificador do lote efetivamente carregado e validado no banco local, não apenas da última execução no Databricks. Ver "Lote da Gold (`batch_ref`)" abaixo.
 - `message`: obrigatório em `no_evidence` e `needs_clarification`. É texto livre da fonte e não chega ao portal: `EvidenceGuard` o substitui por mensagem fixa.
 - `limitations`: só textos aprovados em `limitation_texts` da métrica no catálogo.
 
@@ -135,18 +139,19 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
 
 ### Lote da Gold (`batch_ref`)
 
-**Proposta**, a combinar com quem é dona da exportação da Gold:
+**Identidade publicada pelo Backend e validação de proveniência na GenAI implementadas; os envelopes completos e sua ligação ao runtime Gold continuam propostos.**
 
-- O `batch_ref` é derivado dos registros da tabela de controle da Gold, `gold.controle_gold`, com as colunas `run_id_silver`, `lote_bronze_silver`, `status_gold`, `tabelas_geradas` e `processado_em` (conferidas no notebook `data-engineering/notebook/Silver_to_gold.ipynb` da branch `feat/gold`). Só contam execuções com `status_gold = CONCLUIDO`.
-- A exportação dos CSV leva um pequeno manifesto com esses valores.
-- A carga no banco local registra qual manifesto foi carregado e validado. O Backend lê o `batch_ref` desse registro, e não da última execução no Databricks.
-- O formato exato do identificador fica em aberto.
-- **A combinar com quem é dona da exportação:** quando faltam metadados de execução, o notebook da Gold grava os valores de reserva `SINTETICO_DEV` e `LOTE_DEV` em `controle_gold`, e `status_gold` é sempre `CONCLUIDO`. Filtrar só por `CONCLUIDO` não descarta esses registros. O manifesto da exportação deve excluí-los ou sinalizá-los, e a carga no banco local deve recusar um lote com esses valores de reserva.
+- A carga valida o manifesto de origem da Gold (ambiente `prod`, IDs de linhagem, versão e inventário), conforme [Gold CSV v1](gold-csv-v1.md#origem-e-publicação). O Backend lê a publicação efetivamente carregada, nunca a última execução no Databricks.
+- `batch_ref` tem formato canônico `gold-csv-v1:<run_id>:<publication_id>`. O run vem do manifesto; `publication_id` é UUID4 gerado e persistido na mesma transação da publicação. `unchanged` preserva essa identidade; nova publicação muda o UUID; tentativa rejeitada conserva os fatos e a referência anteriores. `attempt_id` identifica outra coisa: cada tentativa de carga.
+- O parser `PublicationReference` do Backend e o tipo `GoldBatchRef` da GenAI rejeitam versões incompatíveis, IDs de reserva, UUIDs fora de v4, espaços e formas não canônicas. Ambos usam os exemplos artificiais de [publicação v1](examples/gold-publication-v1.json). `EvidenceProvenance.batch_ref` preserva a referência na redução da evidência. Para fonte `gold.*`, `EvidenceGuard.validate` exige `expected_batch_ref`, informado pelo chamador confiável; ausência, formato inválido ou diferença na proveniência impedem a aceitação. Não se obtém a referência esperada do próprio lookup. Fontes demonstrativas continuam sem referência Gold.
+- Publicações legadas sem origem validada não podem fornecer `batch_ref`. Falta de manifesto, ambiente não produtivo e identificadores manuais/de reserva são recusados pela carga. A versão ausente do exportador legado só é adaptada com `--schema-version` explicitamente informado.
+- A vista `gold.publicacao_atual` expõe a identidade mínima ao leitor restrito. O helper Backend consegue rejeitar uma referência esperada diferente; a prova de ausência de mistura durante uma consulta real pertence ao futuro executor transacional GENAI-06/07.
+- O manifesto atual não certifica sozinho os CSVs contra Delta. Controles de origem e reconciliação entre as camadas continuam dependências de DE-06/GENAI-02.
 
 ### Processamento na GenAI
 
 1. Reconstrói o `AccessContext` e reaprova o plano com `ReadPlanValidator.approve`; confere o fingerprint.
-2. Aplica `EvidenceGuard.validate(plan, lookup)`.
+2. Aplica `EvidenceGuard.validate(plan, lookup, expected_batch_ref=batch_ref)` usando a publicação que o Backend fixou para a requisição. A futura borda interna deve transportar essa referência separadamente do lookup; ainda não há rota implementada para essa operação.
 3. Em `available`, escolhe o modelo (`ModelRouter`, quando ativo), gera pelo `ExecutionController` e confere a saída com `has_unsupported_claims`. Saída leve sem fundamento recebe uma tentativa no nível forte, como hoje.
 4. Monta o `QuestionResponse` com `evidence`, `limitations` e `analysis_context` vindos do plano aprovado.
 
@@ -170,7 +175,7 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
 | Credencial ou papel do banco inválidos (erro de configuração) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: false`. Mensagem pública genérica, sem detalhe de credencial, papel ou permissão; repetir não ajuda até o Backend corrigir a configuração. |
 | Timeout da consulta no banco | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. A consulta é cancelada; a GenAI não é chamada para sintetizar. |
 | Lote inválido: nenhum manifesto carregado e validado, lote com valores de reserva (`SINTETICO_DEV`, `LOTE_DEV`) ou `batch_ref` alterado durante a execução | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: false` (**proposto**). O Backend não consulta o banco, ou descarta o resultado, e não chama sintetizar. Repetir só ajuda depois de uma nova carga validada. |
-| Evidência sem `batch_ref` na proveniência | GenAI (`EvidenceGuard`, **proposto**) | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
+| Evidência Gold sem `batch_ref` na proveniência, sem publicação esperada ou divergente dela | GenAI (`EvidenceGuard`, implementado) | Recusa por `EvidenceContractInvalid`; tradução HTTP proposta para a futura rota interna: HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
 | Consulta excederia o limite de linhas do plano | Backend | HTTP 200, `recoverable_error`, `limit_exceeded`, `retryable: false` (**proposto**). |
 | Evidência recebida acima do limite de linhas ou bytes | GenAI (`EvidenceGuard`) | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
 | Prazo total ou número de chamadas esgotado na GenAI | GenAI (`ExecutionLimitExceeded`) | HTTP 200, `recoverable_error`, `limit_exceeded`, `retryable: false`. |
@@ -323,7 +328,7 @@ A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "9002cbfb
       "window": {"kind": "bounded", "phrase": null, "start": "2025-03-01", "end": "2025-03-31", "granularity": "month"},
       "filters": [{"dimension_id": "municipio", "operator": "eq", "values": ["Recife"]}],
       "dimension_ids": ["municipio"],
-      "batch_ref": "<lote da carga Gold no banco local; campo proposto>"
+      "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
     }
   },
   "message": null,
@@ -331,7 +336,7 @@ A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "9002cbfb
 }
 ```
 
-`valor`, `unidade`, `competencia` e `municipio` são nomes lógicos de `evidence_fields` no catálogo, não colunas do banco. Enquanto `batch_ref` for proposto, `EvidenceProvenance` (`extra="forbid"`) rejeita este trecho; sem a linha `batch_ref`, ele é aceito pelo schema atual. A resposta ao portal é um `QuestionResponse` com `status: "answered"`, `evidence` com a referência e `analysis_context` com métrica, unidade, período e filtros.
+`valor`, `unidade`, `competencia` e `municipio` são nomes lógicos de `evidence_fields` no catálogo, não colunas do banco. O exemplo completo é aceito por `EvidenceProvenance`. O guard compara seu `batch_ref` com a publicação esperada fornecida separadamente pelo chamador; uma publicação diferente, mesmo com formato válido, é recusada. A ligação dessa publicação às futuras etapas HTTP não é demonstrada por estes testes de contrato. A resposta ao portal é um `QuestionResponse` com `status: "answered"`, `evidence` com a referência e `analysis_context` com métrica, unidade, período e filtros.
 
 ### Válido — esclarecimento (planejar)
 
@@ -382,6 +387,19 @@ Um `lookup` ou plano com texto SQL, nome de tabela ou coluna física em qualquer
 
 ## Limites desta versão
 
-Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. O motor do P-04 foi escolhido na [ADR-0017](../decisions/0017-banco-local-postgresql.md); o fluxo ainda depende do papel somente leitura criado pelo Backend, do dicionário Gold (DE-08) e da carga no banco local (DE-06).
+Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. O motor do P-04 foi escolhido na [ADR-0017](../decisions/0017-banco-local-postgresql.md); o fluxo depende da configuração efetiva do papel de leitura preparado pelo Backend, da homologação do dicionário Gold (DE-08) e da reconciliação da carga real (DE-06).
 
-`ai-agent/tests/test_internal_contract_examples.py` confere os exemplos deste contrato com os schemas existentes da GenAI. Lacunas documentadas, sem teste até existir modelo: envelopes completos de planejar e sintetizar, estados `planned` e `refused` desses envelopes, `access_scope` sem correlação e exigência de `batch_ref`. Elas dependem do formato do `batch_ref`. Os testes do lado Backend (revalidação, execução e papel somente leitura) ficam com o Backend (Felipe).
+`ai-agent/tests/test_internal_contract_examples.py` confere os exemplos deste contrato com os schemas existentes da GenAI. Lacunas documentadas, sem teste até existir modelo: envelopes completos de planejar e sintetizar, estados `planned` e `refused` desses envelopes e `access_scope` sem correlação. A referência de publicação dispõe de exemplos comuns e testes nos dois serviços; a GenAI testa a aceitação do lookup completo, a preservação da referência e a recusa de referência ausente, inválida ou divergente. A integração HTTP e a fixação transacional do lote durante uma consulta de negócio continuam fora desta preparação.
+
+
+## Definições dos envelopes Gold — B1 a B5 (29/10/2026)
+
+Esta revisão prepara os envelopes; não implementa rotas, execução SQL nem aceite Gold.
+
+- B1: `QuestionSynthesisRequest.expected_batch_ref` é obrigatório para planos `gold.*`, separado de `lookup`. Usa `GoldBatchRef` existente. O Backend fixa essa publicação e a GenAI a entrega ao EvidenceGuard; a conferência de correspondência é comportamento do núcleo, tratado no PR #78.
+- B2: `QuestionPlanRequest.batch_ref` e `temporal_coverage` são obrigatórios para Gold. A cobertura contém IDs lógicos de métricas permitidas no escopo, com `kind: monthly` e competências únicas ordenadas AAAA-MM, ou `kind: none` sem competências. Lista mensal vazia significa ausência de cobertura; lacunas são preservadas. O Backend fornece metadados validados da mesma publicação e preserva a publicação e o escopo até a síntese. Esses campos não autorizam consulta nem ampliam permissões.
+- B3: o Backend recalcula o fingerprint sobre o plano validado, incluindo defaults e nulos, com JSON de chaves ordenadas, separadores compactos, escape Unicode padrão do Python, UTF-8 e SHA-256. A ordem das listas é preservada. O exemplo de plano pronto e seu hash são o vetor de compatibilidade existente. Fingerprint não substitui autorização ou vínculo de lote.
+- B4: identificadores de implantação acordados: `source_id: gold.local` e `profile_id: v-energy-grid-360-gold`. Os IDs dos exemplos históricos continuam ilustrativos. O schema aceita perfis substituíveis; não fixa um único perfil no núcleo.
+- B5: capacidades mensais devem produzir janela `bounded`, com primeiro e último dia dos meses selecionados. O executor Backend rejeita frases não resolvidas, revalida cobertura e publicação. Fontes sem período não recebem competência inventada. A semântica de expressões relativas e lacunas aguarda confirmação de Dados; estes envelopes não implementam o resolvedor.
+
+A síntese usa o mesmo corpo público e escopo, o plano e fingerprint devolvidos no planejamento, `lookup` e `expected_batch_ref`. `batch_ref` e `temporal_coverage` pertencem somente ao planejamento. Fonte sintética não recebe metadados Gold. Mesmo `no_evidence` exige publicação esperada na síntese Gold.

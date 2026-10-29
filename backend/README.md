@@ -160,3 +160,7 @@ Para os testes de integração novos, configure também `TEST_GOLD_ANALYTICS_POS
 Todas as mutações exigem `version` inteiro positivo retornado pelo GET. Sem versão ou com tipo inválido: 422; versão obsoleta: 409 `version_conflict`, sem gravar ordem/histórico. Após 409, consulte novamente e permita que a pessoa revise a alteração. Não reenvie automaticamente a intenção com uma versão nova.
 
 Cancelamento só é aceito por `POST /api/v1/inspections/orders/{id}/cancel`, com `confirmed_order_id` igual ao ID da rota e a versão atual. `PATCH` com CANCELADA retorna 422. Os exemplos do Swagger mostram início, resultado, cancelamento e conflito. Clientes DEV-06 precisam adaptar as alterações; criação/consulta não mudam. Não há nova migração de banco nesta revisão; reinicie o backend para carregar as rotas/schemas atualizados.
+
+### Preparação Gold para GENAI-01
+
+A carga exige manifesto de origem e deriva o lote de seu `run_id`; `--batch` só confere. No PostgreSQL, as sete tabelas estão no schema `gold` após `alembic upgrade head`. O administrador provisiona `venergy_gold_reader` com `scripts/provision_gold_reader.sql`, depois configura sua senha fora do Git. Compose usa PostgreSQL 16 em volume novo, preservando o volume anterior. Veja o [runbook de migração, carga, permissões e recuperação](../docs/contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação). Chat e insights Gold não são ativados por esta preparação.
