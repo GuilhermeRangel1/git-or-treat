@@ -122,6 +122,8 @@ Esta é uma fronteira interna provisória para permitir substituição controlad
 
 Histórico da revisão de 25/10/2026 (GENAI-01): a descrição original apresentou como proposta o Backend como único executor SQL da Gold e duas operações internas da GenAI, planejar e sintetizar, sem chamada de volta ao Backend. A decisão foi aprovada em 25/10/2026 com base nos comentários de concordância de Backend e Engenharia de Dados no PR #54, sem Approve formal no GitHub. O [contrato](../contracts/genai-query-execution.md) continua preparação documental: nenhuma rota interna, adaptador ou composição de consulta Gold mudou. A aprovação da propriedade e do fluxo não autoriza acesso real; permanecem as dependências indicadas na ADR-0002. A priorização pré-Gold está registrada na [ADR-0016](../decisions/0016-priorizacao-melhorias-pre-gold.md).
 
+Envelopes internos (GENAI-01, parte A1): `app/schemas/internal.py` modela as duas operações do [contrato interno](../contracts/genai-query-execution.md). São eles: `AccessScope` (escopo sem correlação, convertido por `to_context`), `QuestionPlanRequest`, `QuestionPlanResponse` (estados `planned`, `needs_clarification`, `refused` e `recoverable_error`, com fingerprint conferido contra o plano) e `QuestionSynthesisRequest`. Ainda não há rotas internas nem uso pelo núcleo, e a síntese ainda não tem campo para a publicação esperada (`batch_ref`).
+
 Qualquer adaptador de fonte, inclusive uma implementação futura do Backend, deve manter os nomes de parâmetros do protocolo: `retrieve(self, plan, access_context)`. Isso permite chamadas por palavra-chave compatíveis com `EvidenceSource`. O contexto é recebido por chamada e não deve ser guardado entre consultas.
 
 ### Perfil de domínio e catálogo de capacidades
