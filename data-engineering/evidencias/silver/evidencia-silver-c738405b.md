@@ -12,7 +12,9 @@ run limpo de ponta a ponta e a revisão humana (ver [PRD](../../../docs/PRD.md))
 | Lote Bronze de entrada | `20261026T220920Z_9168e7ab` |
 | Estado | `CONCLUIDO` (registrado em `silver.controle_silver`) |
 | Ponteiro de publicação | `silver.controle_publicacao` com uma única linha, apontando para esta execução |
-| Origem da execução | Job `v-energy-grid-360`, run completo de 26/10/2026, com retomada (repair run) da tarefa da Silver |
+| Origem da execução | Job `v-energy-grid-360`, run de 26/10/2026 (ID `143094252373760`, 42 min 49 s, quatro das cinco tarefas, sem `Exportacao_Gold`), com retomada (repair run) das tarefas `Bronze_to_Silver` e `Silver_to_gold` |
+| Gold oficial | `GOLD_20261027T014656Z_81c5530b`, gerada por run isolado da tarefa `Silver_to_gold` (ID `302306640423869`, 26/10/2026, `AMBIENTE=prod`) |
+| Exportação dos CSVs | Tarefa `Exportacao_Gold` rodada isoladamente em 28/10/2026 (IDs `717942317963199` e `1029191300581647`; o segundo é o que está no Volume) |
 
 ## 2. Roteiro e autoria
 
@@ -41,7 +43,8 @@ run limpo de ponta a ponta e a revisão humana (ver [PRD](../../../docs/PRD.md))
 
 - **Datas ambíguas de dia/mês:** permanecem em quarentena (D36, D53); a Silver não escolhe a ordem.
 - **Sentinela `9999-12-31` e datas futuras:** preservadas e marcadas com flags; não se presume quitação (D15, D55).
-- **`data_ligacao` anterior a 1950:** a Silver preserva o valor. O tratamento (nulo) fica na Gold (D62).
+- **`data_ligacao` anterior a 1950:** a Silver preserva o valor. **Proposta (D62), ainda não implementada:** transformar esses
+  valores em nulo na Gold, na próxima execução da Gold. A Gold oficial `81c5530b` ainda contém o valor original.
 
 ## 5. Limites
 
@@ -49,5 +52,23 @@ run limpo de ponta a ponta e a revisão humana (ver [PRD](../../../docs/PRD.md))
   sobre ela.
 - O roteiro mostra que não há violação nos dados publicados. Ele não prova que as regras cobririam um lote futuro com
   defeitos novos.
-- O roteiro `validacao_silver_v1` ainda não está versionado neste repositório (localização a definir).
+- Os roteiros `validacao_silver_v1` e `validacao_gold_v4` não estão versionados neste repositório (ver seção 6).
 - Valores, contagens detalhadas, identificadores de UC e coordenadas por município ficam nas saídas do Databricks e não são publicados aqui.
+
+## 6. Roteiros de verificação e como repetir
+
+Os roteiros são notebooks Python somente leitura, na pasta `revisao_gold` do Workspace de Dados no Databricks. Ficam
+fora do repositório porque as saídas trazem identificadores de UC, coordenadas e valores do case.
+
+- `validacao_silver_v1`: lê `silver_publicada.*` e os controles da Silver; resultado nesta execução: 32 verificações, 0 falhas.
+- `validacao_gold_v4`: lê `workspace.gold.*` e `gold.controle_gold`; resultado sobre a Gold `81c5530b`: 0 falhas. O total
+  de verificações impresso não coincide com a contagem das linhas da saída; por isso só se cita "0 falhas" até a revisão
+  do notebook.
+
+Para repetir:
+
+1. Abrir o notebook em `revisao_gold`, com compute Serverless.
+2. Conferir, na primeira saída, que a execução da Silver (ou da Gold) lida é a que se quer verificar.
+3. Executar todas as células. O esperado é nenhuma falha.
+4. Registrar apenas o identificador da execução e o resultado ("N verificações, 0 falhas"). Não copiar saídas para o
+   repositório, para PRs, para issues nem para ferramentas externas.

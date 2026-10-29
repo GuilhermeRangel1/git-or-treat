@@ -81,8 +81,8 @@ Conflitos de CPF/CNPJ ou nome de titular ficam nulos e sinalizados na UC. Data f
 - Se qualquer invariante falhar, o notebook **falha** e não troca o ponteiro de publicação. A Gold deve consultar
   `silver_publicada.*` e conferir que `silver.controle_publicacao` aponta para execução `CONCLUIDO` do lote desejado.
 - Estado: a execução mais recente no Databricks é a Silver `20261026T225331Z_c738405b` (lote Bronze
-  `20261026T220920Z_9168e7ab`, `CONCLUIDO`), dentro do run completo do Job de 26/10/2026, que precisou de uma
-  retomada (repair run) da tarefa da Silver. O roteiro somente leitura `validacao_silver_v1` foi executado sobre ela
+  `20261026T220920Z_9168e7ab`, `CONCLUIDO`), dentro do run do Job de 26/10/2026 (quatro das cinco tarefas, sem Exportacao_Gold), que precisou de uma
+  retomada (repair run) das tarefas Bronze_to_SilvereSilver_to_gold. O roteiro somente leitura `validacao_silver_v1` foi executado sobre ela
   (32 verificações, 0 falhas). A evidência anterior (run `20261024T035426Z_c5ba30e0`: bairros, cronologia de datas,
   classes, valores impossíveis e amostra independente) está no PRD, na entrada de 24/10/2026. O reparo de encoding de
   `bairro` (D61) já valia nessa execução. DE-02 e DE-03 mantêm o estado registrado no PRD.
