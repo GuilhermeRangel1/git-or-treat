@@ -17,15 +17,16 @@
 | `consumo_receita_bairro` | Uma combinação de competência, município, bairro e classe | Essas quatro dimensões | Faturas, leituras e cadastro da Silver |
 | `variacao_consumo_uc` | Uma UC comparada entre duas janelas fixas | `id_uc` | Leituras mensais e `visao_360_uc` |
 | `consumo_mensal_uc` | Uma UC e competência com fatura e leitura correspondentes | `id_uc`, `competencia` | Faturas e leituras da Silver |
+| `faturas_uc` | Uma fatura emitida vinculada a uma Unidade Consumidora | `id_fatura` | Faturas da Silver (`silver_publicada.faturas`) |
 | `controle_gold` | Registro de uma execução Gold concluída pelo notebook | `run_id_gold` identifica a execução; não há teste de unicidade explícito para essa tabela | Metadados da execução e dos controles Silver |
 
-As sete primeiras tabelas são incluídas na exportação CSV. `controle_gold` é uma tabela operacional de linhagem e não está na lista de exportação do notebook.
+As oito primeiras tabelas são incluídas na exportação CSV. `controle_gold` é uma tabela operacional de linhagem e não está na lista de exportação do notebook.
 
 ## Regras compartilhadas e limites
 
 - **Fonte e lote:** a Gold lê as vistas `silver_publicada.*` e consulta `silver.controle_publicacao` e `silver.controle_silver`. O notebook aceita `AMBIENTE` igual a `prod`, `dev` ou `test`; a execução em `prod` exige controles físicos e Silver com status `CONCLUIDO`. Os modos `dev`/`test` têm caminho de linhagem sintética quando os controles não estão disponíveis.
 - **Cadastro:** os fluxos mostrados descartam UCs sem `id_uc` e identificadores iniciados por `TESTE`. A fila constrói sua base com `dropDuplicates(id_uc)`; o diagnóstico e a rede também fazem verificações de unicidade em suas bases. O cadastro é uma fotografia atual: classe, município, bairro, alimentador, status e GD não comprovam sua vigência histórica.
-- **Receita e consumo:** faturas e leituras são agregadas separadamente por UC e competência e depois unidas por `inner join`. Portanto, `diagnostico_receita`, `consumo_receita_bairro` e `consumo_mensal_uc` usam somente pares UC/mês presentes nas duas fontes. Faturas sem leitura e leituras sem fatura não entram nessas tabelas. A variação por UC usa a base mensal de leituras, independentemente de existir fatura correspondente.
+- **Receita e consumo:** faturas e leituras são agregadas separadamente por UC e competência e depois unidas por `inner join` para a construção de `diagnostico_receita`, `consumo_receita_bairro` e `consumo_mensal_uc` (usando somente pares UC/mês presentes nas duas fontes). **A projeção `faturas_uc` é uma exceção a esse acoplamento:** ela preserva o histórico de faturas no grão individual de `id_fatura` de forma independente, mantendo faturas cadastradas independentemente de existir leitura no mesmo mês[cite: 8]. A variação por UC usa a base mensal de leituras, independentemente de existir fatura correspondente.
 - **GD:** `Sim` significa que há pelo menos uma linha da UC em `geracao_distribuida`; a regra atual não considera vigência nem comprova geração, injeção ou compensação em uma competência. `Não` é atribuído quando a junção não encontra essa linha.
 - **Privacidade:** a projeção final de `fila_inspecao` e `visao_360_uc` não inclui CPF/CNPJ, nome, endereço, CEP, coordenadas ou metadados internos da Silver. `id_uc` continua sendo identificador de unidade: a ausência desses campos não torna o conjunto automaticamente anônimo.
 - **Publicação:** as tabelas Gold são gravadas com `overwrite`; algumas verificações gerais ocorrem depois da gravação. Uma falha tardia não garante que todas as tabelas anteriores permaneçam preservadas ou que haja uma troca atômica do conjunto inteiro.
