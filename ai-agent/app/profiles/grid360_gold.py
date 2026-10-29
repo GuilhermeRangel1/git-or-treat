@@ -5,10 +5,12 @@ das capacidades com definição aprovada em ``app.readiness``: ``faturamento.rec
 ``faturamento.receita_bairro``, ``consumo.mensal_uc`` e ``interrupcoes.dec_fec``. Tabelas,
 colunas e fórmulas ficam em ``grid360_gold_mapping``; este perfil só fala a língua do negócio.
 
-Municípios, bairros, subgrupos, bandeiras, alimentadores e UCs não têm lista de valores: os
-valores vêm do lote e não entram no repositório. São declarados o domínio fechado de GD (Sim/Não)
-e as classes citadas como exemplo no dicionário de dados. Preparação: não prova a Gold real nem
-libera consulta (GENAI-06/07/10).
+Bairros, subgrupos, bandeiras, alimentadores e UCs não têm lista de valores: os valores vêm do
+lote e não entram no repositório. São declarados o domínio fechado de GD (Sim/Não), as classes
+citadas como exemplo no dicionário de dados e os três municípios que o case cita (GENAI-04).
+Perguntas sobre capacidades indisponíveis ou recortes sem valores no catálogo recebem
+esclarecimento específico (``ambiguities``), nunca o total sem o filtro. Preparação: não prova a
+Gold real nem libera consulta (GENAI-06/07/10).
 """
 
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
@@ -80,9 +82,20 @@ def _dimension(
 
 
 _DIMENSIONS = (
+    # Só os municípios citados no case. O dicionário não fixa a grafia de `municipio`; a
+    # conferência local do lote de 28/10 achou maiúsculas com acento preservado. Os aliases são
+    # comparados sem caixa e sem acento, então "jaboatao" também é reconhecido.
     _dimension(
         "geography.municipality", "Município", "geography",
         ("município", "municípios", "cidade", "cidades"),
+        (
+            {"value": "RECIFE", "aliases": ("Recife",)},
+            {"value": "OLINDA", "aliases": ("Olinda",)},
+            {
+                "value": "JABOATÃO DOS GUARARAPES",
+                "aliases": ("Jaboatão dos Guararapes", "Jaboatão"),
+            },
+        ),
     ),
     _dimension("geography.neighborhood", "Bairro", "geography", ("bairro", "bairros")),
     # Grafias citadas em docs/dicionario_gold.md como exemplos da origem, não domínio fechado.
@@ -265,6 +278,256 @@ _METRICS = (
 )
 
 
+def _rule(phrases: tuple[str, ...], clarification: str) -> dict:
+    return {"phrases": phrases, "clarification": clarification}
+
+
+# Uma regra por grupo de capacidades indisponíveis do mapeamento (`unavailable`). Ficam antes
+# das demais: "reclamações de falta de luz" é atendimento, não DEC/FEC. Nenhuma frase isolada
+# coincide com alias de métrica ("consumo" sozinho não dispara a regra de variação).
+_UNAVAILABLE_RULES = (
+    # faturamento.faturas_em_aberto
+    _rule(
+        (
+            "em aberto",
+            "fatura vencida",
+            "faturas vencidas",
+            "conta vencida",
+            "contas vencidas",
+            "vencimento",
+            "inadimplência",
+            "inadimplente",
+            "inadimplentes",
+            "atraso no pagamento",
+            "atrasos no pagamento",
+            "pagamento",
+            "pagamentos",
+            "valor pago",
+            "arrecadação",
+            "arrecadado",
+            "débito",
+            "débitos",
+        ),
+        "Faturas em aberto, pagamentos e inadimplência ainda não estão disponíveis na Gold "
+        "carregada; tenho o valor faturado. Quer a receita faturada de um período?",
+    ),
+    # atendimento.uc_acumulado
+    _rule(
+        (
+            "atendimento",
+            "atendimentos",
+            "chamado",
+            "chamados",
+            "reclamação",
+            "reclamações",
+            "reclamou",
+            "reclamaram",
+            "satisfação",
+            "protocolo",
+            "protocolos",
+            "ouvidoria",
+            "call center",
+            "central de atendimento",
+            "SAC",
+        ),
+        "Atendimentos, chamados, reclamações e satisfação ainda não estão disponíveis na Gold "
+        "carregada. Posso mostrar receita, consumo ou DEC/FEC de um período.",
+    ),
+    # apoio.medidor_uc
+    _rule(
+        ("medidor", "medidores"),
+        "Dados de medidor ainda não estão disponíveis na Gold carregada. Posso mostrar o "
+        "consumo medido nas leituras de um período, como ‘últimos 12 meses’.",
+    ),
+    # apoio.energia_recuperavel
+    _rule(
+        (
+            "energia a recuperar",
+            "energia recuperável",
+            "energia recuperada",
+            "recuperação de energia",
+            "recuperar energia",
+            "perda de energia",
+            "perdas de energia",
+            "perda não técnica",
+            "perdas não técnicas",
+            "perdas comerciais",
+        ),
+        "Energia a recuperar e perdas de energia ainda não estão disponíveis na Gold "
+        "carregada. Posso mostrar o consumo medido ou a receita faturada de um período.",
+    ),
+    # faturamento.preco_volume
+    _rule(
+        (
+            "preço e volume",
+            "preço ou volume",
+            "preço x volume",
+            "preço × volume",
+            "preço versus volume",
+            "efeito preço",
+            "efeito volume",
+            "efeito de preço",
+            "efeito de volume",
+            "decomposição",
+            "decompor",
+        ),
+        "A separação em efeito preço e efeito volume ainda não está disponível na Gold "
+        "carregada. Posso mostrar receita, consumo ou tarifa média efetiva de um período.",
+    ),
+    # consumo.variacao_uc
+    _rule(
+        (
+            "queda de consumo",
+            "quedas de consumo",
+            "queda do consumo",
+            "queda no consumo",
+            "redução de consumo",
+            "redução do consumo",
+            "redução no consumo",
+            "aumento de consumo",
+            "aumento do consumo",
+            "variação de consumo",
+            "variação do consumo",
+            "consumo caiu",
+            "consumo aumentou",
+            "consumo variou",
+            "perda de consumo",
+        ),
+        "Variação e queda de consumo, por UC ou entre períodos, ainda não estão disponíveis "
+        "na Gold carregada. Posso mostrar o consumo total de um período, como ‘último ano’.",
+    ),
+    # apoio.fila_inspecao
+    _rule(
+        (
+            "inspeção",
+            "inspeções",
+            "fila de inspeção",
+            "vistoria",
+            "vistorias",
+            "irregularidade",
+            "irregularidades",
+            "irregular",
+            "irregulares",
+            "fraude",
+            "fraudes",
+            "furto de energia",
+            "ligação clandestina",
+            "ligações clandestinas",
+        ),
+        "Fila de inspeção, inspeções e irregularidades ainda não estão disponíveis na Gold "
+        "carregada. Posso mostrar consumo ou receita de um período.",
+    ),
+)
+
+# Recortes que o catálogo não sabe aplicar: sem estas regras, o termo seria ignorado e a
+# resposta traria o total sem o filtro. "por bairro" continua sendo pedido de quebra.
+_UNSUPPORTED_SLICE_RULES = (
+    _rule(
+        (
+            "solar",
+            "energia solar",
+            "geração solar",
+            "painel solar",
+            "painéis solares",
+            "placa solar",
+            "placas solares",
+            "fotovoltaica",
+            "fotovoltaico",
+        ),
+        "Não tenho filtro de geração solar, só a presença de cadastro de geração distribuída "
+        "(GD), sem o tipo de fonte. Quer filtrar ‘com GD’?",
+    ),
+    _rule(
+        ("iluminação pública", "serviço público", "consumo próprio"),
+        "Não reconheço essa classe de consumo. As classes do catálogo são residencial, "
+        "comercial, industrial, poder público e rural; qual delas?",
+    ),
+    _rule(
+        (
+            "ranking",
+            "top",
+            "maior",
+            "maiores",
+            "menor",
+            "menores",
+            "pior",
+            "piores",
+            "melhor",
+            "melhores",
+            "qual município",
+            "quais municípios",
+            "qual cidade",
+            "quais cidades",
+            "qual bairro",
+            "quais bairros",
+            "qual classe",
+            "quais classes",
+            "qual alimentador",
+            "quais alimentadores",
+        ),
+        "Ainda não monto ranking nem comparo municípios, bairros, classes ou alimentadores "
+        "entre si. Posso mostrar o total de um recorte, como ‘receita residencial em Olinda’.",
+    ),
+    _rule(
+        (
+            "no bairro",
+            "do bairro",
+            "neste bairro",
+            "nesse bairro",
+            "deste bairro",
+            "desse bairro",
+            "nos bairros",
+            "dos bairros",
+        ),
+        "Ainda não filtro por bairro: o catálogo não tem a lista de bairros. Posso mostrar o "
+        "total de um município, como ‘em Olinda’.",
+    ),
+    _rule(
+        (
+            "na bandeira",
+            "da bandeira",
+            "com bandeira",
+            "bandeira verde",
+            "bandeira amarela",
+            "bandeira vermelha",
+            "no subgrupo",
+            "do subgrupo",
+        ),
+        "Ainda não filtro por bandeira tarifária nem por subgrupo: o catálogo não tem a lista "
+        "desses valores. Posso filtrar por município, classe ou GD.",
+    ),
+    _rule(
+        (
+            "do alimentador",
+            "no alimentador",
+            "deste alimentador",
+            "desse alimentador",
+            "dos alimentadores",
+            "nos alimentadores",
+        ),
+        "DEC e FEC são lidos por alimentador e mês, mas ainda não identifico o alimentador "
+        "pelo nome ou código. Posso mostrar receita ou consumo do período.",
+    ),
+    _rule(
+        (
+            "da UC",
+            "na UC",
+            "desta UC",
+            "dessa UC",
+            "qual UC",
+            "quais UCs",
+            "quantas UCs",
+            "da unidade consumidora",
+            "na unidade consumidora",
+            "quais unidades consumidoras",
+            "quantas unidades consumidoras",
+        ),
+        "Ainda não consulto, conto nem listo UCs específicas. Posso mostrar o total de um "
+        "recorte por município, classe ou GD.",
+    ),
+)
+
+
 def _build_profile() -> DomainProfile:
     values = GRID360_DEMO_PROFILE.model_dump(mode="python")
     values["profile_id"] = GOLD_PROFILE_ID
@@ -304,6 +567,8 @@ def _build_profile() -> DomainProfile:
     values["comparison_period_phrases"] = ()
     values["non_location_phrases"] = ()
     values["ambiguities"] = (
+        *_UNAVAILABLE_RULES,
+        *_UNSUPPORTED_SLICE_RULES,
         *values["ambiguities"],
         {
             "phrases": (
@@ -330,6 +595,15 @@ def _build_profile() -> DomainProfile:
         "clarification": (
             "Ainda não consulto um mês isolado nem séries por dia, mês ou ano. Qual período "
             "você quer, como ‘último trimestre’ ou ‘últimos 12 meses’?"
+        ),
+    }
+    # "média" genérica continua pedindo o total; as médias do catálogo são por UC e mês e só
+    # valem pelo nome ("ticket médio", "consumo médio por UC"), que o interpretador reconhece.
+    detail_rules[1] = {
+        **detail_rules[1],
+        "clarification": (
+            "Mostro o total do período; as médias que tenho são por UC e mês: ‘ticket médio’ e "
+            "‘consumo médio por UC’. Quer o total ou uma delas?"
         ),
     }
     values["detail_rules"] = detail_rules

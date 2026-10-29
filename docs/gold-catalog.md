@@ -1,8 +1,8 @@
 # Catálogo Gold: métricas lógicas e mapeamento físico
 
-**Cartão:** GENAI-03 (parte 2). **Versões:** mapeamento `gold-catalog-v1`, dicionário `gold-v1-develop-c9580cd`, prontidão `gold-readiness-v1`. **Código:** `ai-agent/app/profiles/grid360_gold.py` (perfil lógico) e `ai-agent/app/profiles/grid360_gold_mapping.py` (mapeamento físico). **Testes:** `ai-agent/tests/test_gold_catalog.py` e `ai-agent/tests/test_gold_catalog_mapping.py`.
+**Cartão:** GENAI-03 (parte 2). **Versões:** mapeamento `gold-catalog-v1`, dicionário `gold-v1-develop-c9580cd`, prontidão `gold-readiness-v1`. **Código:** `ai-agent/app/profiles/grid360_gold.py` (perfil lógico) e `ai-agent/app/profiles/grid360_gold_mapping.py` (mapeamento físico). **Testes:** `ai-agent/tests/test_gold_catalog.py`, `ai-agent/tests/test_gold_catalog_mapping.py` e, desde o GENAI-04, `ai-agent/tests/test_gold_question_matrix.py`.
 
-**Natureza:** preparação. Nada aqui prova a Gold real, e este documento não traz valores, contagens nem nomes de lugar do lote. A liberação para consulta real depende de GENAI-06, GENAI-07 e GENAI-10.
+**Natureza:** preparação. Nada aqui prova a Gold real, e este documento não traz valores, contagens nem nomes de lugar do lote. Os únicos municípios citados são os três do case, declarados no perfil desde o GENAI-04; bairros não têm valores. A liberação para consulta real depende de GENAI-06, GENAI-07 e GENAI-10.
 
 ## Fronteira
 
@@ -46,7 +46,17 @@ Nenhuma destas capacidades vira métrica do perfil. O motivo vem da prontidão.
 | `apoio.medidor_uc` | `definition_pending`, `source_not_in_gold` | Sem tabela de medidor. |
 | `apoio.energia_recuperavel` | `definition_pending`, `source_not_in_gold` | Sem estimativa de energia recuperável. |
 
-`out_of_scope_terms` não foi usado para essas capacidades. O campo alimenta o filtro de segurança, que recusa a pergunta como **fora do escopo do assistente**, quando o certo seria dizer que o dado ainda não está disponível. O campo também aceita no máximo 30 termos, e o perfil já usa 20. Hoje, perguntas sobre esses temas recebem pedido de esclarecimento por falta de métrica. A resposta específica "dado indisponível na Gold" fica pendente para o GENAI-04.
+`out_of_scope_terms` não foi usado para essas capacidades. O campo alimenta o filtro de segurança, que recusaria a pergunta como **fora do escopo do assistente**, quando o certo é dizer que o dado ainda não está disponível. O campo também aceita no máximo 30 termos, e o perfil já usa 20. Desde o GENAI-04, essas perguntas recebem a mensagem específica descrita em [Vocabulário de perguntas](#vocabulário-de-perguntas-genai-04).
+
+## Vocabulário de perguntas (GENAI-04)
+
+A [matriz de perguntas Gold](gold-question-matrix.md) prova estas regras pela composição do núcleo.
+
+- **Municípios:** o perfil declara só os três municípios do case: `RECIFE` (alias "Recife"), `OLINDA` (alias "Olinda") e `JABOATÃO DOS GUARARAPES` (aliases "Jaboatão dos Guararapes" e "Jaboatão"). A grafia canônica foi conferida localmente no lote de 28/10 e ainda precisa ser confirmada por Dados como convenção da Gold (ver checklist). Os nomes são reconhecidos com ou sem acento e em qualquer caixa. Um município fora do perfil continua pedindo esclarecimento ("não reconheci esse local"). Bairros e outros municípios não são declarados.
+- **Médias pelo nome da métrica:** um termo dentro de um alias de métrica reconhecido faz parte do nome e não dispara regra de detalhe, quebra ou ambiguidade. Assim, "ticket médio", "receita média por UC", "tarifa média efetiva", "preço médio por kWh", "consumo médio por UC" e "duração/frequência equivalente de interrupção" chegam às suas métricas. "média do consumo" e "consumo médio" continuam pedindo o total, agora citando as médias disponíveis, e "consumo por UC" continua sendo pedido de quebra. A regra fica no interpretador (`_within`), igual para todos os perfis.
+- **Capacidades indisponíveis:** uma regra de ambiguidade por grupo, avaliada antes das demais, diz que o dado "ainda não está disponível na Gold carregada" e oferece receita, consumo, tarifa ou DEC/FEC. Os grupos são faturas em aberto e pagamentos, atendimento, medidor, energia a recuperar, preço × volume, variação ou queda de consumo e fila de inspeção. Nenhuma frase coincide com um alias de métrica ou fica contida nele: "consumo" sozinho não dispara a regra de variação. `interrupcoes.uc_acumulado` não tem mensagem própria; perguntas sobre interrupções caem na regra de DEC/FEC.
+- **Recortes sem suporte:** regras próprias para "solar" (GD não informa o tipo de fonte), classes fora do perfil ("iluminação pública", "serviço público", "consumo próprio"), ranking ("qual bairro", "maior", "pior"), e bairro, bandeira, subgrupo, alimentador ou UC nomeados. Antes, esses termos eram ignorados e a resposta saía sem o filtro. "por bairro", "por bandeira" e "por subgrupo" continuam com a mensagem de quebra não suportada.
+- **Ordem das regras:** indisponíveis, depois recortes sem suporte, depois "conta de luz" e interrupções. Por isso, "reclamações de falta de luz" é atendimento, e "contas de luz em aberto" é fatura em aberto.
 
 ## Checklist de revisão com Dados
 
@@ -59,6 +69,8 @@ Nenhuma destas capacidades vira métrica do perfil. O motivo vem da prontidão.
 - [ ] **Nulos:** ausência como "sem evidência" nas somas e razões; `Não informado` em `consumo_receita_bairro` como categoria de ausência, não lugar real.
 - [ ] **Arredondamento** de apresentação e precisão (`decimal(38,2)` para R$).
 - [ ] **Classes declaradas no perfil:** as cinco classes citadas como exemplo no dicionário; confirmar se o domínio tem outras.
+- [ ] **Grafia de `municipio`:** o dicionário não a define; o perfil usa maiúsculas, com acento preservado (ex.: `JABOATÃO DOS GUARARAPES`; também `RECIFE` e `OLINDA`). A conferência local do lote de 28/10, feita só pela existência dos três valores e sem imprimir outros, achou essas grafias exatas; `JABOATAO DOS GUARARAPES` sem acento não existe no lote. Falta Dados confirmar que essa é a convenção da Gold. Reconferir com `scripts/check_gold_dimension_values.py` a cada lote; `PASS normalizado` indica grafia diferente da declarada.
+- [ ] **"Solar" e GD:** confirmar se perguntas sobre UCs "com solar" podem usar a presença de GD; hoje o perfil pede esclarecimento.
 - [ ] **Soma de UCs faturadas entre segmentos:** a razão de somas do ticket médio e do consumo médio por UC soma `qtd_ucs_distintas_faturadas_no_mes` entre linhas do mesmo mês. Isso só é correto porque o dicionário garante uma única bandeira, classe, subgrupo, GD e município por UC/mês (o notebook falha se a UC tiver duas bandeiras no mês). Confirmar que cada UC aparece em uma só linha por mês em `diagnostico_receita` e em `consumo_receita_bairro`.
 - [ ] **Controles do consumo:** o consumo pelo diagnóstico usa a capacidade `faturamento.receita` (controles C01, C02 e C04). Confirmar que esses controles cobrem também a coluna de consumo, e que o consumo por `consumo_mensal_uc` é coberto por C03 e C10.
 
@@ -70,10 +82,13 @@ Nenhuma destas capacidades vira métrica do perfil. O motivo vem da prontidão.
 
 ## Pendências para o GENAI-04
 
-- "ticket médio" cai na regra de detalhe "média", e "consumo médio por UC" cai na quebra por UC; as duas métricas ainda não são alcançáveis por pergunta livre.
-- Perguntas por município ou bairro não têm valores no perfil: filtro geográfico pede esclarecimento.
-- Resposta específica para capacidades indisponíveis, em vez de falta de métrica.
-- Matriz completa de perguntas e ligação do mapeamento ao executor.
+- [x] "ticket médio" e "consumo médio por UC" alcançáveis por pergunta livre (parte 04a).
+- [x] Municípios do case declarados no perfil (parte 04a). Bairros continuam sem valores e pedem esclarecimento.
+- [x] Resposta específica para capacidades indisponíveis, em vez de falta de métrica (parte 04a).
+- [x] Matriz de perguntas com 51 casos (parte 04a); ver [matriz de perguntas Gold](gold-question-matrix.md).
+- [ ] Catálogo de períodos em tempo de execução, com mês e ano isolados (parte 04b).
+- [ ] DEC/FEC sem alimentador pedindo esclarecimento no núcleo; hoje só o executor recusaria (decisão em aberto, ver a matriz).
+- [ ] Ligação do mapeamento ao executor.
 
 ## Limites
 

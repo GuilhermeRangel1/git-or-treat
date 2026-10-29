@@ -48,6 +48,10 @@ def _find_phrases(text: str, phrases: tuple[str, ...]) -> list[tuple[int, int, s
     return non_overlapping
 
 
+def _within(start: int, end: int, spans: list[tuple[int, int, str]]) -> bool:
+    return any(span_start <= start and end <= span_end for span_start, span_end, _ in spans)
+
+
 class QuestionInterpreter:
     """Mapeia frases usando um perfil explícito, sem normalizar regras de negócio."""
 
@@ -192,14 +196,23 @@ class QuestionInterpreter:
         question: str,
         base_intent: AnalysisIntent | None,
     ) -> IntentInterpretation:
+        metric_hits = _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
+        # Frase de ambiguidade dentro de um alias reconhecido ("interrupção" em "duração
+        # equivalente de interrupção") faz parte do nome da métrica.
         ambiguity = next(
-            (rule for rule in self._profile.ambiguities if _find_phrases(question, rule.phrases)),
+            (
+                rule
+                for rule in self._profile.ambiguities
+                if any(
+                    not _within(start, end, metric_hits)
+                    for start, end, _ in _find_phrases(question, rule.phrases)
+                )
+            ),
             None,
         )
         if ambiguity is not None:
             return self._clarify(ambiguity.clarification)
 
-        metric_hits = _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
         matched_metrics = {
             metric.id: metric
             for metric, alias in self._metric_aliases
@@ -216,7 +229,7 @@ class QuestionInterpreter:
         selected_metric = self._select_metric(matched_metrics, base_intent)
         domain = next(iter(matched_domains)) if matched_domains else base_intent.domain
 
-        breakdown = self._requested_breakdown(question)
+        breakdown = self._requested_breakdown(question, metric_hits)
         breakdown_message = self._profile.clarifications.unsupported_breakdown
         if breakdown is not None and breakdown_message is not None:
             # Sem agrupamento no plano, responder o total seria um falso acerto.
@@ -231,7 +244,7 @@ class QuestionInterpreter:
         unit_message = self._profile.clarifications.unit_mismatch
         if unit_surface is not None and unit_message is not None:
             return self._clarify(unit_message.replace("{unit}", unit_surface))
-        detail_clarification = self._unsupported_detail(question)
+        detail_clarification = self._unsupported_detail(question, metric_hits)
         if detail_clarification is not None:
             return self._clarify(detail_clarification)
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
@@ -387,8 +400,15 @@ class QuestionInterpreter:
         )
         return _find_phrases(question, phrases)
 
-    def _requested_breakdown(self, question: str) -> DimensionDefinition | None:
-        """Dimensão pedida em "por <alias>", exceto quando um valor dela vem logo depois."""
+    def _requested_breakdown(
+        self,
+        question: str,
+        metric_hits: list[tuple[int, int, str]],
+    ) -> DimensionDefinition | None:
+        """Dimensão pedida em "por <alias>", exceto quando um valor dela vem logo depois.
+
+        "por UC" dentro de um alias de métrica ("consumo médio por UC") nomeia a métrica.
+        """
 
         normalized = _normalize(question)
         for dimension in self._profile.dimensions:
@@ -399,6 +419,8 @@ class QuestionInterpreter:
             pattern = rf"(?<!\w)por\s+(?:cada\s+)?(?:{alternatives})(?!\w)"
             values = {_normalize(item) for value in dimension.values for item in value.aliases}
             for match in re.finditer(pattern, normalized):
+                if _within(match.start(), match.end(), metric_hits):
+                    continue
                 # "por classe residencial" e "por município de Olinda" são filtros.
                 rest = normalized[match.end() :]
                 if any(
@@ -421,21 +443,22 @@ class QuestionInterpreter:
                 return surface
         return None
 
-    def _unsupported_detail(self, question: str) -> str | None:
-        """Pedido de detalhe que o perfil não atende, fora de um período do catálogo."""
+    def _unsupported_detail(
+        self,
+        question: str,
+        metric_hits: list[tuple[int, int, str]],
+    ) -> str | None:
+        """Pedido de detalhe que o perfil não atende, fora de um período ou alias de métrica.
 
-        period_spans = [
-            (start, end)
-            for start, end, _ in _find_phrases(question, self._profile.period_phrases)
-        ]
+        "médio" em "ticket médio" faz parte do nome da métrica, não pede média do total.
+        """
+
+        covered = [*_find_phrases(question, self._profile.period_phrases), *metric_hits]
         for rule in self._profile.detail_rules:
             if rule.clarification is None:
                 continue
             for start, end, _ in _find_phrases(question, rule.phrases):
-                if not any(
-                    period_start <= start and end <= period_end
-                    for period_start, period_end in period_spans
-                ):
+                if not _within(start, end, covered):
                     return rule.clarification
         return None
 
