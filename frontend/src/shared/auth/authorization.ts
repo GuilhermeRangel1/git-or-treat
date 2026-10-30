@@ -1,22 +1,17 @@
-export type AccessTokenProvider = () => Promise<string | null>;
 export type UnauthorizedHandler = () => void;
 
-let accessTokenProvider: AccessTokenProvider | null = null;
 let authorizationGeneration = 0;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 let reauthenticationRequired = false;
+let sessionConfigured = false;
 
-export function setAccessTokenProvider(provider: AccessTokenProvider | null) {
-  accessTokenProvider = provider;
-  if (!provider) reauthenticationRequired = false;
+export function setSessionConfigured(configured: boolean) {
+  sessionConfigured = configured;
+  if (!configured) reauthenticationRequired = false;
 }
 
-export function getAccessToken() {
-  return accessTokenProvider?.() ?? Promise.resolve(null);
-}
-
-export function hasAccessTokenProvider() {
-  return accessTokenProvider !== null;
+export function isSessionConfigured() {
+  return sessionConfigured;
 }
 
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
@@ -24,6 +19,7 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
 }
 
 export function notifyUnauthorized() {
+  if (!sessionConfigured) return;
   reauthenticationRequired = true;
   unauthorizedHandler?.();
 }

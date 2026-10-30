@@ -4,13 +4,16 @@ import { apiClient, ApiError } from "./client";
 import { resetGoldPublication } from "../analytics/goldPublication";
 import {
   advanceAuthorizationGeneration,
-  setAccessTokenProvider,
+  clearReauthenticationRequired,
+  isReauthenticationRequired,
+  setSessionConfigured,
 } from "../auth/authorization";
 
 const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
-  setAccessTokenProvider(null);
+  setSessionConfigured(false);
+  clearReauthenticationRequired();
   advanceAuthorizationGeneration();
   resetGoldPublication();
   fetchMock.mockReset();
@@ -19,20 +22,20 @@ beforeEach(() => {
 });
 
 describe("fronteira HTTP", () => {
-  it("envia o token de acesso individual sem substituir headers da chamada", async () => {
-    setAccessTokenProvider(async () => "user-access-token");
+  it("envia cookie de sessÃ£o sem acrescentar Bearer e preserva os headers", async () => {
     fetchMock.mockResolvedValue(new Response("{}"));
     await apiClient("/api/v1/inspections/orders/search", {
       headers: { "X-Trace-Id": "request-1" },
     });
-    const headers = new Headers(fetchMock.mock.calls[0][1]?.headers);
-    expect(headers.get("Authorization")).toBe("Bearer user-access-token");
+    const request = fetchMock.mock.calls[0][1];
+    const headers = new Headers(request?.headers);
+    expect(headers.has("Authorization")).toBe(false);
     expect(headers.get("X-Trace-Id")).toBe("request-1");
+    expect(request?.credentials).toBe("include");
   });
 
   it("descarta uma resposta de ordens que chega depois da troca de identidade", async () => {
     let respond!: (value: Response) => void;
-    setAccessTokenProvider(async () => "first-user-token");
     fetchMock.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -204,4 +207,19 @@ it("usa a origem do portal no desenvolvimento para funcionar fora do localhost",
   fetchMock.mockResolvedValueOnce(Response.json({ ok: true }));
   await expect(apiClient("/api/v1/panorama")).resolves.toEqual({ ok: true });
   expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/panorama");
+});
+
+it("marca a sessão para revalidação em 401, sem reagir a 403", async () => {
+  setSessionConfigured(true);
+  fetchMock.mockResolvedValueOnce(new Response("{}", { status: 401 }));
+  await expect(
+    apiClient("/api/v1/inspections/orders/search"),
+  ).rejects.toMatchObject({ status: 401 });
+  expect(isReauthenticationRequired()).toBe(true);
+  clearReauthenticationRequired();
+  fetchMock.mockResolvedValueOnce(new Response("{}", { status: 403 }));
+  await expect(
+    apiClient("/api/v1/inspections/orders/search"),
+  ).rejects.toMatchObject({ status: 403 });
+  expect(isReauthenticationRequired()).toBe(false);
 });

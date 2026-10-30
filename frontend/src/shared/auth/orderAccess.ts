@@ -1,6 +1,6 @@
 export type OrderAccess = {
   actor: string;
-  auth_mode: "oidc";
+  auth_mode: "session";
   permissions: Array<"orders:read" | "orders:write">;
   canRead: boolean;
   canWrite: boolean;
@@ -13,8 +13,8 @@ export function decodeOrderAccess(value: unknown): OrderAccess {
   const row = value as Record<string, unknown>;
   if (
     typeof row.actor !== "string" ||
-    !row.actor.startsWith("oidc:") ||
-    row.auth_mode !== "oidc" ||
+    !row.actor.startsWith("user:") ||
+    row.auth_mode !== "session" ||
     !Array.isArray(row.permissions) ||
     !row.permissions.every(
       (permission) =>
@@ -28,7 +28,7 @@ export function decodeOrderAccess(value: unknown): OrderAccess {
   ] as OrderAccess["permissions"];
   return {
     actor: row.actor,
-    auth_mode: "oidc",
+    auth_mode: "session",
     permissions,
     canRead:
       permissions.includes("orders:read") ||

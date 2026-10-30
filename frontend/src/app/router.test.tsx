@@ -2,10 +2,16 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import {
+  clearReauthenticationRequired,
+  setSessionConfigured,
+} from "@/shared/auth/authorization";
 import AppProviders from "./providers";
 import { AppRoutes } from "./router";
 
 beforeEach(() => {
+  setSessionConfigured(false);
+  clearReauthenticationRequired();
   localStorage.clear();
   vi.stubGlobal(
     "matchMedia",
@@ -15,14 +21,21 @@ beforeEach(() => {
       removeEventListener: vi.fn(),
     }),
   );
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockRejectedValue(new Error("network offline")),
-  );
+  vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+    if (String(input).includes("/api/v1/auth/session")) {
+      return Response.json({ enabled: false, user: null, expires_at: null });
+    }
+    throw new Error("network offline");
+  });
 });
 
 it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implementadas", async () => {
-  const fetchSpy = vi.fn().mockRejectedValue(new Error("network offline"));
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+    if (String(input).includes("/api/v1/auth/session")) {
+      return Response.json({ enabled: false, user: null, expires_at: null });
+    }
+    throw new Error("network offline");
+  });
   vi.stubGlobal("fetch", fetchSpy);
   const user = userEvent.setup();
   render(
@@ -104,6 +117,7 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
     const path = new URL(String(call[0]), window.location.origin).pathname;
     expect([
       "/api/v1/panorama",
+      "/api/v1/auth/session",
       "/api/v1/revenue",
       "/api/v1/inspections/queue",
       "/api/v1/inspections/orders/search",

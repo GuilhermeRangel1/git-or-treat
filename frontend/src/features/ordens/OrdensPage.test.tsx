@@ -11,7 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import type { Order } from "@/shared/api/orders";
 import TestProviders from "@/shared/test/TestProviders";
-import { AuthProvider } from "@/shared/auth/AuthProvider";
+import { DemoSessionProvider } from "@/shared/test/TestProviders";
 import OrdensPage from "./OrdensPage";
 
 vi.mock("./OrderActionsDialog", () => ({
@@ -97,7 +97,7 @@ function renderPage(entry = "/ordens", client?: QueryClient) {
   if (client) {
     return render(
       <QueryClientProvider client={client}>
-        <AuthProvider>{page}</AuthProvider>
+        <DemoSessionProvider>{page}</DemoSessionProvider>
       </QueryClientProvider>,
     );
   }

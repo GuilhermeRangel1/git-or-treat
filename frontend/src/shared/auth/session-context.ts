@@ -1,19 +1,19 @@
 import { createContext } from "react";
-import type { User } from "oidc-client-ts";
 import type { OrderAccess } from "./orderAccess";
+import type { SessionUser } from "./session-api";
 
 export type SessionValue = {
   configured: boolean;
   loading: boolean;
-  user: User | null;
+  user: SessionUser | null;
   error: string | null;
+  logoutFailed: boolean;
   needsReauthentication: boolean;
   lastConfirmedAccess: { actor: string; access: OrderAccess } | null;
   rememberOrderAccess: (actor: string, access: OrderAccess) => void;
-  beginLogin: () => Promise<void>;
-  beginLogout: () => Promise<void>;
-  finishLogin: () => Promise<void>;
-  renewSession: () => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  reloadSession: () => Promise<void>;
   clearReauthentication: () => void;
 };
 

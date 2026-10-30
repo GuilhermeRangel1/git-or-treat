@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import InspecoesPage from "./InspecoesPage";
-import { AuthProvider } from "@/shared/auth/AuthProvider";
+import { DemoSessionProvider } from "@/shared/test/TestProviders";
 import { decodeDetail, decodeQueue } from "./contract";
 import {
   isGoldPublicationStale,
@@ -104,12 +104,12 @@ function mount(
 ) {
   render(
     <QueryClientProvider client={client}>
-      <AuthProvider>
+      <DemoSessionProvider>
         <MemoryRouter initialEntries={[url]}>
           <InspecoesPage />
           <Location />
         </MemoryRouter>
-      </AuthProvider>
+      </DemoSessionProvider>
     </QueryClientProvider>,
   );
 }

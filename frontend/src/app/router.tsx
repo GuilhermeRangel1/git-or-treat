@@ -8,7 +8,7 @@ import {
 } from "react-router-dom";
 import AppLayout from "@/layouts/AppLayout";
 import RequireSession from "@/shared/auth/RequireSession";
-import OidcCallback from "@/shared/auth/OidcCallback";
+import LoginPage from "@/features/auth/LoginPage";
 import { routes, UC360Page } from "./routes";
 
 const DevContractsPage = import.meta.env.DEV
@@ -22,7 +22,7 @@ const DevContractsPage = import.meta.env.DEV
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/auth/callback" element={<OidcCallback />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route
         element={
           <RequireSession>

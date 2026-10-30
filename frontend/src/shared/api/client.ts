@@ -11,8 +11,7 @@ import {
 import {
   captureAuthorizationGeneration,
   currentAuthorizationGeneration,
-  getAccessToken,
-  hasAccessTokenProvider,
+  isSessionConfigured,
   isReauthenticationRequired,
   notifyUnauthorized,
 } from "@/shared/auth/authorization";
@@ -78,21 +77,7 @@ export async function apiClient<T = unknown>(
   }
   const url = `${apiBaseUrl()}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
   const headers = new Headers(options.headers);
-  const authenticatedSession = hasAccessTokenProvider();
-  const accessToken = await getAccessToken();
-  if (authorizationGeneration !== currentAuthorizationGeneration()) {
-    throw new ApiError(
-      "A sessão mudou durante a solicitação.",
-      0,
-      undefined,
-      "session-changed",
-    );
-  }
-  if (authenticatedSession && !accessToken) {
-    notifyUnauthorized();
-    throw new ApiError("Renove a sessão antes de continuar.", 401);
-  }
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  const authenticatedSession = isSessionConfigured();
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (typeof options.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -101,7 +86,11 @@ export async function apiClient<T = unknown>(
   let response: Response;
   let raw: string;
   try {
-    response = await fetch(url, { ...options, headers });
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
     raw = await response.text();
   } catch (error) {
     if (isAborted(error, options.signal)) throw error;
@@ -139,7 +128,10 @@ export async function apiClient<T = unknown>(
   }
 
   if (!response.ok) {
-    if (response.status === 401 && authenticatedSession) notifyUnauthorized();
+    if (response.status === 401 && authenticatedSession) {
+      notifyUnauthorized();
+      throw new ApiError("A sessão expirou. Entre novamente.", 401, data);
+    }
     if (analytic && response.status === 409) markGoldPublicationStale();
     const detail =
       data && typeof data === "object" && "detail" in data

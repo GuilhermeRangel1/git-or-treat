@@ -1,71 +1,84 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Link, Navigate } from "react-router-dom";
 import { useSession } from "./useSession";
 import Button from "@/shared/ui/Button";
 
 export default function RequireSession({ children }: { children: ReactNode }) {
-  const session = useSession();
-  if (!session.configured) return <>{children}</>;
-  if (session.loading) {
+  const {
+    configured,
+    loading,
+    user,
+    error,
+    logoutFailed,
+    needsReauthentication,
+    logout,
+    reloadSession,
+  } = useSession();
+  const [checkingSession, setCheckingSession] = useState(false);
+
+  if (loading) {
     return (
       <p role="status" className="p-8 text-sm text-muted">
         Verificando sessão…
       </p>
     );
   }
-  if (session.error) {
+  if (error && logoutFailed) {
     return (
-      <p
+      <div
+        role="alert"
+        className="m-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-5"
+      >
+        <span>{error}</span>
+        <Button onClick={() => void logout().catch(() => {})}>
+          Tentar encerrar novamente
+        </Button>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div
         role="alert"
         className="m-8 rounded-xl border border-border bg-surface p-5"
       >
-        {session.error}
-      </p>
+        <p>{error}</p>
+        <div className="mt-4 flex gap-3">
+          <Button variant="outline" onClick={() => void reloadSession()}>
+            Verificar novamente
+          </Button>
+          <Link className="self-center text-brand underline" to="/login">
+            Ir para a entrada
+          </Link>
+        </div>
+      </div>
     );
   }
-  if (!session.user) {
-    return (
-      <main className="mx-auto flex min-h-dvh max-w-lg flex-col items-start justify-center gap-4 p-6">
-        <h1 className="font-heading text-2xl font-semibold">
-          Acesse o Grid 360
-        </h1>
-        <p className="text-sm leading-6 text-muted">
-          Entre com sua conta corporativa para consultar o portal.
-        </p>
-        <Button onClick={() => void session.beginLogin()}>
-          Entrar com SSO
-        </Button>
-      </main>
-    );
-  }
+  if (configured && !user) return <Navigate to="/login" replace />;
+
   return (
     <>
-      {session.needsReauthentication ? (
+      {needsReauthentication ? (
         <div
           role="alert"
           className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-5 py-3 text-sm"
         >
           <span>
-            A API recusou a sessão. Renove o acesso e repita a ação pendente.
+            A API recusou a sessão. Confirme seu acesso antes de continuar.
           </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() =>
-                void session.renewSession().catch(() => session.beginLogin())
-              }
-            >
-              Renovar sessão
-            </Button>
-            <Button variant="outline" onClick={() => void session.beginLogin()}>
-              Entrar novamente
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            disabled={checkingSession}
+            onClick={() => {
+              setCheckingSession(true);
+              void reloadSession().finally(() => setCheckingSession(false));
+            }}
+          >
+            {checkingSession ? "Verificando…" : "Verificar sessão"}
+          </Button>
         </div>
       ) : null}
-      <div
-        hidden={session.needsReauthentication}
-        inert={session.needsReauthentication}
-      >
+      <div hidden={needsReauthentication} inert={needsReauthentication}>
         {children}
       </div>
     </>

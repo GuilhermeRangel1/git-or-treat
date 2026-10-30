@@ -4,10 +4,6 @@ import { apiClient } from "@/shared/api/client";
 import { decodeOrderAccess, type OrderAccess } from "./orderAccess";
 import { SessionContext } from "./session-context";
 
-function identityOf(sub: string | undefined) {
-  return sub || null;
-}
-
 export function useSession() {
   const value = useContext(SessionContext);
   if (!value) throw new Error("AuthProvider nao esta disponivel.");
@@ -22,7 +18,7 @@ export function useOrderAccess() {
     lastConfirmedAccess,
     rememberOrderAccess,
   } = useSession();
-  const actor = identityOf(user?.profile.sub);
+  const actor = user?.id ?? null;
   const query = useQuery<OrderAccess>({
     queryKey: ["order-access", actor],
     enabled: configured && Boolean(actor) && !needsReauthentication,
