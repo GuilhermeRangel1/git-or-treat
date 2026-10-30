@@ -1,6 +1,6 @@
 # Dicionário de dados — camada Gold
 
-**Escopo:** contrato conceitual e regras implementadas nas sete tabelas analíticas Gold e na tabela de controle `controle_gold`. O documento descreve código e evidências disponíveis; não substitui a validação física do Delta, aceite do portal/IA ou homologação regulatória.
+**Escopo:** contrato conceitual e regras implementadas nas sete tabelas analíticas Gold, nos quatro históricos por UC e na tabela de controle `controle_gold`. O documento descreve código e evidências disponíveis; não substitui a validação física do Delta, aceite do portal/IA ou homologação regulatória.
 
 **Fontes:** `data-engineering/notebook/Silver_to_gold.ipynb`, notebook de exportação, contrato Silver em `docs/services/data-engineering.md`, PR #36 e manifestos/CSV locais disponíveis.
 
@@ -23,7 +23,7 @@
 | `ocorrencias_uc` | Um registro de ocorrência da rede elétrica vinculado à Unidade Consumidora | `id_ocorrencia`, `id_uc` | Ocorrências da Silver (`silver_publicada.ocorrencias_rede`) |
 | `controle_gold` | Registro de uma execução Gold concluída pelo notebook | `run_id_gold` identifica a execução; não há teste de unicidade explícito para essa tabela | Metadados da execução e dos controles Silver |
 
-As onze primeiras tabelas de negócio são incluídas na exportação. `controle_gold` é uma tabela operacional de linhagem e não está na lista de exportação do notebook.
+As onze primeiras tabelas de negócio compõem o contrato candidato de exportação `gold-csv-v2`, ainda dependente de migração/carga v2 no Backend e validação do Job real. `controle_gold` é uma tabela operacional de linhagem e não está na lista de exportação do notebook.
 
 ## Regras compartilhadas e limites
 
@@ -32,7 +32,7 @@ As onze primeiras tabelas de negócio são incluídas na exportação. `controle
 - **Receita e consumo:** faturas e leituras são agregadas separadamente por UC e competência e depois unidas por `inner join` para a construção de `diagnostico_receita`, `consumo_receita_bairro` e `consumo_mensal_uc` (usando somente pares UC/mês presentes nas duas fontes). **As projeções `faturas_uc`, `medidor_uc`, `atendimentos_uc` e `ocorrencias_uc` são exceções a esse acoplamento:** a `faturas_uc` preserva o histórico de faturas no grão individual de `id_fatura` independentemente de leitura na competência; a `medidor_uc` registra o parque de medição e seus vínculos de instalação/retirada no grão individual de `id_medidor`; a `atendimentos_uc` preserva o histórico completo de chamados no grão de `protocolo`; e a `ocorrencias_uc` preserva o histórico isolado de eventos da rede no grão de `id_ocorrencia` e `id_uc`, mantendo a fidelidade observada na origem sem cruzamentos forçados ou perda de registros.
 - **GD:** `Sim` significa que há pelo menos uma linha da UC em `geracao_distribuida`; a regra atual não considera vigência nem comprova geração, injeção ou compensação em uma competência. `Não` é atribuído quando a junção não encontra essa linha.
 - **Privacidade:** a projeção final de `fila_inspecao` e `visao_360_uc` não inclui CPF/CNPJ, nome, endereço, CEP, coordenadas ou metadados internos da Silver. `id_uc` continua sendo identificador de unidade: a ausência desses campos não torna o conjunto automaticamente anônimo.
-- **Publicação:** as tabelas Gold são gravadas com `overwrite`; algumas verificações gerais ocorrem depois da gravação. Uma falha tardia não garante que todas as tabelas anteriores permaneçam preservadas ou que haja uma troca atômica do conjunto inteiro.
+- **Publicação:** validar no schema de preparo antes da promoção; produção, desenvolvimento e teste têm destinos separados. Recuperar falhas capturadas e impedir execuções concorrentes; não há transação multi-tabela.
 - **Ausência e zero:** verifique a regra específica de cada tabela. Algumas contagens são preenchidas com zero quando uma junção não encontra registro; isso não demonstra, por si só, cobertura completa da fonte. Uma linha ausente em `indicadores_dec_fec` ou `ocorrencias_uc` não prova ausência de interrupções.
 
 ## 1. `diagnostico_receita`
@@ -199,90 +199,68 @@ A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações
 
 **Limite:** não há linha para UC/mês que exista somente em faturas ou somente em leituras. A tabela informa valor faturado, não valor pago, e não contém as dimensões territoriais; qualquer junção adicional precisa preservar o grão.
 
-## 8.`faturas_uc`
+## 8. `faturas_uc`
 
-**Finalidade:** série histórica e granular de 100% das faturas emitidas por Unidade Consumidora, contornando o descarte relacional de faturas sem leitura pareada para conciliação financeira estrita e auditoria de receita.
-**Grão e chave:** (`id_fatura`), com não nulidade e unicidade verificadas.
-**Fontes:** `silver_publicada.faturas` (100% da base Silver preservada).
+**Grão e população:** Uma fatura por `id_fatura`; todas as faturas aceitas na Silver, independentemente de leitura pareada.
 
-| Coluna | Tipo conceitual / unidade | Definição |
+| Coluna | Tipo / unidade | Definição |
 | --- | --- | --- |
-| `id_fatura` | texto | Identificador único e unívoco da fatura de energia elétrica. |
-| `id_uc` | texto | Identificador da Unidade Consumidora associada à cobrança. |
-| `mes_referencia` | texto `YYYY-MM` | Mês/ano de competência do faturamento. |
-| `data_emissao` | data `YYYY-MM-DD` | Data de emissão oficial do documento fiscal de cobrança. |
-| `data_vencimento` | data `YYYY-MM-DD` | Data limite para pagamento da fatura sem encargos. |
-| `data_pagamento` | data `YYYY-MM-DD` | Data do registro da liquidação financeira (nulo para faturas em aberto). |
-| `valor_total` | decimal / R$ | Valor financeiro total bruto cobrado na fatura, arredondado a duas casas decimais. |
-| `status_pagamento` | texto | Situação financeira da cobrança (ex.: `PAGO`, `EM_ABERTO`, `ATRASADO`). |
-| `ingestao_data` | timestamp | Timestamp de auditoria do processamento e gravação do registro na camada Gold. |
+| `id_fatura`, `id_uc` | string | Fatura e UC associada; chaves obrigatórias. |
+| `mes_referencia` | string YYYY-MM | Competência de faturamento. |
+| `data_emissao`, `data_vencimento`, `data_pagamento` | date | Datas Silver saneadas por flags; vencimento futuro é válido. Pagamento inconclusivo fica nulo. |
+| `valor_energia`, `tributos`, `valor_total` | decimal(20,2) / R$ | Valores cobrados; não demonstram valor efetivamente pago. |
+| `bandeira_tarifaria`, `status` | string | Categorias observadas; status não comprova quitação. |
+| `flag_paga`, `flag_tem_pagamento` | boolean | Status/data declarados na fonte; não constituem confirmação financeira. |
+| `flag_valor_inconsistente`, `flag_data_pagamento_inconclusiva`, `flag_paga_sem_data_valida`, `flag_pagamento_antes_emissao`, `flag_pagamento_sentinela`, `flag_pagamento_futuro` | boolean | Sinais Silver preservados; impedem interpretar ausência/inconsistência como pagamento comprovado. |
+| `data_processamento_gold` | timestamp UTC | Referência temporal única da execução Gold. |
 
-**Limite:** não contém métricas de consumo físico (`kWh`) nem dimensões territoriais. Retrata o valor faturado (cobrado), independente de ter ocorrido pagamento efetivo ou medição pareada. Qualquer junção com tabelas de clientes ou leituras deve considerar que uma UC pode ter múltiplas faturas ou nenhuma leitura associada na mesma competência.
+Fonte: `silver_publicada.faturas`. Emissão sentinela/futura e pagamento sinalizado ficam nulos; vencimento só é anulado por flag de sentinela. Não calcula pagamento parcial, valor em aberto ou energia faturada. Não é necessário haver leitura na competência.
 
 ## 9. `medidor_uc`
 
-**Descrição:** Registro analítico do parque de medidores de energia elétrica e histórico do vínculo operacional por Unidade Consumidora (UC).
+**Grão e população:** Um registro por `id_medidor`, vinculado a `id_uc`; exclui UC nula ou com prefixo TESTE.
 
-* **Finalidade:** Série histórica e granular do parque de medidores e seus vínculos operacionais de instalação e retirada por Unidade Consumidora, registrando a rastreabilidade dos ativos de medição e apoiando a visão 360 do cliente.
-* **Grão e chave:** (`id_medidor`), com não nulidade e unicidade verificadas.
-* **Fontes:** `silver_publicada.medidores` (100% da base Silver preservada, totalizando 49.930 registros).
-* **Estratégia de Carga:** Full Overwrite (`overwriteSchema = true`).
+| Coluna | Tipo / unidade | Definição |
+| --- | --- | --- |
+| `id_medidor`, `id_uc` | string | Chaves obrigatórias; medidor único na fonte elegível. |
+| `modelo`, `tipo`, `status` | string | Atributos observados do equipamento. |
+| `data_instalacao`, `data_retirada` | date | Datas observadas, nulas quando flags Silver indicam sentinela ou futuro; retirada anterior à instalação reprova o lote. |
+| `flag_instalacao_sentinela`, `flag_instalacao_futura`, `flag_retirada_sentinela`, `flag_retirada_futura` | boolean | Preservam o motivo de saneamento da data. |
+| `ingestao_data` | timestamp UTC | Referência temporal única Gold. |
 
-| Coluna | Tipo conceitual / unidade | Definição |
-| :--- | :--- | :--- |
-| `id_medidor` | texto | **Chave Primária**. Identificador único do equipamento medidor. |
-| `id_uc` | texto | **Chave Estrangeira**. Identificador da Unidade Consumidora vinculada. |
-| `modelo` | texto | Modelo e fabricante do equipamento de medição. |
-| `tipo` | texto | Tecnologia do equipamento (ex.: `ELETROMECANICO`, `ELETRONICO`). |
-| `data_instalacao` | data `YYYY-MM-DD` | Data de instalação do medidor na UC (datas sentinelas `< 1950-01-01` convertidas para `NULL`). |
-| `data_retirada` | data `YYYY-MM-DD` | Data de desativação/retirada (datas sentinelas `< 1950-01-01` ou `>= 2099-01-01` convertidas para `NULL`). |
-| `status` | texto | Situação operacional do medidor (ex.: `ATIVO`, `INATIVO`). |
-| `ingestao_data` | data e hora `TIMESTAMP` | Carimbo de data/hora do processamento do lote na camada Gold. |
-
-**Limite:** a coluna `data_ultima_manutencao` foi omitida nesta projeção por apresentar 100% de nulidade na camada Silver.
+Fonte: `silver_publicada.medidores`. Não aplica corte arbitrário por ano, não fabrica transferências e não identifica medidor ativo apenas por retirada nula. Seleção do instalado na data de referência e sobreposições continuam dependentes de regra aprovada. Manutenção não é publicada nesta projeção.
 
 ## 10. `atendimentos_uc`
 
-**Finalidade:** histórico detalhado de chamados e solicitações de suporte por Unidade Consumidora (UC).
-**Grão e chave:** (`protocolo`).
-**Fontes:** tabela de atendimentos da camada Silver (`silver_publicada.atendimentos`).
+**Grão e população:** Um protocolo por `protocolo`; exclui UC nula ou com prefixo TESTE.
 
-| Coluna | Tipo conceitual / unidade | Definição |
+| Coluna | Tipo / unidade | Definição |
 | --- | --- | --- |
-| `protocolo` | texto | **Chave Primária**. Identificador único do protocolo de atendimento. |
-| `id_uc` | texto | **Chave Estrangeira**. Vínculo com a Unidade Consumidora. |
-| `canal` | texto | Canal pelo qual o atendimento foi originado (ex.: `APP`, `TELEFONE`, `PRESENCIAL`). |
-| `assunto` | texto | Assunto principal da solicitação. |
-| `subassunto` | texto | Detalhamento ou subcategoria do assunto do atendimento. |
-| `data_abertura` | data e hora (`TIMESTAMP`) | Data e hora de abertura do chamado (convertida para `NULL` se houver flag de abertura futura). |
-| `data_fechamento` | data e hora (`TIMESTAMP`) | Data e hora de encerramento do chamado (convertida para `NULL` se houver flag de fechamento futura). |
-| `nota_satisfacao` | número (`DOUBLE`) | Nota de avaliação de satisfação atribuída pelo cliente (convertida para `NULL` se inválida ou negativa, sem preenchimento artificial por zero). |
-| `qtd_tratativas` | inteiro | Quantidade de interações ou tratativas registradas no protocolo. |
-| `primeira_acao` | texto | Registro descritivo ou código da primeira ação tomada no atendimento. |
-| `ultima_acao` | texto | Registro descritivo ou código da última ação realizada no encerramento. |
-| `ingestao_data` | data e hora (`TIMESTAMP`) | Carimbo de data/hora do processamento do lote na camada Gold. |
+| `protocolo`, `id_uc` | string | Protocolo único e UC obrigatória. |
+| `canal`, `assunto`, `subassunto` | string | Classificações observadas. |
+| `data_abertura`, `data_fechamento` | timestamp UTC | Datas nulas quando a flag Silver correspondente indica futuro. |
+| `nota_satisfacao` | double / pontos | Nota inválida ou negativa fica nula; ausência não é zero. |
+| `qtd_tratativas` | inteiro | Contagem da fonte, não quantidade de chamados. |
+| `primeira_acao`, `ultima_acao` | string | Resumo da primeira/última ação; não substitui todas as tratativas. |
+| `_abertura_futura`, `_fechamento_futura`, `_nota_negativa`, `_nota_invalida` | boolean | Flags de qualidade Silver mantidas com seus nomes físicos; metadados técnicos para o Backend, não autorização de exposição ao modelo. |
+| `ingestao_data` | timestamp UTC | Referência temporal única Gold. |
 
-**Filtros e limites:** preserva estritamente o histórico de chamados de forma isolada no grão individual de protocolo, sem cruzamentos forçados ou perda de registros que não possuam correspondência imediata em outras tabelas dimensionais. Aplica saneamento temporal (conversão de datas de abertura/fechamento futuras para `NULL` com base nas flags da Silver) e tratamento rigoroso de notas de satisfação inválidas ou negativas, garantindo integridade sem imputação artificial por zero.
+Fonte: `silver_publicada.atendimentos`. As interações de `atendimentos_historico` não são exportadas por esta tabela. Nenhum join com faturas ou ocorrências altera a contagem de protocolos.
 
 ## 11. `ocorrencias_uc`
 
-**Finalidade:** registro de ocorrências da rede elétrica vinculadas à Unidade Consumidora (UC), garantindo rastreabilidade operacional isolada sem cruzamentos forçados ou imputação artificial de métricas.
-**Grão e chave:** (`id_ocorrencia`, `id_uc`).
-**Fontes:** tabela de ocorrências da camada Silver (`silver_publicada.ocorrencias_rede`).
+**Grão e população:** Uma ocorrência vinculada à UC por `(id_ocorrencia, id_uc)`.
 
-| Coluna | Tipo conceitual / unidade | Definição |
+| Coluna | Tipo / unidade | Definição |
 | --- | --- | --- |
-| `id_ocorrencia` | texto | **Chave Primária**. Identificador único da ocorrência na rede. |
-| `id_uc` | texto | **Chave Estrangeira**. Vínculo com a Unidade Consumidora afetada. |
-| `alimentador` | texto | Identificador do alimentador elétrico associado à ocorrência. |
-| `tipo` | texto | Classificação ou tipo da ocorrência registrada. |
-| `causa` | texto | Motivo ou causa raiz atribuída à ocorrência. |
-| `data_abertura` | data e hora (`TIMESTAMP`) | Data e hora de início/abertura da ocorrência (convertida para `NULL` caso a flag de abertura futura seja verdadeira ou ultrapasse a data atual). |
-| `data_encerramento` | data e hora (`TIMESTAMP`) | Data e hora de encerramento da ocorrência (convertida para `NULL` caso a flag de encerramento futura seja verdadeira). |
-| `duracao_min` | número / minutos | Duração total da interrupção em minutos (convertida para `NULL` se houver incompatibilidade na origem ou valores negativos, evitando preenchimento indevido por zero). |
-| `ingestao_data` | data e hora (`TIMESTAMP`) | Carimbo de data/hora do processamento do lote na camada Gold. |
+| `id_ocorrencia`, `id_uc` | string | Chave composta obrigatória na projeção; duplicidade na fonte reprova o lote. |
+| `alimentador`, `tipo`, `causa` | string | Atributos observados do evento. |
+| `data_abertura`, `data_encerramento` | timestamp UTC | Datas futuras pela flag ou pela referência Gold ficam nulas. |
+| `duracao_min` | numérico / minutos | Duração inválida, negativa ou ausente permanece nula; não imputa zero. |
+| `flag_duracao_incompativel`, `flag_abertura_futura`, `flag_encerramento_futuro` | boolean | Sinais de qualidade Silver preservados. |
+| `ingestao_data` | timestamp UTC | Referência temporal única Gold. |
 
-**Filtros e limites:** descarta registros com UCs ausentes na origem (`_id_uc_ausente == True`), aplica saneamento estrito em datas futuras com base nas flags de controle e preserva o grão isolado de ocorrências sem dependência de tabelas dimensionais de faturamento ou leitura.
+Fonte: `silver_publicada.ocorrencias_rede`. Exclui evento sem UC vinculável, ID nulo ou `_id_uc_ausente` diferente de falso; reconcilia a população elegível. Linha ausente não comprova zero interrupções. Não cruza fatos financeiros e não demonstra continuidade regulatória.
 
 ## 12. `controle_gold` — linhagem da execução
 
@@ -296,17 +274,21 @@ O notebook gera um registro de controle ao final das verificações e usa `appen
 | `status_silver` | `string` | Estado Silver registrado para a execução. |
 | `silver_lineage_status` | `string` | Identifica se a linhagem veio de controle físico ou do caminho sintético. |
 | `status_gold` | `string` | `CONCLUIDO` quando o registro final é criado. |
-| `tabelas_geradas` | `string` | Lista textual das 10 tabelas verificadas. |
+| `tabelas_geradas` | `string` | Lista textual das onze tabelas verificadas. |
 | `ambiente` | `string` | `prod`, `dev` ou `test`. |
 | `processado_em` | `timestamp` | Instante UTC usado para o registro. |
 
-Esses campos são declarados com nulabilidade física `False` no schema de criação. O notebook verifica que as sete tabelas existem antes de inserir o registro; isso não transforma as gravações anteriores em uma publicação atômica.
+Esses campos têm nulabilidade física `False`. Gold valida onze candidatos em schema exclusivo, promove para `gold` em produção (`gold_dev`/`gold_test` nos demais ambientes) e registra o controle dentro do bloco de recuperação de falhas capturadas. Não há transação única entre tabelas: o Job deve executar sem concorrência e os consumidores devem aguardar sucesso. Falha abrupta ou falha no RESTORE exige recuperação operacional antes do consumo.
 
 ## Exportação e verificações
 
-`Exportacao_Gold_SQLite.ipynb` exige ambiente `prod` no último registro `CONCLUIDO` de `controle_gold`; o parâmetro opcional de ambiente também deve ser `prod` quando preenchido. A validação ocorre antes de qualquer gravação e não permite que o parâmetro sobrescreva o ambiente do controle. Em seguida, verifica a existência das sete tabelas, cria o Volume `workspace.gold.gold_export_volume` se necessário e grava cada tabela como CSV no diretório correspondente em `/Volumes/workspace/gold/gold_export_volume/export_csv`. Usa cabeçalho, separador `;`, UTF-8, `quoteAll` e `overwrite` por tabela. A gravação Spark pode gerar vários arquivos `part-*` por diretório; não há garantia de um único CSV por tabela. O notebook de exportação não executa a carga no banco local nem faz reconciliação entre o banco e a Gold.
+O exportador exige o controle produtivo mais recente, sem empate temporal, com linhagem física Silver concluída, identidade completa e conjunto exato das onze tabelas. O `run_id` opcional só confirma o controle; nunca o substitui. As versões Delta são fixadas e verificadas novamente antes de liberar o manifesto.
 
-O notebook Gold contém verificações de presença de registros, chaves não nulas e únicas nas sete tabelas, além de regras de sanidade e reconciliação. A existência do código não prova execução para todo lote. O controle de DEC reconstitui o esperado da Silver para um alimentador e competência fixos; não é, sozinho, uma verificação independente de todos os alimentadores nem do FEC.
+Cada tentativa grava em `/Volumes/workspace/gold/gold_export_volume/export_csv/<run_id_gold>/<export_id>/`, em onze subpastas, sem sobrescrever exportações anteriores. CSV: cabeçalho, separador `;`, UTF-8, aspas, datas ISO, timestamps UTC com microssegundos e offset, decimais com escala preservada; `\N` é nulo, distinto de string vazia (o marcador literal é reservado). Cada CSV é relido com o schema original e comparado como multiconjunto completo. O manifesto é criado somente após reconciliação e revalidação de controle/versões. Pasta sem manifesto é tentativa incompleta e não deve ser carregada.
+
+O manifesto `gold-csv-v2` contém as onze tabelas, contagens, schemas físicos, versões Delta, execução Gold e origem Silver/Bronze. É um contrato candidato: o carregador atual `gold-csv-v1` rejeita este conjunto e não foi alterado; a migração/carga v2 e os consumidores ainda precisam ser integrados. Não adaptar o snapshot histórico v1 silenciosamente.
+
+Os testes Gold conferem chaves, população elegível, finanças e todos os grupos DEC/FEC, com tolerância explícita para somas em ponto flutuante. Datas e ausências seguem as regras acima; a existência do código não comprova execução sobre o lote real. O exportador requer Gold → exportação serializados, pois verificações de versão não substituem uma transação multi-tabela ou um bloqueio de execução.
 
 ### Rastreabilidade e reconciliação por execução
 
@@ -318,7 +300,7 @@ A reconciliação deve conferir receita e energia entre as tabelas pertinentes, 
 
 ## Conferência no Databricks antes de homologar
 
-Para cada uma das sete tabelas e para `controle_gold`:
+Para cada uma das onze tabelas e para `controle_gold`:
 
 1. Consultar `DESCRIBE TABLE` ou `printSchema` e registrar tipos físicos, precisão decimal e nulabilidade.
 2. Conferir as colunas publicadas com este dicionário e verificar chaves, nulos, contagens e relações entre tabelas para o mesmo lote.

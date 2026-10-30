@@ -457,6 +457,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+
+### 2026-10-30 — DE-04 / DE-06 / DE-08 — projeções UC e exportação candidata v2
+
+- Estado: DE-04 e DE-08 permanecem `Pendente`; DE-06 permanece `Em andamento`. Fatia de Dados em revisão local na branch `feat/gold-novas-tabelas`, destinada ao [PR #80](https://github.com/GuilhermeRangel1/git-or-treat/pull/80); estas alterações ainda não têm commit/push. Não conclui WEB-03 nem a [issue #75](https://github.com/GuilhermeRangel1/git-or-treat/issues/75).
+- Implementação: [Gold](../data-engineering/notebook/Silver_to_gold.ipynb) materializa exclusivamente vistas Silver publicadas, confere run/lote antes/depois e bloqueia identidade divergente. [Exportador](../data-engineering/notebook/Exportacao_Gold_SQLite.ipynb) exige controle produtivo validado das onze tabelas, impede substituição do run por parâmetro, fixa versões Delta e grava tentativa exclusiva. Compara CSV relido ao multiconjunto original antes de liberar manifesto via arquivo temporário. [Dicionário](dicionario_gold.md), [guia](services/data-engineering.md) e [README](../data-engineering/README.md) refletem campos, flags, populações, UTC, decimais e limites.
+- Contrato candidato: `gold-csv-v2`, onze tabelas, nulo explícito distinto de texto vazio, timestamps UTC com microssegundos e offset, contagens/schemas/versões no manifesto. Não modifica `gold_v1.py` nem o carregador atual, que rejeita v2; migração, carga e adaptação de consumidores são pendências explícitas.
+- Verificações locais: `python .scratch/verify_source.py`: 7 cenários passaram; `python .scratch/verify_export.py`: regressão anterior reproduzida (sete saídas), versão corrigida com 8 cenários aprovados; roteiro via `python -`: 4 cenários de publicação do manifesto passaram (sucesso e falhas de serialização, escrita parcial e rename). Sintaxe AST/JSON de 35 células Python e etapa de documentação/configuração do CI (101 documentos) passaram; `git diff --check` passou. Revisão paralela de especificação e padrões sem bloqueio concreto remanescente no escopo após os ajustes.
+- Dados e limites: apenas fixtures controladas, sem leitura do lote real. Spark local 4.2 usa codec CSV real (`to_csv`/`from_csv`) com transporte Delta/arquivos substituído e arquivos temporários locais; isso não comprova o datasource de arquivos Hadoop, Unity Catalog, rename no Volume ou execução Delta/RESTORE. Checkpoint local não é durável: perda de executor exige refazer o Job. Gold → exportação requer serialização e exclusão de Jobs concorrentes; checagens de versão não substituem atomicidade entre tabelas.
+- Os roteiros e fixtures temporários foram descartados conforme solicitado; o resultado está registrado, mas não há suíte nova versionada para reexecução automática. Permanecem a execução autorizada do Job, schemas físicos e reconciliação Silver → Gold → CSV → banco, carga v2/consumidores e as demais lacunas da issue #75 (tratativas completas, identificação do titular, detalhes GD e cobertura de leituras sem fatura). Nenhum requisito recebe aceite integral por esta validação controlada.
+
+
 ### 2026-10-29 — IA-01 / IA-03 / IA-06 — GENAI-01 (parte A2): núcleo dividido em planejar e sintetizar
 
 - Estado: IA-01, IA-03 e IA-06 permanecem nos estados existentes. Entrega de preparação: sem rota interna e sem ativação Gold. `POST /api/v1/questions` mantém o mesmo comportamento.

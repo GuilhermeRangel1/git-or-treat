@@ -16,7 +16,7 @@ tratamento e decisão de negócio pertencem à Silver. O contrato completo está
 | [`Bronze_perfilamento.ipynb`](notebook/Bronze_perfilamento.ipynb) | Inventário, achados e relações por arquivo/aba |
 | [`Bronze_to_Silver.ipynb`](notebook/Bronze_to_Silver.ipynb) | Silver: limpeza, tipos, chaves, quarentena, reconciliação e portão de qualidade |
 | [`Silver_to_gold.ipynb`](notebook/Silver_to_gold.ipynb) | Construção e validações das tabelas Gold a partir da Silver publicada |
-| [`Exportacao_Gold_SQLite.ipynb`](notebook/Exportacao_Gold_SQLite.ipynb) | Exportação das sete tabelas Gold em CSV para um Volume |
+| [`Exportacao_Gold_SQLite.ipynb`](notebook/Exportacao_Gold_SQLite.ipynb) | Exportação candidata v2 de onze tabelas Gold em CSV para um Volume |
 
 O scanner grava JSONL de preparo **somente no Volume autorizado**. Cada
 registro aceito mantém o conteúdo bruto, arquivo, ordinal e linha física inicial
@@ -99,26 +99,29 @@ explicitamente `AMBIENTE=prod` e confira o valor no Workspace. Em `dev` e
 `test`, o notebook admite execução sintética em condições previstas no código.
 O catálogo `workspace` está definido no próprio notebook.
 
-O notebook gera `diagnostico_receita`, `indicadores_dec_fec`, `fila_inspecao`,
-`visao_360_uc`, `consumo_mensal_uc`, `consumo_receita_bairro` e
-`variacao_consumo_uc`, além do registro `gold.controle_gold`. A fila e a Visão
-360 projetam as colunas finais sem CPF/CNPJ, nome, endereço ou metadados internos.
-Os indicadores DEC/FEC são simplificados e não comprovam conformidade regulatória.
+O notebook gera sete tabelas analíticas e quatro históricos (`faturas_uc`,
+`medidor_uc`, `atendimentos_uc`, `ocorrencias_uc`), além de `controle_gold`.
+As fontes publicadas são materializadas e conferidas por execução/lote. Os
+candidatos são validados em schema próprio antes da promoção; dev/test não
+sobrescrevem a Gold produtiva. DEC/FEC permanecem indicadores simplificados.
 
-`Exportacao_Gold_SQLite.ipynb` verifica a existência das sete tabelas e grava
-CSV com cabeçalho e separador `;` no Volume
-`/Volumes/workspace/gold/gold_export_volume/export_csv`. Cada tabela é gravada
-em um diretório próprio, com sobrescrita; a exportação não executa a carga no
-banco local nem comprova sua reconciliação. Confirme o catálogo, o destino e as
-permissões do Volume antes de executar e não versione os CSVs do case.
+O exportador exige controle produtivo com as onze tabelas e fixa versões Delta.
+Cada tentativa grava em
+`/Volumes/workspace/gold/gold_export_volume/export_csv/<run_id_gold>/<export_id>/`.
+CSV usa UTF-8, separador `;`, aspas duplicadas, datas ISO, timestamps UTC e nulo
+explícito distinto de texto vazio. Os CSVs são relidos e comparados antes de
+publicar o manifesto por arquivo temporário. Falhas deixam tentativa sem
+manifesto válido e preservam exportações anteriores. Não consumir pastas sem
+manifesto completo e validado; não misturar arquivos de tentativas diferentes.
 
-A revisão da versão `c95bfc3` foi executada no Databricks e relatada no PR #36.
-Em 27/10/2026, a pessoa usuária confirmou que execução, reconciliação e Workflow
-já foram validados; a identificação e os resultados da validação mais recente
-devem ser vinculados ao PRD. As verificações finais da Gold ocorrem depois de
-gravações das tabelas; uma falha não garante que a versão anterior permaneça publicada.
-O teste de DEC recalcula a amostra da Silver, mas usa um alimentador e um mês
-fixos e não valida toda a tabela nem o FEC.
+O contrato candidato `gold-csv-v2` exige migração/carga v2 no Backend; o carregador
+v1 atual deve rejeitá-lo. Confira campos, populações e limites no
+[dicionário Gold](../docs/dicionario_gold.md). Não versione os CSVs do case.
+
+Gold → exportação devem executar em sequência, sem Jobs concorrentes. Não há
+transação entre onze tabelas; falha abrupta na promoção exige recuperação antes
+de exportar. A evidência histórica do PR #36 não valida estas alterações: o Job
+atual e a reconciliação até o banco ainda precisam de execução autorizada.
 
 ## Executar no Databricks
 
