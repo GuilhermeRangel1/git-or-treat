@@ -13,6 +13,9 @@ from app.schemas.analytics import (
     Pagination,
 )
 from app.schemas.operations import (
+    GoldFeederOption,
+    GoldOperationOptions,
+    GoldOperationOptionsResponse,
     OperationDetailData,
     OperationDetailResponse,
     OperationOccurrence,
@@ -348,6 +351,27 @@ def _gold_point(row: dict, start: str, end: str) -> GoldOperationPoint:
         dec_hours_per_uc=dec, fec_interruptions_per_uc=fec, status=status,
         dec_status=dec_status, fec_status=fec_status,
         limitations=limitations,
+    )
+
+
+def build_gold_operation_options(repository: GoldOperationsRepository) -> GoldOperationOptionsResponse:
+    periods, feeders = repository.options()
+    context = repository.context
+    return GoldOperationOptionsResponse(
+        data=GoldOperationOptions(
+            competencias=periods,
+            municipios=sorted({municipality for municipality in feeders.values() if municipality is not None}),
+            alimentadores=[GoldFeederOption(id=id_, municipio=municipality) for id_, municipality in sorted(feeders.items())],
+        ),
+        metadata=GoldMetadata(
+            status="available" if periods else "empty",
+            period=None,
+            temporal_scope="snapshot",
+            source=AnalyticsSource(kind="gold", version=context.lote, is_demo=False, updated_at=context.imported_at.isoformat()),
+            schema_version=context.schema_version,
+            fingerprint=context.fingerprint,
+            limitations=["Opções observadas na publicação; não declaram fechamento ou completude mensal."],
+        ),
     )
 
 

@@ -9,6 +9,13 @@ def synthetic_source(monkeypatch):
     monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "synthetic")
 
 
+def test_options_explicitly_identify_unsupported_synthetic_source(client):
+    response = client.get("/api/v1/operations/options")
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "unsupported_source"
+    assert response.headers["cache-control"] == "no-store"
+
+
 # Independent manual control: AL-01 has two UCs and events lasting 2h in Jan,
 # 1h in Feb. AL-02 has two UCs, no Jan event, one 3h Feb event.
 # Thus totals are (DEC 1.5, FEC 1) and (DEC 1.5, FEC .5), respectively.

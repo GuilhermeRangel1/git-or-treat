@@ -7,9 +7,25 @@ from app.schemas.analytics import AnalyticsMetadata, AnalyticsPeriod, Continuity
 from app.schemas.gold import GoldMetadata
 
 
+class GoldFeederOption(BaseModel):
+    id: str
+    municipio: str | None
+
+
+class GoldOperationOptions(BaseModel):
+    competencias: list[str]
+    municipios: list[str]
+    alimentadores: list[GoldFeederOption]
+
+
+class GoldOperationOptionsResponse(BaseModel):
+    data: GoldOperationOptions
+    metadata: GoldMetadata
+
+
 class GoldOperationPoint(BaseModel):
     feeder_id: str
-    municipality: str
+    municipality: str | None
     period: AnalyticsPeriod
     observed_period: AnalyticsPeriod | None
     observed_competencies: list[str] = Field(default_factory=list)

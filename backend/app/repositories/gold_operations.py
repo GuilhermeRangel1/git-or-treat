@@ -11,7 +11,7 @@ class GoldOperationsRepository:
         self.connection = context.connection
         self.table = TABLES["indicadores_dec_fec"]
 
-    def options(self) -> tuple[list[str], dict[str, str]]:
+    def options(self) -> tuple[list[str], dict[str, str | None]]:
         table = self.table
         rows = self.connection.execute(select(
             table.c.competencia, table.c.id_alimentador,

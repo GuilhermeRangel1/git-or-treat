@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     OIDC_ISSUER: str | None = None
     OIDC_AUDIENCE: str | None = None
     OIDC_JWKS_URL: str | None = None
+    OIDC_ALLOW_LOCAL_HTTP: bool = False
 
     @model_validator(mode="after")
     def validate_order_tokens(self):
@@ -43,6 +44,8 @@ class Settings(BaseSettings):
             raise ValueError("Credenciais de leitura e escrita devem ser distintas.")
         if self.APP_ENV == "production" and self.ORDERS_AUTH_MODE != "oidc":
             raise ValueError("Produção exige autenticação individual OIDC nas ordens.")
+        if self.OIDC_ALLOW_LOCAL_HTTP and self.APP_ENV != "development":
+            raise ValueError("OIDC_ALLOW_LOCAL_HTTP só pode ser usado em desenvolvimento.")
         if self.ORDERS_AUTH_MODE == "demo" and self.ANALYTICS_SOURCE != "synthetic":
             raise ValueError("Modo demo exige fonte exclusivamente sintética.")
         if self.ORDERS_AUTH_MODE == "oidc":
@@ -52,9 +55,23 @@ class Settings(BaseSettings):
                 raise ValueError("Configure a audiência OIDC da API.")
             for value in (self.OIDC_ISSUER, self.OIDC_JWKS_URL):
                 parsed = urlsplit(value or "")
-                if (parsed.scheme != "https" or not parsed.hostname or parsed.username
-                        or parsed.password or parsed.query or parsed.fragment):
-                    raise ValueError("Emissor e JWKS OIDC devem ser URLs HTTPS explícitas, sem credenciais ou parâmetros.")
+                local_http = (
+                    self.OIDC_ALLOW_LOCAL_HTTP
+                    and self.APP_ENV == "development"
+                    and parsed.scheme == "http"
+                    and parsed.hostname in {"localhost", "127.0.0.1"}
+                )
+                if (
+                    (parsed.scheme != "https" and not local_http)
+                    or not parsed.hostname
+                    or parsed.username
+                    or parsed.password
+                    or parsed.query
+                    or parsed.fragment
+                ):
+                    raise ValueError(
+                        "Emissor e JWKS OIDC devem usar HTTPS; HTTP só é aceito explicitamente em localhost/127.0.0.1 durante desenvolvimento."
+                    )
         if self.AI_AGENT_BASE_URL is not None:
             if self.AI_AGENT_SERVICE_API_TOKEN is None:
                 raise ValueError("AI_AGENT_SERVICE_API_TOKEN é obrigatório quando AI_AGENT_BASE_URL é configurada.")

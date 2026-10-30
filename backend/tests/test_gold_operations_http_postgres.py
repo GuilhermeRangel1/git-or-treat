@@ -98,6 +98,28 @@ def artificial_operations_gold(gold_engine):
     return fingerprint
 
 
+def test_gold_operation_discovery_preserves_feeder_without_municipality(gold_engine, artificial_operations_gold, monkeypatch):
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setattr(settings, "APP_ENV", "development")
+    monkeypatch.setattr(settings, "ORDERS_AUTH_MODE", "service")
+    token = "artificial-read-" + "x" * 32
+    monkeypatch.setattr(settings, "ORDERS_READ_TOKEN", SecretStr(token))
+    monkeypatch.setattr(gold_context_module, "engine", gold_engine)
+    table = TABLES["indicadores_dec_fec"]
+    with gold_engine.begin() as connection:
+        connection.execute(table.update().where(table.c.id_alimentador == "AL-STABLE").values(municipio=None))
+    headers = {"Authorization": f"Bearer {token}"}
+    with TestClient(app) as client:
+        options = client.get("/api/v1/operations/options", headers=headers)
+        assert options.status_code == 200
+        assert None not in options.json()["data"]["municipios"]
+        assert {"id": "AL-STABLE", "municipio": None} in options.json()["data"]["alimentadores"]
+        detail = client.get("/api/v1/operations/feeders/AL-STABLE?competencia_inicio=2025-01&competencia_fim=2025-02", headers=headers)
+        assert detail.status_code == 200
+        assert detail.json()["data"]["summary"]["municipality"] is None
+        assert detail.json()["data"]["summary"]["dec_hours_per_uc"] == 1.0
+
+
 def test_gold_operations_http_reconciles_windows_filters_and_missing_evidence(
     gold_engine, artificial_operations_gold, monkeypatch,
 ):
@@ -113,6 +135,15 @@ def test_gold_operations_http_reconciles_windows_filters_and_missing_evidence(
     suffix = f"expected_lote=operations-test&expected_fingerprint={fingerprint}"
     window = "competencia_inicio=2025-01&competencia_fim=2025-02"
     with TestClient(app) as client:
+        assert client.get("/api/v1/operations/options").status_code == 401
+        options = client.get(f"/api/v1/operations/options?{suffix}", headers=headers)
+        assert options.status_code == 200
+        assert options.headers["cache-control"] == "no-store"
+        assert options.json()["data"]["competencias"] == ["2025-01", "2025-02"]
+        assert {row["id"] for row in options.json()["data"]["alimentadores"]} >= {"AL-STABLE", "AL-VARIABLE"}
+        assert options.json()["metadata"]["fingerprint"] == fingerprint
+        assert options.json()["metadata"]["period"] is None
+        assert client.get("/api/v1/operations/options?expected_lote=obsolete", headers=headers).status_code == 409
         continuity_response = client.get(f"/api/v1/operations/continuity?{window}&{suffix}", headers=headers)
         assert continuity_response.status_code == 200, continuity_response.text
         continuity = {row["feeder_id"]: row for row in continuity_response.json()["data"]}

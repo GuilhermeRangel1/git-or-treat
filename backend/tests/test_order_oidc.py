@@ -157,6 +157,11 @@ def test_unavailable_identity_provider_does_not_authorize(oidc, key, monkeypatch
     {"APP_ENV": "production"},
     {"ORDERS_AUTH_MODE": "oidc"},
     {"ORDERS_AUTH_MODE": "oidc", "OIDC_ISSUER": "http://id.test", "OIDC_AUDIENCE": AUDIENCE, "OIDC_JWKS_URL": ISSUER + "/jwks"},
+    {"ORDERS_AUTH_MODE": "oidc", "OIDC_ISSUER": "http://localhost:8082/realms/grid360", "OIDC_AUDIENCE": AUDIENCE, "OIDC_JWKS_URL": "http://localhost:8082/realms/grid360/protocol/openid-connect/certs"},
+    {"ORDERS_AUTH_MODE": "oidc", "OIDC_ALLOW_LOCAL_HTTP": True, "OIDC_ISSUER": "http://keycloak:8082/realms/grid360", "OIDC_AUDIENCE": AUDIENCE, "OIDC_JWKS_URL": "http://keycloak:8082/jwks"},
+    {"ORDERS_AUTH_MODE": "oidc", "OIDC_ALLOW_LOCAL_HTTP": True, "OIDC_ISSUER": "http://localhost.attacker.invalid/realms/grid360", "OIDC_AUDIENCE": AUDIENCE, "OIDC_JWKS_URL": "http://localhost.attacker.invalid/jwks"},
+    {"ORDERS_AUTH_MODE": "oidc", "OIDC_ALLOW_LOCAL_HTTP": True, "OIDC_ISSUER": "http://localhost:8082/realms/grid360?next=https://attacker.invalid", "OIDC_AUDIENCE": AUDIENCE, "OIDC_JWKS_URL": "http://localhost:8082/jwks"},
+    {"ORDERS_AUTH_MODE": "oidc", "OIDC_ALLOW_LOCAL_HTTP": True, "OIDC_ISSUER": "http://user@localhost:8082/realms/grid360", "OIDC_AUDIENCE": AUDIENCE, "OIDC_JWKS_URL": "http://localhost:8082/jwks"},
     {"ORDERS_AUTH_MODE": "oidc", "OIDC_ISSUER": ISSUER, "OIDC_AUDIENCE": AUDIENCE, "OIDC_JWKS_URL": "https://user:password@id.test/jwks"},
     {"ORDERS_AUTH_MODE": "oidc", "OIDC_ISSUER": ISSUER, "OIDC_AUDIENCE": AUDIENCE, "OIDC_JWKS_URL": ISSUER + "/jwks", "ORDERS_WRITE_TOKEN": "s" * 40},
 ])
@@ -169,3 +174,28 @@ def test_production_configuration_accepts_individual_identity():
     config = Settings(_env_file=None, APP_ENV="production", ORDERS_AUTH_MODE="oidc",
         OIDC_ISSUER=ISSUER, OIDC_AUDIENCE=AUDIENCE, OIDC_JWKS_URL=ISSUER + "/jwks")
     assert config.ORDERS_AUTH_MODE == "oidc"
+
+
+@pytest.mark.parametrize("options", [
+    {"APP_ENV": "production", "ORDERS_AUTH_MODE": "oidc", "OIDC_ALLOW_LOCAL_HTTP": True,
+     "OIDC_ISSUER": "https://identity.example.invalid/tenant", "OIDC_AUDIENCE": AUDIENCE,
+     "OIDC_JWKS_URL": "https://identity.example.invalid/tenant/jwks"},
+])
+def test_local_http_opt_in_is_denied_outside_development(options):
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **options)
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1"])
+def test_explicit_local_http_oidc_configuration_is_accepted(host):
+    issuer = f"http://{host}:8082/realms/grid360"
+    config = Settings(
+        _env_file=None,
+        APP_ENV="development",
+        ORDERS_AUTH_MODE="oidc",
+        OIDC_ALLOW_LOCAL_HTTP=True,
+        OIDC_ISSUER=issuer,
+        OIDC_AUDIENCE="grid360-api",
+        OIDC_JWKS_URL=f"{issuer}/protocol/openid-connect/certs",
+    )
+    assert config.OIDC_ISSUER == issuer

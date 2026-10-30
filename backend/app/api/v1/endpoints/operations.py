@@ -26,6 +26,7 @@ from app.schemas.operations import (
     GoldOperationDetailResponse,
     GoldOperationRankingData,
     GoldRankedFeeder,
+    GoldOperationOptionsResponse,
 )
 from app.services.analytics import (
     AnalyticsAPIError,
@@ -45,6 +46,7 @@ from app.services.operations import (
     gold_operation_series,
     build_gold_operation_summary,
     build_gold_feeder_detail,
+    build_gold_operation_options,
     validate_operation_window,
 )
 
@@ -76,6 +78,15 @@ def exploration_period(
 ) -> tuple[str, str]:
     validate_operation_window(*period)
     return period
+
+
+@router.get("/options", response_model=GoldOperationOptionsResponse)
+def get_operation_options(
+    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+) -> GoldOperationOptionsResponse:
+    if gold_context is None:
+        raise AnalyticsAPIError(422, "unsupported_source", "Opções disponíveis somente para a fonte Gold.")
+    return build_gold_operation_options(GoldOperationsRepository(gold_context))
 
 
 @router.get(
