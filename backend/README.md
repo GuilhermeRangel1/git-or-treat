@@ -15,7 +15,7 @@ backend/
 ├── app/schemas/           # Contratos Pydantic de entrada e saída
 ├── app/services/          # Regras e operações de domínio
 ├── alembic/               # Migrações de esquema
-├── scripts/load_gold.py   # Carga transacional dos sete CSVs Gold v1
+├── scripts/load_gold.py   # Carga transacional Gold CSV v1/v2
 ├── tests/                 # Testes HTTP, ORM e migrações
 └── requirements.txt       # Dependências Python
 ```
@@ -144,6 +144,18 @@ As ordens usam dados operacionais separados, controle de acesso DEV-06, históri
 ## Carga sintética e recuperação — DEV-12
 
 A revisão `goldv1000002` acrescenta versão explícita do esquema ao lote atual e histórico persistente em `gold_carga_tentativas`. Use `--schema-version gold-csv-v1`; versões desconhecidas são rejeitadas. O CLI retorna o UUID de cada tentativa e mantém erros sem conteúdo dos registros. Uma falha reverte a publicação; registrar sucesso e publicar são atômicos.
+
+### Pacote analítico Gold CSV v2
+
+A revisão `goldv2000001` cria o schema físico separado `gold_v2`, com as quinze tabelas do [contrato CSV v2](../docs/contracts/gold-csv-v2.md). A v1 continua preservada em `gold`. A importação v2 exige a seleção explícita da versão:
+
+```powershell
+python scripts/load_gold.py --directory data/export_csv/<run_id>/<export_id> --schema-version gold-csv-v2
+```
+
+O importador valida o manifesto e cada schema, cabeçalho, tipo, chave, marcador de nulo, contagem e hash; confere os agregados financeiros entre as três projeções; publica em uma transação e mantém a publicação anterior em caso de erro. `\N` é nulo e string vazia permanece vazia. A repetição idêntica é idempotente. Ele carrega apenas as quinze tabelas analíticas; não carrega o pacote restrito `gold-cadastro-v1` nem fornece nome de titular à GenAI. A v2 ainda não está conectada às consultas da API, chat ou insights.
+
+Para repetir a verificação de volume com o pacote real, configure `GOLD_CSV_V2_DIR` com o caminho local da exportação e execute `python -m pytest tests/test_gold_import_v2_real.py -q`. O teste usa SQLite temporário e remove o banco ao final. Não coloque os CSVs no repositório nem use um banco compartilhado/produção para essa prova.
 
 Para verificar sem dataset real, `venv/Scripts/python.exe scripts/generate_gold_sample.py --directory ../work/dev12-lote-01` cria sete CSVs inteiramente artificiais em um diretório novo. O controle independente é duas UCs mensais, 30 kWh e R$ 25,50. O [runbook DEV-12](../docs/contracts/gold-load-dev12.md) inclui banco isolado, execução/repetição, inspeção da auditoria e recuperação de cargas inválidas/interrompidas.
 
