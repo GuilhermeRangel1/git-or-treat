@@ -174,7 +174,8 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
 | Banco indisponível por falha transitória (conexão recusada ou perdida, timeout de conexão) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. |
 | Credencial ou papel do banco inválidos (erro de configuração) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: false`. Mensagem pública genérica, sem detalhe de credencial, papel ou permissão; repetir não ajuda até o Backend corrigir a configuração. |
 | Timeout da consulta no banco | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. A consulta é cancelada; a GenAI não é chamada para sintetizar. |
-| Lote inválido: nenhum manifesto carregado e validado, lote com valores de reserva (`SINTETICO_DEV`, `LOTE_DEV`) ou `batch_ref` alterado durante a execução | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: false` (**proposto**). O Backend não consulta o banco, ou descarta o resultado, e não chama sintetizar. Repetir só ajuda depois de uma nova carga validada. |
+| Publicação ausente/inválida, referência malformada ou valores de reserva (`SINTETICO_DEV`, `LOTE_DEV`) | Backend (`GoldPublicationInvalid`) | Política B7: `retryable: false`. Tradução HTTP proposta: HTTP 200, `recoverable_error`, `service_unavailable`. Impede consulta/síntese ou descarta resultados; exige corrigir/carregar uma publicação válida. |
+| Publicação atual e esperada são válidas, mas diferentes, inclusive outra publicação com o mesmo nome de lote | Backend (`GoldPublicationChanged`) | Política B7: `retryable: true`. Tradução HTTP proposta: HTTP 200, `recoverable_error`, `service_unavailable`. Descarta resultados e permite nova requisição que capture a publicação atual e refaça o planejamento. Nunca repetir automaticamente a consulta ou síntese com o plano antigo. |
 | Evidência Gold sem `batch_ref` na proveniência, sem publicação esperada ou divergente dela | GenAI (`EvidenceGuard`, implementado) | Recusa por `EvidenceContractInvalid`; tradução HTTP proposta para a futura rota interna: HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
 | Consulta excederia o limite de linhas do plano | Backend | HTTP 200, `recoverable_error`, `limit_exceeded`, `retryable: false` (**proposto**). |
 | Evidência recebida acima do limite de linhas ou bytes | GenAI (`EvidenceGuard`) | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
@@ -421,3 +422,24 @@ O catálogo do PR #73 já declara `GOLD_PROFILE_ID = "v-energy-grid-360-gold"`. 
 Os exemplos de escopo, plano e síntese e os vetores compartilhados usam agora a identidade B4. Os fingerprints foram recalculados porque o perfil anterior `grid360_gold` era ilustrativo; a regra B3 não mudou. Os demais IDs lógicos dos exemplos não substituem o catálogo do PR #73.
 
 A futura coordenação Gold deve usar `validate_gold_genai_plan`, construir o escopo autorizado com esse mesmo par e manter a correspondência até a síntese. Isso ainda não está conectado à rota HTTP atual. O par de identificadores não concede permissões nem substitui catálogo, validação temporal, publicação ou composição de runtime. A ativação do catálogo permanece no trabalho de integração, sem duplicar o PR #73.
+
+
+### Publicação B1/B7 no Backend — preparação
+
+`GoldPublicationContext.capture(reader_engine)` em `backend/app/services/genai_publication.py` fixa uma referência validada por `current_publication`, sem recebê-la do portal, plano ou lookup. A classe é imutável e não substitui os envelopes existentes.
+
+Sequência exigida do futuro coordenador:
+
+1. Capturar o contexto da publicação no servidor; `planning_fields(reader_engine)` confere a referência atual e fornece `batch_ref` ao envelope de planejar. Acrescentar a cobertura temporal da mesma publicação e o escopo autorizado continua responsabilidade do coordenador.
+2. Revalidar identidade B4, fingerprint B3 e permissões do plano; se não houver plano executável, retornar o estado correspondente sem consultar a Gold.
+3. Executar e materializar o lookup dentro de `context.execution_snapshot(reader_engine)`, utilizando exclusivamente a conexão fornecida. O bloco abre uma transação PostgreSQL `REPEATABLE READ READ ONLY`, verifica a referência antes de permitir a consulta e não mistura fatos de publicações concorrentes. Após fechar a transação, uma conexão nova confere se a referência continua atual; se mudou, o contexto lança `GoldPublicationChanged` e o chamador deve descartar todo resultado obtido no bloco. SQLite não é aceito como executor dessa fronteira.
+4. `synthesis_fields(reader_engine)` confere novamente a publicação em leitura nova e fornece `expected_batch_ref` exclusivamente da referência fixada, independente de `lookup.evidence.provenance.batch_ref`. A GenAI mantém sua própria conferência de proveniência pelo EvidenceGuard.
+5. Conferir `assert_current(reader_engine)` após a síntese, antes de publicar resposta ou cache. Se falhar, descartar a resposta; uma nova tentativa começa pela captura e pelo planejamento, sem reaproveitar plano/lookup antigos.
+
+Não manter transação/conexão aberta durante chamadas de rede ou ao modelo. Consultas lazy devem ser materializadas antes de sair do bloco. O contexto só conclui com sucesso depois da conferência posterior; valores produzidos antes dessa conclusão não podem alimentar síntese ou cache. Papel de banco somente leitura, catálogo, cobertura, limites, timeout e auditoria continuam obrigatórios e independentes.
+
+B7 mantém `GoldPublicationUnavailable` como classe-base compatível. `GoldPublicationInvalid` expõe internamente `code: publication_invalid`, `retryable: false`; `GoldPublicationChanged`, `code: publication_changed`, `retryable: true`. Referência esperada malformada e metadado atual inválido nunca viram lote trocado. Exceções de conexão/SQL não são reclassificadas como identidade inválida. As mensagens não incluem referências recebidas ou dados do lote. A categoria pública continua sendo a já prevista `service_unavailable`, sem novos códigos no chat v1; a tradução HTTP será conectada pelo coordenador.
+
+Esta entrega prepara controles executáveis com fixtures sintéticas e testes PostgreSQL; ainda não liga o endpoint de perguntas às três etapas, não implementa executor de planos nem conclui B1 ponta a ponta ou aceite Gold.
+
+Referência: [SQLAlchemy Core 2.0 — isolamento por conexão](https://docs.sqlalchemy.org/en/20/core/connections.html#setting-transaction-isolation-levels-including-dbapi-autocommit), consultada via Context7 em 30/10/2026. O isolamento é escolhido antes de iniciar a transação e é restaurado ao devolver a conexão ao pool.
