@@ -141,3 +141,8 @@ A refatoração de alinhamento DEV-08 move a composição e paginação do detal
 ## Preparação da identidade de publicação Gold — 28/10/2026
 
 O Backend passa a validar a origem do manifesto e persistir a origem e `publication_id`, derivando deles o `batch_ref`. A identidade permanece em repetição e muda atomicamente em nova publicação. O schema analítico e o papel de leitura seguem a ADR-0017; [manifesto e compatibilidade](../contracts/gold-csv-v1.md#origem-e-publicação) e [migração, permissões e recuperação](../contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação) descrevem o uso. O campo nos envelopes GenAI, os endpoints de planejar/sintetizar e o executor de consultas de negócio continuam pendentes. Esta preparação não ativa a fonte real nem conclui GENAI-01 ou requisitos IA/DE.
+
+
+### Preparação B6 de prazo compartilhado
+
+`app/services/genai_deadline.py::GenAIRequestDeadline` oferece prazo monotônico por requisição, limites de etapas pelo tempo restante e cálculo de timeout SQL em milissegundos sem zero. O futuro coordenador deve fornecer os valores acordados e aplicar os limites no transporte e no executor. O componente ainda não está conectado à rota HTTP, não altera os 35 segundos por chamada existentes e não comprova cancelamento de SQL ou prazo ponta a ponta. Veja o contrato de consulta, seção Prazo B6 compartilhado.

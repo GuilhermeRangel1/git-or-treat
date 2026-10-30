@@ -2092,3 +2092,11 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Testes com cargas artificiais cobrem repetição, referência inválida, ausência, publicação trocada em cada fronteira, mesma origem com outro UUID e mensagens sem referências recebidas. Cenários PostgreSQL verificam snapshot consistente com carga concorrente e rejeição do resultado, bloqueio de escrita, restauração de configuração ao pool e compatibilidade com o papel restrito provisionado pelas migrações.
 - Evidência local: `python -m pytest -q -rs` no Backend: 604 aprovados, 82 pulados, um aviso Starlette/httpx. `python -m pytest tests/test_internal_contract_examples.py tests/test_internal_envelopes.py -q` na GenAI: 125 aprovados. Ruff dos três arquivos novos/refatorados, compileall dos quatro arquivos Python alterados e `git diff --check`: passaram. Docker local sem daemon; cenários PostgreSQL e validação completa dos cinco checks aguardam a nova execução remota, cuja evidência será vinculada no PR.
 - Limites: sem dados reais, chamadas a modelo, mudanças de schema/permissões ou ativação de Gold. Tradução HTTP dos erros, uso do contexto pelo coordenador, catálogo, escopo individual, cobertura, limites e auditoria permanecem pendentes. Não conclui B1 ponta a ponta, IA-03/IA-06 ou aceite Gold. Revisão humana e sincronização Trello pendentes; MCP Trello indisponível.
+
+
+### 2026-10-30 — IA-03/IA-06 — preparação do prazo compartilhado B6
+
+- Estados oficiais preservados; componente `backend/app/services/genai_deadline.py` na branch do PR #79, sem conectar a rota ou escolher novos limites de produto.
+- Prazo monotônico único com limites por tempo restante; bloqueia etapa sem orçamento, converte timeout SQL sem devolver zero e aplica cancelamento assíncrono. Falhas internas e cancelamento externo preservados, sem retentativa automática.
+- Evidência: `python -m pytest tests/test_genai_deadline.py tests/test_ai_chat.py -q` no Backend: 27 aprovados, um aviso Starlette/httpx. Ruff, compileall dos dois arquivos e `git diff --check` passaram. Dados sintéticos, sem modelo ou banco real.
+- Limites: total e distribuição por etapa ainda precisam de acordo; transporte, executor, timeout/cancelamento SQL e coordenador não conectados. Não conclui B6 ponta a ponta nem IA-03/IA-06. Revisão humana, CI remota e sincronização Trello pendentes; MCP Trello indisponível.

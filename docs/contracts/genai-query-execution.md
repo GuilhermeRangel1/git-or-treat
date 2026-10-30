@@ -443,3 +443,16 @@ B7 mantém `GoldPublicationUnavailable` como classe-base compatível. `GoldPubli
 Esta entrega prepara controles executáveis com fixtures sintéticas e testes PostgreSQL; ainda não liga o endpoint de perguntas às três etapas, não implementa executor de planos nem conclui B1 ponta a ponta ou aceite Gold.
 
 Referência: [SQLAlchemy Core 2.0 — isolamento por conexão](https://docs.sqlalchemy.org/en/20/core/connections.html#setting-transaction-isolation-levels-including-dbapi-autocommit), consultada via Context7 em 30/10/2026. O isolamento é escolhido antes de iniciar a transação e é restaurado ao devolver a conexão ao pool.
+
+
+### Prazo B6 compartilhado — preparação
+
+`backend/app/services/genai_deadline.py::GenAIRequestDeadline.start(total_seconds)` cria um prazo por requisição com relógio monotônico. Os valores total e por etapa são explícitos: esta preparação não escolhe uma divisão de segundos, não acrescenta defaults e não altera o timeout HTTP atual.
+
+O futuro coordenador deve criar a instância na entrada, preservá-la durante planejamento, consulta e síntese e limitar cada etapa pelo menor valor entre seu teto e o tempo restante. `remaining_seconds(stage_limit_seconds)` fornece o limite para HTTP; `sql_timeout_ms(stage_limit_seconds)` arredonda para baixo e recusa menos de um milissegundo, sem devolver zero, que desativaria o timeout PostgreSQL. O executor deverá aplicar o valor no banco dentro da transação e manter o cancelamento concreto do driver.
+
+`run(stage_limit_seconds, operation)` só cria a operação assíncrona se houver prazo, aplica cancelamento ao exceder o limite e rejeita resultado concluído depois do prazo total. Traduz somente o timeout que ele próprio disparou para `GenAITimeout`; preserva falhas da operação e cancelamento externo. Não repete operações. Após falha de etapa, o coordenador deve encerrar o fluxo, mesmo que reste tempo global; não iniciar síntese para falha de execução.
+
+Cancelamento de coroutine não prova interrupção de SQL ou trabalho em thread. A integração dos limites HTTP, timeout/cancelamento de consulta, início do orçamento na rota e valores acordados com GenAI permanecem pendentes. Testes com relógio controlado e cancelamento assíncrono comprovam o componente, não o prazo ponta a ponta.
+
+Referência consultada via Context7: Python, `asyncio.timeout` e `Timeout.expired`, documentação CPython 3.13; verificação no Python 3.12 usado pelo projeto. A API existe desde Python 3.11.
