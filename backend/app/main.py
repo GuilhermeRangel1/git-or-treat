@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -88,6 +89,25 @@ async def analytics_unavailable_handler(
             }
         },
     )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    if request.url.path == f"{settings.API_V1_STR}/auth/login":
+        # Pydantic's default error payload includes rejected input values. The
+        # login payload contains a password, so expose locations/messages only.
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": [
+                    {"loc": error.get("loc", []), "msg": error.get("msg", "Entrada inválida."), "type": error.get("type", "value_error")}
+                    for error in exc.errors()
+                ]
+            },
+        )
+    from fastapi.exception_handlers import request_validation_exception_handler
+
+    return await request_validation_exception_handler(request, exc)
 
 
 # Configuração de CORS para permitir requisições do frontend Vite/React

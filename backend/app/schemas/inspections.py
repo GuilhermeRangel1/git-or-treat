@@ -95,7 +95,7 @@ class OrderConflictResponse(BaseModel):
 
 class OrderAccessResponse(BaseModel):
     actor: str
-    auth_mode: Literal["demo", "service", "oidc"]
+    auth_mode: Literal["demo", "service", "session"]
     permissions: list[Literal["orders:read", "orders:write"]]
 
 

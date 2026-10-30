@@ -1,5 +1,4 @@
 from typing import List, Literal, Union
-from urllib.parse import urlsplit
 from pathlib import Path
 
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
@@ -29,11 +28,10 @@ class Settings(BaseSettings):
     ORDERS_READ_TOKEN: SecretStr | None = None
     ORDERS_WRITE_TOKEN: SecretStr | None = None
     APP_ENV: Literal["development", "production"] = "development"
-    ORDERS_AUTH_MODE: Literal["demo", "service", "oidc"] = "service"
-    OIDC_ISSUER: str | None = None
-    OIDC_AUDIENCE: str | None = None
-    OIDC_JWKS_URL: str | None = None
-    OIDC_ALLOW_LOCAL_HTTP: bool = False
+    ORDERS_AUTH_MODE: Literal["demo", "service", "session"] = "session"
+    AUTH_SESSION_LIFETIME_SECONDS: int = Field(default=3600, ge=300, le=86400)
+    AUTH_LOGIN_ATTEMPTS: int = Field(default=5, ge=1, le=100)
+    AUTH_LOGIN_WINDOW_SECONDS: int = Field(default=60, ge=1, le=3600)
 
     @model_validator(mode="after")
     def validate_order_tokens(self):
@@ -42,36 +40,12 @@ class Settings(BaseSettings):
             raise ValueError("Credenciais de ordens devem ter ao menos 32 caracteres.")
         if len(tokens) == 2 and tokens[0] == tokens[1]:
             raise ValueError("Credenciais de leitura e escrita devem ser distintas.")
-        if self.APP_ENV == "production" and self.ORDERS_AUTH_MODE != "oidc":
-            raise ValueError("Produção exige autenticação individual OIDC nas ordens.")
-        if self.OIDC_ALLOW_LOCAL_HTTP and self.APP_ENV != "development":
-            raise ValueError("OIDC_ALLOW_LOCAL_HTTP só pode ser usado em desenvolvimento.")
+        if self.APP_ENV == "production" and self.ORDERS_AUTH_MODE != "session":
+            raise ValueError("Produção exige autenticação individual por sessão.")
         if self.ORDERS_AUTH_MODE == "demo" and self.ANALYTICS_SOURCE != "synthetic":
             raise ValueError("Modo demo exige fonte exclusivamente sintética.")
-        if self.ORDERS_AUTH_MODE == "oidc":
-            if tokens:
-                raise ValueError("OIDC não aceita credenciais compartilhadas de serviço em paralelo.")
-            if not self.OIDC_AUDIENCE or not self.OIDC_AUDIENCE.strip():
-                raise ValueError("Configure a audiência OIDC da API.")
-            for value in (self.OIDC_ISSUER, self.OIDC_JWKS_URL):
-                parsed = urlsplit(value or "")
-                local_http = (
-                    self.OIDC_ALLOW_LOCAL_HTTP
-                    and self.APP_ENV == "development"
-                    and parsed.scheme == "http"
-                    and parsed.hostname in {"localhost", "127.0.0.1"}
-                )
-                if (
-                    (parsed.scheme != "https" and not local_http)
-                    or not parsed.hostname
-                    or parsed.username
-                    or parsed.password
-                    or parsed.query
-                    or parsed.fragment
-                ):
-                    raise ValueError(
-                        "Emissor e JWKS OIDC devem usar HTTPS; HTTP só é aceito explicitamente em localhost/127.0.0.1 durante desenvolvimento."
-                    )
+        if self.ORDERS_AUTH_MODE == "session" and tokens:
+            raise ValueError("Modo session não aceita credenciais compartilhadas de serviço em paralelo.")
         if self.AI_AGENT_BASE_URL is not None:
             if self.AI_AGENT_SERVICE_API_TOKEN is None:
                 raise ValueError("AI_AGENT_SERVICE_API_TOKEN é obrigatório quando AI_AGENT_BASE_URL é configurada.")

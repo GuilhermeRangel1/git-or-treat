@@ -10,9 +10,10 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import engine
+from app.core.database import engine, get_db
 from app.core.order_access import bearer, get_order_identity, require_orders_read
 from app.models.gold_load import BATCH, SCHEMA_VERSION
 from app.repositories.analytics import AnalyticsSourceUnavailable
@@ -67,11 +68,12 @@ def get_gold_context(
     expected_lote: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
     expected_fingerprint: Annotated[str | None, Query(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")] = None,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
 ) -> Iterator[GoldContext]:
     """Open an authenticated Gold read snapshot and close it after the response."""
     if settings.ANALYTICS_SOURCE != "gold":
         raise AnalyticsSourceUnavailable()
-    identity = get_order_identity(request, credentials)
+    identity = get_order_identity(request, credentials, db)
     require_orders_read(identity)
     try:
         connection = engine.connect().execution_options(isolation_level="REPEATABLE READ")
@@ -93,6 +95,7 @@ def get_optional_gold_context(
     expected_lote: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
     expected_fingerprint: Annotated[str | None, Query(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")] = None,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
 ) -> Iterator[GoldContext | None]:
     """Resolve Gold only in explicit Gold mode, preserving the synthetic path."""
     if settings.ANALYTICS_SOURCE != "gold":
@@ -100,4 +103,4 @@ def get_optional_gold_context(
             raise AnalyticsAPIError(422, "invalid_query", "Expectativas de publicação só se aplicam à fonte Gold.", [{"field": "expected_lote", "message": "Remova expected_lote e expected_fingerprint no modo sintético."}])
         yield None
         return
-    yield from get_gold_context(request, expected_lote, expected_fingerprint, credentials)
+    yield from get_gold_context(request, expected_lote, expected_fingerprint, credentials, db)
