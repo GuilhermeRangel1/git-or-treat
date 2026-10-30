@@ -114,7 +114,7 @@ Cada seta só existe se a anterior fechou a conta. As duas contas que governam o
 | D59 | Silver | **Nulo tipado exige destino explícito:** timestamp inválido de ocorrência/atendimento vai à quarentena; nota de satisfação inválida fica nula com `_nota_invalida`; coordenadas inválidas ficam nulas com `_geo_invalida`. Medidas necessárias malformadas vão à quarentena | conversão silenciosa para nulo esconderia perda de significado; o histórico de R24/R25 descreve versões anteriores, não a regra atual | notebook Silver, transformações e relatório por arquivo/aba na seção 13 | **implementado localmente; conferir volumes no lote autorizado** |
 | D60 | Silver | **Tratativa localizável:** `atendimentos_historico` usa `(protocolo, posicao_historico)` como chave, com posição de 1 em diante no array original | `sequencia` vem do JSON e pode ser ausente, inválida ou repetida; sem ordinal não é possível localizar uma tratativa específica na Bronze | `posexplode` e verificação de unicidade no notebook; amostra de linhagem sem exposição de identificadores | **implementado localmente; validar no lote autorizado** |
 | D19 | Gold | Modelo de métricas (receita, DEC/FEC, GD, UC 360) | responder às perguntas do portal/IA | PRD §5, dicionário | **proposta** |
-| D20 | Gold | **Mascaramento/hash** de dado pessoal | LGPD: não expor CPF/nome a portal, IA e CSV local | seção 9 | **pendente** |
+| D20 | Gold | Exclusão de PII dos agregados/IA; exceção restrita para nome de exibição do titular | Identificação do atendimento separada do consumo analítico | seção 9.3 | exclusão decidida em 28/10; exceção solicitada em 30/10/2026, revisão do time e ACLs pendentes |
 
 ---
 
@@ -661,6 +661,12 @@ de negócio da versão atual.
 
 **Verificação:** a projeção da Gold foi reportada como conferida nas tabelas Delta oficiais, com 15 colunas na Visão 360 e 14 na fila. Os cabeçalhos dos sete CSVs recebidos foram conferidos localmente contra o contrato do Backend; Visão 360 e fila mantêm as 15 e 14 colunas esperadas, sem campos pessoais adicionais. No portal, confirmar que número da UC, classe e município/bairro atendem à identificação na tela do atendente antes de registrar essa suposição como validada.
 
+**Revisão pontual — 30/10/2026, solicitada por Guilherme nesta implementação:** DEV13.2 U03 e issue #75 exigem identificar o titular no portal. Publicar somente o nome atual de exibição em `gold_cadastro.cadastro_titular_uc`, ligado por `id_uc`, com estado explícito de ausência/conflito. Preparo, schema e pacote cadastral são separados dos analíticos. A exclusão continua integral na Visão 360 agregada, fila, catálogo e contexto GenAI. Não usar nome como chave, não derivar uma referência de cliente de CPF/nome, não incluir CPF/CNPJ ou endereço nesta exceção.
+
+**Alternativas:** manter apenas `id_uc` não entrega a identificação pessoal solicitada; inserir nome nos agregados/CSV analíticos amplia exposição; a projeção restrita atende ao pedido de nome sem ampliar o catálogo da IA. A proposta de endereço e referência estável de cliente do PDF permanece fora desta autorização e não será fabricada.
+
+**Operação e consequências:** conforme ajuste solicitado em 30/10/2026, a exportação cadastral é obrigatória para concluir a entrega: `sim` é padrão e único valor aceito, com Volume restrito previamente provisionado. Reutiliza a linhagem e referencia a tentativa analítica; ambos os pacotes precisam estar validados antes de liberar manifestos. O operador precisa validar permissões herdadas no catálogo e schemas, inclusive preparo; separar schemas não comprova isolamento por si só. O consumidor usa papel cadastral próprio, fora de `venergy_gold_reader`, autorização individual e nenhuma passagem do nome para o modelo. Revisão de Dados/Produto, ACLs reais e integração do consumidor permanecem pendentes; a solicitação da pessoa usuária autoriza esta implementação, sem representar aprovação externa já obtida. Contrato: [gold-cadastro-v1](../docs/contracts/gold-cadastro-v1.md).
+
 ### 9.4 Exportação (DE-06)
 
 Gold → CSV → banco local (`SQLite` ou `PostgreSQL`, a definir) precisa ser **reimportável sem duplicar** (segunda
@@ -947,3 +953,10 @@ O run de §11.3 valida somente a revisão anterior, não D53–D60. Nesta revis�
   `Bronze_to_Silver.ipynb` (a versão R30/R31 rodou e passou nos invariantes; a versão R34–R38 aguarda nova
   execução).
 - Job: `data-engineering/configuracao/databricks/v-energy-grid-360.yaml`.
+
+
+### Controle de cobertura mensal — decisão de implementação de 30/10/2026
+
+Para DEV13.1 D02/D09, DEV13.2 C01 e períodos da GenAI, publicar `cobertura_dominios` junto aos dados analíticos. Não inferir fechamento de quantidade de linhas, meses consecutivos, data de publicação Silver ou calendário. O padrão é `NAO_CERTIFICADA`; evidência explícita e vinculada ao mesmo run/lote permite `FECHADO`, `PARCIAL` ou `AUSENTE`. Zero confirmado é zero de registros em recorte fechado, sem converter medidas ausentes em zero. Cadastros atuais não provam história mensal; GD/medidor não aceitam fechamento histórico por esta fonte.
+
+O operador fornece a janela esperada e declarações por intervalo/recorte após conferir a origem; ausência de declaração conserva a limitação em vez de bloquear projeções independentes. O código verifica formato, identidade, corte, sobreposição, escopo e contradições, mas não fabrica aprovação externa. A referência de evidência não contém PII e não é interpretada como instrução. O contrato [gold-cobertura-v1](../docs/contracts/gold-cobertura-v1.md) distingue o corte da evidência das contagens do snapshot e orienta consumidores. Isso prepara o controle; não aprova a semântica de linguagem relativa nem certifica o lote real.

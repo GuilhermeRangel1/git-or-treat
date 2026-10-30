@@ -16,7 +16,7 @@ tratamento e decisão de negócio pertencem à Silver. O contrato completo está
 | [`Bronze_perfilamento.ipynb`](notebook/Bronze_perfilamento.ipynb) | Inventário, achados e relações por arquivo/aba |
 | [`Bronze_to_Silver.ipynb`](notebook/Bronze_to_Silver.ipynb) | Silver: limpeza, tipos, chaves, quarentena, reconciliação e portão de qualidade |
 | [`Silver_to_gold.ipynb`](notebook/Silver_to_gold.ipynb) | Construção e validações das tabelas Gold a partir da Silver publicada |
-| [`Exportacao_Gold_SQLite.ipynb`](notebook/Exportacao_Gold_SQLite.ipynb) | Exportação candidata v2 de onze tabelas Gold em CSV para um Volume |
+| [`Exportacao_Gold_SQLite.ipynb`](notebook/Exportacao_Gold_SQLite.ipynb) | Exportação candidata v2 de quatorze tabelas analíticas Gold em CSV para um Volume |
 
 O [contrato candidato CSV v2](../docs/contracts/gold-csv-v2.md) reúne as diferenças de inventário, manifesto, tipos e nulos que precisam de compatibilização com o Backend. Essa preparação não ativa a carga ou o consumo v2.
 
@@ -111,7 +111,7 @@ Na semântica candidata v2, faturas e leituras são pré-agregadas por UC/mês e
 
 A fila também publica `motivo_prioridade`, alinhado à primeira regra de triagem aplicada; isso não estima energia recuperável. `faturas_uc` expõe situação declarada e saldo indicativo por fatura, mantendo nulo quando status/flags conflitam ou são inconclusivos. `medidor_uc` preserva vínculo e datas e inclui uma situação temporal candidata por registro; sobreposições permanecem separadas. A regra de status/saldo, a vigência dos medidores e as saídas permanecem sujeitas à validação de Dados/Produto. A estimativa de recuperação continua sem método defensável aprovado.
 
-O exportador exige controle produtivo com as onze tabelas e fixa versões Delta.
+O exportador exige controle produtivo com as quatorze tabelas analíticas e fixa versões Delta.
 Cada tentativa grava em
 `/Volumes/workspace/gold/gold_export_volume/export_csv/<run_id_gold>/<export_id>/`.
 CSV usa UTF-8, separador `;`, aspas duplicadas, datas ISO, timestamps UTC e nulo
@@ -125,7 +125,7 @@ v1 atual deve rejeitá-lo. Confira campos, populações e limites no
 [dicionário Gold](../docs/dicionario_gold.md). Não versione os CSVs do case.
 
 Gold → exportação devem executar em sequência, sem Jobs concorrentes. Não há
-transação entre onze tabelas; falha abrupta na promoção exige recuperação antes
+transação entre quatorze tabelas analíticas; falha abrupta na promoção exige recuperação antes
 de exportar. A evidência histórica do PR #36 não valida estas alterações: o Job
 atual e a reconciliação até o banco ainda precisam de execução autorizada.
 
@@ -165,3 +165,23 @@ Workspace antes de executar os notebooks.
 O run `14313419965490` de 18/10/2026 terminou em `Succeeded` em 21m 03s e
 comprovou o encadeamento das duas tarefas **na versão anterior**. Ele não
 valida o scanner, as vistas, o perfil por origem nem a migração desta mudança.
+
+
+### Complementos da visão 360 e nome restrito — 30/10/2026
+
+O notebook Gold publica `gd_uc` com potência em kWp, conexão/modalidade e flags, e `tratativas_uc` no grão `(protocolo, posicao_historico)`. O histórico preserva eventos e datas disponíveis, divulga apenas categorias/canais da lista explícita e sinaliza os demais conteúdos como restritos. Sequência repetida não é erro de chave; ausência de data não é preenchida. Chaves, vínculos, contagens por protocolo e tipos são verificados antes da promoção.
+
+O nome de exibição fica somente em `gold_cadastro.cadastro_titular_uc`, com schema de preparo separado, nulo quando ausente/conflitante e sem documentos pessoais. Não integra as quatorze tabelas do pacote analítico nem o contexto GenAI. A exportação cadastral é obrigatória na entrega completa (`exportar_cadastro_restrito=sim`, único valor aceito), requer Volume cadastral provisionado e gera manifesto `gold-cadastro-v1` com vínculo à mesma tentativa analítica. Permissões reais, migração, carga e mapeamento do nome pelo Backend/portal precisam ser feitos pelos consumidores; o leitor analítico não recebe acesso ao cadastro.
+
+Detalhes e critérios do consumidor: [contrato cadastral restrito](../docs/contracts/gold-cadastro-v1.md).
+
+O processamento do cadastro requer `CADASTRO_RESTRITO_VALIDADO=sim` e schemas cadastrais de publicação/preparo existentes e validados pelo operador. O notebook não cria esses schemas nem concede acessos.
+
+
+### Controle mensal de cobertura — 30/10/2026
+
+`cobertura_dominios` registra domínios/competências e ocorrências por alimentador, com contagens observadas, lacunas, referência temporal e estado de cobertura. Janela explícita pelos parâmetros `COBERTURA_INICIO`/`COBERTURA_FIM`; sem eles usa limites observados sem certificar seus extremos. Declarações opcionais `COBERTURA_DECLARACOES_JSON` exigem identidade de origem, referência de evidência e corte com offset. Sem declaração, o estado é `NAO_CERTIFICADA`; linha ausente não vira zero confirmado. Cadastros GD/medidor não certificam histórico mensal, e declarações contraditórias entre domínio/alimentador são recusadas.
+
+A contagem representa o snapshot fixado; `data_corte_evidencia` representa o corte da evidência externa, podendo ser anterior à referência da observação em meses parciais. O consumidor não pode apresentar essa contagem como total naquele corte. O exportador inclui o controle como 14ª tabela analítica, com tipos e contagem no manifesto. Definições e limites: [contrato de cobertura](../docs/contracts/gold-cobertura-v1.md).
+
+A exportação completa verifica o destino cadastral antes de gravar e exige os quinze conjuntos reconciliados. Os manifestos são publicados em sequência (cadastro e analítico), com referências cruzadas e recuperação de falhas capturadas; o consumidor exige sucesso do Job e ambos os manifestos. Nenhuma transação entre Volumes é presumida.
