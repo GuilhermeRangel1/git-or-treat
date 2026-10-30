@@ -2100,3 +2100,11 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Prazo monotônico único com limites por tempo restante; bloqueia etapa sem orçamento, converte timeout SQL sem devolver zero e aplica cancelamento assíncrono. Falhas internas e cancelamento externo preservados, sem retentativa automática.
 - Evidência: `python -m pytest tests/test_genai_deadline.py tests/test_ai_chat.py -q` no Backend: 27 aprovados, um aviso Starlette/httpx. Ruff, compileall dos dois arquivos e `git diff --check` passaram. Dados sintéticos, sem modelo ou banco real.
 - Limites: total e distribuição por etapa ainda precisam de acordo; transporte, executor, timeout/cancelamento SQL e coordenador não conectados. Não conclui B6 ponta a ponta nem IA-03/IA-06. Revisão humana, CI remota e sincronização Trello pendentes; MCP Trello indisponível.
+
+
+### 2026-10-30 — IA-03/IA-06 — preparação opt-in da decisão B9
+
+- Estados oficiais preservados. Contrato independente de lookup e helper de despacho no Backend, sem modificar o caminho HTTP nem confirmar silenciosamente a proposta do contrato.
+- Política obrigatória `completed_lookup`: permite síntese de lookup concluído válido, inclusive ausência e esclarecimento; não sintetiza resposta de planejamento sem plano ou falha de execução/prazo/publicação. Dados parciais após falha são descartados; conteúdo/estado/versão inválidos são recusados.
+- Evidência: `python -m pytest tests/test_genai_flow.py tests/test_genai_plan.py -q`: 72 aprovados, um aviso Starlette/httpx. Ruff, compileall dos quatro Python e `git diff --check` passaram. Casos sintéticos, sem modelo ou banco.
+- Limites: proposta selecionável, sem default ou ativação de runtime; confirmação com GenAI e integração ao coordenador continuam pendentes. Helpers não substituem autorização, validação de envelopes, plano, lote ou prazo. Não conclui B9 ponta a ponta, IA-03/IA-06 ou aceite Gold. Revisão humana, CI remota e sincronização Trello pendentes.

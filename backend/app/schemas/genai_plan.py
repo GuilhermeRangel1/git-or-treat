@@ -31,6 +31,13 @@ FilterScalar = StrictStr | StrictInt | StrictFloat | StrictBool
 PlanFingerprint = Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")]
 
 
+class QuestionPlanStatus(StrEnum):
+    PLANNED = "planned"
+    NEEDS_CLARIFICATION = "needs_clarification"
+    REFUSED = "refused"
+    RECOVERABLE_ERROR = "recoverable_error"
+
+
 class WindowKind(StrEnum):
     CATALOG_PHRASE = "catalog_phrase"
     BOUNDED = "bounded"

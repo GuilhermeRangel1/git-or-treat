@@ -456,3 +456,15 @@ O futuro coordenador deve criar a instância na entrada, preservá-la durante pl
 Cancelamento de coroutine não prova interrupção de SQL ou trabalho em thread. A integração dos limites HTTP, timeout/cancelamento de consulta, início do orçamento na rota e valores acordados com GenAI permanecem pendentes. Testes com relógio controlado e cancelamento assíncrono comprovam o componente, não o prazo ponta a ponta.
 
 Referência consultada via Context7: Python, `asyncio.timeout` e `Timeout.expired`, documentação CPython 3.13; verificação no Python 3.12 usado pelo projeto. A API existe desde Python 3.11.
+
+
+### Decisão de despacho B9 — preparação opt-in
+
+`backend/app/services/genai_flow.py::should_synthesize` prepara a matriz proposta sem ativá-la. O argumento obrigatório `policy="completed_lookup"` seleciona explicitamente a proposta de sintetizar todo lookup concluído válido. Não existe política default; a confirmação com GenAI e a ligação ao coordenador continuam pendentes.
+
+- Planejamento `needs_clarification`, `refused` ou `recoverable_error`: devolver sua resposta sem consulta ou síntese. Lookup presente nesse caminho é uma inconsistência de contrato, não autorização para sintetizar.
+- Planejamento `planned` e lookup válido `available`, `no_evidence` ou `needs_clarification`: a política opt-in permite a etapa de síntese. Zero em registros é evidência válida. Sem evidência e esclarecimento não autorizam inferir números nem exigem chamada ao modelo; o núcleo já usa mensagens determinísticas nesses estados.
+- Falha de execução, prazo ou publicação: não sintetizar, mesmo que haja resultado parcial ou antigo. Nunca transformar falha em `no_evidence`.
+- Estado desconhecido, versão incompatível, campos extras ou conteúdo contraditório do lookup: recusar como `GenAIResponseInvalid`, sem despacho.
+
+O schema independente `backend/app/schemas/genai_evidence.py` valida os estados de lookup sem importar GenAI. A referência Gold reutiliza o parser canônico de `PublicationReference`. O helper não valida autorização, correspondência do plano, correlação ou proveniência completa; esses controles permanecem obrigatórios nas outras fronteiras, antes de chamar a síntese. Cancelamento externo deve propagar, não virar resultado de consulta.

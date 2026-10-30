@@ -146,3 +146,8 @@ O Backend passa a validar a origem do manifesto e persistir a origem e `publicat
 ### Preparação B6 de prazo compartilhado
 
 `app/services/genai_deadline.py::GenAIRequestDeadline` oferece prazo monotônico por requisição, limites de etapas pelo tempo restante e cálculo de timeout SQL em milissegundos sem zero. O futuro coordenador deve fornecer os valores acordados e aplicar os limites no transporte e no executor. O componente ainda não está conectado à rota HTTP, não altera os 35 segundos por chamada existentes e não comprova cancelamento de SQL ou prazo ponta a ponta. Veja o contrato de consulta, seção Prazo B6 compartilhado.
+
+
+### Preparação B9 de despacho da síntese
+
+`app/services/genai_flow.py::should_synthesize` exige seleção explícita da política proposta `completed_lookup`. Lookups concluídos válidos podem seguir à síntese; respostas de planejamento sem plano e falhas de execução encerram o fluxo. Lookup inválido é recusado, sem confundir erro com ausência. Schema de lookup em `app/schemas/genai_evidence.py`; helper sem chamadas HTTP e sem ativação na aplicação. Confirmação com GenAI, validação das demais fronteiras e coordenador permanecem pendentes.
