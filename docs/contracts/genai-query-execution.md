@@ -468,3 +468,16 @@ Referência consultada via Context7: Python, `asyncio.timeout` e `Timeout.expire
 - Estado desconhecido, versão incompatível, campos extras ou conteúdo contraditório do lookup: recusar como `GenAIResponseInvalid`, sem despacho.
 
 O schema independente `backend/app/schemas/genai_evidence.py` valida os estados de lookup sem importar GenAI. A referência Gold reutiliza o parser canônico de `PublicationReference`. O helper não valida autorização, correspondência do plano, correlação ou proveniência completa; esses controles permanecem obrigatórios nas outras fronteiras, antes de chamar a síntese. Cancelamento externo deve propagar, não virar resultado de consulta.
+
+
+### Compatibilidade B11 — preparação de envelopes completos
+
+`backend/app/schemas/genai_internal.py` valida os envelopes v1 de planejamento e síntese de forma independente da GenAI, reutilizando o contrato público existente, plano B3 e lookup B9. Escopo é exclusivamente interno; o corpo público não aceita `access_scope`, referência de publicação ou cobertura temporal. O schema não constrói autorização e não substitui a política de acesso.
+
+Os [vetores compartilhados de envelopes](examples/genai-internal-contract-v1.json) são gerados de exemplos sintéticos e exercitados pelas duas suítes: 16 válidos e 24 inválidos, cobrindo os cinco tipos de mensagem (requisição/resposta de planejamento, lookup, requisição/resposta de síntese). As duas bordas conferem versões, campos extras, estados, fingerprint, publicação, cobertura, escopo e coerência de estado/correlação da resposta aninhada. As listas que representam conjuntos no escopo são comparadas ordenadas; listas do plano continuam preservando sua ordem conforme B3.
+
+`backend/app/services/genai_contracts.py` prepara validação de respostas de planejar/sintetizar com conferência da correlação esperada contra corpo e cabeçalho. Não cria novas rotas ou presume seus caminhos. A validação de transporte/status HTTP continua obrigatória no futuro cliente; os helpers não são chamadores da GenAI e ainda não estão conectados ao coordenador.
+
+Testes adicionais usam a rota pública Backend para recusar o envelope interno e o núcleo realmente composto da GenAI para sintetizar ausência/esclarecimento sem modelo ou fonte. O núcleo também recusa publicação divergente e escopo insuficiente antes do modelo. Esses testes usam perfil controlado e fixtures, não o catálogo Gold ainda em PR, e não comprovam o fluxo completo Backend HTTP → executor → GenAI HTTP.
+
+Permanecem pendentes a conexão das rotas internas e clientes, o coordenador e executor com autorização, o acordo dos limites B6 e política B9, e a verificação ponta a ponta pelo endpoint público. B11 não fica concluída apenas por validação dos schemas ou por esta suíte sintética. A imagem Backend inclui o mesmo arquivo de vetores, sem manter cópia paralela.

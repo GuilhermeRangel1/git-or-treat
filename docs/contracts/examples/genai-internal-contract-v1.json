@@ -1,0 +1,1791 @@
+{
+  "contract_version": "v1",
+  "correlation_id": "0123456789abcdef0123456789abcdef",
+  "valid": [
+    {
+      "id": "gold-plan-request",
+      "kind": "plan_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "temporal_coverage": [
+          {
+            "metric_id": "energia_faturada",
+            "kind": "monthly",
+            "competencies": [
+              "2025-03"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "planned",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "response": null
+      }
+    },
+    {
+      "id": "plan-needs_clarification",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "0123456789abcdef0123456789abcdef",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Mensagem de teste.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        }
+      }
+    },
+    {
+      "id": "synthesis-needs_clarification",
+      "kind": "synthesis_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "audit_reference": null,
+        "error": null,
+        "status": "needs_clarification",
+        "model_tier": null,
+        "answer": null,
+        "message": "Mensagem de teste.",
+        "evidence": [],
+        "limitations": [],
+        "analysis_context": null
+      }
+    },
+    {
+      "id": "plan-refused",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "refused",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "0123456789abcdef0123456789abcdef",
+          "audit_reference": null,
+          "error": {
+            "code": "access_denied",
+            "retryable": false
+          },
+          "status": "refused",
+          "model_tier": null,
+          "answer": null,
+          "message": "Mensagem de teste.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        }
+      }
+    },
+    {
+      "id": "synthesis-refused",
+      "kind": "synthesis_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "audit_reference": null,
+        "error": {
+          "code": "access_denied",
+          "retryable": false
+        },
+        "status": "refused",
+        "model_tier": null,
+        "answer": null,
+        "message": "Mensagem de teste.",
+        "evidence": [],
+        "limitations": [],
+        "analysis_context": null
+      }
+    },
+    {
+      "id": "plan-recoverable_error",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "recoverable_error",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "0123456789abcdef0123456789abcdef",
+          "audit_reference": null,
+          "error": {
+            "code": "service_unavailable",
+            "retryable": true
+          },
+          "status": "recoverable_error",
+          "model_tier": null,
+          "answer": null,
+          "message": "Mensagem de teste.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        }
+      }
+    },
+    {
+      "id": "synthesis-recoverable_error",
+      "kind": "synthesis_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "audit_reference": null,
+        "error": {
+          "code": "service_unavailable",
+          "retryable": true
+        },
+        "status": "recoverable_error",
+        "model_tier": null,
+        "answer": null,
+        "message": "Mensagem de teste.",
+        "evidence": [],
+        "limitations": [],
+        "analysis_context": null
+      }
+    },
+    {
+      "id": "synthesis-answered",
+      "kind": "synthesis_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "audit_reference": null,
+        "error": null,
+        "status": "answered",
+        "model_tier": null,
+        "answer": "Resultado de teste.",
+        "message": null,
+        "evidence": [
+          {
+            "source": "gold_local:9b1e",
+            "description": "Energia faturada por município e competência.",
+            "is_demo": false
+          }
+        ],
+        "limitations": [],
+        "analysis_context": null
+      }
+    },
+    {
+      "id": "synthesis-no_evidence",
+      "kind": "synthesis_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "audit_reference": null,
+        "error": null,
+        "status": "no_evidence",
+        "model_tier": null,
+        "answer": null,
+        "message": "Sem evidência.",
+        "evidence": [],
+        "limitations": [],
+        "analysis_context": null
+      }
+    },
+    {
+      "id": "lookup-available",
+      "kind": "lookup",
+      "payload": {
+        "contract_version": "v1",
+        "status": "available",
+        "evidence": {
+          "contract_version": "v1",
+          "reference": {
+            "source": "gold_local:9b1e",
+            "description": "Energia faturada por município e competência.",
+            "is_demo": false
+          },
+          "records": [
+            {
+              "valor": 1234567.8,
+              "unidade": "kWh",
+              "competencia": "2025-03",
+              "municipio": "Recife"
+            }
+          ],
+          "provenance": {
+            "source_id": "gold.local",
+            "reference_source": "gold_local:9b1e",
+            "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+            "catalog_version": "v1",
+            "metric_id": "energia_faturada",
+            "unit": "kWh",
+            "window": {
+              "kind": "bounded",
+              "phrase": null,
+              "start": "2025-03-01",
+              "end": "2025-03-31",
+              "granularity": "month"
+            },
+            "filters": [
+              {
+                "dimension_id": "municipio",
+                "operator": "eq",
+                "values": [
+                  "Recife"
+                ]
+              }
+            ],
+            "dimension_ids": [
+              "municipio"
+            ],
+            "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+          }
+        },
+        "message": null,
+        "limitations": []
+      }
+    },
+    {
+      "id": "request-synthesis-available",
+      "kind": "synthesis_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "lookup": {
+          "contract_version": "v1",
+          "status": "available",
+          "evidence": {
+            "contract_version": "v1",
+            "reference": {
+              "source": "gold_local:9b1e",
+              "description": "Energia faturada por município e competência.",
+              "is_demo": false
+            },
+            "records": [
+              {
+                "valor": 1234567.8,
+                "unidade": "kWh",
+                "competencia": "2025-03",
+                "municipio": "Recife"
+              }
+            ],
+            "provenance": {
+              "source_id": "gold.local",
+              "reference_source": "gold_local:9b1e",
+              "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+              "catalog_version": "v1",
+              "metric_id": "energia_faturada",
+              "unit": "kWh",
+              "window": {
+                "kind": "bounded",
+                "phrase": null,
+                "start": "2025-03-01",
+                "end": "2025-03-31",
+                "granularity": "month"
+              },
+              "filters": [
+                {
+                  "dimension_id": "municipio",
+                  "operator": "eq",
+                  "values": [
+                    "Recife"
+                  ]
+                }
+              ],
+              "dimension_ids": [
+                "municipio"
+              ],
+              "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+            }
+          },
+          "message": null,
+          "limitations": []
+        },
+        "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+      }
+    },
+    {
+      "id": "lookup-no_evidence",
+      "kind": "lookup",
+      "payload": {
+        "contract_version": "v1",
+        "status": "no_evidence",
+        "evidence": null,
+        "message": "Mensagem de teste.",
+        "limitations": []
+      }
+    },
+    {
+      "id": "request-synthesis-no_evidence",
+      "kind": "synthesis_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "lookup": {
+          "contract_version": "v1",
+          "status": "no_evidence",
+          "evidence": null,
+          "message": "Mensagem de teste.",
+          "limitations": []
+        },
+        "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+      }
+    },
+    {
+      "id": "lookup-needs_clarification",
+      "kind": "lookup",
+      "payload": {
+        "contract_version": "v1",
+        "status": "needs_clarification",
+        "evidence": null,
+        "message": "Mensagem de teste.",
+        "limitations": []
+      }
+    },
+    {
+      "id": "request-synthesis-needs_clarification",
+      "kind": "synthesis_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "lookup": {
+          "contract_version": "v1",
+          "status": "needs_clarification",
+          "evidence": null,
+          "message": "Mensagem de teste.",
+          "limitations": []
+        },
+        "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "plan_request-version",
+      "kind": "plan_request",
+      "payload": {
+        "contract_version": "v2",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "temporal_coverage": [
+          {
+            "metric_id": "energia_faturada",
+            "kind": "monthly",
+            "competencies": [
+              "2025-03"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "plan_request-extra",
+      "kind": "plan_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "temporal_coverage": [
+          {
+            "metric_id": "energia_faturada",
+            "kind": "monthly",
+            "competencies": [
+              "2025-03"
+            ]
+          }
+        ],
+        "unexpected": true
+      }
+    },
+    {
+      "id": "plan_response-version",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v2",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "response": null
+      }
+    },
+    {
+      "id": "plan_response-extra",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "response": null,
+        "unexpected": true
+      }
+    },
+    {
+      "id": "lookup-version",
+      "kind": "lookup",
+      "payload": {
+        "contract_version": "v2",
+        "status": "available",
+        "evidence": {
+          "contract_version": "v1",
+          "reference": {
+            "source": "gold_local:9b1e",
+            "description": "Energia faturada por município e competência.",
+            "is_demo": false
+          },
+          "records": [
+            {
+              "valor": 1234567.8,
+              "unidade": "kWh",
+              "competencia": "2025-03",
+              "municipio": "Recife"
+            }
+          ],
+          "provenance": {
+            "source_id": "gold.local",
+            "reference_source": "gold_local:9b1e",
+            "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+            "catalog_version": "v1",
+            "metric_id": "energia_faturada",
+            "unit": "kWh",
+            "window": {
+              "kind": "bounded",
+              "phrase": null,
+              "start": "2025-03-01",
+              "end": "2025-03-31",
+              "granularity": "month"
+            },
+            "filters": [
+              {
+                "dimension_id": "municipio",
+                "operator": "eq",
+                "values": [
+                  "Recife"
+                ]
+              }
+            ],
+            "dimension_ids": [
+              "municipio"
+            ],
+            "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+          }
+        },
+        "message": null,
+        "limitations": []
+      }
+    },
+    {
+      "id": "lookup-extra",
+      "kind": "lookup",
+      "payload": {
+        "contract_version": "v1",
+        "status": "available",
+        "evidence": {
+          "contract_version": "v1",
+          "reference": {
+            "source": "gold_local:9b1e",
+            "description": "Energia faturada por município e competência.",
+            "is_demo": false
+          },
+          "records": [
+            {
+              "valor": 1234567.8,
+              "unidade": "kWh",
+              "competencia": "2025-03",
+              "municipio": "Recife"
+            }
+          ],
+          "provenance": {
+            "source_id": "gold.local",
+            "reference_source": "gold_local:9b1e",
+            "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+            "catalog_version": "v1",
+            "metric_id": "energia_faturada",
+            "unit": "kWh",
+            "window": {
+              "kind": "bounded",
+              "phrase": null,
+              "start": "2025-03-01",
+              "end": "2025-03-31",
+              "granularity": "month"
+            },
+            "filters": [
+              {
+                "dimension_id": "municipio",
+                "operator": "eq",
+                "values": [
+                  "Recife"
+                ]
+              }
+            ],
+            "dimension_ids": [
+              "municipio"
+            ],
+            "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+          }
+        },
+        "message": null,
+        "limitations": [],
+        "unexpected": true
+      }
+    },
+    {
+      "id": "synthesis_request-version",
+      "kind": "synthesis_request",
+      "payload": {
+        "contract_version": "v2",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "lookup": {
+          "contract_version": "v1",
+          "status": "available",
+          "evidence": {
+            "contract_version": "v1",
+            "reference": {
+              "source": "gold_local:9b1e",
+              "description": "Energia faturada por município e competência.",
+              "is_demo": false
+            },
+            "records": [
+              {
+                "valor": 1234567.8,
+                "unidade": "kWh",
+                "competencia": "2025-03",
+                "municipio": "Recife"
+              }
+            ],
+            "provenance": {
+              "source_id": "gold.local",
+              "reference_source": "gold_local:9b1e",
+              "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+              "catalog_version": "v1",
+              "metric_id": "energia_faturada",
+              "unit": "kWh",
+              "window": {
+                "kind": "bounded",
+                "phrase": null,
+                "start": "2025-03-01",
+                "end": "2025-03-31",
+                "granularity": "month"
+              },
+              "filters": [
+                {
+                  "dimension_id": "municipio",
+                  "operator": "eq",
+                  "values": [
+                    "Recife"
+                  ]
+                }
+              ],
+              "dimension_ids": [
+                "municipio"
+              ],
+              "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+            }
+          },
+          "message": null,
+          "limitations": []
+        },
+        "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+      }
+    },
+    {
+      "id": "synthesis_request-extra",
+      "kind": "synthesis_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "lookup": {
+          "contract_version": "v1",
+          "status": "available",
+          "evidence": {
+            "contract_version": "v1",
+            "reference": {
+              "source": "gold_local:9b1e",
+              "description": "Energia faturada por município e competência.",
+              "is_demo": false
+            },
+            "records": [
+              {
+                "valor": 1234567.8,
+                "unidade": "kWh",
+                "competencia": "2025-03",
+                "municipio": "Recife"
+              }
+            ],
+            "provenance": {
+              "source_id": "gold.local",
+              "reference_source": "gold_local:9b1e",
+              "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+              "catalog_version": "v1",
+              "metric_id": "energia_faturada",
+              "unit": "kWh",
+              "window": {
+                "kind": "bounded",
+                "phrase": null,
+                "start": "2025-03-01",
+                "end": "2025-03-31",
+                "granularity": "month"
+              },
+              "filters": [
+                {
+                  "dimension_id": "municipio",
+                  "operator": "eq",
+                  "values": [
+                    "Recife"
+                  ]
+                }
+              ],
+              "dimension_ids": [
+                "municipio"
+              ],
+              "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+            }
+          },
+          "message": null,
+          "limitations": []
+        },
+        "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "unexpected": true
+      }
+    },
+    {
+      "id": "synthesis_response-version",
+      "kind": "synthesis_response",
+      "payload": {
+        "contract_version": "v2",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "audit_reference": null,
+        "error": null,
+        "status": "needs_clarification",
+        "model_tier": null,
+        "answer": null,
+        "message": "Mensagem de teste.",
+        "evidence": [],
+        "limitations": [],
+        "analysis_context": null
+      }
+    },
+    {
+      "id": "synthesis_response-extra",
+      "kind": "synthesis_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "audit_reference": null,
+        "error": null,
+        "status": "needs_clarification",
+        "model_tier": null,
+        "answer": null,
+        "message": "Mensagem de teste.",
+        "evidence": [],
+        "limitations": [],
+        "analysis_context": null,
+        "unexpected": true
+      }
+    },
+    {
+      "id": "scope-correlation-forbidden",
+      "kind": "plan_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ],
+          "correlation_id": "0123456789abcdef0123456789abcdef"
+        },
+        "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "temporal_coverage": [
+          {
+            "metric_id": "energia_faturada",
+            "kind": "monthly",
+            "competencies": [
+              "2025-03"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "missing-publication",
+      "kind": "plan_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "batch_ref": null,
+        "temporal_coverage": [
+          {
+            "metric_id": "energia_faturada",
+            "kind": "monthly",
+            "competencies": [
+              "2025-03"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "invalid-publication",
+      "kind": "plan_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "batch_ref": "LOTE_DEV",
+        "temporal_coverage": [
+          {
+            "metric_id": "energia_faturada",
+            "kind": "monthly",
+            "competencies": [
+              "2025-03"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "coverage-outside-scope",
+      "kind": "plan_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "temporal_coverage": [
+          {
+            "metric_id": "unknown",
+            "kind": "monthly",
+            "competencies": [
+              "2025-03"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "coverage-unordered",
+      "kind": "plan_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "temporal_coverage": [
+          {
+            "metric_id": "energia_faturada",
+            "kind": "monthly",
+            "competencies": [
+              "2025-03",
+              "2025-01"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "plan-hash-mismatch",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "response": null
+      }
+    },
+    {
+      "id": "planned-with-response",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "0123456789abcdef0123456789abcdef",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Mensagem de teste.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        }
+      }
+    },
+    {
+      "id": "nested-correlation",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Mensagem de teste.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        }
+      }
+    },
+    {
+      "id": "nested-status",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "0123456789abcdef0123456789abcdef",
+          "audit_reference": null,
+          "error": null,
+          "status": "no_evidence",
+          "model_tier": null,
+          "answer": null,
+          "message": "Mensagem de teste.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        }
+      }
+    },
+    {
+      "id": "missing-expected-publication",
+      "kind": "synthesis_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "lookup": {
+          "contract_version": "v1",
+          "status": "available",
+          "evidence": {
+            "contract_version": "v1",
+            "reference": {
+              "source": "gold_local:9b1e",
+              "description": "Energia faturada por município e competência.",
+              "is_demo": false
+            },
+            "records": [
+              {
+                "valor": 1234567.8,
+                "unidade": "kWh",
+                "competencia": "2025-03",
+                "municipio": "Recife"
+              }
+            ],
+            "provenance": {
+              "source_id": "gold.local",
+              "reference_source": "gold_local:9b1e",
+              "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+              "catalog_version": "v1",
+              "metric_id": "energia_faturada",
+              "unit": "kWh",
+              "window": {
+                "kind": "bounded",
+                "phrase": null,
+                "start": "2025-03-01",
+                "end": "2025-03-31",
+                "granularity": "month"
+              },
+              "filters": [
+                {
+                  "dimension_id": "municipio",
+                  "operator": "eq",
+                  "values": [
+                    "Recife"
+                  ]
+                }
+              ],
+              "dimension_ids": [
+                "municipio"
+              ],
+              "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+            }
+          },
+          "message": null,
+          "limitations": []
+        },
+        "expected_batch_ref": null
+      }
+    },
+    {
+      "id": "synthesis-hash-mismatch",
+      "kind": "synthesis_request",
+      "payload": {
+        "contract_version": "v1",
+        "question": "Qual foi a energia faturada em Recife em março de 2025?",
+        "context": [],
+        "access_scope": {
+          "caller_ref": "user.7f3c2a",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "allowed_operations": [
+            "read"
+          ],
+          "allowed_metric_ids": [
+            "consumo_medido",
+            "energia_faturada"
+          ],
+          "allowed_dimension_ids": [
+            "classe",
+            "municipio"
+          ]
+        },
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+        "lookup": {
+          "contract_version": "v1",
+          "status": "available",
+          "evidence": {
+            "contract_version": "v1",
+            "reference": {
+              "source": "gold_local:9b1e",
+              "description": "Energia faturada por município e competência.",
+              "is_demo": false
+            },
+            "records": [
+              {
+                "valor": 1234567.8,
+                "unidade": "kWh",
+                "competencia": "2025-03",
+                "municipio": "Recife"
+              }
+            ],
+            "provenance": {
+              "source_id": "gold.local",
+              "reference_source": "gold_local:9b1e",
+              "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+              "catalog_version": "v1",
+              "metric_id": "energia_faturada",
+              "unit": "kWh",
+              "window": {
+                "kind": "bounded",
+                "phrase": null,
+                "start": "2025-03-01",
+                "end": "2025-03-31",
+                "granularity": "month"
+              },
+              "filters": [
+                {
+                  "dimension_id": "municipio",
+                  "operator": "eq",
+                  "values": [
+                    "Recife"
+                  ]
+                }
+              ],
+              "dimension_ids": [
+                "municipio"
+              ],
+              "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+            }
+          },
+          "message": null,
+          "limitations": []
+        },
+        "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+      }
+    },
+    {
+      "id": "available-without-records",
+      "kind": "lookup",
+      "payload": {
+        "contract_version": "v1",
+        "status": "available",
+        "evidence": {
+          "contract_version": "v1",
+          "reference": {
+            "source": "gold_local:9b1e",
+            "description": "Energia faturada por município e competência.",
+            "is_demo": false
+          },
+          "records": [],
+          "provenance": {
+            "source_id": "gold.local",
+            "reference_source": "gold_local:9b1e",
+            "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+            "catalog_version": "v1",
+            "metric_id": "energia_faturada",
+            "unit": "kWh",
+            "window": {
+              "kind": "bounded",
+              "phrase": null,
+              "start": "2025-03-01",
+              "end": "2025-03-31",
+              "granularity": "month"
+            },
+            "filters": [
+              {
+                "dimension_id": "municipio",
+                "operator": "eq",
+                "values": [
+                  "Recife"
+                ]
+              }
+            ],
+            "dimension_ids": [
+              "municipio"
+            ],
+            "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+          }
+        },
+        "message": null,
+        "limitations": []
+      }
+    },
+    {
+      "id": "no_evidence-with-evidence",
+      "kind": "lookup",
+      "payload": {
+        "status": "no_evidence",
+        "message": "Mensagem",
+        "evidence": {
+          "contract_version": "v1",
+          "reference": {
+            "source": "gold_local:9b1e",
+            "description": "Energia faturada por município e competência.",
+            "is_demo": false
+          },
+          "records": [
+            {
+              "valor": 1234567.8,
+              "unidade": "kWh",
+              "competencia": "2025-03",
+              "municipio": "Recife"
+            }
+          ],
+          "provenance": {
+            "source_id": "gold.local",
+            "reference_source": "gold_local:9b1e",
+            "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+            "catalog_version": "v1",
+            "metric_id": "energia_faturada",
+            "unit": "kWh",
+            "window": {
+              "kind": "bounded",
+              "phrase": null,
+              "start": "2025-03-01",
+              "end": "2025-03-31",
+              "granularity": "month"
+            },
+            "filters": [
+              {
+                "dimension_id": "municipio",
+                "operator": "eq",
+                "values": [
+                  "Recife"
+                ]
+              }
+            ],
+            "dimension_ids": [
+              "municipio"
+            ],
+            "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+          }
+        }
+      }
+    },
+    {
+      "id": "needs_clarification-with-evidence",
+      "kind": "lookup",
+      "payload": {
+        "status": "needs_clarification",
+        "message": "Mensagem",
+        "evidence": {
+          "contract_version": "v1",
+          "reference": {
+            "source": "gold_local:9b1e",
+            "description": "Energia faturada por município e competência.",
+            "is_demo": false
+          },
+          "records": [
+            {
+              "valor": 1234567.8,
+              "unidade": "kWh",
+              "competencia": "2025-03",
+              "municipio": "Recife"
+            }
+          ],
+          "provenance": {
+            "source_id": "gold.local",
+            "reference_source": "gold_local:9b1e",
+            "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+            "catalog_version": "v1",
+            "metric_id": "energia_faturada",
+            "unit": "kWh",
+            "window": {
+              "kind": "bounded",
+              "phrase": null,
+              "start": "2025-03-01",
+              "end": "2025-03-31",
+              "granularity": "month"
+            },
+            "filters": [
+              {
+                "dimension_id": "municipio",
+                "operator": "eq",
+                "values": [
+                  "Recife"
+                ]
+              }
+            ],
+            "dimension_ids": [
+              "municipio"
+            ],
+            "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+          }
+        }
+      }
+    }
+  ]
+}

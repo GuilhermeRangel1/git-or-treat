@@ -151,3 +151,8 @@ O Backend passa a validar a origem do manifesto e persistir a origem e `publicat
 ### Preparação B9 de despacho da síntese
 
 `app/services/genai_flow.py::should_synthesize` exige seleção explícita da política proposta `completed_lookup`. Lookups concluídos válidos podem seguir à síntese; respostas de planejamento sem plano e falhas de execução encerram o fluxo. Lookup inválido é recusado, sem confundir erro com ausência. Schema de lookup em `app/schemas/genai_evidence.py`; helper sem chamadas HTTP e sem ativação na aplicação. Confirmação com GenAI, validação das demais fronteiras e coordenador permanecem pendentes.
+
+
+### Preparação B11 de compatibilidade interna
+
+`app/schemas/genai_internal.py` descreve os envelopes internos v1, reutilizando pergunta/resposta públicas, plano B3 e lookup B9. `app/services/genai_contracts.py` confere respostas contra versão, conteúdo e correlação do corpo/cabeçalho. Vetores compartilhados com a suíte GenAI, teste HTTP de recusa de escopo enviado pelo portal e prova do núcleo sem modelo para ausência/esclarecimento verificam as fronteiras preparadas. Clientes e rotas internas, coordenador, executor e teste ponta a ponta continuam pendentes; não ativa a Gold ou confirma B6/B9.
