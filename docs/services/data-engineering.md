@@ -58,9 +58,15 @@ Toda linha aceita mantém `_arquivo_origem`, `_ordem_na_origem`, `_lote_id` e `_
 
 São sete tabelas analíticas e quatro históricos por UC, descritos no [dicionário](../dicionario_gold.md). Preparo isolado e recuperação de falhas capturadas preservam candidatos até a validação; não há atomicidade entre onze tabelas. Configurar uma execução por vez e Gold → exportação sequenciais. Falha abrupta exige conferência/recuperação antes de exportar. Não inferir pagamento comprovado, valor em aberto ou medidor ativo sem evidência suficiente.
 
+Na evolução candidata v2, a direção informada para #49 é faturamento total, com e sem leitura em parcelas separadas, e comparação preço-volume limitada à base comparável. As projeções financeiras preservam fatos por fonte com `full outer join` após agregação por UC/mês; consumo nulo não vira zero. A tarifa observada usa somente pares com fatura e todas as leituras válidas. A verificação local com Spark sintético cobriu um cenário misto, um universo sem leituras e divergências deliberadas rejeitadas. Isso não valida o lote real nem substitui a revisão conjunta de Dados/Produto.
+
 `Exportacao_Gold_SQLite.ipynb` prepara o contrato candidato `gold-csv-v2`: exige controle produtivo validado das onze tabelas, fixa versões Delta, grava em diretório exclusivo por tentativa, relê CSVs com os tipos originais e só libera manifesto após reconciliar registros e revalidar identidade/versões. CSVs usam UTC, precisão decimal e nulo explícito. O parâmetro `run_id` só pode confirmar o lote do controle. Tentativa sem manifesto não é publicação válida; repetir exportação cria outra tentativa sem apagar a anterior.
 
+A fila candidata expõe `motivo_prioridade` com a primeira regra aplicada, sem estimar energia recuperável. `faturas_uc` projeta situação declarada e saldo indicativo a partir de status e flags; pagamentos parciais não existem na origem, e conflitos ou lacunas deixam saldo nulo. `medidor_uc` conserva cada vínculo e as datas de instalação/retirada, com uma situação temporal candidata por medidor; sobreposições não escolhem um único ativo por UC. Esses pontos ainda precisam de validação conjunta de Dados/Produto. A estimativa do WEB-04 permanece sem método sustentado.
+
 O Backend atual aceita sete tabelas no contrato v1 e rejeita v2. Migração, carga v2 e integração API/portal/GenAI continuam entregas separadas; não copiar dados reais para o repositório nem concluir DE-06/WEB-03 por esta preparação. A execução do Job real e a reconciliação até o banco ainda precisam de evidência autorizada.
+
+O [contrato candidato v2](../contracts/gold-csv-v2.md) explicita inventário, formato, manifesto e diferenças do consumidor v1. O exportador emite `data_processamento_gold` e `status_gold` do controle produtivo e valida os formatos e instantes dos IDs de origem. O portão de qualidade de faturas preserva datas históricas sem flag; o corte proposto para `data_ligacao` não é aplicado às datas das faturas. Inspeções do schema de atendimentos não exibem registros da Silver ou seu texto livre.
 
 ## Pontos críticos de modelagem
 

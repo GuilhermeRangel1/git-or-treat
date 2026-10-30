@@ -18,6 +18,8 @@ tratamento e decisão de negócio pertencem à Silver. O contrato completo está
 | [`Silver_to_gold.ipynb`](notebook/Silver_to_gold.ipynb) | Construção e validações das tabelas Gold a partir da Silver publicada |
 | [`Exportacao_Gold_SQLite.ipynb`](notebook/Exportacao_Gold_SQLite.ipynb) | Exportação candidata v2 de onze tabelas Gold em CSV para um Volume |
 
+O [contrato candidato CSV v2](../docs/contracts/gold-csv-v2.md) reúne as diferenças de inventário, manifesto, tipos e nulos que precisam de compatibilização com o Backend. Essa preparação não ativa a carga ou o consumo v2.
+
 O scanner grava JSONL de preparo **somente no Volume autorizado**. Cada
 registro aceito mantém o conteúdo bruto, arquivo, ordinal e linha física inicial
 e final. Registros de largura CSV ou sintaxe inválida vão para
@@ -104,6 +106,10 @@ O notebook gera sete tabelas analíticas e quatro históricos (`faturas_uc`,
 As fontes publicadas são materializadas e conferidas por execução/lote. Os
 candidatos são validados em schema próprio antes da promoção; dev/test não
 sobrescrevem a Gold produtiva. DEC/FEC permanecem indicadores simplificados.
+
+Na semântica candidata v2, faturas e leituras são pré-agregadas por UC/mês e preservadas como populações independentes. O diagnóstico e o recorte territorial separam faturamento com e sem leitura; a série mensal conserva receita, consumo, flags e contagens de observações. A tarifa observada usa somente pares com fatura e leituras integralmente válidas. Isso não comprova cobertura completa, energia efetivamente faturada, valor pago ou tarifa homologada. O saldo em aberto individual é um valor indicativo derivado do status e das flags, não um saldo contábil nem inclui pagamentos parciais; situações inconclusivas ficam nulas. O consumidor v1 ainda não aceita o contrato v2.
+
+A fila também publica `motivo_prioridade`, alinhado à primeira regra de triagem aplicada; isso não estima energia recuperável. `faturas_uc` expõe situação declarada e saldo indicativo por fatura, mantendo nulo quando status/flags conflitam ou são inconclusivos. `medidor_uc` preserva vínculo e datas e inclui uma situação temporal candidata por registro; sobreposições permanecem separadas. A regra de status/saldo, a vigência dos medidores e as saídas permanecem sujeitas à validação de Dados/Produto. A estimativa de recuperação continua sem método defensável aprovado.
 
 O exportador exige controle produtivo com as onze tabelas e fixa versões Delta.
 Cada tentativa grava em

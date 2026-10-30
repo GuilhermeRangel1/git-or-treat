@@ -16,7 +16,7 @@
 | `visao_360_uc` | Uma UC da base cadastral com indicadores agregados | `id_uc` | UCs, atendimentos, ocorrências, leituras e GD da Silver |
 | `consumo_receita_bairro` | Uma combinação de competência, município, bairro e classe | Essas quatro dimensões | Faturas, leituras e cadastro da Silver |
 | `variacao_consumo_uc` | Uma UC comparada entre duas janelas fixas | `id_uc` | Leituras mensais e `visao_360_uc` |
-| `consumo_mensal_uc` | Uma UC e competência com fatura e leitura correspondentes | `id_uc`, `competencia` | Faturas e leituras da Silver |
+| `consumo_mensal_uc` | Uma UC e competência observada em fatura ou leitura | `id_uc`, `competencia` | Faturas e leituras da Silver |
 | `faturas_uc` | Uma fatura emitida vinculada a uma Unidade Consumidora | `id_fatura` | Faturas da Silver (`silver_publicada.faturas`) |
 | `medidor_uc` | Um medidor de energia e seu histórico de vínculo por UC | `id_medidor` | Medidores da Silver (`silver_publicada.medidores`) |
 | `atendimentos_uc` | Um protocolo de atendimento detalhado por Unidade Consumidora | `protocolo` | Atendimentos da Silver (`silver_publicada.atendimentos`) |
@@ -28,8 +28,8 @@ As onze primeiras tabelas de negócio compõem o contrato candidato de exportaç
 ## Regras compartilhadas e limites
 
 - **Fonte e lote:** a Gold lê as vistas `silver_publicada.*` e consulta `silver.controle_publicacao` e `silver.controle_silver`. O notebook aceita `AMBIENTE` igual a `prod`, `dev` ou `test`; a execução em `prod` exige controles físicos e Silver com status `CONCLUIDO`. Os modos `dev`/`test` têm caminho de linhagem sintética quando os controles não estão disponíveis.
-- **Cadastro:** os fluxos mostrados descartam UCs sem `id_uc` e identificadores iniciados por `TESTE`. A fila constrói sua base com `dropDuplicates(id_uc)`; o diagnóstico e a rede também fazem verificações de unicidade em suas bases. O cadastro é uma fotografia atual: classe, município, bairro, alimentador, status e GD não comprovam sua vigência histórica.
-- **Receita e consumo:** faturas e leituras são agregadas separadamente por UC e competência e depois unidas por `inner join` para a construção de `diagnostico_receita`, `consumo_receita_bairro` e `consumo_mensal_uc` (usando somente pares UC/mês presentes nas duas fontes). **As projeções `faturas_uc`, `medidor_uc`, `atendimentos_uc` e `ocorrencias_uc` são exceções a esse acoplamento:** a `faturas_uc` preserva o histórico de faturas no grão individual de `id_fatura` independentemente de leitura na competência; a `medidor_uc` registra o parque de medição e seus vínculos de instalação/retirada no grão individual de `id_medidor`; a `atendimentos_uc` preserva o histórico completo de chamados no grão de `protocolo`; e a `ocorrencias_uc` preserva o histórico isolado de eventos da rede no grão de `id_ocorrencia` e `id_uc`, mantendo a fidelidade observada na origem sem cruzamentos forçados ou perda de registros.
+- **Cadastro:** os fluxos mostrados descartam UCs sem `id_uc` e identificadores iniciados por `TESTE`. A base cadastral da fila, do diagnóstico e da rede tem unicidade por UC verificada; duplicatas não são resolvidas escolhendo um cadastro arbitrário. O cadastro é uma fotografia atual: classe, município, bairro, alimentador, status e GD não comprovam sua vigência histórica.
+- **Receita e consumo:** decisão de implementação autorizada pela pessoa usuária em 30/10/2026 para a evolução candidata v2 (#49): publicar faturamento total, com leitura e sem leitura separadamente. Faturas e leituras são agregadas no próprio grão UC/mês e unidas por `full outer join`; a ausência de uma fonte não elimina os fatos da outra. A tarifa observada usa somente pares com fatura e todas as leituras observadas válidas; não usa faturamento sem leitura. O histórico individual de faturas permanece independente de leitura. Essa evolução exige adaptação explícita do consumidor v1 antes da carga; não representa homologação dos resultados reais pelo time.
 - **GD:** `Sim` significa que há pelo menos uma linha da UC em `geracao_distribuida`; a regra atual não considera vigência nem comprova geração, injeção ou compensação em uma competência. `Não` é atribuído quando a junção não encontra essa linha.
 - **Privacidade:** a projeção final de `fila_inspecao` e `visao_360_uc` não inclui CPF/CNPJ, nome, endereço, CEP, coordenadas ou metadados internos da Silver. `id_uc` continua sendo identificador de unidade: a ausência desses campos não torna o conjunto automaticamente anônimo.
 - **Publicação:** validar no schema de preparo antes da promoção; produção, desenvolvimento e teste têm destinos separados. Recuperar falhas capturadas e impedir execuções concorrentes; não há transação multi-tabela.
@@ -47,19 +47,19 @@ As onze primeiras tabelas de negócio compõem o contrato candidato de exportaç
 | `municipio` | texto | Município do cadastro atual da UC. |
 | `classe_consumo` | texto | `classe` do cadastro atual. |
 | `subgrupo_tarifario` | texto | Subgrupo do cadastro atual. |
-| `bandeira_tarifaria` | texto | Primeira bandeira não nula da UC/mês; se houver mais de uma bandeira distinta para a mesma UC/mês, o notebook falha. Se a coluna de origem estiver ausente, é criada nula. |
+| `bandeira_tarifaria` | texto | Bandeira não nula da UC/mês, com unicidade verificada; mais de uma bandeira distinta bloqueia o notebook. Sem informação recebe `Não informado`. |
 | `possui_gd` | texto: `Sim`/`Não` | Presença de linha de GD para a UC, sem vigência temporal. |
-| `qtd_ucs_distintas_faturadas_no_mes` | inteiro / UCs | Contagem distinta de UCs no grupo após o `inner join` de faturas e leituras. |
+| `qtd_ucs_distintas_faturadas_no_mes` | inteiro / UCs | Contagem distinta de UCs com fatura no grupo; UCs somente com leitura não entram nessa contagem. |
 | `soma_faturamentos_mensais` | inteiro / faturas | Soma das contagens de faturas por UC/mês no grupo; não é necessariamente igual à contagem de UCs. |
 | `consumo_total_kwh` | número / kWh | Soma do consumo das leituras agregadas das UCs/mês elegíveis. |
 | `receita_total_reais` | decimal / R$ | Soma de `valor_total` das faturas das UCs/mês elegíveis; não é receita paga. |
 | `ticket_medio_reais_por_uc` | número / R$/UC | Média da receita agregada por UC/mês no grupo. |
 | `consumo_medio_kwh_por_uc` | número / kWh/UC | Média do consumo agregado por UC/mês no grupo. |
-| `tarifa_media_efetiva` | número / R$/kWh | Receita total dividida pelo consumo total, se o consumo for não nulo e diferente de zero; caso contrário, nulo. É preço observado, não tarifa homologada. |
+| `tarifa_media_efetiva` | número / R$/kWh | `receita_base_comparavel_reais / consumo_base_comparavel_kwh`, quando o denominador é diferente de zero. Usa somente UC/mês com fatura e todas as leituras observadas válidas. É preço observado; não comprova energia faturada ou tarifa homologada. |
 
 **Exemplos de categorias:** `classe_consumo` usa grafias como `COMERCIAL`, `INDUSTRIAL`, `PODER PUBLICO`, `RESIDENCIAL` e `RURAL`; `subgrupo_tarifario`, `A4`, `B1`, `B2` e `B3`; e `bandeira_tarifaria`, `AMARELA`, `VERDE`, `VERMELHA P1` e `VERMELHA P2`. São exemplos de valores da origem, não um domínio fechado imposto pela Gold.
 
-**Cobertura:** o cadastro entra por `left join`; faturas com leitura mas sem cadastro permanecem na base intermediária, sujeitas às validações das dimensões. A Gold não estima valores para pares sem leitura ou sem fatura.
+**Cobertura:** o cadastro entra por `left join`; faturas com leitura mas sem cadastro permanecem na base intermediária, sujeitas às validações das dimensões. Pares sem leitura ou sem fatura são mantidos com a medida ausente nula. Dimensões desconhecidas recebem `Não informado`, sem eliminar o fato.
 
 ## 2. `indicadores_dec_fec`
 
@@ -103,6 +103,7 @@ As onze primeiras tabelas de negócio compõem o contrato candidato de exportaç
 | `total_inspecoes_irregulares` | inteiro / inspeções | Contagem distinta cujo `resultado` é exatamente `IRREGULARIDADE CONFIRMADA`; outros valores não entram nessa contagem. |
 | `media_consumo_historico` | número / kWh por leitura | Média de `consumo_kwh` das leituras não nulas da UC; não é necessariamente média mensal. Nula se não houver leitura válida associada. |
 | `prioridade_inspecao` | texto | Categoria produzida pela hierarquia abaixo. |
+| `motivo_prioridade` | texto | Primeira condição atendida na mesma hierarquia da prioridade; explica a triagem, não estima recuperação. |
 
 **Prioridade, na ordem aplicada:**
 
@@ -112,7 +113,7 @@ As onze primeiras tabelas de negócio compõem o contrato candidato de exportaç
 4. `MEDIA - NUNCA INSPECIONADO`: não se enquadrou acima e não há inspeções realizadas.
 5. `BAIXA`: demais casos.
 
-Prioridade indica uma regra de triagem; não é diagnóstico de fraude. O mapeamento de outros resultados de inspeção deve ser confirmado com a origem antes de ampliá-lo.
+`motivo_prioridade` repete a precedência das regras e registra a primeira condição atendida. Prioridade e motivo indicam uma regra de triagem; não são diagnóstico de fraude nem estimativa de energia recuperável. O mapeamento de outros resultados de inspeção deve ser confirmado com a origem antes de ampliá-lo. A Silver tem `inspecoes.kwh_recuperado` como histórico; este valor não é usado para prever recuperação em outra UC. WEB-04 continua sem metodologia aprovada de estimativa.
 
 A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações sem casos nessa categoria. A ausência de casos não demonstra que a categoria seja inalcançável.
 
@@ -158,7 +159,7 @@ A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações
 | `receita_total_reais` | decimal / R$ | Soma do faturamento das UCs/mês elegíveis no recorte. |
 | `qtd_ucs_distintas_faturadas_no_mes` | inteiro / UCs | Contagem distinta das UCs elegíveis no recorte. |
 
-**Limite:** os nomes `Não informado` representam ausência de dimensão cadastral; não são um município, bairro ou classe reais. A fonte é a interseção entre faturas e leituras, e os recortes devem ser reconciliados com `diagnostico_receita` no mesmo lote.
+**Limite:** os nomes `Não informado` representam ausência de dimensão cadastral; não são um município, bairro ou classe reais. As duas fontes são preservadas independentemente, e os recortes devem ser reconciliados com `diagnostico_receita` no mesmo lote.
 
 ## 6. `variacao_consumo_uc`
 
@@ -182,22 +183,42 @@ A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações
 | `variacao_pct` | número / % | `(média final − média inicial) / média inicial × 100`, arredondada a duas casas; nula quando a média inicial não é positiva ou a final está ausente. |
 | `queda_consumo_superior_30_pct` | booleano | Verdadeiro quando a variação percentual **bruta** é estritamente menor que −30%; comparações sem valor viram `false`. Uma queda exatamente de 30% não atende à regra. |
 
-**Interpretação:** `false` na flag também pode representar comparação indisponível; consulte as médias e contagens de meses antes de concluir que não houve queda. A variação usa leituras, enquanto as tabelas financeiras usam a interseção de leituras e faturas.
+**Interpretação:** `false` na flag também pode representar comparação indisponível; consulte as médias e contagens de meses antes de concluir que não houve queda. A variação usa leituras; os agregados de receita e consumo preservam as duas fontes independentemente.
 
 ## 7. `consumo_mensal_uc`
 
 **Finalidade:** série por unidade e competência para consumo e receita.
 **Grão e chave:** (`id_uc`, `competencia`), com não nulidade e unicidade verificadas.
-**Fontes:** faturas e leituras agregadas por UC/mês, unidas por `inner join`.
+**Fontes:** faturas e leituras agregadas por UC/mês, unidas por `full outer join`.
 
 | Coluna | Tipo conceitual / unidade | Definição |
 | --- | --- | --- |
 | `id_uc` | texto | Identificador da unidade. |
-| `competencia` | texto `YYYY-MM` | Mês de referência comum às duas fontes. |
-| `consumo_kwh` | número / kWh | Soma do consumo das leituras da UC/mês, arredondada a duas casas. |
-| `receita_reais` | decimal / R$ | Soma de `valor_total` das faturas da UC/mês, arredondada a duas casas. |
+| `competencia` | texto `YYYY-MM` | Mês de referência observado em pelo menos uma fonte. |
+| `consumo_kwh` | número / kWh | Soma do consumo observado das leituras da UC/mês, sem novo arredondamento; contagens permitem identificar medidas parciais ou ausentes. |
+| `receita_reais` | decimal / R$ | Soma decimal de `valor_total` das faturas da UC/mês; nulo quando não existe fatura. |
 
-**Limite:** não há linha para UC/mês que exista somente em faturas ou somente em leituras. A tabela informa valor faturado, não valor pago, e não contém as dimensões territoriais; qualquer junção adicional precisa preservar o grão.
+**Limite:** a linha existe se a UC/mês estiver em pelo menos uma fonte; não se fabricam competências sem observação. Presença de linha não comprova fechamento ou cobertura completa do mês. A tabela informa valor faturado, não valor pago, e não contém as dimensões territoriais; qualquer junção adicional precisa preservar o grão.
+
+
+### Medidas adicionais compartilhadas pelos agregados financeiro e territorial
+
+Aplicam-se a `diagnostico_receita` e `consumo_receita_bairro`, no grão de cada tabela:
+
+| Coluna | Tipo / unidade | Definição |
+| --- | --- | --- |
+| `receita_com_leitura_reais` | decimal / R$ | Faturas de UC/mês com pelo menos uma leitura observada. Não garante qualidade de todas as leituras. |
+| `receita_sem_leitura_reais` | decimal / R$ | Faturas sem leitura correspondente. Total = com leitura + sem leitura no mesmo recorte. |
+| `receita_base_comparavel_reais` | decimal / R$ | Faturamento de pares com leituras integralmente válidas e faturas; exclui leituras nulas/parciais. |
+| `consumo_base_comparavel_kwh` | número / kWh | Consumo exatamente dos mesmos pares usados na receita comparável. |
+| `qtd_ucs_com_leitura` | inteiro / UCs | UCs com leitura observada, inclusive se a medida for nula. |
+| `qtd_leituras_observadas` | inteiro / leituras | Registros observados na Silver. |
+| `qtd_leituras_validas` | inteiro / leituras | Registros cujo `consumo_kwh` está presente. Menor que observadas indica soma parcial. |
+| `soma_faturamentos_mensais` | inteiro / faturas | Contagem de faturas observadas, incluindo múltiplas faturas no mês. |
+
+Uma parcela financeira sem membros vale zero quando existe faturamento no recorte; grupo apenas de leituras conserva receita total e parcelas nulas. Nulo não é convertido em zero conhecido. O consumo total é a soma das medidas presentes e precisa ser apresentado com as contagens de qualidade; não certifica cobertura completa. Essas contagens não são estado de fechamento da competência.
+
+A série `consumo_mensal_uc` acrescenta `tem_fatura`, `tem_leitura` (booleanos), `qtd_faturas`, `qtd_leituras_observadas` e `qtd_leituras_validas` (contagens). Uma fonte ausente tem contagem observada zero e medida nula; leitura presente com consumo zero é diferente de consumo ausente.
 
 ## 8. `faturas_uc`
 
@@ -210,11 +231,13 @@ A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações
 | `data_emissao`, `data_vencimento`, `data_pagamento` | date | Datas Silver saneadas por flags; vencimento futuro é válido. Pagamento inconclusivo fica nulo. |
 | `valor_energia`, `tributos`, `valor_total` | decimal(20,2) / R$ | Valores cobrados; não demonstram valor efetivamente pago. |
 | `bandeira_tarifaria`, `status` | string | Categorias observadas; status não comprova quitação. |
+| `valor_em_aberto_reais` | decimal(20,2) / R$ | Valor indicativo derivado do status original e das flags Silver: total da fatura para `EM ABERTO` sem sinal conflitante; zero para `PAGA` declarada com data válida; nulo nos demais casos e quando valor é inconsistente/negativo. Não é saldo contábil confirmado. |
+| `situacao_pagamento_analitica` | string | `EM_ABERTO_DECLARADO`, `EM_ABERTO_COM_SINAL_DE_PAGAMENTO`, `PAGA_DECLARADA_COM_DATA_VALIDA`, `PAGA_DECLARADA_SEM_DATA_VALIDA`, `PAGAMENTO_INCONCLUSIVO` ou `SITUACAO_INDETERMINADA`; preserva incerteza e conflito. |
 | `flag_paga`, `flag_tem_pagamento` | boolean | Status/data declarados na fonte; não constituem confirmação financeira. |
 | `flag_valor_inconsistente`, `flag_data_pagamento_inconclusiva`, `flag_paga_sem_data_valida`, `flag_pagamento_antes_emissao`, `flag_pagamento_sentinela`, `flag_pagamento_futuro` | boolean | Sinais Silver preservados; impedem interpretar ausência/inconsistência como pagamento comprovado. |
 | `data_processamento_gold` | timestamp UTC | Referência temporal única da execução Gold. |
 
-Fonte: `silver_publicada.faturas`. Emissão sentinela/futura e pagamento sinalizado ficam nulos; vencimento só é anulado por flag de sentinela. Não calcula pagamento parcial, valor em aberto ou energia faturada. Não é necessário haver leitura na competência.
+Fonte: `silver_publicada.faturas`. Emissão sentinela/futura e pagamento sinalizado ficam nulos; vencimento só é anulado por flag de sentinela. O valor em aberto é derivado da declaração de status e dos sinais de qualidade: a fonte não oferece eventos/valores de pagamentos parciais, portanto o total da fatura em `EM ABERTO` e o zero em `PAGA` com data válida são indicações de situação, não confirmação financeira. Status `PAGA` sem data válida, conflitos ou valor inconsistente mantêm o saldo nulo. Não calcula energia efetivamente faturada. Não é necessário haver leitura na competência.
 
 ## 9. `medidor_uc`
 
@@ -226,9 +249,10 @@ Fonte: `silver_publicada.faturas`. Emissão sentinela/futura e pagamento sinaliz
 | `modelo`, `tipo`, `status` | string | Atributos observados do equipamento. |
 | `data_instalacao`, `data_retirada` | date | Datas observadas, nulas quando flags Silver indicam sentinela ou futuro; retirada anterior à instalação reprova o lote. |
 | `flag_instalacao_sentinela`, `flag_instalacao_futura`, `flag_retirada_sentinela`, `flag_retirada_futura` | boolean | Preservam o motivo de saneamento da data. |
+| `situacao_na_referencia` | string | `INSTALADO`, `RETIRADO` ou `INDETERMINADO`, derivado das datas saneadas e flags no corte temporal único da execução; não colapsa múltiplos medidores da mesma UC. |
 | `ingestao_data` | timestamp UTC | Referência temporal única Gold. |
 
-Fonte: `silver_publicada.medidores`. Não aplica corte arbitrário por ano, não fabrica transferências e não identifica medidor ativo apenas por retirada nula. Seleção do instalado na data de referência e sobreposições continuam dependentes de regra aprovada. Manutenção não é publicada nesta projeção.
+Fonte: `silver_publicada.medidores`. Não aplica corte arbitrário por ano e não fabrica transferências. A situação é candidata e determinada por medidor a partir das datas saneadas e flags Silver; provisoriamente, instalação válida até a referência sem retirada registrada é classificada `INSTALADO`. A ausência de retirada sem flag não é prova independente de atividade e precisa de validação conjunta. Sobreposições permanecem visíveis como mais de um medidor, sem escolha arbitrária de um único ativo por UC. Manutenção não é publicada nesta projeção.
 
 ## 10. `atendimentos_uc`
 
@@ -288,6 +312,8 @@ Cada tentativa grava em `/Volumes/workspace/gold/gold_export_volume/export_csv/<
 
 O manifesto `gold-csv-v2` contém as onze tabelas, contagens, schemas físicos, versões Delta, execução Gold e origem Silver/Bronze. É um contrato candidato: o carregador atual `gold-csv-v1` rejeita este conjunto e não foi alterado; a migração/carga v2 e os consumidores ainda precisam ser integrados. Não adaptar o snapshot histórico v1 silenciosamente.
 
+O [contrato candidato v2](contracts/gold-csv-v2.md) descreve o pacote e suas incompatibilidades com v1. O manifesto emite `data_processamento_gold` com offset UTC e `status_gold=CONCLUIDO` obtido do controle validado; a exportação rejeita IDs manuais, de reserva e datas impossíveis nos identificadores de origem. `export_id` identifica somente a tentativa de exportação, não a publicação local gerada pelo Backend.
+
 Os testes Gold conferem chaves, população elegível, finanças e todos os grupos DEC/FEC, com tolerância explícita para somas em ponto flutuante. Datas e ausências seguem as regras acima; a existência do código não comprova execução sobre o lote real. O exportador requer Gold → exportação serializados, pois verificações de versão não substituem uma transação multi-tabela ou um bloqueio de execução.
 
 ### Rastreabilidade e reconciliação por execução
@@ -304,7 +330,7 @@ Para cada uma das onze tabelas e para `controle_gold`:
 
 1. Consultar `DESCRIBE TABLE` ou `printSchema` e registrar tipos físicos, precisão decimal e nulabilidade.
 2. Conferir as colunas publicadas com este dicionário e verificar chaves, nulos, contagens e relações entre tabelas para o mesmo lote.
-3. Reconciliar receita e energia com as fontes Silver, incluindo os pares que ficaram fora do `inner join`, e registrar a evidência para o lote efetivo.
+3. Reconciliar receita e energia com as fontes Silver, incluindo as parcelas com e sem leitura e as leituras sem fatura, e registrar a evidência para o lote efetivo.
 4. Conferir DEC/FEC, janelas e população em amostras independentes; identificar competências sem linha, denominadores e limites do cadastro atual.
 5. Comparar esquema, contagens e agregados de Gold, CSV e banco local; verificar os arquivos de cada diretório, o lote e as condições de reexecução.
 6. Revisar permissões e uso de identificadores no portal/IA. Só alterar o estado de DE-08 após revisão humana e evidências correspondentes; este dicionário documenta o contrato, não conclui o requisito.
