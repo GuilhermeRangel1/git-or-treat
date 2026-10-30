@@ -227,7 +227,11 @@ export function decodeOrderHistory(value: unknown): OrderHistoryEvent[] {
 
 export async function createQueueOrder(
   uc: string,
-  payload: { source_version: string; rule_version: string },
+  payload: {
+    source_version: string;
+    source_fingerprint?: string;
+    rule_version: string;
+  },
   key: string,
 ) {
   return decodeOrder(

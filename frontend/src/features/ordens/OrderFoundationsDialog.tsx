@@ -110,7 +110,7 @@ export default function OrderFoundationsDialog({
                 {foundation.source ? (
                   <Detail
                     label="Fonte"
-                    value={`${foundation.source.kind} · ${foundation.source.version}${foundation.source.isDemo ? " · demonstração sintética" : ""}`}
+                    value={`${foundation.origin === "gold" ? "Gold" : foundation.source.kind} · ${foundation.source.version}${foundation.source.isDemo ? " · demonstração sintética" : ""}`}
                   />
                 ) : (
                   <Detail label="Fonte" value="Não disponível no snapshot." />
@@ -121,6 +121,75 @@ export default function OrderFoundationsDialog({
                     value={formatTimestamp(foundation.source.updatedAt)}
                   />
                 )}
+                {foundation.origin === "gold" ? (
+                  <>
+                    <Detail
+                      label="Categoria de triagem"
+                      value={
+                        foundation.category ?? "Não informada no snapshot."
+                      }
+                    />
+                    <Detail
+                      label="Esquema da fonte"
+                      value={
+                        foundation.schemaVersion ?? "Não informado no snapshot."
+                      }
+                    />
+                    <Detail
+                      label="Temporalidade"
+                      value={
+                        foundation.temporalScope === "snapshot"
+                          ? "Snapshot cadastral; sem competência mensal."
+                          : (foundation.temporalScope ??
+                            "Não informada no snapshot.")
+                      }
+                    />
+                    <Detail
+                      label="Fingerprint da publicação"
+                      value={
+                        foundation.fingerprint ?? "Não preservado no snapshot."
+                      }
+                      mono
+                    />
+                    <p className="rounded-lg border border-border bg-canvas p-3 text-sm">
+                      A categoria é uma triagem Gold e não representa prioridade
+                      operacional de despacho. A ordem preserva esta evidência
+                      histórica.
+                    </p>
+                    <div className="grid gap-2">
+                      <h4 className="text-sm font-medium">
+                        Evidências Gold congeladas
+                      </h4>
+                      <dl className="grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
+                        {foundation.goldEvidence.map((item) => (
+                          <div key={item.label}>
+                            <dt className="text-muted">{item.label}</dt>
+                            <dd className="mt-1 font-medium">{item.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                    {foundation.goldVariation.length > 0 ? (
+                      <div className="grid gap-2">
+                        <h4 className="text-sm font-medium">
+                          Janelas e variação preservadas
+                        </h4>
+                        <dl className="grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
+                          {foundation.goldVariation.map((item) => (
+                            <div key={item.label}>
+                              <dt className="text-muted">{item.label}</dt>
+                              <dd className="mt-1 font-medium">{item.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <p className="text-sm text-muted">
+                          Diferença observada não é uma estimativa de
+                          recuperação.
+                        </p>
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
                 {foundation.period ? (
                   <Detail
                     label="Período da análise"
@@ -135,9 +204,11 @@ export default function OrderFoundationsDialog({
                 <Detail
                   label="Energia potencialmente recuperável"
                   value={
-                    foundation.estimateUnavailable
-                      ? "Não disponível; ausência de estimativa não é zero."
-                      : `${formatNumber(foundation.estimateKwh!)} kWh`
+                    foundation.origin === "gold"
+                      ? "Não publicada na Gold; não é calculada nesta tela."
+                      : foundation.estimateUnavailable
+                        ? "Não disponível; ausência de estimativa não é zero."
+                        : `${formatNumber(foundation.estimateKwh!)} kWh`
                   }
                 />
                 {foundation.estimateEvidence && (
@@ -146,30 +217,32 @@ export default function OrderFoundationsDialog({
                     value={foundation.estimateEvidence}
                   />
                 )}
-                <div className="grid gap-2">
-                  <h4 className="text-sm font-medium">Sinais validados</h4>
-                  {foundation.signals.length > 0 ? (
-                    <ul className="grid gap-2">
-                      {foundation.signals.map((signal, index) => (
-                        <li
-                          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border pb-2 text-sm last:border-0"
-                          key={`${signal.id ?? signal.label}-${index}`}
-                        >
-                          <span>{signal.label}</span>
-                          {signal.weight !== undefined && (
-                            <span className="text-xs text-muted">
-                              Peso {formatNumber(signal.weight)}
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted">
-                      Nenhum sinal estruturado válido foi preservado.
-                    </p>
-                  )}
-                </div>
+                {foundation.origin !== "gold" ? (
+                  <div className="grid gap-2">
+                    <h4 className="text-sm font-medium">Sinais validados</h4>
+                    {foundation.signals.length > 0 ? (
+                      <ul className="grid gap-2">
+                        {foundation.signals.map((signal, index) => (
+                          <li
+                            className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border pb-2 text-sm last:border-0"
+                            key={`${signal.id ?? signal.label}-${index}`}
+                          >
+                            <span>{signal.label}</span>
+                            {signal.weight !== undefined && (
+                              <span className="text-xs text-muted">
+                                Peso {formatNumber(signal.weight)}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted">
+                        Nenhum sinal estruturado válido foi preservado.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
                 {foundation.limitations.length > 0 && (
                   <div className="grid gap-2">
                     <h4 className="text-sm font-medium">Limites registrados</h4>

@@ -5,6 +5,7 @@ import {
   decodeOrderPage,
   getOrderDetail,
   decodeOrderHistory,
+  createQueueOrder,
   getOrderHistory,
   registerOrderResult,
   cancelOrder,
@@ -111,6 +112,38 @@ describe("contrato de ordens", () => {
 });
 
 describe("transporte de ordens", () => {
+  it("envia fingerprint Gold no payload da intenção de criação", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(order), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createQueueOrder(
+      "UC-123",
+      {
+        source_version: "gold-batch-1",
+        source_fingerprint: "a".repeat(64),
+        rule_version: "gold-fila-inspecao-v1",
+      },
+      "intent-1234567890",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/inspections/queue/UC-123/orders",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          source_version: "gold-batch-1",
+          source_fingerprint: "a".repeat(64),
+          rule_version: "gold-fila-inspecao-v1",
+        }),
+      }),
+    );
+  });
+
   it("passa AbortSignal à consulta de detalhe", async () => {
     const signal = new AbortController().signal;
     const fetchMock = vi.fn().mockResolvedValue(

@@ -14,8 +14,11 @@ import {
   formatOrderDate,
   parseOrdersQuery,
 } from "./ordens-query";
+import { useOrderAccess, useSession } from "@/shared/auth/useSession";
 
 export default function OrdensPage() {
+  const session = useSession();
+  const access = useOrderAccess();
   const [params, setParams] = useSearchParams();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -39,12 +42,16 @@ export default function OrdensPage() {
   const request = parsed?.request ?? "";
   const orders = useQuery({
     queryKey: ["orders", "list", request],
-    enabled: parsed !== null,
+    enabled:
+      parsed !== null && (!session.configured || access.data?.canRead === true),
     queryFn: ({ signal }) => searchOrders(request, signal),
   });
   const requestedOrder = useQuery({
     queryKey: ["orders", "detail", parsed?.orderId],
-    enabled: parsed?.orderId !== null && parsed?.orderId !== undefined,
+    enabled:
+      parsed?.orderId !== null &&
+      parsed?.orderId !== undefined &&
+      (!session.configured || access.data?.canRead === true),
     queryFn: ({ signal }) => getOrderDetail(parsed!.orderId!, signal),
   });
   const firstVisibleOrder = orders.data?.items[0] ?? null;
@@ -131,6 +138,20 @@ export default function OrdensPage() {
           {formatOrderDate(lastUpdated)}
         </p>
       </div>
+
+      {session.configured && access.isPending ? (
+        <p role="status" className="text-sm text-muted">
+          Verificando permissao para consultar ordens...
+        </p>
+      ) : null}
+      {session.configured && access.data && !access.data.canRead ? (
+        <p
+          role="alert"
+          className="rounded-xl border border-border bg-surface p-5 text-sm"
+        >
+          Sua conta nao tem permissao para consultar ordens.
+        </p>
+      ) : null}
 
       {invalid ? (
         <div
@@ -321,6 +342,7 @@ export default function OrdensPage() {
           <OrderActionsDialog
             key={`actions-${selectedOrder.id}-${actionSession}`}
             order={selectedOrder}
+            canEdit={!session.configured || access.data?.canWrite === true}
             open={actionsOpen}
             onClose={() => setActionsOpen(false)}
             triggerRef={actionTriggerRef}

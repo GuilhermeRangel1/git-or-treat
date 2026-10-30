@@ -1,4 +1,24 @@
-type ApiErrorKind = "http" | "network" | "invalid-response" | "configuration";
+import {
+  decodeGoldMetadata,
+  isGoldMetadata,
+} from "@/shared/analytics/goldContract";
+import {
+  acceptGoldPublication,
+  getGoldGeneration,
+  markGoldPublicationStale,
+  withGoldPublication,
+} from "@/shared/analytics/goldPublication";
+import {
+  captureAuthorizationGeneration,
+  currentAuthorizationGeneration,
+  getAccessToken,
+  hasAccessTokenProvider,
+  isReauthenticationRequired,
+  notifyUnauthorized,
+} from "@/shared/auth/authorization";
+
+type ApiErrorKind =
+  "http" | "network" | "invalid-response" | "configuration" | "session-changed";
 
 export class ApiError extends Error {
   status: number;
@@ -41,8 +61,38 @@ export async function apiClient<T = unknown>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
+  if (isReauthenticationRequired()) {
+    throw new ApiError("Renove a sessão antes de continuar.", 401);
+  }
+  const authorizationGeneration = captureAuthorizationGeneration();
+  const analytic =
+    (!options.method || options.method === "GET") &&
+    /^\/api\/v1\/(panorama(?:\?|$)|operations\/|inspections\/queue(?:\/|\?|$))/.test(
+      endpoint,
+    );
+  const requestGeneration = getGoldGeneration();
+  if (analytic) {
+    const [path, search] = endpoint.split("?");
+    const params = withGoldPublication(new URLSearchParams(search));
+    endpoint = `${path}${params.size ? `?${params}` : ""}`;
+  }
   const url = `${apiBaseUrl()}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
   const headers = new Headers(options.headers);
+  const authenticatedSession = hasAccessTokenProvider();
+  const accessToken = await getAccessToken();
+  if (authorizationGeneration !== currentAuthorizationGeneration()) {
+    throw new ApiError(
+      "A sessão mudou durante a solicitação.",
+      0,
+      undefined,
+      "session-changed",
+    );
+  }
+  if (authenticatedSession && !accessToken) {
+    notifyUnauthorized();
+    throw new ApiError("Renove a sessão antes de continuar.", 401);
+  }
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (typeof options.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -60,6 +110,14 @@ export async function apiClient<T = unknown>(
       0,
       undefined,
       "network",
+    );
+  }
+  if (authorizationGeneration !== currentAuthorizationGeneration()) {
+    throw new ApiError(
+      "A sessão mudou durante a solicitação.",
+      0,
+      undefined,
+      "session-changed",
     );
   }
 
@@ -81,6 +139,8 @@ export async function apiClient<T = unknown>(
   }
 
   if (!response.ok) {
+    if (response.status === 401 && authenticatedSession) notifyUnauthorized();
+    if (analytic && response.status === 409) markGoldPublicationStale();
     const detail =
       data && typeof data === "object" && "detail" in data
         ? data.detail
@@ -90,6 +150,25 @@ export async function apiClient<T = unknown>(
       response.status,
       data,
     );
+  }
+  if (
+    analytic &&
+    data &&
+    typeof data === "object" &&
+    "metadata" in data &&
+    isGoldMetadata(data.metadata)
+  ) {
+    const metadata = decodeGoldMetadata(data.metadata);
+    if (
+      requestGeneration !== getGoldGeneration() ||
+      !acceptGoldPublication(metadata)
+    ) {
+      throw new ApiError(
+        "A publicação Gold mudou. Atualize os dados da jornada.",
+        409,
+        { error: { code: "stale_batch" } },
+      );
+    }
   }
   return data as T;
 }

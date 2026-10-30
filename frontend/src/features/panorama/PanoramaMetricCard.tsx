@@ -10,6 +10,7 @@ type PanoramaMetricCardProps = {
 
 function compactValue(metric: KpiMetric) {
   const value = metric.valorAtual;
+  if (value == null) return "Indisponível";
   if (metric.unidade === "R$") {
     if (Math.abs(value) >= 1_000_000)
       return `R$ ${(value / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
@@ -83,11 +84,13 @@ export default function PanoramaMetricCard({
     variation < 0 &&
     metric.bomSentido === "positivo";
   const description =
-    metric.id === "ene_con"
-      ? "Grandeza distinta da faturada"
-      : metric.id === "ucs_atv"
-        ? "Base sintética do cenário"
-        : null;
+    metric.valorAtual == null
+      ? null
+      : metric.id === "ene_con"
+        ? "Grandeza distinta da faturada"
+        : metric.id === "ucs_atv"
+          ? "Base sintética do cenário"
+          : null;
   const absolute = supportsComparison ? absoluteVariation(metric) : null;
 
   return (
@@ -100,9 +103,22 @@ export default function PanoramaMetricCard({
         {compactValue(metric)}
       </p>
       <div className="text-xs leading-[18px]">
+        {metric.valorAtual == null ? (
+          <p className="text-muted">
+            {metric.limitacoes?.[0] ?? "Valor não disponível nesta fonte."}
+          </p>
+        ) : metric.status === "partial" ? (
+          <p className="text-muted">Valor observado · dados parciais</p>
+        ) : null}
+        {metric.statusComparacao === "partial" &&
+          metric.valorAnterior != null && (
+            <p className="text-muted">
+              Comparação parcial: mês não declarado como fechado.
+            </p>
+          )}
         {description ? (
           <p className="text-muted">{description}</p>
-        ) : comparisonUnavailable ? (
+        ) : metric.valorAtual == null ? null : comparisonUnavailable ? (
           <p className="text-muted">
             Comparação indisponível · período incompleto
           </p>

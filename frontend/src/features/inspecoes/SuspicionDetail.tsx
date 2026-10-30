@@ -28,6 +28,159 @@ export default function SuspicionDetail({
   data: DetailEnvelope["data"];
   metadata: Metadata;
 }) {
+  if ("category" in data) {
+    const evidence = data.evidence;
+    const metric = (label: string, value: number | null, unit = "") => (
+      <div key={label}>
+        <dt className="text-xs text-muted">{label}</dt>
+        <dd className="mt-1 font-medium">
+          {value === null ? "Indisponível" : `${formatGold(value)}${unit}`}
+        </dd>
+      </div>
+    );
+    return (
+      <article
+        className="space-y-5 lg:space-y-6"
+        aria-labelledby="suspicion-title"
+      >
+        <section
+          className="rounded-xl bg-surface p-4 sm:p-6"
+          aria-labelledby="suspicion-title"
+        >
+          <h2
+            id="suspicion-title"
+            className="font-heading text-lg leading-[26px] font-semibold lg:text-xl lg:leading-7"
+          >
+            O que consta na triagem Gold
+          </h2>
+          <p className="mt-4 text-xs leading-[18px] text-muted">
+            Publicação {metadata.source.version} · snapshot sem competência
+            mensal
+          </p>
+          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="font-medium">Categoria de triagem</dt>
+              <dd className="mt-1">{data.category ?? "Não classificada"}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Motivo registrado</dt>
+              <dd className="mt-1">{data.reason ?? "Não informado"}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Município</dt>
+              <dd className="mt-1">{data.municipality ?? "Indisponível"}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Alimentador</dt>
+              <dd className="mt-1">{data.feeder_id ?? "Indisponível"}</dd>
+            </div>
+          </dl>
+          <p className="mt-5 font-medium">Evidências publicadas</p>
+          <dl className="mt-2 grid gap-4 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
+            {metric("Inspeções realizadas", evidence.inspections_performed)}
+            {metric(
+              "Irregularidades confirmadas",
+              evidence.confirmed_irregular_inspections,
+            )}
+            {metric(
+              "Média histórica por leitura",
+              evidence.historical_average_kwh_per_reading,
+              " kWh/leitura",
+            )}
+            {metric("Contatos ao atendimento", evidence.call_center_contacts)}
+            {metric("Interrupções", evidence.interruptions)}
+            <div>
+              <dt className="text-xs text-muted">Geração distribuída</dt>
+              <dd className="mt-1 font-medium">
+                {evidence.distributed_generation_present ?? "Indisponível"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Situação cadastral</dt>
+              <dd className="mt-1 font-medium">
+                {evidence.cadastral_status ?? "Indisponível"}
+              </dd>
+            </div>
+          </dl>
+          <section
+            className="mt-5 rounded-lg border border-border p-4"
+            aria-label="Variação de consumo observada"
+          >
+            <h3 className="font-medium">Variação de consumo observada</h3>
+            {data.variation ? (
+              <>
+                <p className="mt-1 text-xs text-muted">
+                  Comparação descritiva das janelas publicadas; não é estimativa
+                  de recuperação.
+                </p>
+                <dl className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
+                  {metric(
+                    `Média P1 · ${data.variation.p1_start} a ${data.variation.p1_end}`,
+                    data.variation.p1_average_kwh_per_month,
+                    " kWh/mês",
+                  )}
+                  {metric(
+                    `Média P2 · ${data.variation.p2_start} a ${data.variation.p2_end}`,
+                    data.variation.p2_average_kwh_per_month,
+                    " kWh/mês",
+                  )}
+                  {metric(
+                    "Meses observados em P1",
+                    data.variation.p1_months_observed,
+                  )}
+                  {metric(
+                    "Meses observados em P2",
+                    data.variation.p2_months_observed,
+                  )}
+                  {metric(
+                    "Diferença observada",
+                    data.variation.variation_kwh,
+                    " kWh/mês",
+                  )}
+                  {metric(
+                    "Variação percentual observada",
+                    data.variation.variation_pct,
+                    "%",
+                  )}
+                  <div>
+                    <dt className="text-xs text-muted">Queda superior a 30%</dt>
+                    <dd className="mt-1 font-medium">
+                      {data.variation.drop_over_30_pct === null
+                        ? "Indisponível"
+                        : data.variation.drop_over_30_pct
+                          ? "Sim"
+                          : "Não"}
+                    </dd>
+                  </div>
+                </dl>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-muted">
+                A variação não está disponível nesta publicação.
+              </p>
+            )}
+          </section>
+          <section
+            className="mt-5 rounded-lg bg-[var(--status-warning-bg)] p-4 text-sm text-[var(--status-warning-text)]"
+            aria-label="Estimativa de recuperação indisponível"
+          >
+            <h3 className="font-medium">Energia recuperável indisponível</h3>
+            <p className="mt-1">{data.recovery_unavailable_reason}</p>
+            <p className="mt-1">
+              Variação de consumo não é estimativa de energia recuperável.
+            </p>
+          </section>
+        </section>
+        <aside
+          className="rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
+          aria-label="Limite da evidência"
+        >
+          A categoria de triagem não é probabilidade nem prioridade operacional
+          de despacho. Uma suspeita não confirma irregularidade.
+        </aside>
+      </article>
+    );
+  }
   const priority = data.priority.toLocaleString("pt-BR", {
     maximumFractionDigits: 2,
   });
@@ -48,8 +201,10 @@ export default function SuspicionDetail({
           O que motivou a investigação
         </h2>
         <p className="mt-4 text-xs leading-[18px] text-muted">
-          Janela da evidência: {periodLabel(metadata.period.start)} a{" "}
-          {periodLabel(metadata.period.end)}
+          Janela da evidência:{" "}
+          {metadata.contract_version === "1.0.0"
+            ? `${periodLabel(metadata.period.start)} a ${periodLabel(metadata.period.end)}`
+            : "Período não informado no contrato."}
         </p>
         <div className="mt-4 text-sm leading-[22px]">
           <p className="font-medium">Motivo da suspeita</p>
@@ -112,4 +267,8 @@ export default function SuspicionDetail({
       </aside>
     </article>
   );
+}
+
+function formatGold(value: number) {
+  return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 }

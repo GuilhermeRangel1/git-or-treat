@@ -37,7 +37,7 @@ describe("estado de URL da Operação", () => {
     ["page=1000001", /página/i],
     ["page=0&page_size=101", /página|tamanho/i],
     ["metric=energy", /métrica/i],
-    ["municipio=Recife", /suportado/i],
+    ["bairro=Centro", /suportado/i],
     ["feeder_id=" + "A".repeat(101), /alimentador/i],
   ])("não gera consulta para URL inválida: %s", (search, message) => {
     const parsed = parseOperationParams(new URLSearchParams(search));

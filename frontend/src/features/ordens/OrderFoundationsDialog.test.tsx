@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OrderDetail } from "@/shared/api/orders";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
@@ -122,5 +122,67 @@ describe("OrderFoundationsDialog", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("45 kWh")).toBeNull();
+  });
+
+  it("interpreta fundamentos Gold v2 preservados sem consultar a fila atual", async () => {
+    const snapshot = {
+      snapshot_schema_version: "2",
+      data: {
+        uc_id: "UC-123",
+        reason: "REVISAR",
+        rule_version: "gold-fila-inspecao-v1",
+        category: "REVISAR",
+        potential_recoverable_energy_kwh: null,
+        evidence: { inspections_performed: 0, interruptions: null },
+        variation: {
+          p1_start: "2022-07",
+          p1_end: "2023-06",
+          p1_months_observed: 0,
+          p1_average_kwh_per_month: null,
+          p2_start: "2025-07",
+          p2_end: "2026-06",
+          p2_months_observed: 12,
+          p2_average_kwh_per_month: 0,
+          variation_kwh: null,
+          variation_pct: null,
+          drop_over_30_pct: null,
+        },
+        limitations: ["Categoria não é prioridade de despacho."],
+      },
+      metadata: {
+        contract_version: "2.0.0",
+        temporal_scope: "snapshot",
+        schema_version: "gold-csv-v1",
+        fingerprint: "b".repeat(64),
+        source: {
+          kind: "gold",
+          version: "batch-old",
+          is_demo: false,
+          updated_at: "2026-10-29T12:00:00Z",
+        },
+        limitations: ["Snapshot cadastral."],
+      },
+    };
+    getOrderDetail.mockResolvedValue({
+      ...baseOrder,
+      suspicion_snapshot: snapshot,
+    });
+    renderFoundations();
+
+    expect(await screen.findByText("REVISAR")).toBeInTheDocument();
+    expect(screen.getByText("Gold · batch-old")).toBeInTheDocument();
+    expect(screen.getByText("b".repeat(64))).toBeInTheDocument();
+    expect(
+      within(screen.getByText("Inspeções realizadas").parentElement!).getByText(
+        "0",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Não publicada na Gold; não é calculada nesta tela."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Categoria não é prioridade de despacho."),
+    ).toBeInTheDocument();
+    expect(getOrderDetail).toHaveBeenCalledTimes(1);
   });
 });

@@ -13,7 +13,7 @@ export interface KpiMetric {
   subtitulo?: string;
   categoria: "financeiro" | "fisico" | "operacional";
   tipoGrandeza: "faturado" | "pago" | "consumido" | "operacao";
-  valorAtual: number;
+  valorAtual: number | null;
   valorAnterior?: number | null;
   variacaoAbsoluta?: number | null;
   variacaoPercentual?: number | null;
@@ -22,18 +22,40 @@ export interface KpiMetric {
   formula: string;
   baseZero?: boolean;
   bomSentido?: "positivo" | "negativo"; // se variação positiva é boa (ex: receita = positivo; DEC/FEC = negativo)
+  status?: "available" | "partial" | "empty" | "unavailable";
+  limitacoes?: string[];
+  statusComparacao?: "available" | "partial" | "empty" | "unavailable";
+  limitacoesComparacao?: string[];
 }
 
 export interface MonthlyDataPoint {
   competencia: string; // "2024-01"
   label: string; // "Jan/24"
-  receitaFaturada: number;
-  receitaPaga: number;
-  energiaConsumidaKwh: number;
-  energiaFaturadaKwh: number;
-  ucsAtivas: number;
-  decHoras: number;
-  fecVezes: number;
+  receitaFaturada: number | null;
+  receitaPaga: number | null;
+  energiaConsumidaKwh: number | null;
+  energiaFaturadaKwh: number | null;
+  ucsAtivas: number | null;
+  decHoras: number | null;
+  fecVezes: number | null;
+  status?: "available" | "partial" | "empty" | "unavailable";
+}
+
+export interface PanoramaFilterOptions {
+  competencias: string[];
+  municipios: string[];
+  classes: string[];
+}
+
+export interface PanoramaOrigin {
+  kind: "gold" | "synthetic";
+  isDemo: boolean;
+  version: string;
+  fingerprint?: string;
+  schemaVersion?: string;
+  contractVersion: string;
+  temporalScope?: string;
+  limitations: string[];
 }
 
 export interface PanoramaData {
@@ -42,6 +64,9 @@ export interface PanoramaData {
   totalRegistros: number;
   dataAtualizacao: string;
   loteVersao: string;
+  fechamentoMensalDeclarado?: boolean;
+  opcoesFiltros?: PanoramaFilterOptions;
+  origem?: PanoramaOrigin;
   metricas: {
     receitaFaturada: KpiMetric;
     receitaPaga: KpiMetric;
@@ -51,6 +76,7 @@ export interface PanoramaData {
     ucsAtivas: KpiMetric;
     continuidadeDec: KpiMetric;
     continuidadeFec: KpiMetric;
+    ucsFaturadasNoMes?: KpiMetric;
   };
   serieMensal: MonthlyDataPoint[];
 }

@@ -53,6 +53,13 @@ export type OrderFoundation = {
   signals: SnapshotSignal[];
   estimateEvidence: string | null;
   limitations: string[];
+  origin: "gold" | "synthetic" | null;
+  fingerprint: string | null;
+  schemaVersion: string | null;
+  temporalScope: string | null;
+  category: string | null;
+  goldEvidence: { label: string; value: string }[];
+  goldVariation: { label: string; value: string }[];
 };
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -87,12 +94,19 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
       signals: [],
       estimateEvidence: null,
       limitations: [],
+      origin: null,
+      fingerprint: null,
+      schemaVersion: null,
+      temporalScope: null,
+      category: null,
+      goldEvidence: [],
+      goldVariation: [],
     };
   }
 
   const schemaVersion = snapshot.snapshot_schema_version;
   const legacy = schemaVersion === undefined;
-  const supported = legacy || schemaVersion === "1";
+  const supported = legacy || schemaVersion === "1" || schemaVersion === "2";
   if (!supported) {
     return {
       available: true,
@@ -105,6 +119,13 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
       signals: [],
       estimateEvidence: null,
       limitations: [],
+      origin: null,
+      fingerprint: null,
+      schemaVersion: typeof schemaVersion === "string" ? schemaVersion : null,
+      temporalScope: null,
+      category: null,
+      goldEvidence: [],
+      goldVariation: [],
     };
   }
 
@@ -128,6 +149,95 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
           ...(sourceUpdatedAt ? { updatedAt: sourceUpdatedAt } : {}),
         }
       : null;
+  const isGold = schemaVersion === "2";
+  if (isGold) {
+    const evidence = record(data?.evidence);
+    const variation = record(data?.variation);
+    const display = (label: string, value: unknown, unit = "") => ({
+      label,
+      value:
+        value === null || value === undefined
+          ? "Indisponível"
+          : typeof value === "number"
+            ? `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}${unit}`
+            : typeof value === "boolean"
+              ? value
+                ? "Sim"
+                : "Não"
+              : typeof value === "string"
+                ? value
+                : "Indisponível",
+    });
+    const month = (value: unknown) =>
+      typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)
+        ? value
+        : "período não informado";
+    const variationRows = variation
+      ? [
+          display(
+            `Média P1 (${month(variation.p1_start)} a ${month(variation.p1_end)})`,
+            variation.p1_average_kwh_per_month,
+            " kWh/mês",
+          ),
+          display(`Meses observados em P1`, variation.p1_months_observed),
+          display(
+            `Média P2 (${month(variation.p2_start)} a ${month(variation.p2_end)})`,
+            variation.p2_average_kwh_per_month,
+            " kWh/mês",
+          ),
+          display(`Meses observados em P2`, variation.p2_months_observed),
+          display("Diferença observada", variation.variation_kwh, " kWh/mês"),
+          display(
+            "Variação percentual observada",
+            variation.variation_pct,
+            "%",
+          ),
+          display("Queda acima de 30%", variation.drop_over_30_pct),
+        ]
+      : [];
+    const goldEvidence = evidence
+      ? [
+          display("Inspeções realizadas", evidence.inspections_performed),
+          display(
+            "Irregularidades confirmadas",
+            evidence.confirmed_irregular_inspections,
+          ),
+          display(
+            "Média histórica por leitura",
+            evidence.historical_average_kwh_per_reading,
+            " kWh/leitura",
+          ),
+          display(
+            "Geração distribuída",
+            evidence.distributed_generation_present,
+          ),
+          display("Situação cadastral", evidence.cadastral_status),
+          display("Contatos ao atendimento", evidence.call_center_contacts),
+          display("Interrupções", evidence.interruptions),
+        ]
+      : [];
+    return {
+      available: true,
+      legacy: false,
+      supported: true,
+      source,
+      period: null,
+      estimateKwh: null,
+      estimateUnavailable: true,
+      signals: [],
+      estimateEvidence: null,
+      limitations: Array.isArray(data?.limitations)
+        ? data.limitations.flatMap((item) => (text(item) ? [text(item)!] : []))
+        : [],
+      origin: "gold",
+      fingerprint: text(metadata?.fingerprint),
+      schemaVersion: text(metadata?.schema_version),
+      temporalScope: text(metadata?.temporal_scope),
+      category: text(data?.category),
+      goldEvidence,
+      goldVariation: variationRows,
+    };
+  }
   const start = competenceText(periodData?.start);
   const end = competenceText(periodData?.end);
   const period = start && end && start <= end ? { start, end } : null;
@@ -173,5 +283,13 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
     signals,
     estimateEvidence: reference,
     limitations,
+    origin:
+      source?.kind === "gold" ? "gold" : source?.kind ? "synthetic" : null,
+    fingerprint: text(metadata?.fingerprint),
+    schemaVersion: text(metadata?.schema_version),
+    temporalScope: text(metadata?.temporal_scope),
+    category: null,
+    goldEvidence: [],
+    goldVariation: [],
   };
 }

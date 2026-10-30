@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { ComparisonType, PanoramaFilters } from "../analytics/types";
+import type { PanoramaFilterOptions } from "../analytics/types";
 import {
   CLASSES_DISPONIVEIS,
   MUNICIPIOS_DISPONIVEIS,
@@ -13,7 +14,10 @@ export const DEFAULT_FILTERS: PanoramaFilters = {
   classe: "todas",
 };
 
-export function usePanoramaFilters() {
+export function usePanoramaFilters(
+  options?: PanoramaFilterOptions,
+  source?: "gold" | "synthetic",
+) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters = useMemo<PanoramaFilters>(() => {
@@ -38,10 +42,29 @@ export function usePanoramaFilters() {
     errors.periodo = "Informe uma competência real no formato YYYY-MM.";
   if (!["anterior", "ano_anterior", "nenhuma"].includes(filters.comparacao))
     errors.comparacao = "Escolha mês anterior, ano anterior ou sem comparação.";
-  if (!MUNICIPIOS_DISPONIVEIS.some((item) => item.value === filters.municipio))
-    errors.municipio = "Escolha um município da fonte demonstrativa.";
-  if (!CLASSES_DISPONIVEIS.some((item) => item.value === filters.classe))
-    errors.classe = "Escolha uma classe da fonte demonstrativa.";
+  const municipioCatalog =
+    options?.municipios ?? MUNICIPIOS_DISPONIVEIS.map((item) => item.value);
+  const classCatalog =
+    options?.classes ?? CLASSES_DISPONIVEIS.map((item) => item.value);
+  const deferCatalogValidation = source === undefined;
+  const sourceLabel =
+    source === "gold" ? "fonte consultada" : "fonte demonstrativa";
+  const structurallySafeDimension = (value: string) =>
+    value.length <= 120 && /^[\p{L}\p{N} .,()/-]+$/u.test(value.trim());
+  if (
+    filters.municipio !== "todos" &&
+    (deferCatalogValidation
+      ? !structurallySafeDimension(filters.municipio)
+      : !municipioCatalog.includes(filters.municipio))
+  )
+    errors.municipio = `Escolha um municipio da ${sourceLabel}.`;
+  if (
+    filters.classe !== "todas" &&
+    (deferCatalogValidation
+      ? !structurallySafeDimension(filters.classe)
+      : !classCatalog.includes(filters.classe))
+  )
+    errors.classe = `Escolha uma classe da ${sourceLabel}.`;
   for (const key of Object.keys(filters) as (keyof PanoramaFilters)[]) {
     if (searchParams.getAll(key).length > 1)
       errors[key] = "Use apenas um valor para este filtro na URL.";
@@ -82,6 +105,20 @@ export function usePanoramaFilters() {
     [setSearchParams],
   );
 
+  const setBootstrapPeriod = useCallback(
+    (period: string) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("periodo", period);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   const resetFilters = useCallback(() => {
     setSearchParams(
       (prev) => {
@@ -107,8 +144,13 @@ export function usePanoramaFilters() {
 
   return {
     filters,
+    periodoExplicit: searchParams.has("periodo"),
+    needsSourceDiscovery:
+      source === undefined &&
+      (filters.municipio !== "todos" || filters.classe !== "todas"),
     setFilter,
     setFilters,
+    setBootstrapPeriod,
     resetFilters,
     hasActiveFilters,
     errors,

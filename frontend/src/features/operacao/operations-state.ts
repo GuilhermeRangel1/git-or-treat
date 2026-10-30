@@ -3,6 +3,7 @@ export type OperationUrlQuery = {
   start: string;
   end: string;
   feederId: string | null;
+  municipality: string | null;
   detailFeederId: string | null;
   metric: OperationMetric;
   page: number;
@@ -16,6 +17,7 @@ export type OperationFiltersInput = {
   start: string;
   end: string;
   feederId?: string | null;
+  municipality?: string | null;
 };
 
 const DEFAULT_START = "2025-01";
@@ -29,6 +31,7 @@ const PARAMS = [
   "competencia_inicio",
   "competencia_fim",
   "alimentador",
+  "municipio",
   "feeder_id",
   "metric",
   "page",
@@ -111,6 +114,7 @@ export function parseOperationParams(
   }
 
   const feederId = feeder(raw.alimentador, "O filtro de alimentador", errors);
+  const municipality = feeder(raw.municipio, "O filtro de município", errors);
   const detailFeederId = feeder(
     raw.feeder_id,
     "O alimentador do detalhe",
@@ -134,7 +138,16 @@ export function parseOperationParams(
   )
     return { query: null, errors };
   return {
-    query: { start, end, feederId, detailFeederId, metric, page, pageSize },
+    query: {
+      start,
+      end,
+      feederId,
+      municipality,
+      detailFeederId,
+      metric,
+      page,
+      pageSize,
+    },
     errors,
   };
 }
@@ -151,6 +164,9 @@ export function applyOperationFilters(
   if (filters.feederId?.trim())
     next.set("alimentador", filters.feederId.trim());
   else next.delete("alimentador");
+  if (filters.municipality?.trim())
+    next.set("municipio", filters.municipality.trim());
+  else next.delete("municipio");
   next.delete("feeder_id");
   next.delete("page");
   return next;

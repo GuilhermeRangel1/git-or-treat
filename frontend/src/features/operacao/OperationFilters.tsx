@@ -15,20 +15,26 @@ const controlClass =
 export default function OperationFilters({
   query,
   feederOptions,
+  municipalityOptions,
+  competencyOptions,
   onApply,
 }: {
   query: OperationUrlQuery;
   feederOptions: string[];
+  municipalityOptions: string[];
+  competencyOptions: string[];
   onApply: (filters: {
     start: string;
     end: string;
     feederId: string | null;
+    municipality: string | null;
   }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState(query.start);
   const [end, setEnd] = useState(query.end);
   const [feederId, setFeederId] = useState(query.feederId ?? "");
+  const [municipality, setMunicipality] = useState(query.municipality ?? "");
   const [errors, setErrors] = useState<string[]>([]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const startRef = useRef<HTMLInputElement>(null);
@@ -39,6 +45,7 @@ export default function OperationFilters({
     setStart(query.start);
     setEnd(query.end);
     setFeederId(query.feederId ?? "");
+    setMunicipality(query.municipality ?? "");
     setErrors([]);
     setOpen(true);
   }
@@ -50,6 +57,7 @@ export default function OperationFilters({
       competencia_fim: end,
     });
     if (feederId.trim()) params.set("alimentador", feederId.trim());
+    if (municipality.trim()) params.set("municipio", municipality.trim());
     const parsed = parseOperationParams(params);
     if (!parsed.query) {
       setErrors(parsed.errors);
@@ -61,7 +69,12 @@ export default function OperationFilters({
       return;
     }
     setErrors([]);
-    onApply({ start, end, feederId: feederId.trim() || null });
+    onApply({
+      start,
+      end,
+      feederId: feederId.trim() || null,
+      municipality: municipality.trim() || null,
+    });
     setOpen(false);
   }
 
@@ -84,6 +97,14 @@ export default function OperationFilters({
               {query.feederId ?? "Todos os alimentadores"}
             </p>
           </div>
+          {municipalityOptions.length > 0 ? (
+            <div className="min-w-0">
+              <p className="text-xs text-muted">Município</p>
+              <p className="mt-1 truncate font-medium">
+                {query.municipality ?? "Todos os municípios"}
+              </p>
+            </div>
+          ) : null}
           <div className="min-w-0">
             <p className="text-xs text-muted">Ordenação do ranking</p>
             <p className="mt-1 font-medium">
@@ -114,52 +135,125 @@ export default function OperationFilters({
         header="inline"
       >
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={apply} noValidate>
-          <MonthYearField
-            label="Mês inicial"
-            monthLabel="Mês de início"
-            yearLabel="Ano de início"
-            value={start}
-            onChange={setStart}
-            yearRef={startRef}
-            invalid={errors.some((item) =>
-              /início|Mês inv|Informe início|120 meses/.test(item),
-            )}
-            describedBy={errors.length ? "operation-filter-errors" : undefined}
-          />
-          <MonthYearField
-            label="Mês final"
-            monthLabel="Mês do fim"
-            yearLabel="Ano do fim"
-            value={end}
-            onChange={setEnd}
-            yearRef={endRef}
-            invalid={errors.some((item) =>
-              /fim|final|anterior ao fim|120 meses/.test(item),
-            )}
-            describedBy={errors.length ? "operation-filter-errors" : undefined}
-          />
-          <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
-            Alimentador
-            <input
-              className={controlClass}
-              ref={feederRef}
-              type="text"
-              list="operation-feeder-options"
-              value={feederId}
-              aria-invalid={errors.some((item) => /alimentador/.test(item))}
-              aria-describedby={
+          {competencyOptions.length > 0 ? (
+            <label className="grid gap-1.5 text-sm font-medium">
+              Mês inicial
+              <select
+                className={controlClass}
+                value={start}
+                onChange={(event) => setStart(event.target.value)}
+              >
+                {competencyOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {formatMonth(item)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <MonthYearField
+              label="Mês inicial"
+              monthLabel="Mês de início"
+              yearLabel="Ano de início"
+              value={start}
+              onChange={setStart}
+              yearRef={startRef}
+              invalid={errors.some((item) =>
+                /início|Mês inv|Informe início|120 meses/.test(item),
+              )}
+              describedBy={
                 errors.length ? "operation-filter-errors" : undefined
               }
-              onChange={(event) => setFeederId(event.target.value)}
-              placeholder="Todos os alimentadores"
-              autoComplete="off"
             />
-            <datalist id="operation-feeder-options">
-              {feederOptions.map((id) => (
-                <option key={id} value={id} />
-              ))}
-            </datalist>
-          </label>
+          )}
+          {competencyOptions.length > 0 ? (
+            <label className="grid gap-1.5 text-sm font-medium">
+              Mês final
+              <select
+                className={controlClass}
+                value={end}
+                onChange={(event) => setEnd(event.target.value)}
+              >
+                {competencyOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {formatMonth(item)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <MonthYearField
+              label="Mês final"
+              monthLabel="Mês do fim"
+              yearLabel="Ano do fim"
+              value={end}
+              onChange={setEnd}
+              yearRef={endRef}
+              invalid={errors.some((item) =>
+                /fim|final|anterior ao fim|120 meses/.test(item),
+              )}
+              describedBy={
+                errors.length ? "operation-filter-errors" : undefined
+              }
+            />
+          )}
+          {feederOptions.length > 0 && competencyOptions.length > 0 ? (
+            <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
+              Alimentador
+              <select
+                className={controlClass}
+                value={feederId}
+                onChange={(event) => setFeederId(event.target.value)}
+              >
+                <option value="">Todos os alimentadores</option>
+                {feederOptions.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
+              Alimentador
+              <input
+                className={controlClass}
+                ref={feederRef}
+                type="text"
+                list="operation-feeder-options"
+                value={feederId}
+                aria-invalid={errors.some((item) => /alimentador/.test(item))}
+                aria-describedby={
+                  errors.length ? "operation-filter-errors" : undefined
+                }
+                onChange={(event) => setFeederId(event.target.value)}
+                placeholder="Todos os alimentadores"
+                autoComplete="off"
+              />
+              <datalist id="operation-feeder-options">
+                {feederOptions.map((id) => (
+                  <option key={id} value={id} />
+                ))}
+              </datalist>
+            </label>
+          )}
+          {municipalityOptions.length > 0 ? (
+            <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
+              Município
+              <select
+                className={controlClass}
+                value={municipality}
+                onChange={(event) => setMunicipality(event.target.value)}
+              >
+                <option value="">Todos os municípios</option>
+                {municipalityOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {errors.length > 0 ? (
             <div
               id="operation-filter-errors"

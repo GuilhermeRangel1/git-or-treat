@@ -1,3 +1,9 @@
+import {
+  decodeGoldMetadata,
+  isGoldMetadata,
+  type GoldMetadata,
+} from "@/shared/analytics/goldContract";
+
 export type QueueItem = {
   uc_id: string;
   municipality: string;
@@ -10,7 +16,8 @@ export type QueueItem = {
   indicators: string[];
   signals: { id: string; label: string; weight: number }[];
 };
-export type Metadata = {
+export type SyntheticMetadata = {
+  contract_version: "1.0.0";
   status: string;
   period: { start: string; end: string };
   source: {
@@ -21,7 +28,42 @@ export type Metadata = {
   };
   limitations: string[];
 };
-export type QueueEnvelope = {
+export type GoldInspectionVariation = {
+  p1_start: string;
+  p1_end: string;
+  p1_months_observed: number | null;
+  p1_average_kwh_per_month: number | null;
+  p2_start: string;
+  p2_end: string;
+  p2_months_observed: number | null;
+  p2_average_kwh_per_month: number | null;
+  variation_kwh: number | null;
+  variation_pct: number | null;
+  drop_over_30_pct: boolean | null;
+};
+export type GoldInspectionItem = {
+  uc_id: string;
+  municipality: string | null;
+  neighborhood: string | null;
+  class_name: string | null;
+  feeder_id: string | null;
+  category: string | null;
+  reason: string | null;
+  potential_recoverable_energy_kwh: null;
+  recovery_unavailable_reason: string;
+  evidence: {
+    inspections_performed: number | null;
+    confirmed_irregular_inspections: number | null;
+    historical_average_kwh_per_reading: number | null;
+    distributed_generation_present: string | null;
+    cadastral_status: string | null;
+    call_center_contacts: number | null;
+    interruptions: number | null;
+  };
+  variation: GoldInspectionVariation | null;
+};
+export type Metadata = SyntheticMetadata | GoldMetadata;
+export type SyntheticQueueEnvelope = {
   data: {
     items: QueueItem[];
     filter_options: Record<string, string[]>;
@@ -38,9 +80,30 @@ export type QueueEnvelope = {
     total: number;
     total_pages: number;
   };
-  metadata: Metadata;
+  metadata: SyntheticMetadata;
 };
-export type DetailEnvelope = {
+export type GoldQueueEnvelope = {
+  data: {
+    items: GoldInspectionItem[];
+    filter_options: Record<string, string[]>;
+    summary: {
+      total_units: number;
+      categories: Record<string, number>;
+      uncategorized_units: number;
+      estimated_units: 0;
+      unavailable_estimate_units: number;
+    };
+  };
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
+  metadata: GoldMetadata;
+};
+export type QueueEnvelope = SyntheticQueueEnvelope | GoldQueueEnvelope;
+export type SyntheticDetailEnvelope = {
   data: QueueItem & {
     rule_version: string;
     signals: { id: string; label: string; weight: number }[];
@@ -53,8 +116,13 @@ export type DetailEnvelope = {
     };
     limitations: string[];
   };
-  metadata: Metadata;
+  metadata: SyntheticMetadata;
 };
+export type GoldDetailEnvelope = {
+  data: GoldInspectionItem & { rule_version: string; limitations: string[] };
+  metadata: GoldMetadata;
+};
+export type DetailEnvelope = SyntheticDetailEnvelope | GoldDetailEnvelope;
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
@@ -104,6 +172,7 @@ function item(value: unknown): QueueItem {
   };
 }
 function metadata(value: unknown): Metadata {
+  if (isGoldMetadata(value)) return decodeGoldMetadata(value);
   const row = record(value),
     period = record(row.period),
     source = record(row.source);
@@ -117,6 +186,7 @@ function metadata(value: unknown): Metadata {
   )
     invalid();
   return {
+    contract_version: "1.0.0",
     status: string(row.status),
     period: { start: string(period.start), end: string(period.end) },
     source: {
@@ -128,9 +198,163 @@ function metadata(value: unknown): Metadata {
     limitations: strings(row.limitations),
   };
 }
+function nullableText(value: unknown): string | null {
+  return value === null ? null : string(value);
+}
+function nullableCount(value: unknown): number | null {
+  if (value === null) return null;
+  const result = number(value);
+  if (!Number.isSafeInteger(result)) invalid();
+  return result;
+}
+function goldMonth(value: unknown): string {
+  const result = string(value);
+  if (!/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(result)) invalid();
+  return result;
+}
+function goldVariation(value: unknown): GoldInspectionVariation {
+  const row = record(value);
+  const months = (candidate: unknown) => {
+    const result = nullableCount(candidate);
+    if (result !== null && result < 0) invalid();
+    return result;
+  };
+  const average = (candidate: unknown) => {
+    const result = nullable(candidate);
+    if (result !== null && result < 0) invalid();
+    return result;
+  };
+  if (
+    row.drop_over_30_pct !== null &&
+    typeof row.drop_over_30_pct !== "boolean"
+  )
+    invalid();
+  const p1_start = goldMonth(row.p1_start);
+  const p1_end = goldMonth(row.p1_end);
+  const p2_start = goldMonth(row.p2_start);
+  const p2_end = goldMonth(row.p2_end);
+  if (p1_start > p1_end || p2_start > p2_end) invalid();
+  return {
+    p1_start,
+    p1_end,
+    p1_months_observed: months(row.p1_months_observed),
+    p1_average_kwh_per_month: average(row.p1_average_kwh_per_month),
+    p2_start,
+    p2_end,
+    p2_months_observed: months(row.p2_months_observed),
+    p2_average_kwh_per_month: average(row.p2_average_kwh_per_month),
+    variation_kwh: nullable(row.variation_kwh),
+    variation_pct: nullable(row.variation_pct),
+    drop_over_30_pct: row.drop_over_30_pct as boolean | null,
+  };
+}
+function goldItem(value: unknown): GoldInspectionItem {
+  const row = record(value);
+  if (row.potential_recoverable_energy_kwh !== null) invalid();
+  const evidence = record(row.evidence);
+  const nullableNonNegative = (candidate: unknown) => {
+    const result = nullable(candidate);
+    if (result !== null && result < 0) invalid();
+    return result;
+  };
+  if (
+    row.variation !== null &&
+    (!row.variation ||
+      typeof row.variation !== "object" ||
+      Array.isArray(row.variation))
+  )
+    invalid();
+  return {
+    uc_id: string(row.uc_id),
+    municipality: nullableText(row.municipality),
+    neighborhood: nullableText(row.neighborhood),
+    class_name: nullableText(row.class_name),
+    feeder_id: nullableText(row.feeder_id),
+    category: nullableText(row.category),
+    reason: nullableText(row.reason),
+    potential_recoverable_energy_kwh: null,
+    recovery_unavailable_reason: string(row.recovery_unavailable_reason),
+    evidence: {
+      inspections_performed: nullableNonNegative(
+        evidence.inspections_performed,
+      ),
+      confirmed_irregular_inspections: nullableNonNegative(
+        evidence.confirmed_irregular_inspections,
+      ),
+      historical_average_kwh_per_reading: nullableNonNegative(
+        evidence.historical_average_kwh_per_reading,
+      ),
+      distributed_generation_present: nullableText(
+        evidence.distributed_generation_present,
+      ),
+      cadastral_status: nullableText(evidence.cadastral_status),
+      call_center_contacts: nullableNonNegative(evidence.call_center_contacts),
+      interruptions: nullableNonNegative(evidence.interruptions),
+    },
+    variation: row.variation === null ? null : goldVariation(row.variation),
+  };
+}
+function goldQueue(value: Record<string, unknown>): GoldQueueEnvelope {
+  const data = record(value.data);
+  const pagination = record(value.pagination);
+  const raw = record(data.summary);
+  if (!Array.isArray(data.items)) invalid();
+  const options = record(data.filter_options);
+  const filter_options: Record<string, string[]> = {};
+  for (const key of ["municipio", "bairro", "classe", "alimentador"])
+    filter_options[key] = strings(options[key]);
+  const page = number(pagination.page);
+  const page_size = number(pagination.page_size);
+  const total = number(pagination.total);
+  const total_pages = number(pagination.total_pages);
+  const categories = record(raw.categories);
+  const categoryCounts: Record<string, number> = {};
+  for (const [key, count] of Object.entries(categories)) {
+    const parsed = nullableCount(count);
+    if (parsed === null || parsed < 0) invalid();
+    categoryCounts[key] = parsed;
+  }
+  const summary = {
+    total_units: number(raw.total_units),
+    categories: categoryCounts,
+    uncategorized_units: number(raw.uncategorized_units),
+    estimated_units: number(raw.estimated_units),
+    unavailable_estimate_units: number(raw.unavailable_estimate_units),
+  };
+  if (
+    ![page, page_size, total, total_pages].every(Number.isSafeInteger) ||
+    page < 1 ||
+    page_size < 1 ||
+    total !== summary.total_units ||
+    total_pages !== Math.ceil(total / page_size) ||
+    summary.estimated_units !== 0 ||
+    summary.uncategorized_units +
+      Object.values(categoryCounts).reduce((sum, count) => sum + count, 0) !==
+      total ||
+    summary.unavailable_estimate_units !== total ||
+    data.items.length > page_size ||
+    data.items.length > total
+  )
+    invalid();
+  return {
+    data: {
+      items: data.items.map(goldItem),
+      filter_options,
+      summary: { ...summary, estimated_units: 0 },
+    },
+    pagination: { page, page_size, total, total_pages },
+    metadata: decodeGoldMetadata(value.metadata),
+  };
+}
 export function decodeQueue(value: unknown): QueueEnvelope {
-  const root = record(value),
-    data = record(root.data),
+  const root = record(value);
+  if (isGoldMetadata(root.metadata)) return goldQueue(root);
+  return decodeSyntheticQueue(root);
+}
+function decodeSyntheticQueue(
+  root: Record<string, unknown>,
+): SyntheticQueueEnvelope {
+  const data = record(root.data),
     pagination = record(root.pagination);
   if (!Array.isArray(data.items)) invalid();
   const options = record(data.filter_options);
@@ -172,12 +396,23 @@ export function decodeQueue(value: unknown): QueueEnvelope {
   return {
     data: { items, filter_options, summary },
     pagination: { page, page_size, total, total_pages },
-    metadata: metadata(root.metadata),
+    metadata: metadata(root.metadata) as SyntheticMetadata,
   };
 }
 export function decodeDetail(value: unknown): DetailEnvelope {
-  const root = record(value),
-    data = record(root.data),
+  const root = record(value);
+  if (isGoldMetadata(root.metadata)) {
+    const data = record(root.data);
+    return {
+      data: {
+        ...goldItem(data),
+        rule_version: string(data.rule_version),
+        limitations: strings(data.limitations),
+      },
+      metadata: decodeGoldMetadata(root.metadata),
+    };
+  }
+  const data = record(root.data),
     evidence = record(data.estimate_evidence);
   const horizon = number(evidence.horizon_months);
   if (!Number.isSafeInteger(horizon) || horizon < 1) invalid();
@@ -197,6 +432,6 @@ export function decodeDetail(value: unknown): DetailEnvelope {
       },
       limitations: strings(data.limitations),
     },
-    metadata: metadata(root.metadata),
+    metadata: metadata(root.metadata) as SyntheticMetadata,
   };
 }

@@ -2,6 +2,7 @@ import { Menu } from "lucide-react";
 import Brand from "@/shared/ui/Brand";
 import IconButton from "@/shared/ui/IconButton";
 import ThemeToggle from "@/shared/ui/ThemeToggle";
+import SessionControl from "@/shared/auth/SessionControl";
 
 export default function Header({
   title,
@@ -20,6 +21,7 @@ export default function Header({
           V—ENERGY / {title.toLocaleUpperCase("pt-BR")}
         </p>
         <div className="flex gap-2">
+          <SessionControl />
           <ThemeToggle />
           <IconButton
             className="lg:hidden"

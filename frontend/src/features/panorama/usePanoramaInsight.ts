@@ -17,11 +17,17 @@ export function usePanoramaInsight(
   enabled: boolean,
 ) {
   const hasRows = (data?.totalRegistros ?? 0) > 0;
+  const isSynthetic = data?.origem?.kind !== "gold";
   const matchesCurrentFilters = data ? matchesFilters(data, filters) : false;
 
   return useQuery({
     queryKey: ["panorama-insight", filters, data?.loteVersao],
-    enabled: enabled && Boolean(data) && hasRows && matchesCurrentFilters,
+    enabled:
+      enabled &&
+      isSynthetic &&
+      Boolean(data) &&
+      hasRows &&
+      matchesCurrentFilters,
     queryFn: ({ signal }) => {
       if (!data || !matchesCurrentFilters)
         throw new Error("O recorte atual ainda não está disponível.");

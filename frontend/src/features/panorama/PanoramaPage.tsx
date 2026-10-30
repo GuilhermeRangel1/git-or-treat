@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Activity, Bot, ChartNoAxesCombined } from "lucide-react";
 import { usePanoramaData } from "../../shared/analytics/usePanoramaData";
@@ -15,20 +15,70 @@ import PanoramaSeriesChart from "./PanoramaSeriesChart";
 import { usePanoramaInsight } from "./usePanoramaInsight";
 import { formatPanoramaTimestamp } from "./panorama-format";
 import { formatCompetenciaLabel } from "../../shared/analytics/syntheticData";
+import type { PanoramaFilterOptions } from "../../shared/analytics/types";
+import { useGoldPublicationKey } from "../../shared/analytics/goldPublication";
 
 export default function PanoramaPage() {
+  const publicationKey = useGoldPublicationKey();
+  const [catalogState, setCatalogState] = useState<{
+    publicationKey: string;
+    sourceKind: "gold" | "synthetic";
+    options?: PanoramaFilterOptions;
+  }>();
+  const catalog =
+    catalogState?.publicationKey === publicationKey ? catalogState : undefined;
   const {
     filters,
+    periodoExplicit,
+    needsSourceDiscovery,
     setFilters,
+    setBootstrapPeriod,
     resetFilters,
     hasActiveFilters,
     errors,
     isValid,
-  } = usePanoramaFilters();
-  const { data, isLoading, isError, isFetching, refetch } = usePanoramaData(
-    filters,
-    isValid,
-  );
+  } = usePanoramaFilters(catalog?.options, catalog?.sourceKind);
+  const {
+    data: receivedData,
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = usePanoramaData(filters, isValid, !periodoExplicit, needsSourceDiscovery);
+  const bootstrap = !periodoExplicit;
+
+  /* eslint-disable react/set-state-in-effect -- captures publication options from the external API response. */
+  useEffect(() => {
+    if (receivedData?.origem?.kind === "gold" && receivedData.opcoesFiltros) {
+      setCatalogState({
+        publicationKey,
+        sourceKind: "gold",
+        options: receivedData.opcoesFiltros,
+      });
+    } else if (receivedData?.origem?.kind === "synthetic") {
+      setCatalogState({ publicationKey, sourceKind: "synthetic" });
+    }
+  }, [publicationKey, receivedData]);
+  /* eslint-enable react/set-state-in-effect */
+
+  const responseMatchesUrl =
+    receivedData &&
+    (Object.keys(filters) as (keyof typeof filters)[]).every(
+      (key) => receivedData.filtros[key] === filters[key],
+    );
+  const data = responseMatchesUrl ? receivedData : undefined;
+
+  useEffect(() => {
+    if (
+      bootstrap &&
+      receivedData?.origem?.kind === "gold" &&
+      receivedData.filtros.periodo !== filters.periodo
+    ) {
+      // Replace URL state with the latest observed period selected by the API.
+      // eslint-disable-next-line react/set-state-in-effect
+      setBootstrapPeriod(receivedData.filtros.periodo);
+    }
+  }, [bootstrap, receivedData, filters.periodo, setBootstrapPeriod]);
   const [continuityOpen, setContinuityOpen] = useState(false);
   const continuityRef = useRef<HTMLButtonElement>(null);
   const isEmpty = Boolean(data && data.totalRegistros === 0);
@@ -70,7 +120,10 @@ export default function PanoramaPage() {
       {data && (
         <p className="text-xs leading-[18px] text-muted">
           Atualizado em {formatPanoramaTimestamp(data.dataAtualizacao)}{" "}
-          <span aria-hidden="true">·</span> Base sintética
+          <span aria-hidden="true">·</span>{" "}
+          {data.origem?.kind === "gold"
+            ? `Gold · lote ${data.loteVersao}`
+            : "Base sintética"}
         </p>
       )}
 
@@ -87,6 +140,9 @@ export default function PanoramaPage() {
         onApply={setFilters}
         hasActiveFilters={hasActiveFilters}
         errors={errors}
+        availableOptions={
+          data?.origem?.kind === "gold" ? data.opcoesFiltros : undefined
+        }
       />
 
       {!isValid && (
@@ -129,14 +185,21 @@ export default function PanoramaPage() {
             description="Não encontramos faturas ou medições para a combinação de filtros selecionada."
             onResetFilters={resetFilters}
           />
-          <div className="xl:max-w-[460px]">
-            <AIInsightCard
-              filters={filters}
-              data={data}
-              query={insight}
-              onRefreshIndicators={() => void refetch()}
-            />
-          </div>
+          {data.origem?.kind === "gold" ? (
+            <p className="rounded-xl border border-[var(--line)] p-4 text-sm text-muted">
+              Insight indisponível para a fonte Gold até existir uma integração
+              de IA própria para este contrato.
+            </p>
+          ) : (
+            <div className="xl:max-w-[460px]">
+              <AIInsightCard
+                filters={filters}
+                data={data}
+                query={insight}
+                onRefreshIndicators={() => void refetch()}
+              />
+            </div>
+          )}
         </>
       )}
 
@@ -174,22 +237,38 @@ export default function PanoramaPage() {
               comparison={filters.comparacao}
               comparisonUnavailable={comparisonUnavailable}
             />
+            {data.metricas.ucsFaturadasNoMes && (
+              <PanoramaMetricCard
+                metric={data.metricas.ucsFaturadasNoMes}
+                title="UCs faturadas no mês"
+                period={filters.periodo}
+                comparison={filters.comparacao}
+              />
+            )}
           </section>
 
           <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:items-stretch xl:grid-cols-[minmax(0,1fr)_340px]">
             <PanoramaSeriesChart
               data={data.serieMensal}
               selectedPeriod={filters.periodo}
+              sourceKind={data.origem?.kind ?? "synthetic"}
               partialPeriod={
                 data.periodoIncompleto ? filters.periodo : undefined
               }
             />
-            <AIInsightCard
-              filters={filters}
-              data={data}
-              query={insight}
-              onRefreshIndicators={() => void refetch()}
-            />
+            {data.origem?.kind === "gold" ? (
+              <p className="rounded-xl border border-[var(--line)] p-4 text-sm text-muted">
+                Insight indisponível para a fonte Gold até existir uma
+                integração de IA própria para este contrato.
+              </p>
+            ) : (
+              <AIInsightCard
+                filters={filters}
+                data={data}
+                query={insight}
+                onRefreshIndicators={() => void refetch()}
+              />
+            )}
           </div>
 
           <footer className="space-y-6">
@@ -230,24 +309,26 @@ export default function PanoramaPage() {
               <h2 className="font-semibold">Continuidade interna</h2>
               <p className="mt-1 leading-5">
                 DEC{" "}
-                {data.metricas.continuidadeDec.valorAtual.toLocaleString(
+                {data.metricas.continuidadeDec.valorAtual?.toLocaleString(
                   "pt-BR",
                   { maximumFractionDigits: 2 },
-                )}{" "}
+                ) ?? "indisponível"}{" "}
                 h/UC
                 <span aria-hidden="true"> · </span>
                 FEC{" "}
-                {data.metricas.continuidadeFec.valorAtual.toLocaleString(
+                {data.metricas.continuidadeFec.valorAtual?.toLocaleString(
                   "pt-BR",
                   { maximumFractionDigits: 2 },
-                )}{" "}
+                ) ?? "indisponível"}{" "}
                 interrupções/UC. Indicadores simplificados para uso interno, não
                 regulatórios.
               </p>
             </aside>
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <span className="text-xs text-muted">
-                Fonte sintética · Sem Gold
+                {data.origem?.kind === "gold"
+                  ? `Gold · ${data.origem.fingerprint?.slice(0, 12)}`
+                  : "Fonte sintética · Sem Gold"}
               </span>
               <div className="flex flex-wrap items-center gap-2">
                 <PanoramaFoundations

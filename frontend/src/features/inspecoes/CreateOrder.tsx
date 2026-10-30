@@ -8,32 +8,39 @@ import Button from "@/shared/ui/Button";
 export default function CreateOrder({
   uc,
   sourceVersion,
+  sourceFingerprint,
   ruleVersion,
   disabled,
   onRefresh,
 }: {
   uc: string;
-  sourceVersion: string;
-  ruleVersion: string;
+  sourceVersion?: string;
+  sourceFingerprint?: string;
+  ruleVersion?: string;
   disabled: boolean;
   onRefresh: () => void;
 }) {
-  const [intent] = useState(() => ({
-    key: crypto.randomUUID(),
-    uc,
-    sourceVersion,
-    ruleVersion,
-  }));
+  type OrderIntent = {
+    key: string;
+    uc: string;
+    sourceVersion: string;
+    sourceFingerprint?: string;
+    ruleVersion: string;
+  };
+  const [intent, setIntent] = useState<OrderIntent | null>(null);
   const cache = useQueryClient();
   const mutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (request: OrderIntent) =>
       createQueueOrder(
-        intent.uc,
+        request.uc,
         {
-          source_version: intent.sourceVersion,
-          rule_version: intent.ruleVersion,
+          source_version: request.sourceVersion,
+          ...(request.sourceFingerprint
+            ? { source_fingerprint: request.sourceFingerprint }
+            : {}),
+          rule_version: request.ruleVersion,
         },
-        intent.key,
+        request.key,
       ),
     onSuccess: () => {
       void cache.invalidateQueries({ queryKey: ["orders"] });
@@ -62,14 +69,48 @@ export default function CreateOrder({
     Number(mutation.error.data.error.order_id) > 0
       ? Number(mutation.error.data.error.order_id)
       : null;
+  const staleError = ["stale_suspicion", "stale_batch", "stale_rule"].includes(
+    errorCode ?? "",
+  );
+  const evidenceReady = Boolean(sourceVersion && ruleVersion);
+  const evidenceChanged = Boolean(
+    intent &&
+    (intent.sourceVersion !== sourceVersion ||
+      intent.sourceFingerprint !== sourceFingerprint ||
+      intent.ruleVersion !== ruleVersion),
+  );
+  const makeIntent = (): OrderIntent | null =>
+    sourceVersion && ruleVersion
+      ? {
+          key: crypto.randomUUID(),
+          uc,
+          sourceVersion,
+          sourceFingerprint,
+          ruleVersion,
+        }
+      : null;
+  const createFromCurrentEvidence = () => {
+    const nextIntent = makeIntent();
+    if (!nextIntent) return;
+    setIntent(nextIntent);
+    mutation.mutate(nextIntent);
+  };
+  const confirmWithCurrentEvidence = () => {
+    const nextIntent = makeIntent();
+    if (!nextIntent) return;
+    setIntent(nextIntent);
+    mutation.mutate(nextIntent);
+  };
   const networkFailure =
     mutation.error instanceof ApiError && mutation.error.kind === "network";
-  const conflictMessage =
-    errorCode === "stale_suspicion"
-      ? "A suspeita mudou desde a consulta. Atualize os dados antes de criar a ordem."
-      : errorCode === "active_order_exists"
-        ? "Já existe uma ordem ativa para esta UC. Acompanhe a ordem informada pelo servidor."
-        : null;
+  const authorizationFailure =
+    mutation.error instanceof ApiError && mutation.error.status === 401;
+  const conflictMessage = staleError
+    ? "A suspeita mudou desde a consulta. Atualize os dados antes de criar a ordem."
+    : errorCode === "active_order_exists"
+      ? "Já existe uma ordem ativa para esta UC. Acompanhe a ordem informada pelo servidor."
+      : null;
+  if (!evidenceReady) return null;
   return (
     <section
       className="space-y-3 rounded-xl border border-border bg-surface p-5"
@@ -82,7 +123,9 @@ export default function CreateOrder({
       <Button
         disabled={disabled || mutation.isSuccess || mutation.isError}
         isLoading={mutation.isPending}
-        onClick={() => mutation.mutate()}
+        onClick={
+          intent ? () => mutation.mutate(intent) : createFromCurrentEvidence
+        }
       >
         Criar ordem de inspeção
       </Button>
@@ -92,17 +135,33 @@ export default function CreateOrder({
             {conflictMessage ?? mutation.error.message} A criação não foi
             confirmada.
           </p>
-          {networkFailure ? (
+          {networkFailure || authorizationFailure ? (
             <Button
               variant="outline"
               disabled={disabled || mutation.isPending}
-              onClick={() => mutation.mutate()}
+              onClick={() => {
+                if (intent) mutation.mutate(intent);
+              }}
             >
-              Reenviar mesma criação
+              {authorizationFailure
+                ? "Repetir mesma criação"
+                : "Reenviar mesma criação"}
             </Button>
           ) : null}
-          {errorCode === "stale_suspicion" ? (
-            <Button variant="outline" disabled={disabled} onClick={onRefresh}>
+          {staleError && evidenceChanged ? (
+            <Button
+              variant="outline"
+              disabled={disabled || mutation.isPending}
+              onClick={confirmWithCurrentEvidence}
+            >
+              Confirmar com evidência atual
+            </Button>
+          ) : staleError ? (
+            <Button
+              variant="outline"
+              disabled={disabled || mutation.isPending}
+              onClick={onRefresh}
+            >
               Atualizar dados da suspeita
             </Button>
           ) : null}

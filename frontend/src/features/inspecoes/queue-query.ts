@@ -40,19 +40,23 @@ export function queueQuery(params: URLSearchParams): {
     Number(size) > 100
   )
     throw new Error("Paginação inválida.");
-  const order = params.get("order_by") ?? "priority",
-    direction = params.get("direction") ?? "desc";
+  const order = params.get("order_by"),
+    direction = params.get("direction");
   if (
-    !["priority", "uc_id", "potential_recoverable_energy_kwh"].includes(
-      order,
-    ) ||
-    !["asc", "desc"].includes(direction)
+    (order !== null &&
+      ![
+        "priority",
+        "uc_id",
+        "potential_recoverable_energy_kwh",
+        "category",
+      ].includes(order)) ||
+    (direction !== null && !["asc", "desc"].includes(direction))
   )
     throw new Error("Ordenação inválida.");
   request.set("page", page);
   request.set("page_size", size);
-  request.set("order_by", order);
-  request.set("direction", direction);
+  if (order !== null) request.set("order_by", order);
+  if (direction !== null) request.set("direction", direction);
   const detail = params.get("uc");
   if (detail !== null && !/^[A-Za-z0-9-]{1,60}$/.test(detail))
     throw new Error("UC inválida.");

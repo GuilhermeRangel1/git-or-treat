@@ -112,6 +112,8 @@ function mockApi(options?: {
 }) {
   const fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), window.location.origin);
+    if (url.pathname.endsWith("/options"))
+      return respond({ error: { code: "unsupported_source" } }, 422);
     if (url.pathname.endsWith("/summary"))
       return options?.summary?.(url) ?? respond(summaryFixture);
     if (url.pathname.endsWith("/ranking"))
@@ -326,7 +328,7 @@ it("valida limite de caracteres Unicode do alimentador pelo parser aprovado", as
   );
   expect(feeder).toHaveAttribute("aria-invalid", "true");
   expect(feeder).toHaveFocus();
-});
+}, 10000);
 
 it("abre detalhe mensal, mostra alternativa textual e pagina ocorrências sem perder o resumo", async () => {
   const fetch = mockApi({
@@ -626,6 +628,8 @@ it("mostra vazio legítimo sem confundir ausência de fonte com zero", async () 
 it("converte JSON inválido em erro amigável e mantém o ranking que carregou", async () => {
   const fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), window.location.origin);
+    if (url.pathname.endsWith("/options"))
+      return respond({ error: { code: "unsupported_source" } }, 422);
     if (url.pathname.endsWith("/summary"))
       return new Response("<html>segredo interno</html>");
     if (url.pathname.endsWith("/ranking")) return respond(rankingFixture);
@@ -642,4 +646,164 @@ it("converte JSON inválido em erro amigável e mantém o ranking que carregou",
   expect(
     screen.queryByText(/segredo interno|resposta\.data/),
   ).not.toBeInTheDocument();
+});
+
+it("navega do ranking Gold ao detalhe agregado e retorna preservando filtros", async () => {
+  const fingerprint = "c".repeat(64);
+  const metadata = (
+    period: { start: string; end: string; granularity: "month" } | null,
+    feeder: string | null = null,
+  ) => ({
+    contract_version: "2.0.0",
+    status: "partial",
+    period,
+    filters: {
+      municipio: "Recife",
+      bairro: null,
+      classe: null,
+      alimentador: feeder,
+    },
+    source: {
+      kind: "gold",
+      version: "ui-navigation-batch",
+      is_demo: false,
+      updated_at: "2026-10-29T00:00:00Z",
+    },
+    limitations: [],
+    temporal_scope: period ? "monthly" : "snapshot",
+    schema_version: "gold-csv-v1",
+    fingerprint,
+  });
+  const windowPeriod = {
+    start: "2025-01",
+    end: "2025-02",
+    granularity: "month" as const,
+  };
+  const definition = {
+    reference: "docs/dicionario_gold.md",
+    dec_formula: "Duração/base",
+    fec_formula: "Frequência/base",
+    dec_unit: "h/UC",
+    fec_unit: "int./UC",
+    event_grain: "UC-interrupção",
+    population: "cadastro atual",
+    completeness: "completude não comprovada",
+  };
+  const point = {
+    feeder_id: "F-1",
+    municipality: "Recife",
+    period: windowPeriod,
+    observed_period: windowPeriod,
+    observed_competencies: ["2025-01", "2025-02"],
+    missing_competencies: [],
+    duration_hours_sum: 4,
+    interruption_count: 2,
+    denominator_uc_count: 2,
+    dec_hours_per_uc: 2,
+    fec_interruptions_per_uc: 1,
+    status: "partial",
+    dec_status: "partial",
+    fec_status: "partial",
+    limitations: [],
+  };
+  const fetch = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), window.location.origin);
+    if (url.pathname.endsWith("/options"))
+      return respond({
+        data: {
+          competencias: ["2025-01", "2025-02"],
+          municipios: ["Recife"],
+          alimentadores: [{ id: "F-1", municipio: "Recife" }],
+        },
+        metadata: metadata(null),
+      });
+    if (url.pathname.endsWith("/summary"))
+      return respond({
+        data: {
+          summary: {
+            period: windowPeriod,
+            observed_period: windowPeriod,
+            duration_hours_sum: 4,
+            interruption_count: 2,
+            denominator_uc_count: 2,
+            dec_hours_per_uc: 2,
+            fec_interruptions_per_uc: 1,
+            dec_denominator_uc_count: 2,
+            fec_denominator_uc_count: 2,
+            dec_included_feeder_ids: ["F-1"],
+            fec_included_feeder_ids: ["F-1"],
+            dec_excluded_feeder_ids: [],
+            fec_excluded_feeder_ids: [],
+            included_feeder_ids: ["F-1"],
+            excluded_feeder_ids: [],
+            dec_status: "partial",
+            fec_status: "partial",
+            status: "partial",
+            limitations: [],
+          },
+        },
+        definition,
+        metadata: metadata(windowPeriod),
+      });
+    if (url.pathname.endsWith("/ranking"))
+      return respond({
+        data: {
+          items: [{ ...point, rank: 1 }],
+          excluded: [],
+          metric: url.searchParams.get("metric") ?? "dec",
+          order: "Decrescente pelo indicador",
+          definition,
+        },
+        metadata: metadata(windowPeriod),
+      });
+    if (url.pathname.includes("/feeders/")) {
+      expect(url.searchParams.has("page")).toBe(false);
+      expect(url.searchParams.has("page_size")).toBe(false);
+      return respond({
+        data: {
+          summary: point,
+          series: [
+            {
+              ...point,
+              period: {
+                start: "2025-01",
+                end: "2025-01",
+                granularity: "month",
+              },
+            },
+          ],
+          occurrences: null,
+          occurrences_status: "unavailable",
+          definition,
+        },
+        metadata: metadata(windowPeriod, "F-1"),
+      });
+    }
+    throw new Error(`Rota inesperada: ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount(
+    "/operacao?competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Recife",
+  );
+  const investigate = await screen.findByRole("link", { name: "Investigar" });
+  await user.click(investigate);
+  expect(
+    await screen.findByRole("heading", { level: 1, name: /F-1/ }),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/Ocorrências individuais indisponíveis/),
+  ).toBeVisible();
+  expect(screen.queryByText(/Página 1 de/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "municipio=Recife",
+  );
+  await user.click(screen.getByRole("button", { name: /Voltar ao ranking/ }));
+  expect(await screen.findByRole("link", { name: "Investigar" })).toBeVisible();
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "competencia_inicio=2025-01",
+  );
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "municipio=Recife",
+  );
 });

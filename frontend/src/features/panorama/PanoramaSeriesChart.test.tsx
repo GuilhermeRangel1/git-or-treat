@@ -29,6 +29,38 @@ const data = [
 ];
 
 describe("PanoramaSeriesChart", () => {
+  it("mantém lacunas da fonte Gold como indisponíveis na série e na alternativa textual", () => {
+    render(
+      <PanoramaSeriesChart
+        sourceKind="gold"
+        data={[{ ...data[0], receitaFaturada: null }, data[1]]}
+      />,
+    );
+
+    expect(
+      screen.getByText(/lacunas representam valores indisponíveis/),
+    ).toBeVisible();
+    expect(screen.getByText("—")).toBeVisible();
+    expect(screen.getByText(/indisponível em Mar\/2024/)).toBeVisible();
+  });
+
+  it("mostra a soma como indisponível quando a série inteira não tem valores", async () => {
+    const user = userEvent.setup();
+    render(
+      <PanoramaSeriesChart
+        sourceKind="gold"
+        data={data.map((point) => ({ ...point, receitaFaturada: null }))}
+      />,
+    );
+    expect(screen.getAllByText("—")).toHaveLength(2);
+    await user.click(
+      screen.getByRole("button", { name: /Ver dados da receita/ }),
+    );
+    expect(screen.getByRole("table")).toHaveTextContent("Indisponível");
+    expect(screen.getByRole("table")).toHaveTextContent("Soma indisponível");
+    expect(screen.getByRole("table")).not.toHaveTextContent(/R\$\s*0,00/);
+  });
+
   it("mostra uma série mensal com valores visíveis, escala em R$ mil e período parcial", () => {
     render(
       <PanoramaSeriesChart

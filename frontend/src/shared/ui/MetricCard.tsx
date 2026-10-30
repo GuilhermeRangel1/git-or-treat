@@ -21,7 +21,8 @@ export default function MetricCard({
   const [showDetails, setShowDetails] = useState(false);
 
   // Formatação de valor principal
-  const formatValue = (val: number, unidade: string) => {
+  const formatValue = (val: number | null, unidade: string) => {
+    if (val == null) return "Indisponível";
     if (unidade === "R$") {
       return new Intl.NumberFormat("pt-BR", {
         style: "currency",
@@ -143,7 +144,11 @@ export default function MetricCard({
 
       {/* Variação e Comparação */}
       <div className="pt-3 border-t border-[var(--line-subtle)] text-xs">
-        {comparisonUnavailable ? (
+        {metric.valorAtual == null ? (
+          <span className="text-muted">
+            {metric.limitacoes?.[0] ?? "Valor indisponível nesta fonte."}
+          </span>
+        ) : comparisonUnavailable ? (
           <span className="text-muted">{comparisonUnavailable}</span>
         ) : metric.valorAnterior != null ? (
           metric.baseZero ? (
@@ -206,6 +211,18 @@ export default function MetricCard({
             </strong>
             <span>{metric.definicao}</span>
           </div>
+          {metric.limitacoes && metric.limitacoes.length > 0 && (
+            <div>
+              <strong className="text-content block font-medium">
+                Limitações:
+              </strong>
+              <ul className="list-disc pl-4">
+                {metric.limitacoes.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div>
             <strong className="text-content block font-medium">
               Fórmula matemática:

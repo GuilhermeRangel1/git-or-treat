@@ -159,7 +159,7 @@ describe("IA-04 contextual insight on Panorama", () => {
         const url = new URL(String(input), "http://localhost:5173");
         if (url.pathname === "/api/v1/panorama") {
           const filters: PanoramaFilters = {
-            periodo: url.searchParams.get("competencia")!,
+            periodo: url.searchParams.get("competencia") ?? "2024-04",
             comparacao: url.searchParams.get(
               "comparacao",
             ) as PanoramaFilters["comparacao"],
@@ -310,7 +310,7 @@ describe("IA-04 contextual insight on Panorama", () => {
         const url = new URL(String(input), "http://localhost:5173");
         if (url.pathname === "/api/v1/panorama") {
           const filters: PanoramaFilters = {
-            periodo: url.searchParams.get("competencia")!,
+            periodo: url.searchParams.get("competencia") ?? "2024-04",
             comparacao: url.searchParams.get(
               "comparacao",
             ) as PanoramaFilters["comparacao"],
@@ -398,7 +398,7 @@ describe("IA-04 contextual insight on Panorama", () => {
         const url = new URL(String(input), "http://localhost:5173");
         if (url.pathname === "/api/v1/panorama")
           return panoramaResponse({
-            periodo: url.searchParams.get("competencia")!,
+            periodo: url.searchParams.get("competencia") ?? "2024-04",
             comparacao: url.searchParams.get(
               "comparacao",
             ) as PanoramaFilters["comparacao"],
@@ -441,7 +441,7 @@ describe("IA-04 contextual insight on Panorama", () => {
         const url = new URL(String(input), "http://localhost:5173");
         if (url.pathname === "/api/v1/panorama") {
           const filters: PanoramaFilters = {
-            periodo: url.searchParams.get("competencia")!,
+            periodo: url.searchParams.get("competencia") ?? "2024-04",
             comparacao: url.searchParams.get(
               "comparacao",
             ) as PanoramaFilters["comparacao"],

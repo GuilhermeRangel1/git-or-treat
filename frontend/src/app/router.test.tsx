@@ -84,8 +84,10 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
         const paths = fetchSpy.mock.calls.map(
           (call) => new URL(String(call[0]), window.location.origin).pathname,
         );
-        expect(paths).toContain("/api/v1/operations/summary");
-        expect(paths).toContain("/api/v1/operations/ranking");
+        expect(paths).toContain("/api/v1/operations/options");
+        // Sem descoberta da fonte, não consultar uma janela demonstrativa como fallback.
+        expect(paths).not.toContain("/api/v1/operations/summary");
+        expect(paths).not.toContain("/api/v1/operations/ranking");
       });
     }
   }
@@ -107,6 +109,7 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
       "/api/v1/inspections/orders/search",
       "/api/v1/operations/summary",
       "/api/v1/operations/ranking",
+      "/api/v1/operations/options",
     ]).toContain(path);
   }
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();

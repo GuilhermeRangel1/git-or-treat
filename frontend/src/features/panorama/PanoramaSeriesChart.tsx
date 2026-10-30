@@ -8,6 +8,7 @@ interface PanoramaSeriesChartProps {
   data: MonthlyDataPoint[];
   partialPeriod?: string;
   selectedPeriod?: string;
+  sourceKind?: "gold" | "synthetic";
 }
 
 const plotHeight = 164;
@@ -49,6 +50,7 @@ export default function PanoramaSeriesChart({
   data,
   partialPeriod,
   selectedPeriod,
+  sourceKind = "synthetic",
 }: PanoramaSeriesChartProps) {
   const [showTable, setShowTable] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -57,13 +59,16 @@ export default function PanoramaSeriesChart({
 
   if (!data || data.length === 0) return null;
 
-  const maxValue = Math.max(...data.map((point) => point.receitaFaturada), 0);
+  const observed = data.flatMap((point) =>
+    point.receitaFaturada == null ? [] : [point.receitaFaturada],
+  );
+  const maxValue = Math.max(...observed, 0);
   const axisMaximum = getAxisMaximum(maxValue || 1000);
   const ticks = [axisMaximum, axisMaximum / 2, 0];
   const firstPoint = data[0];
   const lastPoint = data[data.length - 1];
   const totalShown = data.reduce(
-    (total, point) => total + point.receitaFaturada,
+    (total, point) => total + (point.receitaFaturada ?? 0),
     0,
   );
 
@@ -73,7 +78,9 @@ export default function PanoramaSeriesChart({
         Receita ao longo do período
       </h2>
       <p className="panorama-series-chart__caption">
-        Cenário sintético · R$ mil / mês
+        {sourceKind === "synthetic"
+          ? "Cenário sintético · R$ mil / mês"
+          : "Gold · R$ mil / mês · lacunas representam valores indisponíveis"}
       </p>
 
       <figure className="panorama-series-chart__figure">
@@ -106,7 +113,10 @@ export default function PanoramaSeriesChart({
               ))}
             </div>
             {data.map((point, index) => {
-              const height = (point.receitaFaturada / axisMaximum) * plotHeight;
+              const height =
+                point.receitaFaturada == null
+                  ? 0
+                  : (point.receitaFaturada / axisMaximum) * plotHeight;
               const isSelected = point.competencia === selectedPeriod;
               const isPartial = point.competencia === partialPeriod;
               const isCurrent = isSelected && index === data.length - 1;
@@ -117,10 +127,12 @@ export default function PanoramaSeriesChart({
                   className="panorama-series-chart__item"
                 >
                   <span className="panorama-series-chart__value">
-                    {formatAxisValue(point.receitaFaturada)}
+                    {point.receitaFaturada == null
+                      ? "—"
+                      : formatAxisValue(point.receitaFaturada)}
                   </span>
                   <div
-                    className={`panorama-series-chart__bar${isSelected && height > 0 ? " is-selected" : ""}`}
+                    className={`panorama-series-chart__bar${isSelected && height > 0 ? " is-selected" : ""}${point.receitaFaturada == null ? " is-missing" : ""}`}
                     style={{ height: `${height}px` }}
                     data-partial={isPartial || undefined}
                   />
@@ -147,10 +159,15 @@ export default function PanoramaSeriesChart({
           </div>
         </div>
         <p className="panorama-series-chart__summary">
-          Receita faturada de {formatCurrency(firstPoint.receitaFaturada)} em{" "}
-          {formatCompetenciaLabel(firstPoint.competencia)} a{" "}
-          {formatCurrency(lastPoint.receitaFaturada)} em{" "}
-          {formatCompetenciaLabel(lastPoint.competencia)}.
+          Receita faturada de{" "}
+          {firstPoint.receitaFaturada == null
+            ? "indisponível"
+            : formatCurrency(firstPoint.receitaFaturada)}{" "}
+          em {formatCompetenciaLabel(firstPoint.competencia)} a{" "}
+          {lastPoint.receitaFaturada == null
+            ? "indisponível"
+            : formatCurrency(lastPoint.receitaFaturada)}{" "}
+          em {formatCompetenciaLabel(lastPoint.competencia)}.
           {partialPeriod
             ? " * Competência parcial; valor ainda não consolidado."
             : ""}
@@ -192,14 +209,30 @@ export default function PanoramaSeriesChart({
                     {formatCompetenciaLabel(point.competencia)}
                     {point.competencia === partialPeriod ? " · parcial" : ""}
                   </th>
-                  <td>{formatCurrency(point.receitaFaturada)}</td>
+                  <td>
+                    {point.receitaFaturada == null
+                      ? "Indisponível"
+                      : formatCurrency(point.receitaFaturada)}
+                  </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
-                <th scope="row">Soma dos meses exibidos (ilustrativa)</th>
-                <td>{formatCurrency(totalShown)}</td>
+                <th scope="row">
+                  {sourceKind === "synthetic"
+                    ? "Soma dos meses exibidos (ilustrativa)"
+                    : observed.length === 0
+                      ? "Soma indisponível"
+                      : observed.length === data.length
+                        ? "Soma dos meses exibidos"
+                        : `Soma parcial · ${observed.length} de ${data.length} valores observados`}
+                </th>
+                <td>
+                  {observed.length === 0
+                    ? "Indisponível"
+                    : formatCurrency(totalShown)}
+                </td>
               </tr>
             </tfoot>
           </table>

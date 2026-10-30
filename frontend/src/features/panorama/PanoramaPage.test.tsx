@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import TestProviders from "../../shared/test/TestProviders";
 import PanoramaPage from "./PanoramaPage";
 import { calculateSyntheticPanorama } from "../../shared/analytics/syntheticData";
+import { resetGoldPublication } from "../../shared/analytics/goldPublication";
 
 function panoramaRequestCount() {
   return vi
@@ -16,9 +17,120 @@ function panoramaRequestCount() {
     ).length;
 }
 
+function goldMetric(id: string, value: number | null, status: string) {
+  return {
+    id,
+    nome: id,
+    categoria: "financeiro",
+    tipoGrandeza: "faturado",
+    valorAtual: value,
+    valorAnterior: null,
+    variacaoAbsoluta: null,
+    variacaoPercentual: null,
+    unidade: "R$",
+    definicao: "Definição Gold",
+    formula: "Σ(valor)",
+    baseZero: false,
+    bomSentido: "positivo",
+    status,
+    limitacoes:
+      status === "unavailable" ? ["Não disponível nesta publicação."] : [],
+    statusComparacao: "empty",
+    limitacoesComparacao: ["Referência ausente."],
+  };
+}
+
+function goldPanorama(filters: {
+  periodo: string;
+  comparacao: "anterior" | "ano_anterior" | "nenhuma";
+  municipio: string;
+  classe: string;
+}) {
+  const metricas: Record<string, ReturnType<typeof goldMetric>> = {};
+  for (const key of [
+    "receitaFaturada",
+    "receitaPaga",
+    "energiaConsumida",
+    "energiaFaturada",
+    "precoMedioEfetivo",
+    "ucsAtivas",
+    "continuidadeDec",
+    "continuidadeFec",
+  ])
+    metricas[key] = goldMetric(key, null, "unavailable");
+  metricas.receitaFaturada = goldMetric("rec_fat", 0, "available");
+  metricas.energiaConsumida = {
+    ...goldMetric("ene_con", null, "unavailable"),
+    unidade: "kWh",
+    categoria: "fisico",
+    tipoGrandeza: "consumido",
+  };
+  metricas.ucsFaturadasNoMes = {
+    ...goldMetric("ucs_fat", null, "unavailable"),
+    unidade: "UCs",
+  };
+  const fingerprint = "b".repeat(64);
+  return {
+    data: {
+      filtros: filters,
+      periodoIncompleto: false,
+      fechamentoMensalDeclarado: false,
+      totalRegistros: 1,
+      dataAtualizacao: "2026-10-29T10:00:00Z",
+      loteVersao: "batch-panorama-ui",
+      metricas,
+      serieMensal: [
+        {
+          competencia: filters.periodo,
+          label: "Jun/26",
+          receitaFaturada: 0,
+          receitaPaga: null,
+          energiaConsumidaKwh: null,
+          energiaFaturadaKwh: null,
+          ucsAtivas: null,
+          decHoras: null,
+          fecVezes: null,
+          status: "partial",
+        },
+      ],
+      opcoesFiltros: {
+        competencias: ["2026-06", "2026-05"],
+        municipios: ["Curitiba"],
+        classes: ["Residencial"],
+      },
+    },
+    metadata: {
+      contract_version: "2.0.0",
+      status: "partial",
+      period: {
+        start: filters.periodo,
+        end: filters.periodo,
+        granularity: "month",
+      },
+      filters: {
+        municipio: filters.municipio === "todos" ? null : filters.municipio,
+        bairro: null,
+        classe: filters.classe === "todas" ? null : filters.classe,
+        alimentador: null,
+      },
+      source: {
+        kind: "gold",
+        version: "batch-panorama-ui",
+        is_demo: false,
+        updated_at: "2026-10-29T10:00:00Z",
+      },
+      limitations: ["Fechamento mensal não declarado."],
+      temporal_scope: "monthly",
+      schema_version: "gold-csv-v1",
+      fingerprint,
+    },
+  };
+}
+
 describe("PanoramaPage (WEB-01)", () => {
   beforeEach(() => {
     localStorage.clear();
+    resetGoldPublication();
     vi.stubGlobal(
       "matchMedia",
       vi.fn().mockReturnValue({
@@ -98,7 +210,7 @@ describe("PanoramaPage (WEB-01)", () => {
             }
             const params = url.searchParams;
             const data = calculateSyntheticPanorama({
-              periodo: params.get("competencia")!,
+              periodo: params.get("competencia") ?? "2024-04",
               comparacao: params.get("comparacao") as
                 "anterior" | "ano_anterior" | "nenhuma",
               municipio: params.get("municipio")!,
@@ -108,6 +220,186 @@ describe("PanoramaPage (WEB-01)", () => {
           },
         ),
     );
+  });
+
+  it("resolve deep link Gold fora do catÃ¡logo sintÃ©tico e apresenta opÃ§Ãµes, nulos e insight indisponÃ­vel", async () => {
+    const requests: URL[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input), "http://localhost:5173");
+        requests.push(url);
+        if (url.pathname === "/api/v1/panorama") {
+          const params = url.searchParams;
+          return new Response(
+            JSON.stringify(
+              goldPanorama({
+                periodo: params.get("competencia") ?? "2026-06",
+                comparacao: (params.get("comparacao") ?? "anterior") as
+                  "anterior" | "ano_anterior" | "nenhuma",
+                municipio: params.get("municipio") ?? "todos",
+                classe: params.get("classe") ?? "todas",
+              }),
+            ),
+          );
+        }
+        return new Response("{}", { status: 500 });
+      }),
+    );
+
+    render(
+      <TestProviders>
+        <MemoryRouter
+          initialEntries={["/panorama?municipio=Curitiba&classe=Residencial"]}
+        >
+          <PanoramaPage />
+        </MemoryRouter>
+      </TestProviders>,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Insight indisponível para a fonte Gold até existir uma integração de IA própria para este contrato.",
+        ),
+      ).toBeVisible(),
+    );
+    expect(
+      await screen.findByRole("article", { name: /Valor faturado/ }),
+    ).toBeVisible();
+    expect(screen.getAllByText("Indisponível").length).toBeGreaterThan(0);
+    expect(requests.some((url) => url.pathname === "/api/v1/ai/insights")).toBe(
+      false,
+    );
+    expect(
+      requests.some(
+        (url) =>
+          url.searchParams.get("municipio") === "todos" &&
+          url.searchParams.get("classe") === "todas",
+      ),
+      requests.map((url) => url.toString()).join("\n"),
+    ).toBe(true);
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (url) =>
+            url.searchParams.get("municipio") === "Curitiba" &&
+            url.searchParams.get("classe") === "Residencial" &&
+            url.searchParams.get("competencia") === "2026-06",
+        ),
+        requests.map((url) => url.toString()).join("\n"),
+      ).toBe(true),
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ajustar filtros" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Ajustar filtros" });
+    expect(
+      within(dialog).getByRole("option", { name: "Curitiba" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("option", { name: "Residencial" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("option", { name: "Jun/2026" }),
+    ).toBeInTheDocument();
+  });
+
+  it("não mostra o agregado global da descoberta como se fosse o recorte do deep link", async () => {
+    const requests: URL[] = [];
+    let signalTargetStarted!: () => void;
+    const pendingTargets: {
+      url: URL;
+      resolve: (response: Response) => void;
+    }[] = [];
+    const targetStarted = new Promise<void>((resolve) => {
+      signalTargetStarted = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input), "http://localhost:5173");
+        requests.push(url);
+        if (url.pathname !== "/api/v1/panorama")
+          return new Response("{}", { status: 500 });
+        if (url.searchParams.get("municipio") === "Curitiba") {
+          signalTargetStarted();
+          return new Promise<Response>((resolve) => {
+            pendingTargets.push({ url, resolve });
+          });
+        }
+        const global = goldPanorama({
+          periodo: "2026-06",
+          comparacao: "anterior",
+          municipio: "todos",
+          classe: "todas",
+        });
+        global.data.metricas.receitaFaturada.valorAtual = 987654;
+        return new Response(JSON.stringify(global));
+      }),
+    );
+
+    render(
+      <TestProviders>
+        <MemoryRouter
+          initialEntries={["/panorama?municipio=Curitiba&classe=Residencial"]}
+        >
+          <PanoramaPage />
+        </MemoryRouter>
+      </TestProviders>,
+    );
+
+    await targetStarted;
+    expect(
+      screen.queryByRole("region", {
+        name: "Indicadores principais do Panorama",
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/987,7 mil/)).not.toBeInTheDocument();
+    expect(
+      requests.some(
+        (url) =>
+          url.searchParams.get("municipio") === "todos" &&
+          url.searchParams.get("classe") === "todas",
+      ),
+    ).toBe(true);
+
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (url) =>
+            url.searchParams.get("municipio") === "Curitiba" &&
+            url.searchParams.get("competencia") === "2026-06",
+        ),
+      ).toBe(true),
+    );
+    for (const target of pendingTargets) {
+      const params = target.url.searchParams;
+      target.resolve(
+        new Response(
+          JSON.stringify(
+            goldPanorama({
+              periodo: params.get("competencia") ?? "2026-06",
+              comparacao: (params.get("comparacao") ?? "anterior") as
+                "anterior" | "ano_anterior" | "nenhuma",
+              municipio: params.get("municipio") ?? "todos",
+              classe: params.get("classe") ?? "todas",
+            }),
+          ),
+        ),
+      );
+    }
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Erro na consulta dos indicadores"),
+        requests.map((url) => url.toString()).join("\n"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      await screen.findByRole("article", { name: /Valor faturado/ }),
+    ).toBeVisible();
+    expect(screen.queryByText(/987,7 mil/)).not.toBeInTheDocument();
   });
 
   it.each([
@@ -127,13 +419,15 @@ describe("PanoramaPage (WEB-01)", () => {
           </MemoryRouter>
         </TestProviders>,
       );
-      expect(screen.getByText("Filtros inválidos na URL")).toBeVisible();
-      expect(fetch).not.toHaveBeenCalled();
+      expect(await screen.findByText("Filtros inválidos na URL")).toBeVisible();
+      const needsSourceDiscovery =
+        query.includes("municipio=") || query.includes("classe=");
+      expect(panoramaRequestCount()).toBe(needsSourceDiscovery ? 1 : 0);
       await userEvent.click(
         screen.getByRole("button", { name: "Restaurar filtros padrão" }),
       );
       expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
-      expect(panoramaRequestCount()).toBe(1);
+      expect(panoramaRequestCount()).toBe(needsSourceDiscovery ? 2 : 1);
     },
   );
 
