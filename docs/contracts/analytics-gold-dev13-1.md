@@ -97,6 +97,8 @@ Recarga nova/repetida/falha não reescreve ordens, resultados, snapshots ou even
 
 ## Operação
 
+`GET /api/v1/operations/options` fornece `data.competencias`, `data.municipios` e `data.alimentadores` (`id`, `municipio`) observados na publicação. Município ausente permanece nulo no alimentador e nos pontos, sem excluir o alimentador; a lista de opções municipais contém somente valores conhecidos. Usa autenticação de leitura e metadados Gold v2 com `temporal_scope=snapshot` e `period=null`, além das guardas de lote/fingerprint. Fonte sintética retorna 422 `unsupported_source`; falhas de acesso ou disponibilidade não autorizam fallback. O catálogo orienta filtros e a seleção inicial da última competência observada, sem afirmar fechamento mensal.
+
 Rotas: `/api/v1/operations/continuity`, `/series`, `/ranking`, `/summary` e `/feeders/{feeder_id}`.
 
 Parâmetros de janela: `periodo=YYYY-MM` ou `competencia_inicio`/`competencia_fim`, sem combiná-los; demais limites continuam explicitados no OpenAPI. Filtros Gold: município/alimentador. Classe/bairro não são suportados, pois a fonte não segrega numeradores por essas dimensões. Não filtrar apenas o denominador.

@@ -1,0 +1,12 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    container_name: grid360-keycloak-local
+    command: ["start-dev", "--import-realm"]
+    env_file:
+      - ../../work/local-oidc/.env
+    ports:
+      - "127.0.0.1:8082:8080"
+    volumes:
+      - ../../work/local-oidc/import:/opt/keycloak/data/import:ro
+    restart: unless-stopped

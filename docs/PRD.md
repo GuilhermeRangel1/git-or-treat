@@ -2102,3 +2102,30 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Evidência: `python -m pytest ai-agent/tests -q -rs`: 3137 aprovados, 4 pulados (smoke real, link simbólico e duas verificações PostgreSQL sem configuração). Executado fora do sandbox com dependências isoladas. Ruff nos arquivos Python alterados e `git diff --check` passaram.
 - Novos testes pela composição comprovam que o lote do envelope permite resposta quando coincide e bloqueia o modelo quando diverge, sem consultar a fonte na síntese. As regressões existentes cobrem fingerprint, autorização, ausência, guardrails e equivalência do fluxo atual.
 - Limites: sem CSV real ou provedor; rotas e coordenação Backend continuam pendentes. A cobertura temporal recebida no planejamento ainda não é usada para resolver frases; depende da integração do resolvedor e das definições temporais de Dados. Não fecha GENAI-01 integralmente. Revisão e CI pendentes; atualização de evidência no Trello vinculada à futura publicação da alteração.
+### 2026-10-29 — DEV-13.1 — planejamento da integração frontend Gold
+
+- Estados WEB-01 a WEB-07 e DE-04/05/06/08 preservados. Criado o [plano frontend de Panorama, Ordens e Operação](plans/2026-10-29-dev13-1-gold-frontend-plano.md), baseado na API do commit `a118766`, no dicionário e nas skills de padrões backend/frontend.
+- Mapeados decoders v2, consistência de lote/fingerprint, autenticação anterior à ativação, fundamentos de OS v2 com compatibilidade histórica, entrada de criação pela fila e detalhe agregado de Operação sem paginação de ocorrências. Definidos arquivos, sequência, verificações futuras e limites de aceite.
+- Entrega apenas documental: sem implementação, ativação Gold no frontend, mudança no banco ou execução de testes funcionais. O plano é proposta para revisão; nenhum requisito foi concluído ou teve critério alterado.
+### 2026-10-29 — DEV-13.1 — implementação frontend e revisão dos contratos Gold
+
+- Estados WEB-01 a WEB-07 e DE-04/05/06/08 preservados. Execução do plano aprovado por três subagentes GPT-6 Luna/high e revisão pelo principal: adaptadores e apresentação Gold em Panorama, fila/Ordens e Operação, consistência comum de lote/fingerprint e descoberta autenticada de opções de Operação.
+- Prova HTTP real somente leitura: decoders frontend aceitaram Panorama, fila/detalhe e Operação no mesmo lote, após corrigir o formato do resumo Gold. Nenhuma resposta real foi persistida em fixture e nenhuma ordem/carga real foi criada. Testes e limites ficam nas [evidências frontend](plans/2026-10-29-dev13-1-gold-frontend-evidencias.md).
+- Pendências: configurar o provedor e validar as jornadas autenticadas no navegador, temas e responsividade. O cliente OIDC frontend foi implementado e os gates estão registrados nas [evidências frontend](plans/2026-10-29-dev13-1-gold-frontend-evidencias.md); Browser/IAB não estavam disponíveis. Sem aceite integral ou conclusão de requisitos WEB/DE.
+- Gates da implementação inicial: 306 testes frontend passaram (38 arquivos); 85 testes backend afetados passaram; lint sem avisos, fronteiras em 149 arquivos, formatação, build, teste do proxy, compileall e diff check passaram. Etapas 2–4 implementadas e revisadas; etapa 1 e aceite da etapa 5 continuam parciais conforme bloqueios registrados.
+### 2026-10-29 — DEV-13.1 — início da integração OIDC local
+
+- A pessoa usuária escolheu provedor OIDC local em Docker. A [ADR-0019](decisions/0019-oidc-local-docker.md) registra Keycloak local, PKCE, scopes administrativos e exceção HTTP exclusivamente em desenvolvimento com hostname literal de loopback e opção explícita. Produção mantém HTTPS.
+- Implementação em andamento com subagentes GPT-6 Luna/high e revisão principal: provedor/backend, sessão frontend e script de execução Gold. A demo sintética existente continua separada. Nenhum critério de aceite WEB/DE foi alterado.
+- Validação do navegador continua pendente: Browser Use retornou inventário vazio e Computer Use nativo retornou pipe indisponível. Testes e evidências da integração serão registrados após a execução; essa decisão não conclui a jornada autenticada.
+
+### 2026-10-29 - DEV-13.1 - retomada OIDC frontend
+
+- Corrigidos imports do hook em callback/testes; blindada a renovação silenciosa contra token de identidade diferente; callback e permissões seguem cobertos pela suíte frontend. Gates: 320 testes em 42 arquivos, fronteiras em 162 arquivos, lint, formatação, build e teste do proxy passaram. Relatório em [evidências frontend](plans/2026-10-29-dev13-1-gold-frontend-evidencias.md).
+- Configuração e validação real do provedor, inspeção visual e jornada Gold autenticada no navegador continuam pendentes; nenhuma conclusão WEB/DE ou aceite integral DEV-13.1.
+
+### 2026-10-29 — DEV-13.1 — validação HTTP OIDC local
+
+- Aplicada migração existente `goldv1000003` no PostgreSQL local após backup privado; contagens Gold e operacionais preservadas, sem recarga CSV. Portal/API/provedor iniciados pelo launcher local.
+- Login PKCE e permissões de reader/operator validados por HTTP: leituras das jornadas retornaram 200 com mesma origem/fingerprint Gold; escrita de reader recusada com 403 e proxy anônimo com 401. Detalhes e limites nas [evidências frontend](plans/2026-10-29-dev13-1-gold-frontend-evidencias.md).
+- Navegador de automação indisponível; validação visual, escritas operacionais em ambiente descartável e reconciliação independente permanecem pendentes. Nenhum requisito marcado concluído; sem commit/push.
