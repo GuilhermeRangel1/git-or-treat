@@ -5,13 +5,32 @@
 # (isso exigiria a CLI do Databricks e um `databricks.yml` na raiz); é o registro
 # versionado do Workflow, no lugar que o documento de entrega pede
 # (`data-engineering/notebook/`: notebooks `.ipynb`; YAML em `data-engineering/configuracao/databricks/`).
+# Os caminhos são os do Workspace de origem (`pipeline_v2`); ajuste-os para o seu Workspace.
 #
-# Encadeamento: Landing_to_Bronze -> Bronze_perfilamento.
+# Encadeamento: Landing_to_Bronze -> Bronze_perfilamento -> Bronze_to_Silver -> Silver_to_gold -> Exportacao_Gold.
 # A ordem não é decorativa: o perfilador lê as tabelas que a ingestão acabou de
-# gravar, então ele só pode rodar depois. As tarefas de Silver e Gold entram aqui
-# como novos elos quando os notebooks existirem.
+# gravar, a Silver lê o lote ativo da Bronze e exige o perfil, e a Gold lê apenas
+# as vistas publicadas da Silver (`silver_publicada.*`).
+# Exportacao_Gold (DE-06) lê as sete tabelas Gold e grava um CSV por tabela, cada uma em
+# diretório próprio, no Volume `workspace.gold.gold_export_volume`, com sobrescrita. Antes de
+# gravar, exige que a última execução CONCLUIDO de `gold.controle_gold` seja de ambiente
+# `prod`; ao final, grava o `manifest.json` com a linhagem (Gold, Silver e lote Bronze).
+# Não recebe parâmetros e não carrega o banco local (essa carga é uma etapa separada).
 #
-# Estratégia de agendamento: mensal, dia 5, às 03:00 (America/Recife).
+# Correspondência com os notebooks versionados em `data-engineering/notebook/`:
+#   Landing_to_Bronze   -> Landing_to_Bronze.ipynb
+#   Bronze_perfilamento -> Bronze_perfilamento.ipynb
+#   Bronze_to_Silver    -> Bronze_to_Silver.ipynb
+#   Silver_to_gold      -> Silver_to_gold.ipynb   (no Workspace, `Silver_to_Gold`)
+#   Exportacao_Gold     -> Exportacao_Gold_SQLite.ipynb
+#
+# Ambiente da Gold: o notebook `Silver_to_gold` exige o parâmetro `AMBIENTE` (dev, test ou
+# prod), sem valor padrão. A tarefa passa `AMBIENTE: prod`. Em `prod`, a Gold só conclui
+# se a Silver tiver linhagem física e status CONCLUIDO, e a execução fica registrada em
+# `gold.controle_gold` com o ambiente.
+#
+# Estratégia de agendamento (proposta; NÃO ativada neste momento): mensal, dia 5, às 03:00
+# (America/Recife).
 #   - o insumo é mensal por natureza: leituras e faturas são por competência,
 #     então rodar mais de uma vez no mês não traria dado novo, só custo;
 #   - o dia 5 dá folga para o fechamento da competência anterior chegar íntegro;
@@ -24,21 +43,24 @@
 #     arquivos entram em lote — cada chegada dispararia uma execução. O
 #     agendamento dispara uma vez, no dia combinado, e a carga idempotente faz o
 #     resto. (Se a origem passar a depositar arquivo solto, este é o caminho.)
+#   - não aplicar a sugestão automática "On table update" do Databricks: a própria Silver
+#     atualiza as tabelas de controle, e o Job dispararia a si mesmo.
 resources:
   jobs:
     v_energy_grid_360:
       name: v-energy-grid-360
-      schedule:
-        # Os `29` segundos são o deslocamento que a UI do Databricks aplica dentro do
-        # minuto; o que importa na agenda é o dia 5 às 03:00.
-        quartz_cron_expression: "29 0 3 5 * ?"
-        timezone_id: America/Recife
-        pause_status: UNPAUSED
+      # Agendamento desativado até decisão do time (o Job real não tem gatilho):
+      # schedule:
+      #   quartz_cron_expression: "29 0 3 5 * ?"
+      #   timezone_id: America/Recife
+      #   pause_status: UNPAUSED
       tasks:
         - task_key: Landing_to_Bronze
           notebook_task:
-            notebook_path: /Workspace/Users/jtc@cesar.school/Landing_to_Bronze
+            notebook_path: /Workspace/Users/jtc@cesar.school/pipeline_v2/Landing_to_Bronze
             source: WORKSPACE
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: true
         - task_key: Bronze_perfilamento
           depends_on:
             - task_key: Landing_to_Bronze
@@ -47,7 +69,38 @@ resources:
           # escrita aqui para a garantia não depender da memória de quem lê.
           run_if: ALL_SUCCESS
           notebook_task:
-            notebook_path: /Workspace/Users/jtc@cesar.school/Bronze_perfilamento
+            notebook_path: /Workspace/Users/jtc@cesar.school/pipeline_v2/Bronze_perfilamento
+            source: WORKSPACE
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: true
+        - task_key: Bronze_to_Silver
+          depends_on:
+            - task_key: Bronze_perfilamento
+          run_if: ALL_SUCCESS
+          notebook_task:
+            notebook_path: /Workspace/Users/jtc@cesar.school/pipeline_v2/Bronze_to_Silver
+            source: WORKSPACE
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: true
+        - task_key: Silver_to_gold
+          depends_on:
+            - task_key: Bronze_to_Silver
+          run_if: ALL_SUCCESS
+          notebook_task:
+            notebook_path: /Workspace/Users/jtc@cesar.school/pipeline_v2/Silver_to_Gold
+            base_parameters:
+              AMBIENTE: prod
+            source: WORKSPACE
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: true
+        - task_key: Exportacao_Gold
+          depends_on:
+            - task_key: Silver_to_gold
+          run_if: ALL_SUCCESS
+          # No Job real esta tarefa não tem `min_retry_interval_millis` nem
+          # `disable_auto_optimization`, que as quatro anteriores têm.
+          notebook_task:
+            notebook_path: /Workspace/Users/jtc@cesar.school/pipeline_v2/Exportacao_Gold_SQLite
             source: WORKSPACE
       queue:
         enabled: true

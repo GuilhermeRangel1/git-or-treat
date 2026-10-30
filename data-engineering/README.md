@@ -1,9 +1,9 @@
 # Engenharia de dados — Bronze, Silver e Gold
 
 Os notebooks versionados cobrem ingestão, perfilamento, Silver, Gold e exportação.
-Segundo a pessoa usuária, a execução, a reconciliação e o Workflow já foram
-validados; os identificadores e resultados da validação mais recente ainda devem
-ser registrados no PRD. Na Bronze, valores ausentes,
+O Job `v-energy-grid-360` encadeia cinco tarefas
+([YAML versionado](configuracao/databricks/v-energy-grid-360.yaml)) e cada uma já foi executada no
+Databricks; o run limpo de ponta a ponta e o print do Workflow serão registrados no PRD. Na Bronze, valores ausentes,
 duplicatas, datas ambíguas e vínculos inconsistentes são medidos e preservados;
 tratamento e decisão de negócio pertencem à Silver. O contrato completo está no
 [PRD](../docs/PRD.md) e no [guia do serviço](../docs/services/data-engineering.md).
@@ -82,15 +82,13 @@ Conflitos de CPF/CNPJ ou nome de titular ficam nulos e sinalizados na UC. Data f
   em R$ (faturas) e kWh (leituras), e ponta a ponta com os rejeitados do parse da Bronze.
 - Se qualquer invariante falhar, o notebook **falha** e não troca o ponteiro de publicação. A Gold deve consultar
   `silver_publicada.*` e conferir que `silver.controle_publicacao` aponta para execução `CONCLUIDO` do lote desejado.
-- Estado: a versão atual foi executada no Databricks com o dataset real em 24/10/2026 (run
-  `20261024T035426Z_c5ba30e0`, lote Bronze `20261021T223955Z_f875fb45`, `CONCLUIDO`, 0 falhas de invariante, 19 min 25 s).
-  A evidência de qualidade (bairros, cronologia de datas, classes, valores impossíveis e amostra independente) está
-  registrada no PRD (entrada de 24/10/2026) e pode ser reproduzida com o roteiro somente leitura `validacao_silver_v1`.
-  O registro anterior do Job `v-energy-grid-360` descreve quatro tarefas montadas.
-  Posteriormente, a pessoa usuária confirmou que o Workflow foi validado; o YAML
-  versionado ainda reflete a configuração anterior com duas tarefas da Bronze.
-  DE-02 e DE-03 mantêm o estado registrado no PRD.
-  Decisões D46–D60 e §11.2–11.4 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
+- Estado: a execução mais recente no Databricks é a Silver `20261026T225331Z_c738405b` (lote Bronze
+  `20261026T220920Z_9168e7ab`, `CONCLUIDO`), dentro do run do Job de 26/10/2026 (quatro das cinco tarefas, sem Exportacao_Gold), que precisou de uma
+  retomada (repair run) das tarefas Bronze_to_SilvereSilver_to_gold. O roteiro somente leitura `validacao_silver_v1` foi executado sobre ela
+  (32 verificações, 0 falhas). A evidência anterior (run `20261024T035426Z_c5ba30e0`: bairros, cronologia de datas,
+  classes, valores impossíveis e amostra independente) está no PRD, na entrada de 24/10/2026. O reparo de encoding de
+  `bairro` (D61) já valia nessa execução. DE-02 e DE-03 mantêm o estado registrado no PRD.
+  Decisões D46–D62 e §11.2–11.4 de [`decisoes-tecnicas.md`](decisoes-tecnicas.md).
 
 ## Gold e exportação
 
@@ -101,8 +99,10 @@ explicitamente `AMBIENTE=prod` e confira o valor no Workspace. Em `dev` e
 `test`, o notebook admite execução sintética em condições previstas no código.
 O catálogo `workspace` está definido no próprio notebook.
 
-O notebook gera sete tabelas analíticas e quatro históricos (`faturas_uc`,
-`medidor_uc`, `atendimentos_uc`, `ocorrencias_uc`), além de `controle_gold`.
+O notebook gera quatorze projeções analíticas: as sete tabelas iniciais, os
+quatro históricos (`faturas_uc`, `medidor_uc`, `atendimentos_uc`,
+`ocorrencias_uc`) e `gd_uc`, `tratativas_uc` e `cobertura_dominios`. Também
+gera `controle_gold` e o cadastro restrito `gold_cadastro.cadastro_titular_uc`.
 As fontes publicadas são materializadas e conferidas por execução/lote. Os
 candidatos são validados em schema próprio antes da promoção; dev/test não
 sobrescrevem a Gold produtiva. DEC/FEC permanecem indicadores simplificados.
@@ -129,6 +129,8 @@ transação entre quatorze tabelas analíticas; falha abrupta na promoção exig
 de exportar. A evidência histórica do PR #36 não valida estas alterações: o Job
 atual e a reconciliação até o banco ainda precisam de execução autorizada.
 
+Evidência histórica: a Gold oficial `GOLD_20261027T014656Z_81c5530b` (Silver `20261026T225331Z_c738405b`) foi conferida em 26/10/2026 pelos roteiros `validacao_gold_v4` e controles C01–C12 do PR #60, sem divergências reportadas. Essa validação é da versão anterior e não cobre as alterações candidatas desta branch (14 projeções analíticas, cadastro restrito e publicação em dois manifestos). O Job atual e a reconciliação até o consumidor ainda precisam de validação autorizada.
+
 ## Executar no Databricks
 
 1. Coloque a extração autorizada no Volume informado por `raw`. Não adicione
@@ -137,9 +139,8 @@ atual e a reconciliação até o banco ainda precisam de execução autorizada.
    necessária é `Landing_to_Bronze` → `Bronze_perfilamento` → `Bronze_to_Silver`
    → `Silver_to_gold` → `Exportacao_Gold_SQLite`. Configure as dependências,
    os caminhos do seu Workspace e os parâmetros aplicáveis, incluindo
-   `AMBIENTE=prod` para a Gold oficial. O YAML versionado é um registro anterior
-   com apenas as duas tarefas da Bronze; ainda precisa ser atualizado a partir
-   do Job completo e conferido após o run.
+   `AMBIENTE=prod` para a Gold oficial. O YAML versionado registra as cinco
+   tarefas, com os caminhos do Workspace de origem; o agendamento está comentado (proposta, não ativada).
 3. Rode o Job manualmente e confira as 12 identidades de arquivo e as 14 origens
    reconciliadas (cinco CSVs
    simples/faturas, cinco leituras, JSON e três abas), além das oito tabelas de
@@ -154,16 +155,30 @@ atual e a reconciliação até o banco ainda precisam de execução autorizada.
    as evidências. A carga no banco local é uma etapa separada do notebook de
    exportação; registre o processo e os resultados de reconciliação utilizados.
 
-O YAML versionado registra uma configuração anterior, incluindo o compute
-serverless e o agendamento. Confira esses valores e a configuração atual no
-Workspace antes de executar os notebooks.
+O YAML versionado registra a configuração do Job de cinco tarefas, sem agendamento ativo. Confira os valores
+e a configuração atual no Workspace antes de executar os notebooks.
+
+## Estratégia de agendamento (proposta, não ativada)
+
+Execução mensal, no dia 5, às 03:00 (America/Recife). Decisão do time pendente.
+
+- O insumo é mensal por natureza: leituras e faturas são por competência; rodar mais de uma vez no mês não traria
+  dado novo, só custo.
+- O dia 5 dá folga para o fechamento da competência anterior chegar íntegro.
+- Reexecutar é seguro: a Bronze é carregada por sobrescrita e reconciliada em `bronze.reconciliacao` com
+  `delta = 0`, então um rerun reconstrói o mesmo resultado em vez de duplicar linhas.
+- Descartado: gatilho de chegada de arquivo (`On file arrival`), porque no dataset os arquivos entram em lote e
+  cada chegada dispararia uma execução. Se a origem passar a depositar arquivo solto, este é o caminho.
+- Não aplicar a sugestão automática "On table update" do Databricks: a própria Silver atualiza as tabelas de
+  controle, e o Job dispararia a si mesmo.
 
 ## Evidência anterior
 
 ![Workflow com as duas tarefas concluídas](evidencias/workflow/workflow-graph.png)
 
 O run `14313419965490` de 18/10/2026 terminou em `Succeeded` em 21m 03s e
-comprovou o encadeamento das duas tarefas **na versão anterior**. Ele não
+comprovou o encadeamento das duas tarefas **na versão anterior**. O print do Workflow de cinco tarefas será
+acrescentado depois do run limpo de ponta a ponta. Ele não
 valida o scanner, as vistas, o perfil por origem nem a migração desta mudança.
 
 
