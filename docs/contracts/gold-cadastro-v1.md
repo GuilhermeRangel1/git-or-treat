@@ -25,7 +25,7 @@ Esse parâmetro é uma declaração operacional de pré-condição, não uma pro
 
 O pacote analítico [gold-csv-v2](gold-csv-v2.md) nunca inclui esta tabela. A entrega completa exige também o cadastro: `exportar_cadastro_restrito=sim` é o padrão e o único valor aceito. Configuração antiga com `nao` falha antes de exportar. Provisionar o Volume exclusivo `workspace.gold_cadastro.cadastro_export_volume`; o exportador verifica o acesso antes de criar as pastas das tentativas ou gravar CSVs.
 
-Destino: `/Volumes/workspace/gold_cadastro/cadastro_export_volume/export_csv/<run_id_gold>/<export_id>/`. O notebook não cria esse Volume automaticamente. Ausência de acesso ou de provisionamento interrompe a exportação restrita. Falha cadastral interrompe a entrega completa. Nenhum manifesto novo é liberado antes da validação dos quinze conjuntos. Arquivos parciais ficam em tentativa isolada, sem serem confundidos com uma entrega válida.
+Destino: `/Volumes/workspace/gold_cadastro/cadastro_export_volume/export_csv/<run_id_gold>/<export_id>/`. O notebook não cria esse Volume automaticamente. Ausência de acesso ou de provisionamento interrompe a exportação restrita. Falha cadastral interrompe a entrega completa. Nenhum manifesto novo é liberado antes da validação dos dezesseis conjuntos. Arquivos parciais ficam em tentativa isolada, sem serem confundidos com uma entrega válida.
 
 O CSV usa as mesmas regras de UTF-8, `;`, aspas, UTC e marcador de nulo `\N` do contrato analítico. Tipos e conjunto exato de colunas são verificados; campos adicionais, inclusive documentos, são recusados. A releitura deve conservar o multiconjunto completo antes do manifesto.
 
@@ -33,7 +33,7 @@ O manifesto `gold-cadastro-v1` contém `restrito=true`, `finalidade=identificaca
 
 ## Conclusão dos dois pacotes
 
-Após reconciliar os quinze conjuntos e revalidar controle/versões, o exportador publica o manifesto cadastral e depois o analítico, com referências cruzadas. Sucesso só é anunciado após ambos. Falha capturada durante essa publicação remove os manifestos da tentativa atual; exportações anteriores não são removidas. Se a remoção falhar, a execução informa a necessidade de bloquear/recuperar a tentativa.
+Após reconciliar os dezesseis conjuntos e revalidar controle/versões, o exportador publica o manifesto cadastral e depois o analítico, com referências cruzadas. Sucesso só é anunciado após ambos. Falha capturada durante essa publicação remove os manifestos da tentativa atual; exportações anteriores não são removidas. Se a remoção falhar, a execução informa a necessidade de bloquear/recuperar a tentativa.
 
 Não há transação entre os dois Volumes. Interrupção abrupta pode deixar manifesto parcial: o consumidor deve exigir o sucesso do Job e conferir ambos os manifestos e suas referências antes de aceitar a entrega. A publicação transacional no banco continua responsabilidade do carregador.
 

@@ -1,6 +1,6 @@
 # Controle de cobertura mensal da Gold
 
-Atende à preparação produtora de DEV13.1 D02/D09, DEV13.2 C01 e às dependências de períodos da GenAI. Implementação em [Silver_to_gold](../../data-engineering/notebook/Silver_to_gold.ipynb); a tabela `cobertura_dominios` integra o pacote [gold-csv-v2](gold-csv-v2.md). `gold-cobertura-v1` é a versão das declarações de cobertura, não outra versão do pacote CSV.
+Atende à preparação produtora de DEV13.1 D02/D09, DEV13.2 C01 e às dependências de períodos da GenAI. Implementação em [Silver_to_gold](../../data-engineering/notebook/Silver_to_gold.ipynb); a tabela `cobertura_dominios` integra o pacote [gold-csv-v2](gold-csv-v2.md). `gold-cobertura-v1` e `gold-cobertura-v2` são versões das declarações de cobertura, não outra versão do pacote CSV.
 
 ## Grão e observação
 
@@ -31,7 +31,7 @@ Declarações contraditórias entre total e alimentador são recusadas: domínio
 - Se ambos estiverem vazios, usar os limites observados de consumo, faturamento, chamados e ocorrências, com `origem_janela=LIMITES_OBSERVADOS_NAO_CERTIFICADOS`. Isso não comprova que os limites do dataset são completos. Sem fatos datados, a janela precisa ser explícita.
 - `COBERTURA_DECLARACOES_JSON`: opcional. Vazio gera cobertura observada não certificada. Limites: 64 KiB e 500 declarações por intervalo, sem sobreposição de chave.
 
-O envelope contém exatamente `schema_version=gold-cobertura-v1`, `run_id_silver`, `lote_bronze_silver` e `declaracoes`. A identidade deve coincidir com a origem fixada. Cada declaração contém exatamente:
+O envelope contém exatamente `schema_version` (`gold-cobertura-v1` ou `gold-cobertura-v2`), `run_id_silver`, `lote_bronze_silver` e `declaracoes`. A identidade deve coincidir com a origem fixada. Cada declaração contém exatamente:
 
 | Campo | Regra |
 | --- | --- |
@@ -50,3 +50,13 @@ Carregar o controle no mesmo lote das demais tabelas, preservando tipos, chave e
 Janelas que exigem meses completos só podem ser liberadas com todos os meses e recortes necessários certificados, além dos controles de qualidade da métrica. O primeiro/último mês observado não é automaticamente fechado; a interpretação de “último ano” e “ano passado” continua pertencendo ao contrato de linguagem aprovado. Não somar populações cadastrais, médias ou razões para fabricar histórico.
 
 O [dicionário Gold](../dicionario_gold.md) define os campos físicos. A implementação e os cenários sintéticos preparam o controle; a certificação do lote e a integração com os consumidores precisam de evidência na execução autorizada.
+
+## Declaração v2: extração separada do fechamento contábil
+
+A v2 acrescenta a cada declaração `natureza_certificacao` e `reconciliacao_extracao`. A primeira aceita `EXTRACAO` ou `FECHAMENTO_CONTABIL`. A v1 continua aceita e é interpretada como `FECHAMENTO_CONTABIL`; sem declaração, a natureza publicada é `NAO_CERTIFICADA`.
+
+Para `EXTRACAO`, o segundo campo é um objeto com exatamente `registros_origem`, `registros_aceitos`, `registros_excluidos` (inteiros não negativos) e `hash_inventario` (SHA-256 hexadecimal minúsculo). Origem deve igualar aceitos mais excluídos. O operador informa contagens do domínio e intervalo da declaração, não soma entidades ou tabelas diferentes. O notebook confere aceitos contra as observações do snapshot Silver no mesmo intervalo. Extração com exclusões precisa permanecer `PARCIAL`; não pode liberar decomposição certificada. Certificação de extração só aceita `recorte=DOMINIO`.
+
+Para `FECHAMENTO_CONTABIL`, `reconciliacao_extracao` deve ser nulo. O estado `FECHADO` qualifica a natureza declarada: em `EXTRACAO` indica cobertura integral da extração naquele intervalo, e não fechamento financeiro. O corte posterior à última competência continua obrigatório. Campos JSON duplicados são recusados.
+
+Na tabela, `natureza_certificacao` é string e `reconciliacao_extracao_json` é string JSON ou nula. As contagens do objeto referem-se ao intervalo inteiro e podem repetir nas linhas mensais: **não somá-las por mês**. O hash é uma referência ao inventário conferido, não sua verificação automática: fornecer esse valor não comprova que os arquivos do fornecedor estavam completos. O responsável deve reconciliar arquivos/parse/aceitos/quarentena e guardar a evidência vinculada ao lote. Sem isso, não fornecer uma declaração certificada.

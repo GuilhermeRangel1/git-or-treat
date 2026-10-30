@@ -4,7 +4,7 @@ Preparação de DE-04/DE-06/DE-08, em 30/10/2026. Descreve o produtor em [Export
 
 ## Origem e pacote
 
-O produtor lê `gold.controle_gold`, seleciona a conclusão mais recente sem empate de instante e exige ambiente produtivo, Silver concluída, linhagem física, identificação completa e inventário das quatorze tabelas. A execução Gold e a exportação precisam ser serializadas. O exportador fixa as versões Delta e revalida controle e versões antes de liberar o manifesto; não oferece uma transação distribuída entre as tabelas.
+O produtor lê `gold.controle_gold`, seleciona a conclusão mais recente sem empate de instante e exige ambiente produtivo, Silver concluída, linhagem física, identificação completa e inventário das quinze tabelas. A execução Gold e a exportação precisam ser serializadas. O exportador fixa as versões Delta e revalida controle e versões antes de liberar o manifesto; não oferece uma transação distribuída entre as tabelas.
 
 Os identificadores seguem `GOLD_<YYYYMMDDTHHMMSSZ>_<8 hex minúsculos>` para Gold e `<YYYYMMDDTHHMMSSZ>_<8 hex minúsculos>` para Silver/Bronze. O produtor valida também a data/hora contida neles; valores manuais, de reserva ou com data impossível impedem a exportação.
 
@@ -28,8 +28,9 @@ Cada tentativa fica em `export_csv/<run_id_gold>/<export_id>/`, com uma pasta po
 | `gd_uc` | UC | Potência em kWp, conexão, modalidade e qualidade; não é série mensal de geração. |
 | `tratativas_uc` | protocolo e posição original | Eventos estruturados, sem texto livre pessoal; sequência não é chave. |
 | `cobertura_dominios` | domínio, competência e recorte | Grade mensal observada e estados certificados apenas por declaração de origem do mesmo lote. |
+| `decomposicao_receita` | município, bairro, classe e as quatro competências das janelas | Efeitos por UC comum e contribuições de entrada/saída; vazia quando não configurada. |
 
-As projeções candidatas acrescentam `motivo_prioridade` à fila, `valor_em_aberto_reais` e `situacao_pagamento_analitica` às faturas, e `situacao_na_referencia` aos medidores. O saldo de fatura é derivado do status declarado e das flags Silver, não é confirmação contábil e não modela pagamento parcial; casos conflitantes/inconclusivos ficam sem valor. A situação do medidor é calculada por linha e não elimina sobreposições. O histórico `tratativas_uc` preserva as posições e as classificações divulgáveis, reconciliadas por protocolo; seu conteúdo livre não é exportado. A tabela `atendimentos_uc` conserva campos estruturados por protocolo e `qtd_tratativas`, reconciliada com a contagem no histórico Silver, mas exclui `acao`, `primeira_acao` e `ultima_acao`, que podem conter texto descritivo sem classificação de privacidade. Os totais de chamados e interrupções da `visao_360_uc` também são reconciliados por UC com `atendimentos_uc` e `ocorrencias_uc`; o agregado de interrupções e a projeção detalhada aplicam a mesma elegibilidade `_id_uc_ausente = false`, e o notebook exige schema exato e chave composta válida para `ocorrencias_uc`. A estimativa de energia recuperável continua fora do schema até haver método aprovado.
+As projeções candidatas acrescentam `motivo_prioridade` à fila, `valor_em_aberto_reais` e `situacao_pagamento_analitica` às faturas, e `situacao_na_referencia` aos medidores. O saldo de fatura é derivado do status declarado e das flags Silver, não é confirmação contábil e não modela pagamento parcial; casos conflitantes/inconclusivos ficam sem valor. A situação do medidor é calculada por linha e não elimina sobreposições. O histórico `tratativas_uc` preserva as posições e as classificações divulgáveis, reconciliadas por protocolo; seu conteúdo livre não é exportado. A tabela `atendimentos_uc` conserva campos estruturados por protocolo e `qtd_tratativas`, reconciliada com a contagem no histórico Silver, mas exclui `acao`, `primeira_acao` e `ultima_acao`, que podem conter texto descritivo sem classificação de privacidade. Os totais de chamados e interrupções da `visao_360_uc` também são reconciliados por UC com `atendimentos_uc` e `ocorrencias_uc`; o agregado de interrupções e a projeção detalhada aplicam a mesma elegibilidade `_id_uc_ausente = false`, e o notebook exige schema exato e chave composta válida para `ocorrencias_uc`. A fila inclui estimativa histórica por inspeção condicionada à validação temporal, seus intervalos e relatório reproduzível; não implica homologação em campo nem se aplica a UCs sem histórico elegível.
 
 Os nomes físicos das colunas, tipos, medidas e limitações estão no [dicionário Gold](../dicionario_gold.md). O schema Spark de cada tabela também é registrado no manifesto para conferência. O exportador compara o conjunto e a quantidade de nomes de coluna de cada tabela com o inventário explícito do contrato candidato e interrompe a tentativa se houver campo faltante, extra ou duplicado. A ordem física do cabeçalho é preservada no CSV, mas não altera a autorização do schema. O manifesto registra também os tipos físicos observados. A aprovação final dos tipos, precisão, nulabilidade e nomes pelo Backend continua pendente; o schema declarado pelo arquivo não autoriza automaticamente campos novos nem amplia acesso.
 
@@ -63,9 +64,12 @@ Os complementos têm tipos físicos explicitamente validados pelo produtor e exp
 | `tabelas_exportadas` | Inventário completo, sem repetição. |
 | `controles_tabelas` | Por tabela: `registros`, `versao_delta` e `schema` Spark. |
 | `formato_csv` | Opções de codificação, separador, aspas, nulo, datas e timestamps usadas pelo produtor. |
+| `preco_volume_configuracao` | Estado `CONFIGURADA`/`NAO_CONFIGURADA`, método versionado e janelas explícitas ou nulas. |
+| `preco_volume_referencia` | Instante UTC da referência dos dados da análise; distinto da conclusão do Job. |
+| `limitacoes_medidas` | Estados explícitos de medidas sem comprovação/metodologia e da exigência de declaração mensal. Não é aceite de escopo. |
 | `responsavel` | Identificação funcional da equipe produtora. |
 
-Os dois pacotes são obrigatórios: o destino cadastral é verificado antes de iniciar a escrita, e nenhum manifesto é liberado antes da reconciliação dos quinze conjuntos. O cadastro é publicado primeiro e o manifesto analítico por último, com referências cruzadas. Falhas capturadas removem os manifestos novos da tentativa; falha abrupta exige recuperação e o consumidor deve exigir sucesso do Job e os dois manifestos compatíveis. Não há atomicidade entre Volumes.
+Os dois pacotes são obrigatórios: o destino cadastral é verificado antes de iniciar a escrita, e nenhum manifesto é liberado antes da reconciliação dos dezesseis conjuntos. O cadastro é publicado primeiro e o manifesto analítico por último, com referências cruzadas. Falhas capturadas removem os manifestos novos da tentativa; falha abrupta exige recuperação e o consumidor deve exigir sucesso do Job e os dois manifestos compatíveis. Não há atomicidade entre Volumes.
 
 O manifesto é serializado antes de abrir o arquivo temporário. Só após escrita completa o produtor o renomeia para `manifest.json`. Erros capturados removem o temporário; a semântica de renomeação no Volume e o Job integral ainda precisam de validação no ambiente final. Controles e schema não autenticam o produtor; transferência e acesso devem ser autorizados.
 
@@ -73,7 +77,7 @@ O manifesto é serializado antes de abrir o arquivo temporário. Só após escri
 
 | Fronteira | v1 existente | Candidato v2 |
 | --- | --- | --- |
-| Inventário | Sete tabelas. | Quatorze tabelas analíticas/históricas, incluindo GD e tratativas estruturadas; cadastro pessoal em pacote separado. |
+| Inventário | Sete tabelas. | Quinze tabelas analíticas/históricas, incluindo GD e tratativas estruturadas; cadastro pessoal em pacote separado. |
 | Nulos CSV | Campo vazio representa nulo. | Marcador reservado distinto de string vazia. |
 | Manifesto | Campos extras recusados. | Novos campos de tentativa, schemas, versões e formato. |
 | Processamento | Exige `data_processamento_gold`. | Produtor agora emite o mesmo nome; o nome antigo `data_processamento` não é emitido. |
@@ -88,8 +92,30 @@ A carga deve preservar as garantias existentes de publicação transacional, ide
 - Validação estrita de identidade, schema, controles, partes CSV e versão pelo consumidor, com falha preservando o lote válido anterior.
 - Execução real de escrita/releitura CSV, controle de concorrência e comparação com a publicação aprovada na origem.
 - Reconciliação da mesma exportação no banco, na API e no portal/GenAI. Os testes do produtor não comprovam essas etapas.
-- A infraestrutura de cobertura mensal está implementada; as declarações de completude continuam dependentes da evidência de origem. Receita e inspeções mantêm suas definições pendentes; cadastro, tratativas e GD precisam de carga/consumidores autorizados. Quatorze tabelas não encerram automaticamente a [issue 75](https://github.com/GuilhermeRangel1/git-or-treat/issues/75).
+- A infraestrutura de cobertura mensal está implementada; as declarações de completude continuam dependentes da evidência de origem. Receita e inspeções mantêm suas definições pendentes; cadastro, tratativas e GD precisam de carga/consumidores autorizados. Quinze tabelas não encerram automaticamente a [issue 75](https://github.com/GuilhermeRangel1/git-or-treat/issues/75).
 
 A evolução autorizada de faturamento total e consumo independente altera também os schemas e o significado dos agregados em relação ao contrato v1. Os consumidores precisam mapear as parcelas, a base comparável e as contagens de qualidade; não basta aceitar colunas extras mantendo a fórmula anterior de tarifa.
 
 Para #49, as projeções financeiras agregam cada fonte no grão UC/mês antes do `full outer join`. Faturamento com leitura observada não significa que todas as leituras sejam válidas. A base comparável inclui apenas UC/mês com fatura e todas as leituras observadas válidas; é a única base elegível para tarifa observada e análises preço-volume. Leituras sem fatura permanecem no consumo medido. Uma ausência dos dois lados na reconciliação é aceita como ausência; ausência comparada a zero ou a outro valor é divergência. Nenhuma dessas regras declara cobertura mensal completa nem calcula energia efetivamente faturada, valor recebido ou tarifa homologada.
+
+
+## Resultado preço-volume e limitações do pacote
+
+`decomposicao_receita` é a 15ª projeção analítica, com schema fixo e grão de município/bairro/classe e duas janelas. É preparada, validada e promovida com as demais tabelas; falha capturada inclui sua recuperação. O cadastro restrito completa 16 conjuntos em dois Volumes.
+
+Sem as quatro competências, o produtor publica uma tabela vazia tipada e `preco_volume_configuracao.estado=NAO_CONFIGURADA`. O consumidor deve substituir/inutilizar eventual análise anterior, sem interpretar a ausência como zero financeiro. Com configuração válida, a tabela pode estar vazia por falta de grupos observados; configuração não equivale a resultado disponível. Os estados de cada linha continuam distinguindo cobertura não certificada, ausência de base comum e cálculo sobre base comum. Não substituir essas condições por uma análise antiga.
+
+O exportador exige os novos metadados no controle Gold e confere configuração, método, schema, origem, referência, janelas, contadores e identidade financeira do resultado. O CSV é relido e reconciliado pelo mesmo transporte dos demais conjuntos. `preco_volume_referencia` usa o instante fixado dos dados; `data_processamento_gold` do manifesto continua sendo a conclusão do controle Gold, e os dois não devem ser confundidos. A referência da análise deve ser UTC e não posterior à conclusão.
+
+`limitacoes_medidas` tem os campos `energia_faturada_kwh=SEM_MEDIDA_COMPROVADA`, `valor_recebido_reais=SEM_MEDIDA_COMPROVADA`, `energia_recuperavel_kwh=ESTIMATIVA_HISTORICA_CONDICIONAL` e `fechamento_mensal=EXIGE_DECLARACAO_VINCULADA`. O exportador rejeita alteração que anuncie disponibilidade sem mudança explícita de contrato/mapeamento. Essas limitações não dispensam o aceite dos requisitos e não certificam a completude das fontes.
+
+O consumidor v2 deve aceitar explicitamente este inventário e metadados atualizados; uma exportação candidata v2 anterior com 14 tabelas ou sem esses campos não é intercambiável. O snapshot/carregador v1 permanece preservado e rejeita v2. A configuração de comparação pertence à publicação e participa da identidade/conteúdo que a carga deve conferir.
+
+## Complementos de semântica e validação — 30/10/2026
+
+- `faturas_uc.valor_fatura_declarada_em_aberto_reais` é `decimal(20,2)`: valor nominal de fatura com status normalizado `EM ABERTO` e valor utilizável. É independente de sinais de pagamento conflitantes, que continuam expostos. Não é saldo contábil, pagamento recebido ou soma de parcelas pendentes. `valor_em_aberto_reais` conserva a regra conservadora anterior.
+- `decomposicao_receita` acrescenta `bairro` string à chave e ao schema; a base vem do mesmo cadastro UC/mês, sem join de fatos crus. Consumir os bairros para agregar efeitos financeiros, sem somar indiscriminadamente contadores de UCs entre recortes/janelas.
+- `cobertura_dominios` acrescenta `natureza_certificacao` e `reconciliacao_extracao_json`, ambas string (a segunda pode ser nula), segundo o contrato de cobertura v2 documentado no mesmo guia.
+- `fila_inspecao` acrescenta três doubles nulos quando não há estimativa validada: `energia_estimada_recuperavel_kwh`, `intervalo_recuperacao_inferior_kwh`, `intervalo_recuperacao_superior_kwh`. Acrescenta strings não nulas `estado_estimativa_recuperacao`, `metodo_estimativa_recuperacao` e `validacao_recuperacao_json`. Gold e exportador recusam valores não finitos, intervalos incoerentes, parâmetros divergentes e estimativas cujo estudo não passou.
+
+O inventário continua com quinze conjuntos analíticos e um cadastro separado. Estes campos evoluem o contrato candidato v2 ainda não homologado; não alteram o contrato v1 nem habilitam seu carregador atual.

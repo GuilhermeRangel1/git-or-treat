@@ -1,6 +1,6 @@
 # Dicionário de dados — camada Gold
 
-**Escopo:** contrato conceitual e regras implementadas nas quatorze projeções analíticas/históricas, no cadastro de titular restrito e na tabela de controle `controle_gold`. O documento descreve código e evidências disponíveis; não substitui a validação física do Delta, aceite do portal/IA ou homologação regulatória.
+**Escopo:** contrato conceitual e regras implementadas nas quinze projeções analíticas/históricas, no cadastro de titular restrito e na tabela de controle `controle_gold`. O documento descreve código e evidências disponíveis; não substitui a validação física do Delta, aceite do portal/IA ou homologação regulatória.
 
 **Fontes:** `data-engineering/notebook/Silver_to_gold.ipynb`, notebook de exportação, contrato Silver em `docs/services/data-engineering.md`, PR #36 e manifestos/CSV locais disponíveis.
 
@@ -25,9 +25,10 @@
 | `tratativas_uc` | Uma posição original do histórico de um protocolo | `protocolo`, `posicao_historico` | `silver_publicada.atendimentos_historico` |
 | `gold_cadastro.cadastro_titular_uc` | Nome atual de exibição para atendimento autorizado | `id_uc` | Cadastro Silver; schema e exportação restritos |
 | `cobertura_dominios` | Um domínio, competência e recorte global ou de alimentador | `dominio`, `competencia`, `recorte` | Observações da Silver fixada e declarações autorizadas do mesmo lote |
+| `decomposicao_receita` | Um recorte município/bairro/classe e duas janelas explícitas | Município, bairro, classe e quatro competências das janelas | Série mensal UC e dimensões do mesmo snapshot; cobertura certificada |
 | `controle_gold` | Registro de uma execução Gold concluída pelo notebook | `run_id_gold` identifica a execução; não há teste de unicidade explícito para essa tabela | Metadados da execução e dos controles Silver |
 
-As quatorze projeções analíticas/históricas compõem o contrato candidato de exportação `gold-csv-v2`, ainda dependente de migração/carga v2 no Backend e validação do Job real. O cadastro pessoal usa pacote separado obrigatório [gold-cadastro-v1](contracts/gold-cadastro-v1.md), fora do catálogo GenAI. `controle_gold` é uma tabela operacional de linhagem e não está na lista de exportação do notebook.
+As quinze projeções analíticas/históricas compõem o contrato candidato de exportação `gold-csv-v2`, ainda dependente de migração/carga v2 no Backend e validação do Job real. O cadastro pessoal usa pacote separado obrigatório [gold-cadastro-v1](contracts/gold-cadastro-v1.md), fora do catálogo GenAI. `controle_gold` é uma tabela operacional de linhagem e não está na lista de exportação do notebook.
 
 ## Regras compartilhadas e limites
 
@@ -118,7 +119,7 @@ As quatorze projeções analíticas/históricas compõem o contrato candidato de
 4. `MEDIA - NUNCA INSPECIONADO`: não se enquadrou acima e não há inspeções realizadas.
 5. `BAIXA`: demais casos.
 
-`motivo_prioridade` repete a precedência das regras e registra a primeira condição atendida. Prioridade e motivo indicam uma regra de triagem; não são diagnóstico de fraude nem estimativa de energia recuperável. O mapeamento de outros resultados de inspeção deve ser confirmado com a origem antes de ampliá-lo. A Silver tem `inspecoes.kwh_recuperado` como histórico; este valor não é usado para prever recuperação em outra UC. WEB-04 continua sem metodologia aprovada de estimativa.
+`motivo_prioridade` repete a precedência das regras e registra a primeira condição atendida. Prioridade e motivo indicam uma regra de triagem; não são diagnóstico de fraude nem estimativa de energia recuperável. O mapeamento de outros resultados de inspeção deve ser confirmado com a origem antes de ampliá-lo. A Silver tem `inspecoes.kwh_recuperado` como histórico; este valor não é usado para prever recuperação em outra UC. WEB-04 ainda exige aceite do método e resultado no lote real; o estudo candidato abaixo permite testar uma estimativa retrospectiva.
 
 A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações sem casos nessa categoria. A ausência de casos não demonstra que a categoria seja inalcançável.
 
@@ -341,7 +342,7 @@ Os meses não são fechados automaticamente por número de linhas, calendário o
 
 ## 16. `controle_gold` — linhagem da execução
 
-O notebook gera um registro de controle ao final das verificações e usa `append` quando a tabela já existe. Não integra as quatorze tabelas do CSV analítico nem o pacote cadastral. Uma falha anterior a essa etapa não garante um registro de falha nesta tabela.
+O notebook gera um registro de controle ao final das verificações e usa `append` quando a tabela já existe. Não integra as quinze tabelas do CSV analítico nem o pacote cadastral. Uma falha anterior a essa etapa não garante um registro de falha nesta tabela.
 
 | Coluna | Tipo declarado | Definição |
 | --- | --- | --- |
@@ -351,22 +352,22 @@ O notebook gera um registro de controle ao final das verificações e usa `appen
 | `status_silver` | `string` | Estado Silver registrado para a execução. |
 | `silver_lineage_status` | `string` | Identifica se a linhagem veio de controle físico ou do caminho sintético. |
 | `status_gold` | `string` | `CONCLUIDO` quando o registro final é criado. |
-| `tabelas_geradas` | `string` | Lista textual das quatorze tabelas analíticas verificadas. |
+| `tabelas_geradas` | `string` | Lista textual das quinze tabelas analíticas verificadas. |
 | `tabelas_restritas_geradas` | texto | Inventário separado `cadastro_titular_uc`; promovido no schema cadastral sob a mesma execução. |
 | `ambiente` | `string` | `prod`, `dev` ou `test`. |
 | `processado_em` | `timestamp` | Instante UTC usado para o registro. |
 
-Esses campos têm nulabilidade física `False`. Gold valida quatorze candidatos analíticos e o cadastro restrito em schema exclusivo, promove as projeções analíticas para `gold` em produção (`gold_dev`/`gold_test` nos demais ambientes) e o cadastro para `gold_cadastro` (com sufixo de ambiente fora de produção) e registra o controle dentro do bloco de recuperação de falhas capturadas. Não há transação única entre tabelas: o Job deve executar sem concorrência e os consumidores devem aguardar sucesso. Falha abrupta ou falha no RESTORE exige recuperação operacional antes do consumo.
+Esses campos têm nulabilidade física `False`. Gold valida quinze candidatos analíticos e o cadastro restrito em schema exclusivo, promove as projeções analíticas para `gold` em produção (`gold_dev`/`gold_test` nos demais ambientes) e o cadastro para `gold_cadastro` (com sufixo de ambiente fora de produção) e registra o controle dentro do bloco de recuperação de falhas capturadas. Não há transação única entre tabelas: o Job deve executar sem concorrência e os consumidores devem aguardar sucesso. Falha abrupta ou falha no RESTORE exige recuperação operacional antes do consumo.
 
-O controle registra `tabelas_geradas` (quatorze projeções analíticas) e `tabelas_restritas_geradas` (`cadastro_titular_uc`). Ambos só recebem conclusão após a promoção de todos os candidatos; a recuperação de falhas capturadas inclui o schema cadastral. Não há transação multi-tabela.
+O controle registra `tabelas_geradas` (quinze projeções analíticas) e `tabelas_restritas_geradas` (`cadastro_titular_uc`). Ambos só recebem conclusão após a promoção de todos os candidatos; a recuperação de falhas capturadas inclui o schema cadastral. Não há transação multi-tabela.
 
 ## Exportação e verificações
 
-O exportador exige o controle produtivo mais recente, sem empate temporal, com linhagem física Silver concluída, identidade completa e conjunto exato das quatorze tabelas analíticas e inventário cadastral separado. O `run_id` opcional só confirma o controle; nunca o substitui. As versões Delta são fixadas e verificadas novamente antes de liberar o manifesto.
+O exportador exige o controle produtivo mais recente, sem empate temporal, com linhagem física Silver concluída, identidade completa e conjunto exato das quinze tabelas analíticas e inventário cadastral separado. O `run_id` opcional só confirma o controle; nunca o substitui. As versões Delta são fixadas e verificadas novamente antes de liberar o manifesto.
 
-Cada tentativa grava em `/Volumes/workspace/gold/gold_export_volume/export_csv/<run_id_gold>/<export_id>/`, em quatorze subpastas analíticas, sem sobrescrever exportações anteriores. CSV: cabeçalho, separador `;`, UTF-8, aspas, datas ISO, timestamps UTC com microssegundos e offset, decimais com escala preservada; `\N` é nulo, distinto de string vazia (o marcador literal é reservado). Cada CSV é relido com o schema original e comparado como multiconjunto completo. O manifesto é criado somente após reconciliação e revalidação de controle/versões. Pasta sem manifesto é tentativa incompleta e não deve ser carregada.
+Cada tentativa grava em `/Volumes/workspace/gold/gold_export_volume/export_csv/<run_id_gold>/<export_id>/`, em quinze subpastas analíticas, sem sobrescrever exportações anteriores. CSV: cabeçalho, separador `;`, UTF-8, aspas, datas ISO, timestamps UTC com microssegundos e offset, decimais com escala preservada; `\N` é nulo, distinto de string vazia (o marcador literal é reservado). Cada CSV é relido com o schema original e comparado como multiconjunto completo. O manifesto é criado somente após reconciliação e revalidação de controle/versões. Pasta sem manifesto é tentativa incompleta e não deve ser carregada.
 
-O manifesto `gold-csv-v2` contém as quatorze tabelas analíticas, contagens, schemas físicos, versões Delta, execução Gold e origem Silver/Bronze. É um contrato candidato: o carregador atual `gold-csv-v1` rejeita este conjunto e não foi alterado; a migração/carga v2 e os consumidores ainda precisam ser integrados. Não adaptar o snapshot histórico v1 silenciosamente.
+O manifesto `gold-csv-v2` contém as quinze tabelas analíticas, contagens, schemas físicos, versões Delta, execução Gold e origem Silver/Bronze. É um contrato candidato: o carregador atual `gold-csv-v1` rejeita este conjunto e não foi alterado; a migração/carga v2 e os consumidores ainda precisam ser integrados. Não adaptar o snapshot histórico v1 silenciosamente.
 
 O [contrato candidato v2](contracts/gold-csv-v2.md) descreve o pacote e suas incompatibilidades com v1. O manifesto emite `data_processamento_gold` com offset UTC e `status_gold=CONCLUIDO` obtido do controle validado; a exportação rejeita IDs manuais, de reserva e datas impossíveis nos identificadores de origem. `export_id` identifica somente a tentativa de exportação, não a publicação local gerada pelo Backend.
 
@@ -392,3 +393,74 @@ Para cada projeção analítica, para o cadastro restrito e para `controle_gold`
 6. Revisar permissões e uso de identificadores no portal/IA. Só alterar o estado de DE-08 após revisão humana e evidências correspondentes; este dicionário documenta o contrato, não conclui o requisito.
 
 Na entrega completa, cadastro e pacote analítico são obrigatórios e mantêm destinos separados. O manifesto analítico inclui `cadastro_export_id`/`cadastro_schema_version`; o cadastro inclui `analytic_export_id`/`analytic_schema_version`. Validar as duas referências e o sucesso do Job antes da carga; falha capturada remove manifestos da tentativa atual.
+
+
+## Diagnóstico preço-volume no notebook — preparação de 30/10/2026
+
+`preparar_base_preco_volume` associa `consumo_mensal_uc` às dimensões UC/mês da mesma execução fixada da Silver. Rejeita chave duplicada ou vínculo ausente antes da junção. `decompor_preco_volume` recebe essa base e a cobertura do mesmo lote, com duas janelas explícitas ordenadas e sem sobreposição. Exige `run_id_silver_esperado` e `lote_bronze_silver_esperado` e recusa cobertura com identidade ausente ou divergente. Essas expectativas vêm do snapshot fixado no chamador do notebook; a rotina não autentica DataFrames arbitrários nem substitui os controles de `read_silver`.
+
+A base comum é formada pelas mesmas UCs no recorte, com todas as competências das duas janelas contendo faturamento e leituras integralmente válidas, e consumo acumulado positivo nos dois períodos. Para cada UC calcula P=R/Q, efeito volume P0ΔQ, preço observado Q0ΔP e interação ΔPΔQ; só depois soma os efeitos por recorte. Entradas/saídas de faturamento no recorte ficam separadas, assim como variações sem leitura e demais parcelas fora da base comum. A identidade desses sete componentes deve reconciliar a variação total, com tolerância max(0,000001 real, |ΔR total| × 10⁻⁹). Não arredonda antes da reconciliação.
+
+Requer cobertura global FECHADO de consumo/faturamento em todos os meses e nenhuma observação sem competência. Sem isso, retorna `COBERTURA_NAO_CERTIFICADA` e valores derivados nulos. Sem UC elegível, retorna `SEM_BASE_COMUM`, efeitos de preço/volume nulos e contribuições de composição identificadas quando a cobertura é certificada. Valores não finitos, presença financeira inconsistente ou falha de reconciliação interrompem o cálculo. Os contadores de base comum, entradas/saídas e UCs observadas acompanham os resultados. São contagens por recorte: uma UC com mudança de dimensão pode aparecer em mais de um recorte, portanto não somar esses contadores para inferir UCs únicas globais.
+
+As dimensões cadastrais são atuais; a rotina não cria histórico de vigência. Entradas/saídas no recorte não comprovam ligação/desligamento, e preço observado pode refletir alterações de componentes da fatura ou composição interna da UC. Não é tarifa homologada, kWh faturado, receita recebida ou comprovação causal.
+
+O resultado é materializado e exportado quando os quatro parâmetros `PRECO_VOLUME_INICIO_P0`, `PRECO_VOLUME_FIM_P0`, `PRECO_VOLUME_INICIO_P1`, `PRECO_VOLUME_FIM_P1` estão preenchidos. Sem parâmetros publica tabela vazia tipada, identificada como `NAO_CONFIGURADA` no controle/manifesto; preenchimento parcial falha. Essa 15ª projeção participa da promoção e exportação. Aprovação do método e integração dos consumidores permanecem pendentes.
+
+### Confirmações da origem necessárias ao fechamento
+
+| Medida/regra | Evidência existente | Confirmação necessária | Tratamento atual |
+| --- | --- | --- | --- |
+| Energia faturada | Dados confirmou no [PR #73](https://github.com/GuilhermeRangel1/git-or-treat/pull/73#issuecomment-6508822736) que o consumo não é energia faturada. | Disponibilidade de kWh faturado por fatura ou regra formal de vínculo/ equivalência com a medição. | Não usar consumo medido ou valor monetário como energia faturada. |
+| Valor recebido | [Issue #49](https://github.com/GuilhermeRangel1/git-or-treat/issues/49#issuecomment-6383232977) exige regra validada; status e data não bastam. | Valor de pagamentos por fatura, ou confirmação do significado de quitação integral, parciais, estornos e ajustes. | Não derivar receita recebida de `valor_total`. |
+| Sentinela e saldo aberto | D15/D55 e [issue #48](https://github.com/GuilhermeRangel1/git-or-treat/issues/48#issuecomment-6383184517) mantêm a incerteza. | Significado dos valores sentinela por status e condições em que a ausência de pagamento permite saldo integral. | Manter saldo nulo nos casos inconclusivos; não interpretar sentinela como quitação. |
+| Fechamento mensal | Ausência de lacunas é proposta no [PR #71](https://github.com/GuilhermeRangel1/git-or-treat/pull/71#issuecomment-6509043466); isso não certifica completude da origem. | Declarações por domínio/período/recorte vinculadas ao run/lote e evidência de origem. | Cobertura não certificada até receber declaração válida. |
+| Energia recuperável | [Issue #47](https://github.com/GuilhermeRangel1/git-or-treat/issues/47#issuecomment-6383151816) exige método, horizonte, intervalo e incerteza. | Definir a medida-alvo e validar metodologia; entender o período/método de `kwh_recuperado` histórico. | Estudo candidato por inspeção condicionado à validação temporal e população histórica elegível; sem homologação presumida. |
+
+A conferência das discussões em 30/10/2026 não localizou aprovação adicional dessas regras. A recomendação de seis meses do PR #71 é específica da pergunta de GD nas janelas fixas; não autoriza fechamento mensal ou mudança de regra geral. Essas confirmações não foram presumidas e precisam ser registradas antes de alterar a semântica dos indicadores.
+
+
+### Contrato físico de `decomposicao_receita`
+
+Chave: `municipio`, `bairro`, `classe_consumo`, `inicio_p0`, `fim_p0`, `inicio_p1`, `fim_p1`. Na configuração ativa, a chave é não nula e única; a tabela não contém `id_uc` nem dados pessoais. Sem configuração a tabela existe com esse schema e zero linhas, para limpar a análise anterior sob a mesma política de publicação.
+
+| Campos | Tipo Spark | Definição |
+| --- | --- | --- |
+| `municipio`, `bairro`, `classe_consumo` | string | Recorte da análise; dimensões do cadastro atual. |
+| `inicio_p0`, `fim_p0`, `inicio_p1`, `fim_p1` | string | Limites inclusivos YYYY-MM, com janelas ordenadas e sem sobreposição. |
+| `qtd_ucs_base_comum`, `qtd_ucs_entrantes`, `qtd_ucs_saintes`, `qtd_ucs_observadas` | bigint | Contagens não negativas por recorte; não são somáveis para inferir UCs globais entre recortes. |
+| `faturamento_p0_reais`, `faturamento_p1_reais` | double / R$ | Faturamento nos períodos sob cobertura certificada, sem arredondamento intermediário. |
+| `efeito_volume_reais`, `efeito_preco_observado_reais`, `efeito_interacao_reais` | double / R$ | Soma dos efeitos calculados por UC comum; nulos sem base comum ou certificação. |
+| `variacao_entradas_reais`, `variacao_saidas_reais` | double / R$ | Contribuições de entrada/saída de faturamento no recorte, não prova de ativação/desativação. |
+| `variacao_sem_leitura_fora_base_reais`, `variacao_outros_fora_base_reais` | double / R$ | Contribuições restantes, sem dupla contagem das entradas/saídas. |
+| `variacao_faturamento_total_reais`, `residuo_reconciliacao_reais` | double / R$ | Diferença de faturamento e resíduo da soma dos sete componentes; tolerância numérica documentada acima. |
+| `estado_decomposicao` | string | `CALCULADA_BASE_COMUM`, `SEM_BASE_COMUM` ou `COBERTURA_NAO_CERTIFICADA`. Sem certificação todas as medidas double são nulas. |
+| `metodo` | string | `COORTE_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V2`; cálculo candidato, sem homologação tarifária. |
+| `run_id_silver`, `lote_bronze_silver` | string | Identidades fixadas da origem, conferidas na exportação. |
+| `data_processamento_gold` | timestamp | Referência dos dados da análise, igual a `preco_volume_referencia`; não é o horário de conclusão do Job. |
+
+O controle Gold acrescenta `preco_volume_configuracao_json`, `preco_volume_referencia` e `limitacoes_medidas_json` (strings não nulas). O manifesto leva os objetos validados `preco_volume_configuracao`/`limitacoes_medidas` e a referência UTC. O estado da configuração, os estados das linhas e a contagem devem ser interpretados juntos. Nenhum deles certifica valor pago, energia faturada ou estimativa de recuperação.
+
+## Regras operacionais e estudo de recuperação — 30/10/2026
+
+### Fatura declarada em aberto
+
+`valor_fatura_declarada_em_aberto_reais` (`decimal(20,2)`, R$, grão fatura) conserva o valor nominal quando `status` normalizado é `EM ABERTO` e o valor é utilizável. Não é recebimento nem saldo contábil. Mesmo com data sentinela/conflitante, o valor da fatura declarada fica consultável, acompanhado dos sinais de qualidade. O campo de saldo indicativo anterior permanece nulo nos casos inconclusivos. Nenhuma regra inventa pagamentos parciais, estornos ou quitação comprovada.
+
+### Cobertura e bairro
+
+A cobertura passa a distinguir `natureza_certificacao=EXTRACAO`, `FECHAMENTO_CONTABIL` ou `NAO_CERTIFICADA`; `reconciliacao_extracao_json` registra o inventário e contagens por intervalo. Regras e limites estão no contrato de cobertura. Um hash declarado não verifica o arquivo por si só. A decomposição passa a ter grão município/bairro/classe/quatro limites de janela; `bairro` vem do cadastro atual, sem reconstruir mudança histórica de endereço. Efeitos são de preço observado e consumo medido, nunca de tarifa homologada ou kWh faturado.
+
+### Estimativa candidata por inspeção
+
+`estudar_recuperacao` usa somente `id_inspecao`, `id_uc`, `data`, `resultado` e `kwh_recuperado` da Silver fixada. Exclui identificação/data inválida, futuro, resultado desconhecido, alvo ausente/não finito/negativo e `SEM IRREGULARIDADE` com valor diferente de zero. Não imputa zero em alvo ausente. Uma inspeção só conhece irregularidades elegíveis da mesma UC em dias anteriores; inspeções no mesmo dia não conhecem os resultados umas das outras.
+
+O método `MEDIA_POR_HISTORICO_PREVIO_V1` estima a média por presença/ausência de irregularidade anterior. Ordena datas em treino (primeiros 60%), calibração (20%) e teste (20%), sem dividir um mesmo dia entre partições; exige pelo menos 100 exemplos, 20 em cada partição e 20 exemplos de treino em cada grupo. Esses mínimos e cortes são escolhas metodológicas candidatas, não garantias estatísticas.
+
+O intervalo usa erro absoluto na calibração com quantil conformal nominal de 90%, truncado em zero. Só libera estimativas se, no teste intocado, MAE for pelo menos 5% menor que a média global do treino e a cobertura do intervalo for pelo menos 80%. Não há reajuste no teste. Não há garantia de cobertura futura sob mudança de população ou dependência entre inspeções de uma UC. O histórico é selecionado por inspeções realizadas, portanto há viés de seleção e a aplicação fica limitada a UCs com histórico elegível. UCs nunca inspecionadas não recebem previsão por extrapolação.
+
+Os três campos de energia/intervalo da fila são doubles em kWh registrados por inspeção, **não kWh/mês ou kWh/ano**. Estado `ESTIMATIVA_HISTORICA_POR_INSPECAO` identifica aplicação do método aprovado na validação retrospectiva; `BASE_INSUFICIENTE`, `REPROVADO_NA_VALIDACAO` ou `FORA_POPULACAO_VALIDADA` explicam ausência. `metodo_estimativa_recuperacao` identifica a versão; `validacao_recuperacao_json` registra alvo, referência, cortes, contagens, exclusões, MAEs, cobertura, raio e parâmetros. O relatório é do estudo inteiro e se repete por UC: não somar suas contagens entre linhas.
+
+A prioridade existente não muda nem passa a representar fraude comprovada. O estudo ainda precisa ser executado e revisado no lote real. Aprovação retrospectiva sintética não conclui WEB-04 nem garante que haverá previsões no lote real; a ausência do alvo ou a reprovação impedem a publicação de valores.
+
+O manifesto registra a limitação global de recuperação como `ESTIMATIVA_HISTORICA_CONDICIONAL`; os estados e o relatório por UC determinam se há valor publicável. Essa classificação não transforma uma validação sintética em aceite do método no lote real.

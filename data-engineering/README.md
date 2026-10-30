@@ -16,7 +16,7 @@ tratamento e decisão de negócio pertencem à Silver. O contrato completo está
 | [`Bronze_perfilamento.ipynb`](notebook/Bronze_perfilamento.ipynb) | Inventário, achados e relações por arquivo/aba |
 | [`Bronze_to_Silver.ipynb`](notebook/Bronze_to_Silver.ipynb) | Silver: limpeza, tipos, chaves, quarentena, reconciliação e portão de qualidade |
 | [`Silver_to_gold.ipynb`](notebook/Silver_to_gold.ipynb) | Construção e validações das tabelas Gold a partir da Silver publicada |
-| [`Exportacao_Gold_SQLite.ipynb`](notebook/Exportacao_Gold_SQLite.ipynb) | Exportação candidata v2 de quatorze tabelas analíticas Gold em CSV para um Volume |
+| [`Exportacao_Gold_SQLite.ipynb`](notebook/Exportacao_Gold_SQLite.ipynb) | Exportação candidata v2 de quinze tabelas analíticas Gold em CSV para um Volume |
 
 O [contrato candidato CSV v2](../docs/contracts/gold-csv-v2.md) reúne as diferenças de inventário, manifesto, tipos e nulos que precisam de compatibilização com o Backend. Essa preparação não ativa a carga ou o consumo v2.
 
@@ -99,9 +99,10 @@ explicitamente `AMBIENTE=prod` e confira o valor no Workspace. Em `dev` e
 `test`, o notebook admite execução sintética em condições previstas no código.
 O catálogo `workspace` está definido no próprio notebook.
 
-O notebook gera quatorze projeções analíticas: as sete tabelas iniciais, os
+O notebook gera quinze projeções analíticas: as sete tabelas iniciais, os
 quatro históricos (`faturas_uc`, `medidor_uc`, `atendimentos_uc`,
-`ocorrencias_uc`) e `gd_uc`, `tratativas_uc` e `cobertura_dominios`. Também
+`ocorrencias_uc`) e `gd_uc`, `tratativas_uc`, `cobertura_dominios` e
+`decomposicao_receita`. Também
 gera `controle_gold` e o cadastro restrito `gold_cadastro.cadastro_titular_uc`.
 As fontes publicadas são materializadas e conferidas por execução/lote. Os
 candidatos são validados em schema próprio antes da promoção; dev/test não
@@ -109,9 +110,9 @@ sobrescrevem a Gold produtiva. DEC/FEC permanecem indicadores simplificados.
 
 Na semântica candidata v2, faturas e leituras são pré-agregadas por UC/mês e preservadas como populações independentes. O diagnóstico e o recorte territorial separam faturamento com e sem leitura; a série mensal conserva receita, consumo, flags e contagens de observações. A tarifa observada usa somente pares com fatura e leituras integralmente válidas. Isso não comprova cobertura completa, energia efetivamente faturada, valor pago ou tarifa homologada. O saldo em aberto individual é um valor indicativo derivado do status e das flags, não um saldo contábil nem inclui pagamentos parciais; situações inconclusivas ficam nulas. O consumidor v1 ainda não aceita o contrato v2.
 
-A fila também publica `motivo_prioridade`, alinhado à primeira regra de triagem aplicada; isso não estima energia recuperável. `faturas_uc` expõe situação declarada e saldo indicativo por fatura, mantendo nulo quando status/flags conflitam ou são inconclusivos. `medidor_uc` preserva vínculo e datas e inclui uma situação temporal candidata por registro; sobreposições permanecem separadas. A regra de status/saldo, a vigência dos medidores e as saídas permanecem sujeitas à validação de Dados/Produto. A estimativa de recuperação continua sem método defensável aprovado.
+A fila também publica `motivo_prioridade`, alinhado à primeira regra de triagem aplicada; isso não estima energia recuperável por si só; o estudo candidato separado condiciona previsões à validação temporal. `faturas_uc` expõe situação declarada e saldo indicativo por fatura, mantendo nulo quando status/flags conflitam ou são inconclusivos. `medidor_uc` preserva vínculo e datas e inclui uma situação temporal candidata por registro; sobreposições permanecem separadas. A regra de status/saldo, a vigência dos medidores e as saídas permanecem sujeitas à validação de Dados/Produto. O método candidato de recuperação está descrito no dicionário e ainda exige validação no lote real.
 
-O exportador exige controle produtivo com as quatorze tabelas analíticas e fixa versões Delta.
+O exportador exige controle produtivo com as quinze tabelas analíticas e fixa versões Delta.
 Cada tentativa grava em
 `/Volumes/workspace/gold/gold_export_volume/export_csv/<run_id_gold>/<export_id>/`.
 CSV usa UTF-8, separador `;`, aspas duplicadas, datas ISO, timestamps UTC e nulo
@@ -125,11 +126,11 @@ v1 atual deve rejeitá-lo. Confira campos, populações e limites no
 [dicionário Gold](../docs/dicionario_gold.md). Não versione os CSVs do case.
 
 Gold → exportação devem executar em sequência, sem Jobs concorrentes. Não há
-transação entre quatorze tabelas analíticas; falha abrupta na promoção exige recuperação antes
+transação entre quinze tabelas analíticas; falha abrupta na promoção exige recuperação antes
 de exportar. A evidência histórica do PR #36 não valida estas alterações: o Job
 atual e a reconciliação até o banco ainda precisam de execução autorizada.
 
-Evidência histórica: a Gold oficial `GOLD_20261027T014656Z_81c5530b` (Silver `20261026T225331Z_c738405b`) foi conferida em 26/10/2026 pelos roteiros `validacao_gold_v4` e controles C01–C12 do PR #60, sem divergências reportadas. Essa validação é da versão anterior e não cobre as alterações candidatas desta branch (14 projeções analíticas, cadastro restrito e publicação em dois manifestos). O Job atual e a reconciliação até o consumidor ainda precisam de validação autorizada.
+Evidência histórica: a Gold oficial `GOLD_20261027T014656Z_81c5530b` (Silver `20261026T225331Z_c738405b`) foi conferida em 26/10/2026 pelos roteiros `validacao_gold_v4` e controles C01–C12 do PR #60, sem divergências reportadas. Essa validação é da versão anterior e não cobre as alterações candidatas desta branch (novas projeções analíticas, cadastro restrito e publicação em dois manifestos). O Job atual e a reconciliação até o consumidor ainda precisam de validação autorizada.
 
 ## Executar no Databricks
 
@@ -186,7 +187,7 @@ valida o scanner, as vistas, o perfil por origem nem a migração desta mudança
 
 O notebook Gold publica `gd_uc` com potência em kWp, conexão/modalidade e flags, e `tratativas_uc` no grão `(protocolo, posicao_historico)`. O histórico preserva eventos e datas disponíveis, divulga apenas categorias/canais da lista explícita e sinaliza os demais conteúdos como restritos. Sequência repetida não é erro de chave; ausência de data não é preenchida. Chaves, vínculos, contagens por protocolo e tipos são verificados antes da promoção.
 
-O nome de exibição fica somente em `gold_cadastro.cadastro_titular_uc`, com schema de preparo separado, nulo quando ausente/conflitante e sem documentos pessoais. Não integra as quatorze tabelas do pacote analítico nem o contexto GenAI. A exportação cadastral é obrigatória na entrega completa (`exportar_cadastro_restrito=sim`, único valor aceito), requer Volume cadastral provisionado e gera manifesto `gold-cadastro-v1` com vínculo à mesma tentativa analítica. Permissões reais, migração, carga e mapeamento do nome pelo Backend/portal precisam ser feitos pelos consumidores; o leitor analítico não recebe acesso ao cadastro.
+O nome de exibição fica somente em `gold_cadastro.cadastro_titular_uc`, com schema de preparo separado, nulo quando ausente/conflitante e sem documentos pessoais. Não integra as quinze tabelas do pacote analítico nem o contexto GenAI. A exportação cadastral é obrigatória na entrega completa (`exportar_cadastro_restrito=sim`, único valor aceito), requer Volume cadastral provisionado e gera manifesto `gold-cadastro-v1` com vínculo à mesma tentativa analítica. Permissões reais, migração, carga e mapeamento do nome pelo Backend/portal precisam ser feitos pelos consumidores; o leitor analítico não recebe acesso ao cadastro.
 
 Detalhes e critérios do consumidor: [contrato cadastral restrito](../docs/contracts/gold-cadastro-v1.md).
 
@@ -199,4 +200,17 @@ O processamento do cadastro requer `CADASTRO_RESTRITO_VALIDADO=sim` e schemas ca
 
 A contagem representa o snapshot fixado; `data_corte_evidencia` representa o corte da evidência externa, podendo ser anterior à referência da observação em meses parciais. O consumidor não pode apresentar essa contagem como total naquele corte. O exportador inclui o controle como 14ª tabela analítica, com tipos e contagem no manifesto. Definições e limites: [contrato de cobertura](../docs/contracts/gold-cobertura-v1.md).
 
-A exportação completa verifica o destino cadastral antes de gravar e exige os quinze conjuntos reconciliados. Os manifestos são publicados em sequência (cadastro e analítico), com referências cruzadas e recuperação de falhas capturadas; o consumidor exige sucesso do Job e ambos os manifestos. Nenhuma transação entre Volumes é presumida.
+A exportação completa verifica o destino cadastral antes de gravar e exige os dezesseis conjuntos reconciliados. Os manifestos são publicados em sequência (cadastro e analítico), com referências cruzadas e recuperação de falhas capturadas; o consumidor exige sucesso do Job e ambos os manifestos. Nenhuma transação entre Volumes é presumida.
+
+
+### Preço-volume exportável — preparação de 30/10/2026
+
+A 15ª projeção analítica `decomposicao_receita` registra a comparação de duas janelas por município/bairro/classe. Configurar as quatro competências `PRECO_VOLUME_INICIO_P0`, `PRECO_VOLUME_FIM_P0`, `PRECO_VOLUME_INICIO_P1`, `PRECO_VOLUME_FIM_P1`. Sem configuração, publica tabela vazia tipada e estado `NAO_CONFIGURADA`; isso elimina a possibilidade de reutilizar silenciosamente a análise anterior. Com configuração, a disponibilidade depende da cobertura e da base comum observada, sinalizadas nas linhas.
+
+A tabela participa do preparo, qualidade, promoção/recuperação e releitura CSV. O controle/manifesto inclui configuração, referência dos dados e limitações das medidas. A referência dos dados é distinta do horário de conclusão Gold. A entrega completa tem 15 projeções analíticas e um cadastro restrito, em dois pacotes. Método, campos e limites: [dicionário Gold](../docs/dicionario_gold.md#diagnóstico-preço-volume-no-notebook--preparação-de-30102026) e [contrato v2](../docs/contracts/gold-csv-v2.md). O consumidor precisa atualizar carga/mapeamento; esta implementação não conclui aceites com dados reais.
+
+### Regras complementares candidatas — 30/10/2026
+
+Faturas distinguem valor nominal declarado em aberto de saldo indicativo e recebimento. Cobertura v2 distingue extração reconciliada de fechamento contábil, com contagens por intervalo e referência ao inventário; nenhuma certificação é criada automaticamente por haver linhas. A decomposição inclui bairro na mesma base UC/mês.
+
+A fila acrescenta estudo histórico por inspeção, com treino/calibração/teste temporal, comparação com média simples, intervalo e relatório; estimativas só aparecem se os critérios forem atendidos e para UCs da população histórica elegível. Não há energia mensal inventada, nem inferência de zero quando o alvo está ausente. Dicionário e contratos detalham campos e limites. O inventário permanece 15 analíticos + cadastro restrito; a integração dos consumidores e o aceite do lote real continuam separados desta implementação.
