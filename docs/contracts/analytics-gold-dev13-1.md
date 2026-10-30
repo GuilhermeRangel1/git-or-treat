@@ -6,7 +6,7 @@ Este contrato acompanha a [ADR-0018](../decisions/0018-api-gold-dev13-1.md), o [
 
 `ANALYTICS_SOURCE=gold` seleciona a publicação real; `synthetic` mantém a demonstração; `unavailable` falha fechado. Não há retorno silencioso a fixtures. A fonte não é selecionada pelo cliente da requisição.
 
-O modo Gold exige identidade/permissão de leitura no servidor. No desenvolvimento, usa os tokens de serviço existentes em `ORDERS_READ_TOKEN`/`ORDERS_WRITE_TOKEN`; produção exige OIDC conforme a política das ordens. A permissão de leitura existente é reutilizada como contenção técnica, sem concluir autorização individual por área/território. `ORDERS_AUTH_MODE=demo` continua incompatível com Gold.
+O modo Gold exige identidade/permissão de leitura no servidor. O portal usa `ORDERS_AUTH_MODE=session`; CLI/Swagger pode usar credenciais privadas em `ORDERS_AUTH_MODE=service`. A permissão de leitura existente é reutilizada como contenção técnica, sem concluir autorização individual por área/território. `ORDERS_AUTH_MODE=demo` continua incompatível com Gold.
 
 Chamadas autenticadas usam `Authorization: Bearer <credencial>`. Não colocar credenciais em `VITE_*`, exemplos com dados reais ou proxy. Banco e CSV não são acessados pelo navegador.
 

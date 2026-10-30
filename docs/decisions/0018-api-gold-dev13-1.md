@@ -14,7 +14,7 @@ Adotar modo explícito `ANALYTICS_SOURCE=gold`, sem fallback. Evoluir as rotas e
 
 Consultas Gold usam SQL para filtros, agregações, contagens e paginação. Metadados e fatos de uma resposta compartilham conexão/transação de leitura `REPEATABLE READ READ ONLY`. `source.version` identifica o lote; esquema físico e fingerprint são metadados distintos. `expected_lote` e `expected_fingerprint` detectam troca entre chamadas e retornam conflito em vez de consultar retrospectivamente tabelas já substituídas. A verificação do fingerprint é necessária também quando o carregador recebe conteúdo diferente sob o mesmo nome de lote.
 
-Leituras Gold reutilizam o controle de identidade e permissão de leitura existente no servidor, com credencial de serviço apenas no desenvolvimento e OIDC individual na produção. Essa contenção técnica não conclui perfis por área/território de WEB-10. O modo `demo` permanece restrito à fonte sintética. Credenciais não são adicionadas ao frontend ou ao proxy.
+Leituras Gold reutilizam o controle de identidade e permissão de leitura existente no servidor: sessão individual no portal e credenciais de serviço privadas apenas em CLI/Swagger no desenvolvimento. Essa contenção técnica não conclui perfis por área/território de WEB-10. O modo `demo` permanece restrito à fonte sintética. Credenciais não são adicionadas ao frontend ou ao proxy.
 
 Panorama usa receita faturada e consumo medido da interseção fatura/leitura. Preço observado é a razão desses totais, sem alegar tarifa homologada. Receita paga, energia faturada independente e população ativa histórica não são deduzidas. Ausência de declaração de fechamento mensal fica explícita; comparações observadas não comprovam completude da origem.
 

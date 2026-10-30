@@ -4,7 +4,7 @@
 
 ## Criação pela fila
 
-`POST /api/v1/inspections/queue/{uc_id}/orders`, com `Idempotency-Key` obrigatório: 16–128 caracteres alfanuméricos ASCII, `_` ou `-`. No modo local `demo`, não exige Bearer; nos modos autenticados `service`/`oidc`, exige credencial com permissão de escrita. Configuração, scopes e contrato para o frontend: [guia de entrega](inspection-auth-handoff.md).
+`POST /api/v1/inspections/queue/{uc_id}/orders`, com `Idempotency-Key` obrigatório: 16–128 caracteres alfanuméricos ASCII, `_` ou `-`. No modo local `demo`, não exige autenticação e só pode usar fonte sintética; nos modos `session`/`service`, exige identidade com permissão de escrita. Configuração e contrato para o frontend: [guia de entrega](inspection-auth-handoff.md).
 
 ```json
 {
@@ -54,9 +54,9 @@ Aplicar `alembic upgrade head` sobre banco existente, inclusive SQLite. Revisão
 
 A revisão seguinte, `a6d060000002`, verifica duplicidades ativas por UC antes de substituir o índice por referência. Se encontrar duplicidades, interrompe a migração para reconciliação manual, sem apagar/cancelar ordens. Após resolver a duplicidade de acordo com a operação, reaplicar o upgrade. O histórico, snapshots e chaves existentes são preservados.
 
-API: use `DATABASE_URL` persistente e `ANALYTICS_SOURCE=synthetic`. A demo local sem Bearer exige `APP_ENV=development` e `ORDERS_AUTH_MODE=demo`. No modo `service`, `ORDERS_WRITE_TOKEN` privado habilita escrita e leitura; `ORDERS_READ_TOKEN` é opcional para acesso somente de leitura. OIDC é a opção autenticada futura. SQLite em memória não comprova reinício.
+API: use `DATABASE_URL` persistente e `ANALYTICS_SOURCE=synthetic`. A demo local sem autenticação exige `APP_ENV=development` e `ORDERS_AUTH_MODE=demo`. No modo `session`, permissões pertencem ao usuário autenticado; no modo `service`, `ORDERS_WRITE_TOKEN` privado habilita escrita e leitura, e `ORDERS_READ_TOKEN` é opcional para acesso somente de leitura. SQLite em memória não comprova reinício.
 
-Vite: `API_PROXY_TARGET` com endereço da API e `VITE_API_URL=/`. O proxy não injeta credenciais; `ORDERS_DEV_PROXY_TOKEN` não tem mais efeito. No Compose local, `ORDERS_AUTH_MODE=demo` permite criar e consultar sem login, somente em desenvolvimento com fonte sintética. Para execução fora do Compose, configure também `APP_ENV=development` e `ANALYTICS_SOURCE=synthetic` e reinicie a API. OIDC fica como integração futura opcional, conforme [guia de entrega](inspection-auth-handoff.md). Credenciais de serviço ficam exclusivas de CLI/Swagger em desenvolvimento; não entram em `VITE_*`, bundle ou armazenamento do navegador. Compose publica as três portas somente em localhost.
+Vite: `API_PROXY_TARGET` com endereço da API e `VITE_API_URL=/`. O proxy não injeta credenciais; `ORDERS_DEV_PROXY_TOKEN` não tem mais efeito. No Compose local, `ORDERS_AUTH_MODE=session` habilita login individual após migração e provisão explícitas do banco. Para demonstração sem login, selecione `ORDERS_AUTH_MODE=demo` apenas em desenvolvimento com fonte sintética. Credenciais de serviço ficam exclusivas de CLI/Swagger em desenvolvimento; não entram em `VITE_*`, bundle ou armazenamento do navegador. Compose publica as três portas somente em localhost.
 
 Referência consultada via Figma MCP: arquivo `oTjmpIBgbA7OOYb9ZmMG9K`, frame `16:640` (Ordens desktop claro), com ordem, UC, estado, resultado e ação. Conforme pedido, shell/tokens preservados e tela simplificada, sem reprodução integral ou redesenho da DEV-05.
 

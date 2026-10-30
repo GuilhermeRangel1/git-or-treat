@@ -22,9 +22,9 @@ Não foram identificadas outras violações comprováveis em propriedade de tran
 
 ## Spec
 
-**R1 — P2 documental, corrigido: contrato exige autenticação sem ressalvar demo.** Na versão `aba1fe4`, `docs/contracts/inspection-orders-dev06.md:7` apresentava Bearer obrigatório na criação; `:45`, token obrigatório na leitura; `:55`, token privado na configuração. O contrato agora distingue demo local sem Bearer e modos serviço/OIDC autenticados, conforme a revisão vigente da ADR-0012. Também esclarece que o token de escrita de serviço permite leitura e que a demo pode recusar origens de navegador com 403.
+**R1 — P2 documental, corrigido: contrato exige autenticação sem ressalvar demo.** Na versão `aba1fe4`, `docs/contracts/inspection-orders-dev06.md:7` apresentava Bearer obrigatório na criação; `:45`, token obrigatório na leitura; `:55`, token privado na configuração. O contrato agora distingue demo local sem autenticação e modos service/session autenticados, conforme os contratos de acesso vigentes. Também esclarece que o token de escrita de serviço permite leitura e que a demo pode recusar origens de navegador com 403.
 
-O recorte backend contempla persistência existente, criação pela suspeita, validação no servidor, preservação de UC/motivo/referência/snapshot, filtros/paginação e retorno após commit. As quatro correções estão presentes: replay antes da fonte, 409 estruturado, rollback/recuperação pós-commit e unicidade ativa por UC entre versões/origens. A preparação OIDC é registrada em decisão aprovada e não bloqueia a demo. Gold e o ciclo completo de WEB-05 não foram confundidos com o checklist DEV-06.
+O recorte backend contempla persistência existente, criação pela suspeita, validação no servidor, preservação de UC/motivo/referência/snapshot, filtros/paginação e retorno após commit. As quatro correções estão presentes: replay antes da fonte, 409 estruturado, rollback/recuperação pós-commit e unicidade ativa por UC entre versões/origens. Gold e o ciclo completo de WEB-05 não foram confundidos com o checklist DEV-06.
 
 **Total Spec: 1 achado P2 documental corrigido; nenhum achado aberto neste eixo e nenhum defeito funcional demonstrável no recorte revisado.**
 

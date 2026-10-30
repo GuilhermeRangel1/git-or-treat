@@ -41,7 +41,7 @@
 - [x] Acrescentar `ANALYTICS_SOURCE=gold` e providers por capacidade. Validar lote/esquema suportado pela `gold_carga_atual`; tentativa falha não invalida publicação anterior preservada.
 - [x] Implementar contexto de leitura por requisição com transação `REPEATABLE READ READ ONLY`; metadados e agregados vêm desse contexto. Injeção de `Session`/conexão explícita e fechamento garantido.
 - [x] Definir `expected_lote` opcional para chamadas analíticas e conflito 409 para lote substituído. No contrato de criação, manter `source_version`/`rule_version` esperadas.
-- [x] Definir acesso local às leituras reais e manter serviço/OIDC conforme o ambiente para ordens; não contornar a trava de `demo`. Não injetar token por proxy ou publicar credenciais no cliente.
+- [x] Definir acesso local às leituras reais: sessão individual no portal e credenciais privadas de serviço em CLI/Swagger; não contornar a trava de `demo`. Não injetar credenciais por proxy ou publicar segredos no cliente.
 - [x] Verificar pelo HTTP configuração inválida, Gold ausente, esquema incompatível, falha de dependência e reload entre consultas/chamadas, sem fallback.
 
 **Saída verificável:** contrato e provider executáveis retornam lote real; concorrência não mistura fatos/metadados. Ainda não significa que todas as jornadas estejam adaptadas.

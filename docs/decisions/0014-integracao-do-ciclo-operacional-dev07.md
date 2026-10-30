@@ -14,6 +14,6 @@ Histórico durável conserva estados, conteúdo do resultado/motivo, identidade 
 
 ## Consequências e evidência
 
-Sem frontend novo, dados reais ou alteração de métricas Gold. Controle de acesso e identidade têm os limites do modo configurado (demo/service/OIDC). WEB-10 não é concluído por este trabalho. A revisão de 24/10/2026 foi validada em PostgreSQL 18 efêmero separado do banco de desenvolvimento, com usuário sem SUPERUSER. Contrato, comandos, limites de concorrência, migração e resultados na [DEV-07](../contracts/inspection-lifecycle-dev07.md).
+Sem frontend novo, dados reais ou alteração de métricas Gold. Controle de acesso e identidade têm os limites do modo configurado (demo/service/session). WEB-10 não é concluído por este trabalho. A revisão de 24/10/2026 foi validada em PostgreSQL 18 efêmero separado do banco de desenvolvimento, com usuário sem SUPERUSER. Contrato, comandos, limites de concorrência, migração e resultados na [DEV-07](../contracts/inspection-lifecycle-dev07.md).
 
 SQLAlchemy instalado 2.1.5; API de versionamento consultada via Context7 na [documentação 2.x](https://docs.sqlalchemy.org/en/20/orm/versioning.html).

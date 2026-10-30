@@ -28,7 +28,7 @@ Toda mudança real incrementa version e registra evento na mesma transação; fa
 
 Não há nova chave de idempotência nas mutações. Repetição sem mudança de conteúdo com a versão atual não grava; reenvio com versão já ultrapassada responde 409, sem repetir efeito. Corrigir um resultado antes do encerramento é uma nova alteração auditada. Ordens encerradas não permitem corrigir conteúdo.
 
-`actor` vem do controle de acesso, nunca do corpo. No modo demo identifica a demonstração; no modo service identifica a credencial compartilhada; identidade individual exige OIDC configurado. Novos eventos têm ator/versão; eventos antigos permanecem com esses campos nulos.
+`actor` vem do controle de acesso, nunca do corpo. No modo demo identifica a demonstração; no modo service identifica a credencial compartilhada; no modo session identifica `user:<id>` autenticado pelo backend. Novos eventos têm ator/versão; eventos antigos permanecem com esses campos nulos.
 
 ## Migrações e execução
 

@@ -1,6 +1,6 @@
 # DEV-13.1 — plano de integração Gold no frontend
 
-Data: 29/10/2026. Estado: aprovado; etapas 2–4 implementadas e revisadas, etapas 1 e 5 parciais por acesso OIDC e validação no navegador. Base: commit `a118766`, camada API publicada na branch `dev13.1`. Este documento registra o plano; execução e limites ficam nas [evidências frontend](2026-10-29-dev13-1-gold-frontend-evidencias.md).
+Data: 29/10/2026. Estado: aprovado; etapas 2–4 implementadas e revisadas, etapas 1 e 5 parciais por acesso autenticado e validação no navegador. A autenticação do portal está sendo migrada para sessão individual do Backend, conforme a [ADR-0020](../decisions/0020-autenticacao-backend-por-sessao.md). Base: commit `a118766`, camada API publicada na branch `dev13.1`. Este documento registra o plano; execução e limites ficam nas [evidências frontend](2026-10-29-dev13-1-gold-frontend-evidencias.md).
 
 ## Objetivo e fronteira
 
@@ -18,7 +18,7 @@ Fontes: [PRD](../PRD.md), [dicionário](../dicionario_gold.md), [contrato Gold v
 | Ordens | `shared/api/orders.ts` consulta a persistência operacional. `features/ordens/order-actions.ts` reconhece snapshots legados/v1, mas considera v2 não suportado. | Interpretar fundamentos v2 sem perder compatibilidade histórica ou exigir UC na Gold atual. |
 | Criação de OS | Fluxo está em `features/inspecoes/CreateOrder.tsx`, fila/detalhe e `shared/api/orders.ts`; payload tipado ainda não inclui fingerprint. | Adaptar essa entrada necessária da jornada de Ordens ao contrato Gold. |
 | Operação | `features/operacao/useOperations.ts` fixa contratos 1.2.0/1.1.0 e envia `page/page_size` ao detalhe. | Contrato v2, base por indicador e detalhe agregado; paginação de ocorrências retorna 422 na Gold. |
-| Acesso | `shared/api/client.ts` usa Fetch; Vite apenas encaminha `/api`. Não há autenticação Gold automaticamente fornecida por esse proxy. | Resolver acesso de leitura/escrita antes da ativação; demo é restrito à fonte sintética. |
+| Acesso | `shared/api/client.ts` usa Fetch; Vite apenas encaminha `/api`. O proxy não injeta credenciais nem habilita acesso Gold anônimo. | Usar sessão individual do Backend no portal antes da ativação; demo é restrito à fonte sintética. |
 
 ## Abordagem proposta
 
@@ -26,11 +26,9 @@ Evoluir as features existentes com decoders explícitos por versão/origem e peq
 
 Uma troca apenas de URL/configuração não basta, pois as semânticas e nulabilidades mudaram. Uma segunda aplicação ou duplicação integral das páginas aumentaria manutenção sem resolver consistência. A recomendação é adaptar a fronteira de dados e apenas os componentes afetados, preservando a composição existente e a exceção de ownership do Panorama.
 
-### Decisão de acesso anterior à ativação
+### Acesso individual antes da ativação
 
-Proposta: reutilizar OIDC individual e scopes de leitura/escrita já previstos no backend, com credencial de usuário em memória e envio Bearer pelo transporte. A existência do backend OIDC não demonstra que login/sessão frontend estejam implementados: essa etapa exige verificar o provedor disponível e o fluxo autorizado. Ausência de provedor/configuração bloqueia a ativação Gold no navegador, mas permite desenvolver decoders e componentes com fixtures artificiais.
-
-Credenciais de serviço não entram em `VITE_*`, bundle, URL, fixtures ou armazenamento persistente do navegador. Não introduzir injeção de token de serviço pelo proxy: isso contrariaria a ADR-0012 e exigiria decisão explícita separada. Sessão/BFF seria alternativa arquitetural a discutir apenas se OIDC direto não servir ao ambiente. Confirmar o fluxo de acesso com a pessoa responsável antes de implementá-lo; esse ponto não é uma aprovação implícita de infraestrutura nova.
+A autenticação do portal usa sessão HttpOnly mantida pelo Backend, com `credentials: include`, conforme a [ADR-0020](../decisions/0020-autenticacao-backend-por-sessao.md) e o [contrato local](../contracts/local-auth.md). O acesso Gold só deve ser ativado após confirmação da sessão e da permissão de leitura. Credenciais de serviço nunca entram em `VITE_*`, bundle, URL ou armazenamento do navegador; o proxy apenas encaminha chamadas same-origin.
 
 ## Etapas de execução futura
 

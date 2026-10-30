@@ -123,7 +123,7 @@ Para criação de ordem, validar evidência e lote dentro da transação operaci
 
 `ANALYTICS_SOURCE` hoje aceita apenas `synthetic`/`unavailable`; ambos os providers recusam outras fontes. Propor `gold` como modo explícito, com seleção por capacidade. Receita/UC/KPIs ainda não adaptados devem falhar explicitamente no modo Gold, sem continuar sintéticos ao lado de jornadas reais. Estender contratos específicos dos repositórios; não preencher as listas universais com fatos artificiais.
 
-`ORDERS_AUTH_MODE=demo` exige fonte sintética. Não remover a trava para ligar Gold: API local pode usar o modo de serviço já previsto e produção continua exigindo OIDC. Leituras analíticas reais também precisam de política de acesso no servidor; autenticação das ordens não as protege automaticamente. Credenciais não devem ir para variáveis públicas do frontend.
+`ORDERS_AUTH_MODE=demo` exige fonte sintética. Não remover a trava para ligar Gold: API local usa sessão individual para o portal, enquanto CLI/Swagger podem usar o modo de serviço com tokens privados. Leituras analíticas reais também precisam de política de acesso no servidor; autenticação das ordens não as protege automaticamente. Credenciais não devem ir para variáveis públicas do frontend.
 
 O insight do Panorama atualmente aceita contexto sintético e usa energia faturada. Até adaptar métrica, lote e controles, deve ficar explicitamente indisponível em Gold. A adaptação é dependência transversal IA-04, não licença para continuar explicando números reais com contexto sintético.
 
