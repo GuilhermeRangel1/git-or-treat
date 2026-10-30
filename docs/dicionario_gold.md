@@ -20,19 +20,20 @@
 | `faturas_uc` | Uma fatura emitida vinculada a uma Unidade Consumidora | `id_fatura` | Faturas da Silver (`silver_publicada.faturas`) |
 | `medidor_uc` | Um medidor de energia e seu histórico de vínculo por UC | `id_medidor` | Medidores da Silver (`silver_publicada.medidores`) |
 | `atendimentos_uc` | Um protocolo de atendimento detalhado por Unidade Consumidora | `protocolo` | Atendimentos da Silver (`silver_publicada.atendimentos`) |
+| `ocorrencias_uc` | Um registro de ocorrência da rede elétrica vinculado à Unidade Consumidora | `id_ocorrencia`, `id_uc` | Ocorrências da Silver (`silver_publicada.ocorrencias_rede`) |
 | `controle_gold` | Registro de uma execução Gold concluída pelo notebook | `run_id_gold` identifica a execução; não há teste de unicidade explícito para essa tabela | Metadados da execução e dos controles Silver |
 
-As dez primeiras tabelas de negócio são incluídas na exportação CSV. `controle_gold` é uma tabela operacional de linhagem e não está na lista de exportação do notebook.
+As onze primeiras tabelas de negócio são incluídas na exportação. `controle_gold` é uma tabela operacional de linhagem e não está na lista de exportação do notebook.
 
 ## Regras compartilhadas e limites
 
 - **Fonte e lote:** a Gold lê as vistas `silver_publicada.*` e consulta `silver.controle_publicacao` e `silver.controle_silver`. O notebook aceita `AMBIENTE` igual a `prod`, `dev` ou `test`; a execução em `prod` exige controles físicos e Silver com status `CONCLUIDO`. Os modos `dev`/`test` têm caminho de linhagem sintética quando os controles não estão disponíveis.
 - **Cadastro:** os fluxos mostrados descartam UCs sem `id_uc` e identificadores iniciados por `TESTE`. A fila constrói sua base com `dropDuplicates(id_uc)`; o diagnóstico e a rede também fazem verificações de unicidade em suas bases. O cadastro é uma fotografia atual: classe, município, bairro, alimentador, status e GD não comprovam sua vigência histórica.
-- **Receita e consumo:** faturas e leituras são agregadas separadamente por UC e competência e depois unidas por `inner join` para a construção de `diagnostico_receita`, `consumo_receita_bairro` e `consumo_mensal_uc` (usando somente pares UC/mês presentes nas duas fontes). **As projeções `faturas_uc`, `medidor_uc` e `atendimentos_uc` são exceções a esse acoplamento:** a `faturas_uc` preserva o histórico de faturas no grão individual de `id_fatura` independentemente de leitura na competência; a `medidor_uc` registra o parque de medição e seus vínculos de instalação/retirada no grão individual de `id_medidor`; e a `atendimentos_uc` preserva o histórico completo de chamados no grão de `protocolo`, mantendo a fidelidade observada na origem sem cruzamentos forçados ou perda de registros.
+- **Receita e consumo:** faturas e leituras são agregadas separadamente por UC e competência e depois unidas por `inner join` para a construção de `diagnostico_receita`, `consumo_receita_bairro` e `consumo_mensal_uc` (usando somente pares UC/mês presentes nas duas fontes). **As projeções `faturas_uc`, `medidor_uc`, `atendimentos_uc` e `ocorrencias_uc` são exceções a esse acoplamento:** a `faturas_uc` preserva o histórico de faturas no grão individual de `id_fatura` independentemente de leitura na competência; a `medidor_uc` registra o parque de medição e seus vínculos de instalação/retirada no grão individual de `id_medidor`; a `atendimentos_uc` preserva o histórico completo de chamados no grão de `protocolo`; e a `ocorrencias_uc` preserva o histórico isolado de eventos da rede no grão de `id_ocorrencia` e `id_uc`, mantendo a fidelidade observada na origem sem cruzamentos forçados ou perda de registros.
 - **GD:** `Sim` significa que há pelo menos uma linha da UC em `geracao_distribuida`; a regra atual não considera vigência nem comprova geração, injeção ou compensação em uma competência. `Não` é atribuído quando a junção não encontra essa linha.
 - **Privacidade:** a projeção final de `fila_inspecao` e `visao_360_uc` não inclui CPF/CNPJ, nome, endereço, CEP, coordenadas ou metadados internos da Silver. `id_uc` continua sendo identificador de unidade: a ausência desses campos não torna o conjunto automaticamente anônimo.
 - **Publicação:** as tabelas Gold são gravadas com `overwrite`; algumas verificações gerais ocorrem depois da gravação. Uma falha tardia não garante que todas as tabelas anteriores permaneçam preservadas ou que haja uma troca atômica do conjunto inteiro.
-- **Ausência e zero:** verifique a regra específica de cada tabela. Algumas contagens são preenchidas com zero quando uma junção não encontra registro; isso não demonstra, por si só, cobertura completa da fonte. Uma linha ausente em `indicadores_dec_fec` não prova ausência de interrupções.
+- **Ausência e zero:** verifique a regra específica de cada tabela. Algumas contagens são preenchidas com zero quando uma junção não encontra registro; isso não demonstra, por si só, cobertura completa da fonte. Uma linha ausente em `indicadores_dec_fec` ou `ocorrencias_uc` não prova ausência de interrupções.
 
 ## 1. `diagnostico_receita`
 
@@ -263,9 +264,29 @@ A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações
 
 **Filtros e limites:** preserva estritamente o histórico de chamados de forma isolada no grão individual de protocolo, sem cruzamentos forçados ou perda de registros que não possuam correspondência imediata em outras tabelas dimensionais. Aplica saneamento temporal (conversão de datas de abertura/fechamento futuras para `NULL` com base nas flags da Silver) e tratamento rigoroso de notas de satisfação inválidas ou negativas, garantindo integridade sem imputação artificial por zero.
 
-## 11. `controle_gold` — linhagem da execução
+## 11. `ocorrencias_uc`
 
-O notebook gera um registro de controle ao final das verificações e usa `append` quando a tabela já existe. Não é uma das sete tabelas do CSV de exportação. Uma falha anterior a essa etapa não garante um registro de falha nesta tabela.
+**Finalidade:** registro de ocorrências da rede elétrica vinculadas à Unidade Consumidora (UC), garantindo rastreabilidade operacional isolada sem cruzamentos forçados ou imputação artificial de métricas.
+**Grão e chave:** (`id_ocorrencia`, `id_uc`).
+**Fontes:** tabela de ocorrências da camada Silver (`silver_publicada.ocorrencias_rede`).
+
+| Coluna | Tipo conceitual / unidade | Definição |
+| --- | --- | --- |
+| `id_ocorrencia` | texto | **Chave Primária**. Identificador único da ocorrência na rede. |
+| `id_uc` | texto | **Chave Estrangeira**. Vínculo com a Unidade Consumidora afetada. |
+| `alimentador` | texto | Identificador do alimentador elétrico associado à ocorrência. |
+| `tipo` | texto | Classificação ou tipo da ocorrência registrada. |
+| `causa` | texto | Motivo ou causa raiz atribuída à ocorrência. |
+| `data_abertura` | data e hora (`TIMESTAMP`) | Data e hora de início/abertura da ocorrência (convertida para `NULL` caso a flag de abertura futura seja verdadeira ou ultrapasse a data atual). |
+| `data_encerramento` | data e hora (`TIMESTAMP`) | Data e hora de encerramento da ocorrência (convertida para `NULL` caso a flag de encerramento futura seja verdadeira). |
+| `duracao_min` | número / minutos | Duração total da interrupção em minutos (convertida para `NULL` se houver incompatibilidade na origem ou valores negativos, evitando preenchimento indevido por zero). |
+| `ingestao_data` | data e hora (`TIMESTAMP`) | Carimbo de data/hora do processamento do lote na camada Gold. |
+
+**Filtros e limites:** descarta registros com UCs ausentes na origem (`_id_uc_ausente == True`), aplica saneamento estrito em datas futuras com base nas flags de controle e preserva o grão isolado de ocorrências sem dependência de tabelas dimensionais de faturamento ou leitura.
+
+## 12. `controle_gold` — linhagem da execução
+
+O notebook gera um registro de controle ao final das verificações e usa `append` quando a tabela já existe. Não é uma das 11 tabelas do CSV de exportação. Uma falha anterior a essa etapa não garante um registro de falha nesta tabela.
 
 | Coluna | Tipo declarado | Definição |
 | --- | --- | --- |
