@@ -402,7 +402,8 @@ def test_real_api_process_restart_preserves_created_order(tmp_path):
     import httpx
 
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{(tmp_path / 'process.db').as_posix()}",
-           "ANALYTICS_SOURCE": "synthetic", "ORDERS_WRITE_TOKEN": "restart-local-" + "r" * 32}
+           "ANALYTICS_SOURCE": "synthetic", "APP_ENV": "development",
+           "ORDERS_AUTH_MODE": "service", "ORDERS_WRITE_TOKEN": "restart-local-" + "r" * 32}
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]
