@@ -19,17 +19,15 @@ const metric: KpiMetric = {
 };
 
 describe("PanoramaMetricCard", () => {
-  it("distingue base anterior zero, ausência de dados e comparação desativada", () => {
+  it("omite mensagens repetidas quando não há variação para mostrar", () => {
     const { rerender } = render(
       <PanoramaMetricCard
         metric={metric}
         title="Valor faturado"
-        period="2024-04"
         comparison="anterior"
       />,
     );
-    expect(screen.getByText("N/D · Base anterior zero")).toBeVisible();
-    expect(screen.queryByText("Sem comparação")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Base anterior zero/)).not.toBeInTheDocument();
     expect(screen.getByRole("article")).not.toHaveTextContent(/NaN|Infinity/);
 
     const noPrevious = { ...metric, baseZero: false, valorAnterior: null };
@@ -37,46 +35,74 @@ describe("PanoramaMetricCard", () => {
       <PanoramaMetricCard
         metric={noPrevious}
         title="Valor faturado"
-        period="2024-04"
         comparison="ano_anterior"
       />,
     );
-    expect(
-      screen.getByText("Sem dados no período de comparação"),
-    ).toBeVisible();
+    expect(screen.queryByText(/período de comparação/)).not.toBeInTheDocument();
 
     rerender(
       <PanoramaMetricCard
         metric={noPrevious}
         title="Valor faturado"
-        period="2024-04"
         comparison="nenhuma"
       />,
     );
-    expect(screen.getByText("Sem comparação")).toBeVisible();
-    expect(screen.queryByText("Sem dados no período de comparação")).toBeNull();
+    expect(screen.queryByText(/Sem comparação/)).not.toBeInTheDocument();
   });
 
-  it("identifica comparação incompleta e preserva um valor positivo de centavos", () => {
+  it("omite a mensagem de comparação ausente do cartão", () => {
     render(
+      <PanoramaMetricCard
+        metric={{
+          ...metric,
+          valorAnterior: null,
+          variacaoPercentual: null,
+          baseZero: false,
+          statusComparacao: "unavailable",
+        }}
+        title="Valor faturado"
+        comparison="anterior"
+      />,
+    );
+
+    expect(screen.queryByText(/Comparação não calculada/)).toBeNull();
+  });
+
+  it("mantém as ressalvas fora do KPI e colore aumento e queda", () => {
+    const { rerender } = render(
       <PanoramaMetricCard
         metric={{
           ...metric,
           valorAtual: 0.25,
           valorAnterior: 200,
           variacaoPercentual: -99.875,
+          statusComparacao: "partial",
           baseZero: false,
         }}
         title="Valor faturado"
-        period="2024-05"
         comparison="anterior"
-        comparisonUnavailable
       />,
     );
     expect(screen.getByText(/R\$\s*0,25/)).toBeVisible();
-    expect(
-      screen.getByText("Comparação indisponível · período incompleto"),
-    ).toBeVisible();
-    expect(screen.queryByText(/99,88%/)).not.toBeInTheDocument();
+    const negative = screen.getByText(/99,88%/);
+    expect(negative).toHaveClass("text-[var(--status-danger)]");
+    expect(screen.queryByText(/fechamento mensal não declarado/)).toBeNull();
+    expect(screen.queryByText(/dados parciais/)).toBeNull();
+
+    rerender(
+      <PanoramaMetricCard
+        metric={{
+          ...metric,
+          valorAtual: 300,
+          valorAnterior: 200,
+          variacaoPercentual: 50,
+          variacaoAbsoluta: 100,
+          baseZero: false,
+        }}
+        title="Valor faturado"
+        comparison="anterior"
+      />,
+    );
+    expect(screen.getByText(/50%/)).toHaveClass("text-success");
   });
 });

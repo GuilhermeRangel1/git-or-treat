@@ -16,7 +16,7 @@ const anonymous = { enabled: true, user: null, expires_at: null };
 const account = {
   enabled: true,
   user: { id: "user-1", username: "reader", permissions: ["orders:read"] },
-  expires_at: "2026-10-29T15:00:00Z",
+  expires_at: "2099-10-29T15:00:00Z",
 };
 
 function renderLogin() {

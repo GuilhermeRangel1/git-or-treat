@@ -20,7 +20,7 @@ describe("transporte de sessão", () => {
     const envelope = {
       enabled: true,
       user: { id: "usr-1", username: "operador", permissions: ["orders:read"] },
-      expires_at: "2026-10-29T15:00:00Z",
+      expires_at: "2099-10-29T15:00:00Z",
     };
     fetchMock.mockResolvedValueOnce(Response.json(envelope));
     await expect(getSession()).resolves.toEqual(envelope);
@@ -40,7 +40,7 @@ describe("transporte de sessão", () => {
           username: "pessoa",
           permissions: ["orders:write", "orders:write"],
         },
-        expires_at: "2026-10-29T15:00:00+00:00",
+        expires_at: "2099-10-29T15:00:00-03:00",
       }),
     );
     const result = await loginSession("pessoa", "senha");
@@ -52,6 +52,24 @@ describe("transporte de sessão", () => {
       password: "senha",
     });
     expect(request?.credentials).toBe("include");
+  });
+
+  it("rejeita datas inválidas e sessões expiradas", async () => {
+    for (const expires_at of [
+      "amanhã",
+      "2099-13-29T15:00:00-03:00",
+      "2099-02-30T15:00:00-03:00",
+      "2000-01-01T00:00:00Z",
+    ]) {
+      fetchMock.mockResolvedValueOnce(
+        Response.json({
+          enabled: true,
+          user: { id: "usr-1", username: "pessoa", permissions: [] },
+          expires_at,
+        }),
+      );
+      await expect(getSession()).rejects.toBeInstanceOf(SessionApiError);
+    }
   });
 
   it("não inclui segredos do backend nas mensagens e valida coerência do envelope", async () => {
@@ -67,7 +85,7 @@ describe("transporte de sessão", () => {
       Response.json({
         enabled: true,
         user: null,
-        expires_at: "2026-10-29T15:00:00Z",
+        expires_at: "2099-10-29T15:00:00Z",
       }),
     );
     await expect(getSession()).rejects.toBeInstanceOf(SessionApiError);
@@ -75,7 +93,7 @@ describe("transporte de sessão", () => {
       Response.json({
         enabled: false,
         user: { id: "usr-1", username: "pessoa", permissions: [] },
-        expires_at: "2026-10-29T15:00:00Z",
+        expires_at: "2099-10-29T15:00:00Z",
       }),
     );
     await expect(getSession()).rejects.toBeInstanceOf(SessionApiError);

@@ -27,6 +27,28 @@ function baseUrl() {
   throw new SessionApiError("A API não está configurada.", 0);
 }
 
+function isValidFutureExpiration(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](?:0\d|1\d|2[0-3]):[0-5]\d)$/,
+  );
+  if (!match || !Number.isFinite(Date.parse(value))) return false;
+  const [, year, month, day, hour, minute, second] = match;
+  const calendar = new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day)),
+  );
+  if (
+    calendar.getUTCFullYear() !== Number(year) ||
+    calendar.getUTCMonth() + 1 !== Number(month) ||
+    calendar.getUTCDate() !== Number(day) ||
+    Number(hour) > 23 ||
+    Number(minute) > 59 ||
+    Number(second) > 59
+  )
+    return false;
+  return Date.parse(value) > Date.now();
+}
+
 function decodeSession(value: unknown): SessionEnvelope {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new SessionApiError("Não foi possível validar a sessão.", 0);
@@ -35,9 +57,7 @@ function decodeSession(value: unknown): SessionEnvelope {
   if (
     typeof envelope.enabled !== "boolean" ||
     (envelope.expires_at !== null &&
-      (typeof envelope.expires_at !== "string" ||
-        !/(Z|\+00:00)$/.test(envelope.expires_at) ||
-        !Number.isFinite(Date.parse(envelope.expires_at)))) ||
+      !isValidFutureExpiration(envelope.expires_at)) ||
     (!envelope.enabled && envelope.user !== null)
   ) {
     throw new SessionApiError("Não foi possível validar a sessão.", 0);

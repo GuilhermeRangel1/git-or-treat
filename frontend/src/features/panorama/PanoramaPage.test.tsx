@@ -260,7 +260,7 @@ describe("PanoramaPage (WEB-01)", () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          "Insight indisponível para a fonte Gold até existir uma integração de IA própria para este contrato.",
+          "Insights automáticos não estão disponíveis para esta fonte.",
         ),
       ).toBeVisible(),
     );
@@ -440,9 +440,6 @@ describe("PanoramaPage (WEB-01)", () => {
       </TestProviders>,
     );
     expect(await screen.findByText(/R\$ 31 mil/)).toBeVisible();
-    expect(
-      screen.getAllByText("Comparação indisponível · período incompleto"),
-    ).toHaveLength(2);
     expect(screen.queryByText("-59,48%")).not.toBeInTheDocument();
     const main = screen.getByRole("region", {
       name: "Indicadores principais do Panorama",
@@ -511,7 +508,7 @@ describe("PanoramaPage (WEB-01)", () => {
     ).toBeVisible();
   });
 
-  it("trata comparação nula recebida da API sem quebrar os cartões", async () => {
+  it("trata comparação nula sem mensagens repetidas nos cartões", async () => {
     const data = calculateSyntheticPanorama({
       periodo: "2024-04",
       comparacao: "nenhuma",
@@ -537,7 +534,7 @@ describe("PanoramaPage (WEB-01)", () => {
     const main = screen.getByRole("region", {
       name: "Indicadores principais do Panorama",
     });
-    expect(within(main).getAllByText("Sem comparação")).toHaveLength(2);
+    expect(within(main).queryByText("Sem comparação")).not.toBeInTheDocument();
   });
 
   it("rejeita resposta incompleta da API", async () => {
@@ -575,26 +572,24 @@ describe("PanoramaPage (WEB-01)", () => {
 
     // Aguarda o carregamento dos dados e verifica os valores do benchmark (PRD WEB-01)
     expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
-    expect(screen.getAllByText("90 MWh")).toHaveLength(2);
+    expect(screen.getByText("90 MWh")).toBeVisible();
     expect(screen.getByText("1.248 UCs")).toBeVisible();
     expect(screen.getByText("Valor faturado")).toBeVisible();
-    expect(screen.getByText("Energia faturada")).toBeVisible();
     expect(screen.getByText("Consumo apurado")).toBeVisible();
     expect(screen.getByText("Base de UCs")).toBeVisible();
+    expect(screen.getByText("UCs faturadas no mês")).toBeVisible();
+    expect(screen.getAllByRole("article")).toHaveLength(4);
     await userEvent.click(
       screen.getByRole("button", { name: "Ver fundamentos" }),
     );
     const foundations = screen.getByRole("dialog", {
-      name: "Fundamentos dos indicadores",
+      name: "Fundamentos do Panorama",
     });
     expect(
-      within(foundations).getByText("Receita Arrecadada / Paga"),
+      within(foundations).getByText("Indicadores principais"),
     ).toBeVisible();
-    expect(within(foundations).getByText("Energia Consumida")).toBeVisible();
-    expect(within(foundations).getByText("Preço Médio Efetivo")).toBeVisible();
-    expect(
-      within(foundations).getByText("Frequência Equivalente (FEC)"),
-    ).toBeVisible();
+    expect(within(foundations).getByText(/Preço observado/)).toBeVisible();
+    expect(within(foundations).getByText(/^FEC/)).toBeVisible();
   });
 
   it("alterar o filtro de município modifica os dados exibidos", async () => {
@@ -630,9 +625,7 @@ describe("PanoramaPage (WEB-01)", () => {
     );
 
     expect(
-      await screen.findByText(
-        /Competência Mai\/2024 em aberto · Dados preliminares/i,
-      ),
+      await screen.findByText(/Competência Mai\/2024 · dados preliminares/i),
     ).toBeVisible();
   });
 
@@ -670,17 +663,23 @@ describe("PanoramaPage (WEB-01)", () => {
       screen.getByRole("button", { name: "Ver fundamentos" }),
     );
 
-    const infoButton = screen.getByRole("button", {
-      name: "Ver detalhes e fórmula de Receita Faturada",
+    const dialog = screen.getByRole("dialog", {
+      name: "Fundamentos do Panorama",
     });
-    await user.click(infoButton);
+    await user.click(
+      within(dialog).getAllByText("Definição e fórmula", {
+        selector: "summary",
+      })[0],
+    );
 
     expect(
-      screen.getByText(
+      within(dialog).getByText(
         "Total monetário faturado no ciclo de faturamento da competência.",
       ),
     ).toBeVisible();
-    expect(screen.getByText("Σ(faturas_emitidas.valor_total)")).toBeVisible();
+    expect(
+      within(dialog).getByText("Σ(faturas_emitidas.valor_total)"),
+    ).toBeVisible();
   });
 
   it("alterna entre visualização gráfica e tabela na série histórica", async () => {
@@ -697,12 +696,12 @@ describe("PanoramaPage (WEB-01)", () => {
     await screen.findByText(/R\$ 76,5 mil/);
 
     const showData = screen.getByRole("button", {
-      name: /Ver dados da receita/,
+      name: /Ver tabela da série/,
     });
     await user.click(showData);
     expect(screen.getByRole("table")).toBeVisible();
     expect(
-      screen.getByRole("dialog", { name: "Dados da receita" }),
+      screen.getByRole("dialog", { name: "Tabela da série" }),
     ).toBeVisible();
   });
 });

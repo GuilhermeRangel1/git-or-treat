@@ -144,16 +144,27 @@ export default function FilterBar({
         : comparisonLabel(filters),
     },
     {
-      label: "Território",
-      value:
-        MUNICIPIOS_DISPONIVEIS.find((item) => item.value === filters.municipio)
-          ?.label || "Município inválido",
+      label: "Município",
+      value: availableOptions
+        ? filters.municipio === "todos"
+          ? "Todos os municípios"
+          : availableOptions.municipios.includes(filters.municipio)
+            ? filters.municipio
+            : "Município inválido"
+        : MUNICIPIOS_DISPONIVEIS.find(
+            (item) => item.value === filters.municipio,
+          )?.label || "Município inválido",
     },
     {
-      label: "Classe",
-      value:
-        CLASSES_DISPONIVEIS.find((item) => item.value === filters.classe)
-          ?.label || "Classe inválida",
+      label: "Classe de consumo",
+      value: availableOptions
+        ? filters.classe === "todas"
+          ? "Todas as classes"
+          : availableOptions.classes.includes(filters.classe)
+            ? filters.classe
+            : "Classe inválida"
+        : CLASSES_DISPONIVEIS.find((item) => item.value === filters.classe)
+            ?.label || "Classe inválida",
     },
   ];
   const change = <K extends keyof PanoramaFilters>(
@@ -242,8 +253,8 @@ export default function FilterBar({
           }}
         >
           <FilterSelect
-            label="Período"
-            aria-label="Período (Competência)"
+            label="Competência"
+            aria-label="Competência"
             value={draft.periodo}
             error={draftErrors.periodo}
             options={[
@@ -263,7 +274,7 @@ export default function FilterBar({
             onChange={(value) => change("periodo", value)}
           />
           <FilterSelect
-            label="Comparação"
+            label="Comparar com"
             value={draft.comparacao}
             error={draftErrors.comparacao}
             options={[
@@ -291,7 +302,7 @@ export default function FilterBar({
             onChange={(value) => change("municipio", value)}
           />
           <FilterSelect
-            label="Classe de Consumo"
+            label="Classe de consumo"
             value={draft.classe}
             error={draftErrors.classe}
             options={[

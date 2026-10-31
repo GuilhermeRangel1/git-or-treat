@@ -19,7 +19,7 @@ import { apiClient } from "@/shared/api/client";
 const account = {
   enabled: true,
   user: { id: "user-a", username: "reader", permissions: ["orders:read"] },
-  expires_at: "2026-10-29T15:00:00Z",
+  expires_at: "2099-10-29T15:00:00Z",
 };
 const accountB = {
   enabled: true,
@@ -28,7 +28,7 @@ const accountB = {
     username: "operator",
     permissions: ["orders:read", "orders:write"],
   },
-  expires_at: "2026-10-29T15:00:00Z",
+  expires_at: "2099-10-29T15:00:00Z",
 };
 const anonymous = { enabled: true, user: null, expires_at: null };
 const fetchMock = vi.fn<typeof fetch>();

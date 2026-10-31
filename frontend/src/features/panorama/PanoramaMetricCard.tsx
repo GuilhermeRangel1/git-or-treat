@@ -3,9 +3,7 @@ import type { ComparisonType, KpiMetric } from "../../shared/analytics/types";
 type PanoramaMetricCardProps = {
   metric: KpiMetric;
   title: string;
-  period: string;
   comparison: ComparisonType;
-  comparisonUnavailable?: boolean;
 };
 
 function compactValue(metric: KpiMetric) {
@@ -50,53 +48,19 @@ function absoluteVariation(metric: KpiMetric) {
   return `${sign}${absolute.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} ${metric.unidade}`;
 }
 
-function periodLabel(period: string) {
-  const [year, month] = period.split("-");
-  const months = [
-    "Jan",
-    "Fev",
-    "Mar",
-    "Abr",
-    "Mai",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Set",
-    "Out",
-    "Nov",
-    "Dez",
-  ];
-  return `${months[Number(month) - 1]}/${year}`;
-}
-
 export default function PanoramaMetricCard({
   metric,
   title,
-  period,
   comparison,
-  comparisonUnavailable = false,
 }: PanoramaMetricCardProps) {
   const variation = metric.variacaoPercentual;
-  const supportsComparison = metric.id === "rec_fat" || metric.id === "ene_fat";
-  const isMeaningfulDecline =
-    supportsComparison &&
-    variation != null &&
-    variation < 0 &&
-    metric.bomSentido === "positivo";
-  const description =
-    metric.valorAtual == null
-      ? null
-      : metric.id === "ene_con"
-        ? "Grandeza distinta da faturada"
-        : metric.id === "ucs_atv"
-          ? "Base sintética do cenário"
-          : null;
+  const supportsComparison = metric.id !== "ucs_atv";
   const absolute = supportsComparison ? absoluteVariation(metric) : null;
 
   return (
     <article
       aria-label={`${title}: ${compactValue(metric)}`}
-      className="flex min-h-[132px] min-w-0 flex-col justify-center gap-2 rounded-xl bg-surface p-3 text-left lg:min-h-48 lg:items-center lg:gap-3 lg:p-6 lg:text-center"
+      className="flex min-h-[168px] min-w-0 flex-col justify-center gap-2 rounded-xl bg-surface p-4 text-left lg:items-center lg:gap-3 lg:p-5 lg:text-center"
     >
       <h2 className="text-sm font-medium leading-5 text-muted">{title}</h2>
       <p className="break-words font-heading text-2xl font-semibold leading-[30px] tracking-tight text-content lg:text-[36px] lg:leading-[44px]">
@@ -107,46 +71,27 @@ export default function PanoramaMetricCard({
           <p className="text-muted">
             {metric.limitacoes?.[0] ?? "Valor não disponível nesta fonte."}
           </p>
-        ) : metric.status === "partial" ? (
-          <p className="text-muted">Valor observado · dados parciais</p>
         ) : null}
-        {metric.statusComparacao === "partial" &&
-          metric.valorAnterior != null && (
-            <p className="text-muted">
-              Comparação parcial: mês não declarado como fechado.
-            </p>
-          )}
-        {description ? (
-          <p className="text-muted">{description}</p>
-        ) : metric.valorAtual == null ? null : comparisonUnavailable ? (
-          <p className="text-muted">
-            Comparação indisponível · período incompleto
-          </p>
-        ) : metric.baseZero ? (
-          <p className="text-muted">N/D · Base anterior zero</p>
-        ) : supportsComparison && variation != null ? (
+        {metric.valorAtual == null ||
+        metric.id === "ucs_atv" ||
+        comparison === "nenhuma" ||
+        metric.valorAnterior == null ||
+        variation == null ? null : (
           <p
             className={
-              isMeaningfulDecline ? "text-[var(--status-danger)]" : "text-muted"
+              variation > 0
+                ? "text-success"
+                : variation < 0
+                  ? "text-[var(--status-danger)]"
+                  : "text-muted"
             }
           >
             {variation > 0 ? "+" : ""}
             {absolute ? `${absolute} · ` : ""}
             {variation.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
           </p>
-        ) : (
-          <p className="text-muted">
-            {comparison === "nenhuma"
-              ? "Sem comparação"
-              : metric.valorAnterior == null
-                ? "Sem dados no período de comparação"
-                : "Comparação indisponível"}
-          </p>
         )}
       </div>
-      <span className="font-mono text-xs text-muted">
-        {periodLabel(period)}
-      </span>
     </article>
   );
 }
