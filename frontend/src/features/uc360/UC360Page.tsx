@@ -6,7 +6,12 @@ import {
   parseUC360SearchParams,
   selectUCHistory,
 } from "./uc360-state";
-import { useUCOverview, useUCSearch, useUCHistory } from "./useUC360";
+import {
+  useUCOverview,
+  useUCSearch,
+  useUCHistory,
+  useUCSeries,
+} from "./useUC360";
 import UC360Detail from "./UC360Detail";
 import UC360SearchPanel from "./UC360SearchPanel";
 export default function UC360Page() {
@@ -60,6 +65,12 @@ export default function UC360Page() {
     state.end,
     state.historyPage,
     !state.invalid.length,
+  );
+  const series = useUCSeries(
+    selectedUCId,
+    overview.data?.data.period.start ?? "",
+    overview.data?.data.period.end ?? "",
+    !state.invalid.length && Boolean(overview.data),
   );
   function submitSearch(query: string) {
     const searchParams = applyUCSearch(params, query);
@@ -145,9 +156,34 @@ export default function UC360Page() {
               error: overview.error,
             },
             history: {
-              data: history.data,
+              data:
+                history.data?.metadata.source.version ===
+                overview.data?.metadata.source.version
+                  ? history.data
+                  : undefined,
               pending: history.isPending,
-              error: history.error,
+              error:
+                history.data &&
+                overview.data &&
+                history.data.metadata.source.version !==
+                  overview.data.metadata.source.version
+                  ? new Error(
+                      "A publicação do histórico mudou; atualize os dados.",
+                    )
+                  : history.error,
+            },
+            series: {
+              data:
+                series.data?.version === overview.data?.metadata.source.version
+                  ? series.data
+                  : undefined,
+              pending: series.isPending || series.isFetching,
+              error:
+                series.data &&
+                overview.data &&
+                series.data.version !== overview.data.metadata.source.version
+                  ? new Error("A publicação da série mudou.")
+                  : series.error,
             },
             filters: {
               start: state.start,
@@ -161,7 +197,14 @@ export default function UC360Page() {
           disclosureRef={historyDisclosureRef}
           actions={{
             onOverviewRetry: () => void overview.refetch(),
-            onHistoryRetry: () => void history.refetch(),
+            onHistoryRetry: () => {
+              void overview.refetch();
+              void history.refetch();
+            },
+            onSeriesRetry: () => {
+              void overview.refetch();
+              void series.refetch();
+            },
             onNewSearch: () => navigate("/uc-360"),
             onHistoryOpen: setHistoryOpen,
             onSelectHistory: openHistorySection,

@@ -292,7 +292,7 @@ export function HistoryPanel({
                       >
                         {historyColumns[section].map((key) => (
                           <td
-                            className="max-w-64 break-words px-3 py-2 text-content"
+                            className="max-w-64 px-3 py-2 [overflow-wrap:anywhere] text-content"
                             key={key}
                           >
                             {historyValue(key, row[key])}
@@ -318,7 +318,7 @@ export function HistoryPanel({
                           <dt className="text-muted">
                             {historyLabels[key] ?? key}
                           </dt>
-                          <dd className="break-words text-content">
+                          <dd className="[overflow-wrap:anywhere] text-content">
                             {historyValue(key, row[key])}
                           </dd>
                         </div>

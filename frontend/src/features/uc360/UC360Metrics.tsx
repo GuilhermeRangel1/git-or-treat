@@ -48,7 +48,7 @@ function Metric({
   return (
     <article className="grid min-w-0 content-start gap-2 rounded-xl border border-control/60 bg-surface px-3 py-4 text-left sm:px-4 sm:py-5">
       <h3 className="text-sm text-muted">{title}</h3>
-      <p className="break-words font-heading text-2xl font-semibold text-content sm:text-3xl">
+      <p className="[overflow-wrap:anywhere] font-heading text-2xl font-semibold text-content sm:text-3xl">
         {formatUCAmount(current.value, unit)}
       </p>
       <p className="break-words text-sm font-semibold text-muted">
@@ -96,7 +96,7 @@ function SummaryMetric({
     <article className="grid min-w-0 min-h-36 content-center gap-2 rounded-xl bg-surface p-3 text-left md:text-center sm:min-h-48 sm:p-5">
       <h3 className="text-sm font-medium text-muted">{title}</h3>
       <p
-        className={`break-words font-heading font-semibold text-content ${valueSize}`}
+        className={`[overflow-wrap:anywhere] font-heading font-semibold text-content ${valueSize}`}
       >
         {value}
       </p>
@@ -128,16 +128,26 @@ export function UC360SupportMetrics({ data }: { data: UCOverview["data"] }) {
         <SummaryMetric
           title="Geração própria"
           value={
-            data.distributed_generation.items.length > 0
-              ? data.distributed_generation.items
-                  .map((item) => `${decimal.format(item.capacity_kw)} kW`)
-                  .join(" · ")
-              : data.distributed_generation.status === "empty"
-                ? "Sem cadastro"
-                : "Sem dado"
+            data.gold_generation?.capacity_kwp != null
+              ? `${decimal.format(data.gold_generation.capacity_kwp)} kWp`
+              : data.distributed_generation.items.length > 0
+                ? data.distributed_generation.items
+                    .map((item) => `${decimal.format(item.capacity_kw)} kW`)
+                    .join(" · ")
+                : data.distributed_generation.status === "empty"
+                  ? "Sem cadastro"
+                  : "Sem dado"
           }
-          detail="Potência cadastrada em kW; não é energia compensada."
-          status={data.distributed_generation.status}
+          detail={
+            data.gold_generation
+              ? "Potência de pico cadastrada em kWp; não é geração ou energia compensada."
+              : "Potência cadastrada em kW; não é energia compensada."
+          }
+          status={
+            data.gold_generation
+              ? "partial"
+              : data.distributed_generation.status
+          }
           limitations={data.distributed_generation.limitations}
         />
         <SummaryMetric

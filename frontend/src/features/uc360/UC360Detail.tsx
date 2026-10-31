@@ -4,6 +4,7 @@ import type { RefObject } from "react";
 import type { UCHistory, UCOverview } from "./contract";
 import { ErrorMessage, EvidenceDialog, HistoryPanel } from "./UC360History";
 import UC360OverviewTable from "./UC360OverviewTable";
+import UC360Series from "./UC360Series";
 import UC360Interpretation from "./UC360Interpretation";
 import { UC360Comparison, UC360SupportMetrics } from "./UC360Metrics";
 import UC360PeriodForm from "./UC360PeriodForm";
@@ -24,6 +25,18 @@ type Props = {
       pending: boolean;
       error: Error | null;
     };
+    series: {
+      data:
+        | {
+            items: Array<{
+              competencia: string;
+              measured_energy_kwh: number | null;
+            }>;
+          }
+        | undefined;
+      pending: boolean;
+      error: Error | null;
+    };
     filters: {
       start: string;
       end: string;
@@ -37,6 +50,7 @@ type Props = {
   actions: {
     onOverviewRetry: () => void;
     onHistoryRetry: () => void;
+    onSeriesRetry: () => void;
     onNewSearch: () => void;
     onHistoryOpen: (open: boolean) => void;
     onSelectHistory: (section: UCHistorySection) => void;
@@ -65,11 +79,11 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
   return (
     <>
       <header className="grid min-w-0 gap-2">
-        <h1 className="font-heading text-[26px] leading-[34px] font-semibold text-content lg:text-[32px] lg:leading-10">
+        <h1 className="font-heading text-[26px] leading-[34px] font-semibold [overflow-wrap:anywhere] text-content lg:text-[32px] lg:leading-10">
           {selected?.profile.uc_id ?? unit.id}
         </h1>
         {selected ? (
-          <p className="text-sm text-muted">
+          <p className="text-sm [overflow-wrap:anywhere] text-muted">
             {selected.profile.customer_name?.trim() && (
               <>{selected.profile.customer_name.trim()} · </>
             )}
@@ -140,6 +154,12 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
               <UC360Comparison comparison={selected.comparison} />
               <UC360SupportMetrics data={selected} />
               <UC360OverviewTable comparison={selected.comparison} />
+              <UC360Series
+                data={unit.series.data}
+                pending={unit.series.pending}
+                error={unit.series.error}
+                onRetry={actions.onSeriesRetry}
+              />
               <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
                 <h2 className="font-heading text-lg font-semibold">
                   Contexto da unidade
@@ -177,11 +197,13 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                   </li>
                   <li>
                     Geração própria:{" "}
-                    {selected.distributed_generation.items.length
-                      ? selected.distributed_generation.items
-                          .map((item) => formatUCPower(item.capacity_kw))
-                          .join(", ")
-                      : statusLabel(selected.distributed_generation.status)}
+                    {selected.gold_generation?.capacity_kwp != null
+                      ? `${selected.gold_generation.capacity_kwp.toLocaleString("pt-BR")} kWp (cadastro observado)`
+                      : selected.distributed_generation.items.length
+                        ? selected.distributed_generation.items
+                            .map((item) => formatUCPower(item.capacity_kw))
+                            .join(", ")
+                        : statusLabel(selected.distributed_generation.status)}
                     . Potência não representa energia compensada.
                   </li>
                 </ul>

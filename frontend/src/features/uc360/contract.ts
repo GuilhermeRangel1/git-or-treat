@@ -88,6 +88,11 @@ export type UCOverview = {
       status: UCStatus;
       limitations: string[];
     };
+    gold_generation?: {
+      capacity_kwp: number | null;
+      connection_date: string | null;
+      modality: string | null;
+    } | null;
     section_status: Record<string, UCStatus>;
   };
   metadata: UCMetadata;
@@ -374,6 +379,10 @@ export function decodeUCOverview(value: unknown): UCOverview {
     throw new UCContractError("open_invoices.count não corresponde ao estado.");
   const item =
     current.item === null ? null : meter(current.item, "current_meter.item");
+  const goldGeneration =
+    data.gold_generation == null
+      ? null
+      : obj(data.gold_generation, "data.gold_generation");
   return {
     data: {
       profile: profile(data.profile),
@@ -402,6 +411,25 @@ export function decodeUCOverview(value: unknown): UCOverview {
         status: state(current.status, "current_meter.status"),
         limitations: strings(current.limitations, "current_meter.limitations"),
       },
+      gold_generation: goldGeneration
+        ? {
+            capacity_kwp: nullableN(
+              goldGeneration.capacity_kwp,
+              "gold_generation.capacity_kwp",
+            ),
+            connection_date:
+              goldGeneration.connection_date === null
+                ? null
+                : str(
+                    goldGeneration.connection_date,
+                    "gold_generation.connection_date",
+                  ),
+            modality:
+              goldGeneration.modality === null
+                ? null
+                : str(goldGeneration.modality, "gold_generation.modality"),
+          }
+        : null,
       distributed_generation: {
         items: gd.items.map((raw, index) => {
           const item = obj(raw, `generation[${index}]`);
@@ -525,7 +553,8 @@ export function decodeUCHistory(
         break;
       case "meters":
         text("meter_id");
-        text("installed_at");
+        required("installed_at");
+        if (item.installed_at !== null) text("installed_at");
         required("removed_at");
         if (item.removed_at !== null) text("removed_at");
         break;
@@ -538,7 +567,7 @@ export function decodeUCHistory(
         text("feeder_id");
         text("competencia");
         month(item.competencia, `items[${index}].competencia`);
-        number("duration_hours");
+        nullableNumber("duration_hours");
         break;
       case "calls":
         text("call_id");
