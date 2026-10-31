@@ -414,3 +414,8 @@ A operação interna de prontidão existente recebe os resultados observados de 
 ### Catálogo Gold v2 em adaptação
 
 Os módulos correntes `grid360_gold` e `grid360_gold_mapping` referenciam Gold CSV v2 e prontidão v2; os módulos `_v1` conservam a compatibilidade histórica explicitamente. O dicionário SQL de sete tabelas do PR #46 continua legado e não é a referência física da fonte atual. A primeira fatia é validada contra as quinze tabelas `gold_v2` do Backend por teste em processo separado e pelo planejador público, sem executar evidência ou LLM. O perfil lógico não importa o mapeamento físico. Esta preparação não compõe a consulta Gold implantada; [estado do catálogo](../gold-catalog.md) registra o que falta de atendimento e distribuição do mapeamento ao Backend.
+
+
+### Atendimento e catálogo consumível pelo Backend
+
+O perfil Gold v2 acrescenta contagem de chamados e satisfação, mensais por abertura UTC ou acumuladas sem período conhecido. Média usa notas individuais válidas; zero e nulo são distintos. `accumulated_period_phrases` restringe o acumulado na construção e revalidação do plano, sem alterar o envelope de janela v1. A disponibilização do mapeamento ao Backend ocorre por artefato JSON local validado e confrontado em testes entre serviços; o núcleo lógico continua sem importar tabelas ou SQL. Onze métricas estão declaradas; isso não ativa a consulta Gold implantada. Veja [semântica e fronteiras](../gold-catalog.md).

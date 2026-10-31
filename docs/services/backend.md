@@ -177,3 +177,8 @@ Os chamadores de prontidão podem fornecer `expected_batch_ref` para vincular a 
 
 
 A publicação v2 acrescenta janelas e estados observados em `gold_carga_atual.manifesto.coverage_windows`, calculados na mesma transação. São metadados internos não certificadores, opcionais em publicações anteriores. O contrato CSV de entrada não mudou; repetição idempotente mantém a identidade e os metadados anteriores. A cobertura que governa a prontidão permanece na tabela detalhada. Testes do importador público cobrem repetição, troca de publicação e falha no último CSV com rollback de todas as tabelas e auditoria persistida.
+
+
+### Catálogo físico Gold v2 para o executor
+
+`app.services.gold_catalog.load_gold_catalog()` disponibiliza o artefato interno versionado `app/catalogs/gold_v2.json` e o valida contra os modelos Gold v2 instalados. A seleção de fonte confere capacidades, dimensões, granularidade e histórico acumulado sem datas. Onze métricas cobrem a primeira adaptação; o [catálogo](../gold-catalog.md) detalha fórmulas e limites. Não há import do pacote GenAI, endpoint novo ou execução SQL. O coordenador futuro precisa revalidar plano, autorização, publicação e prontidão reais; este carregador não concede acesso por descobrir schema.
