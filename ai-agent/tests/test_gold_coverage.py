@@ -307,6 +307,101 @@ def _c14_states(**counts: int) -> dict:
     return {state: counts.get(state, 0) for state in states}
 
 
+def test_c14_preserves_confirmed_zero_rating_in_gold_v2(tmp_path):
+    c14 = _c14(tmp_path, ("1", "1", "0"), ("0", "8", r"\N"))
+    assert c14["estado"] == "verificada"
+    assert c14["consistente"] is True
+    assert "premissa_escala_1_a_5" not in c14
+
+
+def _attendance_details(base, rows):
+    _write(base, "atendimentos_uc", ["protocolo", "id_uc", "nota_satisfacao",
+                                    "data_abertura"], rows)
+
+
+def test_c14_reconciles_protocols_and_nullable_average_without_leaking_records(tmp_path):
+    _c14(tmp_path, ("2", "1", "0"), ("2", r"\N", r"\N"))
+    _attendance_details(tmp_path, [
+        ["PROTOCOLO_FICTICIO_A", UC_IDS[0], "0", "2025-01-01T00:00:00Z"],
+        ["PROTOCOLO_FICTICIO_B", UC_IDS[0], "4", "2025-01-31T23:59:59Z"],
+        ["PROTOCOLO_FICTICIO_C", UC_IDS[1], r"\N", r"\N"],
+    ])
+    report = gold_coverage.build_report(tmp_path)
+    check = report["reconciliacoes"]["atendimento_protocolos_x_visao_360"]
+    assert check["estado"] == "verificada"
+    assert check["consistente"] is True
+    assert check["ucs_com_contagem_divergente"] == 0
+    assert check["ucs_com_media_divergente"] == 0
+    assert not any(value in json.dumps(check) for value in (*UC_IDS, "PROTOCOLO_FICTICIO_A"))
+
+
+@pytest.mark.parametrize(("summary_count", "summary_average", "counts", "averages"), [
+    ("1", "2", 1, 0), ("2", "3", 0, 1), ("2", r"\N", 0, 1),
+    ("2", "2.005", 0, 0), ("2", "2.006", 0, 1),
+])
+def test_c14_checks_exact_counts_and_average_tolerance(
+    tmp_path, summary_count, summary_average, counts, averages
+):
+    _c14(tmp_path, (summary_count, "0", "0"), (summary_average, r"\N", r"\N"))
+    _attendance_details(tmp_path, [["A", UC_IDS[0], "0", ""], ["B", UC_IDS[0], "4", ""]])
+    result = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    assert result["ucs_com_contagem_divergente"] == counts
+    assert result["ucs_com_media_divergente"] == averages
+    assert result["consistente"] is (counts == averages == 0)
+
+
+@pytest.mark.parametrize("rating", ["-1", "abc", "Infinity", "NaN"])
+def test_c14_invalid_detail_rating_does_not_validate_the_summary(tmp_path, rating):
+    _c14(tmp_path, ("1", "0", "0"), (r"\N", r"\N", r"\N"))
+    _attendance_details(tmp_path, [["A", UC_IDS[0], rating, ""]])
+    result = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    # NaN é token de ausência compatível com o exportador legado; não vira zero.
+    assert result["estado"] == ("verificada" if rating == "NaN" else "nao_verificavel")
+
+
+def test_c14_duplicate_protocols_are_not_silently_deduplicated(tmp_path):
+    _c14(tmp_path, ("1", "0", "0"), ("4", "", ""))
+    _attendance_details(tmp_path, [["A", UC_IDS[0], "4", ""], ["A", UC_IDS[0], "4", ""]])
+    result = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    assert result == {"estado": "nao_verificavel", "inconsistencias": {"protocolo_duplicado": 1}}
+
+
+def test_c14_missing_detail_is_not_evidence_of_zero_calls(tmp_path):
+    _c14(tmp_path, ("0", "0", "0"), ("", "", ""))
+    result = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    assert result == {"estado": "nao_verificavel", "tabela_ausente": "atendimentos_uc"}
+
+
+def test_c14_empty_detail_with_schema_can_confirm_zero_calls(tmp_path):
+    _c14(tmp_path, ("0", "0", "0"), (r"\N", r"\N", r"\N"))
+    _attendance_details(tmp_path, [])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    assert check["estado"] == "verificada" and check["consistente"] is True
+
+
+def test_c14_orphan_uc_blocks_consistency_without_exposing_the_key(tmp_path):
+    _c14(tmp_path, ("0", "0", "0"), ("", "", ""))
+    _attendance_details(tmp_path, [["PROTOCOLO_NAO_PUBLICAVEL", "UC_ORFA_NAO_PUBLICAVEL", "0", ""]])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    assert check["ucs_fora_da_visao_360"] == 1 and check["consistente"] is False
+    assert "NAO_PUBLICAVEL" not in json.dumps(check)
+
+
+def test_c14_detail_missing_rating_column_does_not_assume_null(tmp_path):
+    _c14(tmp_path, ("0", "0", "0"), ("", "", ""))
+    _write(tmp_path, "atendimentos_uc", ["protocolo", "id_uc"], [["A", UC_IDS[0]]])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    assert check == {"estado": "nao_verificavel", "tabela": "atendimentos_uc",
+                     "colunas_ausentes": ["nota_satisfacao"]}
+
+
 def test_c14_clean_batch_is_consistent(tmp_path):
     c14 = _c14(tmp_path, ("1", "2", "3"), ("4.0", "3.5", "5"))
 
@@ -317,10 +412,9 @@ def test_c14_clean_batch_is_consistent(tmp_path):
             "chamados_negativo": 0,
             "chamados_nao_inteiro": 0,
             "media_presente_sem_chamados": 0,
-            "media_zero": 0,
+            "media_negativa": 0,
         },
         "consistente": True,
-        "premissa_escala_1_a_5": {"medias_fora_da_escala": 0},
     }
 
 
@@ -328,7 +422,7 @@ def test_c14_uc_without_calls_has_null_average_not_zero(tmp_path):
     c14 = _c14(tmp_path, ("0", "2", "0"), ("", "4", ""))
 
     assert c14["ucs_por_estado"] == _c14_states(sem_chamados_sem_media=2, com_chamados_com_media=1)
-    assert c14["inconsistencias"]["media_zero"] == 0
+    assert c14["inconsistencias"]["media_negativa"] == 0
     assert c14["consistente"] is True
 
 
@@ -339,8 +433,8 @@ def test_c14_uc_with_calls_but_no_rating_is_valid(tmp_path):
     assert c14["consistente"] is True
 
 
-def test_c14_flags_average_present_without_calls_and_zero_average(tmp_path):
-    # Média zero é ausência que virou zero: inconsistência de dado, com ou sem chamados.
+def test_c14_flags_average_present_without_calls(tmp_path):
+    # Média presente sem protocolos é inconsistente; zero com protocolo é válido.
     c14 = _c14(tmp_path, ("0", "0", "2"), ("3.0", "0", "0"))
 
     assert c14["ucs_por_estado"] == _c14_states(sem_chamados_com_media=2, com_chamados_com_media=1)
@@ -348,16 +442,15 @@ def test_c14_flags_average_present_without_calls_and_zero_average(tmp_path):
         "chamados_negativo": 0,
         "chamados_nao_inteiro": 0,
         "media_presente_sem_chamados": 2,
-        "media_zero": 2,
+        "media_negativa": 0,
     }
     assert c14["consistente"] is False
-    assert c14["premissa_escala_1_a_5"] == {"medias_fora_da_escala": 0}
 
 
-def test_c14_average_outside_scale_breaks_premise_not_data(tmp_path):
+def test_c14_does_not_invent_a_maximum_rating(tmp_path):
     c14 = _c14(tmp_path, ("1", "1", "1"), ("0.5", "5.5", "3"))
 
-    assert c14["premissa_escala_1_a_5"] == {"medias_fora_da_escala": 2}
+    assert "premissa_escala_1_a_5" not in c14
     assert not any(c14["inconsistencias"].values())
     assert c14["consistente"] is True
 
@@ -771,3 +864,97 @@ def test_json_target_with_missing_parent_is_refused(tmp_path, capsys):
     assert "diretório de destino não existe" in captured.err
     assert captured.out == ""
     assert not (tmp_path / "nao_existe").exists()
+
+
+@pytest.mark.parametrize(("flag", "value", "rating"), [
+    ("_nota_invalida", "true", "4"), ("_nota_negativa", "true", "0"),
+    ("_nota_invalida", "maybe", ""),
+])
+def test_c14_quality_flags_cannot_contradict_a_published_rating(tmp_path, flag, value, rating):
+    _c14(tmp_path, ("1", "0", "0"), (rating, "", ""))
+    _write(tmp_path, "atendimentos_uc", ["protocolo", "id_uc", "nota_satisfacao", flag],
+           [["A", UC_IDS[0], rating, value]])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    assert check["estado"] == "nao_verificavel"
+
+
+def test_c14_test_uc_is_outside_the_allowed_population(tmp_path):
+    _c14(tmp_path, ("0", "0", "0"), ("", "", ""))
+    _attendance_details(tmp_path, [["A", "TESTE001", "", ""]])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    assert check == {"estado": "nao_verificavel", "inconsistencias": {"uc_teste": 1}}
+
+
+@pytest.mark.parametrize("case", ["duplicate_summary", "missing_protocol", "short_row"])
+def test_c14_malformed_or_duplicate_input_cannot_pass(tmp_path, case):
+    _c14(tmp_path, ("0", "0", "0"), ("", "", ""))
+    _attendance_details(tmp_path, [] if case == "duplicate_summary" else
+                        [["" if case == "missing_protocol" else "A", UC_IDS[0], "", ""]])
+    if case == "duplicate_summary":
+        path = tmp_path / "visao_360_uc" / "visao_360_uc.csv"
+        lines = path.read_text(encoding="utf-8").splitlines()
+        path.write_text("\n".join([*lines, lines[1]]) + "\n", encoding="utf-8")
+    elif case == "short_row":
+        path = tmp_path / "atendimentos_uc" / "atendimentos_uc.csv"
+        path.write_text(path.read_text(encoding="utf-8").rsplit(";", 1)[0], encoding="utf-8")
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"][
+        "atendimento_protocolos_x_visao_360"]
+    assert check["estado"] == "nao_verificavel"
+
+
+@pytest.mark.parametrize(("state", "zero", "expected"), [
+    ("FECHADO", "true", True), ("PARCIAL", "false", False),
+    ("AUSENTE", "false", False), ("NAO_CERTIFICADA", "false", False),
+])
+def test_c15_does_not_infer_certified_zero_from_missing_events(tmp_path, state, zero, expected):
+    _c14(tmp_path, ("0", "0", "0"), ("", "", ""))
+    _attendance_details(tmp_path, [])
+    _write(tmp_path, "cobertura_dominios", ["dominio", "competencia", "recorte",
+           "estado_cobertura", "qtd_registros", "qtd_sem_competencia", "zero_registros_confirmado"],
+           [["atendimentos", "2025-01", "DOMINIO", state, "0", "0", zero]])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"]["atendimento_mensal_c15"]
+    assert check["estado"] == "verificada" and check["consistente"] is True
+    assert check["meses_zero_confirmado"] == int(expected)
+    assert check["meses_por_estado"] == {state: 1}
+
+
+def test_c15_counts_undated_events_without_assigning_a_month(tmp_path):
+    _c14(tmp_path, ("1", "0", "0"), ("", "", ""))
+    _attendance_details(tmp_path, [["A", UC_IDS[0], "", ""]])
+    _write(tmp_path, "cobertura_dominios", ["dominio", "competencia", "recorte",
+           "estado_cobertura", "qtd_registros", "qtd_sem_competencia", "zero_registros_confirmado"],
+           [["atendimentos", "2025-01", "DOMINIO", "FECHADO", "0", "1", "true"]])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"]["atendimento_mensal_c15"]
+    assert check["consistente"] is False
+    assert check["meses_zero_confirmado"] == 0
+
+
+@pytest.mark.parametrize(("state", "count", "zero", "consistent"), [
+    ("FECHADO", "1", "false", True), ("PARCIAL", "1", "false", True),
+    ("AUSENTE", "1", "false", False), ("FECHADO", "0", "true", False),
+])
+def test_c15_reconciles_opening_month_and_declared_count(tmp_path, state, count, zero, consistent):
+    _c14(tmp_path, ("1", "0", "0"), ("0", "", ""))
+    _attendance_details(tmp_path, [["A", UC_IDS[0], "0", "2025-01-31T23:59:59Z"]])
+    _write(tmp_path, "cobertura_dominios", ["dominio", "competencia", "recorte",
+           "estado_cobertura", "qtd_registros", "qtd_sem_competencia", "zero_registros_confirmado"],
+           [["atendimentos", "2025-01", "DOMINIO", state, count, "0", zero]])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"]["atendimento_mensal_c15"]
+    assert check["consistente"] is consistent
+
+
+@pytest.mark.parametrize("case", ["missing", "duplicate", "bad_month", "bad_count", "bad_date"])
+def test_c15_invalid_or_missing_coverage_never_passes(tmp_path, case):
+    _c14(tmp_path, ("1", "0", "0"), ("", "", ""))
+    _attendance_details(tmp_path, [["A", UC_IDS[0], "",
+                                  "invalid" if case == "bad_date" else "2025-01-01T00:00:00Z"]])
+    if case != "missing":
+        row = ["atendimentos", "2025-13" if case == "bad_month" else "2025-01", "DOMINIO",
+               "FECHADO", "1.5" if case == "bad_count" else "1", "0", "false"]
+        _write(tmp_path, "cobertura_dominios", ["dominio", "competencia", "recorte",
+               "estado_cobertura", "qtd_registros", "qtd_sem_competencia",
+               "zero_registros_confirmado"], [row, row] if case == "duplicate" else [row])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"]["atendimento_mensal_c15"]
+    assert check["estado"] == "nao_verificavel"
