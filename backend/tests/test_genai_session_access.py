@@ -9,7 +9,7 @@ from starlette.requests import Request
 
 from app.core.config import settings
 from app.core.genai_gold_access import GOLD_DIMENSIONS, get_genai_gold_access_resolver
-from app.core.genai_gold_database import create_genai_gold_engine
+from app.core.genai_gold_database import create_genai_gold_engine, get_genai_gold_engine
 from app.main import app
 from app.models.auth import AuthSession, AuthUser
 from tests.support.database import TestingSessionLocal
@@ -102,3 +102,28 @@ def test_two_real_sessions_produce_distinct_callers_and_reject_unsafe_database(c
     ))
     with pytest.raises(ValueError):
         create_genai_gold_engine(scopes[0])
+    base = "postgresql+psycopg://venergy_genai_reader:fake@localhost/db"
+    for override in ("user=owner", "host=other", "dbname=other", "options=-crole=owner", "service=other"):
+        monkeypatch.setattr(settings, "GENAI_GOLD_DATABASE_URL", SecretStr(base + "?" + override))
+        with pytest.raises(ValueError):
+            create_genai_gold_engine(scopes[0])
+    monkeypatch.setattr(settings, "GENAI_GOLD_DATABASE_URL", SecretStr(base + "?sslmode=require"))
+    engine = create_genai_gold_engine(scopes[0])
+    try:
+        _args, options = engine.dialect.create_connect_args(engine.url)
+        assert options["user"] == "venergy_genai_reader" and options["dbname"] == "db"
+    finally:
+        engine.dispose()
+    for missing_destination in ("@/db", "@localhost"):
+        monkeypatch.setattr(settings, "DATABASE_URL", "postgresql+psycopg://owner:fake" + missing_destination)
+        monkeypatch.setattr(settings, "GENAI_GOLD_DATABASE_URL", SecretStr(
+            "postgresql+psycopg://venergy_genai_reader:fake" + missing_destination,
+        ))
+        with pytest.raises(ValueError):
+            create_genai_gold_engine(scopes[0])
+    private_invalid_url = "private-invalid-url-for-test"
+    monkeypatch.setattr(settings, "GENAI_GOLD_DATABASE_URL", SecretStr(private_invalid_url))
+    with pytest.raises(HTTPException) as unavailable:
+        next(get_genai_gold_engine(lambda: scopes[0]))
+    assert unavailable.value.status_code == 503
+    assert private_invalid_url not in unavailable.value.detail

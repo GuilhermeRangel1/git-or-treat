@@ -18,6 +18,9 @@ from app.core.genai_gold_access import (
 from app.schemas.genai_internal import AccessScope
 
 GOLD_READER_ROLE = "venergy_genai_reader"
+_TRANSPORT_OPTIONS = frozenset({
+    "sslmode", "sslrootcert", "sslcert", "sslkey", "channel_binding", "application_name",
+})
 
 
 def create_genai_gold_engine(scope: AccessScope) -> Engine:
@@ -35,7 +38,13 @@ def create_genai_gold_engine(scope: AccessScope) -> Engine:
     operational = make_url(settings.DATABASE_URL)
     if (
         url.drivername != "postgresql+psycopg" or url.username != GOLD_READER_ROLE
-        or not url.password or operational.username == GOLD_READER_ROLE
+        or not url.password or not url.host or not url.database
+        or operational.username == GOLD_READER_ROLE
+        # O dialeto incorpora a query aos argumentos DBAPI. Não permitir que
+        # user/host/dbname/options/service sobrescrevam a identidade validada.
+        or not set(url.query) <= _TRANSPORT_OPTIONS
+        or not set(operational.query) <= _TRANSPORT_OPTIONS
+        or any(not isinstance(value, str) for value in url.query.values())
         or (url.host, url.port, url.database)
         != (operational.host, operational.port, operational.database)
     ):

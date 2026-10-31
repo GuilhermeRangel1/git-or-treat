@@ -19,7 +19,11 @@ from app.api.v1.endpoints.auth import router as auth_router
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.genai_gold_access import get_genai_gold_access_resolver
-from app.core.genai_gold_database import GOLD_READER_ROLE, get_genai_gold_engine
+from app.core.genai_gold_database import (
+    GOLD_READER_ROLE,
+    create_genai_gold_engine,
+    get_genai_gold_engine,
+)
 from app.core.passwords import hash_password
 from app.models.auth import AuthSession, AuthUser
 from app.models.gold_load import BATCH
@@ -44,6 +48,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
     owner = create_engine(owner_url, hide_parameters=True)
     admin = create_engine(address, hide_parameters=True)
     created_engines = []
+    scopes = []
     revoked = {"after_admission": False}
     reader_sql = []
 
@@ -77,6 +82,12 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
             with admin.connect().execution_options(isolation_level="AUTOCOMMIT") as administrator:
                 # A revisão de PUBLIC é explícita e ocorre apenas no banco descartável.
                 administrator.exec_driver_sql("REVOKE TEMP ON DATABASE gold_reader_test FROM PUBLIC")
+                administrator.exec_driver_sql(
+                    "CREATE FUNCTION public.genai_private_probe() RETURNS integer "
+                    "LANGUAGE SQL SECURITY DEFINER AS "
+                    "'SELECT count(*)::integer FROM public.auth_users'"
+                )
+                administrator.exec_driver_sql("REVOKE EXECUTE ON FUNCTION public.genai_private_probe() FROM PUBLIC")
                 administrator.exec_driver_sql(sql)
                 administrator.exec_driver_sql(sql)
                 administrator.exec_driver_sql(f"ALTER ROLE {GOLD_READER_ROLE} PASSWORD '{password}'")
@@ -103,6 +114,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     with owner.begin() as write:
                         write.execute(update(AuthUser).values(permissions=[]))
                 scope = resolve()
+                scopes.append(scope)
                 publication = GoldPublicationContext.capture(reader)
                 fields = publication.planning_fields(reader, scope)
                 assert fields["temporal_coverage"]
@@ -147,6 +159,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 "SELECT * FROM public.auth_sessions",
                 "SELECT * FROM public.operational_inspection_orders",
                 "SELECT * FROM public.gold_carga_atual",
+                "SELECT public.genai_private_probe()",
                 "INSERT INTO gold_v2.diagnostico_receita DEFAULT VALUES",
                 "CREATE TABLE gold_v2.forbidden (id integer)",
                 "CREATE TEMP TABLE forbidden (id integer)",
@@ -158,7 +171,30 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     with pytest.raises(DBAPIError) as error:
                         read.exec_driver_sql(statement)
                     assert error.value.orig.sqlstate == "42501"
+            # Rotação real no banco descartável: a senha antiga não abre conexão
+            # nova; o segredo atualizado volta a usar o mesmo papel restrito.
+            new_password = uuid4().hex
             with admin.connect().execution_options(isolation_level="AUTOCOMMIT") as administrator:
+                administrator.exec_driver_sql(f"ALTER ROLE {GOLD_READER_ROLE} PASSWORD '{new_password}'")
+            engine.dispose()
+            with pytest.raises(DBAPIError) as authentication:
+                engine.connect()
+            assert password not in str(authentication.value)
+            monkeypatch.setattr(settings, "GENAI_GOLD_DATABASE_URL", SecretStr(
+                reader_url.set(password=new_password).render_as_string(hide_password=False),
+            ))
+            rotated_reader = create_genai_gold_engine(scopes[0])
+            created_engines.append(rotated_reader)
+            with rotated_reader.connect() as read:
+                assert read.scalar(text("SELECT current_user")) == GOLD_READER_ROLE
+            with admin.connect().execution_options(isolation_level="AUTOCOMMIT") as administrator:
+                administrator.exec_driver_sql("GRANT EXECUTE ON FUNCTION public.genai_private_probe() TO PUBLIC")
+                try:
+                    with pytest.raises(DBAPIError):
+                        administrator.exec_driver_sql(sql)
+                    administrator.exec_driver_sql("ROLLBACK")
+                finally:
+                    administrator.exec_driver_sql("REVOKE EXECUTE ON FUNCTION public.genai_private_probe() FROM PUBLIC")
                 administrator.exec_driver_sql("GRANT SELECT ON public.auth_users TO PUBLIC")
                 try:
                     with pytest.raises(DBAPIError):
@@ -174,6 +210,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 finally:
                     administrator.exec_driver_sql("REVOKE TEMP ON DATABASE gold_reader_test FROM PUBLIC")
                 administrator.exec_driver_sql(sql)
+                administrator.exec_driver_sql("DROP FUNCTION public.genai_private_probe()")
             with owner.connect() as read:
                 assert len(read.execute(select(AuthUser.id)).all()) == 2
                 assert not read.execute(select(AuthSession.id)).all()
