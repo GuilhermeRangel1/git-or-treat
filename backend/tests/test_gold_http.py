@@ -181,7 +181,9 @@ def test_v2_publication_never_labels_old_v1_facts_as_current(gold_client):
     assert feeder.json()["data"]["total_billed_amount"] == 100
     assert feeder.json()["data"]["total_measured_energy_kwh"] == 15
     assert feeder.json()["data"]["comparison"]["initial"]["billed_uc_count"] == 1
-    assert client.get("/api/v1/ucs?q=FAKE").status_code == 503
+    search = client.get("/api/v1/ucs?q=FAKE")
+    assert search.status_code == 200
+    assert search.json()["data"]["items"] == []
     assert client.get("/api/v1/analytics/options").status_code == 200
 
 

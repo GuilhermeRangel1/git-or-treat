@@ -1,0 +1,72 @@
+from datetime import date, datetime, timezone
+
+from app.core.database import get_analytics_db
+from app.main import app
+from app.models.gold_load import BATCH
+from app.models.gold_v2_load import TABLES
+from tests.test_gold_http import gold_client  # noqa: F401
+
+
+def publish_fixture():
+    dependency = app.dependency_overrides[get_analytics_db]()
+    db = next(dependency)
+    try:
+        for name in ("visao_360_uc", "consumo_mensal_uc", "faturas_uc", "medidor_uc", "atendimentos_uc", "ocorrencias_uc", "gd_uc"):
+            TABLES[name].create(db.get_bind())
+        db.execute(TABLES["visao_360_uc"].insert(), [
+            {"id_uc": "FAKE-A", "municipio": "Cidade", "bairro": "Centro", "classe": "Residencial", "alimentador": "AL-1", "status": "ATIVA", "possui_gd": "Sim"},
+            {"id_uc": "FAKE-B", "municipio": "Cidade", "bairro": "Centro", "classe": "Residencial", "alimentador": "AL-1", "status": "ATIVA", "possui_gd": "Não"},
+        ])
+        db.execute(TABLES["consumo_mensal_uc"].insert(), [
+            {"id_uc": "FAKE-A", "competencia": "2025-01", "consumo_kwh": 0., "receita_reais": 20., "qtd_leituras_observadas": 1, "qtd_leituras_validas": 1},
+            {"id_uc": "FAKE-A", "competencia": "2025-02", "consumo_kwh": 30., "receita_reais": 50., "qtd_leituras_observadas": 2, "qtd_leituras_validas": 1},
+            {"id_uc": "FAKE-B", "competencia": "2025-01", "consumo_kwh": 999., "receita_reais": 999., "qtd_leituras_observadas": 1, "qtd_leituras_validas": 1},
+        ])
+        db.execute(TABLES["faturas_uc"].insert(), [
+            {"id_fatura": "F-1", "id_uc": "FAKE-A", "mes_referencia": "2025-01", "valor_total": 20., "data_vencimento": date(2025, 2, 10)},
+            {"id_fatura": "F-2", "id_uc": "FAKE-B", "mes_referencia": "2025-01", "valor_total": 999., "data_vencimento": date(2025, 2, 10)},
+        ])
+        db.execute(TABLES["medidor_uc"].insert().values(id_medidor="M-1", id_uc="FAKE-A", data_instalacao=None))
+        db.execute(TABLES["gd_uc"].insert().values(id_uc="FAKE-A", potencia_kwp=3.5, modalidade="AUTOCONSUMO"))
+        db.execute(TABLES["atendimentos_uc"].insert().values(protocolo="C-1", id_uc="FAKE-A", data_abertura=datetime(2025, 1, 3, tzinfo=timezone.utc), assunto="Atendimento"))
+        db.execute(TABLES["ocorrencias_uc"].insert().values(id_ocorrencia="E-1", id_uc="FAKE-A", data_abertura=datetime(2025, 2, 3, tzinfo=timezone.utc), duracao_min=None))
+        db.execute(BATCH.update().values(schema_version="gold-csv-v2", publication_id="test-publication"))
+        db.commit()
+    finally:
+        dependency.close()
+
+
+def test_uc_v2_search_overview_and_histories_keep_uc_scope_and_absence(gold_client):
+    client, _ = gold_client
+    publish_fixture()
+    assert client.get("/api/v1/ucs?q=FAKE&page_size=1").json()["pagination"]["total"] == 2
+    overview = client.get("/api/v1/ucs/FAKE-A/overview?start=2025-01&end=2025-02")
+    assert overview.status_code == 200, overview.text
+    data = overview.json()["data"]
+    assert data["comparison"]["initial"]["measured_energy_kwh"]["value"] == 0
+    assert data["comparison"]["final"]["measured_energy_kwh"]["status"] == "partial"
+    assert data["comparison"]["billed_amount"]["percent_change"] is None
+    assert data["current_meter"]["item"] is None
+    assert data["open_invoices"]["count"] is None
+    assert data["profile"]["customer_name"] is None
+    assert data["gold_generation"]["capacity_kwp"] == 3.5
+    series = client.get("/api/v1/ucs/FAKE-A/history/consumption?start=2025-01&end=2025-03").json()
+    assert [item["competencia"] for item in series["data"]["items"]] == ["2025-02", "2025-01"]
+    assert series["data"]["items"][0]["measured_energy_kwh"] is None
+    assert series["data"]["items"][1]["measured_energy_kwh"] == 0
+    ordered = client.get("/api/v1/ucs/FAKE-A/history/consumption?start=2025-01&end=2025-03&order_by=measured_energy_kwh&page_size=1").json()
+    assert ordered["data"]["items"][0]["competencia"] == "2025-01"
+    assert ordered["pagination"]["total"] == 2
+    empty_page = client.get("/api/v1/ucs/FAKE-A/history/consumption?start=2025-01&end=2025-03&page=3&page_size=1").json()
+    assert empty_page["data"]["items"] == [] and empty_page["metadata"]["status"] == "partial"
+    for section in ("invoices", "meters", "calls", "interruptions"):
+        response = client.get(f"/api/v1/ucs/FAKE-A/history/{section}?start=2025-01&end=2025-02")
+        assert response.status_code == 200, response.text
+        assert response.json()["pagination"]["total"] == 1
+        assert response.json()["metadata"]["status"] == "partial"
+    invoice = client.get("/api/v1/ucs/FAKE-A/history/invoices?start=2025-01&end=2025-02").json()["data"]["items"][0]
+    assert invoice["invoice_id"] == "F-1" and invoice["paid_amount"] is None and invoice["payment_status"] == "unknown"
+    event = client.get("/api/v1/ucs/FAKE-A/history/interruptions?start=2025-01&end=2025-02").json()["data"]["items"][0]
+    assert event["duration_hours"] is None
+    assert client.get("/api/v1/ucs/FAKE-A/history/invoices?order_by=payment_date").status_code == 422
+    assert client.get("/api/v1/ucs/FAKE-A/history/distributed_generation").json()["metadata"]["status"] == "unavailable"
