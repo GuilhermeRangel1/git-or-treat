@@ -97,6 +97,21 @@ class NoLookup:
     [
         ("Qual foi a média da receita no último trimestre?", None, None),
         ("Qual foi o consumo por UC no último trimestre?", None, None),
+        ("Quantos chamados no último trimestre?", "service.attendance", "protocolos"),
+        ("Qual a satisfação no último trimestre?", "service.satisfaction", "pontos"),
+        ("Qual a satisfação em pontos no último trimestre?", "service.satisfaction", "pontos"),
+        (
+            "Quantos chamados acumulados no histórico acumulado?",
+            "service.accumulated_attendance",
+            "protocolos",
+        ),
+        (
+            "Qual a satisfação acumulada no histórico acumulado?",
+            "service.accumulated_satisfaction",
+            "pontos",
+        ),
+        ("Quantos chamados acumulados no último trimestre?", None, None),
+        ("Qual foi a receita no histórico acumulado?", None, None),
         ("Qual foi a receita no último trimestre?", "billing.revenue", "R$"),
         ("Qual foi o consumo nos últimos 12 meses?", "energy.consumption", "kWh"),
         (
@@ -151,8 +166,10 @@ def test_existing_core_plans_with_current_gold_profile_without_querying(question
         temporal_coverage=[
             {
                 "metric_id": m.id,
-                "kind": "monthly",
-                "competencies": ["2000-01", "2000-02", "2000-03"],
+                "kind": "none" if m.accumulated_period_phrases else "monthly",
+                "competencies": []
+                if m.accumulated_period_phrases
+                else ["2000-01", "2000-02", "2000-03"],
             }
             for m in profile.metrics
         ],
@@ -166,6 +183,9 @@ def test_existing_core_plans_with_current_gold_profile_without_querying(question
     assert result.plan.metric_id == metric and result.plan.unit == unit
     assert result.plan.source_id == "gold.local"
     assert "gold_v2" not in result.plan.model_dump_json()
+    if metric.startswith("service.accumulated_"):
+        assert result.plan.window.start is None and result.plan.window.end is None
+        assert result.plan.window.phrase == "histórico acumulado"
     mapping = GRID360_GOLD_MAPPING.metric(result.plan.metric_id)
     available = {r.id for r in V2_CAPABILITY_REQUIREMENTS}
     dimensions = {f.dimension_id for f in result.plan.filters}

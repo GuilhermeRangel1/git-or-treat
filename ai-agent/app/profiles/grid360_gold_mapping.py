@@ -34,7 +34,7 @@ DICTIONARY_VERSION = "gold-csv-v2"
 PhysicalColumn = Annotated[str, StringConstraints(strict=True, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")]
 OpenPoint = Annotated[str, StringConstraints(min_length=1, max_length=300)]
 
-_NUMERIC_TYPES = {"bigint": "bigint", "double": "double", "decimal": "decimal"}
+_NUMERIC_TYPES = {"string": "string", "bigint": "bigint", "double": "double", "decimal": "decimal"}
 
 
 class CatalogMappingError(ValueError):
@@ -45,11 +45,14 @@ class Aggregation(StrEnum):
     SUM = "sum"
     RATIO_OF_SUMS = "ratio_of_sums"
     KEY_GRAIN_READ = "key_grain_read"
+    COUNT_NON_NULL = "count_non_null"
+    AVERAGE_NON_NULL = "average_non_null"
 
 
 class ColumnType(StrEnum):
     """Família do tipo no dicionário; ``decimal`` cobre ``decimal(p,s)``."""
 
+    STRING = "string"
     BIGINT = "bigint"
     DOUBLE = "double"
     DECIMAL = "decimal"
@@ -63,6 +66,8 @@ class NullRule(StrEnum):
     RATIO_ABSENT_ON_NULL_OR_ZERO_DENOMINATOR = "ratio_absent_on_null_or_zero_denominator"
     # Linha ausente não vira zero; valor nulo na linha é ausência.
     READ_NULL_IS_ABSENT = "read_null_is_absent"
+    COUNT_REQUIRES_CERTIFIED_ZERO = "count_requires_certified_zero"
+    AVERAGE_IGNORES_NULL_ALL_NULL_IS_ABSENT = "average_ignores_null_all_null_is_absent"
 
 
 class Rounding(BaseModel):
@@ -82,6 +87,7 @@ class SourceMapping(BaseModel):
     capability_id: LogicalIdentifier
     table: GoldTable
     temporal_column: PhysicalColumn | None
+    temporal_transform: Literal["identity", "utc_month"] = "identity"
     grain: tuple[PhysicalColumn, ...] = Field(min_length=1)
     measure_column: PhysicalColumn | None = None
     numerator_column: PhysicalColumn | None = None
@@ -110,6 +116,8 @@ class MetricMapping(BaseModel):
     # Capacidade da fonte padrão (a primeira); cada fonte declara a sua.
     capability_id: LogicalIdentifier
     required_capability_ids: tuple[LogicalIdentifier, ...] = Field(min_length=1)
+    accumulated_period_phrases: tuple[str, ...] = ()
+    granularities: tuple[Literal["month", "year"], ...] = ("month", "year")
     aggregation: Aggregation
     unit: str = Field(min_length=1, max_length=200)
     unit_kind: UnitKind
@@ -124,6 +132,13 @@ class MetricMapping(BaseModel):
 
     @model_validator(mode="after")
     def validate_shape(self) -> Self:
+        if (
+            self.aggregation in (Aggregation.SUM, Aggregation.AVERAGE_NON_NULL)
+            and self.measure_type is ColumnType.STRING
+        ):
+            raise ValueError("Soma ou média exige medida numérica")
+        if self.aggregation is Aggregation.KEY_GRAIN_READ and self.granularities != ("month",):
+            raise ValueError("Leitura DEC/FEC exige granularidade mensal")
         ratio = self.aggregation is Aggregation.RATIO_OF_SUMS
         for source in self.sources:
             has_measure = source.measure_column is not None
@@ -142,6 +157,8 @@ class MetricMapping(BaseModel):
             Aggregation.SUM: NullRule.SUM_IGNORES_NULL_ALL_NULL_IS_ABSENT,
             Aggregation.RATIO_OF_SUMS: NullRule.RATIO_ABSENT_ON_NULL_OR_ZERO_DENOMINATOR,
             Aggregation.KEY_GRAIN_READ: NullRule.READ_NULL_IS_ABSENT,
+            Aggregation.COUNT_NON_NULL: NullRule.COUNT_REQUIRES_CERTIFIED_ZERO,
+            Aggregation.AVERAGE_NON_NULL: NullRule.AVERAGE_IGNORES_NULL_ALL_NULL_IS_ABSENT,
         }[self.aggregation]
         if self.null_rule is not expected_null:
             raise ValueError(f"{self.metric_id}: regra de nulidade incompatível")
@@ -274,6 +291,10 @@ def validate_mapping(
                 )
         logical = profile_metrics.get(metric.metric_id)
         if logical is not None:
+            if tuple(g.value for g in logical.granularities) != metric.granularities:
+                errors.append(f"{metric.metric_id}: granularidades diferem do perfil")
+            if logical.accumulated_period_phrases != metric.accumulated_period_phrases:
+                errors.append(f"{metric.metric_id}: modo temporal difere do perfil")
             if logical.unit != metric.unit:
                 errors.append(f"{metric.metric_id}: unidade difere do perfil")
             if metric.dimension_ids() != set(logical.dimension_ids):
@@ -324,7 +345,10 @@ def _source_errors(
         errors.append(f"{where}: capacidade {source.capability_id} não está aprovada")
     elif source.table not in requirement.tables:
         errors.append(f"{where}: tabela fora das tabelas da capacidade {source.capability_id}")
-    elif requirement.temporal_column != source.temporal_column:
+    elif (
+        source.temporal_transform == "identity"
+        and requirement.temporal_column != source.temporal_column
+    ):
         errors.append(f"{where}: coluna temporal difere da prontidão")
 
     table = dictionary.tables.get(source.table.value)
@@ -337,7 +361,16 @@ def _source_errors(
             errors.append(f"{where}: coluna {column} é sensível")
     if tuple(source.grain) != tuple(table.key):
         errors.append(f"{where}: grão difere da chave do dicionário")
-    if source.temporal_column != table.period_column:
+    if source.temporal_transform == "utc_month":
+        if (
+            source.capability_id != "atendimento.mensal"
+            or source.temporal_column != "data_abertura"
+            or table.columns.get(source.temporal_column) != "timestamp"
+            or requirement is None
+            or not requirement.requires_coverage
+        ):
+            errors.append(f"{where}: projeção mensal exige timestamp e cobertura")
+    elif source.temporal_column != table.period_column:
         errors.append(f"{where}: coluna temporal difere do period_column do dicionário")
     expected_types = (
         ((source.measure_column, metric.measure_type),)
@@ -561,6 +594,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             required_capability_ids=("interrupcoes.dec_fec",),
             capability_id="interrupcoes.dec_fec",
             aggregation=Aggregation.KEY_GRAIN_READ,
+            granularities=("month",),
             unit="horas por UC",
             unit_kind=UnitKind.TIME,
             measure_type=ColumnType.DOUBLE,
@@ -574,6 +608,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             required_capability_ids=("interrupcoes.dec_fec",),
             capability_id="interrupcoes.dec_fec",
             aggregation=Aggregation.KEY_GRAIN_READ,
+            granularities=("month",),
             unit="interrupções por UC",
             unit_kind=UnitKind.COUNT,
             measure_type=ColumnType.DOUBLE,
@@ -582,13 +617,99 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             required_dimension_ids=("network.feeder",),
             sources=(_dec_fec("FEC"),),
         ),
+        MetricMapping(
+            metric_id="service.attendance",
+            capability_id="atendimento.mensal",
+            required_capability_ids=("atendimento.mensal",),
+            aggregation=Aggregation.COUNT_NON_NULL,
+            unit="protocolos",
+            unit_kind=UnitKind.COUNT,
+            measure_type=ColumnType.STRING,
+            rounding=Rounding(decimals=0),
+            null_rule=NullRule.COUNT_REQUIRES_CERTIFIED_ZERO,
+            sources=(
+                SourceMapping(
+                    capability_id="atendimento.mensal",
+                    table=GoldTable.ATENDIMENTOS_UC,
+                    temporal_column="data_abertura",
+                    temporal_transform="utc_month",
+                    grain=("protocolo",),
+                    measure_column="protocolo",
+                    dimension_columns=_MENSAL_DIMENSIONS,
+                ),
+            ),
+        ),
+        MetricMapping(
+            metric_id="service.satisfaction",
+            capability_id="atendimento.mensal",
+            required_capability_ids=("atendimento.mensal",),
+            aggregation=Aggregation.AVERAGE_NON_NULL,
+            unit="pontos",
+            unit_kind=UnitKind.SCORE,
+            measure_type=ColumnType.DOUBLE,
+            rounding=Rounding(decimals=2),
+            null_rule=NullRule.AVERAGE_IGNORES_NULL_ALL_NULL_IS_ABSENT,
+            sources=(
+                SourceMapping(
+                    capability_id="atendimento.mensal",
+                    table=GoldTable.ATENDIMENTOS_UC,
+                    temporal_column="data_abertura",
+                    temporal_transform="utc_month",
+                    grain=("protocolo",),
+                    measure_column="nota_satisfacao",
+                    nullable_columns=("nota_satisfacao",),
+                    dimension_columns=_MENSAL_DIMENSIONS,
+                ),
+            ),
+        ),
+        MetricMapping(
+            metric_id="service.accumulated_attendance",
+            accumulated_period_phrases=("histórico acumulado",),
+            capability_id="atendimento.uc_acumulado",
+            required_capability_ids=("atendimento.uc_acumulado",),
+            aggregation=Aggregation.SUM,
+            unit="protocolos",
+            unit_kind=UnitKind.COUNT,
+            measure_type=ColumnType.BIGINT,
+            rounding=Rounding(decimals=0),
+            null_rule=_SUM_NULLS,
+            sources=(
+                SourceMapping(
+                    capability_id="atendimento.uc_acumulado",
+                    table=GoldTable.VISAO_360_UC,
+                    temporal_column=None,
+                    grain=("id_uc",),
+                    measure_column="total_chamados_callcenter",
+                    nullable_columns=("total_chamados_callcenter",),
+                    dimension_columns=_MENSAL_DIMENSIONS,
+                ),
+            ),
+        ),
+        MetricMapping(
+            metric_id="service.accumulated_satisfaction",
+            accumulated_period_phrases=("histórico acumulado",),
+            capability_id="atendimento.uc_acumulado",
+            required_capability_ids=("atendimento.uc_acumulado",),
+            aggregation=Aggregation.AVERAGE_NON_NULL,
+            unit="pontos",
+            unit_kind=UnitKind.SCORE,
+            measure_type=ColumnType.DOUBLE,
+            rounding=Rounding(decimals=2),
+            null_rule=NullRule.AVERAGE_IGNORES_NULL_ALL_NULL_IS_ABSENT,
+            sources=(
+                SourceMapping(
+                    capability_id="atendimento.uc_acumulado",
+                    table=GoldTable.ATENDIMENTOS_UC,
+                    temporal_column=None,
+                    grain=("protocolo",),
+                    measure_column="nota_satisfacao",
+                    nullable_columns=("nota_satisfacao",),
+                    dimension_columns=_MENSAL_DIMENSIONS,
+                ),
+            ),
+        ),
     ),
     unavailable=(
-        UnavailableCapability(
-            capability_id="atendimento.mensal",
-            reasons=(ReasonCode.CONTROL_PENDING,),
-            note="Fonte e controles C14/C15 disponíveis; mapeamento do domínio em adaptação v2.",
-        ),
         UnavailableCapability(
             capability_id="faturamento.preco_volume",
             reasons=(ReasonCode.DEFINITION_PENDING,),
@@ -611,14 +732,6 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             capability_id="interrupcoes.uc_acumulado",
             reasons=(ReasonCode.DEFINITION_PENDING,),
             note="Só total acumulado por UC, sem mês e sem controle independente.",
-        ),
-        UnavailableCapability(
-            capability_id="atendimento.uc_acumulado",
-            reasons=(ReasonCode.CONTROL_PENDING,),
-            note=(
-                "Fonte e C14 disponíveis; métrica acumulada exige mapeamento próprio "
-                "sem período inventado."
-            ),
         ),
         UnavailableCapability(
             capability_id="apoio.fila_inspecao",

@@ -2,7 +2,8 @@
 
 Deriva do perfil demonstrativo (mesma técnica de ``grid360_sql_demo``) e mantém só as métricas
 das capacidades com definição aprovada em ``app.readiness``: ``faturamento.receita``,
-``faturamento.receita_bairro``, ``consumo.mensal_uc`` e ``interrupcoes.dec_fec``. Tabelas,
+``faturamento.receita_bairro``, ``consumo.mensal_uc``, ``interrupcoes.dec_fec`` e atendimento.
+Tabelas,
 colunas e fórmulas ficam em ``grid360_gold_mapping``; este perfil só fala a língua do negócio.
 
 Municípios, bairros, subgrupos, bandeiras, alimentadores e UCs não têm lista de valores: os
@@ -154,6 +155,7 @@ def _metric(
     dimension_ids: tuple[str, ...],
     limitations: tuple[str, ...],
     granularities: tuple[str, ...] = _MONTH_YEAR,
+    accumulated: bool = False,
 ) -> dict:
     return {
         "id": id_,
@@ -166,6 +168,7 @@ def _metric(
         "evidence_fields": _evidence_fields(dimension_ids),
         "limitation_texts": (*limitations, _NOT_HOMOLOGATED),
         "accepted_unit_kinds": unit_kinds,
+        "accumulated_period_phrases": ("histórico acumulado",) if accumulated else (),
     }
 
 
@@ -273,6 +276,50 @@ _METRICS = (
         ),
         ("month",),
     ),
+    _metric(
+        "service.attendance",
+        "service",
+        ("chamados", "atendimentos", "protocolos"),
+        "protocolos",
+        ("count",),
+        ("customer.consumer_unit",),
+        ("Conta protocolos por abertura UTC; exige C14/C15. Não conta tratativas.",),
+    ),
+    _metric(
+        "service.satisfaction",
+        "service",
+        ("satisfação", "nota de satisfação"),
+        "pontos",
+        ("score",),
+        ("customer.consumer_unit",),
+        (
+            "Média das notas válidas por abertura UTC; zero é válido, ausência é nula. "
+            "Sem escala presumida.",
+        ),
+    ),
+    _metric(
+        "service.accumulated_attendance",
+        "service",
+        ("chamados acumulados", "atendimentos acumulados"),
+        "protocolos",
+        ("count",),
+        ("customer.consumer_unit",),
+        ("Resumo acumulado da publicação, sem período conhecido. Não aceita filtros de datas.",),
+        accumulated=True,
+    ),
+    _metric(
+        "service.accumulated_satisfaction",
+        "service",
+        ("satisfação acumulada",),
+        "pontos",
+        ("score",),
+        ("customer.consumer_unit",),
+        (
+            "Média das notas válidas do histórico; não é média de médias "
+            "nem aceita filtro de datas.",
+        ),
+        accumulated=True,
+    ),
 )
 
 
@@ -296,6 +343,18 @@ def _build_profile() -> DomainProfile:
             "example_questions": ("Qual foi o DEC do alimentador no mês passado?",),
         },
     )
+    values["domains"] = (
+        *values["domains"],
+        {
+            "id": "service",
+            "label": "Atendimento",
+            "example_questions": ("Quantos chamados no último trimestre?",),
+        },
+    )
+    values["units"] = (
+        *values["units"],
+        {"id": "service.score", "kind": "score", "aliases": ("ponto", "pontos")},
+    )
     values["metrics"] = _METRICS
     values["dimensions"] = _DIMENSIONS
     # Frases relativas; a janela concreta depende das competências do lote (executor futuro).
@@ -308,6 +367,7 @@ def _build_profile() -> DomainProfile:
         "últimos 3 meses",
         "mês passado",
         "este ano",
+        "histórico acumulado",
     )
     values["period_windows"] = ()
     values["default_period_phrase"] = None
@@ -347,7 +407,7 @@ def _build_profile() -> DomainProfile:
     values["clarifications"] = {
         **values["clarifications"],
         "multiple_domains": (
-            "Você quer consultar qual assunto primeiro: consumo, faturamento ou DEC/FEC?"
+            "Qual assunto consultar primeiro: consumo, faturamento, atendimento ou DEC/FEC?"
         ),
         "unsupported_breakdown": (
             "Ainda não separo o resultado por {dimension}. Posso mostrar o total do período."
