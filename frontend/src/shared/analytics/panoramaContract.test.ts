@@ -42,6 +42,7 @@ function response(periodo = filters.periodo) {
     "ucsAtivas",
     "continuidadeDec",
     "continuidadeFec",
+    "ucsFaturadasNoMes",
   ];
   for (const key of keys) metricas[key] = goldMetric(key, "unavailable", null);
   metricas.receitaFaturada = goldMetric("rec_fat", "available", 0);
@@ -93,7 +94,7 @@ function response(periodo = filters.periodo) {
       },
       limitations: ["Fechamento mensal não declarado"],
       temporal_scope: "monthly",
-      schema_version: "gold-csv-v1",
+      schema_version: "gold-csv-v2",
       fingerprint: "a".repeat(64),
     },
   };
@@ -118,5 +119,16 @@ describe("decodePanorama Gold v2", () => {
     expect(
       decodePanorama(response("2026-05"), filters, true).filtros.periodo,
     ).toBe("2026-05");
+  });
+
+  it("recusa esquema antigo e metadados de filtros divergentes", () => {
+    const oldSchema = response();
+    oldSchema.metadata.schema_version = "gold-csv-v1";
+    expect(() => decodePanorama(oldSchema, filters)).toThrow();
+
+    const mismatchedFilter = response();
+    (mismatchedFilter.metadata.filters as Record<string, unknown>).municipio =
+      "Recife";
+    expect(() => decodePanorama(mismatchedFilter, filters)).toThrow();
   });
 });

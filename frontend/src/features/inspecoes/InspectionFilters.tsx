@@ -187,11 +187,16 @@ export default function InspectionFilters({
             <select
               name="order_by"
               className={inspectionControl}
-              value={draft.get("order_by") ?? (gold ? "uc_id" : "priority")}
+              value={
+                draft.get("order_by") ?? (gold ? "queue_position" : "priority")
+              }
               onChange={(event) => updateDraft("order_by", event.target.value)}
             >
               {gold ? (
                 <>
+                  <option value="queue_position">
+                    Posição oficial da fila
+                  </option>
                   <option value="uc_id">Número da UC</option>
                   <option value="category">Categoria Gold</option>
                 </>
@@ -211,7 +216,7 @@ export default function InspectionFilters({
             <select
               name="direction"
               className={inspectionControl}
-              value={draft.get("direction") ?? "desc"}
+              value={draft.get("direction") ?? (gold ? "asc" : "desc")}
               onChange={(event) => updateDraft("direction", event.target.value)}
             >
               <option value="desc">Decrescente</option>

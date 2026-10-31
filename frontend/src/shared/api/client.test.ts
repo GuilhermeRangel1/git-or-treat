@@ -55,7 +55,7 @@ describe("fronteira HTTP", () => {
       status: "partial",
       period: null,
       temporal_scope: "snapshot",
-      schema_version: "gold-csv-v1",
+      schema_version: "gold-csv-v2",
       fingerprint: "a".repeat(64),
       filters: {
         municipio: null,
@@ -117,7 +117,7 @@ describe("fronteira HTTP", () => {
             status: "empty",
             period: null,
             temporal_scope: "snapshot",
-            schema_version: "gold-csv-v1",
+            schema_version: "gold-csv-v2",
             fingerprint: "a".repeat(64),
             filters: {
               municipio: null,

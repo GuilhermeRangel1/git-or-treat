@@ -49,6 +49,7 @@ export function queueQuery(params: URLSearchParams): {
         "uc_id",
         "potential_recoverable_energy_kwh",
         "category",
+        "queue_position",
       ].includes(order)) ||
     (direction !== null && !["asc", "desc"].includes(direction))
   )

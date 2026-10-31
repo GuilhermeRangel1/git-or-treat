@@ -87,6 +87,7 @@ function ItemCard({
 
 function goldEvidence(item: GoldInspectionItem) {
   const evidence = item.evidence;
+  const text = (value: string | null) => value ?? "indisponível";
   return [
     evidence.inspections_performed === null
       ? "Inspeções realizadas: indisponível"
@@ -97,8 +98,15 @@ function goldEvidence(item: GoldInspectionItem) {
     evidence.historical_average_kwh_per_reading === null
       ? "Média histórica: indisponível"
       : `Média histórica: ${formatNumber(evidence.historical_average_kwh_per_reading)} kWh/leitura`,
-    evidence.cadastral_status ? `Cadastro: ${evidence.cadastral_status}` : null,
-  ].filter((value): value is string => value !== null);
+    `Geração distribuída: ${text(evidence.distributed_generation_present)}`,
+    `Situação cadastral: ${text(evidence.cadastral_status)}`,
+    evidence.call_center_contacts === null
+      ? "Contatos ao atendimento: indisponível"
+      : `Contatos ao atendimento: ${formatNumber(evidence.call_center_contacts)}`,
+    evidence.interruptions === null
+      ? "Interrupções: indisponível"
+      : `Interrupções: ${formatNumber(evidence.interruptions)}`,
+  ];
 }
 
 function GoldItemCard({
@@ -115,6 +123,9 @@ function GoldItemCard({
       className="rounded-lg border border-border bg-surface p-4"
     >
       <p className="text-xs text-muted">UC / categoria Gold</p>
+      <p className="mt-1 text-xs text-muted">
+        Posição oficial na fila: {item.queue_position}
+      </p>
       <h3 className="mt-1 font-heading text-lg leading-[26px] font-semibold">
         {item.uc_id} / {item.category ?? "Sem categoria"}
       </h3>
@@ -156,9 +167,10 @@ export default function InspectionQueue({
   const { items } = result.data;
   const page = result.pagination;
   const gold = result.metadata.contract_version === "2.0.0";
-  const field = params.get("order_by") ?? (gold ? "uc_id" : "priority");
-  const direction = params.get("direction") ?? "desc";
-  const sortDescription = `${gold ? (field === "category" ? "Categoria Gold" : "Número da UC") : field === "priority" ? "Prioridade demonstrativa" : field === "uc_id" ? "Número da UC" : "Energia estimada"} ${direction === "desc" ? "decrescente" : "crescente"}`;
+  const field =
+    params.get("order_by") ?? (gold ? "queue_position" : "priority");
+  const direction = params.get("direction") ?? (gold ? "asc" : "desc");
+  const sortDescription = `${gold ? (field === "category" ? "Categoria Gold" : field === "uc_id" ? "Número da UC" : "Posição oficial da fila") : field === "priority" ? "Prioridade demonstrativa" : field === "uc_id" ? "Número da UC" : "Energia estimada"} ${direction === "desc" ? "decrescente" : "crescente"}`;
 
   function goTo(number: number) {
     const next = new URLSearchParams(params);
@@ -211,7 +223,7 @@ export default function InspectionQueue({
                   <thead className="font-mono text-xs leading-[18px] text-muted">
                     <tr>
                       {[
-                        "UC / categoria Gold",
+                        "Posição / UC / categoria Gold",
                         "Motivo",
                         "Evidências publicadas",
                         "Energia recuperável",
@@ -237,6 +249,10 @@ export default function InspectionQueue({
                           scope="row"
                           className="break-words px-3 py-3 text-left font-normal"
                         >
+                          <p className="mb-1 text-xs text-muted">
+                            Posição oficial na fila: {item.queue_position}
+                          </p>
+                          <br />
                           {item.uc_id}
                           <br />
                           {item.category ?? "Sem categoria"}
@@ -269,7 +285,11 @@ export default function InspectionQueue({
               </div>
               <p className="text-xs leading-5 text-muted">
                 Ordenação por{" "}
-                {field === "category" ? "texto da categoria" : "UC"}{" "}
+                {field === "category"
+                  ? "texto da categoria"
+                  : field === "queue_position"
+                    ? "posição oficial da fila"
+                    : "UC"}{" "}
                 {direction === "desc" ? "decrescente" : "crescente"}. Ela não
                 define prioridade de despacho.
               </p>

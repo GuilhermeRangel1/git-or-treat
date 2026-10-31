@@ -106,6 +106,8 @@ export function decodePanorama(
     metadata?.source.kind !== "gold" ||
     metadata.source.is_demo ||
     !metadata.fingerprint ||
+    metadata.schema_version !== "gold-csv-v2" ||
+    metadata.temporal_scope !== "monthly" ||
     applied.comparacao !== filters.comparacao ||
     applied.municipio !== filters.municipio ||
     applied.classe !== filters.classe ||
@@ -127,10 +129,24 @@ export function decodePanorama(
   )
     fail();
 
+  if (gold) {
+    if (!metadata) return fail();
+    const expectedMunicipio =
+      applied.municipio === "todos" ? null : applied.municipio;
+    const expectedClasse = applied.classe === "todas" ? null : applied.classe;
+    if (
+      metadata.filters.municipio !== expectedMunicipio ||
+      metadata.filters.classe !== expectedClasse ||
+      metadata.status !==
+        ((data.totalRegistros as number) > 0 ? "partial" : "empty")
+    )
+      fail();
+  }
+
   const decodedMetrics: Record<string, KpiMetric> = {};
   for (const key of metricKeys)
     decodedMetrics[key] = decodeMetric(metrics[key], gold);
-  if (gold && metrics.ucsFaturadasNoMes !== undefined)
+  if (gold)
     decodedMetrics.ucsFaturadasNoMes = decodeMetric(
       metrics.ucsFaturadasNoMes,
       true,

@@ -9,6 +9,7 @@ export default function CreateOrder({
   uc,
   sourceVersion,
   sourceFingerprint,
+  requireSourceFingerprint = false,
   ruleVersion,
   disabled,
   onRefresh,
@@ -16,6 +17,7 @@ export default function CreateOrder({
   uc: string;
   sourceVersion?: string;
   sourceFingerprint?: string;
+  requireSourceFingerprint?: boolean;
   ruleVersion?: string;
   disabled: boolean;
   onRefresh: () => void;
@@ -72,7 +74,11 @@ export default function CreateOrder({
   const staleError = ["stale_suspicion", "stale_batch", "stale_rule"].includes(
     errorCode ?? "",
   );
-  const evidenceReady = Boolean(sourceVersion && ruleVersion);
+  const evidenceReady = Boolean(
+    sourceVersion &&
+    ruleVersion &&
+    (!requireSourceFingerprint || sourceFingerprint),
+  );
   const evidenceChanged = Boolean(
     intent &&
     (intent.sourceVersion !== sourceVersion ||
@@ -80,7 +86,9 @@ export default function CreateOrder({
       intent.ruleVersion !== ruleVersion),
   );
   const makeIntent = (): OrderIntent | null =>
-    sourceVersion && ruleVersion
+    sourceVersion &&
+    ruleVersion &&
+    (!requireSourceFingerprint || sourceFingerprint)
       ? {
           key: crypto.randomUUID(),
           uc,

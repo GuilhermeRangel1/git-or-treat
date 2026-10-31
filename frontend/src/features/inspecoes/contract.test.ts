@@ -14,10 +14,11 @@ const metadata = {
   },
   limitations: ["Snapshot cadastral."],
   temporal_scope: "snapshot",
-  schema_version: "gold-csv-v1",
+  schema_version: "gold-csv-v2",
   fingerprint: "a".repeat(64),
 };
 const goldItem = {
+  queue_position: 7,
   uc_id: "UC-123",
   municipality: "Recife",
   neighborhood: null,
@@ -82,6 +83,7 @@ describe("contrato Gold da fila de inspeções", () => {
     });
     expect(decoded.data.items[0]).toMatchObject({
       category: "REVISAR",
+      queue_position: 7,
       potential_recoverable_energy_kwh: null,
       recovery_unavailable_reason:
         "A Gold não publica estimativa de recuperação.",
@@ -102,9 +104,103 @@ describe("contrato Gold da fila de inspeções", () => {
 
     expect(decoded.data).toMatchObject({
       category: "REVISAR",
+      queue_position: 7,
       rule_version: "gold-fila-inspecao-v1",
       variation: { variation_kwh: null, variation_pct: null },
       evidence: { confirmed_irregular_inspections: null },
     });
+  });
+
+  it("requires a positive integer queue position in Gold details", () => {
+    expect(() =>
+      decodeDetail({
+        data: {
+          ...goldItem,
+          queue_position: -1,
+          rule_version: "gold-fila-inspecao-v1",
+          limitations: [],
+        },
+        metadata,
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeDetail({
+        data: {
+          ...goldItem,
+          queue_position: 0,
+          rule_version: "gold-fila-inspecao-v1",
+          limitations: [],
+        },
+        metadata,
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeDetail({
+        data: {
+          ...goldItem,
+          queue_position: 1.5,
+          rule_version: "gold-fila-inspecao-v1",
+          limitations: [],
+        },
+        metadata,
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeDetail({
+        data: {
+          ...goldItem,
+          queue_position: undefined,
+          rule_version: "gold-fila-inspecao-v1",
+          limitations: [],
+        },
+        metadata,
+      }),
+    ).toThrow();
+  });
+
+  it("accepts negative variation while rejecting negative source values", () => {
+    const variation = {
+      ...goldItem.variation,
+      p1_months_observed: 1,
+      p1_average_kwh_per_month: 100,
+      p2_months_observed: 1,
+      p2_average_kwh_per_month: 80,
+      variation_kwh: -20,
+      variation_pct: -20,
+    };
+    const decoded = decodeDetail({
+      data: {
+        ...goldItem,
+        variation,
+        rule_version: "gold-fila-inspecao-v1",
+        limitations: [],
+      },
+      metadata,
+    });
+
+    expect(
+      "variation" in decoded.data ? decoded.data.variation : undefined,
+    ).toMatchObject({
+      variation_kwh: -20,
+      variation_pct: -20,
+    });
+    for (const field of [
+      "p1_months_observed",
+      "p1_average_kwh_per_month",
+      "p2_months_observed",
+      "p2_average_kwh_per_month",
+    ] as const) {
+      expect(() =>
+        decodeDetail({
+          data: {
+            ...goldItem,
+            variation: { ...variation, [field]: -1 },
+            rule_version: "gold-fila-inspecao-v1",
+            limitations: [],
+          },
+          metadata,
+        }),
+      ).toThrow();
+    }
   });
 });

@@ -13,7 +13,7 @@ export type GoldMetadata = {
   source: { kind: "gold"; version: string; is_demo: false; updated_at: string };
   limitations: string[];
   temporal_scope: "monthly" | "snapshot";
-  schema_version: string;
+  schema_version: "gold-csv-v2";
   fingerprint: string;
 };
 
@@ -46,8 +46,7 @@ export function decodeGoldMetadata(value: unknown): GoldMetadata {
     !source.version.trim() ||
     typeof source.updated_at !== "string" ||
     !Number.isFinite(Date.parse(source.updated_at)) ||
-    typeof value.schema_version !== "string" ||
-    !value.schema_version.trim() ||
+    value.schema_version !== "gold-csv-v2" ||
     typeof value.fingerprint !== "string" ||
     !/^[a-f0-9]{64}$/.test(value.fingerprint) ||
     !["available", "empty", "partial", "unavailable"].includes(

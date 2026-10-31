@@ -121,7 +121,7 @@ function goldPanorama(filters: {
       },
       limitations: ["Fechamento mensal não declarado."],
       temporal_scope: "monthly",
-      schema_version: "gold-csv-v1",
+      schema_version: "gold-csv-v2",
       fingerprint,
     },
   };

@@ -29,7 +29,7 @@ const goldMetadata = {
   },
   limitations: [],
   temporal_scope: "monthly",
-  schema_version: "gold-csv-v1",
+  schema_version: "gold-csv-v2",
   fingerprint: "a".repeat(64),
 };
 const goldDefinition = {
@@ -138,6 +138,54 @@ describe("contratos de Operação", () => {
     );
     expect(detail.data.occurrences).toBeNull();
     expect(detail.data.summary.fec_status).toBe("unavailable");
+  });
+  it("preserva zero conhecido e recusa schema físico anterior ao v2", () => {
+    const response = {
+      metadata: goldMetadata,
+      data: {
+        items: [
+          {
+            ...goldPoint,
+            duration_hours_sum: 0,
+            interruption_count: 0,
+            dec_hours_per_uc: 0,
+            fec_interruptions_per_uc: 0,
+            status: "available",
+            dec_status: "available",
+            fec_status: "available",
+            rank: 1,
+          },
+        ],
+        excluded: [],
+        metric: "dec",
+        order: "DEC descendente",
+        definition: goldDefinition,
+      },
+    };
+    const decoded = decodeGoldOperationRanking(response, "dec", {
+      start: "2025-01",
+      end: "2025-02",
+      feederId: null,
+      municipality: null,
+    });
+    expect(decoded.data.items[0].dec_hours_per_uc).toBe(0);
+    expect(decoded.data.items[0].fec_interruptions_per_uc).toBe(0);
+
+    expect(() =>
+      decodeGoldOperationRanking(
+        {
+          ...response,
+          metadata: { ...goldMetadata, schema_version: "gold-csv-v1" },
+        },
+        "dec",
+        {
+          start: "2025-01",
+          end: "2025-02",
+          feederId: null,
+          municipality: null,
+        },
+      ),
+    ).toThrow(/Metadados Gold inválidos/);
   });
   it("decodifica summary parcial canônico, preservando valores e exclusões", () => {
     expect(decodeOperationSummary(summaryFixture)).toEqual(summaryFixture);

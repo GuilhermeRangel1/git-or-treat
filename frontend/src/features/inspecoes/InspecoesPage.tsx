@@ -276,6 +276,9 @@ export default function InspecoesPage() {
               ? detail.data.metadata.fingerprint
               : undefined
           }
+          requireSourceFingerprint={
+            detail.data?.metadata.contract_version === "2.0.0"
+          }
           ruleVersion={detail.data?.data.rule_version}
           disabled={
             !detail.data ||

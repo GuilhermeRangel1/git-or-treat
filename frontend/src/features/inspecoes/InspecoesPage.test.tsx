@@ -139,10 +139,11 @@ const goldMetadata = {
   },
   limitations: ["A fila é um snapshot cadastral."],
   temporal_scope: "snapshot",
-  schema_version: "gold-csv-v1",
+  schema_version: "gold-csv-v2",
   fingerprint: "a".repeat(64),
 };
 const goldItem = {
+  queue_position: 7,
   uc_id: "UC-GOLD",
   municipality: "Recife",
   neighborhood: null,
@@ -239,15 +240,28 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   mount("/inspecoes", client);
 
   expect(
-    await screen.findByRole("columnheader", { name: "UC / categoria Gold" }),
+    await screen.findByRole("columnheader", {
+      name: "Posição / UC / categoria Gold",
+    }),
   ).toBeVisible();
   expect(screen.getByText("UC-GOLD / REVISAR")).toBeVisible();
+  expect(screen.getAllByText("Posição oficial na fila: 7")).toHaveLength(2);
+  expect(
+    screen.getAllByText(/Contatos ao atendimento: indisponível/),
+  ).toHaveLength(2);
   expect(
     screen.queryByText(/Diferença observada não é estimativa/),
   ).not.toBeInTheDocument();
   expect(
     screen.queryByText("Prioridade demonstrativa"),
   ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  expect(screen.getByLabelText("Ordenar por")).toHaveValue("queue_position");
+  expect(screen.getByLabelText("Direção")).toHaveValue("asc");
+  expect(
+    screen.getByRole("option", { name: "Posição oficial da fila" }),
+  ).toBeInTheDocument();
+  await user.keyboard("{Escape}");
   await user.click(
     screen.getAllByRole("link", { name: "Ver evidência de UC-GOLD" })[0],
   );
@@ -264,6 +278,16 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   const post = fetch.mock.calls.find(
     ([, options]) => options?.method === "POST",
   );
+  const analyticGets = fetch.mock.calls.filter(
+    ([url, options]) =>
+      options?.method !== "POST" && String(url).includes("/queue/UC-GOLD"),
+  );
+  expect(analyticGets.length).toBeGreaterThan(0);
+  for (const [url] of analyticGets) {
+    const request = new URL(String(url), window.location.origin);
+    expect(request.searchParams.has("expected_lote")).toBe(true);
+    expect(request.searchParams.has("expected_fingerprint")).toBe(true);
+  }
   expect(JSON.parse(post?.[1]?.body as string)).toMatchObject({
     source_version: "gold-batch",
     source_fingerprint: "a".repeat(64),

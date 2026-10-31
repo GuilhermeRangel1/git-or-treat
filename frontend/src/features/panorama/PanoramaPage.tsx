@@ -232,7 +232,11 @@ export default function PanoramaPage() {
             />
             <PanoramaMetricCard
               metric={data.metricas.ucsAtivas}
-              title="Base de UCs"
+              title={
+                data.origem?.kind === "gold"
+                  ? "UCs cadastradas no lote"
+                  : "Base de UCs"
+              }
               period={filters.periodo}
               comparison={filters.comparacao}
               comparisonUnavailable={comparisonUnavailable}

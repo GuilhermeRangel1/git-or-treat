@@ -42,6 +42,7 @@ export type GoldInspectionVariation = {
   drop_over_30_pct: boolean | null;
 };
 export type GoldInspectionItem = {
+  queue_position: number;
   uc_id: string;
   municipality: string | null;
   neighborhood: string | null;
@@ -141,6 +142,13 @@ function number(value: unknown): number {
 }
 function nullable(value: unknown): number | null {
   return value === null ? null : number(value);
+}
+function nullableSigned(value: unknown): number | null {
+  return value === null
+    ? null
+    : typeof value === "number" && Number.isFinite(value)
+      ? value
+      : invalid();
 }
 function strings(value: unknown): string[] {
   if (!Array.isArray(value)) invalid();
@@ -243,14 +251,16 @@ function goldVariation(value: unknown): GoldInspectionVariation {
     p2_end,
     p2_months_observed: months(row.p2_months_observed),
     p2_average_kwh_per_month: average(row.p2_average_kwh_per_month),
-    variation_kwh: nullable(row.variation_kwh),
-    variation_pct: nullable(row.variation_pct),
+    variation_kwh: nullableSigned(row.variation_kwh),
+    variation_pct: nullableSigned(row.variation_pct),
     drop_over_30_pct: row.drop_over_30_pct as boolean | null,
   };
 }
 function goldItem(value: unknown): GoldInspectionItem {
   const row = record(value);
   if (row.potential_recoverable_energy_kwh !== null) invalid();
+  const queue_position = number(row.queue_position);
+  if (!Number.isSafeInteger(queue_position) || queue_position < 1) invalid();
   const evidence = record(row.evidence);
   const nullableNonNegative = (candidate: unknown) => {
     const result = nullable(candidate);
@@ -265,6 +275,7 @@ function goldItem(value: unknown): GoldInspectionItem {
   )
     invalid();
   return {
+    queue_position,
     uc_id: string(row.uc_id),
     municipality: nullableText(row.municipality),
     neighborhood: nullableText(row.neighborhood),

@@ -157,7 +157,11 @@ export function decodeOperationOptions(value: unknown): OperationOptions {
     throw new Error("Opções de operação inválidas.");
   const root = value as Record<string, unknown>;
   const metadata = decodeGoldMetadata(root.metadata);
-  if (metadata.temporal_scope !== "snapshot" || metadata.period !== null)
+  if (
+    metadata.schema_version !== "gold-csv-v2" ||
+    metadata.temporal_scope !== "snapshot" ||
+    metadata.period !== null
+  )
     throw new Error("Metadados de opções Gold inválidos.");
   const data = root.data as Record<string, unknown> | undefined;
   if (

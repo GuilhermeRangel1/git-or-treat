@@ -24,6 +24,11 @@ function stateLabel(state: string) {
 function value(value: number | null, unit: string) {
   return value === null ? "Indisponível" : `${formatNumber(value)} ${unit}`;
 }
+function base(value: number | null) {
+  if (value === null) return "Indisponível";
+  if (value <= 0) return `${formatNumber(value, 0)} UCs · inválido`;
+  return `${formatNumber(value, 0)} UCs`;
+}
 
 export default function GoldOperationView({
   summary,
@@ -126,7 +131,7 @@ export default function GoldOperationView({
               </p>
               <p className="text-sm text-muted">
                 Numerador {value(selected.duration_hours_sum, "h")} · base{" "}
-                {value(selected.denominator_uc_count, "UCs")}
+                {base(selected.denominator_uc_count)}
               </p>
             </article>
             <article className="rounded-lg border border-border p-4">
@@ -136,7 +141,7 @@ export default function GoldOperationView({
               </p>
               <p className="text-sm text-muted">
                 Numerador {value(selected.interruption_count, "registros")} ·
-                base {value(selected.denominator_uc_count, "UCs")}
+                base {base(selected.denominator_uc_count)}
               </p>
             </article>
           </div>
@@ -161,7 +166,7 @@ export default function GoldOperationView({
                     <th>{formatMonth(p.period.start)}</th>
                     <td>{value(p.dec_hours_per_uc, "")}</td>
                     <td>{value(p.fec_interruptions_per_uc, "")}</td>
-                    <td>{value(p.denominator_uc_count, "UCs")}</td>
+                    <td>{base(p.denominator_uc_count)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -209,6 +214,24 @@ export default function GoldOperationView({
           ) : null}
           {s ? (
             <section aria-label="Resumo de continuidade" className="grid gap-4">
+              {s.status === "empty" ? (
+                <p
+                  role="status"
+                  className="rounded-xl bg-surface p-4 text-sm text-muted"
+                >
+                  Nenhum alimentador foi encontrado na publicação para este
+                  recorte. Isso não representa indicadores iguais a zero.
+                </p>
+              ) : null}
+              {s.status === "unavailable" ? (
+                <p
+                  role="status"
+                  className="rounded-xl bg-surface p-4 text-sm text-muted"
+                >
+                  O consolidado não está disponível para este recorte. Consulte
+                  os estados DEC e FEC e as limitações informadas pela fonte.
+                </p>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <article className="rounded-xl bg-surface p-5">
                   <h2>DEC · {stateLabel(s.dec_status)}</h2>
@@ -217,7 +240,7 @@ export default function GoldOperationView({
                   </p>
                   <p className="text-sm text-muted">
                     Numerador {value(s.duration_hours_sum, "h")} · base{" "}
-                    {value(s.dec_denominator_uc_count, "UCs")}
+                    {base(s.dec_denominator_uc_count)}
                   </p>
                   <p className="text-xs text-muted">
                     Incluídos:{" "}
@@ -233,7 +256,7 @@ export default function GoldOperationView({
                   </p>
                   <p className="text-sm text-muted">
                     Numerador {value(s.interruption_count, "registros")} · base{" "}
-                    {value(s.fec_denominator_uc_count, "UCs")}
+                    {base(s.fec_denominator_uc_count)}
                   </p>
                   <p className="text-xs text-muted">
                     Incluídos:{" "}
@@ -312,86 +335,93 @@ export default function GoldOperationView({
               </p>
             ) : null}
             {ranking ? (
-              <div className="overflow-x-auto">
-                <table
-                  aria-label="Ranking de alimentadores"
-                  className="w-full min-w-[600px] text-left text-sm"
-                >
-                  <thead>
-                    <tr>
-                      <th>Pos.</th>
-                      <th>Alimentador</th>
-                      <th>Município</th>
-                      <th>DEC</th>
-                      <th>FEC</th>
-                      <th>Base</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      ...ranking.data.items.map((p) => ({
-                        ...p,
-                        ranked: true,
-                      })),
-                      ...ranking.data.excluded.map((p) => ({
-                        ...p,
-                        rank: null,
-                        ranked: false,
-                      })),
-                    ].map((p) => (
-                      <Fragment key={p.feeder_id}>
-                        <tr
-                          key={p.feeder_id}
-                          className="border-t border-border"
-                        >
-                          <td>{p.rank ?? "—"}</td>
-                          <th>{p.feeder_id}</th>
-                          <td>{p.municipality || "não informado"}</td>
-                          <td>
-                            {value(p.dec_hours_per_uc, "h/UC")}
-                            <small className="block text-xs text-muted">
-                              {stateLabel(p.dec_status)}
-                            </small>
-                          </td>
-                          <td>
-                            {value(p.fec_interruptions_per_uc, "int./UC")}
-                            <small className="block text-xs text-muted">
-                              {stateLabel(p.fec_status)}
-                            </small>
-                          </td>
-                          <td>{value(p.denominator_uc_count, "UCs")}</td>
-                          <td>
-                            <Link
-                              to={`?${(() => {
-                                const params = new URLSearchParams(search);
-                                params.set("feeder_id", p.feeder_id);
-                                params.delete("page");
-                                return params.toString();
-                              })()}`}
-                              className="underline"
-                            >
-                              Investigar
-                            </Link>
-                          </td>
-                        </tr>
-                        <tr
-                          key={`${p.feeder_id}-limitations`}
-                          className="border-b border-border"
-                        >
-                          <td
-                            colSpan={7}
-                            className="px-2 pb-2 text-xs text-muted"
+              ranking.data.items.length === 0 &&
+              ranking.data.excluded.length === 0 ? (
+                <p role="status" className="text-sm text-muted">
+                  Nenhum alimentador foi retornado para este recorte.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table
+                    aria-label="Ranking de alimentadores"
+                    className="w-full min-w-[600px] text-left text-sm"
+                  >
+                    <thead>
+                      <tr>
+                        <th>Pos.</th>
+                        <th>Alimentador</th>
+                        <th>Município</th>
+                        <th>DEC</th>
+                        <th>FEC</th>
+                        <th>Base</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ...ranking.data.items.map((p) => ({
+                          ...p,
+                          ranked: true,
+                        })),
+                        ...ranking.data.excluded.map((p) => ({
+                          ...p,
+                          rank: null,
+                          ranked: false,
+                        })),
+                      ].map((p) => (
+                        <Fragment key={p.feeder_id}>
+                          <tr
+                            key={p.feeder_id}
+                            className="border-t border-border"
                           >
-                            {p.limitations.join(" ") ||
-                              "Sem limitações adicionais informadas."}
-                          </td>
-                        </tr>
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            <td>{p.rank ?? "—"}</td>
+                            <th>{p.feeder_id}</th>
+                            <td>{p.municipality || "não informado"}</td>
+                            <td>
+                              {value(p.dec_hours_per_uc, "h/UC")}
+                              <small className="block text-xs text-muted">
+                                {stateLabel(p.dec_status)}
+                              </small>
+                            </td>
+                            <td>
+                              {value(p.fec_interruptions_per_uc, "int./UC")}
+                              <small className="block text-xs text-muted">
+                                {stateLabel(p.fec_status)}
+                              </small>
+                            </td>
+                            <td>{base(p.denominator_uc_count)}</td>
+                            <td>
+                              <Link
+                                to={`?${(() => {
+                                  const params = new URLSearchParams(search);
+                                  params.set("feeder_id", p.feeder_id);
+                                  params.delete("page");
+                                  return params.toString();
+                                })()}`}
+                                className="underline"
+                              >
+                                Investigar
+                              </Link>
+                            </td>
+                          </tr>
+                          <tr
+                            key={`${p.feeder_id}-limitations`}
+                            className="border-b border-border"
+                          >
+                            <td
+                              colSpan={7}
+                              className="px-2 pb-2 text-xs text-muted"
+                            >
+                              {p.limitations.join(" ") ||
+                                "Sem limitações adicionais informadas."}
+                            </td>
+                          </tr>
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             ) : null}
           </section>
         </>

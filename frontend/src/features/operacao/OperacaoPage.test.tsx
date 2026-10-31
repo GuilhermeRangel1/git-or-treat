@@ -671,7 +671,7 @@ it("navega do ranking Gold ao detalhe agregado e retorna preservando filtros", a
     },
     limitations: [],
     temporal_scope: period ? "monthly" : "snapshot",
-    schema_version: "gold-csv-v1",
+    schema_version: "gold-csv-v2",
     fingerprint,
   });
   const windowPeriod = {
@@ -806,4 +806,20 @@ it("navega do ranking Gold ao detalhe agregado e retorna preservando filtros", a
   expect(screen.getByLabelText("URL atual")).toHaveTextContent(
     "municipio=Recife",
   );
+  const guardedQueries = fetch.mock.calls
+    .map(([input]) => new URL(String(input), window.location.origin))
+    .filter(
+      (url) =>
+        ["summary", "ranking"].some((route) =>
+          url.pathname.endsWith(`/operations/${route}`),
+        ) || url.pathname.includes("/operations/feeders/"),
+    );
+  expect(guardedQueries.length).toBeGreaterThan(0);
+  expect(
+    guardedQueries.every(
+      (url) =>
+        url.searchParams.get("expected_lote") === "ui-navigation-batch" &&
+        url.searchParams.get("expected_fingerprint") === fingerprint,
+    ),
+  ).toBe(true);
 });

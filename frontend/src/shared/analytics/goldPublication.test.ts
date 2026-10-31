@@ -15,7 +15,7 @@ const metadata = () =>
     status: "partial",
     period: null,
     temporal_scope: "snapshot",
-    schema_version: "gold-csv-v1",
+    schema_version: "gold-csv-v2",
     fingerprint: "a".repeat(64),
     filters: { municipio: null, bairro: null, classe: null, alimentador: null },
     source: {
@@ -56,6 +56,7 @@ describe("Gold publication coherence", () => {
   it("rejects unknown versions, invalid identities and a dated snapshot", () => {
     for (const change of [
       { contract_version: "9" },
+      { schema_version: "gold-csv-v1" },
       { fingerprint: "" },
       { period: { start: "2026-01", end: "2026-01", granularity: "month" } },
     ]) {

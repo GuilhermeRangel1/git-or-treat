@@ -52,7 +52,7 @@ it("preserva alimentadores Gold sem município cadastrado nas opções", () => {
       },
       limitations: [],
       temporal_scope: "snapshot",
-      schema_version: "gold-csv-v1",
+      schema_version: "gold-csv-v2",
       fingerprint: "d".repeat(64),
     },
   });
@@ -81,7 +81,7 @@ describe("consultas de Operação", () => {
       },
       limitations: [],
       temporal_scope: "monthly",
-      schema_version: "gold-csv-v1",
+      schema_version: "gold-csv-v2",
       fingerprint: "b".repeat(64),
     };
     const point = {

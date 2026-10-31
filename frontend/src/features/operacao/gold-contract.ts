@@ -128,7 +128,12 @@ function period(v: unknown, path: string): GoldOperationPoint["period"] {
   return { start, end, granularity: "month" };
 }
 function metadata(v: unknown): GoldMetadata {
-  return decodeGoldMetadata(v);
+  const parsed = decodeGoldMetadata(v);
+  if (parsed.schema_version !== "gold-csv-v2")
+    return fail("metadata.schema_version");
+  if (parsed.temporal_scope !== "monthly")
+    return fail("metadata.temporal_scope");
+  return parsed;
 }
 function point(v: unknown, path: string): GoldOperationPoint {
   if (!isObject(v)) return fail(path);
