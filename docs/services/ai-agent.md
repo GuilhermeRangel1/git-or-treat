@@ -172,6 +172,10 @@ O leitor valida colunas e contagem do resultado artificial antes do registro de 
 
 Quando a política de acesso ou o catálogo artificial recusam o plano antes da montagem de SQL, o leitor gera um único registro de recusa com motivo fixo, sem SQL, impressão do plano, filtros ou detalhes da exceção. O serviço SQL e o executor não são chamados. Esse registro local ainda não oferece correlação externa segura com a requisição do portal nem política de retenção para produção.
 
+Além do catálogo artificial, `ai-agent/app/sql/dictionary_gold.toml` declara as 7 tabelas reais da Gold v1 com os nomes de [`docs/dicionario_gold.md`](../dicionario_gold.md) e os tipos e chaves de `backend/app/models/gold_v1.py`. Ele inclui grão, chave, métricas com unidade e agregação, dimensões, colunas anuláveis e um mapeamento único conceito → coluna para nomes diferentes entre tabelas (`possui_gd`/`possui_geracao_solar`, `classe_consumo`/`classe`, `subgrupo_tarifario`/`subgrupo`, `id_alimentador`/`alimentador`). Colunas pessoais, mesmo mascaradas (`cpf_cnpj`, `nome_titular`, `logradouro`, `numero`, `cep`, `latitude`, `longitude`), e metadados de pipeline com prefixo `_` não são expostos e são recusados em qualquer identificador. Os testes usam um SQLite sintético com nomes e tipos reais (`ai-agent/tests/gold_mock.py`) e conferem o dicionário com um snapshot, com o dicionário de dados e com o modelo do Backend. O validador não impede `JOIN` entre tabelas sem relacionamento declarado; o limite está fixado por teste `xfail` estrito. Nenhuma composição da aplicação carrega este dicionário.
+
+O [catálogo Gold](../gold-catalog.md) (GENAI-03) separa os dois lados da fronteira semântica. `app/profiles/grid360_gold.py` é o perfil lógico usado pelo núcleo, sem nomes físicos. `app/profiles/grid360_gold_mapping.py` é o mapeamento versionado de cada métrica para tabela, coluna, fórmula e capacidade da prontidão. Nenhum dos dois está ligado a `app/main.py`. Detalhes, exclusões e o roteiro para acrescentar tabelas estão no [guia da borda SQL](../../ai-agent/app/sql/README.md#dicionário-da-gold-v1-dictionary_goldtoml).
+
 O serviço recusa objetos `ValidatedQuery` usados como entrada no lugar de SQL textual. Os executores SQLite e PostgreSQL revalidam o SQL de cada objeto contra o dicionário injetado antes da conexão, incluindo versão e limite. Isso impede que uma instância fabricada leia objeto fora da lista permitida, mas não comprova autorização do plano: uma chamada direta ao executor ainda evita a política do leitor e a auditoria do serviço. O banco real precisará de credencial restrita e da composição aprovada para fechar essa fronteira.
 
 ### Proteção da evidência e da resposta
@@ -405,3 +409,13 @@ A fábrica atual injeta `evaluate_readiness` em `POST /api/v1/internal/gold-read
 ### Controles adicionais recebidos do Backend — GENAI-02
 
 A operação interna de prontidão existente recebe os resultados observados de receita, consumo e continuidade pela mesma versão v2. Não executa SQL nem recalcula medidas; exige sucesso, aceite explícito e identidade de publicação, além de cobertura fechada do recorte. Testes HTTP cobrem controle falho, não aprovado, antigo e período não fechado, preservando atendimento independente. O relatório permanece separado das perguntas e insights públicos.
+
+
+### Catálogo Gold v2 em adaptação
+
+Os módulos correntes `grid360_gold` e `grid360_gold_mapping` referenciam Gold CSV v2 e prontidão v2; os módulos `_v1` conservam a compatibilidade histórica explicitamente. O dicionário SQL de sete tabelas do PR #46 continua legado e não é a referência física da fonte atual. A primeira fatia é validada contra as quinze tabelas `gold_v2` do Backend por teste em processo separado e pelo planejador público, sem executar evidência ou LLM. O perfil lógico não importa o mapeamento físico. Esta preparação não compõe a consulta Gold implantada; [estado do catálogo](../gold-catalog.md) registra o que falta de atendimento e distribuição do mapeamento ao Backend.
+
+
+### Atendimento e catálogo consumível pelo Backend
+
+O perfil Gold v2 acrescenta contagem de chamados e satisfação, mensais por abertura UTC ou acumuladas sem período conhecido. Média usa notas individuais válidas; zero e nulo são distintos. `accumulated_period_phrases` restringe o acumulado na construção e revalidação do plano, sem alterar o envelope de janela v1. A disponibilização do mapeamento ao Backend ocorre por artefato JSON local validado e confrontado em testes entre serviços; o núcleo lógico continua sem importar tabelas ou SQL. Onze métricas estão declaradas; isso não ativa a consulta Gold implantada. Veja [semântica e fronteiras](../gold-catalog.md).

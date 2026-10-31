@@ -17,6 +17,7 @@ from app.schemas.domain_profile import (
     DomainProfile,
     FilterOperator,
     FilterValueType,
+    MetricDefinition,
 )
 from app.schemas.read_plan import (
     LogicalReadPlan,
@@ -61,6 +62,7 @@ class ReadPlanBuilder:
                 "Não há uma janela aprovada para esse período; reformule a consulta."
             )
 
+        _validate_metric_period(metric, intent.period_phrase, self._profile)
         dimensions = {item.id: item for item in self._profile.dimensions}
         selected_ids = set(intent.dimension_ids)
         filters: dict[str, ReadFilter] = {}
@@ -95,9 +97,7 @@ class ReadPlanBuilder:
                     "Não há uma regra aprovada para aplicar esse filtro."
                 )
             selected_ids.add(key)
-            filters[key] = ReadFilter(
-                dimension_id=key, operator=FilterOperator.EQ, values=(value,)
-            )
+            filters[key] = ReadFilter(dimension_id=key, operator=FilterOperator.EQ, values=(value,))
 
         period_window = next(
             (
@@ -188,6 +188,7 @@ class ReadPlanValidator:
             or not set(plan.dimension_ids) <= set(metric.dimension_ids)
         ):
             raise PlanCapabilityUnavailable("Métrica, unidade ou dimensão indisponível.")
+        _validate_metric_period(metric, plan.window.phrase, self._profile, plan.window.granularity)
         self._validate_window(plan, metric.granularities)
 
         dimensions = {item.id: item for item in self._profile.dimensions}
@@ -251,3 +252,24 @@ def _valid_iso_date(value: str) -> bool:
         return date.fromisoformat(value).isoformat() == value
     except ValueError:
         return False
+
+
+def _validate_metric_period(
+    metric: MetricDefinition,
+    phrase: str | None,
+    profile: DomainProfile,
+    granularity: CatalogGranularity | None = None,
+) -> None:
+    accumulated = {_normalize(p) for m in profile.metrics for p in m.accumulated_period_phrases}
+    normalized = _normalize(phrase or "")
+    if metric.accumulated_period_phrases:
+        if granularity is not None:
+            raise PlanCapabilityUnavailable(
+                "Histórico acumulado não possui granularidade de calendário."
+            )
+        if normalized not in {_normalize(p) for p in metric.accumulated_period_phrases}:
+            raise PlanCapabilityUnavailable(
+                "Este indicador só possui histórico acumulado, sem recorte por datas."
+            )
+    elif normalized in accumulated:
+        raise PlanCapabilityUnavailable("Este indicador exige um período de calendário.")

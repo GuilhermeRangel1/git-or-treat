@@ -191,6 +191,7 @@ class UnitKind(StrEnum):
     COUNT = "count"
     TIME = "time"
     PERCENTAGE = "percentage"
+    SCORE = "score"
 
 
 class MetricDefinition(BaseModel):
@@ -210,6 +211,8 @@ class MetricDefinition(BaseModel):
     ] = Field(default=(), max_length=20)
     # Vazio: a métrica não restringe unidade, como nos perfis anteriores.
     accepted_unit_kinds: tuple[UnitKind, ...] = Field(default=(), max_length=10)
+    # Quando preenchido, o indicador aceita só estas frases, sem janela datada.
+    accumulated_period_phrases: tuple[CatalogPhrase, ...] = Field(default=(), max_length=5)
 
     @model_validator(mode="after")
     def validate_metric_aliases(self) -> Self:
