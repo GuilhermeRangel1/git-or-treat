@@ -133,6 +133,22 @@ class QuestionInterpreter:
             _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
         )
         if (
+            self._profile.structured_dimension_filters
+            and current_question_has_metric
+            and len(turns) >= 2
+            and turns[-2].role == "user"
+            and turns[-1].role == "assistant"
+        ):
+            pending = next(
+                (rule for rule in self._profile.ambiguities
+                 if rule.clarification == turns[-1].content), None
+            )
+            if pending is not None:
+                original = turns[-2].content
+                for start, end, _ in reversed(_find_phrases(original, pending.phrases)):
+                    original = original[:start] + " " * (end - start) + original[end:]
+                return self._interpret(f"{original} {question}", None)
+        if (
             self._pending_period_coverage_answer(turns)
             and not current_question_has_metric
         ):
@@ -265,6 +281,45 @@ class QuestionInterpreter:
                 breakdown_message.replace("{dimension}", breakdown.label.lower())
             )
 
+        structured = self._profile.structured_dimension_filters
+        dimension_filters: dict[str, str] = {}
+        if structured:
+            matched_surfaces: dict[str, str] = {}
+            for dimension in self._profile.dimensions:
+                matches = self._dimension_value_matches(question, (dimension,))
+                if self._has_unresolved_multiple_values(question, matches):
+                    return self._clarify(
+                        f"Informe um único valor de {dimension.label.lower()} "
+                        "ou uma correção explícita."
+                    )
+                if matches:
+                    prefix = _normalize(question[:matches[-1][0]])
+                    if re.search(
+                        r"\b(?:exceto|sem|menos|nao)\s+"
+                        r"(?:(?:a|o|classe|municipio|bairro)\s+)*$", prefix
+                    ):
+                        return self._clarify(
+                            "Este recorte pede exclusão; informe o valor que deseja incluir."
+                        )
+                    surface = _normalize(matches[-1][2])
+                    if surface in matched_surfaces:
+                        return self._clarify(
+                            "O mesmo nome corresponde a mais de uma dimensão; "
+                            "especifique outro recorte sem ambiguidade."
+                        )
+                    matched_surfaces[surface] = dimension.id
+                    candidates = {
+                        value.value for value in dimension.values
+                        if surface in {_normalize(alias) for alias in value.aliases}
+                    }
+                    if len(candidates) != 1:
+                        return self._clarify("O filtro informado é ambíguo neste catálogo.")
+                    dimension_filters[dimension.id] = next(iter(candidates))
+                elif _find_phrases(detail_question, dimension.aliases):
+                    return self._clarify(
+                        f"Informe um valor autorizado de {dimension.label.lower()}; "
+                        "o filtro solicitado não foi reconhecido."
+                    )
         geography = self._dimension_value_matches(question, self._geography_dimensions)
         if self._has_unrecognized_location_phrase(question, geography):
             return self._clarify(self._profile.clarifications.unknown_geography)
@@ -276,9 +331,9 @@ class QuestionInterpreter:
         if detail_clarification is not None:
             return self._clarify(detail_clarification)
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
-        if self._has_unresolved_multiple_values(question, geography):
+        if not structured and self._has_unresolved_multiple_values(question, geography):
             return self._clarify(self._profile.clarifications.multiple_geographies)
-        if self._has_unresolved_multiple_values(question, class_phrase):
+        if not structured and self._has_unresolved_multiple_values(question, class_phrase):
             return self._clarify(self._profile.clarifications.multiple_classes)
 
         selected_alias = next(
@@ -339,6 +394,7 @@ class QuestionInterpreter:
             period_phrase = base_intent.period_phrase
 
         filters: dict[str, str] = dict(base_intent.filters) if base_intent else {}
+        filters.update(dimension_filters)
         directions = [
             direction
             for direction in _find_phrases(question, self._profile.direction_terms)
@@ -374,6 +430,12 @@ class QuestionInterpreter:
             or (base_intent.dimension_ids if base_intent else []),
             "filters": filters,
         }
+        if structured:
+            intent_values["geography_phrase"] = None
+            intent_values["class_phrase"] = None
+            intent_values["dimension_ids"] = sorted(
+                set(base_intent.dimension_ids if base_intent else ()) | set(dimension_filters)
+            )
         intent = AnalysisIntent(
             **{name: value for name, value in intent_values.items() if value is not None}
         )
@@ -532,6 +594,9 @@ class QuestionInterpreter:
     ) -> bool:
         protected = [
             *recognized,
+            *self._dimension_value_matches(
+                question, self._profile.dimensions
+            ),
             *self._dimension_value_matches(question, self._classification_dimensions),
             *_find_phrases(question, self._profile.non_location_phrases),
             *_find_phrases(

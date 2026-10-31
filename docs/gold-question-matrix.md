@@ -21,7 +21,31 @@ Matriz versionada para o trabalho de linguagem do núcleo GenAI. As expectativas
 
 ## Evidência e limites desta etapa
 
-- Testes automatizados compõem a pergunta com o catálogo v2 e percorrem `compose_core → question.plan`; checam IDs de métrica/dimensão, filtros, estado e janela. A execução desses testes depende de `asyncio.run`; no ambiente Windows/Python local de 31/10/2026, até `asyncio.run(asyncio.sleep(0))` não retornou. Os resultados ficam pendentes de reexecução em ambiente suportado.
+- Testes automatizados compõem a pergunta com o catálogo v2 e percorrem `compose_core → question.plan`; checam IDs de métrica/dimensão, filtros, estado e janela. Em 31/10/2026, a execução fora do sandbox resolveu o bloqueio de `asyncio`: os quatro arquivos de catálogo v2, períodos, envelopes e regras do interpretador passaram com 243 testes. A regressão adicional de esclarecimento pelo caso público passou: pergunta anual sem cobertura → esclarecimento → último trimestre mantém receita, classe comercial e município, com limites inclusivos de janeiro a março de 2025 na cobertura controlada.
 - Testes síncronos verificam a resolução temporal, preservação de lacunas, validação dos envelopes, dimensões no escopo e regressões de acentos. Não substituem a execução integrada do caso público.
-- A composição de produção ainda não fornece `dimension_value_coverage`, não existe rota interna de planejamento ativa e não foi executado lookup contra lote Gold real. A entrega aqui comprova somente preparação executável do núcleo; não fecha os critérios Q04-09/Q04-14, reconciliação, nem o cartão.
+- A composição de produção ainda não fornece `dimension_value_coverage`, não existe rota interna de planejamento ativa e não foi executado lookup contra lote Gold real. O caso público `question.plan` está comprovado com metadados controlados, incluindo Q04-09 (correção de cidade). Q04-14 comprova esclarecimento sem percentual; cálculo numérico com base zero pertence à execução/evidência futura.
 - A cobertura mensal identifica competências reportadas no lote. Não prova que a extração da origem trouxe todas as competências existentes. A conclusão de completude exige evidência de reconciliação separada, como registrado no contrato de cobertura.
+
+## Implementação ampliada do GENAI-04 — 31/10/2026
+
+O perfil Gold v2 ativa `structured_dimension_filters`; outros perfis mantêm o comportamento anterior. Cada dimensão é resolvida separadamente, permitindo município + bairro + classe + GD/subgrupo sem perder filtros. Alimentador usa apenas valores publicados pelo Backend. Valor desconhecido, nome ambíguo entre dimensões, múltiplos valores sem correção e exclusão não suportada pedem esclarecimento. `sem GD` é um valor cadastral próprio, não exclusão genérica.
+
+IDs de UC não são enviados como vocabulário. Pedido por UC sem resolução autorizada gera esclarecimento explícito; não se extrai número livre nem se consulta o total silenciosamente. Isso preserva o critério de usar o filtro somente quando a capacidade estiver autorizada, sem criar um cadastro paralelo na GenAI.
+
+Os valores canônicos da publicação prevalecem sobre a grafia de exemplo do perfil. O perfil mantém seus aliases e é enriquecido apenas na requisição. Esclarecimentos de métrica (pago/faturado, energia faturada/medida, interrupção/DEC) e de período preservam os filtros e a janela original; autorização é reaplicada a cada plano, inclusive com permissão revogada.
+
+| Casos adicionais | Resultado comprovado em `test_gold_question_filters.py` |
+| --- | --- |
+| Município + bairro + classe | Todos os filtros no plano aprovado, sem tratar dimensões diferentes como cidades conflitantes. |
+| Classe + GD e classe + GD + subgrupo | Valores e IDs preservados por dimensão. |
+| DEC por alimentador e mês | Alimentador publicado reconhecido, janela mensal delimitada. |
+| Cidade corrigida explicitamente | Somente o valor corrigido aparece no plano. |
+| Subgrupo/alimentador desconhecido; UC sem resolução | Esclarecimento e nenhum plano. |
+| Duas classes, dois municípios ou com/sem GD juntos | Esclarecimento, sem reduzir a um valor. |
+| Exclusão de classe ou mesmo nome em duas dimensões | Esclarecimento, sem interpretar exclusão como igualdade. |
+| Follow-up de cidade e revogação de GD | Recortes herdados preservados; permissão revogada recusa o plano. |
+| Escolha de receita, consumo ou DEC após ambiguidade | Métrica selecionada, período e filtros originais preservados. |
+
+Verificações: suíte completa GenAI com 3.620 aprovados, 4 skips e 1 xfail histórico; Backend, contratos internos e produtor, 84 aprovados incluindo HTTP. Execução fora do sandbox confirmou que a limitação anterior era do ambiente restrito, não do `asyncio` no Windows. Após a suíte completa, 21 cenários dirigidos passaram com o ajuste de lint e três casos adicionais de unidade/dimensão sem suporte.
+
+Escopo entregue: interpretação e planejamento pelo núcleo composto, sem fonte/LLM no planejamento. Escopo dos próximos cartões: executor (GENAI-06), transporte/coordenador (GENAI-07), evidência e prova quantitativa real (GENAI-08/09/10). Validação semântica da ADR-0018 continua registrada como pendente; estes testes não a substituem. IA-01/IA-02 não são concluídos por uma matriz de planos.

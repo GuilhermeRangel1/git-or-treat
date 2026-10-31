@@ -220,6 +220,16 @@ class QuestionAnalysisPlanner:
             for raw in additions:
                 normalized = _normalize(raw)
                 if normalized in known:
+                    # O perfil oferece sinônimos; a publicação fornece o valor
+                    # canônico que será usado no filtro parametrizado do Backend.
+                    for index, value in enumerate(values):
+                        if normalized in {
+                            _normalize(alias) for alias in (value.value, *value.aliases)
+                        }:
+                            values[index] = DimensionValue(
+                                value=raw, aliases=value.aliases
+                            )
+                            break
                     continue
                 values.append(DimensionValue(value=raw, aliases=(raw,)))
                 known.add(normalized)

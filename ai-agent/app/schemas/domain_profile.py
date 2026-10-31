@@ -300,6 +300,8 @@ class ClarificationMessages(BaseModel):
 class DomainProfile(BaseModel):
     """Perfil imutável fornecido à interpretação e à composição da fonte."""
 
+    structured_dimension_filters: bool = False
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     profile_id: LogicalIdentifier

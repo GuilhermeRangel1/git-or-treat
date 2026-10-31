@@ -77,7 +77,7 @@ def test_period_answer_after_coverage_clarification_preserves_metric_and_filters
     assert result.intent is not None
     assert result.intent.metric_id == "billing.revenue"
     assert result.intent.period_phrase == "último trimestre"
-    assert result.intent.class_phrase == "residencial"
+    assert result.intent.filters["customer.consumption_class"] == "RESIDENCIAL"
 
 
 def test_non_period_answer_after_coverage_clarification_repeats_clarification():

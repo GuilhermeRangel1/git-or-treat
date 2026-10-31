@@ -395,6 +395,64 @@ def test_gold_vocabulary_filters_use_batch_values_and_preserve_accents():
         "geography.municipality": ("Jaboatão",),
     }
 
+    # A correção simples de período percorre o caso público, mantendo o recorte.
+    from app.schemas.questions import ConversationTurn
+
+    coverage = [
+        {"metric_id": "billing.revenue", "kind": "monthly",
+         "competencies": ["2025-01", "2025-02", "2025-03"]}
+    ]
+    original = request.model_copy(update={
+        "question": "Qual foi a receita comercial em Jaboatão no último ano?"
+    })
+    original = QuestionPlanRequest.model_validate({
+        **original.model_dump(mode="python"), "temporal_coverage": coverage
+    })
+    clarification = asyncio.run(core.question.plan(original, "d" * 32))
+    assert clarification.status.value == "needs_clarification"
+    follow_up = QuestionPlanRequest.model_validate({
+        **original.model_dump(mode="python"),
+        "question": "último trimestre",
+        "context": [
+            ConversationTurn(role="user", content=original.question),
+            ConversationTurn(role="assistant", content=clarification.response.message),
+        ],
+    })
+    corrected = asyncio.run(core.question.plan(follow_up, "e" * 32))
+    assert corrected.status.value == "planned", corrected.model_dump_json()
+    assert corrected.plan.metric_id == "billing.revenue"
+    assert {item.dimension_id: item.values for item in corrected.plan.filters} == filters
+    assert corrected.plan.window.start.isoformat() == "2025-01-01"
+    assert corrected.plan.window.end.isoformat() == "2025-03-31"
+
+    # Histórico autorizado anteriormente não mantém uma permissão revogada.
+    revoked_scope = scope.model_copy(update={
+        "allowed_dimension_ids": scope.allowed_dimension_ids - {"geography.municipality"}
+    })
+    revoked = QuestionPlanRequest.model_validate({
+        **follow_up.model_dump(mode="python"),
+        "access_scope": revoked_scope,
+        "dimension_value_coverage": [],
+    })
+    denied = asyncio.run(core.question.plan(revoked, "f" * 32))
+    assert denied.plan is None
+    assert denied.status.value in {"refused", "needs_clarification"}
+
+    # O valor físico publicado prevalece sobre a grafia de exemplo do perfil.
+    published_class = QuestionPlanRequest.model_validate({
+        **request.model_dump(mode="python"),
+        "dimension_value_coverage": [
+            {"dimension_id": "geography.municipality", "values": ["Jaboatão"]},
+            {"dimension_id": "customer.consumption_class", "values": ["Comercial"]},
+        ],
+    })
+    canonical = asyncio.run(core.question.plan(published_class, "a" * 32))
+    assert canonical.status.value == "planned"
+    assert next(
+        item.values for item in canonical.plan.filters
+        if item.dimension_id == "customer.consumption_class"
+    ) == ("Comercial",)
+
 
 @pytest.mark.parametrize(
     "question",

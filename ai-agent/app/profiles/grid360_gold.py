@@ -449,6 +449,7 @@ def _build_profile() -> DomainProfile:
     )
     values["period_windows"] = ()
     values["default_period_phrase"] = None
+    values["structured_dimension_filters"] = True
     values["default_period_context_phrases"] = ()
     values["comparison_period_phrases"] = ()
     values["non_location_phrases"] = ()
