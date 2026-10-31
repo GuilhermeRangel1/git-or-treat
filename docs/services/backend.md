@@ -174,3 +174,6 @@ O pacote final usa referências `gold-csv-v2`, independentes do envelope interno
 
 
 Os chamadores de prontidão podem fornecer `expected_batch_ref` para vincular a avaliação à publicação do recorte que já conhecem. O contrato existente valida o formato antes de I/O e distingue referência inválida de publicação trocada; ambos impedem HTTP GenAI. A CLI aceita `GOLD_READINESS_EXPECTED_BATCH_REF` opcional. Omitir a referência apenas fixa a publicação corrente no início; não comprova identidade com uma tela já exibida. A integração de um consumidor real deve obter a referência no servidor e propagá-la.
+
+
+A publicação v2 acrescenta janelas e estados observados em `gold_carga_atual.manifesto.coverage_windows`, calculados na mesma transação. São metadados internos não certificadores, opcionais em publicações anteriores. O contrato CSV de entrada não mudou; repetição idempotente mantém a identidade e os metadados anteriores. A cobertura que governa a prontidão permanece na tabela detalhada. Testes do importador público cobrem repetição, troca de publicação e falha no último CSV com rollback de todas as tabelas e auditoria persistida.
