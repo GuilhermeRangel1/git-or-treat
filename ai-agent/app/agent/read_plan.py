@@ -1,12 +1,14 @@
 """Compila e valida planos lógicos antes de qualquer chamada à fonte."""
 
 import unicodedata
+from collections.abc import Mapping
 from datetime import date
 from math import isfinite
 
 from pydantic import ValidationError
 
 from app.agent.access import ReadAccessPolicy
+from app.agent.temporal import GoldTemporalWindowResolver, TemporalResolutionUnavailable
 from app.ports.evidence import EvidenceAccessDenied
 from app.schemas.access import AccessContext
 from app.schemas.analysis import AnalysisIntent
@@ -48,7 +50,11 @@ class ReadPlanBuilder:
         self._source_id = source_id
         self._default_limit = default_limit
 
-    def build(self, intent: AnalysisIntent) -> LogicalReadPlan:
+    def build(
+        self,
+        intent: AnalysisIntent,
+        temporal_coverage: Mapping[str, tuple[str, tuple[str, ...]]] | None = None,
+    ) -> LogicalReadPlan:
         metric = next(
             (item for item in self._profile.metrics if item.id == intent.metric_id),
             None,
@@ -99,6 +105,11 @@ class ReadPlanBuilder:
             selected_ids.add(key)
             filters[key] = ReadFilter(dimension_id=key, operator=FilterOperator.EQ, values=(value,))
 
+        missing_filters = set(metric.required_filter_dimension_ids) - filters.keys()
+        if missing_filters:
+            labels = ", ".join(dimensions[key].label.lower() for key in sorted(missing_filters))
+            raise PlanCapabilityUnavailable(f"Informe o filtro obrigatório: {labels}.")
+
         period_window = next(
             (
                 window
@@ -107,16 +118,40 @@ class ReadPlanBuilder:
             ),
             None,
         )
-        window = (
-            ReadWindow(
-                kind=WindowKind.BOUNDED,
-                start=period_window.start,
-                end=period_window.end,
-                granularity=period_window.granularity,
+        if temporal_coverage is not None:
+            unavailable = (
+                self._profile.clarifications.temporal_coverage_unavailable
+                or "A cobertura mensal não permite esse período. Informe outra janela."
             )
-            if period_window is not None
-            else ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
-        )
+            metric_coverage = temporal_coverage.get(metric.id)
+            if metric_coverage is None:
+                raise PlanCapabilityUnavailable(unavailable)
+            coverage_kind, competencies = metric_coverage
+            if coverage_kind == "monthly":
+                try:
+                    window = GoldTemporalWindowResolver().resolve(
+                        intent.period_phrase, competencies
+                    )
+                except TemporalResolutionUnavailable as exc:
+                    raise PlanCapabilityUnavailable(unavailable) from exc
+            else:
+                if not metric.accumulated_period_phrases or (
+                    _normalize(intent.period_phrase)
+                    not in {_normalize(item) for item in metric.accumulated_period_phrases}
+                ):
+                    raise PlanCapabilityUnavailable(unavailable)
+                window = ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
+        else:
+            window = (
+                ReadWindow(
+                    kind=WindowKind.BOUNDED,
+                    start=period_window.start,
+                    end=period_window.end,
+                    granularity=period_window.granularity,
+                )
+                if period_window is not None
+                else ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
+            )
         return LogicalReadPlan(
             catalog_version=self._profile.contract_version,
             operation="read",
@@ -179,6 +214,10 @@ class ReadPlanValidator:
             raise EvidenceAccessDenied("plano de outra fonte ou versão")
         if plan.limit > self._max_rows:
             raise PlanCapabilityUnavailable("A consulta excede o limite de resultados.")
+        if plan.group_by_dimension_ids and not self._profile.supports_grouping:
+            raise PlanCapabilityUnavailable("O catálogo não oferece agrupamento nesta fonte.")
+        if plan.order is not None and not self._profile.supports_ordering:
+            raise PlanCapabilityUnavailable("O catálogo não oferece ordenação nesta fonte.")
 
         metric = next((item for item in self._profile.metrics if item.id == plan.metric_id), None)
         if (
@@ -192,6 +231,10 @@ class ReadPlanValidator:
         self._validate_window(plan, metric.granularities, metric.max_window_days)
 
         dimensions = {item.id: item for item in self._profile.dimensions}
+        if not set(metric.required_filter_dimension_ids) <= {
+            item.dimension_id for item in plan.filters
+        }:
+            raise PlanCapabilityUnavailable("O plano não aplica todos os filtros obrigatórios.")
         for plan_filter in plan.filters:
             dimension = dimensions.get(plan_filter.dimension_id)
             if (

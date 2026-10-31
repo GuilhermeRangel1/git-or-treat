@@ -36,17 +36,21 @@ Aprovada por Backend e Engenharia de Dados no PR #63:
 
 1. **Motor, versão e dialeto.** PostgreSQL 16 é o banco local da Gold, no mesmo serviço já usado pelo Backend, alinhado à versão do CI. O dialeto alvo das consultas Gold é o do PostgreSQL.
 2. **Executor único.** O Backend é o único serviço que conecta à Gold e executa consultas, como na ADR-0002. A GenAI não recebe credencial nem string de conexão do banco.
-3. **Papel somente leitura.** A consulta Gold do Backend usa o papel `venergy_gold_reader`, sem permissão de escrita, restrito a `SELECT` no schema `gold`, sem acesso às tabelas operacionais e com timeout no servidor. O papel é criado e mantido pelo Backend, por migração ou script de inicialização versionado. A carga (DE-06) e as migrações usam outro papel.
+3. **Papel somente leitura.** A consulta Gold do Backend usa o papel `venergy_gold_reader`, sem permissão de escrita, com timeout no servidor e `SELECT` apenas nas tabelas analíticas explicitamente listadas pelo script de provisionamento. O fluxo GenAI baseado na versão corrente consulta somente as quinze tabelas do schema `gold_v2`; as vistas mínimas de publicação em `gold` fornecem identidade/linhagem. Tabelas `gold` legadas mantidas para consumidores anteriores não fazem parte do catálogo GenAI v2. O cadastro restrito e as tabelas operacionais não são concedidos. A carga (DE-06) e as migrações usam outro papel.
 
-Esta decisão não define nomes de tabelas ou colunas, fórmulas nem o formato do `batch_ref`.
+Esta decisão não define nomes de colunas, fórmulas nem o formato do `batch_ref`.
+
+### Complemento de escopo v2 — 31/10/2026
+
+A redação original restringia o leitor ao schema `gold`, anterior ao snapshot físico v2. A migração v2 criou o schema separado `gold_v2`, e `backend/scripts/provision_gold_reader.sql` já concede `SELECT` explícito nas quinze tabelas analíticas v2, além das vistas mínimas de publicação em `gold`. Esta atualização registra o escopo implementado: o catálogo e o produtor de metadados do fluxo GenAI usam `gold_v2`; a existência de permissões para tabelas legadas não habilita o catálogo v1 na GenAI. Não amplia permissões para tabelas operacionais ou para o pacote cadastral restrito.
 
 ## Consequências e verificação
 
 - **Versão do `docker-compose.yml`.** O `docker-compose.yml` sobe hoje `postgres:18`, enquanto o CI e esta decisão usam a 16. O alinhamento do compose à versão 16 fica com o Backend e não é feito nesta mudança.
 - **Nomes de colunas.** No PostgreSQL, identificadores sem aspas viram minúsculas. Uma coluna criada como `"DEC"` ou `"FEC"`, por exemplo copiando o cabeçalho do CSV entre aspas, não casa com `dec` em uma consulta sem aspas, e o contrário também vale. Os nomes físicos precisam ser congelados uma vez, por exemplo em minúsculas e `snake_case`, com o mapeamento do cabeçalho do CSV para a coluna registrado no dicionário Gold (DE-08). O carregador e o catálogo do executor usam esse mapeamento, e nenhum dos dois pode depender da grafia do CSV.
 - **Carregador idempotente (DE-06).** O carregador precisa substituir ou ignorar o lote já carregado sem duplicar linhas, registrar o manifesto carregado e validado (origem do `batch_ref` no contrato) e recusar lotes com os valores de reserva `SINTETICO_DEV` e `LOTE_DEV`. O DE-06 também exige conferir esquema, contagens, chaves e agregados entre Databricks e banco. O `load_gold.py` atual não faz nada disso.
-- **Separação entre Gold e dados operacionais.** As tabelas analíticas carregadas ficam no schema `gold` e não podem ser sobrescritas pelos dados operacionais do portal (PRD, seção do banco local). O `GRANT` de `venergy_gold_reader` se limita a esse schema.
-- **Papel somente leitura e responsável.** O Backend cria e mantém `venergy_gold_reader` por migração ou script de inicialização e testa no PostgreSQL de CI que ele não grava, não lê tabela fora do schema `gold` e respeita o timeout. O teste de permissões da GenAI com dados artificiais pode servir de referência, mas não substitui o teste do Backend.
+- **Separação entre Gold e dados operacionais.** As tabelas analíticas v2 ficam no schema `gold_v2`, separado das relações legadas `gold` e das tabelas operacionais do portal. O `GRANT` de `venergy_gold_reader` é uma lista explícita, sem concessão geral no schema nem acesso ao pacote cadastral restrito.
+- **Papel somente leitura e responsável.** O Backend cria e mantém `venergy_gold_reader` por script versionado, sem permissão de escrita e com timeout. O teste opt-in do Backend confere as quinze tabelas v2, as vistas mínimas de publicação e as recusas de escrita/acesso fora da allowlist no PostgreSQL descartável; executar esse teste no CI depende da configuração do banco de teste.
 - **Leitor SQLite da demonstração.** O leitor SQLite de `ai-agent/app/sql/` continua só para testes e demonstrações sintéticas e não é ligado à Gold.
 - **Testes do Backend.** Como os testes padrão usam SQLite em memória, as consultas Gold e o papel de leitura precisam de testes no PostgreSQL descartável do CI, para que diferenças de dialeto não passem sem ser vistas.
 - **Revisão.** Se Backend ou Dados passarem a preferir SQLite ou outro motor, esta ADR é substituída e a ADR-0002 continua válida, porque o contrato lógico não depende do motor. A restrição de leitura, nesse caso, precisa ser demonstrada sem papel de banco.
@@ -56,7 +60,7 @@ Esta decisão não define nomes de tabelas ou colunas, fórmulas nem o formato d
 Aprovada em 27/10/2026 com base nos comentários de Backend (Fcc2187) e Engenharia de Dados (Biazita14) no PR #63. A aprovação não cria credencial, papel, carga nem consulta Gold real; cada uma depende das pendências abaixo.
 
 1. Backend: alinhar o `docker-compose.yml` (`postgres:18`) à versão 16 usada pelo CI.
-2. Backend: criar `venergy_gold_reader` por migração ou script de inicialização, com `SELECT` só no schema `gold`, e testá-lo no PostgreSQL do CI.
+2. Backend: executar o script de provisionamento no banco local escolhido e manter evidência de que o papel recebe somente a allowlist de tabelas `gold_v2` e vistas mínimas de publicação, sem escrita nem acesso ao pacote cadastral restrito.
 3. Congelar a convenção de nomes físicos e o mapeamento CSV → coluna no dicionário Gold (DE-08).
 4. Confirmar o comportamento idempotente do carregador e o registro do manifesto (DE-06), com a pessoa dona da exportação da Gold.
 

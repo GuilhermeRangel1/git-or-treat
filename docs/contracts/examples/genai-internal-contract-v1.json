@@ -26,6 +26,7 @@
           ]
         },
         "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "dimension_value_coverage": [],
         "temporal_coverage": [
           {
             "metric_id": "energia_faturada",
@@ -600,6 +601,7 @@
           ]
         },
         "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+          "dimension_value_coverage": [],
         "temporal_coverage": [
           {
             "metric_id": "energia_faturada",
