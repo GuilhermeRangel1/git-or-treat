@@ -120,6 +120,10 @@ O consumidor v2 deve aceitar explicitamente este inventário e metadados atualiz
 
 O inventário continua com quinze conjuntos analíticos e um cadastro separado. Estes campos evoluem o contrato candidato v2 ainda não homologado; não alteram o contrato v1 nem habilitam seu carregador atual.
 
+### Ordem da fila
+
+A fila v2 acrescenta `ordem_prioridade_inspecao` (inteiro nullable, nulo em `REVISAR - SEM HISTORICO DE CONSUMO`) e `posicao_fila_inspecao` (inteiro não nulo e único). A posição respeita a ordem das categorias e desempata de forma determinística; ver o [dicionário Gold](../dicionario_gold.md). O produtor e o exportador conferem unicidade e ausência de sobreposição entre categorias.
+
 ### Referência histórica de recuperação
 
 A fila v2 acrescenta três doubles nullable (`media_historica_recuperacao_kwh_por_inspecao`, `intervalo_historico_recuperacao_inferior_kwh`, `intervalo_historico_recuperacao_superior_kwh`), `referencia_media_historica_recuperacao` string nullable e `estado_media_historica_recuperacao` string não nula. A referência identifica `global`, `0` ou `1`; a ausência usa referência/valores nulos e estado `SEM_REFERENCIA_VALIDADA`. Com valores usa `DISPONIVEL_REFERENCIA_HISTORICA`. A referência global aparece em toda a fila; um grupo validado só a substitui para UCs com histórico elegível correspondente. O intervalo é para resultados por inspeção, não intervalo de confiança da média. Não somar médias ou limites entre UCs.

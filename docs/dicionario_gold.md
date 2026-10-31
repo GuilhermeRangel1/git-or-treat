@@ -102,7 +102,7 @@ As quinze projeções analíticas/históricas compõem o contrato candidato de e
 | `classe` | texto | Classe do cadastro atual. |
 | `subgrupo` | texto | `subgrupo_tarifario` da Silver, renomeado na projeção. |
 | `alimentador` | texto | Alimentador do cadastro atual. |
-| `data_ligacao` | data | Data de ligação cadastrada. |
+| `data_ligacao` | data | Data de ligação cadastrada. Valores anteriores a 1950-01-01 saem nulos na Gold (D62); a Silver preserva o original. |
 | `status` | texto | Status cadastral da UC. |
 | `possui_geracao_solar` | texto: `Sim`/`Não` | Presença de linha de GD; o nome da coluna não prova geração ou compensação mensal. |
 | `total_inspecoes_realizadas` | inteiro / inspeções | Contagem distinta de `id_inspecao` com UC e ID não nulos; zero quando não há agregado associado. |
@@ -110,6 +110,8 @@ As quinze projeções analíticas/históricas compõem o contrato candidato de e
 | `media_consumo_historico` | número / kWh por leitura | Média de `consumo_kwh` das leituras não nulas da UC; não é necessariamente média mensal. Nula se não houver leitura válida associada. |
 | `prioridade_inspecao` | texto | Categoria produzida pela hierarquia abaixo. |
 | `motivo_prioridade` | texto | Primeira condição atendida na mesma hierarquia da prioridade; explica a triagem, não estima recuperação. |
+| `ordem_prioridade_inspecao` | inteiro nullable | Ordem da categoria: 1 `ALTA - HISTORICO IRREGULAR`, 2 `ALTA - CONSUMO ZERO`, 3 `MEDIA - NUNCA INSPECIONADO`, 4 `BAIXA`. Nulo em `REVISAR - SEM HISTORICO DE CONSUMO`, que é um caso à parte. |
+| `posicao_fila_inspecao` | inteiro não nulo | Posição única na fila, de 1 a N. Ordena por `ordem_prioridade_inspecao` (nulos por último), depois mais `total_inspecoes_irregulares`, depois maior `media_consumo_historico` (nulos por último) e, por fim, `id_uc`. É ordem de triagem, não estimativa de recuperação nem a prioridade escolhida para a ordem de serviço. |
 
 **Prioridade, na ordem aplicada:**
 
@@ -138,7 +140,7 @@ A regra `ALTA - CONSUMO ZERO` permanece parte do contrato mesmo em exportações
 | `classe` | texto | Classe de consumo atual. |
 | `subgrupo` | texto | `subgrupo_tarifario` renomeado. |
 | `alimentador` | texto | Alimentador do cadastro atual. |
-| `data_ligacao` | data | Data de ligação cadastrada. |
+| `data_ligacao` | data | Data de ligação cadastrada. Valores anteriores a 1950-01-01 saem nulos na Gold (D62); a Silver preserva o original. |
 | `status` | texto | Status cadastral da UC. |
 | `possui_gd` | texto: `Sim`/`Não` | Presença de linha de GD, sem vigência temporal. |
 | `total_chamados_callcenter` | inteiro / protocolos | Contagem distinta de protocolos associados; zero quando não há agregado associado. Reconciliada por UC com `atendimentos_uc`. |
@@ -399,7 +401,9 @@ Na entrega completa, cadastro e pacote analítico são obrigatórios e mantêm d
 
 `preparar_base_preco_volume` associa `consumo_mensal_uc` às dimensões UC/mês da mesma execução fixada da Silver. Rejeita chave duplicada ou vínculo ausente antes da junção. `decompor_preco_volume` recebe essa base e a cobertura do mesmo lote, com duas janelas explícitas ordenadas e sem sobreposição. Exige `run_id_silver_esperado` e `lote_bronze_silver_esperado` e recusa cobertura com identidade ausente ou divergente. Essas expectativas vêm do snapshot fixado no chamador do notebook; a rotina não autentica DataFrames arbitrários nem substitui os controles de `read_silver`.
 
-A base comum é formada pelas mesmas UCs no recorte, com todas as competências das duas janelas contendo faturamento e leituras integralmente válidas, e consumo acumulado positivo nos dois períodos. Para cada UC calcula P=R/Q, efeito volume P0ΔQ, preço observado Q0ΔP e interação ΔPΔQ; só depois soma os efeitos por recorte. Entradas/saídas de faturamento no recorte ficam separadas, assim como variações sem leitura e demais parcelas fora da base comum. A identidade desses sete componentes deve reconciliar a variação total, com tolerância max(0,000001 real, |ΔR total| × 10⁻⁹). Não arredonda antes da reconciliação.
+A base comum é formada pelas mesmas UCs no recorte. Os meses são pareados pela posição na janela (com janelas de 12 meses começando no mesmo mês, o mesmo mês do ano); um par vale quando há fatura e leituras integralmente válidas nos dois meses. A UC entra na base comum com ao menos seis pares válidos e consumo pareado positivo nas duas janelas. Para cada UC calcula, sobre os meses pareados, P=R/Q, efeito volume P0ΔQ, preço observado Q0ΔP e interação ΔPΔQ; só depois soma os efeitos por recorte. Entradas/saídas de faturamento no recorte ficam separadas, assim como variações sem leitura e demais parcelas fora da base pareada, inclusive os meses sem par válido de uma UC comum. A decomposição considera os registros aceitos pela Silver; os rejeitados por qualidade ficam registrados à parte na declaração de cobertura. A identidade desses sete componentes deve reconciliar a variação total, com tolerância max(0,000001 real, |ΔR total| × 10⁻⁹). Não arredonda antes da reconciliação.
+
+**Por que seis pares.** O mínimo é metade da janela de 12 meses e o mesmo piso proposto por Dados para a pergunta de GD com queda de consumo (ao menos seis meses com leitura por janela). A versão anterior exigia os 24 meses válidos e deixava quase todas as UCs fora da base comum: cada mês inválido eliminava a UC inteira, o que não representa a população. Seis é uma escolha de Dados, não um valor otimizado estatisticamente. Fica no parâmetro `MIN_PARES_PRECO_VOLUME` e deve ser revisto se a sensibilidade no lote real mostrar que a participação da base comum muda muito entre pisos próximos. A receita e o consumo de cada UC comum usam exatamente os mesmos pares de meses, e os demais meses permanecem registrados em sem leitura e em outros fora da base, mantendo a reconciliação com a variação total.
 
 Requer cobertura global FECHADO de consumo/faturamento em todos os meses e nenhuma observação sem competência. Sem isso, retorna `COBERTURA_NAO_CERTIFICADA` e valores derivados nulos. Sem UC elegível, retorna `SEM_BASE_COMUM`, efeitos de preço/volume nulos e contribuições de composição identificadas quando a cobertura é certificada. Valores não finitos, presença financeira inconsistente ou falha de reconciliação interrompem o cálculo. Os contadores de base comum, entradas/saídas e UCs observadas acompanham os resultados. São contagens por recorte: uma UC com mudança de dimensão pode aparecer em mais de um recorte, portanto não somar esses contadores para inferir UCs únicas globais.
 
@@ -435,7 +439,7 @@ Chave: `municipio`, `bairro`, `classe_consumo`, `inicio_p0`, `fim_p0`, `inicio_p
 | `variacao_sem_leitura_fora_base_reais`, `variacao_outros_fora_base_reais` | double / R$ | Contribuições restantes, sem dupla contagem das entradas/saídas. |
 | `variacao_faturamento_total_reais`, `residuo_reconciliacao_reais` | double / R$ | Diferença de faturamento e resíduo da soma dos sete componentes; tolerância numérica documentada acima. |
 | `estado_decomposicao` | string | `CALCULADA_BASE_COMUM`, `SEM_BASE_COMUM` ou `COBERTURA_NAO_CERTIFICADA`. Sem certificação todas as medidas double são nulas. |
-| `metodo` | string | `COORTE_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V2`; cálculo candidato, sem homologação tarifária. |
+| `metodo` | string | `PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3`; cálculo candidato, sem homologação tarifária. |
 | `run_id_silver`, `lote_bronze_silver` | string | Identidades fixadas da origem, conferidas na exportação. |
 | `data_processamento_gold` | timestamp | Referência dos dados da análise, igual a `preco_volume_referencia`; não é o horário de conclusão do Job. |
 
