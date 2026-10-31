@@ -183,8 +183,21 @@ class EvidenceGuard:
                     if dimension is None or dimension.value_type is not field.value_type:
                         raise EvidenceContractInvalid("dimensão de observação incompatível")
                     raw_dimension = row.get(field.name)
+                    applied_filter = next(
+                        (item for item in plan.filters if item.dimension_id == dimension_id),
+                        None,
+                    )
                     if field.value_type is FilterValueType.STRING:
                         approved = {item.value for item in dimension.values}
+                        if (
+                            self._profile.structured_dimension_filters
+                            and applied_filter is not None
+                            and applied_filter.operator in (FilterOperator.EQ, FilterOperator.IN)
+                        ):
+                            # O Backend autenticado devolve a grafia da publicação.
+                            # Só aceita valores exatos do filtro já reautorizado,
+                            # sem confiar em novos valores trazidos pelo registro.
+                            approved.update(applied_filter.values)
                         if type(raw_dimension) is not str or raw_dimension not in approved:
                             raise EvidenceContractInvalid("valor de dimensão não aprovado")
                     elif field.value_type is FilterValueType.INTEGER:
@@ -198,10 +211,6 @@ class EvidenceGuard:
                             raise EvidenceContractInvalid("valor de dimensão inválido")
                     elif field.value_type is FilterValueType.DATE:
                         raw_dimension = _safe_period(raw_dimension)
-                    applied_filter = next(
-                        (item for item in plan.filters if item.dimension_id == dimension_id),
-                        None,
-                    )
                     if applied_filter is not None:
                         if applied_filter.operator in (FilterOperator.EQ, FilterOperator.IN):
                             if raw_dimension not in applied_filter.values:

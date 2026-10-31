@@ -1,6 +1,6 @@
 """Envelopes internos Backend ↔ GenAI de planejar e sintetizar (GENAI-01, proposta).
 
-Seguem docs/contracts/genai-query-execution.md. Só a borda interna os recebe; ainda não há rota.
+Seguem docs/contracts/genai-query-execution.md. Só a borda interna autenticada os recebe.
 O escopo vem do Backend sem correlação: ela chega pelo cabeçalho X-Correlation-ID.
 """
 

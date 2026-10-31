@@ -11,11 +11,51 @@ from app.readiness.models import PublicationFacts, ReadinessReport
 from app.schemas.access import AccessContext
 from app.schemas.capabilities import CapabilitiesResponse
 from app.schemas.insights import ScreenInsightRequest, ScreenInsightResponse
+from app.schemas.internal import QuestionPlanRequest, QuestionPlanResponse, QuestionSynthesisRequest
 from app.schemas.questions import QuestionRequest, QuestionResponse
 from app.schemas.responses import PublicError, PublicErrorCode, PublicErrorResponse
 
 router = APIRouter()
 ResolvedAccess = Annotated[AccessContext | None, Depends(resolve_access_context)]
+
+
+def require_gold_auth(request: Request) -> None:
+    """A borda de planejamento Gold exige composição externa e token configurado."""
+    if (
+        request.app.state.service_api_token is None
+        or request.app.state.source_mode != "external"
+        or request.app.state.source_id != "gold.local"
+        or request.app.state.domain_profile.profile_id != "v-energy-grid-360-gold"
+    ):
+        raise ServiceAuthenticationError(configured=False)
+    require_service_auth(request, request.headers.get("authorization"))
+
+
+@router.post(
+    "/api/v1/internal/question-plans",
+    response_model=QuestionPlanResponse,
+    dependencies=[Depends(require_gold_auth)],
+)
+async def plan_question(payload: QuestionPlanRequest, request: Request) -> QuestionPlanResponse:
+    """Recebe escopo e cobertura do Backend autenticado, sem consultar fonte ou modelo."""
+    return await request.app.state.question_orchestrator.plan(
+        payload, request.state.correlation_id
+    )
+
+
+@router.post(
+    "/api/v1/internal/question-syntheses",
+    response_model=QuestionResponse,
+    dependencies=[Depends(require_gold_auth)],
+)
+async def synthesize_question(
+    payload: QuestionSynthesisRequest, request: Request
+) -> QuestionResponse:
+    """Revalida plano, escopo e lookup do Backend antes da resposta fundamentada."""
+    response = await request.app.state.question_orchestrator.synthesize(
+        payload, request.state.correlation_id
+    )
+    return response.model_copy(update={"correlation_id": request.state.correlation_id})
 
 
 def require_readiness_auth(request: Request) -> None:

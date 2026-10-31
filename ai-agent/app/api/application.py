@@ -23,6 +23,7 @@ from app.readiness.models import PublicationFacts, ReadinessReport
 from app.schemas.access import AccessContext
 from app.schemas.domain_profile import DomainProfile
 from app.schemas.insights import ScreenContext, ScreenInsightResponse
+from app.schemas.internal import QuestionPlanRequest, QuestionPlanResponse, QuestionSynthesisRequest
 from app.schemas.questions import QuestionRequest, QuestionResponse
 
 SourceMode = Literal["demo", "external"]
@@ -36,6 +37,14 @@ class QuestionHandler(Protocol):
         payload: QuestionRequest,
         access_context: AccessContext | None,
         correlation_id: str,
+    ) -> QuestionResponse: ...
+
+    async def plan(
+        self, request: QuestionPlanRequest, correlation_id: str
+    ) -> QuestionPlanResponse: ...
+
+    async def synthesize(
+        self, request: QuestionSynthesisRequest, correlation_id: str
     ) -> QuestionResponse: ...
 
 
