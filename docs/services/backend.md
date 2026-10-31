@@ -161,3 +161,8 @@ O Backend passa a validar a origem do manifesto e persistir a origem e `publicat
 ### GENAI-01 — finalização contratual v2
 
 O pacote final usa referências `gold-csv-v2`, independentes do envelope interno v1. As requisições internas de plano e síntese exigem `remaining_timeout_ms` (inteiro estrito de 1 a 35.000). O Backend é a autoridade do prazo global de 35 s e limita SQL a 5 s; o helper `GenAIRequestDeadline.remaining_timeout_ms` fornece o saldo sem renovar o relógio. O contrato de consulta descreve atualização conjunta dos consumidores e despacho `completed_lookup`. Os controles ainda precisam ser ligados ao cliente, executor e coordenador; o endpoint público continua sem consulta Gold nesta fatia.
+
+
+### Prontidão de atendimento observada no banco — GENAI-02
+
+`observe_attendance_readiness` lê o snapshot v2 e recalcula C14/C15 com aprovação de regra explícita, vinculados à publicação efetiva. `evaluate_attendance_readiness` usa o transporte GenAI existente, valida versão/estados/lote e revalida a publicação após o HTTP. A CLI `scripts/check_gold_readiness.py` executa essa fronteira com credencial de leitura; o chat público ainda não a chama. A migração `goldv2000002` expõe somente IDs de linhagem em `gold.publicacao_linhagem` e o provisionador concede SELECT nessa view, sem abrir a tabela operacional de carga. Controles e cobertura não certificada permanecem distintos. Operação, limites de prazo, parâmetros e evidência privada estão em [gold-readiness.md](../gold-readiness.md).
