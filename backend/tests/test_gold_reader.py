@@ -10,6 +10,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.models.gold_load import TABLES
 from app.repositories.gold_publication import GoldPublicationUnavailable, current_publication
+from app.services.genai_publication import GoldPublicationContext
 from app.services.gold_import import import_gold
 from tests.support.migrations import migrated_database
 from tests.support.migrations import alembic_config
@@ -74,6 +75,14 @@ def test_reader_has_only_approved_selects_and_a_server_timeout(batch):
                     administrator.exec_driver_sql(sql)
                     administrator.exec_driver_sql(f"ALTER ROLE venergy_gold_reader PASSWORD '{password}'")
                 reader = create_engine(admin_address.set(username="venergy_gold_reader", password=password), hide_parameters=True)
+                publication = GoldPublicationContext.capture(reader)
+                assert publication.planning_fields(reader)["batch_ref"] == imported["batch_ref"]
+                with publication.execution_snapshot(reader) as snapshot:
+                    assert current_publication(snapshot).batch_ref == publication.batch_ref
+                    assert snapshot.scalar(text("SHOW transaction_read_only")) == "on"
+                assert publication.synthesis_fields(reader)["expected_batch_ref"] == (
+                    imported["batch_ref"]
+                )
                 with reader.connect() as restricted:
                     assert restricted.scalar(text("SHOW statement_timeout")) == "5s"
                     assert restricted.scalar(text("SHOW default_transaction_read_only")) == "on"

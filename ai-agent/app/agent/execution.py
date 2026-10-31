@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import math
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TypeVar
@@ -80,11 +81,26 @@ class ExecutionController:
         ):
             raise ValueError("A cadeia de modelos excede o limite de chamadas configurado.")
 
-    async def run(self, action: Callable[["RequestBudget"], Awaitable[T]]) -> T:
+    async def run(
+        self, action: Callable[["RequestBudget"], Awaitable[T]], *,
+        timeout_seconds: float | None = None,
+    ) -> T:
+        seconds = self.limits.request_seconds
+        if timeout_seconds is not None:
+            if (
+                isinstance(timeout_seconds, bool)
+                or not math.isfinite(timeout_seconds)
+                or timeout_seconds <= 0
+            ):
+                raise ValueError("prazo recebido deve ser positivo e finito")
+            seconds = min(seconds, timeout_seconds)
         try:
-            async with asyncio.timeout(self.limits.request_seconds) as deadline:
+            async with asyncio.timeout(seconds) as deadline:
                 async with self._requests:
-                    return await action(RequestBudget(self))
+                    result = await action(RequestBudget(self))
+                    if deadline.expired() or asyncio.get_running_loop().time() >= deadline.when():
+                        raise ExecutionLimitExceeded("prazo da solicitação esgotado")
+                    return result
         except TimeoutError:
             if not deadline.expired():
                 raise

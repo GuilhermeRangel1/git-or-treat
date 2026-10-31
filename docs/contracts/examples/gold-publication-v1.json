@@ -7,6 +7,9 @@
   "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
   "invalid_changes": [
     {
+      "schema_version": "gold-csv-v3"
+    },
+    {
       "run_id": "LOTE_DEV"
     },
     {
@@ -19,6 +22,7 @@
   "invalid_batch_refs": [
     "",
     "v1",
+    "gold-csv-v3:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
     "gold-csv-v1:LOTE_DEV:8b9502c2-c188-4528-ab3c-7dff79ed908f",
     "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:00000000-0000-0000-0000-000000000000",
     "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-1528-ab3c-7dff79ed908f",

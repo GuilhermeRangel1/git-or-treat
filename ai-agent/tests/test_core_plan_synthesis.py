@@ -136,7 +136,8 @@ def _publication(scope):
 
 def _plan(core, question: str = READY, scope: AccessScope | None = None) -> QuestionPlanResponse:
     request = QuestionPlanRequest(
-        question=question, access_scope=scope or _scope(), **_publication(scope or _scope())
+        question=question, remaining_timeout_ms=35000, access_scope=scope or _scope(),
+        **_publication(scope or _scope()),
     )
     return asyncio.run(core.plan(request, CORRELATION))
 
@@ -144,6 +145,7 @@ def _plan(core, question: str = READY, scope: AccessScope | None = None) -> Ques
 def _synthesis(planned: QuestionPlanResponse, lookup, *, question=READY, scope=None, plan=None):
     return QuestionSynthesisRequest(
         question=question,
+        remaining_timeout_ms=35000,
         access_scope=scope or _scope(),
         plan=plan or planned.plan,
         plan_fingerprint=(plan or planned.plan).fingerprint(),
@@ -458,7 +460,8 @@ def test_synthesize_repeats_the_guardrail(question: str, context: list, code: st
         update={"context": [ConversationTurn(**turn) for turn in context]}
     )
     plan_request = QuestionPlanRequest(
-        question=question, context=context, access_scope=_scope(), **_publication(_scope())
+        question=question, context=context, remaining_timeout_ms=35000, access_scope=_scope(),
+        **_publication(_scope()),
     )
 
     response = _synthesize(core, request)
