@@ -333,6 +333,37 @@ def test_planning_rejects_duplicate_or_unauthorized_metric_coverage() -> None:
         QuestionPlanRequest.model_validate(payload)
 
 
+def test_dimension_value_coverage_is_scoped_and_excludes_consumer_unit_ids() -> None:
+    payload = _plan_request()
+    payload["access_scope"]["allowed_dimension_ids"].append("geography.municipality")
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "geography.municipality", "values": ["Olinda"]}
+    ]
+    result = QuestionPlanRequest.model_validate(payload)
+    assert result.dimension_value_coverage[0].values == ("Olinda",)
+
+    payload["dimension_value_coverage"][0]["values"] = ["Jaboatão", "JABOATAO"]
+    with pytest.raises(ValidationError):
+        QuestionPlanRequest.model_validate(payload)
+
+    payload = _plan_request()
+    payload["access_scope"]["allowed_dimension_ids"].append("geography.municipality")
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "geography.municipality", "values": ["Olinda"]}
+    ]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    with pytest.raises(ValidationError):
+        QuestionPlanRequest.model_validate(payload)
+
+    payload = _plan_request()
+    payload["access_scope"]["allowed_dimension_ids"] = ["customer.consumer_unit"]
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "customer.consumer_unit", "values": ["UC-1001"]}
+    ]
+    with pytest.raises(ValidationError, match="UC"):
+        QuestionPlanRequest.model_validate(payload)
+
+
 def test_synthesis_preserves_expected_publication_independently_of_lookup() -> None:
     payload = _synthesis()
     payload["lookup"] = {

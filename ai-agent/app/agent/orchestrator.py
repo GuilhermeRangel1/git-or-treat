@@ -314,7 +314,30 @@ class QuestionOrchestrator:
 
         try:
             planned = self._analysis_planner.plan(
-                request.question, request.context, access_context, trace
+                request.question,
+                request.context,
+                access_context,
+                trace,
+                temporal_coverage=(
+                    {
+                        item.metric_id: (item.kind, item.competencies)
+                        for item in request.temporal_coverage
+                    }
+                    if isinstance(request, QuestionPlanRequest)
+                    and request.access_scope.source_id.startswith("gold.")
+                    and request.access_scope.profile_id == "v-energy-grid-360-gold"
+                    else None
+                ),
+                dimension_value_coverage=(
+                    {
+                        item.dimension_id: item.values
+                        for item in request.dimension_value_coverage
+                    }
+                    if isinstance(request, QuestionPlanRequest)
+                    and request.access_scope.source_id.startswith("gold.")
+                    and request.access_scope.profile_id == "v-energy-grid-360-gold"
+                    else None
+                ),
             )
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)

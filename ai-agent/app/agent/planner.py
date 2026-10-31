@@ -1,5 +1,6 @@
 """Liga a interpretação a uma fonte de evidências sem gerar texto natural."""
 
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Self
 
@@ -8,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 from app.agent.access import ReadAccessPolicy
 from app.agent.evidence_guard import EvidenceGuard
 from app.agent.execution import ExecutionLimitExceeded, RequestBudget
-from app.agent.interpreter import QuestionInterpreter
+from app.agent.interpreter import QuestionInterpreter, _normalize
 from app.agent.read_plan import (
     PlanCapabilityUnavailable,
     ReadPlanBuilder,
@@ -29,6 +30,7 @@ from app.ports.evidence import (
     EvidenceToolUnavailable,
 )
 from app.schemas.access import AccessContext
+from app.schemas.domain_profile import DimensionValue, DomainProfile
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
@@ -114,6 +116,7 @@ class QuestionAnalysisPlanner:
     ) -> None:
         self._interpreter = interpreter
         self._evidence_source = evidence_source
+        self._access_policy = access_policy
         self._plan_builder = ReadPlanBuilder(
             access_policy.profile, access_policy.source_id, default_limit=max_rows
         )
@@ -153,10 +156,28 @@ class QuestionAnalysisPlanner:
         context: list[ConversationTurn] | None = None,
         access_context: AccessContext | None = None,
         trace: EventTrace | None = None,
+        temporal_coverage: Mapping[str, tuple[str, tuple[str, ...]]] | None = None,
+        dimension_value_coverage: Mapping[str, tuple[str, ...]] | None = None,
     ) -> PlannedQuestion:
         """Interpreta, monta e aprova o plano; nunca chama a fonte nem o modelo."""
 
-        interpretation = self._interpreter.interpret(question, context)
+        profile = self._profile_with_dimension_values(dimension_value_coverage)
+        interpreter = (
+            self._interpreter
+            if profile is self._access_policy.profile
+            else QuestionInterpreter(profile)
+        )
+        plan_builder = (
+            self._plan_builder
+            if profile is self._access_policy.profile
+            else ReadPlanBuilder(profile, self._access_policy.source_id)
+        )
+        plan_validator = (
+            self._plan_validator
+            if profile is self._access_policy.profile
+            else ReadPlanValidator(profile, self._access_policy.source_id, self._access_policy)
+        )
+        interpretation = interpreter.interpret(question, context)
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
             if trace is not None:
                 trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
@@ -164,8 +185,8 @@ class QuestionAnalysisPlanner:
 
         assert interpretation.intent is not None
         try:
-            proposed = self._plan_builder.build(interpretation.intent)
-            approved = self._approve(proposed, access_context, trace)
+            proposed = plan_builder.build(interpretation.intent, temporal_coverage)
+            approved = self._approve(proposed, access_context, trace, plan_validator)
         except PlanCapabilityUnavailable as exc:
             if trace is not None:
                 trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
@@ -177,6 +198,35 @@ class QuestionAnalysisPlanner:
                 ),
             )
         return PlannedQuestion(interpretation=interpretation, read_plan=approved)
+
+    def _profile_with_dimension_values(
+        self, coverage: Mapping[str, tuple[str, ...]] | None
+    ) -> DomainProfile:
+        if not coverage:
+            return self._access_policy.profile
+
+        dimensions = []
+        for dimension in self._access_policy.profile.dimensions:
+            additions = coverage.get(dimension.id, ())
+            if not additions:
+                dimensions.append(dimension)
+                continue
+            known = {
+                _normalize(alias)
+                for value in dimension.values
+                for alias in (value.value, *value.aliases)
+            }
+            values = list(dimension.values)
+            for raw in additions:
+                normalized = _normalize(raw)
+                if normalized in known:
+                    continue
+                values.append(DimensionValue(value=raw, aliases=(raw,)))
+                known.add(normalized)
+            dimensions.append(dimension.model_copy(update={"values": tuple(values)}))
+        profile_data = self._access_policy.profile.model_dump(mode="python")
+        profile_data["dimensions"] = tuple(dimensions)
+        return DomainProfile.model_validate(profile_data)
 
     async def execute_plan(
         self,
@@ -227,11 +277,12 @@ class QuestionAnalysisPlanner:
         proposed: LogicalReadPlan | dict[str, object],
         access_context: AccessContext | None,
         trace: EventTrace | None,
+        validator: ReadPlanValidator | None = None,
     ) -> LogicalReadPlan:
         try:
             if access_context is None:
                 raise EvidenceAccessDenied("Contexto de acesso ausente.")
-            approved = self._plan_validator.approve(proposed, access_context)
+            approved = (validator or self._plan_validator).approve(proposed, access_context)
         except EvidenceAccessDenied:
             if trace is not None:
                 trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)

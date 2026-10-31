@@ -33,12 +33,22 @@ def _normalize(value: str) -> str:
 
 
 def _find_phrases(text: str, phrases: tuple[str, ...]) -> list[tuple[int, int, str]]:
-    normalized = _normalize(text)
+    normalized_chars: list[str] = []
+    original_positions: list[int] = []
+    for original_index, original_char in enumerate(text):
+        decomposed = unicodedata.normalize("NFD", original_char.casefold())
+        for normalized_char in decomposed:
+            if not unicodedata.combining(normalized_char):
+                normalized_chars.append(normalized_char)
+                original_positions.append(original_index)
+    normalized = "".join(normalized_chars)
     found: list[tuple[int, int, str]] = []
     for phrase in phrases:
         pattern = re.compile(rf"(?<!\w){re.escape(_normalize(phrase))}(?!\w)")
         for match in pattern.finditer(normalized):
-            found.append((match.start(), match.end(), text[match.start() : match.end()]))
+            start = original_positions[match.start()]
+            end = original_positions[match.end() - 1] + 1
+            found.append((start, end, text[start:end]))
     ordered = sorted(found, key=lambda item: (item[0], -(item[1] - item[0])))
     non_overlapping: list[tuple[int, int, str]] = []
     for item in ordered:
@@ -223,6 +233,7 @@ class QuestionInterpreter:
         for start, end, _ in reversed(metric_hits):
             detail_question = detail_question[:start] + " " * (end - start) + detail_question[end:]
         breakdown = self._requested_breakdown(detail_question)
+        breakdown = breakdown or self._requested_ranking_dimension(detail_question)
         breakdown_message = self._profile.clarifications.unsupported_breakdown
         if breakdown is not None and breakdown_message is not None:
             # Sem agrupamento no plano, responder o total seria um falso acerto.
@@ -412,6 +423,26 @@ class QuestionInterpreter:
                     for value in values
                 ):
                     continue
+                return dimension
+        return None
+
+    def _requested_ranking_dimension(self, question: str) -> DimensionDefinition | None:
+        """Detecta perguntas de maior/menor por dimensão que exigiriam agrupamento e ordem."""
+
+        normalized = _normalize(question)
+        ranking = r"(?:mais|menos|maior|menor|cresceu|caiu|perdeu|reduziu|aumentou)"
+        for dimension in self._profile.dimensions:
+            aliases = sorted(
+                {_normalize(item.rstrip("s")) for item in dimension.aliases},
+                key=len,
+                reverse=True,
+            )
+            alternatives = "|".join(re.escape(alias) for alias in aliases)
+            pattern = (
+                rf"\b(?:qual|quais)\s+(?:(?:foi|foram|e)\s+)?"
+                rf"(?:o|a|os|as)?\s*(?:{alternatives})\b[^?]*\b{ranking}\b"
+            )
+            if re.search(pattern, normalized):
                 return dimension
         return None
 

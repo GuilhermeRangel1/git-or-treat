@@ -1,12 +1,14 @@
 """Compila e valida planos lógicos antes de qualquer chamada à fonte."""
 
 import unicodedata
+from collections.abc import Mapping
 from datetime import date
 from math import isfinite
 
 from pydantic import ValidationError
 
 from app.agent.access import ReadAccessPolicy
+from app.agent.temporal import GoldTemporalWindowResolver, TemporalResolutionUnavailable
 from app.ports.evidence import EvidenceAccessDenied
 from app.schemas.access import AccessContext
 from app.schemas.analysis import AnalysisIntent
@@ -48,7 +50,11 @@ class ReadPlanBuilder:
         self._source_id = source_id
         self._default_limit = default_limit
 
-    def build(self, intent: AnalysisIntent) -> LogicalReadPlan:
+    def build(
+        self,
+        intent: AnalysisIntent,
+        temporal_coverage: Mapping[str, tuple[str, tuple[str, ...]]] | None = None,
+    ) -> LogicalReadPlan:
         metric = next(
             (item for item in self._profile.metrics if item.id == intent.metric_id),
             None,
@@ -107,16 +113,40 @@ class ReadPlanBuilder:
             ),
             None,
         )
-        window = (
-            ReadWindow(
-                kind=WindowKind.BOUNDED,
-                start=period_window.start,
-                end=period_window.end,
-                granularity=period_window.granularity,
+        if temporal_coverage is not None:
+            metric_coverage = temporal_coverage.get(metric.id)
+            if metric_coverage is None:
+                raise PlanCapabilityUnavailable(
+                    "A publicação não informa cobertura para o indicador solicitado."
+                )
+            coverage_kind, competencies = metric_coverage
+            if coverage_kind == "monthly":
+                try:
+                    window = GoldTemporalWindowResolver().resolve(
+                        intent.period_phrase, competencies
+                    )
+                except TemporalResolutionUnavailable as exc:
+                    raise PlanCapabilityUnavailable(str(exc)) from exc
+            else:
+                if not metric.accumulated_period_phrases or (
+                    _normalize(intent.period_phrase)
+                    not in {_normalize(item) for item in metric.accumulated_period_phrases}
+                ):
+                    raise PlanCapabilityUnavailable(
+                        "A publicação não oferece competências mensais para esse indicador."
+                    )
+                window = ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
+        else:
+            window = (
+                ReadWindow(
+                    kind=WindowKind.BOUNDED,
+                    start=period_window.start,
+                    end=period_window.end,
+                    granularity=period_window.granularity,
+                )
+                if period_window is not None
+                else ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
             )
-            if period_window is not None
-            else ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
-        )
         return LogicalReadPlan(
             catalog_version=self._profile.contract_version,
             operation="read",

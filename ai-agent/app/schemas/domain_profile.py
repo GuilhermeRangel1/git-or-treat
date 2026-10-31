@@ -133,7 +133,7 @@ class DimensionDefinition(BaseModel):
     value_type: FilterValueType
     operators: tuple[FilterOperator, ...] = Field(min_length=1)
     sensitivity: CatalogSensitivity
-    values: tuple[DimensionValue, ...] = Field(default=(), max_length=500)
+    values: tuple[DimensionValue, ...] = Field(default=(), max_length=2000)
 
     @model_validator(mode="after")
     def validate_dimension_aliases(self) -> Self:

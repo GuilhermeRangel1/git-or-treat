@@ -435,7 +435,7 @@ def _build_profile() -> DomainProfile:
     )
     values["metrics"] = _METRICS
     values["dimensions"] = _DIMENSIONS
-    # Frases relativas; a janela concreta depende das competências do lote (executor futuro).
+    # Frases relativas; o planejador resolve limites com as competências do lote recebido.
     values["period_phrases"] = (
         "últimos 12 meses",
         "último ano",
@@ -454,6 +454,27 @@ def _build_profile() -> DomainProfile:
     values["non_location_phrases"] = ()
     values["ambiguities"] = (
         *values["ambiguities"],
+        {
+            "phrases": ("valor pago", "valores pagos", "quanto foi pago"),
+            "clarification": (
+                "A Gold v2 distingue receita faturada de valor pago e não publica energia "
+                "faturada neste indicador. Você quer consultar receita faturada?"
+            ),
+        },
+        {
+            "phrases": ("energia faturada", "kwh faturados", "kwh faturado"),
+            "clarification": (
+                "A Gold v2 publica consumo medido em kWh, não energia faturada. "
+                "Quer consultar o consumo medido?"
+            ),
+        },
+        {
+            "phrases": ("solar", "energia solar", "painel solar", "painéis solares"),
+            "clarification": (
+                "A Gold v2 registra geração distribuída (GD), mas não confirma que a origem "
+                "seja solar. Posso filtrar UCs com ou sem GD registrada?"
+            ),
+        },
         {
             "phrases": (
                 "interrupção",

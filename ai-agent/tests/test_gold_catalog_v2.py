@@ -134,6 +134,15 @@ class NoLookup:
         raise AssertionError("Planejamento não pode executar evidência.")
 
 
+def _monthly_coverage(start_year=2023, end_year=2025, end_month=4):
+    return [
+        f"{year:04d}-{month:02d}"
+        for year in range(start_year, end_year + 1)
+        for month in range(1, 13)
+        if (year, month) <= (end_year, end_month)
+    ]
+
+
 @pytest.mark.parametrize(
     "question,metric,unit",
     [
@@ -211,7 +220,7 @@ def test_existing_core_plans_with_current_gold_profile_without_querying(question
                 "kind": "none" if m.accumulated_period_phrases else "monthly",
                 "competencies": []
                 if m.accumulated_period_phrases
-                else ["2000-01", "2000-02", "2000-03"],
+                else _monthly_coverage(1999, 2000, 12),
             }
             for m in profile.metrics
         ],
@@ -228,6 +237,9 @@ def test_existing_core_plans_with_current_gold_profile_without_querying(question
     if metric.startswith("service.accumulated_"):
         assert result.plan.window.start is None and result.plan.window.end is None
         assert result.plan.window.phrase == "histórico acumulado"
+    elif result.plan.window.kind is WindowKind.BOUNDED:
+        assert result.plan.window.granularity.value == "month"
+        assert result.plan.window.end.day in (28, 29, 30, 31)
     mapping = GRID360_GOLD_MAPPING.metric(result.plan.metric_id)
     available = {r.id for r in V2_CAPABILITY_REQUIREMENTS}
     dimensions = {f.dimension_id for f in result.plan.filters}
@@ -239,6 +251,204 @@ def test_existing_core_plans_with_current_gold_profile_without_querying(question
     assert selected is not None
     assert mapping.unit == result.plan.unit
     assert selected.table.value in backend_schema().tables
+
+
+@pytest.mark.parametrize(
+    ("question", "metric", "start", "end"),
+    [
+        ("Qual foi a receita no último ano?", "billing.revenue", "2024-05-01", "2025-04-30"),
+        ("Qual foi a receita no ano passado?", "billing.revenue", "2024-01-01", "2024-12-31"),
+        ("Qual foi a receita este ano?", "billing.revenue", "2025-01-01", "2025-04-30"),
+        ("Qual foi a receita no último trimestre?", "billing.revenue", "2025-02-01", "2025-04-30"),
+        ("Qual foi a receita mês passado?", "billing.revenue", "2025-03-01", "2025-03-31"),
+    ],
+)
+def test_gold_relative_windows_resolve_against_published_competencies(question, metric, start, end):
+    profile = GRID360_GOLD_PROFILE
+    scope = AccessScope(
+        caller_ref="user.test",
+        profile_id=profile.profile_id,
+        source_id="gold.local",
+        allowed_operations={"read"},
+        allowed_metric_ids={item.id for item in profile.metrics},
+        allowed_dimension_ids={item.id for item in profile.dimensions},
+    )
+    core = compose_core(
+        profile=profile,
+        source_id="gold.local",
+        evidence_source=NoLookup(),
+        model_adapter=FakeModelAdapter(),
+        execution_controller=ExecutionController(),
+    )
+    request = QuestionPlanRequest(
+        question=question,
+        remaining_timeout_ms=35000,
+        access_scope=scope,
+        batch_ref="gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        temporal_coverage=[
+            {
+                "metric_id": metric_item.id,
+                "kind": "none" if metric_item.accumulated_period_phrases else "monthly",
+                "competencies": []
+                if metric_item.accumulated_period_phrases
+                else _monthly_coverage(),
+            }
+            for metric_item in profile.metrics
+        ],
+    )
+
+    result = asyncio.run(core.question.plan(request, "c" * 32))
+
+    assert result.status.value == "planned", result.model_dump_json()
+    assert result.plan.metric_id == metric
+    assert result.plan.window.kind is WindowKind.BOUNDED
+    assert result.plan.window.start.isoformat() == start
+    assert result.plan.window.end.isoformat() == end
+    assert result.plan.window.granularity.value == "month"
+
+
+@pytest.mark.parametrize(
+    "competencies",
+    [
+        ["2023-01", "2023-02", "2023-03", "2023-05", "2023-06"],
+        [],
+    ],
+)
+def test_gold_planning_clarifies_when_coverage_cannot_support_full_window(competencies):
+    profile = GRID360_GOLD_PROFILE
+    scope = AccessScope(
+        caller_ref="user.test",
+        profile_id=profile.profile_id,
+        source_id="gold.local",
+        allowed_operations={"read"},
+        allowed_metric_ids={item.id for item in profile.metrics},
+        allowed_dimension_ids={item.id for item in profile.dimensions},
+    )
+    core = compose_core(
+        profile=profile,
+        source_id="gold.local",
+        evidence_source=NoLookup(),
+        model_adapter=FakeModelAdapter(),
+        execution_controller=ExecutionController(),
+    )
+    request = QuestionPlanRequest(
+        question="Qual foi a receita no último trimestre?",
+        remaining_timeout_ms=35000,
+        access_scope=scope,
+        batch_ref="gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        temporal_coverage=[
+            {
+                "metric_id": metric.id,
+                "kind": "monthly",
+                "competencies": competencies,
+            }
+            for metric in profile.metrics
+            if metric.id == "billing.revenue"
+        ],
+    )
+
+    result = asyncio.run(core.question.plan(request, "c" * 32))
+
+    assert result.status.value == "needs_clarification"
+    assert result.plan is None
+
+
+def test_gold_vocabulary_filters_use_batch_values_and_preserve_accents():
+    profile = GRID360_GOLD_PROFILE
+    scope = AccessScope(
+        caller_ref="user.test",
+        profile_id=profile.profile_id,
+        source_id="gold.local",
+        allowed_operations={"read"},
+        allowed_metric_ids={item.id for item in profile.metrics},
+        allowed_dimension_ids={item.id for item in profile.dimensions},
+    )
+    core = compose_core(
+        profile=profile,
+        source_id="gold.local",
+        evidence_source=NoLookup(),
+        model_adapter=FakeModelAdapter(),
+        execution_controller=ExecutionController(),
+    )
+    request = QuestionPlanRequest(
+        question="Qual foi a receita comercial em Jaboatão no último trimestre?",
+        remaining_timeout_ms=35000,
+        access_scope=scope,
+        batch_ref="gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        temporal_coverage=[
+            {"metric_id": metric.id, "kind": "monthly", "competencies": _monthly_coverage()}
+            for metric in profile.metrics
+            if not metric.accumulated_period_phrases
+        ],
+        dimension_value_coverage=[
+            {"dimension_id": "geography.municipality", "values": ["Olinda", "Jaboatão"]}
+        ],
+    )
+
+    result = asyncio.run(core.question.plan(request, "c" * 32))
+
+    assert result.status.value == "planned", result.model_dump_json()
+    assert result.plan.metric_id == "billing.revenue"
+    filters = {item.dimension_id: item.values for item in result.plan.filters}
+    assert filters == {
+        "customer.consumption_class": ("COMERCIAL",),
+        "geography.municipality": ("Jaboatão",),
+    }
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual foi a receita em Olinda e Jaboatão no último trimestre?",
+        "Qual bairro mais perdeu consumo residencial no último ano?",
+        "Quanto cresceu a receita comercial em Jaboatão no último trimestre?",
+        "Qual foi o valor pago em Jaboatão no último trimestre?",
+        "Qual foi a energia faturada em Olinda no último trimestre?",
+        "Quantas UCs com solar em Olinda tiveram queda de consumo no último ano?",
+    ],
+)
+def test_gold_planning_clarifies_when_comparison_ranking_or_metric_is_unsupported(question):
+    profile = GRID360_GOLD_PROFILE
+    scope = AccessScope(
+        caller_ref="user.test",
+        profile_id=profile.profile_id,
+        source_id="gold.local",
+        allowed_operations={"read"},
+        allowed_metric_ids={item.id for item in profile.metrics},
+        allowed_dimension_ids={item.id for item in profile.dimensions},
+    )
+    core = compose_core(
+        profile=profile,
+        source_id="gold.local",
+        evidence_source=NoLookup(),
+        model_adapter=FakeModelAdapter(),
+        execution_controller=ExecutionController(),
+    )
+    request = QuestionPlanRequest(
+        question=question,
+        remaining_timeout_ms=35000,
+        access_scope=scope,
+        batch_ref="gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        temporal_coverage=[
+            {
+                "metric_id": metric.id,
+                "kind": "none" if metric.accumulated_period_phrases else "monthly",
+                "competencies": []
+                if metric.accumulated_period_phrases
+                else _monthly_coverage(),
+            }
+            for metric in profile.metrics
+        ],
+        dimension_value_coverage=[
+            {"dimension_id": "geography.municipality", "values": ["Olinda", "Jaboatão"]},
+            {"dimension_id": "geography.neighborhood", "values": ["Casa Caiada"]},
+        ],
+    )
+
+    result = asyncio.run(core.question.plan(request, "c" * 32))
+
+    assert result.status.value == "needs_clarification"
+    assert result.plan is None
 
 
 @pytest.mark.parametrize(
