@@ -652,6 +652,16 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Limites: o bloqueio anterior dos testes HTTP não se reproduziu fora do sandbox. A conferência visual no navegador continua bloqueada pelo controle local desativado no Work. O smoke real Backend → GenAI → SQLite anterior permanece como evidência separada; estes testes não aprovam dados ou permissões Gold.
 - Relatório de regressão sintética: `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` executou 55 casos: 44 passaram e 11 confirmaram limitações conhecidas catalogadas; zero falhas inesperadas e zero mudanças nessas limitações. O pytest verde inclui a confirmação desses casos conhecidos; não significa que as 55 perguntas atendam integralmente ao comportamento desejado.
 
+### 2026-10-23 — IA-01 e IA-06 — dicionário SQL da Gold real e banco de teste
+
+- Estado anterior → novo estado: IA-01 `Pendente` → `Pendente`; IA-06 `Pendente` → `Pendente`. A camada SQL passa a conhecer os nomes reais da Gold v1, mas a Gold ainda não está no `develop`, nenhuma composição da aplicação carrega o novo dicionário e não há credencial, permissão nem reconciliação com dados reais.
+- Mudança observável: em teste, o agente consulta as 4 tabelas da Gold v1 por plano validado → SQL regenerado pelo validador → SQLite sintético com nomes reais. “Receita comercial em Jaboatão” devolve R$ 960,00 (2026-08) e R$ 680,00 (2026-09); “DEC de um alimentador” devolve 1,5 h e 0,5 h; “quantas UCs têm prioridade alta” devolve 2. “Qual bairro mais perdeu volume” e “UCs com painel solar com queda acima de 30%” terminam em sem evidência, porque a Gold v1 não tem consumo mensal por bairro nem por UC. O `SqlPlanReader` existente, sem alteração, lê a receita por município e classe com plano lógico aprovado. Colunas pessoais, mesmo mascaradas, e metadados de pipeline são recusados.
+- Arquivos/commit/PR: branch `feat/ia-gold-dicionario-sql`, criada de `origin/develop` (`e6c5423`), PR #46. Novos: `ai-agent/app/sql/dictionary_gold.toml`, `ai-agent/tests/gold_mock.py`, `ai-agent/tests/test_sql_gold_dictionary.py`, `ai-agent/tests/fixtures/gold_dictionary_v1_snapshot.json`. Alterados: `ai-agent/app/sql/README.md`, [guia do serviço](services/ai-agent.md) e este PRD. Nenhum código existente de `app/sql`, interpretador, planner, orquestrador, gate, composição, schemas ou perfis foi alterado.
+- Dados usados: nomes e tipos de `docs/dicionario_gold.md` e chaves de `tables_gold_pk` em `data-engineering/notebook/Silver_to_gold.ipynb`, ambos de `origin/feat/gold` no commit `31a80e6`; linhas do banco de teste inteiramente sintéticas (UCs `UC100000`..`UC100005`, alimentadores `ALIM-FIC-01`/`02`, CPF e nome no formato mascarado). Nenhum dado do case, dado pessoal real ou chamada a modelo.
+- Verificações: em `ai-agent/`, em 23/10/2026, com a `.venv` ativa: `python -m pytest` três vezes, sempre 2638 aprovados, 2 pulados e 1 xfail (antes: 2595 aprovados e 2 pulados; 43 testes novos aprovados e 1 xfail estrito); `python -m ruff check .` e `python -m compileall -q app tests` sem erros; `python -m tests.test_genai_regression --output reports/synthetic-regression-report.json` com código 0, 44/55, 11 falhas conhecidas confirmadas e relatório idêntico ao anterior; `git diff --check` e a validação de documentação do job `validar-documentacao-e-configuracao` passaram na raiz.
+- Critérios de aceite revisados e pendências: (1) o validador não lê `relationships` e aceita `JOIN` entre tabelas sem chave em comum, como `diagnostico_receita` com `visao_360_uc`; fixado por teste `xfail` estrito, sem alterar o validador nesta entrega. (2) `DEC`/`FEC` são declarados em minúsculas porque o carregador exige; em PostgreSQL com coluna criada entre aspas o nome não casaria. (3) Os valores reais de `prioridade_inspecao` no notebook (`ALTA - …`, `MEDIA - …`, `REVISAR - …`, `BAIXA`) divergem do exemplo `Alta/Média/Baixa` do dicionário v1. (4) O planejador que escolhe a tabela pelos metadados existe só no teste; o catálogo de produção, o perfil com vocabulário da Gold e a ligação ao endpoint continuam pendentes. (5) As tabelas `consumo_receita_bairro` e `variacao_consumo_uc` da issue #40 não foram incluídas; o roteiro está no guia da borda SQL. (6) Os nomes inconsistentes de GD, classe e alimentador aguardam congelamento pelo grupo. Trello não sincronizado: MCP não autenticado nesta sessão.
+- Responsável: laura-amiranda.
+
 **Marco atual (16/10/2026):** documentação e protótipo visual em Figma criados; há protótipos locais de GenAI com contratos e fixtures sintéticas. Nenhum requisito funcional DE/WEB/IA/ENT foi concluído com integração e dados validados. Skills, hooks, protótipos e mocks são preparação/evidência técnica parcial, não substituem os critérios funcionais do produto. Atualize as tabelas da seção 6 e acrescente uma entrada por lote de entrega.
 
 ### 2026-10-24 — DE-02/DE-03 — execução da Silver revisada e evidência de qualidade
@@ -2093,6 +2103,67 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Evidência: os testes HTTP inicialmente retornaram 502 onde se esperava 503. Após o ajuste e a ampliação da primeira suíte, em `backend/`, `python -m pytest tests/test_ai_insights.py tests/test_ai_chat.py tests/test_genai_client.py tests/test_genai_http_unavailability.py -q`: **86 aprovados**. Ruff nos sete arquivos Python alterados, `python -m compileall` nos mesmos arquivos e `git diff --check` passaram.
 - Limites: teste com fonte sintética e transporte HTTP controlado; sem chamada a provedor real ou Gold. Não houve mudança de estado nem aceite integral de IA-05. Revisão humana e CI remota pendentes.
 
+### 2026-10-29 — IA-01 e IA-06 — GENAI-03 (parte 1): dicionário SQL da Gold com as 7 tabelas
+
+- Estado anterior → novo estado: IA-01 `Pendente` → `Pendente`; IA-06 `Pendente` → `Pendente`. O dicionário passa a cobrir a Gold v1 atual, mas continua `gold-v1-nao-homologado` e não está ligado à aplicação.
+- Mudança: `dictionary_gold.toml` passa de 4 para 7 tabelas, com `consumo_receita_bairro`, `variacao_consumo_uc` e `consumo_mensal_uc`. A fonte agora é `origin/develop` (`c9580cd`): colunas e regras de `docs/dicionario_gold.md`; tipos, chaves e anuláveis de `backend/app/models/gold_v1.py`. Correções nas tabelas existentes: `possuo_gd` → `possui_gd` em `diagnostico_receita` (colunas, chave e `[concepts]`); `subgrupo_tarifario` → `subgrupo` em `fila_inspecao` e `visao_360_uc`; a fila perde `total_chamados_callcenter` e `media_satisfacao_atendimento` e fica com as 14 colunas reais; `ticket_medio_reais_por_uc` passa de decimal a `double`, como no Backend; as colunas pessoais e de pipeline saem do snapshot porque nenhuma tabela as projeta. `sensitive_columns` continua bloqueando esses nomes. Também foram acrescentados por tabela `nullable_columns` (ignorado pelo carregador), o conceito `subgrupo_tarifario` e `known_values` só para domínios fechados (`Sim`/`Não` e prioridades).
+- Conferência local: novo `ai-agent/scripts/check_gold_dictionary.py` compara um diretório `<tabela>/*.csv` com o dicionário. Os nomes são comparados sem diferenciar caixa, e o tipo é inferido de forma grosseira só nas primeiras linhas. A saída tem apenas tabela, coluna e PASS/FAIL com motivo, sem valores nem contagens, e termina com código 1 se houver falha. Não foi executado contra o lote real.
+- Arquivos: `ai-agent/app/sql/dictionary_gold.toml`, `ai-agent/app/sql/README.md` (seção do dicionário Gold e pontos abertos), `ai-agent/tests/gold_mock.py`, `ai-agent/tests/test_sql_gold_dictionary.py`, `ai-agent/tests/fixtures/gold_dictionary_v1_snapshot.json`, `ai-agent/scripts/check_gold_dictionary.py` (novo), `ai-agent/tests/test_check_gold_dictionary.py` (novo) e este PRD. Branch `feat/ia-gold-dicionario-sql`, PR #46.
+- Testes: o mock sintético cria as 7 tabelas com nomes `FICTICIO`, e as três tabelas financeiras reconciliam por competência. Novos testes:
+  - coerência com `docs/dicionario_gold.md`: colunas exatas e tipo conceitual de cada tabela;
+  - coerência com o modelo do Backend, lido por análise sintática: tipos e chaves;
+  - `nullable_columns` só aponta para colunas existentes fora da chave;
+  - cada `[concepts]` aponta para coluna real;
+  - nomes antigos são recusados.
+
+  Os e2e de bairro e de queda acima de 30% com GD, antes sem evidência, agora respondem pelas tabelas novas. Mantidos os testes de segurança e o `xfail` estrito do `JOIN` sem relacionamento declarado.
+- Dados usados: somente nomes e tipos dos documentos e do modelo citados, além de linhas inventadas. Nenhum valor, total, contagem ou percentual do lote; nenhum dado pessoal ou chamada a modelo.
+- Verificações: em `ai-agent/`, em 29/10/2026, com `.venv`:
+  - `python -m pytest -q tests/test_sql_gold_dictionary.py tests/test_check_gold_dictionary.py`: 76 aprovados e 1 xfail (60 + 1 xfail no dicionário; 16 no script);
+  - `python -m pytest -q`: 3105 aprovados, 4 pulados e 1 xfail (antes: 3072 aprovados, 4 pulados e 1 xfail);
+  - `python -m ruff check` nos quatro arquivos Python tocados: sem erros;
+  - `python -m compileall -q app tests scripts`: sem erros;
+  - `git diff --check` na raiz: passou.
+- Limites: o dicionário não foi homologado nem ligado a nenhuma composição da aplicação. Não há credencial, papel de leitura nem reconciliação com a Gold real. O planejador que escolhe a tabela existe só no teste. `docs/services/ai-agent.md` ainda descreve 4 tabelas.
+- Pontos abertos com o Backend:
+  - DEC/FEC: o Backend cria `Column("DEC")`/`Column("FEC")` em `gold_v1.py`, e a migração `goldv1000001` usa esse modelo. No PostgreSQL as colunas ficam `"DEC"`/`"FEC"`, sensíveis a caixa, enquanto o carregador do dicionário exige `dec`/`fec`. Uma consulta sem aspas pode não encontrar a coluna. Não foi decidido; o executor PostgreSQL não deve ler `indicadores_dec_fec` até haver decisão.
+  - Prefixo: o Backend grava as tabelas como `gold_<nome>`, e o dicionário usa o nome sem prefixo.
+- Responsável: laura-amiranda; revisão pendente. Trello não sincronizado nesta etapa.
+
+### 2026-10-29 — IA-01, IA-03 e IA-06 — GENAI-03 (parte 2): catálogo lógico e mapeamento físico da Gold
+
+- Estado anterior → novo estado: IA-01 `Pendente` → `Pendente`; IA-03 e IA-06 sem mudança de estado. É preparação: nem o perfil nem o mapeamento estão ligados a `app/main.py` ou a uma composição da aplicação.
+- Mudança: novo perfil lógico `GRID360_GOLD_PROFILE` (`v-energy-grid-360-gold`), derivado do vocabulário demonstrativo e sem nomes físicos. Tem sete métricas das quatro capacidades aprovadas na prontidão (`faturamento.receita`, `faturamento.receita_bairro`, `consumo.mensal_uc`, `interrupcoes.dec_fec`):
+  - receita faturada (`billing.revenue`) e consumo medido (`energy.consumption`), reaproveitando os ids demonstrativos;
+  - três razões: ticket médio, tarifa média efetiva e consumo médio por UC;
+  - DEC e FEC, com ids novos (`network.equivalent_interruption_duration`/`_frequency`), porque `network.interruptions` tinha outro significado.
+
+  Também foi criado o mapeamento físico versionado `GRID360_GOLD_MAPPING` (`gold-catalog-v1`), em Pydantic imutável. Para cada métrica, ele declara as fontes candidatas com sua capacidade, a coluna da medida ou o numerador e o denominador, a coluna temporal, o grão, as anuláveis, o mapa dimensão → coluna, a nulidade e o arredondamento.
+  - Escolha de fonte: uma única fonte, a primeira que cobre as dimensões e está disponível.
+  - Razões: calculadas como razão de somas.
+  - DEC/FEC: só leitura no grão alimentador × competência.
+
+  As oito capacidades indisponíveis ficam declaradas com o motivo da prontidão. `out_of_scope_terms` não foi usado: o filtro de segurança recusaria essas perguntas como fora do escopo, e a resposta de capacidade indisponível ficou como pendência do GENAI-04.
+- Arquivos: novos `ai-agent/app/profiles/grid360_gold.py`, `ai-agent/app/profiles/grid360_gold_mapping.py`, `ai-agent/tests/test_gold_catalog.py`, `ai-agent/tests/test_gold_catalog_mapping.py` e [catálogo Gold](gold-catalog.md); alterados o [guia do serviço](services/ai-agent.md), que passa a citar as 7 tabelas e o catálogo, e este PRD. Interpretador, planejador, orquestrador, `app/main.py`, perfis demonstrativos, validador SQL e prontidão não foram alterados.
+- Testes, todos sintéticos:
+  - o perfil valida e não contém nome de tabela nem identificador físico;
+  - cada métrica tem um mapeamento e capacidades aprovadas, com tabelas da capacidade;
+  - colunas, tipos, grão e período batem com `dictionary_gold.toml` carregado por `load_dictionary`;
+  - dimensões são sustentadas pelas fontes; razões nunca são somadas; DEC/FEC nunca agregam;
+  - cópias alteradas do dicionário (coluna renomeada, tipo divergente, grão, tabela removida, período, versão) e da prontidão (capacidade sem a tabela, fora da Gold, não aprovada ou ausente) fazem a validação falhar com mensagem clara;
+  - pelo núcleo composto, receita, receita residencial, consumo e DEC viram o plano lógico esperado, e "falta de luz" e "conta de luz" pedem esclarecimento sem consultar a fonte.
+- Verificações: em `ai-agent/`, em 29/10/2026, com `.venv`:
+  - `python -m pytest -q tests/test_gold_catalog.py tests/test_gold_catalog_mapping.py`: 46 aprovados;
+  - `python -m pytest -q`: 3208 aprovados, 4 pulados e 1 xfail (antes: 3162 aprovados, 4 pulados e 1 xfail);
+  - `python -m ruff check` nos quatro arquivos Python novos: sem erros;
+  - `python -m compileall -q app tests scripts`: sem erros;
+  - `git diff --check` na raiz: passou.
+- Limites: o catálogo não prova a Gold real; a liberação para consulta real depende de GENAI-06, GENAI-07 e GENAI-10.
+  - Pendências com Dados: definição, unidade e fórmula de cada métrica, janela temporal, nulos e arredondamento, em checklist no catálogo.
+  - Pendências com o Backend: `"DEC"`/`"FEC"` entre aspas no PostgreSQL e o prefixo `gold_`, anotadas sem decisão.
+  - Pendências do GENAI-04: "ticket médio" e "consumo médio por UC" ainda não são alcançáveis pelo interpretador atual, e município e bairro não têm valores no perfil.
+- Responsável: laura-amiranda; revisão pendente. Trello não sincronizado nesta etapa.
+
 
 ### 2026-10-29 — IA-01/IA-03/IA-06 — envelopes Gold do GENAI-01 (PR #77)
 
@@ -2393,3 +2464,39 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Teste reproduziu ausência de janelas no manifesto interno (KeyError). A carga agora calcula `coverage_windows` transacionalmente por domínio/recorte, com extremos observados, contagens e estados, sempre não certificadores. Lacunas não são preenchidas. CSV/manifesto de entrada e identidade não mudam; publicação antiga e repetição idempotente podem não ter o campo. Dados restritos continuam separados; recortes permanecem no manifesto interno, sem nova exposição ao portal/GenAI.
 - Backend completo Docker/PostgreSQL 16: 859 passaram, 8 skips, 59,79 s. Prova privada com pacote real e teste atualizado: 1 passou, 273,77 s, incluindo importação/limpeza; conferiu contagens das janelas, repetição e recusa de manifesto incompatível. Uma execução anterior teve falha de conexão durante inicialização do container; após preparar usuário/banco, a suíte foi reexecutada com sucesso. Não houve falha funcional ignorada.
 - Guia de prontidão reúne rastreabilidade de chaves/cardinalidades, cadastro atual sem histórico inventado, sentinelas/pagamento inconclusivo, ajustes, referência histórica e distinção de consumo medido. Origem de Dados continua base aceita; não reabre Silver nem homologa medidas candidatas. Evidência técnica do item manifesto/carga consolidada; aplicação das regras nos consumidores, controles finais por recorte e mesma publicação até o portal seguem parciais. Nenhum requisito obrigatório marcado Concluído.
+
+
+### 2026-10-31 — IA-01 / IA-02 / IA-03 / IA-06 — Início da adaptação do catálogo à Gold v2
+
+- PR #73 retomado na branch existente, com merge da develop `7f094c7` preparado sem commit/push. Conflito do PRD conciliado preservando os registros das duas entregas. Fonte corrente definida como quinze tabelas `gold_v2`; versões históricas isoladas em módulos `_v1`, sem promover dictionary_gold.toml legado ao runtime atual.
+- Três regressões novas falharam antes da correção: versão v1, preço observado fora da base comparável e limitações de interseção já inválidas na Gold v2. Corrigidas: receita/consumo independentes, preço observado com base comparável, denominador do consumo médio por UCs com leitura, DEC/FEC na grafia real e capacidades com fontes existentes sem alegação de ausência.
+- Duas fronteiras aprovadas: planejador público do núcleo com perfil/envelope Gold v2, sem chamada à evidência; validador público do mapeamento contra schema real do Backend lido em processo separado. Testes dirigidos: 57 passaram, incluindo regressão v1 explícita e recusa de drift em versão/coluna/tipo/grão/período. Não comprova execução SQL ou ligação implantada; atendimento e distribuição do mapeamento físico ao Backend ainda em adaptação. Cartão não concluído.
+
+- Gate desta primeira fatia v2: suíte completa GenAI `python -m pytest -q -rs --tb=short`: 3.540 passaram, 4 skips externos/host, 1 xfail histórico de JOIN do dicionário SQL v1; 20,37 s. A suíte expôs uma comparação antiga que exigia sete tabelas no dicionário canônico; corrigida para distinguir a fotografia v1 exata da referência atual, sem apagar a regressão. Ruff completo e compileall passaram. SQLAlchemy foi acrescentado somente ao extra de desenvolvimento para confronto do schema Backend, sem dependência de banco no runtime GenAI.
+
+- Continuação da adaptação v2: sete métricas passam pelo planejador público e pela seleção de fonte confrontada com o schema Backend. Três regressões reproduziram liberação indevida por prontidão de outro domínio; dependências explícitas por métrica agora são exigidas e validadas. Quatro novas falhas expuseram dependência desconhecida e três nomes de métricas médias confundidos com detalhe/agrupamento; corrigidos preservando esclarecimentos para qualificadores externos. Testes v2 dirigidos: 21 passaram. Gate final GenAI: 3.550 passaram, 4 skips de ambiente, 1 xfail histórico SQL v1, 25,33 s; Ruff e compileall passaram. Revisão do delta sem bloqueios. Trabalho local, sem commit/push; não libera execução SQL nem conclui atendimento ou distribuição do mapeamento físico ao Backend.
+
+
+### 2026-10-31 — IA-01 / IA-02 / IA-03 / IA-06 — Atendimento e catálogo físico Gold v2
+
+- Continuação local do PR #73, sem commit/push. Perfil e mapeamento passam de sete para onze métricas: protocolos e satisfação, mensais por abertura UTC ou acumulados no histórico publicado sem datas conhecidas. Nota zero permanece válida, ausência nula, média calculada nos protocolos em vez de médias por UC. C14/C15 e cobertura continuam exigências da prontidão, não inferidas pela existência de linhas.
+- `accumulated_period_phrases` restringe o histórico na construção/revalidação do plano; recusa datas e granularidade inventadas sem alterar o envelope interno v1. A unidade pontos é reconhecida como nota, sem escala máxima presumida. A descoberta de schema não autoriza fontes/recortes e atendimento não cria joins para geografia/classe.
+- Backend recebe artefato local `app/catalogs/gold_v2.json`, schemas e carregador/seleção próprios, sem import GenAI ou SQL. Contrato confrontado com modelos físicos e com o mapeamento GenAI em teste entre processos. Rejeita versões/colunas/tipos/grãos/modos temporais/dependências incompatíveis; média/soma de texto e DEC/FEC anual foram reproduzidos e bloqueados. O coordenador futuro mantém autorização, revalidação de plano/lote e consulta real.
+- Fronteiras públicas aprovadas: planejador, validador do mapeamento e carregador Backend. GenAI completo: 3.558 passaram, 4 skips de ambiente, 1 xfail SQL v1 histórico (25,87 s). Backend completo nesta rodada: 795 passaram, 90 skips por PostgreSQL/dados reais não configurados (159,68 s); após correções finais do carregador, 21 dirigidos passaram. Não reexecuta aceites privados de carga nem declara consulta Gold implantada. Nenhum requisito do PRD ou cartão inteiro marcado concluído.
+
+
+### 2026-10-31 — IA-01 / IA-02 / IA-03 / IA-06 — Limites e consistência do catálogo Gold v2
+
+- Continuação local do PR #73, sem commit ou push. Cada métrica agora carrega rótulo, definição, operadores de filtro e limite temporal próprios; janelas delimitadas não ultrapassam 1.830 dias e métricas acumuladas não recebem calendário inventado. O limite global do planejador pode restringir, mas nunca ampliar, o limite declarado pela métrica.
+- GenAI valida dimensão e competência como texto, projeção mensal de atendimento como timestamp UTC, precisão/escala decimal e colunas sensíveis; o mapeamento também confronta fórmula, população, unidade, tipo de unidade, operadores, dependências e semântica do perfil. O carregador Backend valida o mesmo artefato contra os modelos v2 instalados e rejeita alterações físicas ou semânticas; a seleção repete a validação para não confiar em mapas internos mutáveis.
+- Regressões acrescentadas para limite temporal, drift de tipos/grão/unidade/fórmula, escala decimal, fuso, coluna sensível e catálogo alterado após o carregamento. Suíte GenAI completa: 3.571 passaram, 4 skips de ambiente e 1 xfail histórico (34,36 s). Suíte Backend completa: 815 passaram e 90 skips por PostgreSQL/pacote privado ausentes (159,48 s). Ruff nos arquivos alterados, `compileall` dos dois serviços, links/configuração documental (109 documentos) e `git diff --check`: passaram.
+- Estado e limites: não conclui requisito PRD nem o cartão Trello. Não há executor/consulta Gold ativa; a API/evidência/portal ainda não consomem os rótulos do catálogo. As verificações que exigem PostgreSQL descartável e pacote real foram puladas por falta de configuração, e não houve reconciliação do lote real. Os novos arquivos e alterações desta continuação seguem somente na árvore local.
+
+
+### 2026-10-31 — IA-01 / IA-02 / IA-03 / IA-06 — Conferência objetiva do GENAI-03
+
+- Estado: requisitos oficiais preservados. Preparação do catálogo, sem consulta Gold em runtime. A continuação antes descrita como local foi publicada no PR #73, commit `728c72b`; a correção desta rodada continua na mesma branch e mantém o escopo de preparação.
+- Caminho: `compose_core → question.plan → catálogo/mapeamento → select_source`; Backend recebe o artefato validado pelo carregador existente. Uma métrica desconhecida passada diretamente ao seletor reaproveitava uma fonte conhecida: teste reproduziu a aceitação indevida; seletor agora recusa o ID antes de selecionar a fonte. Arquivos: `ai-agent/app/profiles/grid360_gold_mapping.py` e `ai-agent/tests/test_gold_catalog_v2.py`.
+- Evidência reproduzível: em `ai-agent/`, `python -m pytest -q -p no:cacheprovider tests/test_gold_catalog_v2.py -k unknown_metric` falhou antes da correção (DID NOT RAISE) e a execução dos dois arquivos `test_gold_catalog_v2.py` e `test_gold_catalog_backend_contract.py` passou com 43 testes após a correção. `python -m pytest -q -p no:cacheprovider`: 3.572 passaram, 4 skips de ambiente e 1 xfail histórico em 32,64 s. `python -m ruff check app/profiles/grid360_gold_mapping.py tests/test_gold_catalog_v2.py` e `python -m compileall -q app tests`: passaram. Não reexecutada a suíte Backend; seu código/artefato não mudou nesta rodada.
+- Política de aceite atualizada por orientação da pessoa usuária: Gold CSV v2 é a única referência corrente; critérios e contratos v1 são históricos e não bloqueiam GENAI-03. O dicionário e o notebook Gold atuais documentam as definições implementadas. Não se identificou pergunta de fórmula/população v2 sem resposta nos arquivos consultados. O comentário de Dados de 29/10 descrevia a população v1 e não foi usado como critério da v2.
+- Progresso: oito de dez critérios da checklist GENAI-03 comprovados; dois parciais, ambos consumidores de metadados na evidência/API/portal. Matriz atualizada em [catálogo Gold](gold-catalog.md#progresso-por-critério--genai-03-31102026). Isso não representa conclusão do cartão nem dos requisitos IA-01 a IA-06; integração/execução/reconciliação permanecem nos cartões seguintes.

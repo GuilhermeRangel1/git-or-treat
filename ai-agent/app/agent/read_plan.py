@@ -17,6 +17,7 @@ from app.schemas.domain_profile import (
     DomainProfile,
     FilterOperator,
     FilterValueType,
+    MetricDefinition,
 )
 from app.schemas.read_plan import (
     LogicalReadPlan,
@@ -61,6 +62,7 @@ class ReadPlanBuilder:
                 "Não há uma janela aprovada para esse período; reformule a consulta."
             )
 
+        _validate_metric_period(metric, intent.period_phrase, self._profile)
         dimensions = {item.id: item for item in self._profile.dimensions}
         selected_ids = set(intent.dimension_ids)
         filters: dict[str, ReadFilter] = {}
@@ -95,9 +97,7 @@ class ReadPlanBuilder:
                     "Não há uma regra aprovada para aplicar esse filtro."
                 )
             selected_ids.add(key)
-            filters[key] = ReadFilter(
-                dimension_id=key, operator=FilterOperator.EQ, values=(value,)
-            )
+            filters[key] = ReadFilter(dimension_id=key, operator=FilterOperator.EQ, values=(value,))
 
         period_window = next(
             (
@@ -188,7 +188,8 @@ class ReadPlanValidator:
             or not set(plan.dimension_ids) <= set(metric.dimension_ids)
         ):
             raise PlanCapabilityUnavailable("Métrica, unidade ou dimensão indisponível.")
-        self._validate_window(plan, metric.granularities)
+        _validate_metric_period(metric, plan.window.phrase, self._profile, plan.window.granularity)
+        self._validate_window(plan, metric.granularities, metric.max_window_days)
 
         dimensions = {item.id: item for item in self._profile.dimensions}
         for plan_filter in plan.filters:
@@ -210,9 +211,18 @@ class ReadPlanValidator:
         return plan
 
     def _validate_window(
-        self, plan: LogicalReadPlan, allowed_grains: tuple[CatalogGranularity, ...]
+        self,
+        plan: LogicalReadPlan,
+        allowed_grains: tuple[CatalogGranularity, ...],
+        metric_max_window_days: int | None,
     ) -> None:
         window = plan.window
+        max_window_days = min(
+            self._max_window_days,
+            metric_max_window_days
+            if metric_max_window_days is not None
+            else self._max_window_days,
+        )
         if window.granularity is not None and window.granularity not in allowed_grains:
             raise PlanCapabilityUnavailable("Granularidade indisponível para a métrica.")
         if window.kind is WindowKind.CATALOG_PHRASE:
@@ -223,7 +233,7 @@ class ReadPlanValidator:
         elif (
             window.start is None
             or window.end is None
-            or (window.end - window.start).days > self._max_window_days
+            or (window.end - window.start).days > max_window_days
         ):
             raise PlanCapabilityUnavailable("Janela solicitada excede o limite.")
 
@@ -251,3 +261,24 @@ def _valid_iso_date(value: str) -> bool:
         return date.fromisoformat(value).isoformat() == value
     except ValueError:
         return False
+
+
+def _validate_metric_period(
+    metric: MetricDefinition,
+    phrase: str | None,
+    profile: DomainProfile,
+    granularity: CatalogGranularity | None = None,
+) -> None:
+    accumulated = {_normalize(p) for m in profile.metrics for p in m.accumulated_period_phrases}
+    normalized = _normalize(phrase or "")
+    if metric.accumulated_period_phrases:
+        if granularity is not None:
+            raise PlanCapabilityUnavailable(
+                "Histórico acumulado não possui granularidade de calendário."
+            )
+        if normalized not in {_normalize(p) for p in metric.accumulated_period_phrases}:
+            raise PlanCapabilityUnavailable(
+                "Este indicador só possui histórico acumulado, sem recorte por datas."
+            )
+    elif normalized in accumulated:
+        raise PlanCapabilityUnavailable("Este indicador exige um período de calendário.")
