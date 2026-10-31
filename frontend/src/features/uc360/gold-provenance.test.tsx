@@ -110,6 +110,11 @@ it("expõe período, unidade, lote e ausências no detalhe UC sem fabricar dados
         status: "unavailable",
         limitations: [],
       },
+      gold_generation: {
+        capacity_kwp: 3.5,
+        connection_date: null,
+        modality: null,
+      },
       section_status: {
         consumption: "partial",
         invoices: "unavailable",
@@ -132,6 +137,7 @@ it("expõe período, unidade, lote e ausências no detalhe UC sem fabricar dados
           error: null,
         },
         history: { data: undefined, pending: false, error: null },
+        series: { data: undefined, pending: false, error: null },
         filters: {
           start: period.start,
           end: period.end,
@@ -144,6 +150,7 @@ it("expõe período, unidade, lote e ausências no detalhe UC sem fabricar dados
       actions={{
         onOverviewRetry: vi.fn(),
         onHistoryRetry: vi.fn(),
+        onSeriesRetry: vi.fn(),
         onNewSearch: vi.fn(),
         onHistoryOpen: vi.fn(),
         onSelectHistory: vi.fn(),
@@ -158,6 +165,7 @@ it("expõe período, unidade, lote e ausências no detalhe UC sem fabricar dados
   });
   expect(within(panel).getByText("07/2022 a 06/2026")).toBeVisible();
   expect(within(panel).getByText("R$ · kWh")).toBeVisible();
+  expect(screen.getAllByText(/3,5 kWp/).length).toBeGreaterThan(0);
   expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
   expect(within(panel).getByText(metadata.limitations[0])).toBeVisible();
 });
