@@ -1,7 +1,7 @@
 """Declaração estática do que cada capacidade exige da Gold; dados, não regra de avaliação.
 
 Fontes: docs/dicionario_gold.md (tabelas e colunas) e docs/gold-coverage-v0.md (perguntas,
-pendências de Dados e controles C01 a C13). `min_consecutive_months` fica None onde não há
+pendências de Dados e controles C01 a C15). `min_consecutive_months` fica None onde não há
 janela mínima documentada; a avaliação ainda exige competências sem lacuna.
 """
 
@@ -25,7 +25,7 @@ class CaseDomain(StrEnum):
 
 
 # Controles definidos na seção (g) de docs/gold-coverage-v0.md.
-DOCUMENTED_CONTROLS: frozenset[str] = frozenset(f"C{number:02d}" for number in range(1, 14))
+DOCUMENTED_CONTROLS: frozenset[str] = frozenset(f"C{number:02d}" for number in range(1, 16))
 
 # Tabelas que têm a coluna `competencia` no dicionário Gold.
 TABLES_WITH_COMPETENCIA: frozenset[GoldTable] = frozenset(
@@ -34,6 +34,7 @@ TABLES_WITH_COMPETENCIA: frozenset[GoldTable] = frozenset(
         GoldTable.INDICADORES_DEC_FEC,
         GoldTable.CONSUMO_RECEITA_BAIRRO,
         GoldTable.CONSUMO_MENSAL_UC,
+        GoldTable.COBERTURA_DOMINIOS,
     }
 )
 
@@ -49,6 +50,8 @@ class CapabilityRequirement(BaseModel):
     required_controls: tuple[ControlId, ...] = ()
     definition_approved: bool
     source_not_in_gold: bool = False
+    requires_coverage: bool = False
+    allows_confirmed_empty: bool = False
 
     @model_validator(mode="after")
     def validate_declaration(self) -> Self:
@@ -65,6 +68,8 @@ class CapabilityRequirement(BaseModel):
             raise ValueError("janela mínima exige coluna temporal")
         if not set(self.required_controls) <= DOCUMENTED_CONTROLS:
             raise ValueError("controle não documentado")
+        if self.allows_confirmed_empty and not self.requires_coverage:
+            raise ValueError("zero confirmado exige cobertura")
         return self
 
 
@@ -166,3 +171,37 @@ CAPABILITY_REQUIREMENTS: tuple[CapabilityRequirement, ...] = (
         source_not_in_gold=True,
     ),
 )
+
+
+def _v2_requirements() -> tuple[CapabilityRequirement, ...]:
+    """Adapta fontes documentadas sem homologar medidas ou controles inexistentes."""
+    updates = {
+        "faturamento.preco_volume": {"tables": (GoldTable.DECOMPOSICAO_RECEITA,),
+                                     "temporal_column": None},
+        "faturamento.faturas_em_aberto": {"tables": (GoldTable.FATURAS_UC,),
+                                         "source_not_in_gold": False},
+        "apoio.medidor_uc": {"tables": (GoldTable.MEDIDOR_UC,), "source_not_in_gold": False},
+        "apoio.energia_recuperavel": {"tables": (GoldTable.FILA_INSPECAO,),
+                                      "source_not_in_gold": False},
+        "interrupcoes.uc_acumulado": {"tables": (GoldTable.VISAO_360_UC,
+                                                  GoldTable.OCORRENCIAS_UC)},
+        "atendimento.uc_acumulado": {"tables": (GoldTable.VISAO_360_UC,
+                                                GoldTable.ATENDIMENTOS_UC),
+                                     "required_controls": ("C14",), "definition_approved": True},
+    }
+    result = []
+    for requirement in CAPABILITY_REQUIREMENTS:
+        data = requirement.model_dump()
+        data.update(updates.get(requirement.id, {}))
+        data["requires_coverage"] = data["temporal_column"] is not None
+        result.append(CapabilityRequirement.model_validate(data))
+    result.append(CapabilityRequirement(
+        id="atendimento.mensal", domain=CaseDomain.ATENDIMENTO,
+        tables=(GoldTable.ATENDIMENTOS_UC, GoldTable.COBERTURA_DOMINIOS),
+        required_controls=("C14", "C15"), definition_approved=True,
+        requires_coverage=True, allows_confirmed_empty=True,
+    ))
+    return tuple(result)
+
+
+V2_CAPABILITY_REQUIREMENTS = _v2_requirements()

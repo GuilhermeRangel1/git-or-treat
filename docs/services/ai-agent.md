@@ -391,3 +391,8 @@ O verificador `scripts/gold_coverage.py` preserva satisfação zero quando obser
 
 
 Complemento de 31/10/2026: C14 confere flags de nota presentes e a população sem UCs de teste. C15 compara os meses de abertura com `cobertura_dominios`, preservando estado e ausência de data. Ambos devolvem diagnósticos agregados sem autenticar declarações de cobertura ou liberar métricas; a prontidão do PR #71 e a identidade do lote no Backend continuam fronteiras de integração próprias.
+
+
+### GENAI-02 — prontidão v2 por capacidade, 31/10/2026
+
+A função pública existente `app.readiness.evaluate_readiness` recebe fatos explícitos do Backend; v2 reconhece quinze fontes analíticas sem cadastro pessoal e exige resultados de controle aprovados/passados no mesmo lote, além da cobertura do recorte. C14 governa atendimento acumulado e C14/C15 o mensal. Contagem coerente não aprova mês não certificado. Datas sem competência são observação obrigatória; inventário incompleto é parcial, com decisão independente por capacidade. `GoldBatchRef` continua compartilhado com o núcleo; os controles CSV não concedem autorização ou aprovação automaticamente. Compatibilidade v1 é explícita e recusa referências CSV v2. Fonte existente não homologa medida: faturas, medidores, recuperação individual e outras capacidades pendentes permanecem bloqueadas pelos critérios documentados em [gold-readiness.md](../gold-readiness.md). A fábrica injeta o avaliador na operação `POST /api/v1/internal/gold-readiness`, com autenticação de serviço obrigatória inclusive localmente. Não chama LLM nem banco. Observação dos fatos no Backend e consumo pelo fluxo público continuam etapas separadas. Não ativa banco, consulta ou interpretação Gold e não conclui GENAI-02.

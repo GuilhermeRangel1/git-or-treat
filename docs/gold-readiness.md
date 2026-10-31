@@ -1,94 +1,61 @@
 # Prontidão da Gold por capacidade
 
-**Cartão:** GENAI-02. **Versão:** `gold-readiness-v1`. **Código:** `ai-agent/app/readiness/`. **Testes:** `ai-agent/tests/test_gold_readiness.py`.
+**Cartão:** GENAI-02. **Código:** `ai-agent/app/readiness/`. **Fronteira pública:** `evaluate_readiness(PublicationFacts)`. **Natureza:** avaliador puro com operação interna autenticada. Observação Backend e consulta conversacional são etapas de integração separadas.
 
-**Natureza:** preparação. A matriz e os estados são verificáveis com fatos sintéticos, mas nada aqui prova a Gold real nem substitui GENAI-06, GENAI-07 ou GENAI-10. Este documento não traz nenhum valor, contagem, período ou identificador de lote.
+## Responsabilidades e caminho previsto
 
-## O que é
+O Backend observa sua publicação validada e fornece fatos de tabela, resultados aprovados de controle e cobertura do recorte. O avaliador existente, puro e sem I/O, devolve códigos por capacidade. O coordenador, catálogo e consumidores deverão usar o relatório antes da consulta. A fábrica GenAI injeta o avaliador na operação autenticada `POST /api/v1/internal/gold-readiness`. O chat público ainda não chama essa operação. Não existe acesso a banco no núcleo GenAI.
 
-Uma função pura, `evaluate_readiness(facts) -> ReadinessReport`, sem I/O, banco ou rede. O Backend observa a publicação carregada no banco local e informa os fatos; a função devolve o estado do lote e, para cada capacidade, se ela pode ser usada e por quê. O catálogo (GENAI-03), o executor e o portal consomem o relatório.
+Os diagnósticos privados produzidos por `scripts/gold_coverage.py` nos controles C14/C15 são evidências de conferência; não são uma autorização automática nem um envelope de publicação confiável. Sua aprovação e vinculação ao lote cabem ao servidor responsável. Nenhuma entrada desta API interna deve vir diretamente do navegador.
 
-**Entrada (`PublicationFacts`):** `readiness_version`, `batch_ref` atual, `expected_batch_ref`, `tables` (por tabela Gold: `present`, `has_rows`, `batch_ref` e `periods` no formato `AAAA-MM`, sem repetição), `approved_controls` e `backend_reachable`. Campo desconhecido, versão diferente, tabela fora das sete oficiais, `batch_ref` fora do formato, competência inválida ou repetida e fatos contraditórios (tabela ausente com linhas, por exemplo) são recusados com erro de validação; nada é corrigido.
+## Versões e migração
 
-**Saída (`ReadinessReport`):** `readiness_version`, `lot_state`, `batch_ref` e, por capacidade, `status` (`available` ou `unavailable`) e `reasons`. A saída tem só códigos e estados.
+- `gold-readiness-v1` preserva a matriz histórica de sete tabelas, a lista `approved_controls` e as decisões anteriores, como compatibilidade explícita. Continua o default legado `READINESS_VERSION`; o consumidor novo precisa informar v2.
+- `gold-readiness-v2` reconhece as quinze tabelas analíticas do dicionário atual e exige resultados de controle vinculados ao lote. O cadastro restrito de titular e `controle_gold` ficam fora do inventário.
+- Publicação `gold-csv-v2` não pode ser avaliada como prontidão v1. O esquema CSV e a versão de prontidão são conceitos distintos; uma referência válida não certifica a carga.
+- Fatos v2 não podem ser enviados em envelope v1, e v2 rejeita a lista legada `approved_controls`. Mudança de consumidor exige envio explícito da versão e dos fatos novos; não converter uma lista de controles aprovados em resultados aprovados de outro lote.
+- O relatório preserva a versão de prontidão recebida. Rollback exige voltar a um par consumidor/contrato compatível, sem fallback silencioso de Gold v2 para prontidão v1.
 
-`GoldBatchRef` é importado de `app.schemas.evidence`, a mesma definição usada pelos envelopes internos e pela proveniência; a prontidão não mantém um formato paralelo.
+## Entrada v2
 
-## Estados do lote e precedência
+`PublicationFacts` contém identificação atual/esperada (`GoldBatchRef` compartilhado com evidências), `backend_reachable`, `tables`, `control_results` e `coverage`, além da versão explícita. Sem contagens de negócio, registros ou identificadores pessoais.
 
-A primeira regra que se aplica define o estado:
+- `TableFacts`: presença, existência de linhas, referência de publicação e competências observadas. Tabela ausente não tem linhas/publicação; tabela sem linhas não tem competências. Flags booleanas são estritas; períodos inválidos ou duplicados são rejeitados.
+- `ControlFacts`: referência de publicação, `status` (`passed`, `failed`, `pending`, `unavailable`) e `approved` booleano estrito, falso por padrão. Aprovação sem resultado passado não libera a capacidade; resultado passado sem aprovação também não. Resultado de outro lote bloqueia somente as capacidades dependentes.
+- `CoverageFacts`, por capacidade: publicação, períodos solicitados, observados, fechados, zero confirmado e presença de registros sem competência, informada por booleano estrito obrigatório (sem presumir falso por omissão). O Backend deriva esses fatos da cobertura e das definições validadas para a métrica/recorte, preservando AUSENTE/PARCIAL/NAO_CERTIFICADA como períodos não fechados. Não inferir fechamento pelo calendário, continuidade dos meses ou presença de registros.
 
-| Ordem | Condição | Estado | Efeito nas capacidades |
-| ---: | --- | --- | --- |
-| 1 | Backend não alcançou o banco | `unavailable` | Todas indisponíveis com `backend_unavailable`. Indisponibilidade nunca vira vazio nem ausência legítima. |
-| 2 | Lote atual sem `batch_ref`, ou alguma tabela presente sem `batch_ref` | `invalid` | Todas com `publication_unidentified`. |
-| 3 | `expected_batch_ref` definido e diferente do atual | `stale` | Todas com `publication_stale`. |
-| 4 | Tabelas presentes com `batch_ref` diferentes entre si ou do atual | `mixed` | Todas com `publication_mixed`. |
-| 5 | Nenhuma tabela com linhas | `empty` | Avaliação por capacidade: `table_empty` ou `table_missing`. |
-| 6 | Alguma tabela exigida ausente ou sem linhas | `partial` | Só as capacidades que dependem dela ficam indisponíveis. |
-| 7 | Demais casos | `ready` | Avaliação por capacidade. |
+O mês solicitado deve existir nos fatos de `cobertura_dominios`, mesmo para eventos datados por abertura. Um período solicitado deve estar fechado e observado, ou ter zero explicitamente confirmado. Zero confirmado exige fechamento e não pode coincidir com registros observados. Registros sem competência bloqueiam a análise temporal. Para tabelas com coluna de competência, os períodos solicitados também devem constar dos fatos observados da tabela. Uma lacuna fora do recorte solicitado não bloqueia uma pergunta por outro recorte válido.
 
-Nos estados 1 a 4, as capacidades fora da Gold também levam `source_not_in_gold`. Uma capacidade bloqueada nunca derruba as outras.
+Apenas a capacidade mensal de atendimento admite tabela de eventos vazia com zero confirmado para todo o recorte; a tabela de cobertura precisa existir e conter linhas. Ausência da tabela nunca confirma zero. O avaliador não produz um número zero de negócio: apenas informa prontidão para consulta autorizada.
 
-`invalid` e `mixed` são casos distintos: `mixed` exige que todos os `batch_ref` estejam presentes e que haja divergência entre eles; a falta de identificação é sempre `invalid`, nunca `mixed` nem `ready`. Uma publicação legada, sem origem validada, cai em `invalid`, como prevê o [contrato de consulta](contracts/genai-query-execution.md#lote-da-gold-batch_ref) para lote sem manifesto carregado e validado.
+## Estados do lote
 
-`invalid` pertence somente a `ReadinessReport.lot_state`; não acrescenta um estado ao chat público e não equivale a `no_evidence`. Uma referência ausente gera esse estado e bloqueia todas as capacidades; uma referência preenchida fora do formato é recusada na validação de entrada. A futura coordenação do Backend deve impedir consulta e síntese para publicação sem identificação e traduzir a falha conforme o contrato de consulta, cuja política HTTP/repetição permanece proposta. Este módulo não implementa essa tradução.
+Precedência: Backend indisponível → `unavailable`; publicação atual/tabelas presentes sem referência → `invalid`; referência esperada divergente → `stale`; tabelas com referências distintas → `mixed`; nenhuma linha → `empty`; alguma das quinze fontes do inventário v2 ausente/vazia → `partial` (v1 mantém o inventário legado requerido); demais casos → `ready`.
 
-## Avaliação por capacidade
+Os quatro primeiros bloqueiam todas as capacidades. `ready` descreve disponibilidade de inventário, não aprovação de todas as medidas. Nos demais casos, a avaliação é por capacidade; um lote `partial` pode sustentar capacidades independentes. Um resultado `available` não substitui autenticação, validação de plano, controles de execução ou grounding.
 
-Uma capacidade fica `available` só quando não acumula nenhum motivo:
+## Matriz v2 e limites semânticos
 
-- tabela exigida ausente → `table_missing`; presente sem linhas → `table_empty` (zero é diferente de ausência: tabela vazia nunca é lida como zero);
-- com coluna temporal `competencia`: sem competências → `period_missing`; competências com lacuna ou em número menor que `min_consecutive_months` → `period_insufficient`;
-- controle exigido fora de `approved_controls` → `control_pending`;
-- definição ainda dependente de Dados → `definition_pending`;
-- fonte que não existe na Gold → `source_not_in_gold`, sempre indisponível.
+| Capacidade | Fontes principais | Controles / limite |
+| --- | --- | --- |
+| `faturamento.receita` | `diagnostico_receita` | C01/C02/C04 e cobertura do recorte |
+| `faturamento.receita_bairro` | `consumo_receita_bairro` | C12/C13 e cobertura do recorte |
+| `consumo.mensal_uc` | `consumo_mensal_uc` | C03/C10 e cobertura do recorte |
+| `interrupcoes.dec_fec` | `indicadores_dec_fec` | C11 e cobertura do recorte; não somar razões |
+| `atendimento.uc_acumulado` | `visao_360_uc`, `atendimentos_uc` | C14 aprovado e passado no mesmo lote; sem competência inventada |
+| `atendimento.mensal` | `atendimentos_uc`, `cobertura_dominios` | C14/C15 aprovados e passados, cobertura fechada do recorte |
+| `faturamento.preco_volume` | `decomposicao_receita` | definição pendente para exposição da medida candidata; presença não homologa tarifa |
+| `faturamento.faturas_em_aberto` | `faturas_uc` | fonte existe; liberação semântica/controles da capacidade ainda pendentes; valor indicativo não é saldo contábil |
+| `apoio.medidor_uc` | `medidor_uc` | fonte existe; regra e controles da capacidade ainda pendentes; ausência de retirada não prova atividade |
+| `apoio.energia_recuperavel` | `fila_inspecao` | definição pendente; média histórica não é estimativa individual; campos por UC permanecem nulos |
+| `interrupcoes.uc_acumulado` | `visao_360_uc`, `ocorrencias_uc` | controle/definição da capacidade ainda pendentes |
+| `consumo.variacao_uc` | `variacao_consumo_uc` | C08/C09; interpretação das janelas ainda pendente para a capacidade |
+| `apoio.fila_inspecao` | `fila_inspecao` | C06/C07; aprovação da interpretação dos rótulos ainda pendente |
 
-Os motivos saem sem repetição, na ordem da enumeração `ReasonCode`, e a mesma entrada produz sempre a mesma saída.
+Definição pendente permanece bloqueada, mesmo com controles passados. As pendências são da capacidade consumidora, não uma declaração de ausência das tabelas ou de falta de implementação do produtor. Os detalhes canônicos estão no [dicionário](dicionario_gold.md) e nos contratos [de cobertura](contracts/gold-cobertura-v1.md) e [de consulta](contracts/genai-query-execution.md).
 
-## Códigos
+## Evidência e continuação
 
-`table_missing`, `table_empty`, `period_missing`, `period_insufficient`, `definition_pending`, `control_pending`, `source_not_in_gold`, `publication_stale`, `publication_mixed`, `publication_unidentified`, `backend_unavailable`.
+Os testes pela função pública usam fatos controlados, sem provedor, banco ou dados pessoais. Validam versões, controles, cobertura, zero/ausência, isolamento de capacidades, lote misto/antigo e rejeição de entradas inválidas. Não comprovam identidade/hash do CSV, reconciliação Silver/Gold, agregados persistidos ou mesmo lote no portal.
 
-## Capacidades, tabelas e controles
-
-Perguntas (P) e controles (C) são os de [gold-coverage-v0.md](gold-coverage-v0.md); tabelas, as do [dicionário Gold](dicionario_gold.md).
-
-| Capacidade | Domínio | Tabelas | Período | Controles | Definição |
-| --- | --- | --- | --- | --- | --- |
-| `faturamento.receita` (P1, P4, P5) | faturamento | `diagnostico_receita` | `competencia` | C01, C02, C04 | aprovada |
-| `faturamento.receita_bairro` (P3) | faturamento | `consumo_receita_bairro` | `competencia` | C12, C13 | aprovada |
-| `faturamento.preco_volume` (P2) | faturamento | `diagnostico_receita` | `competencia` | C01, C02 | pendente |
-| `faturamento.faturas_em_aberto` (P8) | faturamento | fora da Gold | — | — | — |
-| `consumo.mensal_uc` (P7, P20) | consumo | `consumo_mensal_uc` | `competencia` | C03, C10 | aprovada |
-| `consumo.variacao_uc` (P6) | consumo | `variacao_consumo_uc` | janelas fixas | C08, C09 | pendente |
-| `interrupcoes.dec_fec` (P16, P17, P21) | interrupções | `indicadores_dec_fec` | `competencia` | C11 | aprovada |
-| `interrupcoes.uc_acumulado` (P10) | interrupções | `visao_360_uc` | sem competência | nenhum | pendente |
-| `atendimento.uc_acumulado` (P11) | atendimento | `visao_360_uc` | sem competência | nenhum | pendente |
-| `apoio.fila_inspecao` (P14) | apoio | `fila_inspecao` | sem competência | C06, C07 | pendente |
-| `apoio.medidor_uc` (P9) | apoio | fora da Gold | — | — | — |
-| `apoio.energia_recuperavel` (P15) | apoio | fora da Gold | — | — | — |
-
-Nenhuma capacidade declara `min_consecutive_months`: não há janela mínima aprovada por Dados. Toda capacidade com `competencia` exige, ainda assim, competências sem lacuna.
-
-## Pendências
-
-**Definições de Dados** (`definition_pending`):
-
-- `faturamento.preco_volume`: faltam a tarifa homologada e o método aprovado de decomposição preço × volume.
-- `consumo.variacao_uc`: janela e mínimo de meses da pergunta de GD ainda abertos; P1 e P2 são fixos na Gold.
-- `interrupcoes.uc_acumulado` e `atendimento.uc_acumulado`: só há totais acumulados por UC, sem mês (e, no atendimento, sem motivo), e nenhum controle independente do domínio.
-- `apoio.fila_inspecao`: mapeamento dos rótulos de resultado de inspeção pendente (issue #39).
-
-**Controles:** a seção (g) de `gold-coverage-v0.md` define C01 a C13. Os controles aprovados vêm na entrada, não no código; C13 só libera `faturamento.receita_bairro` quando o Backend o informar como aprovado. Controles posteriores (como C15) não estão documentados e não são exigidos por nenhuma capacidade; quando forem, entram em `requirements.py` com a capacidade correspondente.
-
-**Fora da Gold** (`source_not_in_gold`): faturas em aberto, medidor e energia a recuperar. Dependem de complemento da Gold por Dados.
-
-**Lote:** o `batch_ref` segue o formato proposto em [genai-query-execution.md](contracts/genai-query-execution.md#lote-da-gold-batch_ref). Enquanto ele não estiver nos schemas de evidência da `develop`, o módulo declara o mesmo formato localmente.
-
-## Limites
-
-- Preparação: os testes usam somente fatos sintéticos e não provam a Gold real.
-- Não substitui GENAI-06, GENAI-07 nem GENAI-10, nem a carga e reconciliação do Backend (DE-06).
-- Não decide se uma resposta está correta: indica apenas se a capacidade pode ser consultada com aquele lote.
-- Uma mudança incompatível na entrada ou na saída exige nova `readiness_version`.
+GENAI-02 permanece em andamento até essas dependências serem comprovadas. A operação interna usa o ponto de composição existente; o Backend ainda deve fornecer os fatos observados e consumir o relatório antes da consulta. O contrato público de chat e os estados dos requisitos IA não mudam nesta preparação.

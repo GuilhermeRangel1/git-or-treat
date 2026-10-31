@@ -5,6 +5,8 @@ from app.readiness.models import (
     READINESS_VERSION,
     CapabilityReadiness,
     CapabilityStatus,
+    ControlFacts,
+    CoverageFacts,
     GoldTable,
     LotState,
     PublicationFacts,
@@ -12,15 +14,23 @@ from app.readiness.models import (
     ReasonCode,
     TableFacts,
 )
-from app.readiness.requirements import CAPABILITY_REQUIREMENTS, CapabilityRequirement, CaseDomain
+from app.readiness.requirements import (
+    CAPABILITY_REQUIREMENTS,
+    V2_CAPABILITY_REQUIREMENTS,
+    CapabilityRequirement,
+    CaseDomain,
+)
 
 __all__ = [
     "CAPABILITY_REQUIREMENTS",
+    "V2_CAPABILITY_REQUIREMENTS",
     "READINESS_VERSION",
     "CapabilityReadiness",
     "CapabilityRequirement",
     "CapabilityStatus",
     "CaseDomain",
+    "ControlFacts",
+    "CoverageFacts",
     "GoldTable",
     "LotState",
     "PublicationFacts",
