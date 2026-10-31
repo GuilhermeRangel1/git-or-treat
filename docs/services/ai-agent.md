@@ -409,3 +409,8 @@ A fábrica atual injeta `evaluate_readiness` em `POST /api/v1/internal/gold-read
 ### Controles adicionais recebidos do Backend — GENAI-02
 
 A operação interna de prontidão existente recebe os resultados observados de receita, consumo e continuidade pela mesma versão v2. Não executa SQL nem recalcula medidas; exige sucesso, aceite explícito e identidade de publicação, além de cobertura fechada do recorte. Testes HTTP cobrem controle falho, não aprovado, antigo e período não fechado, preservando atendimento independente. O relatório permanece separado das perguntas e insights públicos.
+
+
+### Catálogo Gold v2 em adaptação
+
+Os módulos correntes `grid360_gold` e `grid360_gold_mapping` referenciam Gold CSV v2 e prontidão v2; os módulos `_v1` conservam a compatibilidade histórica explicitamente. O dicionário SQL de sete tabelas do PR #46 continua legado e não é a referência física da fonte atual. A primeira fatia é validada contra as quinze tabelas `gold_v2` do Backend por teste em processo separado e pelo planejador público, sem executar evidência ou LLM. O perfil lógico não importa o mapeamento físico. Esta preparação não compõe a consulta Gold implantada; [estado do catálogo](../gold-catalog.md) registra o que falta de atendimento e distribuição do mapeamento ao Backend.

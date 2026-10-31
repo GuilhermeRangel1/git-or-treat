@@ -4,9 +4,9 @@ Usado pelo executor do Backend no futuro; o núcleo (interpretação e planejame
 ``GRID360_GOLD_PROFILE``. Não importa a camada SQL de execução: a validação recebe o dicionário
 como ``DictionarySchema``, montado por quem chama a partir de ``dictionary_gold.toml``.
 
-Nomes físicos são os do dicionário (``diagnostico_receita``, ``dec``/``fec``). O prefixo
-``gold_`` das tabelas do Backend e a grafia ``"DEC"``/``"FEC"`` no PostgreSQL continuam pontos
-abertos do Backend (``OPEN_POINTS``); este módulo não os resolve.
+A referência atual é o schema físico `gold_v2` do Backend, com quinze tabelas e
+colunas `DEC`/`FEC` preservadas. O dicionário SQL v1 do PR #46 é legado e não valida
+esta versão. Este módulo não executa SQL e não é importado pelo planejador lógico.
 
 Regras fixas:
 - uma consulta usa uma única fonte: a primeira de ``sources`` cujas dimensões cobrem a consulta
@@ -22,16 +22,16 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-from app.readiness import CAPABILITY_REQUIREMENTS, CapabilityRequirement, GoldTable, ReasonCode
-from app.readiness.models import READINESS_VERSION, ReadinessVersion
+from app.readiness import V2_CAPABILITY_REQUIREMENTS, CapabilityRequirement, GoldTable, ReasonCode
+from app.readiness.models import ReadinessVersion
 from app.schemas.analysis import LogicalIdentifier
 from app.schemas.domain_profile import DomainProfile, UnitKind
 
-MAPPING_VERSION = "gold-catalog-v1"
-# Igual ao `version` de app/sql/dictionary_gold.toml; o teste confere.
-DICTIONARY_VERSION = "gold-v1-develop-c9580cd"
+MAPPING_VERSION = "gold-catalog-v2"
+# Versão do contrato físico Backend; validada contra suas tabelas em processo separado.
+DICTIONARY_VERSION = "gold-csv-v2"
 
-PhysicalColumn = Annotated[str, StringConstraints(strict=True, pattern=r"^[a-z_][a-z0-9_]*$")]
+PhysicalColumn = Annotated[str, StringConstraints(strict=True, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")]
 OpenPoint = Annotated[str, StringConstraints(min_length=1, max_length=300)]
 
 _NUMERIC_TYPES = {"bigint": "bigint", "double": "double", "decimal": "decimal"}
@@ -109,6 +109,7 @@ class MetricMapping(BaseModel):
     metric_id: LogicalIdentifier
     # Capacidade da fonte padrão (a primeira); cada fonte declara a sua.
     capability_id: LogicalIdentifier
+    required_capability_ids: tuple[LogicalIdentifier, ...] = Field(min_length=1)
     aggregation: Aggregation
     unit: str = Field(min_length=1, max_length=200)
     unit_kind: UnitKind
@@ -167,10 +168,11 @@ class UnavailableCapability(BaseModel):
 class GoldCatalogMapping(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    mapping_version: Literal["gold-catalog-v1"] = MAPPING_VERSION
+    mapping_version: Literal["gold-catalog-v2"] = MAPPING_VERSION
+    physical_schema: Literal["gold_v2"] = "gold_v2"
     profile_id: LogicalIdentifier
     dictionary_version: str = Field(min_length=1, max_length=100)
-    readiness_version: ReadinessVersion = READINESS_VERSION
+    readiness_version: ReadinessVersion = "gold-readiness-v2"
     metrics: tuple[MetricMapping, ...] = Field(min_length=1)
     unavailable: tuple[UnavailableCapability, ...] = ()
     open_points: tuple[OpenPoint, ...] = ()
@@ -217,6 +219,8 @@ def select_source(
     ``None`` quando nenhuma fonte serve ou falta dimensão obrigatória; nunca combina fontes.
     """
 
+    if not set(metric.required_capability_ids) <= set(available_capabilities):
+        return None
     if not set(metric.required_dimension_ids) <= set(dimension_ids):
         return None
     return next(
@@ -235,11 +239,13 @@ def validate_mapping(
     *,
     profile: DomainProfile,
     dictionary: DictionarySchema,
-    requirements: tuple[CapabilityRequirement, ...] = CAPABILITY_REQUIREMENTS,
+    requirements: tuple[CapabilityRequirement, ...] = V2_CAPABILITY_REQUIREMENTS,
 ) -> None:
     """Falha com ``CatalogMappingError`` em qualquer divergência; nunca aprova em silêncio."""
 
     errors: list[str] = []
+    if mapping.readiness_version != "gold-readiness-v2":
+        errors.append("catálogo v2 exige prontidão v2")
     capabilities = {requirement.id: requirement for requirement in requirements}
     if mapping.profile_id != profile.profile_id:
         errors.append("perfil do mapeamento difere do perfil lógico")
@@ -256,6 +262,16 @@ def validate_mapping(
 
     used_capabilities: set[str] = set()
     for metric in mapping.metrics:
+        for dependency in metric.required_capability_ids:
+            requirement = capabilities.get(dependency)
+            if (
+                requirement is None
+                or requirement.source_not_in_gold
+                or not requirement.definition_approved
+            ):
+                errors.append(
+                    f"{metric.metric_id}: dependência {dependency} inexistente ou não aprovada"
+                )
         logical = profile_metrics.get(metric.metric_id)
         if logical is not None:
             if logical.unit != metric.unit:
@@ -353,7 +369,7 @@ _SUM_TYPE_BY_KIND = {
     UnitKind.COUNT: ColumnType.BIGINT,
 }
 
-# --- Mapeamento v1 -----------------------------------------------------------------------
+# --- Mapeamento v2 -----------------------------------------------------------------------
 
 _DIAGNOSTICO_DIMENSIONS = {
     "geography.municipality": "municipio",
@@ -440,6 +456,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
     metrics=(
         MetricMapping(
             metric_id="billing.revenue",
+            required_capability_ids=("faturamento.receita",),
             capability_id="faturamento.receita",
             aggregation=Aggregation.SUM,
             unit="R$",
@@ -455,6 +472,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         ),
         MetricMapping(
             metric_id="energy.consumption",
+            required_capability_ids=("consumo.mensal_uc",),
             capability_id="faturamento.receita",
             aggregation=Aggregation.SUM,
             unit="kWh",
@@ -470,6 +488,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         ),
         MetricMapping(
             metric_id="billing.average_ticket",
+            required_capability_ids=("faturamento.receita",),
             capability_id="faturamento.receita",
             aggregation=Aggregation.RATIO_OF_SUMS,
             unit="R$ por UC faturada no mês",
@@ -491,6 +510,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         ),
         MetricMapping(
             metric_id="billing.effective_tariff",
+            required_capability_ids=("faturamento.receita", "consumo.mensal_uc"),
             capability_id="faturamento.receita",
             aggregation=Aggregation.RATIO_OF_SUMS,
             unit="R$/kWh",
@@ -501,21 +521,25 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             null_rule=_RATIO_NULLS,
             sources=(
                 _diagnostico(
-                    numerator_column="receita_total_reais",
-                    denominator_column="consumo_total_kwh",
+                    numerator_column="receita_base_comparavel_reais",
+                    denominator_column="consumo_base_comparavel_kwh",
                 ),
                 _bairro(
-                    numerator_column="receita_total_reais",
-                    denominator_column="consumo_total_kwh",
+                    numerator_column="receita_base_comparavel_reais",
+                    denominator_column="consumo_base_comparavel_kwh",
                 ),
-                _mensal(numerator_column="receita_reais", denominator_column="consumo_kwh"),
+                _mensal(
+                    numerator_column="receita_base_comparavel_reais",
+                    denominator_column="consumo_base_comparavel_kwh",
+                ),
             ),
         ),
         MetricMapping(
             metric_id="energy.average_consumption_per_uc",
+            required_capability_ids=("consumo.mensal_uc",),
             capability_id="faturamento.receita",
             aggregation=Aggregation.RATIO_OF_SUMS,
-            unit="kWh por UC faturada no mês",
+            unit="kWh por UC com leitura no mês",
             unit_kind=UnitKind.ENERGY,
             numerator_type=ColumnType.DOUBLE,
             denominator_type=ColumnType.BIGINT,
@@ -524,16 +548,17 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             sources=(
                 _diagnostico(
                     numerator_column="consumo_total_kwh",
-                    denominator_column="qtd_ucs_distintas_faturadas_no_mes",
+                    denominator_column="qtd_ucs_com_leitura",
                 ),
                 _bairro(
                     numerator_column="consumo_total_kwh",
-                    denominator_column="qtd_ucs_distintas_faturadas_no_mes",
+                    denominator_column="qtd_ucs_com_leitura",
                 ),
             ),
         ),
         MetricMapping(
             metric_id="network.equivalent_interruption_duration",
+            required_capability_ids=("interrupcoes.dec_fec",),
             capability_id="interrupcoes.dec_fec",
             aggregation=Aggregation.KEY_GRAIN_READ,
             unit="horas por UC",
@@ -542,10 +567,11 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             rounding=Rounding(decimals=2),
             null_rule=NullRule.READ_NULL_IS_ABSENT,
             required_dimension_ids=("network.feeder",),
-            sources=(_dec_fec("dec"),),
+            sources=(_dec_fec("DEC"),),
         ),
         MetricMapping(
             metric_id="network.equivalent_interruption_frequency",
+            required_capability_ids=("interrupcoes.dec_fec",),
             capability_id="interrupcoes.dec_fec",
             aggregation=Aggregation.KEY_GRAIN_READ,
             unit="interrupções por UC",
@@ -554,10 +580,15 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             rounding=Rounding(decimals=2),
             null_rule=NullRule.READ_NULL_IS_ABSENT,
             required_dimension_ids=("network.feeder",),
-            sources=(_dec_fec("fec"),),
+            sources=(_dec_fec("FEC"),),
         ),
     ),
     unavailable=(
+        UnavailableCapability(
+            capability_id="atendimento.mensal",
+            reasons=(ReasonCode.CONTROL_PENDING,),
+            note="Fonte e controles C14/C15 disponíveis; mapeamento do domínio em adaptação v2.",
+        ),
         UnavailableCapability(
             capability_id="faturamento.preco_volume",
             reasons=(ReasonCode.DEFINITION_PENDING,),
@@ -565,8 +596,11 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         ),
         UnavailableCapability(
             capability_id="faturamento.faturas_em_aberto",
-            reasons=(ReasonCode.DEFINITION_PENDING, ReasonCode.SOURCE_NOT_IN_GOLD),
-            note="Nenhuma tabela Gold traz status, vencimento ou pagamento de fatura.",
+            reasons=(ReasonCode.DEFINITION_PENDING,),
+            note=(
+                "Fonte faturas_uc disponível; semântica/controles consumidores "
+                "não liberam saldo contábil."
+            ),
         ),
         UnavailableCapability(
             capability_id="consumo.variacao_uc",
@@ -580,8 +614,11 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         ),
         UnavailableCapability(
             capability_id="atendimento.uc_acumulado",
-            reasons=(ReasonCode.DEFINITION_PENDING,),
-            note="Chamados e satisfação só como totais por UC, sem mês nem motivo; sem controle.",
+            reasons=(ReasonCode.CONTROL_PENDING,),
+            note=(
+                "Fonte e C14 disponíveis; métrica acumulada exige mapeamento próprio "
+                "sem período inventado."
+            ),
         ),
         UnavailableCapability(
             capability_id="apoio.fila_inspecao",
@@ -590,19 +627,17 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         ),
         UnavailableCapability(
             capability_id="apoio.medidor_uc",
-            reasons=(ReasonCode.DEFINITION_PENDING, ReasonCode.SOURCE_NOT_IN_GOLD),
-            note="Nenhuma tabela de medidor na Gold.",
+            reasons=(ReasonCode.DEFINITION_PENDING,),
+            note=(
+                "Fonte medidor_uc disponível; seleção e interpretação exigem "
+                "controles consumidores."
+            ),
         ),
         UnavailableCapability(
             capability_id="apoio.energia_recuperavel",
-            reasons=(ReasonCode.DEFINITION_PENDING, ReasonCode.SOURCE_NOT_IN_GOLD),
-            note="Nenhuma estimativa de energia recuperável na Gold.",
+            reasons=(ReasonCode.DEFINITION_PENDING,),
+            note="Referência histórica disponível na fila; não é estimativa individual da UC.",
         ),
     ),
-    open_points=(
-        "Backend: no PostgreSQL as colunas são \"DEC\"/\"FEC\" entre aspas; o dicionário usa "
-        "dec/fec e uma consulta sem aspas pode não encontrar a coluna.",
-        "Backend: as tabelas são gravadas como gold_<nome>; o mapeamento usa o nome da Gold.",
-        "Dados: arredondamento de apresentação (casas decimais) é proposta a confirmar.",
-    ),
+    open_points=(),
 )

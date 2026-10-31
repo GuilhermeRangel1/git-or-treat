@@ -17,8 +17,8 @@ from app.agent.execution import ExecutionController
 from app.agent.interpreter import QuestionInterpreter
 from app.api.access import SYNTHETIC_SOURCE_ID, demo_access_context
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
-from app.profiles.grid360_gold import GOLD_PROFILE_ID, GRID360_GOLD_PROFILE
-from app.profiles.grid360_gold_mapping import GRID360_GOLD_MAPPING
+from app.profiles.grid360_gold_mapping_v1 import GRID360_GOLD_MAPPING
+from app.profiles.grid360_gold_v1 import GOLD_PROFILE_ID, GRID360_GOLD_PROFILE
 from app.readiness import CAPABILITY_REQUIREMENTS
 from app.schemas.domain_profile import CatalogOperation, DomainProfile
 from app.schemas.interpretation import InterpretationStatus
@@ -121,9 +121,10 @@ def test_only_closed_or_documented_dimension_values_are_declared() -> None:
     dimensions = {dimension.id: dimension for dimension in GRID360_GOLD_PROFILE.dimensions}
     documented = GOLD_DATA_DICTIONARY.read_text(encoding="utf-8")
 
-    assert {
-        dimension_id for dimension_id, dimension in dimensions.items() if dimension.values
-    } == {"generation.distributed", "customer.consumption_class"}
+    assert {dimension_id for dimension_id, dimension in dimensions.items() if dimension.values} == {
+        "generation.distributed",
+        "customer.consumption_class",
+    }
     assert [value.value for value in dimensions["generation.distributed"].values] == [
         "Sim",
         "Não",
@@ -140,17 +141,19 @@ def test_metrics_of_unavailable_capabilities_are_not_in_the_profile() -> None:
         if requirement.definition_approved and not requirement.source_not_in_gold
     }
     used = {
-        source.capability_id
-        for metric in GRID360_GOLD_MAPPING.metrics
-        for source in metric.sources
+        source.capability_id for metric in GRID360_GOLD_MAPPING.metrics for source in metric.sources
     }
 
-    assert used == approved == {
-        "faturamento.receita",
-        "faturamento.receita_bairro",
-        "consumo.mensal_uc",
-        "interrupcoes.dec_fec",
-    }
+    assert (
+        used
+        == approved
+        == {
+            "faturamento.receita",
+            "faturamento.receita_bairro",
+            "consumo.mensal_uc",
+            "interrupcoes.dec_fec",
+        }
+    )
     assert unavailable == {requirement.id for requirement in CAPABILITY_REQUIREMENTS} - approved
     assert {domain.id for domain in GRID360_GOLD_PROFILE.domains} == {
         "revenue",
@@ -251,11 +254,12 @@ def test_simple_questions_become_the_expected_logical_plan(
 def test_dec_plan_without_feeder_has_no_physical_source_in_the_mapping() -> None:
     """O plano lógico é aprovado, mas DEC só é lido com alimentador fixado."""
 
-    from app.profiles.grid360_gold_mapping import select_source
+    from app.profiles.grid360_gold_mapping_v1 import select_source
 
     _response, plans = _ask("Qual foi o DEC no mês passado?")
-    approved = {source.capability_id for metric in GRID360_GOLD_MAPPING.metrics
-                for source in metric.sources}
+    approved = {
+        source.capability_id for metric in GRID360_GOLD_MAPPING.metrics for source in metric.sources
+    }
 
     dec = GRID360_GOLD_MAPPING.metric(plans[0].metric_id)
     assert select_source(dec, set(plans[0].dimension_ids), approved) is None

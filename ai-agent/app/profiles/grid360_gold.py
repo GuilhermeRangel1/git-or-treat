@@ -1,4 +1,4 @@
-"""Catálogo lógico do Grid 360 sobre a Gold v1 (GENAI-03): vocabulário sem nomes físicos.
+"""Catálogo lógico do Grid 360 sobre a Gold v2 (GENAI-03): vocabulário sem nomes físicos.
 
 Deriva do perfil demonstrativo (mesma técnica de ``grid360_sql_demo``) e mantém só as métricas
 das capacidades com definição aprovada em ``app.readiness``: ``faturamento.receita``,
@@ -16,20 +16,20 @@ from app.schemas.domain_profile import DomainProfile
 
 GOLD_PROFILE_ID = "v-energy-grid-360-gold"
 
-# Faturado não é pago; o consumo vem das leituras e só entra para UC/mês que também tem fatura.
+# Faturado não é pago; consumo e faturas são fontes independentes no grão UC/mês.
 _BILLED_NOT_PAID = (
     "Valor faturado (soma do valor total das faturas), não valor pago nem arrecadado."
 )
 _INTERSECTION = (
-    "Considera só os pares UC/mês com fatura e leitura; faturas sem leitura e leituras sem "
-    "fatura ficam de fora."
+    "Faturamento e consumo são fontes independentes; faturas sem leitura e leituras sem "
+    "fatura permanecem nas respectivas medidas. Ausência não equivale a zero."
 )
 _CURRENT_REGISTRY = (
     "Município, bairro, classe, subgrupo, alimentador e GD vêm do cadastro atual da UC, sem "
     "vigência histórica."
 )
 _GD_PRESENCE = "GD indica presença de cadastro de geração distribuída, sem vigência nem injeção."
-_NOT_HOMOLOGATED = "Dados da Gold v1 ainda não homologados; uso em preparação."
+_NOT_HOMOLOGATED = "Dados da Gold v2 ainda não homologados; uso em preparação."
 
 
 def _field(name: str, role: str, value_type: str, dimension_id: str | None = None) -> dict:
@@ -81,14 +81,18 @@ def _dimension(
 
 _DIMENSIONS = (
     _dimension(
-        "geography.municipality", "Município", "geography",
+        "geography.municipality",
+        "Município",
+        "geography",
         ("município", "municípios", "cidade", "cidades"),
     ),
     _dimension("geography.neighborhood", "Bairro", "geography", ("bairro", "bairros")),
     # Grafias citadas em docs/dicionario_gold.md como exemplos da origem, não domínio fechado.
     # Sem valores, o interpretador ignoraria "residencial" e responderia o total.
     _dimension(
-        "customer.consumption_class", "Classe de consumo", "classification",
+        "customer.consumption_class",
+        "Classe de consumo",
+        "classification",
         ("classe", "classe de consumo"),
         (
             {"value": "RESIDENCIAL", "aliases": ("residencial",)},
@@ -99,14 +103,18 @@ _DIMENSIONS = (
         ),
     ),
     _dimension(
-        "tariff.subgroup", "Subgrupo tarifário", "classification",
+        "tariff.subgroup",
+        "Subgrupo tarifário",
+        "classification",
         ("subgrupo", "subgrupo tarifário"),
     ),
     _dimension(
         "tariff.flag", "Bandeira tarifária", "classification", ("bandeira", "bandeira tarifária")
     ),
     _dimension(
-        "generation.distributed", "Geração distribuída (GD)", "classification",
+        "generation.distributed",
+        "Geração distribuída (GD)",
+        "classification",
         ("GD", "geração distribuída"),
         (
             {"value": "Sim", "aliases": ("com GD", "com geração distribuída")},
@@ -116,7 +124,9 @@ _DIMENSIONS = (
     _dimension("network.feeder", "Alimentador", "other", ("alimentador", "alimentadores")),
     # Identificador da unidade: interno, não anônimo; acesso real depende de GENAI-06/07.
     _dimension(
-        "customer.consumer_unit", "Unidade consumidora (UC)", "other",
+        "customer.consumer_unit",
+        "Unidade consumidora (UC)",
+        "other",
         ("UC", "UCs", "unidade consumidora", "unidades consumidoras"),
     ),
 )
@@ -213,21 +223,22 @@ _METRICS = (
         ("currency",),
         _COMMERCIAL_WITH_UC,
         (
-            "Preço observado: receita faturada dividida pelo consumo medido, como razão de "
+            "Preço observado: receita da base comparável dividida pelo consumo da mesma "
+            "base, como razão de "
             "somas; não é tarifa homologada nem decomposição de preço e volume.",
-            "Sem consumo no recorte (zero ou ausente), o valor fica indisponível.",
-            _INTERSECTION,
+            "Sem consumo comparável no recorte (zero ou ausente), o valor fica indisponível.",
+            "Somente pares com fatura e leituras integralmente válidas compõem a base comparável.",
         ),
     ),
     _metric(
         "energy.average_consumption_per_uc",
         "consumption",
         ("consumo médio por UC", "consumo médio por unidade consumidora"),
-        "kWh por UC faturada no mês",
+        "kWh por UC com leitura no mês",
         ("energy",),
         _COMMERCIAL,
         (
-            "Consumo medido dividido pelo número de UCs faturadas em cada mês do recorte, "
+            "Consumo medido dividido pelo número de UCs com leitura em cada mês do recorte, "
             "calculado como razão de somas.",
             _INTERSECTION,
         ),

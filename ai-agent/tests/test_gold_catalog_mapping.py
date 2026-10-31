@@ -9,8 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
-from app.profiles.grid360_gold_mapping import (
+from app.profiles.grid360_gold_mapping_v1 import (
     DICTIONARY_VERSION,
     GRID360_GOLD_MAPPING,
     Aggregation,
@@ -21,13 +20,18 @@ from app.profiles.grid360_gold_mapping import (
     select_source,
     validate_mapping,
 )
+from app.profiles.grid360_gold_v1 import GRID360_GOLD_PROFILE
 from app.readiness import CAPABILITY_REQUIREMENTS, GoldTable
 from app.sql.dictionary import load_dictionary
 
 GOLD_DICTIONARY_PATH = Path(__file__).parents[1] / "app" / "sql" / "dictionary_gold.toml"
 APPROVED = frozenset(
-    {"faturamento.receita", "faturamento.receita_bairro", "consumo.mensal_uc",
-     "interrupcoes.dec_fec"}
+    {
+        "faturamento.receita",
+        "faturamento.receita_bairro",
+        "consumo.mensal_uc",
+        "interrupcoes.dec_fec",
+    }
 )
 RATIO_COLUMNS = {"ticket_medio_reais_por_uc", "tarifa_media_efetiva", "consumo_medio_kwh_por_uc"}
 
@@ -103,9 +107,7 @@ def test_every_referenced_column_exists_in_its_table_and_is_not_sensitive() -> N
             assert not source.referenced_columns() & dictionary.sensitive_columns
             assert source.temporal_column == raw[source.table.value].get("period_column")
             assert list(source.grain) == raw[source.table.value]["key"]
-            assert set(source.nullable_columns) <= set(
-                raw[source.table.value]["nullable_columns"]
-            )
+            assert set(source.nullable_columns) <= set(raw[source.table.value]["nullable_columns"])
             assert set(source.measure_columns()) <= set(source.nullable_columns)
 
 
@@ -127,9 +129,7 @@ def test_column_types_match_aggregation_and_unit() -> None:
                 expected_aggregation = "sum"
             else:
                 pairs = ((source.measure_column, metric.measure_type),)
-                expected_aggregation = (
-                    "sum" if metric.aggregation is Aggregation.SUM else "ratio"
-                )
+                expected_aggregation = "sum" if metric.aggregation is Aggregation.SUM else "ratio"
             for column, column_type in pairs:
                 assert columns[column].startswith(column_type.value), (metric.metric_id, column)
                 assert declared[column]["aggregation"] == expected_aggregation, column
@@ -151,8 +151,11 @@ def test_dimensions_of_each_metric_are_supported_by_its_source_tables() -> None:
 
 
 def test_ratios_are_ratios_of_sums_and_never_reuse_a_precomputed_ratio() -> None:
-    ratios = {"billing.average_ticket", "billing.effective_tariff",
-              "energy.average_consumption_per_uc"}
+    ratios = {
+        "billing.average_ticket",
+        "billing.effective_tariff",
+        "energy.average_consumption_per_uc",
+    }
 
     for metric in GRID360_GOLD_MAPPING.metrics:
         for source in metric.sources:
@@ -173,9 +176,7 @@ def test_dec_and_fec_are_read_only_at_feeder_and_month_grain() -> None:
         assert metric.aggregation is Aggregation.KEY_GRAIN_READ
         assert metric.required_dimension_ids == ("network.feeder",)
         assert [source.table for source in metric.sources] == [GoldTable.INDICADORES_DEC_FEC]
-        assert [granularity.value for granularity in profile[metric_id].granularities] == [
-            "month"
-        ]
+        assert [granularity.value for granularity in profile[metric_id].granularities] == ["month"]
         assert select_source(metric, set(), APPROVED) is None
         assert select_source(metric, {"geography.municipality"}, APPROVED) is None
         assert select_source(metric, {"network.feeder"}, APPROVED) is not None

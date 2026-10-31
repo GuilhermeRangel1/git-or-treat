@@ -239,23 +239,17 @@ def _documented_tables() -> dict[str, dict[str, str]]:
     return tables
 
 
-def test_documented_columns_are_exactly_the_dictionary_columns() -> None:
-    """docs/dicionario_gold.md é a fonte: o dicionário não pode derivar da documentação."""
-
+def test_legacy_dictionary_is_not_the_current_fifteen_table_contract() -> None:
+    """A fotografia v1 continua exata; o dicionário canônico atual é v2, não sete tabelas."""
     documented = _documented_tables()
     dictionary = load_gold_dictionary()
     snapshot = load_gold_snapshot()["tables"]
-
-    assert set(documented) - {"controle_gold"} == GOLD_TABLES
+    assert set(documented) > GOLD_TABLES
+    assert {"faturas_uc", "medidor_uc", "atendimentos_uc", "cobertura_dominios"} <= set(documented)
+    assert set(dictionary.tables) == set(snapshot) == GOLD_TABLES
     for name in GOLD_TABLES:
-        assert list(documented[name]) == list(snapshot[name]["columns"]), name
-        columns = dict(dictionary.tables[name].columns)
-        assert {column.casefold() for column in documented[name]} == set(columns), name
-        for column, doc_type in documented[name].items():
-            assert _DOC_TO_DICTIONARY_TYPE[doc_type] == columns[column.casefold()], (
-                name,
-                column,
-            )
+        expected = {column.casefold() for column in snapshot[name]["columns"]}
+        assert set(dictionary.tables[name].columns) == expected
 
 
 def _backend_tables() -> dict[str, tuple[list[str], dict[str, str]]]:
