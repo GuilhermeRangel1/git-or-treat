@@ -216,7 +216,13 @@ class QuestionInterpreter:
         selected_metric = self._select_metric(matched_metrics, base_intent)
         domain = next(iter(matched_domains)) if matched_domains else base_intent.domain
 
-        breakdown = self._requested_breakdown(question)
+        # O nome cadastrado da métrica não é um pedido adicional de agregação:
+        # "consumo médio por UC" não solicita uma abertura por UC nem média do total.
+        # Qualificadores fora do nome continuam sujeitos às regras do perfil.
+        detail_question = question
+        for start, end, _ in reversed(metric_hits):
+            detail_question = detail_question[:start] + " " * (end - start) + detail_question[end:]
+        breakdown = self._requested_breakdown(detail_question)
         breakdown_message = self._profile.clarifications.unsupported_breakdown
         if breakdown is not None and breakdown_message is not None:
             # Sem agrupamento no plano, responder o total seria um falso acerto.
@@ -231,7 +237,7 @@ class QuestionInterpreter:
         unit_message = self._profile.clarifications.unit_mismatch
         if unit_surface is not None and unit_message is not None:
             return self._clarify(unit_message.replace("{unit}", unit_surface))
-        detail_clarification = self._unsupported_detail(question)
+        detail_clarification = self._unsupported_detail(detail_question)
         if detail_clarification is not None:
             return self._clarify(detail_clarification)
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)

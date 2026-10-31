@@ -16,33 +16,38 @@ Os [contratos de consumo DEV-01](contracts/analytics-api.md) e as definições d
 
 </details>
 
-## Documentação atual
+## Documentação atual — Gold CSV v2
 
-Este documento reúne as referências para consumir a camada Gold. As definições das
-sete tabelas analíticas e de `controle_gold` estão no
-[dicionário detalhado da Gold](dicionario_gold.md): finalidade, granularidade, chaves,
-fontes, unidades, fórmulas, tratamento de ausências e limites de interpretação.
+A referência de aceite é **Gold CSV v2**, com quinze projeções analíticas no schema
+`gold_v2`, mais o pacote cadastral restrito separado. O contrato físico e de exportação
+está em [gold-csv-v2.md](contracts/gold-csv-v2.md); definições de negócio, grão,
+chaves, fórmulas, nulidade e limitações estão no [dicionário Gold detalhado](dicionario_gold.md), implementado no notebook
+[Silver_to_gold](../data-engineering/notebook/Silver_to_gold.ipynb). O pacote local e
+a prontidão são documentados em [gold-readiness.md](gold-readiness.md) e
+[gold-catalog.md](gold-catalog.md).
 
-O [contrato físico observado dos CSVs v1](contracts/gold-csv-v1.md) descreve o lote
-recebido para carga no banco. Ele deve ser consultado junto ao dicionário e ao manifesto
-do lote efetivamente utilizado. Uma contagem registrada para outro lote não define a
-quantidade obrigatória de registros das tabelas Gold.
+O conteúdo dentro do bloco histórico abaixo explica a versão v1 e não define critérios,
+fórmulas, populações, chaves ou aceite da v2. Para os requisitos atuais, prevalecem o
+PRD e os documentos v2 indicados acima. O envelope de contratos internos pode manter
+versão própria sem alterar a versão do esquema dos dados.
 
-## Métricas e cobertura
+## Métricas e cobertura v2
 
-| Tema | Conteúdo implementado e documentado | Limite de uso |
+| Tema | Definição corrente v2 | Limite de uso |
 | --- | --- | --- |
-| Receita | Receita faturada, ticket médio e preço médio efetivo em `diagnostico_receita`, com recortes em `consumo_receita_bairro` e `consumo_mensal_uc` | Não representa receita paga; usa pares UC/mês com fatura e leitura correspondentes. |
-| Consumo | Consumo medido e médias das leituras; comparação entre janelas em `variacao_consumo_uc` | Não equivale a uma medida independente de energia faturada. |
-| Cadastro e GD | Atributos atuais por UC e presença de registro de geração distribuída | Não comprova vigência histórica, geração ou compensação mensal; status cadastral não deve ser convertido implicitamente em população ativa. |
-| Inspeção | Hierarquia de prioridade em `fila_inspecao` | Prioridade orienta triagem; não confirma fraude nem quantifica energia recuperável. |
-| Continuidade | DEC/FEC internos simplificados por alimentador e competência | Usa cadastro atual como denominador e publica grupos com ocorrência; não comprova conformidade regulatória oficial. |
-| Atendimento | Contagem de protocolos e média de satisfação agregadas em `visao_360_uc` | Não fornece histórico individual de protocolos ou tratativas; observe as regras de notas e de cobertura das fontes. |
+| Receita e faturamento | Total de faturas elegíveis, com parcelas separadas por presença de leitura; a ausência de leitura não exclui uma fatura. | Faturamento não significa recebimento ou pagamento. |
+| Consumo | Leituras observadas, inclusive em UC/mês sem fatura; ausência de consumo é preservada como nula. | Consumo medido não é energia efetivamente faturada. |
+| Preço observado | Receita dividida pelo consumo da mesma base comparável, com fatura e todas as leituras observadas válidas. | Não é tarifa homologada; decomposição por janelas tem estados e cobertura próprios. |
+| Ticket médio | Receita sobre UCs faturadas em cada mês do recorte, como razão de somas das parcelas mensais. | O denominador representa UC-mês faturada, não UCs distintas no período inteiro. |
+| Consumo médio por UC | Consumo medido sobre UCs com leitura em cada mês, como razão de somas. | Não usa UCs faturadas como denominador. |
+| DEC/FEC | Numeradores de interrupção divididos pelas UCs do alimentador no cadastro atual; grão alimentador/competência. | Indicadores simplificados; linhas ausentes não significam zero e os valores não se somam entre alimentadores/meses. |
+| Atendimento | Contagem por protocolo e média de notas individuais; atendimento mensal projeta `data_abertura` em UTC, enquanto acumulados não inventam datas. | Nota zero é válida; notas ausentes continuam ausentes. Atendimento mensal exige controles e cobertura do recorte. |
+| Cobertura | `cobertura_dominios` e C14/C15 distinguem reconciliação da extração, estados de cobertura e disponibilidade por domínio. | Declaração de extração não certifica completude externa, conformidade ou semântica de negócio. |
 
-As fórmulas e regras por coluna estão no dicionário detalhado. Ao acrescentar métricas,
-registre ali definição, grão, fonte, unidade, tratamento de nulos e divisão por zero,
-arredondamento e limites. O aceite dos requisitos e as evidências de execução permanecem
-no [PRD](PRD.md).
+O resumo acima não substitui as definições coluna a coluna do dicionário detalhado,
+nem os controles independentes e o estado oficial do PRD. Medidas não existentes ou
+não demonstradas na v2 — como valor recebido e energia efetivamente faturada — não
+podem ser inferidas de campos próximos.
 
 ## Relação com os contratos da aplicação
 

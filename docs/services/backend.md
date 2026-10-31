@@ -191,3 +191,13 @@ A publicação v2 acrescenta janelas e estados observados em `gold_carga_atual.m
 
 
 Revisao de KPIs em 31/10/2026: a indisponibilidade de UCs faturadas descrita acima foi superada pelo uso de `consumo_mensal_uc` (UC/mes, `tem_fatura=true`). A base cadastral atual vem de `visao_360_uc`, sem status ativo historico inventado e sem comparacao mensal. Ver [mapeamento final](../plans/2026-10-31-panorama-kpis-mapeamento.md).
+
+### Catálogo físico Gold v2 para o executor
+
+`app.services.gold_catalog.load_gold_catalog()` disponibiliza o artefato interno versionado `app/catalogs/gold_v2.json` e o valida contra os modelos Gold v2 instalados. A seleção de fonte confere capacidades, dimensões, granularidade e histórico acumulado sem datas. Onze métricas cobrem a primeira adaptação; o [catálogo](../gold-catalog.md) detalha fórmulas e limites. Não há import do pacote GenAI, endpoint novo ou execução SQL. O coordenador futuro precisa revalidar plano, autorização, publicação e prontidão reais; este carregador não concede acesso por descobrir schema.
+
+O artefato inclui nomes e definições de negócio e operadores por dimensão, iguais aos do perfil lógico. Payload candidato só é aceito quando coincide com a definição distribuída, além de respeitar o schema: trocar um denominador por outra coluna numérica ou remover uma dependência de prontidão é drift semântico. O artefato faz parte do código confiável e versionado, sem substituição por conteúdo do portal/modelo ou descoberta automática de schema. Sua existência não significa que perguntas/insights já o carreguem na composição de produção.
+
+O carregador também confere dimensões e competências textuais, timestamp de atendimento com fuso e precisão/escala das colunas monetárias. `select_catalog_source()` revalida o catálogo recebido antes de usá-lo, evitando confiar em mapas internos que possam ser alterados após o carregamento (`frozen=True` não torna dicionários aninhados imutáveis). Continua sem executar SQL ou substituir a autorização e a conferência de publicação do futuro coordenador.
+
+O artefato declara o limite datado de até 1.830 dias por métrica; a política do planejador ainda pode impor teto menor. DEC/FEC só aceitam mês, e métricas acumuladas recusam janela de calendário. O seletor Backend reproduz o limite antes de devolver a fonte.
