@@ -83,13 +83,15 @@ A composição de perguntas/insights Gold e o executor pertencem às etapas de i
 
 ## Progresso por critério — GENAI-03 (31/10/2026)
 
-Conferência das dez caixas do cartão técnico: **sete critérios comprovados e três
-parciais**. Essa contagem mede a checklist do catálogo; não é percentual de entrega
-da IA integrada nem altera os estados IA-01 a IA-06 do PRD.
+Conferência das dez caixas do cartão técnico com a Gold CSV v2 como única referência
+de aceite: **oito critérios comprovados e dois parciais**. As definições/fórmulas v2
+estão no dicionário e notebook correntes; nenhum critério v1 entra nesta contagem.
+A contagem mede a checklist do catálogo, não a entrega de IA integrada, e não altera
+os estados IA-01 a IA-06 do PRD.
 
 | Checklist / item | Situação | Evidência ou trabalho restante |
 | --- | --- | --- |
-| Implementação 1 — definição, fórmula, unidade, grão, filtros e limitações aprovadas | Parcial | Onze métricas mapeadas e confrontadas com dicionário/modelos v2. Falta revisão explícita da semântica v2 e atendimento com Dados; o comentário de 29/10 no PR #73 ainda descreve a interseção v1. |
+| Implementação 1 — definição, fórmula, unidade, grão, filtros e limitações da v2 | Comprovado | Onze métricas confrontadas com o dicionário Gold v2 e com os modelos. Fórmulas e populações implementadas no notebook Gold; histórico de aprovação v1 não é critério da v2. |
 | Implementação 2 — tempo próprio e ausência de competência | Comprovado | Coluna mensal UTC e acumulado sem datas; planejador e seleção Backend rejeitam calendário incompatível. |
 | Implementação 3 — agregações e denominadores | Comprovado | Razões de somas, satisfação por nota de protocolo e DEC/FEC sem consolidação; regressões de fórmula/unidade e denominadores. |
 | Implementação 4 — sensibilidade e catálogo fechado | Comprovado | Sem joins ou conversões implícitas, sem cadastro pessoal; rejeição de colunas sensíveis e de métrica desconhecida na seleção direta. |
@@ -105,6 +107,7 @@ considerar fontes existentes. Uma cópia de receita com ID novo reproduzia aceit
 indevida; o teste público passa após a correção. Essa proteção não substitui a
 revalidação de identidade, plano, publicação e cobertura no futuro executor.
 
-Próximo passo: conferir as definições atuais com Dados no PR #73 e consumir estes
-metadados ao integrar o fluxo existente. O cartão continua aberto; execução SQL e
-reconciliação de dados são entregas GENAI-06/07/10, sem criar um segundo núcleo.
+Próximo passo: consumir os metadados pela evidência/API/portal ao integrar o fluxo
+existente. As definições e fórmulas v2 não têm dúvida bloqueante identificada no
+repositório. O cartão continua aberto pelos dois critérios de consumidor parciais;
+execução SQL e reconciliação integrada pertencem a GENAI-06/07/10.
