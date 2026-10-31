@@ -219,6 +219,142 @@ def test_gold_queue_order_replay_reload_failure_and_removed_uc_preserve_snapshot
         app.dependency_overrides.update(original_overrides)
 
 
+def test_final_gold_v2_package_snapshot_and_order_survive_identical_reload(gold_postgres):
+    import csv
+
+    package_dir = os.environ.get("GOLD_CSV_V2_DIR")
+    if not package_dir:
+        pytest.skip("Configure GOLD_CSV_V2_DIR with the final Gold v2 package.")
+
+    csv_paths = sorted((Path(package_dir) / "fila_inspecao").glob("*.csv"))
+    assert csv_paths, "Final Gold queue CSV is missing."
+    engine, _, _, write_token, read_token, override_db, _ = gold_postgres
+    publication = import_gold_v2(engine, package_dir)
+    assert publication["schema_version"] == "gold-csv-v2"
+    assert publication["status"] == "loaded"
+
+    from app.core.database import get_db
+
+    original_overrides = app.dependency_overrides.copy()
+    app.dependency_overrides[get_db] = override_db
+    try:
+        with TestClient(app, raise_server_exceptions=True) as client:
+            client.headers["Authorization"] = f"Bearer {read_token}"
+            queue_response = client.get("/api/v1/inspections/queue?page_size=20")
+            assert queue_response.status_code == 200, "Gold queue request failed."
+            queue = queue_response.json()
+            metadata = queue["metadata"]
+            assert metadata["schema_version"] == "gold-csv-v2"
+            assert metadata["temporal_scope"] == "snapshot"
+            assert len(metadata["fingerprint"]) == 64
+            candidates = [
+                item for item in queue["data"]["items"]
+                if item["category"] is not None and item["reason"]
+            ]
+            assert candidates, "Final Gold package has no creatable suspicion in page 1."
+
+            candidate = candidates[0]
+            source_row = None
+            for csv_path in csv_paths:
+                with csv_path.open(encoding="utf-8-sig", newline="") as source_file:
+                    source_row = next(
+                        (
+                            row for row in csv.DictReader(source_file, delimiter=";")
+                            if row.get("id_uc") == candidate["uc_id"]
+                        ),
+                        None,
+                    )
+                if source_row is not None:
+                    break
+            assert source_row is not None, "Queue item was not found in the final Gold CSV."
+
+            def nullable_float(value):
+                return None if value in (None, "", r"\N") else float(value)
+
+            source_reconciles = (
+                candidate["reason"] == source_row.get("motivo_prioridade")
+                and candidate["category"] == source_row.get("prioridade_inspecao")
+                and candidate["queue_position"]
+                == int(source_row["posicao_fila_inspecao"])
+                and candidate["evidence"]["historical_recovery_mean_kwh_per_inspection"]
+                == nullable_float(
+                    source_row.get("media_historica_recuperacao_kwh_por_inspecao")
+                )
+                and candidate["evidence"]["historical_recovery_reference"]
+                == (None if source_row.get("referencia_media_historica_recuperacao") == r"\N"
+                    else source_row.get("referencia_media_historica_recuperacao"))
+                and candidate["evidence"]["recovery_estimate_status"]
+                == source_row.get("estado_estimativa_recuperacao")
+            )
+            assert source_reconciles, "Queue response differs from independent final Gold CSV fields."
+
+            detail_response = client.get(
+                f"/api/v1/inspections/queue/{candidate['uc_id']}"
+                f"?expected_lote={metadata['source']['version']}"
+                f"&expected_fingerprint={metadata['fingerprint']}"
+            )
+            assert detail_response.status_code == 200, "Gold suspicion detail request failed."
+            detail = detail_response.json()
+            detail_data = detail["data"]
+            client.headers["Authorization"] = f"Bearer {write_token}"
+            created = client.post(
+                f"/api/v1/inspections/queue/{candidate['uc_id']}/orders",
+                json={
+                    "source_version": metadata["source"]["version"],
+                    "source_fingerprint": metadata["fingerprint"],
+                    "rule_version": detail_data["rule_version"],
+                    "priority": "MEDIA",
+                },
+                headers={"Idempotency-Key": "final-gold-package-orders-0001"},
+            )
+            assert created.status_code == 201, "Order creation from final Gold package failed."
+            saved = created.json()
+            snapshot = saved["suspicion_snapshot"]
+            snapshot_matches_source = (
+                snapshot["snapshot_schema_version"] == "2"
+                and snapshot["metadata"]["schema_version"] == "gold-csv-v2"
+                and snapshot["metadata"]["source"]["version"] == metadata["source"]["version"]
+                and snapshot["metadata"]["fingerprint"] == metadata["fingerprint"]
+                and snapshot["data"] == detail_data
+                and saved["reason"] == detail_data["reason"]
+                and saved["priority"] == "MEDIA"
+            )
+            assert snapshot_matches_source, "Persisted snapshot differs from final Gold detail."
+
+            order_id = saved["id"]
+            transitioned = client.patch(
+                f"/api/v1/inspections/orders/{order_id}",
+                json={"version": 1, "status": "EM_ANDAMENTO"},
+            )
+            assert transitioned.status_code == 200
+            completed = client.post(
+                f"/api/v1/inspections/orders/{order_id}/result",
+                json={"version": 2, "result": "Resultado operacional de teste"},
+            )
+            assert completed.status_code == 200
+            history_before_reload = client.get(
+                f"/api/v1/inspections/orders/{order_id}/history"
+            ).json()
+            assert len(history_before_reload) == 3
+
+            assert import_gold_v2(engine, package_dir)["status"] == "unchanged"
+            reread = client.get(f"/api/v1/inspections/orders/{order_id}")
+            history_after_reload = client.get(
+                f"/api/v1/inspections/orders/{order_id}/history"
+            )
+            assert reread.status_code == 200
+            snapshot_survived = reread.json()["suspicion_snapshot"] == snapshot
+            assert snapshot_survived, "Creation snapshot changed after identical package reload."
+            assert reread.json()["status"] == "CONCLUIDA"
+            assert reread.json()["result"] == "Resultado operacional de teste"
+            assert history_after_reload.status_code == 200
+            history_survived = history_after_reload.json() == history_before_reload
+            assert history_survived, "Operational history changed after identical package reload."
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(original_overrides)
+
+
 def test_publication_lock_serializes_concurrent_queue_order_creation(gold_postgres):
     from app.models.operational import InspectionOrder, OperationalOrderHistory
     from app.repositories.gold_context import load_gold_context

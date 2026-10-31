@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OrderDetail } from "@/shared/api/orders";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
@@ -133,7 +133,18 @@ describe("OrderFoundationsDialog", () => {
         rule_version: "gold-fila-inspecao-v1",
         category: "REVISAR",
         potential_recoverable_energy_kwh: null,
-        evidence: { inspections_performed: 0, interruptions: null },
+        evidence: {
+          inspections_performed: 0,
+          interruptions: null,
+          historical_recovery_mean_kwh_per_inspection: 0,
+          historical_recovery_interval_lower_kwh: 0,
+          historical_recovery_interval_upper_kwh: 0,
+          historical_recovery_reference: "global",
+          historical_recovery_status: "DISPONIVEL_REFERENCIA_HISTORICA",
+          estimated_recoverable_energy_kwh: null,
+          recovery_estimate_status: "ESTIMATIVA_UC_INDISPONIVEL",
+          recovery_estimate_method: "MEDIA_GLOBAL_COM_GRUPOS_OPCIONAIS_V2",
+        },
         variation: {
           p1_start: "2022-07",
           p1_end: "2023-06",
@@ -144,7 +155,7 @@ describe("OrderFoundationsDialog", () => {
           p2_months_observed: 12,
           p2_average_kwh_per_month: 0,
           variation_kwh: null,
-          variation_pct: null,
+          variation_pct: Number.POSITIVE_INFINITY,
           drop_over_30_pct: null,
         },
         limitations: ["Categoria não é prioridade de despacho."],
@@ -152,7 +163,7 @@ describe("OrderFoundationsDialog", () => {
       metadata: {
         contract_version: "2.0.0",
         temporal_scope: "snapshot",
-        schema_version: "gold-csv-v1",
+        schema_version: "gold-csv-v2",
         fingerprint: "b".repeat(64),
         source: {
           kind: "gold",
@@ -169,8 +180,14 @@ describe("OrderFoundationsDialog", () => {
     });
     renderFoundations();
 
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Fundamentos da ordem OS-000018",
+      }),
+    ).toBeInTheDocument();
     expect(await screen.findByText("REVISAR")).toBeInTheDocument();
-    expect(screen.getByText("Gold · batch-old")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Proveniência da publicação"));
+    expect(screen.getByText("batch-old")).toBeInTheDocument();
     expect(screen.getByText("b".repeat(64))).toBeInTheDocument();
     expect(
       within(screen.getByText("Inspeções realizadas").parentElement!).getByText(
@@ -178,11 +195,72 @@ describe("OrderFoundationsDialog", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Não publicada na Gold; não é calculada nesta tela."),
+      screen.getByText(
+        "A Gold não publicou uma estimativa individual para esta UC; a referência histórica é apresentada separadamente.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Categoria não é prioridade de despacho."),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Média histórica de recuperação por inspeção"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("0 kWh/inspeção")).toBeInTheDocument();
+    expect(screen.getByText("0 a 0 kWh/inspeção")).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByText("Variação percentual observada").parentElement!,
+      ).getByText("Indisponível"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Global")).toBeInTheDocument();
+    expect(
+      screen.getByText("Referência histórica disponível"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Estimativa individual indisponível"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Média global histórica com grupos opcionais (v2)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("DISPONIVEL_REFERENCIA_HISTORICA"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("MEDIA_GLOBAL_COM_GRUPOS_OPCIONAIS_V2"),
+    ).toBeInTheDocument();
     expect(getOrderDetail).toHaveBeenCalledTimes(1);
   });
+});
+
+it("não exibe fundamentos em cache até validar novamente a ordem no servidor", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 0 } },
+  });
+  client.setQueryData(["orders", "detail", baseOrder.id], {
+    ...baseOrder,
+    reason: "Motivo antigo em cache",
+  });
+  let release: ((order: OrderDetail) => void) | undefined;
+  getOrderDetail.mockImplementation(
+    () => new Promise<OrderDetail>((resolve) => (release = resolve)),
+  );
+  render(
+    <QueryClientProvider client={client}>
+      <OrderFoundationsDialog
+        order={baseOrder}
+        open
+        onClose={vi.fn()}
+        triggerRef={{ current: null }}
+      />
+    </QueryClientProvider>,
+  );
+
+  expect(screen.queryByText("Motivo antigo em cache")).not.toBeInTheDocument();
+  expect(
+    screen.getByText("Atualizando os dados do servidor…"),
+  ).toBeInTheDocument();
+  release!({ ...baseOrder, reason: "Motivo atual do servidor" });
+  expect(
+    await screen.findByText("Motivo atual do servidor"),
+  ).toBeInTheDocument();
 });

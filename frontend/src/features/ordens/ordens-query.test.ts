@@ -23,6 +23,15 @@ it("preserva prioridade e tamanho da página ao consultar o resultado", () => {
   expect(parsed.pageSize).toBe(5);
 });
 
+it("reconhece prioridade e página nos valores contratuais", () => {
+  const parsed = parseOrdersQuery(
+    new URLSearchParams("priority=MEDIA&page=2&page_size=25"),
+  );
+  expect(parsed.priority).toBe("MEDIA");
+  expect(new URLSearchParams(parsed.request).get("priority")).toBe("MEDIA");
+  expect(parsed.pageSize).toBe(25);
+});
+
 it("mantém o identificador pedido na URL sem enviá-lo como filtro da API", () => {
   const parsed = parseOrdersQuery(
     new URLSearchParams("uc_id=UC-1041&order_id=77"),

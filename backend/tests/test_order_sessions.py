@@ -214,7 +214,10 @@ def test_production_session_cookie_is_secure(client, monkeypatch):
 def test_bootstrap_creates_random_credentials_once_and_preserves_existing_accounts(tmp_path: Path, monkeypatch, capsys):
     database_path = tmp_path / "local-auth.sqlite"
     database_url = f"sqlite:///{database_path.as_posix()}"
-    engine = create_engine(database_url, execution_options={"schema_translate_map": {"gold": None}})
+    engine = create_engine(
+        database_url,
+        execution_options={"schema_translate_map": {"gold": None, "gold_v2": None}},
+    )
     Base.metadata.create_all(bind=engine)
     engine.dispose()
     credentials_path = tmp_path / "credentials.txt"
