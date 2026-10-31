@@ -386,6 +386,10 @@ def build_gold_panorama(
         if reference and reference in periods else None
     )
 
+    billed_count = repository.billed_uc_count(period, selected_municipality, selected_class)
+    prior_billed_count = repository.billed_uc_count(reference, selected_municipality, selected_class) if prior is not None else None
+    registered_count = repository.registered_uc_count(selected_municipality, selected_class)
+
     def number(row, field):
         value = row[field] if row is not None else None
         return value
@@ -401,10 +405,8 @@ def build_gold_panorama(
 
     revenue = number(actual, "revenue")
     energy = number(actual, "energy")
-    billed_uc_count = actual["billed_ucs"]
     prior_revenue = number(prior, "revenue")
     prior_energy = number(prior, "energy")
-    prior_billed_uc_count = prior["billed_ucs"] if prior is not None else None
     with localcontext() as context:
         # Preserve precision above Numeric(38, 2) input capacity without changing the process-wide context.
         context.prec = 100
@@ -436,8 +438,6 @@ def build_gold_panorama(
             ]
     prior_revenue_status = measure_status(prior, "revenue_values") if prior is not None else "empty"
     prior_energy_status = measure_status(prior, "energy_values") if prior is not None else "empty"
-    billed_status = measure_status(actual, "billed_uc_values")
-    prior_billed_status = measure_status(prior, "billed_uc_values") if prior is not None else "empty"
 
     def comparison_state(current_complete: bool, previous_complete: bool) -> str:
         if not reference or prior is None:
@@ -459,7 +459,6 @@ def build_gold_panorama(
         price is not None and revenue_status == energy_status == "available",
         prior_price is not None and prior_revenue_status == prior_energy_status == "available",
     )
-    billed_comparison = comparison_state(billed_status == "available", prior_billed_status == "available")
     dec_comparison = comparison_state(
         current_continuity is not None and current_continuity.dec_hours_per_uc is not None,
         prior_continuity is not None and prior_continuity.dec_hours_per_uc is not None,
@@ -470,10 +469,10 @@ def build_gold_panorama(
     )
     metrics = {
         "receitaFaturada": _gold_metric(
-            "rec_fat", "Receita Faturada", "Faturamento nas faturas com leitura correspondente",
+            "rec_fat", "Receita comparável", "Faturamento com todas as leituras observadas válidas",
             "financeiro", "faturado", revenue, prior_revenue if revenue_comparison == "partial" else None, "R$",
-            "Valor faturado em pares UC/mês presentes em faturas e leituras.",
-            "Σ(receita_total_reais)", revenue_status,
+            "Faturamento de UC/mês com fatura e todas as leituras observadas válidas.",
+            "Σ(receita_base_comparavel_reais)", revenue_status,
             metric_limit if revenue_status == "empty" else (base_limit if revenue_status == "partial" else ([] if revenue_status == "available" else unavailable)),
             comparison_status=revenue_comparison, comparison_limitations=comparison_limitations(revenue_comparison),
         ),
@@ -483,9 +482,9 @@ def build_gold_panorama(
             "unavailable", unavailable, comparison_status="unavailable",
         ),
         "energiaConsumida": _gold_metric(
-            "ene_con", "Consumo Medido", "Leituras com fatura correspondente", "fisico", "consumido",
-            energy, prior_energy if energy_comparison == "partial" else None, "kWh", "Soma do consumo medido na interseção fatura/leitura.",
-            "Σ(consumo_total_kwh)", energy_status,
+            "ene_con", "Consumo Medido", "Consumo dos mesmos pares UC/mês da receita comparável", "fisico", "consumido",
+            energy, prior_energy if energy_comparison == "partial" else None, "kWh", "Consumo medido dos mesmos pares UC/mês usados na receita comparável.",
+            "Σ(consumo_base_comparavel_kwh)", energy_status,
             metric_limit if energy_status == "empty" else (base_limit if energy_status == "partial" else ([] if energy_status == "available" else unavailable)),
             comparison_status=energy_comparison, comparison_limitations=comparison_limitations(energy_comparison),
         ),
@@ -495,30 +494,30 @@ def build_gold_panorama(
             "indisponível", "unavailable", unavailable, comparison_status="unavailable",
         ),
         "precoMedioEfetivo": _gold_metric(
-            "prc_med", "Preço Observado", "Receita faturada dividida pelo consumo medido",
+            "prc_med", "Preço Observado", "Razão entre receita e consumo da base comparável",
             "financeiro", "faturado", price, prior_price if price_comparison == "partial" else None, "R$/kWh",
-            "Razão entre receita faturada e consumo medido observados; não é tarifa homologada.",
-            "Σ(receita_total_reais) / Σ(consumo_total_kwh)",
+            "Razão entre receita e consumo medidos na mesma base comparável; não é tarifa homologada.",
+            "Σ(receita_base_comparavel_reais) / Σ(consumo_base_comparavel_kwh)",
             "available" if price is not None and revenue_status == energy_status == "available" else ("partial" if price is not None else ("empty" if not observed else "unavailable")),
             metric_limit if not observed else (base_limit if price is not None and (revenue_status != "available" or energy_status != "available") else ([] if price is not None else ["Consumo ausente ou zero; preço não calculado."])),
             comparison_status=price_comparison, comparison_limitations=comparison_limitations(price_comparison),
             value_precision=2,
         ),
         "ucsAtivas": _gold_metric(
-            "ucs_atv", "UCs Ativas", "Indisponível como série histórica", "operacional", "operacao",
-            None, None, "UCs", "Contagem cadastral histórica não disponível; faturadas no mês não são UCs ativas.",
-            "indisponível", "unavailable", unavailable, comparison_status="unavailable",
+            "ucs_atv", "UCs cadastradas no lote", "Cadastro atual; todos os status", "operacional", "operacao",
+            registered_count, None, "UCs", "UCs distintas no cadastro atual da publicação; não representa população ativa histórica.",
+            "COUNT(DISTINCT visao_360_uc.id_uc)", "available",
+            ["Fotografia cadastral do lote, independente da competência selecionada; inclui todos os status."],
+            comparison_status="unavailable", comparison_limitations=["O cadastro não comprova vigência histórica mensal."],
         ),
         "ucsFaturadasNoMes": _gold_metric(
-            "ucs_fat", "UCs Faturadas no Mês", "Base distinta do mês com fatura e leitura",
-            "operacional", "operacao",
-            int(billed_uc_count) if billed_uc_count is not None else None,
-            int(prior_billed_uc_count) if prior_billed_uc_count is not None and billed_comparison == "partial" else None,
-            "UCs", "Contagem distinta de UCs faturadas no mês, após interseção entre fatura e leitura; não representa UCs ativas nem população histórica.",
-            "Σ(qtd_ucs_distintas_faturadas_no_mes)",
-            billed_status,
-            metric_limit + ["Base mensal; não some competências para obter UCs distintas na janela."],
-            comparison_status=billed_comparison, comparison_limitations=comparison_limitations(billed_comparison),
+            "ucs_fat", "UCs Faturadas no Mês", "UCs distintas com fatura observada na competência",
+            "operacional", "operacao", billed_count, prior_billed_count, "UCs",
+            "Contagem distinta de UCs com tem_fatura=true, inclusive quando não há leitura; filtros pelo cadastro atual.",
+            "COUNT(DISTINCT consumo_mensal_uc.id_uc) WHERE tem_fatura=true",
+            "available" if observed else "empty", ["Cadastro atual; presença de fatura não certifica fechamento mensal."],
+            comparison_status="partial" if prior is not None else "empty",
+            comparison_limitations=["Comparação observada; sem declaração de fechamento mensal."],
         ),
         "continuidadeDec": _gold_metric(
             "cont_dec", "DEC", "Consulta disponível em Operação", "operacional", "operacao",

@@ -17,7 +17,7 @@ from sqlalchemy.engine import make_url
 from app.core.config import settings
 from app.main import app
 import app.repositories.gold_context as gold_context_module
-from app.models.gold_load import BATCH, SCHEMA_VERSION, TABLES
+from app.models.gold_v2_load import BATCH, SCHEMA_VERSION, TABLES
 from app.repositories.gold_context import get_gold_context, load_gold_context
 from app.services.analytics import AnalyticsAPIError
 
@@ -48,17 +48,21 @@ def gold_engine() -> Engine:
             ).scalars().all()
             assert not tables, "Gold test database must have an empty public schema before setup."
         with engine.begin() as connection:
+            connection.exec_driver_sql("CREATE SCHEMA gold_v2")
             BATCH.create(connection, checkfirst=True)
             TABLES["diagnostico_receita"].create(connection, checkfirst=True)
             TABLES["indicadores_dec_fec"].create(connection, checkfirst=True)
+            TABLES["consumo_mensal_uc"].create(connection, checkfirst=True)
+            TABLES["visao_360_uc"].create(connection, checkfirst=True)
         created = True
         yield engine
     finally:
         try:
             if created:
                 with engine.begin() as connection:
-                    for table in (TABLES["diagnostico_receita"], TABLES["indicadores_dec_fec"], BATCH):
+                    for table in (TABLES["diagnostico_receita"], TABLES["indicadores_dec_fec"], TABLES["consumo_mensal_uc"], TABLES["visao_360_uc"], BATCH):
                         table.drop(connection, checkfirst=True)
+                    connection.exec_driver_sql("DROP SCHEMA gold_v2")
         finally:
             engine.dispose()
 
@@ -72,6 +76,8 @@ def published_artificial_gold(gold_engine):
     with gold_engine.begin() as connection:
         connection.execute(diagnosis.delete())
         connection.execute(continuity.delete())
+        connection.execute(TABLES["consumo_mensal_uc"].delete())
+        connection.execute(TABLES["visao_360_uc"].delete())
         connection.execute(BATCH.delete())
         connection.execute(BATCH.insert().values(
             id=1, lote="dev131-test", schema_version=SCHEMA_VERSION,
@@ -84,6 +90,7 @@ def published_artificial_gold(gold_engine):
                 "bandeira_tarifaria": "VERDE", "possui_gd": "NÃ£o",
                 "qtd_ucs_distintas_faturadas_no_mes": 2, "soma_faturamentos_mensais": 2,
                 "consumo_total_kwh": 50.0, "receita_total_reais": Decimal("100.00"),
+                "consumo_base_comparavel_kwh": 40.0, "receita_base_comparavel_reais": Decimal("80.00"),
                 "ticket_medio_reais_por_uc": 50.0, "consumo_medio_kwh_por_uc": 25.0,
                 "tarifa_media_efetiva": 2.0,
             },
@@ -91,8 +98,9 @@ def published_artificial_gold(gold_engine):
                 "competencia": "2025-02", "municipio": "Cidade Teste",
                 "classe_consumo": "RESIDENCIAL", "subgrupo_tarifario": "B1",
                 "bandeira_tarifaria": "VERDE", "possui_gd": "NÃ£o",
-                "qtd_ucs_distintas_faturadas_no_mes": 2, "soma_faturamentos_mensais": 2,
+                "qtd_ucs_distintas_faturadas_no_mes": 3, "soma_faturamentos_mensais": 2,
                 "consumo_total_kwh": 60.0, "receita_total_reais": Decimal("120.00"),
+                "consumo_base_comparavel_kwh": 50.0, "receita_base_comparavel_reais": Decimal("110.00"),
                 "ticket_medio_reais_por_uc": 60.0, "consumo_medio_kwh_por_uc": 30.0,
                 "tarifa_media_efetiva": 2.0,
             },
@@ -102,6 +110,7 @@ def published_artificial_gold(gold_engine):
                 "bandeira_tarifaria": "AMARELA", "possui_gd": "NÃ£o",
                 "qtd_ucs_distintas_faturadas_no_mes": 1, "soma_faturamentos_mensais": 1,
                 "consumo_total_kwh": 10.0, "receita_total_reais": Decimal("25.00"),
+                "consumo_base_comparavel_kwh": None, "receita_base_comparavel_reais": None,
                 "ticket_medio_reais_por_uc": 25.0, "consumo_medio_kwh_por_uc": 10.0,
                 "tarifa_media_efetiva": 2.5,
             },
@@ -111,6 +120,7 @@ def published_artificial_gold(gold_engine):
                 "bandeira_tarifaria": "VERDE", "possui_gd": "Não",
                 "qtd_ucs_distintas_faturadas_no_mes": 1, "soma_faturamentos_mensais": 1,
                 "consumo_total_kwh": 300.0, "receita_total_reais": Decimal("100.00"),
+                "consumo_base_comparavel_kwh": 300.0, "receita_base_comparavel_reais": Decimal("100.00"),
                 "ticket_medio_reais_por_uc": 100.0, "consumo_medio_kwh_por_uc": 300.0,
                 "tarifa_media_efetiva": 0.3333333333333333,
             },
@@ -120,6 +130,7 @@ def published_artificial_gold(gold_engine):
                 "bandeira_tarifaria": "VERDE", "possui_gd": "Não",
                 "qtd_ucs_distintas_faturadas_no_mes": 1, "soma_faturamentos_mensais": 1,
                 "consumo_total_kwh": 300.0, "receita_total_reais": Decimal("101.00"),
+                "consumo_base_comparavel_kwh": 300.0, "receita_base_comparavel_reais": Decimal("101.00"),
                 "ticket_medio_reais_por_uc": 101.0, "consumo_medio_kwh_por_uc": 300.0,
                 "tarifa_media_efetiva": 0.3366666666666667,
             },
@@ -130,7 +141,9 @@ def published_artificial_gold(gold_engine):
                 "qtd_ucs_distintas_faturadas_no_mes": 1, "soma_faturamentos_mensais": 1,
                 "consumo_total_kwh": 300.0,
                 "receita_total_reais": Decimal("1000000000000000000000000000000000.00"),
-                "ticket_medio_reais_por_uc": 1000000000000000000000000000000000.0,
+                "consumo_base_comparavel_kwh": 300.0,
+                "receita_base_comparavel_reais": Decimal("1000000000000000000000000000000000.00"),
+                "ticket_medio_reais_por_uc": None,
                 "consumo_medio_kwh_por_uc": 300.0,
                 "tarifa_media_efetiva": 3333333333333333333333333333333.33,
             },
@@ -159,7 +172,7 @@ def test_context_checks_batch_and_fingerprint_in_same_postgres_connection(gold_e
             context = load_gold_context(connection, "dev131-test", fingerprint)
             assert context.connection is connection
             assert context.lote == "dev131-test"
-            assert context.schema_version == "gold-csv-v1"
+            assert context.schema_version == "gold-csv-v2"
             assert context.imported_at == imported_at
             with pytest.raises(AnalyticsAPIError) as stale:
                 load_gold_context(connection, "another-batch", fingerprint)
@@ -236,15 +249,29 @@ def test_gold_panorama_http_uses_artificial_publication(gold_engine, published_a
         panorama = response.json()
         assert panorama["metadata"]["source"]["version"] == "dev131-test"
         assert panorama["metadata"]["fingerprint"] == fingerprint
-        assert panorama["data"]["metricas"]["receitaFaturada"]["valorAtual"] == 120.0
-        assert panorama["data"]["metricas"]["energiaConsumida"]["valorAtual"] == 60.0
+        assert panorama["data"]["metricas"]["receitaFaturada"]["valorAtual"] == 110.0
+        assert panorama["data"]["metricas"]["energiaConsumida"]["valorAtual"] == 50.0
+        assert panorama["data"]["metricas"]["precoMedioEfetivo"]["valorAtual"] == 2.2
+        assert panorama["data"]["metricas"]["receitaFaturada"]["formula"] == "Σ(receita_base_comparavel_reais)"
+        assert panorama["data"]["metricas"]["energiaConsumida"]["formula"] == "Σ(consumo_base_comparavel_kwh)"
+        assert panorama["data"]["metricas"]["precoMedioEfetivo"]["formula"] == (
+            "Σ(receita_base_comparavel_reais) / Σ(consumo_base_comparavel_kwh)"
+        )
+        february_point = next(
+            point for point in panorama["data"]["serieMensal"] if point["competencia"] == "2025-02"
+        )
+        assert february_point["receitaFaturada"] == 110.0
+        assert february_point["energiaConsumidaKwh"] == 50.0
         assert panorama["data"]["metricas"]["energiaFaturada"]["valorAtual"] is None
         assert panorama["data"]["metricas"]["receitaPaga"]["valorAtual"] is None
-        assert panorama["data"]["metricas"]["ucsAtivas"]["valorAtual"] is None
+        assert panorama["data"]["metricas"]["ucsAtivas"]["valorAtual"] == 0
         assert panorama["data"]["metricas"]["energiaFaturada"]["statusComparacao"] == "unavailable"
         assert panorama["data"]["metricas"]["receitaPaga"]["statusComparacao"] == "unavailable"
         assert panorama["data"]["metricas"]["ucsAtivas"]["statusComparacao"] == "unavailable"
-        assert panorama["data"]["metricas"]["ucsFaturadasNoMes"]["valorAtual"] == 2
+        billed_ucs = panorama["data"]["metricas"]["ucsFaturadasNoMes"]
+        assert billed_ucs["valorAtual"] == 0
+        assert billed_ucs["status"] == "available"
+        assert "fechamento" in billed_ucs["limitacoesComparacao"][0].casefold()
         assert panorama["data"]["opcoesFiltros"]["competencias"] == [
             "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06"
         ]
@@ -258,10 +285,10 @@ def test_gold_panorama_http_uses_artificial_publication(gold_engine, published_a
         )
         assert comparison.status_code == 200, comparison.text
         compared_metric = comparison.json()["data"]["metricas"]["receitaFaturada"]
-        assert compared_metric["valorAnterior"] == 100.0
+        assert compared_metric["valorAnterior"] == 80.0
         assert compared_metric["statusComparacao"] == "partial"
-        assert compared_metric["variacaoAbsoluta"] == 20.0
-        assert compared_metric["variacaoPercentual"] == 20.0
+        assert compared_metric["variacaoAbsoluta"] == 30.0
+        assert compared_metric["variacaoPercentual"] == 37.5
         assert any("não declara fechamento mensal" in item.lower() for item in compared_metric["limitacoesComparacao"])
 
         price_comparison = client.get(
@@ -303,8 +330,10 @@ def test_gold_panorama_http_uses_artificial_publication(gold_engine, published_a
         )
         assert financial_only.status_code == 200, financial_only.text
         financial_only_data = financial_only.json()["data"]
-        assert financial_only_data["metricas"]["receitaFaturada"]["valorAtual"] == 25.0
-        assert financial_only_data["metricas"]["energiaConsumida"]["valorAtual"] == 10.0
+        assert financial_only_data["metricas"]["receitaFaturada"]["valorAtual"] is None
+        assert financial_only_data["metricas"]["energiaConsumida"]["valorAtual"] is None
+        assert financial_only_data["metricas"]["receitaFaturada"]["status"] == "unavailable"
+        assert financial_only_data["metricas"]["energiaConsumida"]["status"] == "unavailable"
         assert financial_only_data["metricas"]["continuidadeDec"]["valorAtual"] is None
         assert financial_only_data["metricas"]["continuidadeFec"]["valorAtual"] is None
         assert any("não há município/alimentador" in text for text in financial_only_data["metricas"]["continuidadeDec"]["limitacoes"])

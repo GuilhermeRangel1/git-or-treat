@@ -15,9 +15,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import settings
 from app.db.base import Base
 from app.main import app
-from app.models.gold_load import BATCH
+from app.models.gold_v2_load import BATCH
 from app.repositories import gold_context
-from app.services.gold_import import GoldImportError, import_gold
+from app.services.gold_import_v2 import GoldV2ImportError, import_gold_v2
 
 
 @pytest.fixture
@@ -31,6 +31,9 @@ def gold_postgres(tmp_path, monkeypatch):
     with engine.connect() as connection:
         assert not inspect(connection).get_table_names(), "O banco PostgreSQL de ordens deve estar vazio."
         assert connection.scalar(text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")) is False
+    with engine.begin() as connection:
+        connection.exec_driver_sql("CREATE SCHEMA gold")
+        connection.exec_driver_sql("CREATE SCHEMA gold_v2")
     Base.metadata.create_all(engine)
 
     monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
@@ -51,36 +54,64 @@ def gold_postgres(tmp_path, monkeypatch):
             session.close()
 
     def write_batch(folder: Path, *, include_uc: bool):
-        from tests.test_gold_import import SAMPLES
+        import json
+        from tests.test_gold_import_v2_atomicity import package
+        from app.models.gold_v2_load import TABLES
 
-        for name, (header, rows) in SAMPLES.items():
-            if not include_uc:
-                replacement_rows = {
-                    "fila_inspecao": "FAKE-B;Cidade fictícia;Bairro fictício;PE;Residencial;B1;FAKE-AL;2020-01-01;ATIVA;Não;0;0;;BAIXA",
-                    "variacao_consumo_uc": "FAKE-B;Cidade fictícia;Bairro fictício;Não;;0;;0;;;false",
-                    "visao_360_uc": "FAKE-B;Cidade fictícia;Bairro fictício;PE;Residencial;B1;FAKE-AL;2020-01-01;ATIVA;Não;0;;1;1;10",
-                }
-                if name in replacement_rows:
-                    rows = [replacement_rows[name]]
-            table_folder = folder / name
-            table_folder.mkdir(parents=True)
-            (table_folder / "part-1.csv").write_text(
-                header + "\n" + "\n".join(rows) + "\n", encoding="utf-8",
+        package(folder, folder.name)
+        uc_id = "FAKE-A" if include_uc else "FAKE-B"
+        rows = {
+            "fila_inspecao": {"id_uc": uc_id, "municipio": "Cidade fictícia", "bairro": "Bairro fictício",
+                "uf": "PE", "classe": "Residencial", "subgrupo": "B1", "alimentador": "FAKE-AL",
+                "data_ligacao": "2020-01-01", "status": "ATIVA", "prioridade_inspecao": "REVISAR",
+                "motivo_prioridade": "SEM HISTORICO DE CONSUMO", "ordem_prioridade_inspecao": r"\N",
+                "posicao_fila_inspecao": "1",
+                "media_historica_recuperacao_kwh_por_inspecao": "13.5",
+                "intervalo_historico_recuperacao_inferior_kwh": "0",
+                "intervalo_historico_recuperacao_superior_kwh": "27",
+                "referencia_media_historica_recuperacao": "global",
+                "estado_media_historica_recuperacao": "DISPONIVEL_REFERENCIA_HISTORICA",
+                "energia_estimada_recuperavel_kwh": r"\N",
+                "intervalo_recuperacao_inferior_kwh": r"\N",
+                "intervalo_recuperacao_superior_kwh": r"\N",
+                "estado_estimativa_recuperacao": "ESTIMATIVA_UC_INDISPONIVEL",
+                "total_inspecoes_realizadas": "0", "total_inspecoes_irregulares": "0"},
+            "variacao_consumo_uc": {"id_uc": uc_id, "municipio": "Cidade fictícia", "bairro": "Bairro fictício",
+                "consumo_medio_inicial": "10", "meses_com_leitura_p1": "0", "consumo_medio_final": "10",
+                "meses_com_leitura_p2": "0", "variacao_kwh": "0", "variacao_pct": "0",
+                "queda_consumo_superior_30_pct": "false"},
+            "visao_360_uc": {"id_uc": uc_id, "municipio": "Cidade fictícia", "bairro": "Bairro fictício",
+                "uf": "PE", "classe": "Residencial", "subgrupo": "B1", "alimentador": "FAKE-AL",
+                "data_ligacao": "2020-01-01", "status": "ATIVA", "total_interrupcoes_sofridas": "1",
+                "duracao_total_interrupcoes_horas": "1", "media_consumo_historico": "10"},
+        }
+        manifest_path = folder / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for name, values in rows.items():
+            table = TABLES[name]
+            (folder / name / (name + ".csv")).write_text(
+                ";".join(table.c.keys()) + "\n" + ";".join(values.get(c.name, r"\N") for c in table.c) + "\n",
+                encoding="utf-8",
             )
+            manifest["controles_tabelas"][name]["registros"] = 1
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     folder = tmp_path / "first"
-    folder.mkdir()
     write_batch(folder, include_uc=True)
-    import_gold(engine, folder, "fake-gold-1")
+    first_publication = import_gold_v2(engine, folder)
     try:
-        yield engine, folder, write_batch, write_token, read_token, override_db
+        yield engine, folder, write_batch, write_token, read_token, override_db, first_publication
     finally:
         Base.metadata.drop_all(engine)
+        with engine.begin() as connection:
+            connection.exec_driver_sql("DROP SCHEMA gold CASCADE")
+            connection.exec_driver_sql("DROP SCHEMA gold_v2 CASCADE")
         engine.dispose()
 
 
 def test_gold_queue_order_replay_reload_failure_and_removed_uc_preserve_snapshot(gold_postgres):
-    engine, first_batch, write_batch, write_token, read_token, override_db = gold_postgres
+    engine, first_batch, write_batch, write_token, read_token, override_db, first_publication = gold_postgres
+    first_lote = first_publication["lote"]
     from app.core.database import get_db
 
     original_overrides = app.dependency_overrides.copy()
@@ -93,8 +124,17 @@ def test_gold_queue_order_replay_reload_failure_and_removed_uc_preserve_snapshot
             body = queue.json()
             assert body["metadata"]["period"] is None
             assert body["metadata"]["temporal_scope"] == "snapshot"
-            assert body["metadata"]["source"]["version"] == "fake-gold-1"
+            assert body["metadata"]["source"]["version"] == first_lote
             assert body["data"]["items"][0]["category"] == "REVISAR"
+            assert body["data"]["items"][0]["reason"] == "SEM HISTORICO DE CONSUMO"
+            assert body["data"]["items"][0]["queue_position"] == 1
+            assert body["data"]["items"][0]["evidence"]["priority_order"] is None
+            recovery = body["data"]["items"][0]["evidence"]
+            assert recovery["historical_recovery_mean_kwh_per_inspection"] == 13.5
+            assert recovery["historical_recovery_reference"] == "global"
+            assert recovery["historical_recovery_status"] == "DISPONIVEL_REFERENCIA_HISTORICA"
+            assert recovery["estimated_recoverable_energy_kwh"] is None
+            assert recovery["recovery_estimate_status"] == "ESTIMATIVA_UC_INDISPONIVEL"
             assert body["data"]["items"][0]["potential_recoverable_energy_kwh"] is None
             assert body["data"]["items"][0]["variation"]["p1_start"] == "2022-07"
             assert body["data"]["items"][0]["variation"]["p2_end"] == "2026-06"
@@ -102,6 +142,9 @@ def test_gold_queue_order_replay_reload_failure_and_removed_uc_preserve_snapshot
             assert client.get("/api/v1/inspections/queue").status_code == 401
             client.headers["Authorization"] = f"Bearer {read_token}"
             assert client.get("/api/v1/inspections/queue?order_by=priority").status_code == 422
+            assert client.get("/api/v1/inspections/queue?order_by=ordem_prioridade_inspecao").status_code == 422
+            assert client.get("/api/v1/inspections/queue?order_by=queue_position").status_code == 200
+            assert client.get("/api/v1/inspections/queue?order_by=queue_position&direction=desc").status_code == 200
             assert client.get("/api/v1/inspections/queue?order_by=category").json()["data"]["items"][0]["uc_id"] == "FAKE-A"
             assert client.get("/api/v1/inspections/queue?expected_lote=old-lote").status_code == 409
             fingerprint = body["metadata"]["fingerprint"]
@@ -110,11 +153,14 @@ def test_gold_queue_order_replay_reload_failure_and_removed_uc_preserve_snapshot
             ).status_code == 409
 
             detail = client.get(
-                f"/api/v1/inspections/queue/FAKE-A?expected_lote=fake-gold-1&expected_fingerprint={fingerprint}"
+                f"/api/v1/inspections/queue/FAKE-A?expected_lote={first_lote}&expected_fingerprint={fingerprint}"
             ).json()
+            assert detail["data"]["reason"] == "SEM HISTORICO DE CONSUMO"
+            assert detail["data"]["queue_position"] == 1
+            assert "referência histórica" in detail["data"]["recovery_unavailable_reason"]
             assert client.get("/api/v1/inspections/queue/FAKE-A?expected_lote=old-lote").status_code == 409
             payload = {
-                "source_version": "fake-gold-1",
+                "source_version": first_lote,
                 "source_fingerprint": fingerprint,
                 "rule_version": detail["data"]["rule_version"],
                 "priority": "MEDIA",
@@ -146,14 +192,14 @@ def test_gold_queue_order_replay_reload_failure_and_removed_uc_preserve_snapshot
             published_before = client.get("/api/v1/inspections/queue").json()["metadata"]["source"]["version"]
             queue_before_failure = client.get("/api/v1/inspections/queue").json()
             history_before_failure = client.get(f"/api/v1/inspections/orders/{order_id}/history").json()
-            assert import_gold(engine, first_batch, "fake-gold-1")["status"] == "unchanged"
+            assert import_gold_v2(engine, first_batch)["status"] == "unchanged"
             assert client.get("/api/v1/inspections/queue").json()["metadata"]["source"]["version"] == published_before
 
-            bad_reload = first_batch / "visao_360_uc" / "part-1.csv"
+            bad_reload = first_batch / "visao_360_uc" / "visao_360_uc.csv"
             prior_bytes = bad_reload.read_bytes()
             bad_reload.write_text("wrong_header\nbroken\n", encoding="utf-8")
-            with pytest.raises(GoldImportError):
-                import_gold(engine, first_batch, "failed-reload")
+            with pytest.raises(GoldV2ImportError):
+                import_gold_v2(engine, first_batch)
             bad_reload.write_bytes(prior_bytes)
             assert client.get("/api/v1/inspections/queue").json() == queue_before_failure
             assert client.get(f"/api/v1/inspections/orders/{order_id}").json()["suspicion_snapshot"] == snapshot
@@ -161,9 +207,9 @@ def test_gold_queue_order_replay_reload_failure_and_removed_uc_preserve_snapshot
             assert client.get("/api/v1/inspections/queue").json()["metadata"]["source"]["version"] == published_before
 
             replacement = first_batch.parent / "replacement"
-            replacement.mkdir()
             write_batch(replacement, include_uc=False)
-            import_gold(engine, replacement, "fake-gold-2")
+            replacement_publication = import_gold_v2(engine, replacement)
+            assert replacement_publication["schema_version"] == "gold-csv-v2"
             assert client.get("/api/v1/inspections/queue/FAKE-A").status_code == 404
             historical = client.get(f"/api/v1/inspections/orders/{order_id}").json()
             assert historical["suspicion_snapshot"] == snapshot
@@ -181,7 +227,7 @@ def test_publication_lock_serializes_concurrent_queue_order_creation(gold_postgr
     from app.services.inspection_analytics import build_gold_suspicion_response
     from app.services.inspections import OrderConflictError, create_from_queue
 
-    engine, _, _, _, _, _ = gold_postgres
+    engine, _, _, _, _, _, _ = gold_postgres
     attempted_shared_lock = Event()
     executor = ThreadPoolExecutor(max_workers=1)
     lock_connection = engine.connect()
@@ -233,7 +279,7 @@ def test_publication_lock_serializes_concurrent_queue_order_creation(gold_postgr
         assert blocked_waiters > 0, "A criação não aguardou a trava exclusiva observada em pg_locks."
 
         lock_connection.execute(update(BATCH).where(BATCH.c.id == 1).values(
-            lote="fake-gold-2", fingerprint="b" * 64,
+            lote="GOLD_20000101T000000Z_ffffffff", fingerprint="b" * 64,
         ))
         lock_transaction.commit()
         lock_transaction = None

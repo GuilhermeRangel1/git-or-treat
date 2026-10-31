@@ -154,6 +154,19 @@ GOLD_INSPECTION_LIMITATIONS = [
     "A extração não publica energia recuperável; nenhum valor é estimado.",
     "Variação compara as janelas fixas jul/2022–jun/2023 e jul/2025–jun/2026 e não estima recuperação.",
 ]
+GOLD_RECOVERY_UNAVAILABLE_REASONS = {
+    "ESTIMATIVA_UC_INDISPONIVEL": "A Gold publica apenas referência histórica por inspeção; não estima recuperação para esta UC.",
+    "BASE_INSUFICIENTE": "A base histórica é insuficiente para validar a referência de recuperação.",
+    "CANDIDATO_REPROVADO_NA_VALIDACAO_TEMPORAL": "A referência de recuperação não passou na validação temporal.",
+}
+
+
+def _gold_recovery_unavailable_reason(status: str | None) -> str:
+    if status in GOLD_RECOVERY_UNAVAILABLE_REASONS:
+        return GOLD_RECOVERY_UNAVAILABLE_REASONS[status]
+    if status is not None:
+        return f"Estimativa individual indisponível (estado Gold: {status})."
+    return "A Gold não informou um estado nem um valor de estimativa individual."
 
 
 def _gold_metadata(repository: GoldInspectionRepository, state: AnalyticsStatus, filters: AnalyticsFilters) -> GoldMetadata:
@@ -182,7 +195,9 @@ def _gold_item(row: dict) -> GoldInspectionItem:
     return GoldInspectionItem(
         uc_id=row["id_uc"], municipality=row["municipio"], neighborhood=row["bairro"],
         class_name=row["classe"], feeder_id=row["alimentador"],
-        category=row["prioridade_inspecao"], reason=row["prioridade_inspecao"],
+        category=row["prioridade_inspecao"], reason=row["motivo_prioridade"],
+        queue_position=row["posicao_fila_inspecao"],
+        recovery_unavailable_reason=_gold_recovery_unavailable_reason(row["estado_estimativa_recuperacao"]),
         evidence=GoldInspectionEvidence(
             inspections_performed=row["total_inspecoes_realizadas"],
             confirmed_irregular_inspections=row["total_inspecoes_irregulares"],
@@ -190,6 +205,17 @@ def _gold_item(row: dict) -> GoldInspectionItem:
             distributed_generation_present=row["possui_geracao_solar"],
             cadastral_status=row["status"], call_center_contacts=row["total_chamados_callcenter"],
             interruptions=row["total_interrupcoes_sofridas"],
+            priority_order=row["ordem_prioridade_inspecao"],
+            historical_recovery_mean_kwh_per_inspection=row["media_historica_recuperacao_kwh_por_inspecao"],
+            historical_recovery_interval_lower_kwh=row["intervalo_historico_recuperacao_inferior_kwh"],
+            historical_recovery_interval_upper_kwh=row["intervalo_historico_recuperacao_superior_kwh"],
+            historical_recovery_reference=row["referencia_media_historica_recuperacao"],
+            historical_recovery_status=row["estado_media_historica_recuperacao"],
+            estimated_recoverable_energy_kwh=row["energia_estimada_recuperavel_kwh"],
+            recovery_interval_lower_kwh=row["intervalo_recuperacao_inferior_kwh"],
+            recovery_interval_upper_kwh=row["intervalo_recuperacao_superior_kwh"],
+            recovery_estimate_status=row["estado_estimativa_recuperacao"],
+            recovery_estimate_method=row["metodo_estimativa_recuperacao"],
         ), variation=variation,
     )
 

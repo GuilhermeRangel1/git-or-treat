@@ -6,7 +6,7 @@ from sqlalchemy.engine import Connection
 from app.core.config import settings
 from app.repositories.analytics import AnalyticsSourceUnavailable
 from app.synthetic import panorama_fixtures
-from app.models.gold_load import TABLES
+from app.models.gold_v2_load import TABLES
 from app.repositories.gold_context import GoldContext
 
 
@@ -71,16 +71,35 @@ class GoldPanoramaRepository:
         if classe is not None:
             conditions.append(table.c.classe_consumo == classe)
         statement = select(
-            func.sum(table.c.receita_total_reais).label("revenue"),
-            func.sum(table.c.consumo_total_kwh).label("energy"),
-            func.sum(table.c.qtd_ucs_distintas_faturadas_no_mes).label("billed_ucs"),
+            func.sum(table.c.receita_base_comparavel_reais).label("revenue"),
+            func.sum(table.c.consumo_base_comparavel_kwh).label("energy"),
             func.count().label("row_count"),
-            func.count(table.c.receita_total_reais).label("revenue_values"),
-            func.count(table.c.consumo_total_kwh).label("energy_values"),
-            func.count(table.c.qtd_ucs_distintas_faturadas_no_mes).label("billed_uc_values"),
+            func.count(table.c.receita_base_comparavel_reais).label("revenue_values"),
+            func.count(table.c.consumo_base_comparavel_kwh).label("energy_values"),
         ).where(*conditions)
         row = self.connection.execute(statement).mappings().one()
         return dict(row)
+
+    def billed_uc_count(self, competencia: str, municipio: str | None = None, classe: str | None = None) -> int:
+        monthly = TABLES["consumo_mensal_uc"]
+        cadastro = TABLES["visao_360_uc"]
+        conditions = [monthly.c.competencia == competencia, monthly.c.tem_fatura.is_(True)]
+        if municipio is not None:
+            conditions.append(func.coalesce(cadastro.c.municipio, "Não informado") == municipio)
+        if classe is not None:
+            conditions.append(func.coalesce(cadastro.c.classe, "Não informado") == classe)
+        return self.connection.execute(select(func.count(func.distinct(monthly.c.id_uc))).select_from(
+            monthly.outerjoin(cadastro, monthly.c.id_uc == cadastro.c.id_uc)
+        ).where(*conditions)).scalar_one()
+
+    def registered_uc_count(self, municipio: str | None = None, classe: str | None = None) -> int:
+        cadastro = TABLES["visao_360_uc"]
+        conditions = []
+        if municipio is not None:
+            conditions.append(func.coalesce(cadastro.c.municipio, "Não informado") == municipio)
+        if classe is not None:
+            conditions.append(func.coalesce(cadastro.c.classe, "Não informado") == classe)
+        return self.connection.execute(select(func.count(func.distinct(cadastro.c.id_uc))).where(*conditions)).scalar_one()
 
     def series(self, through: str, municipio: str | None = None, classe: str | None = None):
         table = self.table
@@ -91,11 +110,11 @@ class GoldPanoramaRepository:
             conditions.append(table.c.classe_consumo == classe)
         statement = select(
             table.c.competencia,
-            func.sum(table.c.receita_total_reais).label("revenue"),
-            func.sum(table.c.consumo_total_kwh).label("energy"),
+            func.sum(table.c.receita_base_comparavel_reais).label("revenue"),
+            func.sum(table.c.consumo_base_comparavel_kwh).label("energy"),
             func.count().label("row_count"),
-            func.count(table.c.receita_total_reais).label("revenue_values"),
-            func.count(table.c.consumo_total_kwh).label("energy_values"),
+            func.count(table.c.receita_base_comparavel_reais).label("revenue_values"),
+            func.count(table.c.consumo_base_comparavel_kwh).label("energy_values"),
         ).where(*conditions).group_by(table.c.competencia).order_by(table.c.competencia)
         return [dict(row) for row in self.connection.execute(statement).mappings()]
 

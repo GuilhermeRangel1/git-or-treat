@@ -1,7 +1,7 @@
 """Database-side queries for aggregated Gold DEC/FEC indicators."""
 from sqlalchemy import func, select
 
-from app.models.gold_load import TABLES
+from app.models.gold_v2_load import TABLES
 from app.repositories.gold_context import GoldContext
 
 

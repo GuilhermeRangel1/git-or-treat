@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import engine, get_db
 from app.core.order_access import bearer, get_order_identity, require_orders_read
-from app.models.gold_load import BATCH, SCHEMA_VERSION
+from app.models.gold_v2_load import BATCH, SCHEMA_VERSION
 from app.repositories.analytics import AnalyticsSourceUnavailable
 from app.services.analytics import AnalyticsAPIError
 

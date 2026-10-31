@@ -32,13 +32,13 @@ def order_conflict_response(exc: inspection_service.OrderConflictError) -> JSONR
 @analytics_router.get(
     "/queue", response_model=QueueResponse | GoldInspectionQueueResponse,
     summary="Fila de inspeção",
-    description="Gold: snapshot cadastral sem competência. A ordenação padrão é por UC; `category` ordena pelo texto original e desempata por UC. `priority` e recuperação não são métricas Gold.",
+    description="Gold: snapshot cadastral sem competência. A ordenação padrão usa posicao_fila_inspecao ascendente, com desempate por UC; aceita queue_position, uc_id ou category e direção explícita. `priority` e recuperação não são métricas Gold.",
 )
 def get_inspection_queue(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    order_by: Literal["priority", "uc_id", "potential_recoverable_energy_kwh", "category"] | None = None,
-    direction: Literal["asc", "desc"] = "desc",
+    order_by: Literal["priority", "uc_id", "potential_recoverable_energy_kwh", "category", "queue_position"] | None = None,
+    direction: Literal["asc", "desc"] | None = None,
     municipio: str | None = Query(None, max_length=100),
     bairro: str | None = Query(None, max_length=100),
     classe: str | None = Query(None, max_length=100),
@@ -51,15 +51,17 @@ def get_inspection_queue(
     """Read-only demonstration queue; estimates are provisional and not Gold metrics."""
     filters = filters_model(municipio, bairro, classe, alimentador)
     if gold_context is not None:
-        if order_by not in {None, "uc_id", "category"}:
-            raise AnalyticsAPIError(422, "invalid_query", "Ordenação indisponível para a fila Gold.", [{"field": "order_by", "message": "Use uc_id ou category; a categoria não é um score."}])
+        if order_by not in {None, "uc_id", "category", "queue_position"}:
+            raise AnalyticsAPIError(422, "invalid_query", "Ordenação indisponível para a fila Gold.", [{"field": "order_by", "message": "Use queue_position, uc_id ou category; a categoria não é um score."}])
         return build_gold_queue_response(
             GoldInspectionRepository(gold_context), filters, page, page_size,
-            "uc_id" if order_by is None else order_by,
-            direction,
+            "queue_position" if order_by is None else order_by,
+            direction or ("asc" if order_by in {None, "queue_position"} else "desc"),
         )
+    if order_by == "queue_position":
+        raise AnalyticsAPIError(422, "invalid_query", "Ordenação queue_position só está disponível no modo Gold.", [{"field": "order_by", "message": "Use uma ordenação disponível para a fonte sintética."}])
     repository = repository_provider()
-    return build_queue_response(repository, filters, page, page_size, order_by or "priority", direction)
+    return build_queue_response(repository, filters, page, page_size, order_by or "priority", direction or "desc")
 
 
 @analytics_router.get("/queue/{uc_id}", response_model=SuspicionResponse | GoldSuspicionResponse, summary="Evidências da suspeita")

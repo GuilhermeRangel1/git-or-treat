@@ -13,7 +13,7 @@ from sqlalchemy.pool import NullPool
 from app.core.config import settings
 from app.main import app
 import app.repositories.gold_context as gold_context_module
-from app.models.gold_load import BATCH, SCHEMA_VERSION, TABLES
+from app.models.gold_v2_load import BATCH, SCHEMA_VERSION, TABLES
 
 
 pytestmark = pytest.mark.skipif(
@@ -33,6 +33,7 @@ def gold_engine() -> Engine:
         assert connection.scalar(text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")) is False
     try:
         with engine.begin() as connection:
+            connection.exec_driver_sql("CREATE SCHEMA gold_v2")
             BATCH.create(connection)
             TABLES["indicadores_dec_fec"].create(connection)
         yield engine
@@ -40,6 +41,7 @@ def gold_engine() -> Engine:
         with engine.begin() as connection:
             TABLES["indicadores_dec_fec"].drop(connection, checkfirst=True)
             BATCH.drop(connection, checkfirst=True)
+            connection.exec_driver_sql("DROP SCHEMA gold_v2")
         engine.dispose()
 
 

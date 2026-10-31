@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import Connection
 
 from app.repositories.gold_context import GoldContext
-from app.models.gold_load import TABLES
+from app.models.gold_v2_load import TABLES
 from app.schemas.analytics import AnalyticsFilters
 
 
@@ -67,7 +67,17 @@ class GoldInspectionRepository:
             q.c.id_uc, q.c.municipio, q.c.bairro, q.c.classe, q.c.alimentador,
             q.c.prioridade_inspecao, q.c.total_inspecoes_realizadas,
             q.c.total_inspecoes_irregulares, q.c.media_consumo_historico,
-            q.c.possui_geracao_solar,
+            q.c.possui_geracao_solar, q.c.motivo_prioridade,
+            q.c.ordem_prioridade_inspecao, q.c.posicao_fila_inspecao,
+            q.c.media_historica_recuperacao_kwh_por_inspecao,
+            q.c.intervalo_historico_recuperacao_inferior_kwh,
+            q.c.intervalo_historico_recuperacao_superior_kwh,
+            q.c.referencia_media_historica_recuperacao,
+            q.c.estado_media_historica_recuperacao,
+            q.c.energia_estimada_recuperavel_kwh,
+            q.c.intervalo_recuperacao_inferior_kwh,
+            q.c.intervalo_recuperacao_superior_kwh,
+            q.c.estado_estimativa_recuperacao, q.c.metodo_estimativa_recuperacao,
             v.c.id_uc.label("variation_uc_id"),
             v.c.consumo_medio_inicial, v.c.meses_com_leitura_p1,
             v.c.consumo_medio_final, v.c.meses_com_leitura_p2,
@@ -79,7 +89,10 @@ class GoldInspectionRepository:
         statement = select(*columns).select_from(
             q.outerjoin(v, q.c.id_uc == v.c.id_uc).outerjoin(p, q.c.id_uc == p.c.id_uc)
         ).where(*self._predicates(filters))
-        if order_by == "category":
+        if order_by == "queue_position":
+            position = q.c.posicao_fila_inspecao.desc() if direction == "desc" else q.c.posicao_fila_inspecao.asc()
+            statement = statement.order_by(position, q.c.id_uc.asc())
+        elif order_by == "category":
             category = q.c.prioridade_inspecao.desc() if direction == "desc" else q.c.prioridade_inspecao.asc()
             statement = statement.order_by(
                 category, q.c.id_uc.asc()
@@ -97,7 +110,17 @@ class GoldInspectionRepository:
             q.c.id_uc, q.c.municipio, q.c.bairro, q.c.classe, q.c.alimentador,
             q.c.prioridade_inspecao, q.c.total_inspecoes_realizadas,
             q.c.total_inspecoes_irregulares, q.c.media_consumo_historico,
-            q.c.possui_geracao_solar,
+            q.c.possui_geracao_solar, q.c.motivo_prioridade,
+            q.c.ordem_prioridade_inspecao, q.c.posicao_fila_inspecao,
+            q.c.media_historica_recuperacao_kwh_por_inspecao,
+            q.c.intervalo_historico_recuperacao_inferior_kwh,
+            q.c.intervalo_historico_recuperacao_superior_kwh,
+            q.c.referencia_media_historica_recuperacao,
+            q.c.estado_media_historica_recuperacao,
+            q.c.energia_estimada_recuperavel_kwh,
+            q.c.intervalo_recuperacao_inferior_kwh,
+            q.c.intervalo_recuperacao_superior_kwh,
+            q.c.estado_estimativa_recuperacao, q.c.metodo_estimativa_recuperacao,
             v.c.id_uc.label("variation_uc_id"),
             v.c.consumo_medio_inicial, v.c.meses_com_leitura_p1,
             v.c.consumo_medio_final, v.c.meses_com_leitura_p2,

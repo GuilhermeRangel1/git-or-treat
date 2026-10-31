@@ -75,6 +75,17 @@ class GoldInspectionEvidence(BaseModel):
     cadastral_status: str | None
     call_center_contacts: int | None
     interruptions: int | None
+    priority_order: int | None
+    historical_recovery_mean_kwh_per_inspection: float | None
+    historical_recovery_interval_lower_kwh: float | None
+    historical_recovery_interval_upper_kwh: float | None
+    historical_recovery_reference: str | None
+    historical_recovery_status: str
+    estimated_recoverable_energy_kwh: float | None
+    recovery_interval_lower_kwh: float | None
+    recovery_interval_upper_kwh: float | None
+    recovery_estimate_status: str
+    recovery_estimate_method: str | None
 
 
 class GoldInspectionItem(BaseModel):
@@ -85,6 +96,7 @@ class GoldInspectionItem(BaseModel):
     feeder_id: str | None
     category: str | None
     reason: str | None
+    queue_position: int
     potential_recoverable_energy_kwh: None = None
     recovery_unavailable_reason: str = "A Gold publicada não contém uma estimativa de energia recuperável."
     evidence: GoldInspectionEvidence

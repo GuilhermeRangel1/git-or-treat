@@ -14,5 +14,5 @@ class GoldMetadata(BaseModel):
     source: AnalyticsSource
     limitations: list[str] = Field(default_factory=list)
     temporal_scope: Literal["monthly", "snapshot"] = "monthly"
-    schema_version: str = "gold-csv-v1"
+    schema_version: str = "gold-csv-v2"
     fingerprint: str
