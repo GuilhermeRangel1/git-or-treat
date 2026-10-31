@@ -1,4 +1,4 @@
-"""Observa C14/C15 no snapshot Gold v2; retorna somente fatos técnicos.
+"""Observa controles no snapshot Gold v2; retorna somente fatos técnicos.
 
 Sem escrita, cadastro pessoal ou chamadas ao modelo. A aprovação de cada controle
 é explícita e independente de seu resultado; cobertura não é certificada por inferência.
@@ -10,7 +10,7 @@ from decimal import Decimal
 from math import isfinite
 from time import monotonic
 
-from sqlalchemy import select
+from sqlalchemy import Table, select
 from sqlalchemy.engine import Engine
 
 from app.models.gold_v2_load import TABLES
@@ -22,6 +22,10 @@ from app.repositories.gold_publication import (
 )
 from app.services.genai_client import GenAITimeout
 from app.services.genai_publication import GoldPublicationContext
+from app.services.gold_domain_controls import (
+    ANALYTICAL_CONTROLS,
+    observe_domain_controls,
+)
 
 
 @contextmanager
@@ -62,7 +66,7 @@ def _remaining_sql(connection, expires):
 
 def _rows(connection, table, expires):
     _remaining_sql(connection, expires)
-    result = connection.execution_options(yield_per=1000).execute(select(table))
+    result = connection.execution_options(yield_per=1000).execute(select(table) if isinstance(table, Table) else table)
     try:
         for row in result.mappings():
             if monotonic() >= expires:
@@ -83,13 +87,13 @@ def _valid_number(value):
     return value is not None and isfinite(value)
 
 
-def observe_attendance_readiness(
+def _observe_publication(
     engine: Engine, *, requested_periods: tuple[str, ...], approved_controls: frozenset[str],
-    expected_batch_ref: str | None = None,
+    expected_batch_ref: str | None = None, include_domains: bool = False,
 ) -> dict:
     """Fatos para evaluate_readiness, fixados na mesma publicação do banco.
 
-    requested_periods é um recorte global de atendimento para uso interno autorizado.
+    requested_periods é um recorte global da publicação para uso interno autorizado.
     Recortes por UC/geografia exigem observação própria; estes fatos não os autorizam.
     """
     if (not requested_periods or len(requested_periods) > 1200
@@ -98,7 +102,7 @@ def observe_attendance_readiness(
     for period in requested_periods:
         if datetime.strptime(period, "%Y-%m").strftime("%Y-%m") != period:
             raise ValueError("Competência inválida.")
-    if not approved_controls <= {"C14", "C15"}:
+    if not approved_controls <= ({"C14", "C15"} | (ANALYTICAL_CONTROLS if include_domains else set())):
         raise ValueError("Controle fora desta observação.")
     expires = monotonic() + 35
     context = GoldPublicationContext.capture(engine)
@@ -209,7 +213,31 @@ def observe_attendance_readiness(
                 "observed_periods": sorted(monthly), "closed_periods": sorted(closed),
                 "zero_confirmed_periods": sorted(zeros), "has_undated_records": undated > 0}},
         }
+        if include_domains:
+            results, coverage = observe_domain_controls(
+                connection, read_rows=lambda table: _rows(connection,table,expires),
+                requested_periods=requested_periods, origin=origin, batch_ref=context.batch_ref)
+            facts["control_results"].update({key:{"batch_ref":context.batch_ref,
+                "status":"passed" if value else "failed", "approved":key in approved_controls}
+                for key,value in results.items()})
+            facts["coverage"].update(coverage)
     context.assert_current(engine)
     if monotonic() >= expires:
         raise GenAITimeout
     return facts
+
+
+def observe_attendance_readiness(engine: Engine, *, requested_periods: tuple[str, ...],
+                                  approved_controls: frozenset[str],
+                                  expected_batch_ref: str | None = None) -> dict:
+    """Compatibilidade da observação pública original de atendimento."""
+    return _observe_publication(engine, requested_periods=requested_periods,
+        approved_controls=approved_controls, expected_batch_ref=expected_batch_ref)
+
+
+def observe_domain_readiness(engine: Engine, *, requested_periods: tuple[str, ...],
+                             approved_controls: frozenset[str],
+                             expected_batch_ref: str | None = None) -> dict:
+    """Controles dos domínios e atendimento no mesmo snapshot e prazo."""
+    return _observe_publication(engine, requested_periods=requested_periods,
+        approved_controls=approved_controls, expected_batch_ref=expected_batch_ref, include_domains=True)

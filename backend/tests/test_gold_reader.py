@@ -116,6 +116,7 @@ def test_reader_has_only_approved_selects_and_a_server_timeout(batch):  # noqa: 
             from app.models.gold_v2_load import TABLES as V2_TABLES
             from app.services.gold_attendance_readiness import (
                 observe_attendance_readiness,
+                observe_domain_readiness,
             )
             with owner.begin() as write:
                 write.execute(BATCH.update().values(schema_version="gold-csv-v2"))
@@ -132,6 +133,11 @@ def test_reader_has_only_approved_selects_and_a_server_timeout(batch):  # noqa: 
                 approved_controls=frozenset({"C14", "C15"}))
             assert facts["control_results"]["C14"]["status"] == "passed"
             assert facts["control_results"]["C15"]["status"] == "passed"
+            domain_facts = observe_domain_readiness(reader,requested_periods=("2001-01",),
+                approved_controls=frozenset({"C01","C11","C14","C15"}))
+            assert domain_facts["batch_ref"] == facts["batch_ref"]
+            assert domain_facts["control_results"]["C01"]["status"] == "failed"
+            assert domain_facts["control_results"]["C14"]["status"] == "passed"
             # ACL acompanha ALTER SET SCHEMA: downgrade precisa retirar o grant.
             command.downgrade(alembic_config(connection), "goldv1000002")
             connection.commit()

@@ -166,3 +166,8 @@ O pacote final usa referências `gold-csv-v2`, independentes do envelope interno
 ### Prontidão de atendimento observada no banco — GENAI-02
 
 `observe_attendance_readiness` lê o snapshot v2 e recalcula C14/C15 com aprovação de regra explícita, vinculados à publicação efetiva. `evaluate_attendance_readiness` usa o transporte GenAI existente, valida versão/estados/lote e revalida a publicação após o HTTP. A CLI `scripts/check_gold_readiness.py` executa essa fronteira com credencial de leitura; o chat público ainda não a chama. A migração `goldv2000002` expõe somente IDs de linhagem em `gold.publicacao_linhagem` e o provisionador concede SELECT nessa view, sem abrir a tabela operacional de carga. Controles e cobertura não certificada permanecem distintos. Operação, limites de prazo, parâmetros e evidência privada estão em [gold-readiness.md](../gold-readiness.md).
+
+
+### Prontidão dos quatro domínios — continuação GENAI-02
+
+`observe_domain_readiness` amplia a observação de atendimento no mesmo snapshot para receita, consumo e continuidade. Os cálculos por controle ficam em `gold_domain_controls`, sem novo orquestrador. `evaluate_domain_readiness` usa a coordenação HTTP e prazo existentes; `check_gold_readiness.py --scope domains` é o chamador operacional. O padrão `attendance` permanece compatível. A ampliação não herda aprovações anteriores: somente os IDs explicitamente aceitos pelo operador são aprovados, e sucesso técnico não certifica a fonte. A [matriz de prontidão](../gold-readiness.md#controles-dos-quatro-domínios-na-publicação-v2) distingue controles internos, cobertura e conferência externa.

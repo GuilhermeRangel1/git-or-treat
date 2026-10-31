@@ -74,3 +74,32 @@ A operação GenAI exige token configurado mesmo no modo local; ausência não h
 A verificação privada opt-in `tests/test_gold_readiness_real.py` usa `GOLD_CSV_V2_DIR`, `GOLD_READINESS_TEST_URL` e `GOLD_READINESS_TEST_TOKEN`. Importa as quinze tabelas pelo importador real em banco temporário, pede avaliação por HTTP e confere a identidade preservada e os estados de atendimento. A execução local passou sem provedor de IA; o atendimento acumulado foi liberado e o mensal permaneceu indisponível por cobertura não certificada. Nenhum dataset ou credencial integra o teste no repositório. O banco temporário é removido ao final.
 
 A regressão com papel restrito passou em PostgreSQL 16 descartável no Docker, incluindo a migração da view de linhagem e os bloqueios de escrita e de acesso fora do escopo. Ainda permanecem a conferência no PostgreSQL de destino, a incorporação ao coordenador de perguntas/insights, o mesmo lote no portal e os controles dos outros domínios. A conclusão da ligação C14/C15 não conclui GENAI-02 integralmente ou IA-01/03/04/06.
+
+
+## Controles dos quatro domínios na publicação v2
+
+A CLI aceita `--scope domains` para usar `evaluate_domain_readiness` e `observe_domain_readiness`. O escopo padrão `attendance` preserva a operação anterior. Ambas as operações reutilizam a mesma coordenação, referência, prazo e snapshot; não há outro banco ou executor na GenAI. Flags `--approve-control` continuam aceites explícitos do operador e não são preenchidas a partir da aprovação histórica do relatório CSV.
+
+A versão de prontidão permanece `gold-readiness-v2`: o envelope não muda, mas o observador passa a preencher controles já previstos. A compatibilidade v1 e os controles candidatos do relatório histórico permanecem preservados. Os IDs abaixo identificam a família do controle; estas verificações internas complementam o controle de origem e **não substituem seus valores de referência ou sua aprovação externa**.
+
+| Controle | Verificação adicional sobre a publicação carregada |
+| --- | --- |
+| C01 | Reconcilia consumo medido e receita da série UC/mês com o diagnóstico por competência. Não chama consumo medido de energia faturada. |
+| C02 | Reconcilia os mesmos valores por competência e classe cadastral atual. |
+| C03 | Confere presença dos pares UC/mês e coerência de flags/contagens de faturas e leituras observadas. Não presume que toda linha tenha as duas fontes. |
+| C04 | Reconcilia os mesmos valores por competência e município cadastral atual; ausência cadastral usa `Não informado`. |
+| C10 | Confere tipos/ausências da população de médias históricas e consumo mensal. Não compara média por leitura com média mensal; a distribuição de nulos e a ausência de série continuam evidências a conferir contra a origem. |
+| C11 | Reconcilia eventos, duração e UCs distintas com numeradores, denominador cadastral e fórmulas DEC/FEC, sem somar razões nem preencher duração desconhecida. Indicadores continuam esparsos nos meses sem ocorrência. |
+| C12 | Reconcilia diagnóstico e bairro em consumo, receita e UCs faturadas por mês, condicionado também à reconciliação da série. |
+| C13 | Detecta bairros que diferem somente por caixa, acentos, espaços extras ou mojibake latin-1/UTF-8. |
+
+Receita é faturamento, não recebimento; a conferência considera as fontes presentes independentemente, preserva ausência de medida e não fabrica zero. Contagens conciliam exatamente; diferenças em consumo e receita nos agregados usam tolerância absoluta de 0,01 na unidade publicada para acomodar representação numérica/centavos, sem tolerância por percentual. C11 usa 0,0001 para duração/razões em ponto flutuante. Essas tolerâncias técnicas não aprovam metodologia de negócio nem completude da origem. Médias históricas por leitura não são recalculáveis a partir da média de somas mensais.
+
+Cobertura de faturamento/consumo é confrontada com as contagens de faturas/leituras observadas da série. Mês com medida inteiramente nula não vira período utilizável só porque a extração está fechada. Cobertura de ocorrências é confrontada com eventos e precisa ser conferida também para cada alimentador cadastral; fechamento global não se propaga aos alimentadores. São necessários mesmo lote/linhagem, mês fechado, corte posterior ao mês e não futuro e referência de evidência. Extração exige JSON de reconciliação íntegro, sem exclusões da origem, preservando quarentena separada; esse JSON não prova sozinho o inventário do fornecedor. Falha mantém o mês fora dos períodos fechados, mesmo com controle numérico passado.
+
+A saída continua apenas com estados e metadados técnicos. Cadastro pessoal, medidas, UCs, protocolos e alimentadores não são devolvidos. Esta etapa ainda não entrega catálogo/perguntas/insights Gold nem prova o mesmo lote no portal; C05/C06/C07/C08/C09 e definições consumidoras pendentes não são aprovados por consequência.
+
+As reconciliações agrupam a série mensal e os eventos no SQL do Backend antes da comparação. Os joins são apenas com a chave única de UC do cadastro; faturas e eventos não são unidos entre si. Agregações e leitura do resultado continuam no mesmo snapshot, com teto SQL de 5 s e orçamento total de 35 s; não há aumento de prazo para esconder custo da conferência.
+
+
+Verificação desta ampliação: Backend Docker/PostgreSQL 16 com agregados não vazios e leitor restrito, 847 testes passaram/8 skips; GenAI completa, 3.407 passaram/4 skips; operação HTTP, 24 passaram. Prova privada `--scope domains` pelo serviço Backend e GenAI HTTP passou com o pacote real, mantendo mesma referência e o prazo. Isso comprova execução e proteções, não homologa automaticamente resultados contra a Silver nem libera todas as capacidades. A primeira tentativa excedeu o orçamento e foi recusada; as agregações SQL corrigiram o custo sem aumentar o limite.
