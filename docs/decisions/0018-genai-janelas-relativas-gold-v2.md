@@ -10,3 +10,8 @@
 - **Validação pendente:** Dados deve confirmar a semântica de `mês passado`, janelas anuais e trimestrais e calendário de competência; Backend deve confirmar os limites inclusivos. O produtor Backend de cobertura observada e valores de dimensão está implementado e testado. A confirmação semântica continua pendente, sem alegação de aprovação pelos testes. O GENAI-04 comprova interpretação/plano pelo núcleo composto; executor, transporte/coordenador e reconciliação numérica real pertencem a GENAI-06/07/09/10 e não são implementação do interpretador.
 
 Contrato técnico: [genai-query-execution.md](../contracts/genai-query-execution.md), itens B2 e B5.
+
+
+## Complemento de implementação — calendário explícito
+
+O núcleo aceita mês com ano explícito, competência AAAA-MM, ano nomeado e intervalo com ambos os meses/anos. Essa seleção usa o calendário declarado pela pessoa, sem decidir uma âncora relativa. Exige cobertura de todas as competências e respeita o teto de janela por métrica. Datas diárias, extremo incompleto/invertido, lacunas e cobertura ausente pedem esclarecimento; não há inferência de ano. Isso não altera o estado de aprovação das regras relativas acima.

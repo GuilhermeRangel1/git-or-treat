@@ -1,5 +1,6 @@
 """Resolve frases relativas para competências mensais publicadas no envelope confiável."""
 
+import re
 import unicodedata
 from calendar import monthrange
 from datetime import date
@@ -15,6 +16,62 @@ def _normalize(value: str) -> str:
 
 class TemporalResolutionUnavailable(Exception):
     """A cobertura publicada não permite construir a janela pedida sem suposição."""
+
+
+_MONTH_NAMES = (
+    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+)
+_MONTH_NUMBERS = {_normalize(name): index for index, name in enumerate(_MONTH_NAMES, 1)}
+_NAMED_MONTH = r"(?:" + "|".join(_MONTH_NUMBERS) + r")\s+(?:de\s+)?[0-9]{4}"
+_MONTH_TOKEN = rf"(?:{_NAMED_MONTH}|[0-9]{{4}}-(?:0[1-9]|1[0-2]))"
+_EXPLICIT_PERIOD = re.compile(
+    rf"(?<!\w)(?:de\s+{_MONTH_TOKEN}\s+(?:a|ate)\s+{_MONTH_TOKEN}"
+    rf"|{_MONTH_TOKEN}|ano\s+(?:de\s+)?[0-9]{{4}})(?![\w-])"
+)
+
+
+def explicit_monthly_phrases(text: str) -> tuple[str, ...]:
+    """Extrai somente meses com ano explícito, intervalos mensais e anos nomeados.
+
+    A normalização preserva o tamanho para os caracteres portugueses aceitos
+    nestas expressões; os valores retornados são usados como frases de calendário.
+    Não extrai dias, meses sem ano ou anos soltos.
+    """
+    normalized = _normalize(text)
+    return tuple(match.group() for match in _EXPLICIT_PERIOD.finditer(normalized))
+
+
+def has_incomplete_calendar_period(text: str) -> bool:
+    """Impede aproveitar apenas o extremo reconhecido de um intervalo incompleto."""
+    normalized = _normalize(text)
+    matches = list(_EXPLICIT_PERIOD.finditer(normalized))
+    if not matches:
+        return False
+    remaining = normalized
+    for match in reversed(matches):
+        remaining = remaining[:match.start()] + " " + remaining[match.end():]
+    return bool(re.search(
+        r"\b(?:desde|ate|entre|" + "|".join(_MONTH_NUMBERS) + r")\b", remaining
+    ))
+
+
+def _explicit_bounds(phrase: str) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    if re.fullmatch(r"ano\s+(?:de\s+)?[0-9]{4}", phrase):
+        year = int(phrase.split()[-1])
+        return (year, 1), (year, 12)
+    tokens = re.findall(_MONTH_TOKEN, phrase)
+    if not tokens or _EXPLICIT_PERIOD.fullmatch(phrase) is None:
+        return None
+    bounds = []
+    for token in tokens:
+        if re.fullmatch(r"[0-9]{4}-[0-9]{2}", token):
+            year, month = map(int, token.split("-"))
+        else:
+            parts = token.split()
+            year, month = int(parts[-1]), _MONTH_NUMBERS[parts[0]]
+        bounds.append((year, month))
+    return bounds[0], bounds[-1]
 
 
 class GoldTemporalWindowResolver:
@@ -46,7 +103,17 @@ class GoldTemporalWindowResolver:
 
         latest = competencies[-1]
         year, month = (int(part) for part in latest.split("-"))
-        if normalized in self._TWELVE_MONTHS:
+        explicit = _explicit_bounds(normalized)
+        if explicit is not None:
+            start, end = explicit
+            if start[0] < 1 or end[0] < 1 or start > end:
+                raise TemporalResolutionUnavailable(
+                    "Informe meses e anos válidos em ordem crescente."
+                )
+            if (end[0] - start[0]) * 12 + end[1] - start[1] >= 1200:
+                raise TemporalResolutionUnavailable("O intervalo excede o limite de competências.")
+            expected = _months_between(start, end)
+        elif normalized in self._TWELVE_MONTHS:
             start = _shift_month(year, month, -11)
             expected = _months_between(start, (year, month))
         elif normalized == _normalize("ano passado"):

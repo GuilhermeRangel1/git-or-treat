@@ -49,3 +49,58 @@ Os valores canônicos da publicação prevalecem sobre a grafia de exemplo do pe
 Verificações: suíte completa GenAI com 3.620 aprovados, 4 skips e 1 xfail histórico; Backend, contratos internos e produtor, 84 aprovados incluindo HTTP. Execução fora do sandbox confirmou que a limitação anterior era do ambiente restrito, não do `asyncio` no Windows. Após a suíte completa, 21 cenários dirigidos passaram com o ajuste de lint e três casos adicionais de unidade/dimensão sem suporte.
 
 Escopo entregue: interpretação e planejamento pelo núcleo composto, sem fonte/LLM no planejamento. Escopo dos próximos cartões: executor (GENAI-06), transporte/coordenador (GENAI-07), evidência e prova quantitativa real (GENAI-08/09/10). Validação semântica da ADR-0018 continua registrada como pendente; estes testes não a substituem. IA-01/IA-02 não são concluídos por uma matriz de planos.
+
+
+### Passagem do plano ao contrato Backend
+
+`test_planned_envelope_crosses_backend_contract_without_losing_filters_or_limits` executa o núcleo composto, serializa `QuestionPlanResponse` e o valida em outro processo com os schemas reais do Backend, sem imports entre serviços. Confere igualdade integral do envelope, fingerprint recalculado, filtros de município/bairro/classe, limite 100, ausência de ordenação e janela inclusiva janeiro–março/2025. Os 22 cenários do arquivo passaram. Não abre HTTP interno nem executa SQL; essa distinção preserva o escopo de GENAI-06/07.
+
+
+### Competências explícitas e filtros obrigatórios — implementação
+
+O planejamento Gold v2 aceita mês e ano escritos (`março de 2025`), competência ISO (`2025-02`), ano nomeado (`ano 2024`) e intervalo com dois extremos completos (`de dezembro de 2024 a fevereiro de 2025`). A cobertura recebida precisa conter cada competência esperada. Limites continuam inclusivos, com granularidade mensal e teto por métrica; fevereiro respeita anos bissextos. Mês sem ano, data por dia, intervalo invertido/incompleto, ano sem cobertura completa e lacuna pedem esclarecimento. Não se usa a data do servidor nem se reduz um intervalo ao único extremo reconhecido.
+
+As frases explícitas enriquecem o perfil somente na requisição Gold. O histórico do esclarecimento também é interpretado com esse calendário para preservar filtros e período. As frases relativas continuam sujeitas à proposta ADR-0018; a seleção explícita não depende de escolher uma âncora relativa.
+
+DEC/FEC exigem o alimentador como filtro, conforme o mapeamento v2 já existente. `required_filter_dimension_ids` declara essa restrição no perfil lógico, validada contra o mapeamento físico. Construtor e validador recusam plano sem o filtro. O caso público confirma esclarecimento → alimentador conhecido → plano para o mesmo mês; remover o filtro do plano é recusado separadamente pelo validador. O limite de linhas configurado na composição é preservado mesmo após enriquecer o perfil com dimensões ou calendário.
+
+Comprovação dirigida: 69 testes de filtros/períodos aprovados, incluindo passagem de envelope ao contrato Backend em processo separado. Essas verificações exercitam planejamento e autorização com metadados controlados. A carga/consulta quantitativa do lote real continua fora desta evidência.
+
+
+### Filtros parcialmente reconhecidos, contexto e banco v2
+
+Cinco regressões reproduziram um plano indevido quando uma pergunta misturava um valor conhecido e outro desconhecido na mesma dimensão. A interpretação agora confere cada menção explícita a classe, município, bairro, subgrupo e alimentador, em vez de aceitar a existência de qualquer valor conhecido na pergunta. Todos esses casos geram esclarecimento e nenhum plano.
+
+O contexto Gold reinterpreta a última fala com o prefixo anterior disponível no contrato de três turnos. Assim, pergunta sem período → esclarecimento → mês explícito → correção de município preserva métrica, classe e mês. Cada reconstrução usa somente o histórico recebido e o catálogo/escopo atuais; não cria memória persistente nem recupera informação ausente.
+
+`backend/tests/test_genai_planning_metadata.py::test_database_metadata_drives_the_composed_genai_plan` atravessa banco SQLite migrado com tabelas v2, produtor Backend real, envelope interno, núcleo composto em processo separado e validação de retorno no contrato Backend. Abril/2025 gera plano com município/bairro/classe e grafia canônica extraídos do banco; junho ausente esclarece. A fonte e o modelo falham se forem chamados durante planejamento. Essa é uma integração de software com dados inteiramente artificiais, sem HTTP coordenado nem execução quantitativa. Na imagem Backend isolada, sem o código GenAI, os dois casos entre serviços são explicitamente ignorados; no checkout completo foram executados e aprovados.
+
+
+### Qualificadores e propostas de plano
+
+Nove regressões reproduziram totais indevidos para pedidos com qualificadores não representados: receita com/sem leitura, consumo sem fatura, estornos, situação vencida, limites numéricos e ranking/ordenação. Esses pedidos agora recebem esclarecimento específico pelo perfil Gold. As colunas/fontes existentes na Gold v2 não são anunciadas como ausentes: a restrição é a capacidade deste catálogo de perguntas.
+
+`supports_grouping` e `supports_ordering` são capacidades explícitas do perfil. Gold v2 as mantém desabilitadas; o validador recusa também um plano externo que acrescente agrupamento ou ordenação. Os defaults preservam o comportamento dos demais perfis. Pergunta, interpretação e plano recebido passam pela mesma definição de capacidades.
+
+## Conferência dos dez critérios originais
+
+| Critério | Evidência atual | Estado de aceite |
+| --- | --- | --- |
+| Sinônimos e distinção entre medidas | Perfil v2, esclarecimentos e suíte pública de planejamento | Comprovado no núcleo |
+| Filtros autorizados; desconhecido não ignorado | Filtros combinados, cinco regressões conhecido+desconhecido, UC sem resolução e revogação | Comprovado no núcleo |
+| Último ano/comparações pela cobertura real | Resolvedor e produtor ligados em teste com banco artificial; relativas na ADR-0018 | Parcial: revisão semântica e lote real |
+| Esclarecimento preserva intenção | Métrica/período/alimentador, correção de cidade e contexto de três turnos | Comprovado no núcleo |
+| Matriz positiva/negativa dos casos do case | Matriz e testes versionados sem valores reais | Comprovado |
+| Ambiguidade/grafia/base zero/parcial pela interface pública | Planos/esclarecimentos exercitados; planejamento não calcula percentual | Parcial: resposta quantitativa/evidência futura |
+| Composição até fonte, ordem/limite/agrupamento | Núcleo → JSON → contrato Backend e banco → produtor → núcleo; limites e recusas de ranking/ordenação | Parcial: entrega ao executor de runtime |
+| Datas, competência/leitura/pagamento e fuso | Calendário explícito, bissexto/lacuna, distinções de medidas e UTC no catálogo | Parcial: validação semântica relativa e lote real |
+| Correção/múltiplos locais/unidades/suporte | Regressões públicas, filtros não reconhecidos e qualificadores não representados | Comprovado no núcleo |
+| Catálogo e autorização em contexto/propostas | Reautorização do histórico e rejeição de filtros removidos, grouping/order externos | Comprovado no núcleo |
+
+A implementação lexical e de planejamento está exercitada com os componentes reais; seis critérios estão comprovados no escopo indicado e quatro têm cláusulas ainda parciais. O cartão não equivale ao aceite quantitativo IA-01/IA-02. Revisão semântica e prova de implantação não são substituídas por contagem de testes.
+
+
+Vocabulário complementar conferido contra o dicionário v2: receita recebida/paga, arrecadação e faturas pagas pedem distinção de pagamento; energia injetada/compensada/entregue não é convertida em consumo medido. Os testes positivos e de esclarecimento mantêm o significado da população, sem anunciar como inexistentes colunas que apenas não integram o catálogo atual.
+
+
+Verificação final consolidada desta continuação: suíte completa GenAI com 3.681 aprovados, 4 skips e 1 xfail histórico (38,73 s); suíte completa Backend com 821 aprovados e 90 skips (172,51 s). Ruff, compileall e diff-check dos arquivos alterados passaram. Os totais anteriores são registros das etapas; esta é a referência final da árvore local atual.

@@ -230,6 +230,10 @@ def test_existing_core_plans_with_current_gold_profile_without_querying(question
         assert result.status.value == "needs_clarification"
         assert result.plan is None
         return
+    if metric.startswith("network.equivalent_interruption_"):
+        assert result.status.value == "needs_clarification"
+        assert result.plan is None
+        return
     assert result.status.value == "planned", result.model_dump_json()
     assert result.plan.metric_id == metric and result.plan.unit == unit
     assert result.plan.source_id == "gold.local"

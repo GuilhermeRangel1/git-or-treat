@@ -15,6 +15,7 @@ from app.agent.read_plan import (
     ReadPlanBuilder,
     ReadPlanValidator,
 )
+from app.agent.temporal import explicit_monthly_phrases
 from app.ports.events import (
     AuditUnavailable,
     EventCode,
@@ -117,6 +118,7 @@ class QuestionAnalysisPlanner:
         self._interpreter = interpreter
         self._evidence_source = evidence_source
         self._access_policy = access_policy
+        self._max_rows = max_rows
         self._plan_builder = ReadPlanBuilder(
             access_policy.profile, access_policy.source_id, default_limit=max_rows
         )
@@ -162,6 +164,15 @@ class QuestionAnalysisPlanner:
         """Interpreta, monta e aprova o plano; nunca chama a fonte nem o modelo."""
 
         profile = self._profile_with_dimension_values(dimension_value_coverage)
+        if profile.structured_dimension_filters:
+            phrases = tuple(dict.fromkeys(
+                phrase for text in (question, *(turn.content for turn in context or []))
+                for phrase in explicit_monthly_phrases(text)
+            ))
+            if phrases:
+                data = profile.model_dump(mode="python")
+                data["period_phrases"] = tuple(dict.fromkeys((*profile.period_phrases, *phrases)))
+                profile = DomainProfile.model_validate(data)
         interpreter = (
             self._interpreter
             if profile is self._access_policy.profile
@@ -170,12 +181,17 @@ class QuestionAnalysisPlanner:
         plan_builder = (
             self._plan_builder
             if profile is self._access_policy.profile
-            else ReadPlanBuilder(profile, self._access_policy.source_id)
+            else ReadPlanBuilder(
+                profile, self._access_policy.source_id, default_limit=self._max_rows
+            )
         )
         plan_validator = (
             self._plan_validator
             if profile is self._access_policy.profile
-            else ReadPlanValidator(profile, self._access_policy.source_id, self._access_policy)
+            else ReadPlanValidator(
+                profile, self._access_policy.source_id, self._access_policy,
+                max_rows=self._max_rows,
+            )
         )
         interpretation = interpreter.interpret(question, context)
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:

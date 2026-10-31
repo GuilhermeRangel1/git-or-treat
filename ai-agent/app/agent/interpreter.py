@@ -3,6 +3,7 @@
 import re
 import unicodedata
 
+from app.agent.temporal import has_incomplete_calendar_period
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.domain_profile import (
     DimensionDefinition,
@@ -133,6 +134,21 @@ class QuestionInterpreter:
             _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
         )
         if (
+            self._profile.structured_dimension_filters and not current_question_has_metric
+            and len(turns) >= 2 and turns[-1].role == "assistant"
+        ):
+            dimensions = {dimension.id: dimension for dimension in self._profile.dimensions}
+            messages = {
+                "Informe o filtro obrigatório: "
+                + ", ".join(dimensions[key].label.lower()
+                            for key in sorted(metric.required_filter_dimension_ids)) + "."
+                for metric in self._profile.metrics if metric.required_filter_dimension_ids
+            }
+            if turns[-1].content in messages:
+                previous_intent = self._previous_intent(turns)
+                if previous_intent is not None:
+                    return self._interpret(question, previous_intent)
+        if (
             self._profile.structured_dimension_filters
             and current_question_has_metric
             and len(turns) >= 2
@@ -228,6 +244,16 @@ class QuestionInterpreter:
         )
 
     def _previous_intent(self, context: list[ConversationTurn]) -> AnalysisIntent | None:
+        if self._profile.structured_dimension_filters:
+            # Reinterpreta a última fala com o trecho anterior que ainda cabe no
+            # contrato. O prefixo diminui a cada chamada; histórico não vira estado
+            # confiável e a política atual continuará aprovando o plano resultante.
+            for index in range(len(context) - 1, -1, -1):
+                if context[index].role != "user":
+                    continue
+                previous = self.interpret(context[index].content, context[:index])
+                return previous.intent if previous.status is InterpretationStatus.READY else None
+            return None
         for turn in reversed(context):
             if turn.role != "user":
                 continue
@@ -242,6 +268,20 @@ class QuestionInterpreter:
         question: str,
         base_intent: AnalysisIntent | None,
     ) -> IntentInterpretation:
+        if self._profile.structured_dimension_filters and has_incomplete_calendar_period(question):
+            return self._clarify(
+                "Informe o mês e o ano de ambos os extremos do intervalo; "
+                "não vou reduzir a consulta ao único mês reconhecido."
+            )
+        if self._profile.structured_dimension_filters and re.search(
+            r"\b(?:[0-9]{1,2}\s+de\s+[a-zç]+\s+(?:de\s+)?[0-9]{4}"
+            r"|[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}/[0-9]{1,2}/[0-9]{4})\b",
+            _normalize(question),
+        ):
+            return self._clarify(
+                "Este planejamento aceita competências mensais; "
+                "informe o mês e o ano completos, sem selecionar dias."
+            )
         ambiguity = next(
             (rule for rule in self._profile.ambiguities if _find_phrases(question, rule.phrases)),
             None,
@@ -287,6 +327,11 @@ class QuestionInterpreter:
             matched_surfaces: dict[str, str] = {}
             for dimension in self._profile.dimensions:
                 matches = self._dimension_value_matches(question, (dimension,))
+                if self._has_unresolved_dimension_reference(detail_question, dimension, matches):
+                    return self._clarify(
+                        f"Há um valor não reconhecido de {dimension.label.lower()}. "
+                        "Informe somente os valores autorizados que deseja consultar."
+                    )
                 if self._has_unresolved_multiple_values(question, matches):
                     return self._clarify(
                         f"Informe um único valor de {dimension.label.lower()} "
@@ -476,6 +521,25 @@ class QuestionInterpreter:
             if aliases & matched_surfaces:
                 ids.append(dimension.id)
         return ids
+
+    @staticmethod
+    def _has_unresolved_dimension_reference(
+        question: str,
+        dimension: DimensionDefinition,
+        values: list[tuple[int, int, str]],
+    ) -> bool:
+        for start, end, _ in _find_phrases(question, dimension.aliases):
+            if any(value_start <= start and end <= value_end
+                   for value_start, value_end, _ in values):
+                continue
+            if not any(
+                value_start >= end
+                and re.fullmatch(r"\s*(?:(?:de|da|do)\s+)?[:=]?\s*",
+                                 _normalize(question[end:value_start]))
+                for value_start, _, _ in values
+            ):
+                return True
+        return False
 
     @staticmethod
     def _dimension_value_matches(

@@ -94,3 +94,38 @@ def test_non_period_answer_after_coverage_clarification_repeats_clarification():
 
     assert result.status.value == "needs_clarification"
     assert result.clarification_question == clarification
+
+
+@pytest.mark.parametrize(
+    "phrase,coverage,start,end",
+    [
+        ("fevereiro de 2024", ("2024-02",), "2024-02-01", "2024-02-29"),
+        ("ano de 2024", tuple(f"2024-{m:02d}" for m in range(1, 13)), "2024-01-01", "2024-12-31"),
+        (
+            "de dezembro de 2024 a fevereiro de 2025",
+            ("2024-12", "2025-01", "2025-02"),
+            "2024-12-01",
+            "2025-02-28",
+        ),
+    ],
+)
+def test_explicit_monthly_calendar_preserves_leap_years_and_year_boundaries(
+    phrase, coverage, start, end
+):
+    window = GoldTemporalWindowResolver().resolve(phrase, coverage)
+    assert window.start.isoformat() == start
+    assert window.end.isoformat() == end
+
+
+@pytest.mark.parametrize(
+    "phrase,coverage",
+    [
+        ("de janeiro de 2025 a março de 2025", ("2025-01", "2025-03")),
+        ("ano 2024", ("2024-01", "2024-12")),
+        ("ano 0000", ("2025-01",)),
+        ("de janeiro de 2025 a janeiro de 9999", ("2025-01",)),
+    ],
+)
+def test_explicit_years_and_ranges_do_not_fill_gaps_or_allow_invalid_years(phrase, coverage):
+    with pytest.raises(TemporalResolutionUnavailable):
+        GoldTemporalWindowResolver().resolve(phrase, coverage)

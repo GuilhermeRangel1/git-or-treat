@@ -105,6 +105,11 @@ class ReadPlanBuilder:
             selected_ids.add(key)
             filters[key] = ReadFilter(dimension_id=key, operator=FilterOperator.EQ, values=(value,))
 
+        missing_filters = set(metric.required_filter_dimension_ids) - filters.keys()
+        if missing_filters:
+            labels = ", ".join(dimensions[key].label.lower() for key in sorted(missing_filters))
+            raise PlanCapabilityUnavailable(f"Informe o filtro obrigatório: {labels}.")
+
         period_window = next(
             (
                 window
@@ -209,6 +214,10 @@ class ReadPlanValidator:
             raise EvidenceAccessDenied("plano de outra fonte ou versão")
         if plan.limit > self._max_rows:
             raise PlanCapabilityUnavailable("A consulta excede o limite de resultados.")
+        if plan.group_by_dimension_ids and not self._profile.supports_grouping:
+            raise PlanCapabilityUnavailable("O catálogo não oferece agrupamento nesta fonte.")
+        if plan.order is not None and not self._profile.supports_ordering:
+            raise PlanCapabilityUnavailable("O catálogo não oferece ordenação nesta fonte.")
 
         metric = next((item for item in self._profile.metrics if item.id == plan.metric_id), None)
         if (
@@ -222,6 +231,10 @@ class ReadPlanValidator:
         self._validate_window(plan, metric.granularities, metric.max_window_days)
 
         dimensions = {item.id: item for item in self._profile.dimensions}
+        if not set(metric.required_filter_dimension_ids) <= {
+            item.dimension_id for item in plan.filters
+        }:
+            raise PlanCapabilityUnavailable("O plano não aplica todos os filtros obrigatórios.")
         for plan_filter in plan.filters:
             dimension = dimensions.get(plan_filter.dimension_id)
             if (

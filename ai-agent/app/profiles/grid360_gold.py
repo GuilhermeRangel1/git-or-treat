@@ -242,6 +242,9 @@ def _metric(
         "granularities": granularities,
         "max_window_days": None if accumulated else GOLD_MAX_WINDOW_DAYS,
         "dimension_ids": dimension_ids,
+        "required_filter_dimension_ids": (
+            ("network.feeder",) if id_.startswith("network.equivalent_interruption_") else ()
+        ),
         "sensitivity": "internal",
         "evidence_fields": _evidence_fields(dimension_ids),
         "limitation_texts": (*limitations, _PREPARATION_ONLY),
@@ -450,16 +453,22 @@ def _build_profile() -> DomainProfile:
     values["period_windows"] = ()
     values["default_period_phrase"] = None
     values["structured_dimension_filters"] = True
+    values["supports_grouping"] = False
+    values["supports_ordering"] = False
     values["default_period_context_phrases"] = ()
     values["comparison_period_phrases"] = ()
     values["non_location_phrases"] = ()
     values["ambiguities"] = (
         *values["ambiguities"],
         {
-            "phrases": ("valor pago", "valores pagos", "quanto foi pago"),
+            "phrases": (
+                "valor pago", "valores pagos", "quanto foi pago", "receita recebida",
+                "receita paga", "valor recebido", "arrecadação", "arrecadado",
+                "pagamento", "pagamentos", "faturas pagas",
+            ),
             "clarification": (
-                "A Gold v2 distingue receita faturada de valor pago e não publica energia "
-                "faturada neste indicador. Você quer consultar receita faturada?"
+                "Receita faturada não comprova pagamento ou arrecadação. "
+                "Você quer consultar a receita faturada?"
             ),
         },
         {
@@ -467,6 +476,16 @@ def _build_profile() -> DomainProfile:
             "clarification": (
                 "A Gold v2 publica consumo medido em kWh, não energia faturada. "
                 "Quer consultar o consumo medido?"
+            ),
+        },
+        {
+            "phrases": (
+                "energia injetada", "energia compensada", "energia entregue",
+                "consumo injetado", "consumo compensado",
+            ),
+            "clarification": (
+                "Consumo medido não representa energia injetada, compensada ou entregue. "
+                "Você quer consultar o consumo medido?"
             ),
         },
         {
@@ -499,11 +518,46 @@ def _build_profile() -> DomainProfile:
     detail_rules[0] = {
         **detail_rules[0],
         "clarification": (
-            "Ainda não consulto um mês isolado nem séries por dia, mês ou ano. Qual período "
-            "você quer, como ‘último trimestre’ ou ‘últimos 12 meses’?"
+            "Informe uma competência com mês e ano, um intervalo de meses completos "
+            "ou uma janela como ‘último trimestre’. Séries e recortes por dia ainda "
+            "não estão disponíveis neste planejamento."
         ),
     }
-    values["detail_rules"] = detail_rules
+    values["detail_rules"] = [
+        *detail_rules,
+        {
+            "phrases": (
+                "sem leitura", "com leitura", "sem leituras", "com leituras",
+                "sem fatura", "com fatura", "sem faturas", "com faturas",
+                "estorno", "estornos", "estimada", "estimadas", "estimado", "estimados",
+                "vencida", "vencidas", "vencido", "vencidos", "em aberto",
+            ),
+            "clarification": (
+                "Esse recorte de leitura ou situação da fatura ainda não é representado "
+                "neste catálogo de perguntas. Reformule o recorte antes de consultar."
+            ),
+        },
+        {
+            "phrases": (
+                "top", "ranking", "ordene", "ordenar", "ordenado", "ordenada",
+                "crescente", "decrescente", "maiores", "menores", "primeiros",
+            ),
+            "clarification": (
+                "O planejamento atual não representa esse ranking ou essa ordenação. "
+                "Escolha um indicador e um recorte específico para consultar."
+            ),
+        },
+        {
+            "phrases": (
+                "acima de", "abaixo de", "maior que", "menor que", "entre valores",
+                "mais de", "menos de", "pelo menos",
+            ),
+            "clarification": (
+                "Esse filtro por valor ainda não está disponível no planejamento. "
+                "Informe um recorte sem esse limite numérico."
+            ),
+        },
+    ]
     values["clarifications"] = {
         **values["clarifications"],
         "temporal_coverage_unavailable": (

@@ -207,6 +207,7 @@ class MetricDefinition(BaseModel):
     # Teto explícito para janelas datadas; None representa histórico sem período de calendário.
     max_window_days: int | None = Field(default=None, ge=1)
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=30)
+    required_filter_dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=30)
     sensitivity: CatalogSensitivity
     evidence_fields: tuple[EvidenceFieldDefinition, ...] = Field(default=(), max_length=30)
     limitation_texts: tuple[
@@ -225,6 +226,11 @@ class MetricDefinition(BaseModel):
             raise ValueError("alias de métrica duplicado")
         if len(self.dimension_ids) != len(set(self.dimension_ids)):
             raise ValueError("dimensão permitida duplicada na métrica")
+        if (
+            len(set(self.required_filter_dimension_ids)) != len(self.required_filter_dimension_ids)
+            or not set(self.required_filter_dimension_ids) <= set(self.dimension_ids)
+        ):
+            raise ValueError("filtro obrigatório duplicado ou fora das dimensões da métrica")
         if self.accumulated_period_phrases and self.max_window_days is not None:
             raise ValueError("histórico acumulado não admite limite de janela datada")
         if len({field.name for field in self.evidence_fields}) != len(self.evidence_fields):
@@ -301,6 +307,8 @@ class DomainProfile(BaseModel):
     """Perfil imutável fornecido à interpretação e à composição da fonte."""
 
     structured_dimension_filters: bool = False
+    supports_grouping: bool = True
+    supports_ordering: bool = True
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
