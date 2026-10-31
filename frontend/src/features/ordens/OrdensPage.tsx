@@ -9,11 +9,7 @@ import OrderActionsDialog from "./OrderActionsDialog";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
 import OrderFilters from "./OrderFilters";
 import OrdersTable from "./OrdersTable";
-import {
-  formatOrderCode,
-  formatOrderDate,
-  parseOrdersQuery,
-} from "./ordens-query";
+import { formatOrderCode, parseOrdersQuery } from "./ordens-query";
 import { useOrderAccess, useSession } from "@/shared/auth/useSession";
 
 export default function OrdensPage() {
@@ -54,18 +50,7 @@ export default function OrdensPage() {
       (!session.configured || access.data?.canRead === true),
     queryFn: ({ signal }) => getOrderDetail(parsed!.orderId!, signal),
   });
-  const firstVisibleOrder = orders.data?.items[0] ?? null;
   const visibleOrders = orders.data?.items ?? [];
-  const lastUpdated = visibleOrders.reduce<string | null>((latest, order) => {
-    if (!Number.isFinite(new Date(order.updated_at).getTime())) return latest;
-    if (
-      !latest ||
-      new Date(order.updated_at).getTime() > new Date(latest).getTime()
-    ) {
-      return order.updated_at;
-    }
-    return latest;
-  }, null);
 
   function openActions(order: Order, trigger?: HTMLButtonElement) {
     actionTriggerRef.current = trigger ?? null;
@@ -131,13 +116,6 @@ export default function OrdensPage() {
           Voltar à fila
         </Link>
       </nav>
-
-      <div>
-        <p className="text-xs leading-[18px] text-muted">
-          Ambiente demonstrativo · atualização das ordens neste recorte:{" "}
-          {formatOrderDate(lastUpdated)}
-        </p>
-      </div>
 
       {session.configured && access.isPending ? (
         <p role="status" className="text-sm text-muted">
@@ -242,15 +220,49 @@ export default function OrdensPage() {
                 </div>
               ) : null}
               {visibleOrders.length > 0 ? (
-                <OrdersTable orders={visibleOrders} onSelect={openActions} />
+                <OrdersTable
+                  orders={visibleOrders}
+                  onSelect={openActions}
+                  onFoundations={openFoundations}
+                />
               ) : orders.data.pagination.total > 0 ? (
                 <div className="rounded-xl border border-border bg-surface p-6 text-sm text-muted">
                   Esta página não contém ordens. O total do recorte é{" "}
                   {orders.data.pagination.total}; volte a uma página anterior.
                 </div>
               ) : (
-                <div className="rounded-xl border border-border bg-surface p-6 text-sm text-muted">
-                  Nenhuma ordem encontrada para os filtros aplicados.
+                <div className="grid gap-3 rounded-xl border border-border bg-surface p-6 text-sm text-muted">
+                  <p>
+                    {parsed.ucId ||
+                    parsed.status ||
+                    parsed.priority ||
+                    parsed.hasResult !== null
+                      ? "Nenhuma ordem corresponde aos filtros aplicados."
+                      : "Nenhuma ordem foi cadastrada ainda."}
+                  </p>
+                  <p>
+                    Ordens são criadas a partir de uma suspeita selecionada na
+                    fila de inspeção.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      className="min-h-11 inline-flex items-center underline underline-offset-4"
+                      to="/inspecoes"
+                    >
+                      Ir para a fila de inspeção
+                    </Link>
+                    {parsed.ucId ||
+                    parsed.status ||
+                    parsed.priority ||
+                    parsed.hasResult !== null ? (
+                      <Link
+                        className="min-h-11 inline-flex items-center underline underline-offset-4"
+                        to="/ordens"
+                      >
+                        Limpar recorte
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
               )}
 
@@ -293,45 +305,6 @@ export default function OrdensPage() {
                   </Button>
                 </nav>
               ) : null}
-              <section
-                aria-label="Informações sobre o acompanhamento das ordens"
-                className="space-y-5 lg:space-y-6"
-              >
-                <aside className="flex flex-col gap-1 rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]">
-                  <p className="font-medium">Acompanhamento operacional</p>
-                  <p className="leading-[22px]">
-                    Mudanças confirmadas ficam registradas nesta lista. Uma
-                    suspeita orienta a inspeção e não comprova irregularidade.
-                  </p>
-                </aside>
-              </section>
-
-              <footer className="flex flex-col gap-2 text-xs text-muted sm:flex-row sm:items-start sm:gap-4">
-                <p className="w-full sm:max-w-[600px]">
-                  Fonte: ordens registradas no portal. Evidências da fila são
-                  sintéticas, sem consulta à Gold.
-                </p>
-                <Button
-                  ref={foundationsTriggerRef}
-                  variant="ghost"
-                  className="min-h-11 w-full justify-center underline decoration-border underline-offset-4 sm:w-auto sm:justify-start"
-                  rightIcon={<ArrowRight size={14} aria-hidden="true" />}
-                  disabled={!firstVisibleOrder}
-                  aria-label={
-                    firstVisibleOrder
-                      ? `Ver fundamentos da ordem ${formatOrderCode(firstVisibleOrder.id)} da UC ${firstVisibleOrder.uc_id}`
-                      : "Ver fundamentos da ordem"
-                  }
-                  onClick={(event) => {
-                    if (firstVisibleOrder)
-                      openFoundations(firstVisibleOrder, event.currentTarget);
-                  }}
-                >
-                  {firstVisibleOrder
-                    ? `Ver fundamentos · ${formatOrderCode(firstVisibleOrder.id)}`
-                    : "Ver fundamentos"}
-                </Button>
-              </footer>
             </>
           ) : null}
         </>

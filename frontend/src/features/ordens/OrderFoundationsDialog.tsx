@@ -4,6 +4,7 @@ import { getOrderDetail, type Order } from "@/shared/api/orders";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
 import { orderErrorMessage, readOrderFoundation } from "./order-actions";
+import { formatOrderCode, orderPriorityLabel } from "./ordens-query";
 
 type OrderFoundationsDialogProps = {
   order: Order | null;
@@ -24,7 +25,13 @@ export default function OrderFoundationsDialog({
     queryFn: ({ signal }) => getOrderDetail(orderId as number, signal),
     enabled: open && orderId !== undefined,
   });
-  const current = detail.data;
+  const current =
+    detail.data &&
+    !detail.isFetching &&
+    !detail.isError &&
+    detail.data.id === orderId
+      ? detail.data
+      : null;
   const foundation = current ? readOrderFoundation(current) : null;
 
   return (
@@ -32,11 +39,11 @@ export default function OrderFoundationsDialog({
       open={open && Boolean(order)}
       onClose={onClose}
       triggerRef={triggerRef}
-      title={`Fundamentos da ordem ${order ? `#${order.id}` : ""}`}
+      title={`Fundamentos da ordem ${order ? formatOrderCode(order.id) : ""}`}
       closeLabel="Fechar fundamentos da ordem"
       size="sm"
       header="inline"
-      className="grid gap-6 p-8 max-[639px]:gap-5 max-[639px]:p-6 [&_h2]:text-[32px] [&_h2]:leading-10 max-[639px]:[&_h2]:text-[26px] max-[639px]:[&_h2]:leading-[34px]"
+      className="grid gap-5 p-5 sm:gap-6 sm:p-6"
     >
       <div className="grid gap-5">
         {detail.isPending && (
@@ -72,17 +79,23 @@ export default function OrderFoundationsDialog({
               <Detail label="Unidade consumidora" value={current.uc_id} />
               <Detail label="Motivo registrado" value={current.reason} />
               <Detail
-                label="Referência da suspeita"
-                value={
-                  current.suspicion_reference ?? "Não preservada nesta ordem."
-                }
-                mono
+                label="Prioridade registrada na criação"
+                value={orderPriorityLabel(current.priority)}
               />
               <Detail
                 label="Criada em"
                 value={formatTimestamp(current.created_at)}
               />
             </div>
+            {foundation.origin !== "gold" ? (
+              <Detail
+                label="Referência da suspeita"
+                value={
+                  current.suspicion_reference ?? "Não preservada nesta ordem."
+                }
+                mono
+              />
+            ) : null}
 
             {!foundation.available ? (
               <p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted">
@@ -107,20 +120,6 @@ export default function OrderFoundationsDialog({
                     reconhecidos são apresentados quando válidos.
                   </p>
                 )}
-                {foundation.source ? (
-                  <Detail
-                    label="Fonte"
-                    value={`${foundation.origin === "gold" ? "Gold" : foundation.source.kind} · ${foundation.source.version}${foundation.source.isDemo ? " · demonstração sintética" : ""}`}
-                  />
-                ) : (
-                  <Detail label="Fonte" value="Não disponível no snapshot." />
-                )}
-                {foundation.source?.updatedAt && (
-                  <Detail
-                    label="Atualizada em"
-                    value={formatTimestamp(foundation.source.updatedAt)}
-                  />
-                )}
                 {foundation.origin === "gold" ? (
                   <>
                     <Detail
@@ -128,28 +127,6 @@ export default function OrderFoundationsDialog({
                       value={
                         foundation.category ?? "Não informada no snapshot."
                       }
-                    />
-                    <Detail
-                      label="Esquema da fonte"
-                      value={
-                        foundation.schemaVersion ?? "Não informado no snapshot."
-                      }
-                    />
-                    <Detail
-                      label="Temporalidade"
-                      value={
-                        foundation.temporalScope === "snapshot"
-                          ? "Snapshot cadastral; sem competência mensal."
-                          : (foundation.temporalScope ??
-                            "Não informada no snapshot.")
-                      }
-                    />
-                    <Detail
-                      label="Fingerprint da publicação"
-                      value={
-                        foundation.fingerprint ?? "Não preservado no snapshot."
-                      }
-                      mono
                     />
                     <p className="rounded-lg border border-border bg-canvas p-3 text-sm">
                       A categoria é uma triagem Gold e não representa prioridade
@@ -205,7 +182,10 @@ export default function OrderFoundationsDialog({
                   label="Energia potencialmente recuperável"
                   value={
                     foundation.origin === "gold"
-                      ? "Não publicada na Gold; não é calculada nesta tela."
+                      ? foundation.recoveryEstimateStatus ===
+                        "ESTIMATIVA_UC_INDISPONIVEL"
+                        ? "A Gold não publicou uma estimativa individual para esta UC; a referência histórica é apresentada separadamente."
+                        : "Não publicada na Gold; não é calculada nesta tela."
                       : foundation.estimateUnavailable
                         ? "Não disponível; ausência de estimativa não é zero."
                         : `${formatNumber(foundation.estimateKwh!)} kWh`
@@ -253,8 +233,102 @@ export default function OrderFoundationsDialog({
                     </ul>
                   </div>
                 )}
+                {foundation.origin === "gold" ? (
+                  <details className="rounded-lg border border-border bg-canvas p-3">
+                    <summary className="min-h-11 cursor-pointer content-center text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+                      Proveniência da publicação
+                    </summary>
+                    <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                      <Detail
+                        label="Lote de origem"
+                        value={foundation.source?.version ?? "Não informado."}
+                        mono
+                      />
+                      <Detail
+                        label="Schema físico"
+                        value={foundation.schemaVersion ?? "Não informado."}
+                        mono
+                      />
+                      <Detail
+                        label="Escopo temporal"
+                        value={
+                          foundation.temporalScope === "snapshot"
+                            ? "Snapshot cadastral, sem competência mensal."
+                            : (foundation.temporalScope ?? "Não informado.")
+                        }
+                      />
+                      <Detail
+                        label="Atualização da fonte"
+                        value={
+                          foundation.source?.updatedAt
+                            ? formatTimestamp(foundation.source.updatedAt)
+                            : "Não informada."
+                        }
+                      />
+                      <Detail
+                        label="Regra registrada na criação"
+                        value={foundation.ruleVersion ?? "Não informada."}
+                        mono
+                      />
+                      <Detail
+                        label="Fingerprint da publicação"
+                        value={
+                          foundation.fingerprint ??
+                          "Não preservado no snapshot."
+                        }
+                        mono
+                      />
+                      <Detail
+                        label="Referência da suspeita"
+                        value={
+                          current.suspicion_reference ??
+                          "Não preservada nesta ordem."
+                        }
+                        mono
+                      />
+                    </dl>
+                    <dl className="mt-3 grid gap-3 text-xs text-muted">
+                      <Detail
+                        label="Código do estado da média histórica"
+                        value={
+                          foundation.historicalRecoveryStatus ??
+                          "Não informado."
+                        }
+                        mono
+                      />
+                      <Detail
+                        label="Código do estado da estimativa individual"
+                        value={
+                          foundation.recoveryEstimateStatus ?? "Não informado."
+                        }
+                        mono
+                      />
+                      <Detail
+                        label="Código do método de estimativa"
+                        value={
+                          foundation.recoveryEstimateMethod ?? "Não informado."
+                        }
+                        mono
+                      />
+                    </dl>
+                  </details>
+                ) : null}
               </section>
             )}
+            {foundation.origin !== "gold" && foundation.source ? (
+              <div className="grid gap-3 rounded-lg border border-border bg-surface p-4">
+                <Detail
+                  label="Fonte"
+                  value={`${foundation.source.kind} · ${foundation.source.version}${foundation.source.isDemo ? " · demonstração sintética" : ""}`}
+                />
+                {foundation.source.updatedAt ? (
+                  <Detail
+                    label="Atualizada em"
+                    value={formatTimestamp(foundation.source.updatedAt)}
+                  />
+                ) : null}
+              </div>
+            ) : null}
           </>
         )}
       </div>

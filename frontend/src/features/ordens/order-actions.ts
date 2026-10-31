@@ -58,6 +58,10 @@ export type OrderFoundation = {
   schemaVersion: string | null;
   temporalScope: string | null;
   category: string | null;
+  ruleVersion: string | null;
+  recoveryEstimateStatus: string | null;
+  recoveryEstimateMethod: string | null;
+  historicalRecoveryStatus: string | null;
   goldEvidence: { label: string; value: string }[];
   goldVariation: { label: string; value: string }[];
 };
@@ -79,6 +83,39 @@ const competenceText = (value: unknown): string | null =>
     ? value
     : null;
 
+function recoveryStatusLabel(value: unknown): string {
+  const labels: Record<string, string> = {
+    DISPONIVEL_REFERENCIA_HISTORICA: "Referência histórica disponível",
+    SEM_REFERENCIA_VALIDADA: "Sem referência histórica validada",
+    ESTIMATIVA_UC_INDISPONIVEL: "Estimativa individual indisponível",
+    BASE_INSUFICIENTE: "Base histórica insuficiente",
+    CANDIDATO_REPROVADO_NA_VALIDACAO_TEMPORAL:
+      "Referência reprovada na validação temporal",
+  };
+  return typeof value === "string" && labels[value]
+    ? labels[value]
+    : "Estado não reconhecido no snapshot";
+}
+
+function recoveryMethodLabel(value: unknown): string {
+  const labels: Record<string, string> = {
+    MEDIA_GLOBAL_COM_GRUPOS_OPCIONAIS_V2:
+      "Média global histórica com grupos opcionais (v2)",
+  };
+  return typeof value === "string" && labels[value]
+    ? labels[value]
+    : "Método não reconhecido no snapshot";
+}
+
+function recoveryReferenceLabel(value: unknown): string {
+  if (value === "global") return "Global";
+  if (value === "0") return "Sem irregularidade confirmada anterior";
+  if (value === "1") return "Com irregularidade confirmada anterior";
+  return typeof value === "string" && value.trim()
+    ? "Referência sem rótulo reconhecido"
+    : "Indisponível";
+}
+
 /** Reads only known, validated snapshot fields; historical extensions stay opaque. */
 export function readOrderFoundation(order: OrderDetail): OrderFoundation {
   const snapshot = record(order.suspicion_snapshot);
@@ -99,6 +136,10 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
       schemaVersion: null,
       temporalScope: null,
       category: null,
+      ruleVersion: null,
+      recoveryEstimateStatus: null,
+      recoveryEstimateMethod: null,
+      historicalRecoveryStatus: null,
       goldEvidence: [],
       goldVariation: [],
     };
@@ -124,6 +165,10 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
       schemaVersion: typeof schemaVersion === "string" ? schemaVersion : null,
       temporalScope: null,
       category: null,
+      ruleVersion: null,
+      recoveryEstimateStatus: null,
+      recoveryEstimateMethod: null,
+      historicalRecoveryStatus: null,
       goldEvidence: [],
       goldVariation: [],
     };
@@ -158,7 +203,7 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
       value:
         value === null || value === undefined
           ? "Indisponível"
-          : typeof value === "number"
+          : typeof value === "number" && Number.isFinite(value)
             ? `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}${unit}`
             : typeof value === "boolean"
               ? value
@@ -195,6 +240,16 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
           display("Queda acima de 30%", variation.drop_over_30_pct),
         ]
       : [];
+    const historicalLower = finiteNumber(
+      evidence?.historical_recovery_interval_lower_kwh,
+    );
+    const historicalUpper = finiteNumber(
+      evidence?.historical_recovery_interval_upper_kwh,
+    );
+    const historicalInterval =
+      historicalLower === null && historicalUpper === null
+        ? null
+        : `${historicalLower === null ? "indisponível" : historicalLower.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} a ${historicalUpper === null ? "indisponível" : historicalUpper.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kWh/inspeção`;
     const goldEvidence = evidence
       ? [
           display("Inspeções realizadas", evidence.inspections_performed),
@@ -214,6 +269,28 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
           display("Situação cadastral", evidence.cadastral_status),
           display("Contatos ao atendimento", evidence.call_center_contacts),
           display("Interrupções", evidence.interruptions),
+          display(
+            "Média histórica de recuperação por inspeção",
+            evidence.historical_recovery_mean_kwh_per_inspection,
+            " kWh/inspeção",
+          ),
+          display("Intervalo da referência histórica", historicalInterval),
+          display(
+            "Referência da média histórica",
+            recoveryReferenceLabel(evidence.historical_recovery_reference),
+          ),
+          display(
+            "Estado da média histórica",
+            recoveryStatusLabel(evidence.historical_recovery_status),
+          ),
+          display(
+            "Estado da estimativa individual",
+            recoveryStatusLabel(evidence.recovery_estimate_status),
+          ),
+          display(
+            "Método da estimativa individual",
+            recoveryMethodLabel(evidence.recovery_estimate_method),
+          ),
         ]
       : [];
     return {
@@ -234,6 +311,10 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
       schemaVersion: text(metadata?.schema_version),
       temporalScope: text(metadata?.temporal_scope),
       category: text(data?.category),
+      ruleVersion: text(data?.rule_version),
+      recoveryEstimateStatus: text(evidence?.recovery_estimate_status),
+      recoveryEstimateMethod: text(evidence?.recovery_estimate_method),
+      historicalRecoveryStatus: text(evidence?.historical_recovery_status),
       goldEvidence,
       goldVariation: variationRows,
     };
@@ -289,6 +370,10 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
     schemaVersion: text(metadata?.schema_version),
     temporalScope: text(metadata?.temporal_scope),
     category: null,
+    ruleVersion: text(data?.rule_version),
+    recoveryEstimateStatus: null,
+    recoveryEstimateMethod: null,
+    historicalRecoveryStatus: null,
     goldEvidence: [],
     goldVariation: [],
   };
