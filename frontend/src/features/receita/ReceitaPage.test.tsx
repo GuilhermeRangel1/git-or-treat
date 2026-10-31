@@ -15,6 +15,8 @@ import {
 } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ReceitaPage from "./ReceitaPage";
+import RevenueBreakdown from "./RevenueBreakdown";
+import type { RevenueEnvelope } from "./contract";
 import { revenueRefinementDestination } from "./revenue-filters";
 
 const response = {
@@ -193,6 +195,32 @@ const response = {
   },
 };
 
+it("pagina muitos recortes e mantém a soma de todos os grupos", async () => {
+  const data = structuredClone(response);
+  data.data.breakdown.items = Array.from({ length: 25 }, (_, index) => ({
+    ...data.data.breakdown.items[0],
+    key: `grupo-${index}`,
+    label: `Grupo ${index}`,
+    filters: {
+      ...data.data.breakdown.items[0].filters,
+      municipio: `Grupo ${index}`,
+    },
+  }));
+  render(
+    <RevenueBreakdown
+      envelope={data as unknown as RevenueEnvelope}
+      groupBy="municipio"
+      onGroupByChange={() => {}}
+      onExplore={() => {}}
+    />,
+  );
+  expect(screen.getByText("Grupo 0")).toBeInTheDocument();
+  expect(screen.queryByText("Grupo 24")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Próxima" }));
+  expect(screen.getByText("Grupo 24")).toBeInTheDocument();
+  expect(screen.getByText("Soma conhecida dos recortes")).toBeInTheDocument();
+});
+
 function mountPage(initialEntry = "/receita") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -206,6 +234,50 @@ function mountPage(initialEntry = "/receita") {
   );
 }
 
+it("mostra as janelas Gold separadas da comparação mensal e sinaliza base incompleta", async () => {
+  const gold = structuredClone(response);
+  gold.data.price_volume.reference_version = "gold-csv-v2";
+  const v2 = {
+    ...gold,
+    data: {
+      ...gold.data,
+      window_decomposition: {
+        status: "partial",
+        windows: ["2023-01", "2023-12", "2024-01", "2024-12"],
+        method: "metodo",
+        components: {
+          volume: 10,
+          preco: 20,
+          interacao: 1,
+          entradas: 4,
+          saidas: -3,
+          sem_leitura: 2,
+          outros: 1,
+        },
+        total_change_brl: 35,
+        residual_brl: null,
+        group_count: 3,
+        incomplete_groups: 1,
+        limitations: ["Somente parcelas conhecidas."],
+      },
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(v2), { status: 200 })),
+  );
+  mountPage("/receita?competencia_inicio=2025-01&competencia_fim=2025-02");
+  expect(
+    await screen.findByRole("heading", { name: "Preço × volume por janela" }),
+  ).toBeVisible();
+  expect(screen.getByText(/2023-01 a 2023-12/)).toBeVisible();
+  expect(screen.getByText(/Resultado parcial: 1 de 3/)).toBeVisible();
+  expect(screen.getByText("Somente parcelas conhecidas.")).toBeVisible();
+  vi.unstubAllGlobals();
+});
+
 it("expõe período, unidades, lote e limitações na Receita Gold", async () => {
   const gold = structuredClone(response);
   gold.metadata.source = {
@@ -214,6 +286,7 @@ it("expõe período, unidades, lote e limitações na Receita Gold", async () =>
     is_demo: false,
     version: "GOLD-ARTIFICIAL:hash",
   };
+  gold.data.price_volume.reference_version = "gold-csv-v2";
   gold.metadata.limitations = ["Receita paga não fornecida nesta exportação."];
   vi.stubGlobal(
     "fetch",
