@@ -20,7 +20,7 @@ O Backend temporário consultou a publicação já carregada em `v_energy`, com 
 
 O teste opt-in do importador leu o pacote completo de 1,12 GB em SQLite temporário: uma carga inicial, repetição idempotente (`unchanged`), contagens iguais aos controles do manifesto e recusa de manifesto inválido. **2 testes passaram em 751,04 s**, incluindo a verificação de cabeça única do Alembic. O banco SQLite temporário foi removido.
 
-Os scripts de reconciliação e planos SQL usados nesta etapa, sem dados embutidos, foram mantidos localmente em `work/dev131-stage4-validation/` (diretório ignorado pelo Git): [CSV/API/portal](../../work/dev131-stage4-validation/validate_reconciliation.py) e [EXPLAIN read-only](../../work/dev131-stage4-validation/explain_queries.py).
+Os scripts de reconciliação e planos SQL usados nesta etapa não continham dados embutidos e foram mantidos localmente no diretório ignorado `work/dev131-stage4-validation/`; eles não fazem parte do repositório.
 
 ## Preservação de ordens
 
