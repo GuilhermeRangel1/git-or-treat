@@ -132,6 +132,17 @@ class QuestionInterpreter:
         current_question_has_metric = bool(
             _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
         )
+        if (
+            self._pending_period_coverage_answer(turns)
+            and not current_question_has_metric
+        ):
+            previous_intent = self._previous_intent(turns)
+            periods = _find_phrases(question, self._profile.period_phrases)
+            coverage_message = self._profile.clarifications.temporal_coverage_unavailable
+            if previous_intent is not None and periods:
+                return self._interpret(question, previous_intent)
+            if coverage_message is not None:
+                return self._clarify(coverage_message)
         if pending_period_question is not None and not current_question_has_metric:
             combined_question = f"{pending_period_question} {question}"
             return self._interpret(combined_question, None)
@@ -153,6 +164,19 @@ class QuestionInterpreter:
         ):
             return previous_user.content
         return None
+
+    def _pending_period_coverage_answer(self, context: list[ConversationTurn]) -> bool:
+        if len(context) < 2:
+            return False
+
+        previous_assistant = context[-1]
+        message = self._profile.clarifications.temporal_coverage_unavailable
+        return (
+            message is not None
+            and context[-2].role == "user"
+            and previous_assistant.role == "assistant"
+            and previous_assistant.content == message
+        )
 
     def _is_follow_up(self, question: str, previous_intent: AnalysisIntent) -> bool:
         normalized = _normalize(question).strip()

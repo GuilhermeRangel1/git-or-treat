@@ -114,11 +114,13 @@ class ReadPlanBuilder:
             None,
         )
         if temporal_coverage is not None:
+            unavailable = (
+                self._profile.clarifications.temporal_coverage_unavailable
+                or "A cobertura mensal não permite esse período. Informe outra janela."
+            )
             metric_coverage = temporal_coverage.get(metric.id)
             if metric_coverage is None:
-                raise PlanCapabilityUnavailable(
-                    "A publicação não informa cobertura para o indicador solicitado."
-                )
+                raise PlanCapabilityUnavailable(unavailable)
             coverage_kind, competencies = metric_coverage
             if coverage_kind == "monthly":
                 try:
@@ -126,15 +128,13 @@ class ReadPlanBuilder:
                         intent.period_phrase, competencies
                     )
                 except TemporalResolutionUnavailable as exc:
-                    raise PlanCapabilityUnavailable(str(exc)) from exc
+                    raise PlanCapabilityUnavailable(unavailable) from exc
             else:
                 if not metric.accumulated_period_phrases or (
                     _normalize(intent.period_phrase)
                     not in {_normalize(item) for item in metric.accumulated_period_phrases}
                 ):
-                    raise PlanCapabilityUnavailable(
-                        "A publicação não oferece competências mensais para esse indicador."
-                    )
+                    raise PlanCapabilityUnavailable(unavailable)
                 window = ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
         else:
             window = (

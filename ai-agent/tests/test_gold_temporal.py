@@ -2,7 +2,10 @@
 
 import pytest
 
+from app.agent.interpreter import QuestionInterpreter
 from app.agent.temporal import GoldTemporalWindowResolver, TemporalResolutionUnavailable
+from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
+from app.schemas.questions import ConversationTurn
 from app.schemas.read_plan import WindowKind
 
 _COVERAGE = tuple(
@@ -56,3 +59,38 @@ def test_accumulated_window_remains_a_phrase_without_invented_dates():
     assert window.phrase == "histórico acumulado"
     assert window.start is None
     assert window.end is None
+
+
+def test_period_answer_after_coverage_clarification_preserves_metric_and_filters():
+    interpreter = QuestionInterpreter(GRID360_GOLD_PROFILE)
+    original = "Qual a receita faturada para a classe residencial no último ano?"
+    clarification = GRID360_GOLD_PROFILE.clarifications.temporal_coverage_unavailable
+    assert clarification is not None
+    context = [
+        ConversationTurn(role="user", content=original),
+        ConversationTurn(role="assistant", content=clarification),
+    ]
+
+    result = interpreter.interpret("último trimestre", context)
+
+    assert result.status.value == "ready"
+    assert result.intent is not None
+    assert result.intent.metric_id == "billing.revenue"
+    assert result.intent.period_phrase == "último trimestre"
+    assert result.intent.class_phrase == "residencial"
+
+
+def test_non_period_answer_after_coverage_clarification_repeats_clarification():
+    interpreter = QuestionInterpreter(GRID360_GOLD_PROFILE)
+    original = "Qual a receita faturada no último ano?"
+    clarification = GRID360_GOLD_PROFILE.clarifications.temporal_coverage_unavailable
+    assert clarification is not None
+    context = [
+        ConversationTurn(role="user", content=original),
+        ConversationTurn(role="assistant", content=clarification),
+    ]
+
+    result = interpreter.interpret("Recife", context)
+
+    assert result.status.value == "needs_clarification"
+    assert result.clarification_question == clarification

@@ -293,6 +293,8 @@ class ClarificationMessages(BaseModel):
     # "{unit}" são trocados pelo rótulo da dimensão e pela unidade citada.
     unsupported_breakdown: CatalogText | None = None
     unit_mismatch: CatalogText | None = None
+    # Usada por fontes com cobertura mensal por lote; a próxima janela pode substituir a atual.
+    temporal_coverage_unavailable: CatalogText | None = None
 
 
 class DomainProfile(BaseModel):

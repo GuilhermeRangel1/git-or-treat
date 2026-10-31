@@ -505,6 +505,10 @@ def _build_profile() -> DomainProfile:
     values["detail_rules"] = detail_rules
     values["clarifications"] = {
         **values["clarifications"],
+        "temporal_coverage_unavailable": (
+            "Não consigo confirmar uma janela mensal completa nessa publicação. Informe outro "
+            "período mensal, como ‘últimos três meses’."
+        ),
         "multiple_domains": (
             "Qual assunto consultar primeiro: consumo, faturamento, atendimento ou DEC/FEC?"
         ),
