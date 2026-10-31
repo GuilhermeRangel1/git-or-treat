@@ -157,6 +157,20 @@ O importador valida o manifesto e cada schema, cabeçalho, tipo, chave, marcador
 
 Para repetir a verificação de volume com o pacote real, configure `GOLD_CSV_V2_DIR` com o caminho local da exportação e execute `python -m pytest tests/test_gold_import_v2_real.py -q`. O teste usa SQLite temporário e remove o banco ao final. Não coloque os CSVs no repositório nem use um banco compartilhado/produção para essa prova.
 
+### Inicialização Docker com Gold CSV v2
+
+O Compose complementar `docker-compose.gold-v2.yml` acrescenta um serviço de carga de execução única. Ele espera o PostgreSQL ficar saudável, aplica `alembic upgrade head` e carrega explicitamente `gold-csv-v2`; o backend só inicia após o serviço de carga terminar com sucesso. O Compose padrão continua disponível sem exigir a exportação local.
+
+Prepare `.env.db` e `backend/.env` conforme as instruções acima. Em `backend/.env`, `DATABASE_URL` deve usar o host `db` e credenciais compatíveis com `.env.db` (nunca `localhost` dentro do container). Crie `.env.gold-v2` a partir de `.env.gold-v2.example` e aponte `GOLD_CSV_V2_HOST_DIR` para a pasta local exata que contém `manifest.json` e as quinze pastas CSV. A pasta entra no container como somente leitura; os dados não são copiados para a imagem nem versionados.
+
+Na raiz do repositório, suba a stack no modo Gold v2:
+
+```powershell
+docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml up --build
+```
+
+O comando mantém o PostgreSQL no volume `pgdata16`. A repetição da mesma exportação é idempotente e retorna `unchanged`; uma migração ou carga com falha impede o início do backend. Para acompanhar o resultado do serviço de carga, use `docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml logs gold-loader`. A carga continua somente analítica: não importa `gold-cadastro-v1` e não conecta as consultas da API às tabelas v2.
+
 Para verificar sem dataset real, `venv/Scripts/python.exe scripts/generate_gold_sample.py --directory ../work/dev12-lote-01` cria sete CSVs inteiramente artificiais em um diretório novo. O controle independente é duas UCs mensais, 30 kWh e R$ 25,50. O [runbook DEV-12](../docs/contracts/gold-load-dev12.md) inclui banco isolado, execução/repetição, inspeção da auditoria e recuperação de cargas inválidas/interrompidas.
 
 Os testes de carga usam `TEST_GOLD_POSTGRES_URL`, separada da `TEST_POSTGRES_URL` de migrações. Ambas devem apontar para bancos descartáveis vazios `*_test`, com usuário sem superusuário. A CI fornece as duas URLs ao runner e ao contêiner. Sem configuração, variantes PostgreSQL são ignoradas.
