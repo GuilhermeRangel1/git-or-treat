@@ -30,6 +30,7 @@ import statistics
 import sys
 import unicodedata
 from collections import Counter, defaultdict
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -102,7 +103,7 @@ DISTINCT_CAP = 200_000
 NUMERIC_SENTINELS = {
     Decimal(v) for v in ("-1", "-9", "-99", "-999", "-9999", "9999", "99999", "999999")
 }
-NULL_TOKENS = {"", "null", "none", "nan", "na", "n/a"}
+NULL_TOKENS = {"", "null", "none", "nan", "na", "n/a", "\\n"}
 BOOL_TOKENS = {"true", "false", "sim", "não", "nao", "s", "n", "0", "1", "t", "f"}
 YM = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}")
@@ -113,6 +114,8 @@ CPF_LIKE = re.compile(r"\d{3}\.?\d{3}\.?\d{3}-?\d{2}")
 CEP_LIKE = re.compile(r"^\d{5}-?\d{3}$")
 EMAIL_LIKE = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", re.IGNORECASE)
 MONEY_TOLERANCE = Decimal("0.05")
+ATENDIMENTO_COLUMNS = ("total_chamados_callcenter", "media_satisfacao_atendimento")
+# Gold v2 preserva notas não negativas; nenhuma escala máxima foi homologada.
 # Raiz do lote (exportador da Gold) ou subpasta manifesto/; com os dois, vale o da raiz.
 MANIFEST_PATHS = (Path("manifest.json"), Path("manifesto") / "manifest.json")
 # Só campos técnicos de identificação; nenhum valor de negócio do manifesto vai para a saída.
@@ -400,6 +403,8 @@ class Recon:
             lambda: [Decimal(0), Decimal(0)]
         )
         self.gd_drop_by_municipio: Counter[str] = Counter()
+        # C14: só contadores de estado e de inconsistência; nenhuma UC nem valor é guardado.
+        self.atendimento: Counter[str] = Counter()
 
 
 def _get(row: list[str], idx: dict[str, int], column: str) -> str | None:
@@ -455,6 +460,8 @@ def feed(recon: Recon, table: str, row: list[str], idx: dict[str, int]) -> None:
         recon.uc_alimentador[uc] = g("alimentador")
         recon.uc_status[uc] = g("status")
         recon.uc_classe[uc] = g("classe")
+        if all(column in idx for column in ATENDIMENTO_COLUMNS):
+            _feed_atendimento(recon, g)
     elif table == "fila_inspecao":
         _feed_fila(recon, g)
     elif table == "variacao_consumo_uc":
@@ -520,6 +527,34 @@ def _feed_fila(recon: Recon, g) -> None:
     recon.fila_priority_by_rule[(g("prioridade_inspecao"), f"{realized}/{consumption}")] += 1
     if irregulares is not None and realizadas is not None and irregulares > realizadas:
         recon.fila["irregulares_maior_que_realizadas"] += 1
+
+
+def _feed_atendimento(recon: Recon, g) -> None:
+    """Consistência interna de chamados e satisfação da UC; média ausente nunca vira zero."""
+    table = "visao_360_uc"
+    chamados = _track(recon, table, "chamados", g("total_chamados_callcenter"))
+    # Média nula é estado válido (UC sem chamado ou sem nota); só a inválida bloqueia a conferência.
+    media, media_issue = _measure(g("media_satisfacao_atendimento"))
+    if media_issue == "invalido":
+        recon.measure_issues[table]["media_satisfacao_invalido"] += 1
+    if chamados is None or media_issue == "invalido":
+        return
+    c = recon.atendimento
+    if chamados < 0:
+        c["chamados_negativo"] += 1
+        return
+    if chamados != chamados.to_integral_value():
+        c["chamados_nao_inteiro"] += 1
+        return
+    com_chamados = "com_chamados" if chamados > 0 else "sem_chamados"
+    if media is None:
+        c[f"{com_chamados}_sem_media"] += 1
+        return
+    c[f"{com_chamados}_com_media"] += 1
+    if chamados == 0:
+        c["media_presente_sem_chamados"] += 1
+    if media < 0:
+        c["media_negativa"] += 1
 
 
 def _feed_variacao(recon: Recon, g) -> None:
@@ -1256,7 +1291,224 @@ def candidate_controls(recon: Recon, tables: dict) -> list[dict]:
                 },
             )
         )
+    visao_info = tables.get("visao_360_uc", {})
+    if visao_info.get("estado") == "presente":
+        controls.append(
+            control(
+                "C14",
+                "Atendimento por UC: protocolos distintos (exato) e média das notas de "
+                "satisfação (tolerância 0,005). Consistência interna neste controle e "
+                "comparação com atendimentos_uc em atendimento_protocolos_x_visao_360; "
+                "reconciliação independente Silver permanece separada",
+                "visao_360_uc",
+                ["id_uc", *ATENDIMENTO_COLUMNS],
+                "cadastro atual (sem competência)",
+                _atendimento_control(recon, visao_info),
+            )
+        )
     return controls
+
+
+def _atendimento_control(recon: Recon, visao_info: dict) -> dict:
+    """Só estados e contadores de inconsistência; nunca UC, identificador ou valor da coluna."""
+    missing = [c for c in ATENDIMENTO_COLUMNS if c not in visao_info["colunas"]]
+    if missing:
+        return {"estado": "nao_verificavel", "colunas_ausentes": missing}
+    issues = _issues(recon, "visao_360_uc")
+    if issues:
+        return _unverifiable(issues)
+    c = recon.atendimento
+    inconsistencies = {
+        name: c.get(name, 0)
+        for name in (
+            "chamados_negativo",
+            "chamados_nao_inteiro",
+            "media_presente_sem_chamados",
+            "media_negativa",
+        )
+    }
+    return {
+        "estado": "verificada",
+        "ucs_por_estado": {
+            name: c.get(name, 0)
+            for name in (
+                "sem_chamados_sem_media",
+                "sem_chamados_com_media",
+                "com_chamados_sem_media",
+                "com_chamados_com_media",
+            )
+        },
+        "inconsistencias": inconsistencies,
+        "consistente": not any(inconsistencies.values()),
+    }
+
+
+def reconcile_attendance(base: Path) -> dict:
+    """Recalcula C14 no grão do protocolo; publica só contadores de divergência.
+
+    Esta comparação Gold detalhe/resumo não certifica a extração da Silver.
+    Zero é nota válida; média sem notas permanece nula. Tolerância de Dados: 0,005.
+    """
+    expected = {}
+    totals = defaultdict(lambda: [0, Decimal(0), 0])
+    issues = Counter()
+    protocols = set()
+    for table, required in (
+        ("visao_360_uc", ("id_uc", *ATENDIMENTO_COLUMNS)),
+        ("atendimentos_uc", ("protocolo", "id_uc", "nota_satisfacao")),
+    ):
+        files = find_table_files(base, table)
+        if not files:
+            return {"estado": "nao_verificavel", "tabela_ausente": table}
+        with files[0].open(encoding="utf-8-sig", newline="") as handle:
+            header = next(csv.reader(handle, delimiter=";", quotechar='"'), [])
+        missing = sorted(set(required) - set(header))
+        if len(header) != len(set(header)):
+            return {"estado": "nao_verificavel", "motivo": "CABECALHO_DUPLICADO", "tabela": table}
+        if missing:
+            return {"estado": "nao_verificavel", "colunas_ausentes": missing, "tabela": table}
+        for header, row in iter_rows(files):
+            idx = {name: i for i, name in enumerate(header)}
+            g = lambda column, row=row, idx=idx: _get(row, idx, column)  # noqa: E731
+            uc = g("id_uc")
+            if len(row) != len(header) or uc is None or _is_null(uc):
+                issues["linha_ou_chave_invalida"] += 1
+                continue
+            if uc.upper().startswith("TESTE"):
+                issues["uc_teste"] += 1
+                continue
+            if table == "visao_360_uc":
+                count, count_issue = _measure(g("total_chamados_callcenter"))
+                average, average_issue = _measure(g("media_satisfacao_atendimento"))
+                if uc in expected:
+                    issues["uc_duplicada"] += 1
+                if (count_issue or count < 0 or count != count.to_integral_value()
+                        or average_issue == "invalido" or (average is not None and average < 0)):
+                    issues["resumo_invalido"] += 1
+                    continue
+                expected[uc] = (count, average)
+            else:
+                protocol = g("protocolo")
+                if protocol is None or _is_null(protocol):
+                    issues["protocolo_ausente"] += 1
+                    continue
+                if protocol in protocols:
+                    issues["protocolo_duplicado"] += 1
+                    continue
+                protocols.add(protocol)
+                value, issue = _measure(g("nota_satisfacao"))
+                for flag in ("_nota_invalida", "_nota_negativa"):
+                    if flag not in idx:
+                        continue  # Compatibilidade com o controle legado sem flags.
+                    raw_flag = g(flag)
+                    if raw_flag not in {"true", "false", "True", "False"}:
+                        issues["flag_nota_invalida"] += 1
+                    elif raw_flag.lower() == "true" and value is not None:
+                        issues["nota_contradiz_flag"] += 1
+                if issue == "invalido" or (value is not None and value < 0):
+                    issues["nota_invalida"] += 1
+                    continue
+                bucket = totals[uc]
+                bucket[0] += 1
+                if value is not None:
+                    bucket[1] += value
+                    bucket[2] += 1
+    if issues:
+        return {"estado": "nao_verificavel", "inconsistencias": dict(sorted(issues.items()))}
+    count_diff = average_diff = 0
+    for uc, (expected_count, expected_average) in expected.items():
+        count, value_sum, rated = totals.get(uc, (0, Decimal(0), 0))
+        count_diff += expected_count != count
+        actual_average = value_sum / rated if rated else None
+        if expected_average is None or actual_average is None:
+            average_diff += expected_average != actual_average
+        else:
+            average_diff += abs(expected_average - actual_average) > Decimal("0.005")
+    orphans = len(totals.keys() - expected.keys())
+    return {
+        "estado": "verificada",
+        "ucs_com_contagem_divergente": count_diff,
+        "ucs_com_media_divergente": average_diff,
+        "ucs_fora_da_visao_360": orphans,
+        "consistente": not (count_diff or average_diff or orphans),
+        "tolerancia_media": "0.005",
+    }
+
+
+def attendance_monthly_control(base: Path, detail_check: dict) -> dict:
+    """Compara observações mensais com a cobertura; não autentica declarações."""
+    if detail_check.get("estado") != "verificada" or not detail_check.get("consistente"):
+        return {"estado": "nao_verificavel", "motivo": "C14_NAO_RECONCILIADO"}
+    monthly = Counter()
+    undated = 0
+    coverage = {}
+    for table, required in (
+        ("atendimentos_uc", ("data_abertura",)),
+        ("cobertura_dominios", ("dominio", "competencia", "recorte", "estado_cobertura",
+                              "qtd_registros", "qtd_sem_competencia", "zero_registros_confirmado")),
+    ):
+        files = find_table_files(base, table)
+        if not files:
+            return {"estado": "nao_verificavel", "tabela_ausente": table}
+        with files[0].open(encoding="utf-8-sig", newline="") as handle:
+            header = next(csv.reader(handle, delimiter=";", quotechar='"'), [])
+        if not set(required) <= set(header) or len(header) != len(set(header)):
+            return {"estado": "nao_verificavel", "motivo": "SCHEMA_INCOMPATIVEL"}
+        for header, row in iter_rows(files):
+            idx = {name: i for i, name in enumerate(header)}
+            if len(row) != len(header):
+                return {"estado": "nao_verificavel", "motivo": "LINHA_MALFORMADA"}
+            values = {name: _get(row, idx, name) for name in required}
+            if table == "atendimentos_uc":
+                raw = values["data_abertura"]
+                if "_abertura_futura" in idx:
+                    flag = _get(row, idx, "_abertura_futura")
+                    if flag not in {"true", "false", "True", "False"}:
+                        return {"estado": "nao_verificavel", "motivo": "FLAG_ABERTURA_INVALIDA"}
+                    if flag.lower() == "true" and raw is not None and not _is_null(raw):
+                        return {"estado": "nao_verificavel", "motivo": "ABERTURA_CONTRADIZ_FLAG"}
+                if raw is None or _is_null(raw):
+                    undated += 1
+                    continue
+                try:
+                    date = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                    # Timestamps Spark sem offset são UTC conforme o contrato Gold.
+                    date = date.replace(tzinfo=UTC) if date.tzinfo is None else date.astimezone(UTC)
+                except ValueError:
+                    return {"estado": "nao_verificavel", "motivo": "DATA_INVALIDA"}
+                monthly[date.strftime("%Y-%m")] += 1
+                continue
+            if values["dominio"] != "atendimentos" or values["recorte"] != "DOMINIO":
+                continue
+            month = values["competencia"]
+            state = values["estado_cobertura"]
+            count, count_issue = _measure(values["qtd_registros"])
+            missing, missing_issue = _measure(values["qtd_sem_competencia"])
+            zero = values["zero_registros_confirmado"]
+            if (not month or not YM.fullmatch(month) or month in coverage
+                    or state not in {"FECHADO", "PARCIAL", "AUSENTE", "NAO_CERTIFICADA"}
+                    or count_issue or missing_issue or count < 0 or missing < 0
+                    or count != count.to_integral_value() or missing != missing.to_integral_value()
+                    or zero not in {"true", "false", "True", "False"}):
+                return {"estado": "nao_verificavel", "motivo": "COBERTURA_INVALIDA"}
+            coverage[month] = (state, count, missing, zero.lower() == "true")
+    if not coverage:
+        return {"estado": "nao_verificavel", "motivo": "COBERTURA_AUSENTE"}
+    states = Counter()
+    mismatches = confirmed = 0
+    for month, (state, count, missing, zero) in coverage.items():
+        states[state] += 1
+        invalid = (count != monthly[month] or missing != undated
+                   or (state == "AUSENTE" and count != 0)
+                   or (state == "FECHADO" and undated != 0)
+                   or zero != (state == "FECHADO" and count == 0))
+        mismatches += invalid
+        confirmed += zero and not invalid
+    outside = len(monthly.keys() - coverage.keys())
+    return {"estado": "verificada", "consistente": not (mismatches or outside),
+            "meses_divergentes": mismatches, "meses_sem_cobertura": outside,
+            "meses_por_estado": dict(sorted(states.items())), "meses_zero_confirmado": confirmed,
+            "certificacao_origem": "NAO_VERIFICADA_POR_ESTE_CONTROLE"}
 
 
 def build_report(base: Path) -> dict:
@@ -1271,12 +1523,17 @@ def build_report(base: Path) -> dict:
         if any(token in name.lower() for token in ("manifest", "controle", "lote", "batch"))
     ]
     present = [table for table, info in tables.items() if info["estado"] == "presente"]
+    reconciliations = reconcile(recon)
+    reconciliations["atendimento_protocolos_x_visao_360"] = reconcile_attendance(base)
+    reconciliations["atendimento_mensal_c15"] = attendance_monthly_control(
+        base, reconciliations["atendimento_protocolos_x_visao_360"]
+    )
     return {
         "tabelas": tables,
         "outros_itens_no_diretorio": len(extras),
         "manifesto_ou_controle_encontrado": lote_meta,
         "manifesto": read_manifest(base, present),
-        "reconciliacoes": reconcile(recon),
+        "reconciliacoes": reconciliations,
         "exemplos_exploratorios_prd_7_6": exploratory_examples(recon),
         "controles_candidatos": candidate_controls(recon, tables),
     }
@@ -1332,7 +1589,9 @@ def _json_target_error(base: Path, target: Path) -> str | None:
     if resolved == root or root in resolved.parents:
         return f"--json não pode gravar dentro do diretório do lote: {target}"
     if target.exists():
-        inputs = [path for table in TABLES for path in find_table_files(base, table)]
+        inputs = [path for table in (*TABLES, "atendimentos_uc", "cobertura_dominios")
+                  for path in find_table_files(base, table)]
+        inputs.extend(base / path for path in MANIFEST_PATHS if (base / path).is_file())
         if any(resolved == path.resolve() or os.path.samefile(target, path) for path in inputs):
             return f"--json não pode sobrescrever um arquivo de entrada: {target}"
     # Checa o pai como o sistema o verá na gravação: no Linux, "x/.." exige que x exista.

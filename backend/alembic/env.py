@@ -65,7 +65,7 @@ def run_migrations_offline() -> None:
 def configure_online(connection):
     metadata = target_metadata
     if connection.dialect.name == "sqlite":
-        connection.execution_options(schema_translate_map={"gold": None})
+        connection.execution_options(schema_translate_map={"gold": None, "gold_v2": None})
         metadata = MetaData()
         for table in target_metadata.tables.values():
             table.to_metadata(metadata, schema=None)
@@ -73,7 +73,7 @@ def configure_online(connection):
         connection=connection, target_metadata=metadata,
         compare_type=True, compare_server_default=True,
         include_schemas=connection.dialect.name == "postgresql",
-        include_name=lambda name, type_, parent: type_ != "schema" or name in {None, "gold"},
+        include_name=lambda name, type_, parent: type_ != "schema" or name in {None, "gold", "gold_v2"},
     )
 
 
