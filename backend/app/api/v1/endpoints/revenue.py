@@ -44,9 +44,11 @@ def get_revenue_analysis(
     state = revenue_metadata_status(data, start, end)
     result_metadata = metadata(repository, state, start, end, filters)
     if isinstance(repository, GoldAnalyticsRepository):
-        result_metadata.limitations.extend([
-            "Receita paga e energia faturada separada não são fornecidas pelos CSVs desta versão.",
-            "Tarifa homologada e decomposição preço-volume não estão disponíveis nesta projeção.",
-        ])
+        result_metadata.limitations.append("Receita paga e energia faturada separada não são fornecidas pelos CSVs desta versão.")
+        result_metadata.limitations.append(
+            "Tarifa homologada não está disponível; a decomposição usa as janelas da publicação."
+            if repository.schema_version == "gold-csv-v2" else
+            "Tarifa homologada e decomposição preço-volume não estão disponíveis nesta projeção."
+        )
     result_metadata = result_metadata.model_copy(update={"contract_version": "1.1.0"})
     return {"data": data, "metadata": result_metadata}

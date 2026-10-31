@@ -142,6 +142,18 @@ class RevenueDecomposition(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class RevenueWindowDecomposition(BaseModel):
+    status: AnalyticsStatus
+    windows: list[str]
+    method: str | None
+    components: dict[str, float | None]
+    total_change_brl: float | None
+    residual_brl: float | None
+    group_count: int
+    incomplete_groups: int
+    limitations: list[str]
+
+
 class RevenueBreakdownItem(BaseModel):
     key: str
     label: str
@@ -189,6 +201,7 @@ class RevenueData(BaseModel):
     series: list[RevenuePeriod]
     comparison: RevenueComparison
     price_volume: RevenueDecomposition
+    window_decomposition: RevenueWindowDecomposition | None = None
     coverage: RevenueCoverage
     quality: RevenueQuality
     breakdown: RevenueBreakdown
