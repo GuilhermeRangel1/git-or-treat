@@ -150,9 +150,9 @@ class QuestionOrchestrator:
         async def plan_only(_budget: RequestBudget) -> QuestionResponse | PlannedQuestion:
             return self._plan_step(request, access_context, trace)
 
-        # Cada operação usa orçamento próprio; a divisão do prazo entre planejar, executar e
-        # sintetizar depende do acordo com o Backend.
-        outcome = await self._run(trace, plan_only)
+        outcome = await self._run(
+            trace, plan_only, timeout_seconds=request.remaining_timeout_ms / 1000
+        )
         if isinstance(outcome, PlannedQuestion):
             assert outcome.read_plan is not None
             return QuestionPlanResponse(
@@ -179,12 +179,12 @@ class QuestionOrchestrator:
 
         access_context = request.access_scope.to_context(correlation_id)
         trace = self._trace(correlation_id)
-        # Orçamento próprio, como em plan(); a divisão do prazo total depende do Backend.
         return await self._run(
             trace,
             lambda budget: self._synthesize_with_budget(
                 request, access_context, request.expected_batch_ref, budget, trace
             ),
+            timeout_seconds=request.remaining_timeout_ms / 1000,
         )
 
     def _trace(self, correlation_id: str | None) -> EventTrace:
@@ -199,10 +199,12 @@ class QuestionOrchestrator:
         self,
         trace: EventTrace,
         action: Callable[[RequestBudget], Awaitable[_Outcome]],
+        *,
+        timeout_seconds: float | None = None,
     ) -> _Outcome | QuestionResponse:
         try:
             trace.emit(EventStage.REQUEST, EventCode.STARTED, EventOutcome.STARTED)
-            response = await self._execution.run(action)
+            response = await self._execution.run(action, timeout_seconds=timeout_seconds)
         except AuditUnavailable:
             return self._recoverable_error(FailureCode.AUDIT_UNAVAILABLE)
         except asyncio.CancelledError:

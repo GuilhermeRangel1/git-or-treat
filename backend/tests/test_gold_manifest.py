@@ -150,7 +150,7 @@ def test_reference_contract_rejects_a_different_publication(database, batch):
             current_publication(connection, first["batch_ref"])
 
 
-@pytest.mark.parametrize("value", ["", "v1", "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+@pytest.mark.parametrize("value", ["", "v1", "gold-csv-v3:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
     "gold-csv-v1:LOTE_DEV:8b9502c2-c188-4528-ab3c-7dff79ed908f",
     "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:not-a-uuid",
     "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f:extra"])
@@ -159,10 +159,13 @@ def test_batch_reference_rejects_invalid_envelopes(value):
         PublicationReference.parse(value)
 
 
-def test_shared_publication_envelope_examples():
+@pytest.mark.parametrize("schema_version", ["gold-csv-v1", "gold-csv-v2"])
+def test_shared_publication_envelope_examples(schema_version):
     examples = json.loads((Path(__file__).parents[2] / "docs/contracts/examples/gold-publication-v1.json").read_text(encoding="utf-8"))
-    assert PublicationReference.model_validate(examples["valid"]).batch_ref == examples["batch_ref"]
-    assert PublicationReference.parse(examples["batch_ref"]).model_dump(mode="json") == examples["valid"]
+    valid = {**examples["valid"], "schema_version": schema_version}
+    expected = examples["batch_ref"].replace("gold-csv-v1:", schema_version + ":")
+    assert PublicationReference.model_validate(valid).batch_ref == expected
+    assert PublicationReference.parse(expected).model_dump(mode="json") == valid
     for changes in examples["invalid_changes"]:
         with pytest.raises(ValueError):
             PublicationReference.model_validate({**examples["valid"], **changes})

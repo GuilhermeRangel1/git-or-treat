@@ -53,7 +53,7 @@ class ExportManifest(GoldOrigin):
 
 class PublicationReference(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    schema_version: Literal["gold-csv-v1"]
+    schema_version: Literal["gold-csv-v1", "gold-csv-v2"]
     run_id: GoldRun
     publication_id: UUID
 

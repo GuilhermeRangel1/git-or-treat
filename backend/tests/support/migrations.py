@@ -22,6 +22,21 @@ EXPECTED_TABLES = {
     "gold_indicadores_dec_fec",
     "gold_variacao_consumo_uc",
     "gold_visao_360_uc",
+    "diagnostico_receita",
+    "indicadores_dec_fec",
+    "fila_inspecao",
+    "visao_360_uc",
+    "consumo_mensal_uc",
+    "consumo_receita_bairro",
+    "variacao_consumo_uc",
+    "faturas_uc",
+    "medidor_uc",
+    "atendimentos_uc",
+    "ocorrencias_uc",
+    "gd_uc",
+    "tratativas_uc",
+    "cobertura_dominios",
+    "decomposicao_receita",
     "gold_indicadores",
     "operational_inspection_orders",
     "operational_order_history",
@@ -54,13 +69,16 @@ def assert_upgraded(connection):
     tables = set(inspect(connection).get_table_names())
     if connection.dialect.name == "postgresql":
         tables |= set(inspect(connection).get_table_names(schema="gold"))
+        tables |= set(inspect(connection).get_table_names(schema="gold_v2"))
     assert EXPECTED_TABLES <= tables
 
 
 def assert_downgraded(connection):
     assert not EXPECTED_TABLES.intersection(inspect(connection).get_table_names())
-    if connection.dialect.name == "postgresql" and inspect(connection).has_schema("gold"):
-        assert not EXPECTED_TABLES.intersection(inspect(connection).get_table_names(schema="gold"))
+    if connection.dialect.name == "postgresql":
+        for schema in ("gold", "gold_v2"):
+            if inspect(connection).has_schema(schema):
+                assert not EXPECTED_TABLES.intersection(inspect(connection).get_table_names(schema=schema))
 
 
 def assert_schema_matches_models(connection, metadata=None):
@@ -77,7 +95,7 @@ def assert_schema_matches_models(connection, metadata=None):
     context = MigrationContext.configure(connection, opts={
         "compare_type": True, "compare_server_default": True,
         "include_schemas": connection.dialect.name == "postgresql",
-        "include_name": lambda name, type_, parent: type_ != "schema" or name in {None, "gold"},
+        "include_name": lambda name, type_, parent: type_ != "schema" or name in {None, "gold", "gold_v2"},
     })
     changes = produce_migrations(context, metadata).upgrade_ops
     assert changes.is_empty(), f"Modelo sem migração correspondente: {changes.as_diffs()}"
@@ -86,7 +104,7 @@ def assert_schema_matches_models(connection, metadata=None):
 @contextmanager
 def migrated_database(connection):
     if connection.dialect.name == "sqlite":
-        connection.execution_options(schema_translate_map={"gold": None})
+        connection.execution_options(schema_translate_map={"gold": None, "gold_v2": None})
     assert_clean_database(connection)
     config = alembic_config(connection)
     connection.commit()

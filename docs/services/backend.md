@@ -6,7 +6,7 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV v1 é transacional e repetível, conforme o [contrato provisório](../contracts/gold-csv-v1.md); as rotas ainda não consomem essas tabelas. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar a fonte sintética explícita; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. As cargas v1 e v2 são transacionais, conforme os [contratos provisórios v1](../contracts/gold-csv-v1.md) e [v2](../contracts/gold-csv-v2.md); as rotas ainda não consomem as tabelas carregadas. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
 ## DEV-01: contratos antes da Gold
 
@@ -46,6 +46,12 @@ Para a fronteira com a GenAI, a decisão aprovada na [ADR-0002](../decisions/000
 Histórico de GENAI-01: a revisão documental de 25/10/2026 descreveu como proposta o fluxo planejar (GenAI) → revalidar e consultar (Backend) → sintetizar (GenAI), coordenado pelo Backend atrás de `POST /api/v1/ai/questions`, com papel somente leitura, revalidação do plano também no cache e auditoria da execução. A ADR-0002 foi aprovada em 25/10/2026 com base nos comentários de concordância de Backend e Engenharia de Dados no PR #54, sem Approve formal no GitHub. O [contrato](../contracts/genai-query-execution.md) continua preparação: nenhuma rota interna, adaptador ou consulta Gold foi implementada; P-04, DE-06, DE-08 e as dependências de catálogo, autorização e prazos seguem abertas. A [ADR-0016](../decisions/0016-priorizacao-melhorias-pre-gold.md) registra a priorização pré-Gold de 27/10/2026.
 
 ## Contrato conversacional com a GenAI
+
+A preparação B3 acrescenta `app/services/genai_plan.py::validate_genai_plan` e o schema v1 independente em `app/schemas/genai_plan.py`. O Backend recalcula o fingerprint do plano validado, com defaults/nulos e canonicalização acordada, e rejeita plano inválido ou hash divergente. Vetores sintéticos compartilhados verificam compatibilidade com a GenAI. A função ainda não é chamada pelo fluxo HTTP atual; sua conexão à futura coordenação, junto de autorização, catálogo e lote, permanece pendente. Veja o [contrato B3](../contracts/genai-query-execution.md#revalidação-b3-no-backend--preparação).
+
+Para a implantação Gold, a preparação B4 acrescenta `validate_gold_genai_plan`: além da B3, exige `source_id: gold.local` e `profile_id: v-energy-grid-360-gold`, alinhado ao catálogo do PR #73. A futura coordenação Gold deve usar esse validador e construir o escopo autorizado com o mesmo par. A composição HTTP atual permanece sem ativação Gold; veja os [limites da B4](../contracts/genai-query-execution.md#identidade-b4-da-integração-gold--preparação).
+
+A preparação B1/B7 acrescenta `app/services/genai_publication.py::GoldPublicationContext`: captura publicação validada no servidor, fornece `batch_ref` ao planejamento e `expected_batch_ref` à síntese e disponibiliza um bloco PostgreSQL `REPEATABLE READ READ ONLY` para o futuro executor. Confere publicação antes e depois da consulta e antes da síntese, usando leitura nova fora do snapshot; a coordenação também deve conferir após a síntese antes de devolver resposta/cache. `GoldPublicationInvalid` não permite nova tentativa; `GoldPublicationChanged` permite reiniciar a requisição com captura e planejamento novos, sem repetição automática. Ambos mantêm a classe-base `GoldPublicationUnavailable`. O fluxo HTTP atual não utiliza esses controles; veja a [sequência e os limites](../contracts/genai-query-execution.md#publicação-b1b7-no-backend--preparação).
 
 O Backend expõe `POST /api/v1/ai/questions` para o portal e encaminha a solicitação v1 ao `POST /api/v1/questions` do serviço GenAI. O endpoint antigo `/api/v1/ai/query` permanece separado e não é usado como rota de chat ou executor.
 
@@ -100,7 +106,7 @@ A DEV-07 acrescenta histórico persistido com ator/versão, registro dedicado de
 
 ## Carga da Gold e consistência
 
-O script `backend/scripts/load_gold.py` importa as sete tabelas CSV do lote v1 após `alembic upgrade head`, em transação única, com chaves, tipos, contagens, somas e hashes validados. Não altera ordens operacionais nem ativa a fonte da API. Consulte organização, comandos e limites no [contrato CSV v1](../contracts/gold-csv-v1.md). A prova Databricks → CSV, as definições DE-08 e a adaptação API/portal permanecem pendentes.
+O script `backend/scripts/load_gold.py` importa as sete tabelas CSV v1 ou, com seleção explícita, as quinze tabelas analíticas do CSV v2. A migração `goldv2000001` mantém a v1 em `gold` e cria as tabelas v2 em `gold_v2`; as duas versões compartilham o registro de publicação e auditoria, e a carga mantém hashes, contagens e controles em uma transação. O leitor dedicado recebe `SELECT` apenas nas tabelas analíticas v1/v2; o schema do cadastro restrito não é concedido. Nenhuma carga ativa a fonte das rotas da API. O teste com o pacote real v2 em SQLite temporário e os limites estão no [contrato CSV v2](../contracts/gold-csv-v2.md). Postgres/Databricks no ambiente de destino, integração API/portal/GenAI e pacote cadastral continuam pendentes.
 
 ## Qualidade
 
@@ -135,3 +141,23 @@ A refatoração de alinhamento DEV-08 move a composição e paginação do detal
 ## Preparação da identidade de publicação Gold — 28/10/2026
 
 O Backend passa a validar a origem do manifesto e persistir a origem e `publication_id`, derivando deles o `batch_ref`. A identidade permanece em repetição e muda atomicamente em nova publicação. O schema analítico e o papel de leitura seguem a ADR-0017; [manifesto e compatibilidade](../contracts/gold-csv-v1.md#origem-e-publicação) e [migração, permissões e recuperação](../contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação) descrevem o uso. O campo nos envelopes GenAI, os endpoints de planejar/sintetizar e o executor de consultas de negócio continuam pendentes. Esta preparação não ativa a fonte real nem conclui GENAI-01 ou requisitos IA/DE.
+
+
+### Preparação B6 de prazo compartilhado
+
+`app/services/genai_deadline.py::GenAIRequestDeadline` oferece prazo monotônico por requisição, limites de etapas pelo tempo restante e cálculo de timeout SQL em milissegundos sem zero. O futuro coordenador deve fornecer os valores acordados e aplicar os limites no transporte e no executor. O componente ainda não está conectado à rota HTTP, não altera os 35 segundos por chamada existentes e não comprova cancelamento de SQL ou prazo ponta a ponta. Veja o contrato de consulta, seção Prazo B6 compartilhado.
+
+
+### Preparação B9 de despacho da síntese
+
+`app/services/genai_flow.py::should_synthesize` exige seleção explícita da política proposta `completed_lookup`. Lookups concluídos válidos podem seguir à síntese; respostas de planejamento sem plano e falhas de execução encerram o fluxo. Lookup inválido é recusado, sem confundir erro com ausência. Schema de lookup em `app/schemas/genai_evidence.py`; helper sem chamadas HTTP e sem ativação na aplicação. Confirmação com GenAI, validação das demais fronteiras e coordenador permanecem pendentes.
+
+
+### Preparação B11 de compatibilidade interna
+
+`app/schemas/genai_internal.py` descreve os envelopes internos v1, reutilizando pergunta/resposta públicas, plano B3 e lookup B9. `app/services/genai_contracts.py` confere respostas contra versão, conteúdo e correlação do corpo/cabeçalho. Vetores compartilhados com a suíte GenAI, teste HTTP de recusa de escopo enviado pelo portal e prova do núcleo sem modelo para ausência/esclarecimento verificam as fronteiras preparadas. Clientes e rotas internas, coordenador, executor e teste ponta a ponta continuam pendentes; não ativa a Gold ou confirma B6/B9.
+
+
+### GENAI-01 — finalização contratual v2
+
+O pacote final usa referências `gold-csv-v2`, independentes do envelope interno v1. As requisições internas de plano e síntese exigem `remaining_timeout_ms` (inteiro estrito de 1 a 35.000). O Backend é a autoridade do prazo global de 35 s e limita SQL a 5 s; o helper `GenAIRequestDeadline.remaining_timeout_ms` fornece o saldo sem renovar o relógio. O contrato de consulta descreve atualização conjunta dos consumidores e despacho `completed_lookup`. Os controles ainda precisam ser ligados ao cliente, executor e coordenador; o endpoint público continua sem consulta Gold nesta fatia.
