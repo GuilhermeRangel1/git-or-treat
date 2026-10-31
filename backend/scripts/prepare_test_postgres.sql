@@ -15,6 +15,9 @@ CREATE ROLE venergy_migrator LOGIN PASSWORD 'venergy_migrator'
 ALTER DATABASE v_energy_test OWNER TO venergy_migrator;
 ALTER SCHEMA public OWNER TO venergy_migrator;
 
+-- Terceiro banco, exclusivo para a prova de privilégios do leitor Gold.
+CREATE DATABASE gold_reader_test OWNER venergy_migrator;
+
 -- Banco separado para as cargas sintéticas; ambos devem terminar vazios.
 CREATE DATABASE gold_import_test OWNER venergy_migrator;
 \connect gold_import_test

@@ -6,6 +6,8 @@ from datetime import date
 from hashlib import sha256
 from math import isfinite
 
+from pydantic import TypeAdapter, ValidationError
+
 from app.ports.evidence import EvidenceContractInvalid
 from app.schemas.domain_profile import (
     CatalogSensitivity,
@@ -19,10 +21,12 @@ from app.schemas.evidence import (
     EvidenceLookupStatus,
     EvidenceReference,
     EvidenceResult,
+    GoldBatchRef,
 )
 from app.schemas.read_plan import LogicalReadPlan
 
 _PERIOD = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$")
+_BATCH_REF = TypeAdapter(GoldBatchRef)
 
 
 def _safe_period(value: object) -> str:
@@ -60,8 +64,20 @@ class EvidenceGuard:
         self._max_bytes = max_bytes
 
     def validate(
-        self, plan: LogicalReadPlan, result: EvidenceLookupResult
+        self,
+        plan: LogicalReadPlan,
+        result: EvidenceLookupResult,
+        *,
+        expected_batch_ref: str | None = None,
     ) -> EvidenceLookupResult:
+        # A publicação esperada vem do Backend, não da fonte ou do modelo.
+        if expected_batch_ref is not None:
+            try:
+                expected_batch_ref = _BATCH_REF.validate_python(expected_batch_ref)
+            except ValidationError:
+                raise EvidenceContractInvalid("referência de publicação inválida") from None
+        if plan.source_id.startswith("gold.") and expected_batch_ref is None:
+            raise EvidenceContractInvalid("publicação esperada ausente")
         if result.status is not EvidenceLookupStatus.AVAILABLE:
             # Mensagens e limitações da fonte são texto livre; não são refletidas ao público.
             message = (
@@ -77,6 +93,8 @@ class EvidenceGuard:
         if evidence.reference.is_demo and not plan.source_id.startswith("synthetic."):
             raise EvidenceContractInvalid("fonte externa devolveu evidência demonstrativa")
         provenance = evidence.provenance
+        if provenance.batch_ref != expected_batch_ref:
+            raise EvidenceContractInvalid("publicação incompatível com a esperada")
         if (
             provenance.source_id != plan.source_id
             or provenance.reference_source != evidence.reference.source

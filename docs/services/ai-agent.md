@@ -122,6 +122,10 @@ Esta é uma fronteira interna provisória para permitir substituição controlad
 
 Histórico da revisão de 25/10/2026 (GENAI-01): a descrição original apresentou como proposta o Backend como único executor SQL da Gold e duas operações internas da GenAI, planejar e sintetizar, sem chamada de volta ao Backend. A decisão foi aprovada em 25/10/2026 com base nos comentários de concordância de Backend e Engenharia de Dados no PR #54, sem Approve formal no GitHub. O [contrato](../contracts/genai-query-execution.md) continua preparação documental: nenhuma rota interna, adaptador ou composição de consulta Gold mudou. A aprovação da propriedade e do fluxo não autoriza acesso real; permanecem as dependências indicadas na ADR-0002. A priorização pré-Gold está registrada na [ADR-0016](../decisions/0016-priorizacao-melhorias-pre-gold.md).
 
+Envelopes internos (GENAI-01, parte A1): `app/schemas/internal.py` modela as duas operações do [contrato interno](../contracts/genai-query-execution.md). São eles: `AccessScope` (escopo sem correlação, convertido por `to_context`), `QuestionPlanRequest`, `QuestionPlanResponse` (estados `planned`, `needs_clarification`, `refused` e `recoverable_error`, com fingerprint conferido contra o plano) e `QuestionSynthesisRequest`. Os envelopes são usados pelas operações do núcleo; a síntese recebe a publicação esperada em `QuestionSynthesisRequest.expected_batch_ref`. Ainda não há rotas internas.
+
+Operações do núcleo (GENAI-01, parte A2): `QuestionOrchestrator.plan()` aplica guardrail, interpretação e aprovação do plano e devolve `QuestionPlanResponse`, sem chamar a fonte nem o modelo. `QuestionOrchestrator.synthesize()` reaprova o plano no escopo recebido, confere o fingerprint e aplica o `EvidenceGuard` ao lookup, com a publicação esperada recebida em `request.expected_batch_ref`, separada do lookup. Só chama o modelo quando há evidência. No planejador, os passos equivalentes são `plan()` e `accept_lookup()`. `answer()` continua atendendo `POST /api/v1/questions` com o mesmo comportamento, compondo planejar, fonte local e a mesma geração. Ainda não há rotas internas para as duas operações.
+
 Qualquer adaptador de fonte, inclusive uma implementação futura do Backend, deve manter os nomes de parâmetros do protocolo: `retrieve(self, plan, access_context)`. Isso permite chamadas por palavra-chave compatíveis com `EvidenceSource`. O contexto é recebido por chamada e não deve ser guardado entre consultas.
 
 ### Perfil de domínio e catálogo de capacidades
@@ -365,3 +369,17 @@ Esses exemplos não são respostas esperadas; os números só podem ser preenchi
 ## Avaliação
 
 Preparar casos representativos para consumo, faturamento, rede, atendimento, geografia, classe, GD e perguntas impossíveis. Conferir correção numérica e recusa adequada. IA-08 é diferencial de automação; mesmo sem ele, evidência manual reproduzível é necessária para IA-01 a IA-06.
+
+## Preparação da identidade de publicação Gold — 28/10/2026
+
+O Backend passa a validar a origem do manifesto e persistir a origem e `publication_id`, derivando deles o `batch_ref`. A identidade permanece em repetição e muda atomicamente em nova publicação. O schema analítico e o papel de leitura seguem a ADR-0017; [manifesto e compatibilidade](../contracts/gold-csv-v1.md#origem-e-publicação) e [migração, permissões e recuperação](../contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação) descrevem o uso. `EvidenceProvenance` aceita `batch_ref` canônico e o `EvidenceGuard` exige a referência esperada para fonte Gold, preservando-a na evidência reduzida e recusando divergência. Backend e GenAI testam os mesmos exemplos em `docs/contracts/examples/gold-publication-v1.json`. Os envelopes completos, os endpoints de planejar/sintetizar e o executor de consultas de negócio continuam pendentes. Esta preparação não ativa a fonte real nem conclui GENAI-01 ou requisitos IA/DE.
+
+
+### Envelopes de planejamento e síntese Gold
+
+`app.schemas.internal` prepara as operações internas do GENAI-01. O planejamento Gold exige publicação e cobertura temporal por métrica lógica; a síntese exige publicação esperada separada do lookup. Usa o `GoldBatchRef` compartilhado, preserva fontes sintéticas e rejeita campos extras, cobertura duplicada ou fora do escopo. Os schemas não executam SQL, resolvem períodos nem comparam a evidência; o núcleo aplica o EvidenceGuard na etapa seguinte. Ver B1 a B5 no [contrato interno](../contracts/genai-query-execution.md). Rotas e integração Backend continuam pendentes.
+
+
+### GENAI-01 — referência final e prazo recebido
+
+As operações públicas do núcleo `plan` e `synthesize` aceitam envelopes internos v1 com referência de pacote Gold CSV v2. Cada requisição exige `remaining_timeout_ms` de 1 a 35.000, enviado pelo Backend confiável. A execução usa o menor valor entre o saldo e o teto local, incluindo espera por capacidade, e rejeita conclusão atrasada. Isso não cria endpoints internos nem autoriza fonte real: o Backend continua o único executor SQL e autoridade do orçamento global. Transporte e coordenação pertencem à integração posterior descrita no contrato.

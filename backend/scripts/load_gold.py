@@ -10,17 +10,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.core.config import settings
 from app.core.database import engine
 from app.services.gold_import import GoldImportError, import_gold
-from app.models.gold_load import SCHEMA_VERSION
+from app.services.gold_import_v2 import import_gold_v2
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, default=settings.GOLD_DATA_DIR / "v1")
-    parser.add_argument("--batch", default="v1")
-    parser.add_argument("--schema-version", default=SCHEMA_VERSION)
+    parser.add_argument("--batch", help="Conferência opcional do run_id do manifesto; não substitui a origem.")
+    parser.add_argument(
+        "--schema-version", choices=("gold-csv-v1", "gold-csv-v2"),
+        help="Versão explícita; v2 carrega somente as quinze tabelas analíticas.",
+    )
     args = parser.parse_args()
     try:
-        result = import_gold(engine, args.directory, args.batch, args.schema_version)
+        if args.schema_version == "gold-csv-v2":
+            result = import_gold_v2(engine, args.directory, args.batch)
+        else:
+            result = import_gold(engine, args.directory, args.batch, args.schema_version)
     except (GoldImportError, SQLAlchemyError, OSError, UnicodeError, csv.Error) as error:
         message = str(error) if isinstance(error, GoldImportError) else "Falha de leitura ou persistência. Confira o banco migrado e os arquivos."
         if isinstance(error, GoldImportError):
