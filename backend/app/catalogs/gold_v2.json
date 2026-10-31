@@ -7,6 +7,38 @@
   "metrics": [
     {
       "metric_id": "billing.revenue",
+      "label": "Receita faturada",
+      "definition": "Total das faturas do recorte, incluindo faturas sem leitura; não representa valor pago.",
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "geography.neighborhood": [
+          "eq",
+          "in"
+        ],
+        "customer.consumption_class": [
+          "eq",
+          "in"
+        ],
+        "tariff.subgroup": [
+          "eq",
+          "in"
+        ],
+        "tariff.flag": [
+          "eq",
+          "in"
+        ],
+        "generation.distributed": [
+          "eq",
+          "in"
+        ],
+        "customer.consumer_unit": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "faturamento.receita",
       "required_capability_ids": [
         "faturamento.receita"
@@ -16,6 +48,7 @@
         "month",
         "year"
       ],
+      "max_window_days": 1830,
       "aggregation": "sum",
       "unit": "R$",
       "unit_kind": "currency",
@@ -54,6 +87,12 @@
             "tariff.subgroup": "subgrupo_tarifario",
             "tariff.flag": "bandeira_tarifaria",
             "generation.distributed": "possui_gd"
+          },
+          "decimal_shapes": {
+            "receita_total_reais": [
+              38,
+              2
+            ]
           }
         },
         {
@@ -77,6 +116,12 @@
             "geography.municipality": "municipio",
             "geography.neighborhood": "bairro",
             "customer.consumption_class": "classe_consumo"
+          },
+          "decimal_shapes": {
+            "receita_total_reais": [
+              38,
+              2
+            ]
           }
         },
         {
@@ -96,12 +141,50 @@
           ],
           "dimension_columns": {
             "customer.consumer_unit": "id_uc"
+          },
+          "decimal_shapes": {
+            "receita_reais": [
+              30,
+              2
+            ]
           }
         }
       ]
     },
     {
       "metric_id": "energy.consumption",
+      "label": "Consumo medido",
+      "definition": "Total medido nas leituras do recorte, incluindo leituras sem fatura; não é energia faturada.",
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "geography.neighborhood": [
+          "eq",
+          "in"
+        ],
+        "customer.consumption_class": [
+          "eq",
+          "in"
+        ],
+        "tariff.subgroup": [
+          "eq",
+          "in"
+        ],
+        "tariff.flag": [
+          "eq",
+          "in"
+        ],
+        "generation.distributed": [
+          "eq",
+          "in"
+        ],
+        "customer.consumer_unit": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "faturamento.receita",
       "required_capability_ids": [
         "consumo.mensal_uc"
@@ -111,6 +194,7 @@
         "month",
         "year"
       ],
+      "max_window_days": 1830,
       "aggregation": "sum",
       "unit": "kWh",
       "unit_kind": "energy",
@@ -149,7 +233,8 @@
             "tariff.subgroup": "subgrupo_tarifario",
             "tariff.flag": "bandeira_tarifaria",
             "generation.distributed": "possui_gd"
-          }
+          },
+          "decimal_shapes": {}
         },
         {
           "capability_id": "faturamento.receita_bairro",
@@ -172,7 +257,8 @@
             "geography.municipality": "municipio",
             "geography.neighborhood": "bairro",
             "customer.consumption_class": "classe_consumo"
-          }
+          },
+          "decimal_shapes": {}
         },
         {
           "capability_id": "consumo.mensal_uc",
@@ -191,12 +277,41 @@
           ],
           "dimension_columns": {
             "customer.consumer_unit": "id_uc"
-          }
+          },
+          "decimal_shapes": {}
         }
       ]
     },
     {
       "metric_id": "billing.average_ticket",
+      "label": "Ticket médio por UC faturada no mês",
+      "definition": "Razão entre a soma da receita faturada e a soma das UCs faturadas de cada mês do recorte.",
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "geography.neighborhood": [
+          "eq",
+          "in"
+        ],
+        "customer.consumption_class": [
+          "eq",
+          "in"
+        ],
+        "tariff.subgroup": [
+          "eq",
+          "in"
+        ],
+        "tariff.flag": [
+          "eq",
+          "in"
+        ],
+        "generation.distributed": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "faturamento.receita",
       "required_capability_ids": [
         "faturamento.receita"
@@ -206,6 +321,7 @@
         "month",
         "year"
       ],
+      "max_window_days": 1830,
       "aggregation": "ratio_of_sums",
       "unit": "R$ por UC faturada no mês",
       "unit_kind": "currency",
@@ -245,6 +361,12 @@
             "tariff.subgroup": "subgrupo_tarifario",
             "tariff.flag": "bandeira_tarifaria",
             "generation.distributed": "possui_gd"
+          },
+          "decimal_shapes": {
+            "receita_total_reais": [
+              38,
+              2
+            ]
           }
         },
         {
@@ -269,12 +391,50 @@
             "geography.municipality": "municipio",
             "geography.neighborhood": "bairro",
             "customer.consumption_class": "classe_consumo"
+          },
+          "decimal_shapes": {
+            "receita_total_reais": [
+              38,
+              2
+            ]
           }
         }
       ]
     },
     {
       "metric_id": "billing.effective_tariff",
+      "label": "Preço médio observado por kWh",
+      "definition": "Receita dividida pelo consumo da mesma base com fatura e leituras integralmente válidas; não é tarifa homologada.",
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "geography.neighborhood": [
+          "eq",
+          "in"
+        ],
+        "customer.consumption_class": [
+          "eq",
+          "in"
+        ],
+        "tariff.subgroup": [
+          "eq",
+          "in"
+        ],
+        "tariff.flag": [
+          "eq",
+          "in"
+        ],
+        "generation.distributed": [
+          "eq",
+          "in"
+        ],
+        "customer.consumer_unit": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "faturamento.receita",
       "required_capability_ids": [
         "faturamento.receita",
@@ -285,6 +445,7 @@
         "month",
         "year"
       ],
+      "max_window_days": 1830,
       "aggregation": "ratio_of_sums",
       "unit": "R$/kWh",
       "unit_kind": "currency",
@@ -324,6 +485,12 @@
             "tariff.subgroup": "subgrupo_tarifario",
             "tariff.flag": "bandeira_tarifaria",
             "generation.distributed": "possui_gd"
+          },
+          "decimal_shapes": {
+            "receita_base_comparavel_reais": [
+              38,
+              2
+            ]
           }
         },
         {
@@ -348,6 +515,12 @@
             "geography.municipality": "municipio",
             "geography.neighborhood": "bairro",
             "customer.consumption_class": "classe_consumo"
+          },
+          "decimal_shapes": {
+            "receita_base_comparavel_reais": [
+              38,
+              2
+            ]
           }
         },
         {
@@ -368,12 +541,46 @@
           ],
           "dimension_columns": {
             "customer.consumer_unit": "id_uc"
+          },
+          "decimal_shapes": {
+            "receita_base_comparavel_reais": [
+              30,
+              2
+            ]
           }
         }
       ]
     },
     {
       "metric_id": "energy.average_consumption_per_uc",
+      "label": "Consumo médio por UC com leitura no mês",
+      "definition": "Razão entre o consumo medido e a soma das UCs com leitura de cada mês do recorte.",
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "geography.neighborhood": [
+          "eq",
+          "in"
+        ],
+        "customer.consumption_class": [
+          "eq",
+          "in"
+        ],
+        "tariff.subgroup": [
+          "eq",
+          "in"
+        ],
+        "tariff.flag": [
+          "eq",
+          "in"
+        ],
+        "generation.distributed": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "faturamento.receita",
       "required_capability_ids": [
         "consumo.mensal_uc"
@@ -383,6 +590,7 @@
         "month",
         "year"
       ],
+      "max_window_days": 1830,
       "aggregation": "ratio_of_sums",
       "unit": "kWh por UC com leitura no mês",
       "unit_kind": "energy",
@@ -422,7 +630,8 @@
             "tariff.subgroup": "subgrupo_tarifario",
             "tariff.flag": "bandeira_tarifaria",
             "generation.distributed": "possui_gd"
-          }
+          },
+          "decimal_shapes": {}
         },
         {
           "capability_id": "faturamento.receita_bairro",
@@ -446,12 +655,25 @@
             "geography.municipality": "municipio",
             "geography.neighborhood": "bairro",
             "customer.consumption_class": "classe_consumo"
-          }
+          },
+          "decimal_shapes": {}
         }
       ]
     },
     {
       "metric_id": "network.equivalent_interruption_duration",
+      "label": "Duração equivalente de interrupção (DEC)",
+      "definition": "Horas de interrupção por UC do alimentador no mês; indicador simplificado com cadastro atual, sem agregação entre meses ou alimentadores.",
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "network.feeder": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "interrupcoes.dec_fec",
       "required_capability_ids": [
         "interrupcoes.dec_fec"
@@ -460,6 +682,7 @@
       "granularities": [
         "month"
       ],
+      "max_window_days": 1830,
       "aggregation": "key_grain_read",
       "unit": "horas por UC",
       "unit_kind": "time",
@@ -493,12 +716,25 @@
           "dimension_columns": {
             "network.feeder": "id_alimentador",
             "geography.municipality": "municipio"
-          }
+          },
+          "decimal_shapes": {}
         }
       ]
     },
     {
       "metric_id": "network.equivalent_interruption_frequency",
+      "label": "Frequência equivalente de interrupção (FEC)",
+      "definition": "Pares UC–ocorrência por UC do alimentador no mês; indicador simplificado com cadastro atual, sem agregação entre meses ou alimentadores.",
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "network.feeder": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "interrupcoes.dec_fec",
       "required_capability_ids": [
         "interrupcoes.dec_fec"
@@ -507,6 +743,7 @@
       "granularities": [
         "month"
       ],
+      "max_window_days": 1830,
       "aggregation": "key_grain_read",
       "unit": "interrupções por UC",
       "unit_kind": "count",
@@ -540,12 +777,21 @@
           "dimension_columns": {
             "network.feeder": "id_alimentador",
             "geography.municipality": "municipio"
-          }
+          },
+          "decimal_shapes": {}
         }
       ]
     },
     {
       "metric_id": "service.attendance",
+      "label": "Chamados por abertura",
+      "definition": "Contagem de protocolos abertos no recorte em UTC, sem contar tratativas; zero exige cobertura certificada.",
+      "dimension_operators": {
+        "customer.consumer_unit": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "atendimento.mensal",
       "required_capability_ids": [
         "atendimento.mensal"
@@ -555,6 +801,7 @@
         "month",
         "year"
       ],
+      "max_window_days": 1830,
       "aggregation": "count_non_null",
       "unit": "protocolos",
       "unit_kind": "count",
@@ -582,12 +829,21 @@
           "nullable_columns": [],
           "dimension_columns": {
             "customer.consumer_unit": "id_uc"
-          }
+          },
+          "decimal_shapes": {}
         }
       ]
     },
     {
       "metric_id": "service.satisfaction",
+      "label": "Satisfação dos chamados por abertura",
+      "definition": "Média das notas individuais válidas dos protocolos abertos no recorte em UTC; zero é válido e ausência não é nota.",
+      "dimension_operators": {
+        "customer.consumer_unit": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "atendimento.mensal",
       "required_capability_ids": [
         "atendimento.mensal"
@@ -597,6 +853,7 @@
         "month",
         "year"
       ],
+      "max_window_days": 1830,
       "aggregation": "average_non_null",
       "unit": "pontos",
       "unit_kind": "score",
@@ -626,12 +883,21 @@
           ],
           "dimension_columns": {
             "customer.consumer_unit": "id_uc"
-          }
+          },
+          "decimal_shapes": {}
         }
       ]
     },
     {
       "metric_id": "service.accumulated_attendance",
+      "label": "Chamados no histórico acumulado",
+      "definition": "Total de protocolos do histórico publicado, sem intervalo de datas conhecido ou certificação de completude histórica.",
+      "dimension_operators": {
+        "customer.consumer_unit": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "atendimento.uc_acumulado",
       "required_capability_ids": [
         "atendimento.uc_acumulado"
@@ -643,6 +909,7 @@
         "month",
         "year"
       ],
+      "max_window_days": null,
       "aggregation": "sum",
       "unit": "protocolos",
       "unit_kind": "count",
@@ -672,12 +939,21 @@
           ],
           "dimension_columns": {
             "customer.consumer_unit": "id_uc"
-          }
+          },
+          "decimal_shapes": {}
         }
       ]
     },
     {
       "metric_id": "service.accumulated_satisfaction",
+      "label": "Satisfação no histórico acumulado",
+      "definition": "Média das notas individuais válidas do histórico publicado, sem período conhecido; não é média das médias por UC.",
+      "dimension_operators": {
+        "customer.consumer_unit": [
+          "eq",
+          "in"
+        ]
+      },
       "capability_id": "atendimento.uc_acumulado",
       "required_capability_ids": [
         "atendimento.uc_acumulado"
@@ -689,6 +965,7 @@
         "month",
         "year"
       ],
+      "max_window_days": null,
       "aggregation": "average_non_null",
       "unit": "pontos",
       "unit_kind": "score",
@@ -718,7 +995,8 @@
           ],
           "dimension_columns": {
             "customer.consumer_unit": "id_uc"
-          }
+          },
+          "decimal_shapes": {}
         }
       ]
     }
@@ -729,35 +1007,35 @@
       "reasons": [
         "definition_pending"
       ],
-      "note": "Falta tarifa homologada e método aprovado de decomposição preço × volume."
+      "note": "Fonte e método de preço observado disponíveis; mapeamento consumidor das duas janelas, estados e controles de reconciliação ainda não liberado."
     },
     {
       "capability_id": "faturamento.faturas_em_aberto",
       "reasons": [
         "definition_pending"
       ],
-      "note": "Fonte faturas_uc disponível; semântica/controles consumidores não liberam saldo contábil."
+      "note": "Fonte faturas_uc disponível; distinguir valor nominal declarado e saldo indicativo. Controles consumidores ainda não mapeados; a fonte não prova saldo contábil."
     },
     {
       "capability_id": "consumo.variacao_uc",
       "reasons": [
         "definition_pending"
       ],
-      "note": "Janela e mínimo de meses da pergunta abertos com Dados; P1/P2 fixos na Gold."
+      "note": "Variação publicada usa janelas fixas da Gold; falta mapear sua seleção e limitações no consumidor, sem comparação arbitrária."
     },
     {
       "capability_id": "interrupcoes.uc_acumulado",
       "reasons": [
         "definition_pending"
       ],
-      "note": "Só total acumulado por UC, sem mês e sem controle independente."
+      "note": "Fontes detalhada e acumulada disponíveis; contagem e duração por UC ainda sem mapeamento consumidor e controles próprios."
     },
     {
       "capability_id": "apoio.fila_inspecao",
       "reasons": [
         "definition_pending"
       ],
-      "note": "Mapeamento dos rótulos de resultado de inspeção pendente (issue #39)."
+      "note": "Fila com motivo e prioridade disponível; seleção, rótulos e controles de uso pela IA ainda não mapeados."
     },
     {
       "capability_id": "apoio.medidor_uc",

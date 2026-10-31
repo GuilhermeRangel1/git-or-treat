@@ -189,7 +189,7 @@ class ReadPlanValidator:
         ):
             raise PlanCapabilityUnavailable("Métrica, unidade ou dimensão indisponível.")
         _validate_metric_period(metric, plan.window.phrase, self._profile, plan.window.granularity)
-        self._validate_window(plan, metric.granularities)
+        self._validate_window(plan, metric.granularities, metric.max_window_days)
 
         dimensions = {item.id: item for item in self._profile.dimensions}
         for plan_filter in plan.filters:
@@ -211,9 +211,18 @@ class ReadPlanValidator:
         return plan
 
     def _validate_window(
-        self, plan: LogicalReadPlan, allowed_grains: tuple[CatalogGranularity, ...]
+        self,
+        plan: LogicalReadPlan,
+        allowed_grains: tuple[CatalogGranularity, ...],
+        metric_max_window_days: int | None,
     ) -> None:
         window = plan.window
+        max_window_days = min(
+            self._max_window_days,
+            metric_max_window_days
+            if metric_max_window_days is not None
+            else self._max_window_days,
+        )
         if window.granularity is not None and window.granularity not in allowed_grains:
             raise PlanCapabilityUnavailable("Granularidade indisponível para a métrica.")
         if window.kind is WindowKind.CATALOG_PHRASE:
@@ -224,7 +233,7 @@ class ReadPlanValidator:
         elif (
             window.start is None
             or window.end is None
-            or (window.end - window.start).days > self._max_window_days
+            or (window.end - window.start).days > max_window_days
         ):
             raise PlanCapabilityUnavailable("Janela solicitada excede o limite.")
 

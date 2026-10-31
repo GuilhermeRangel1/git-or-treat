@@ -30,7 +30,7 @@ _CURRENT_REGISTRY = (
     "vigência histórica."
 )
 _GD_PRESENCE = "GD indica presença de cadastro de geração distribuída, sem vigência nem injeção."
-_NOT_HOMOLOGATED = "Dados da Gold v2 ainda não homologados; uso em preparação."
+_PREPARATION_ONLY = "Catálogo preparado para Gold v2; consulta integrada ainda não habilitada."
 
 
 def _field(name: str, role: str, value_type: str, dimension_id: str | None = None) -> dict:
@@ -144,6 +144,81 @@ _COMMERCIAL = (
 _COMMERCIAL_WITH_UC = (*_COMMERCIAL, "customer.consumer_unit")
 _CONTINUITY = ("network.feeder", "geography.municipality")
 _MONTH_YEAR = ("month", "year")
+GOLD_MAX_WINDOW_DAYS = 366 * 5
+
+# Metadados de negócio versionados com o perfil; o Backend recebe uma cópia verificada.
+_BUSINESS_METRICS = {
+    "billing.revenue": (
+        "Receita faturada",
+        "Total das faturas do recorte, incluindo faturas sem leitura; não representa valor pago.",
+    ),
+    "energy.consumption": (
+        "Consumo medido",
+        (
+            "Total medido nas leituras do recorte, incluindo leituras sem fatura; "
+            "não é energia faturada."
+        ),
+    ),
+    "billing.average_ticket": (
+        "Ticket médio por UC faturada no mês",
+        "Razão entre a soma da receita faturada e a soma das UCs faturadas de cada mês do recorte.",
+    ),
+    "billing.effective_tariff": (
+        "Preço médio observado por kWh",
+        (
+            "Receita dividida pelo consumo da mesma base com fatura e leituras "
+            "integralmente válidas; não é tarifa homologada."
+        ),
+    ),
+    "energy.average_consumption_per_uc": (
+        "Consumo médio por UC com leitura no mês",
+        "Razão entre o consumo medido e a soma das UCs com leitura de cada mês do recorte.",
+    ),
+    "network.equivalent_interruption_duration": (
+        "Duração equivalente de interrupção (DEC)",
+        (
+            "Horas de interrupção por UC do alimentador no mês; indicador "
+            "simplificado com cadastro atual, sem agregação entre meses ou "
+            "alimentadores."
+        ),
+    ),
+    "network.equivalent_interruption_frequency": (
+        "Frequência equivalente de interrupção (FEC)",
+        (
+            "Pares UC–ocorrência por UC do alimentador no mês; indicador "
+            "simplificado com cadastro atual, sem agregação entre meses ou "
+            "alimentadores."
+        ),
+    ),
+    "service.attendance": (
+        "Chamados por abertura",
+        (
+            "Contagem de protocolos abertos no recorte em UTC, sem contar "
+            "tratativas; zero exige cobertura certificada."
+        ),
+    ),
+    "service.satisfaction": (
+        "Satisfação dos chamados por abertura",
+        (
+            "Média das notas individuais válidas dos protocolos abertos no recorte "
+            "em UTC; zero é válido e ausência não é nota."
+        ),
+    ),
+    "service.accumulated_attendance": (
+        "Chamados no histórico acumulado",
+        (
+            "Total de protocolos do histórico publicado, sem intervalo de datas "
+            "conhecido ou certificação de completude histórica."
+        ),
+    ),
+    "service.accumulated_satisfaction": (
+        "Satisfação no histórico acumulado",
+        (
+            "Média das notas individuais válidas do histórico publicado, sem "
+            "período conhecido; não é média das médias por UC."
+        ),
+    ),
+}
 
 
 def _metric(
@@ -160,13 +235,16 @@ def _metric(
     return {
         "id": id_,
         "domain_id": domain_id,
+        "label": _BUSINESS_METRICS[id_][0],
+        "definition": _BUSINESS_METRICS[id_][1],
         "aliases": aliases,
         "unit": unit,
         "granularities": granularities,
+        "max_window_days": None if accumulated else GOLD_MAX_WINDOW_DAYS,
         "dimension_ids": dimension_ids,
         "sensitivity": "internal",
         "evidence_fields": _evidence_fields(dimension_ids),
-        "limitation_texts": (*limitations, _NOT_HOMOLOGATED),
+        "limitation_texts": (*limitations, _PREPARATION_ONLY),
         "accepted_unit_kinds": unit_kinds,
         "accumulated_period_phrases": ("histórico acumulado",) if accumulated else (),
     }

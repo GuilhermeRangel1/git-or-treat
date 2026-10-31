@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
 from app.profiles.grid360_gold_mapping import GRID360_GOLD_MAPPING
 
 
@@ -25,3 +26,16 @@ def test_backend_artifact_matches_mapping_and_is_loadable_without_genai_imports(
         text=True,
     )
     assert result.stdout.strip() == "11"
+
+
+def test_business_metadata_matches_logical_profile_without_physical_names():
+    artifact = Path(__file__).resolve().parents[2] / "backend/app/catalogs/gold_v2.json"
+    data = json.loads(artifact.read_text(encoding="utf-8"))
+    profile = {m.id: m for m in GRID360_GOLD_PROFILE.metrics}
+    for metric in data["metrics"]:
+        logical = profile[metric["metric_id"]]
+        assert (metric["label"], metric["definition"], metric["unit"]) == (
+            logical.label, logical.definition, logical.unit,
+        )
+        assert metric["label"] and metric["definition"]
+        assert all(s["table"] not in metric["definition"] for s in metric["sources"])

@@ -14,13 +14,15 @@ A referência atual é [Gold CSV v2](contracts/gold-csv-v2.md), com quinze tabel
 
 As fontes são únicas por consulta; dimensões incompatíveis não provocam join de fatos ou descarte silencioso de filtros. O mapeamento não executa SQL. Cada métrica declara suas dependências de prontidão, além da capacidade da fonte selecionada: uma tabela contendo receita e consumo não autoriza automaticamente ambos os domínios. Preço observado exige prontidão de faturamento e consumo. Dependências inexistentes ou não aprovadas são rejeitadas pelo validador.
 
-Os sete indicadores desta fatia são comprovados pelo planejador público e pela seleção do mapeamento contra o schema Backend. DEC/FEC sem filtro de alimentador são reconhecidos no planejamento, mas a seleção recusa a fonte; reconhecer o indicador não autoriza a consulta. Nomes completos como “ticket médio” e “consumo médio por UC” não são confundidos com pedidos adicionais de média ou agrupamento; qualificadores externos continuam exigindo esclarecimento quando não suportados. Arredondamento de apresentação permanece uma proposta técnica, sem homologação implícita de negócio.
+Os onze indicadores desta fatia são comprovados pelo planejador público e pela seleção do mapeamento contra o schema Backend. DEC/FEC sem filtro de alimentador são reconhecidos no planejamento, mas a seleção recusa a fonte; reconhecer o indicador não autoriza a consulta. Nomes completos como “ticket médio” e “consumo médio por UC” não são confundidos com pedidos adicionais de média ou agrupamento; qualificadores externos continuam exigindo esclarecimento quando não suportados. Arredondamento half-even ocorre apenas na apresentação, com precisão declarada por métrica, sem mudar os controles. Dados registrou ausência de objeção ao arredondamento de apresentação no [PR #73](https://github.com/GuilhermeRangel1/git-or-treat/pull/73#issuecomment-6508822736).
 
 ## Compatibilidade e fonte física
 
 Os módulos `grid360_gold_v1.py` e `grid360_gold_mapping_v1.py` conservam explicitamente os contratos históricos e sua regressão. O arquivo `dictionary_gold.toml` do PR #46 continua legado; não deve ser carregado como se representasse quinze tabelas v2. O [documento histórico](gold-catalog-v1.md) conserva a fotografia anterior e suas pendências; ele não descreve o estado corrente.
 
-Os testes atuais confrontam o validador público com as quinze tabelas reais de `backend/app/models/gold_v2.py`, em processo separado, sem importar Backend no runtime GenAI. Renomear coluna, trocar tipo, grão, período ou versão deve falhar. São metadados de schema, sem registros do lote.
+Os testes atuais confrontam o validador público com as quinze tabelas reais de `backend/app/models/gold_v2.py`, em processo separado, sem importar Backend no runtime GenAI. Renomear coluna, trocar tipo, grão, período ou versão deve falhar. Dimensões e competências precisam continuar texto; a abertura usada para mês deve continuar timestamp com fuso; as colunas monetárias mapeadas preservam precisão e escala decimais declaradas. São metadados de schema, sem registros do lote.
+
+Os limites de calendário também são declarados em cada métrica: consultas delimitadas aceitam até 1.830 dias, teto que já era aplicado pelo planejador; DEC/FEC continuam mensais e os acumulados não aceitam datas. A política global do planejador pode reduzir esse teto, nunca ampliá-lo. Cobertura do lote continua decidindo quais períodos estão de fato disponíveis.
 
 O planejador público `core.question.plan` é exercitado com perfil Gold, envelope de publicação v2 e escopo controlado. Gera IDs, unidades e fonte lógica sem consultar banco ou chamar evidência. Isso comprova planejamento, não execução da Gold. O frontend não é dependência dessa prova.
 
@@ -41,17 +43,36 @@ Nesta adaptação, atendimento admite apenas filtro por UC; outros recortes não
 
 ## Disponibilização ao Backend
 
-O artefato interno `backend/app/catalogs/gold_v2.json` contém as onze métricas e suas regras físicas versionadas. `app.services.gold_catalog.load_gold_catalog()` o carrega no Backend e recusa versão, tabela, coluna, tipo, grão, projeção temporal, fórmula malformada, nulidade ou dependência incompatíveis com os modelos instalados. Soma/média de texto são recusadas mesmo quando o tipo declarado coincide com a coluna; DEC/FEC só permitem granularidade mensal.
+O artefato interno `backend/app/catalogs/gold_v2.json` contém as onze métricas e suas regras físicas versionadas. `app.services.gold_catalog.load_gold_catalog()` o carrega no Backend e recusa versão, tabela, coluna, família ou precisão/escala física, tipo de dimensão e competência, fuso da projeção temporal, grão, limite temporal, fórmula malformada, nulidade ou dependência incompatíveis com os modelos instalados. Soma/média de texto são recusadas mesmo quando o tipo declarado coincide com a coluna; DEC/FEC só permitem granularidade mensal.
 
-`select_catalog_source()` escolhe uma única fonte pelos filtros e capacidades fornecidos e confere o modo temporal. Não executa SQL, não comprova autorização dos valores, não resolve períodos relativos e não certifica controles: o coordenador/executor futuro ainda precisa revalidar plano completo, escopo, publicação e prontidão do recorte. O consumidor deve usar apenas um catálogo validado pelo carregador. Não há novo endpoint nem exposição desse artefato ao portal/modelo.
+Cada métrica também publica `label`, `definition` e `dimension_operators`. Os rótulos e as definições vêm do perfil lógico, em português e sem nomes de tabela. Os operadores são igualdade e pertinência (`eq`/`in`) apenas nas dimensões declaradas; isso não autoriza valores nem pessoas. API, evidência e portal poderão consumir os mesmos metadados nos respectivos adaptadores, sem reconstruir rótulos a partir de identificadores físicos. O teste entre serviços confronta esses campos com o perfil. A versão `gold-catalog-v2` cobre os metadados físicos e de negócio; não há endpoint novo nesta preparação.
 
-A declaração de autoria nesta etapa continua em `grid360_gold_mapping.py`; um teste compara exatamente seu resultado com o artefato Backend e carrega este em outro processo, impedindo versões divergentes entre serviços. Regeneração a partir de `ai-agent/`:
+Compatibilidade de schema não homologa outra semântica. O validador GenAI confronta os candidatos com a definição versionada do perfil/mapeamento; o carregador Backend confronta o payload candidato com o artefato distribuído. As seleções do Backend revalidam o catálogo recebido, pois mapas internos do Pydantic continuam mutáveis mesmo com modelos `frozen`; a checagem semântica GenAI usa assinaturas capturadas da definição aprovada, não os mesmos mapas mutáveis usados por consumidores. Uma coluna numérica existente não pode substituir o denominador da base comparável, nem uma soma substituir a média de notas. Alteração do catálogo exige editar e revisar sua definição versionada, regenerar o artefato e conferir ambos os consumidores e as provas independentes de fórmula. Estes controles não verificam integridade de arquivos modificados no servidor nem executam reconciliação dos dados.
+
+`select_catalog_source()` escolhe uma única fonte pelos filtros e capacidades fornecidos, confere o modo temporal e rejeita janelas delimitadas acima do teto da métrica; revalida o objeto recebido contra o artefato versionado antes de selecionar. Não executa SQL, não comprova autorização dos valores, não resolve períodos relativos e não certifica controles: o coordenador/executor futuro ainda precisa revalidar plano completo, escopo, publicação e prontidão do recorte. Não há novo endpoint nem exposição desse artefato ao portal/modelo.
+
+A declaração física nesta etapa continua em `grid360_gold_mapping.py`; os rótulos/definições/operadores são derivados de `grid360_gold.py`. Um teste compara exatamente o resultado com o artefato Backend e carrega este em outro processo, impedindo versões divergentes entre serviços. Regeneração a partir de `ai-agent/`:
 
 ```powershell
 python -c "from pathlib import Path; from app.profiles.grid360_gold_mapping import GRID360_GOLD_MAPPING as m; Path('../backend/app/catalogs/gold_v2.json').write_text(m.model_dump_json(indent=2)+'\n', encoding='utf-8')"
 ```
 
 O núcleo de planejamento não importa o mapeamento físico nem o Backend. Nenhum relacionamento entre fatos está autorizado; as chaves declaradas são as chaves primárias das fontes. Não há conversão de unidade implícita. Fórmulas/nomes físicos não são instruções de prompt.
+
+## Cobertura do contrato de catálogo
+
+As definições atuais são sustentadas por [dicionário Gold](dicionario_gold.md) e [contrato CSV v2](contracts/gold-csv-v2.md), que substituem as populações da preparação v1. As provas de coerência exercitam `core.question.plan`, `validate_mapping()` e `load_gold_catalog()`, nas fronteiras aprovadas.
+
+| Critério | Evidência nesta entrega |
+| --- | --- |
+| Fórmula, fonte, unidade e população | Soma, contagem, média de notas, razão de somas e leitura DEC/FEC declaradas por métrica; exemplos independentes para os três denominadores de razões. |
+| Grão, tempo e cobertura | Chaves reais confrontadas com modelos v2; abertura UTC, teto de 1.830 dias para datas, DEC/FEC mensais e ausência explícita de calendário no acumulado; dependências C14/C15 e prontidão por domínio. Resolução de frases e janelas concretas pertence ao GENAI-04. |
+| Dimensões, operadores e nulidade | `dimension_operators` segue o perfil; fonte única cobre todos os filtros; zero certificado e nulos não são confundidos. |
+| Relações, sensibilidade e conversão | Sem joins autorizados, sem conversão implícita e sem tabelas pessoais ou texto livre; catálogo fechado de medidas e dimensões. |
+| Rótulos e compatibilidade entre serviços | Onze nomes/definições de negócio derivados do perfil e distribuídos com o artefato; teste entre processos e rejeição de drift físico/semântico. |
+| Precisão e agregação | Half-even só na apresentação; razões preservam população, DEC/FEC não agregam e satisfação usa protocolos individuais. |
+
+As capacidades fora das onze métricas conservam motivos específicos. A decomposição de preço observado já tem fonte/método na Gold; sua indisponibilidade na IA significa que ainda falta mapear duas janelas, estados e controles consumidores, não que seja necessária uma tarifa homologada. Faturas distinguem valor nominal declarado de saldo indicativo, variação usa janelas fixas, medidor/fila ainda exigem seleção e controles consumidores, e a média histórica de recuperação não equivale à estimativa individual de uma UC. Nenhuma dessas fontes é anunciada como ausente do schema v2.
 
 ## Limites e próximas integrações
 

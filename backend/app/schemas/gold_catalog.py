@@ -29,14 +29,19 @@ class CatalogSource(CatalogModel):
     denominator_column: str | None
     nullable_columns: tuple[str, ...]
     dimension_columns: dict[LogicalIdentifier, str]
+    decimal_shapes: dict[str, tuple[int, int]]
 
 
 class CatalogMetric(CatalogModel):
     metric_id: LogicalIdentifier
+    label: str = Field(min_length=1, max_length=300)
+    definition: str = Field(min_length=1, max_length=300)
+    dimension_operators: dict[LogicalIdentifier, tuple[Literal["eq", "in"], ...]]
     capability_id: LogicalIdentifier
     required_capability_ids: tuple[LogicalIdentifier, ...] = Field(min_length=1)
     accumulated_period_phrases: tuple[str, ...]
     granularities: tuple[Literal["month", "year"], ...] = Field(min_length=1)
+    max_window_days: int | None = Field(ge=1)
     aggregation: Literal[
         "sum", "ratio_of_sums", "key_grain_read", "count_non_null", "average_non_null"
     ]

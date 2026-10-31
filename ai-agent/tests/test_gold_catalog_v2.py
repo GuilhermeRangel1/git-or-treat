@@ -8,8 +8,12 @@ from pathlib import Path
 
 import pytest
 
+from app.agent.access import ReadAccessPolicy
 from app.agent.composition import compose_core
 from app.agent.execution import ExecutionController
+from app.agent.interpreter import QuestionInterpreter
+from app.agent.read_plan import PlanCapabilityUnavailable, ReadPlanBuilder, ReadPlanValidator
+from app.api.access import demo_access_context
 from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
 from app.profiles.grid360_gold_mapping import (
     GRID360_GOLD_MAPPING,
@@ -19,6 +23,7 @@ from app.profiles.grid360_gold_mapping import (
 )
 from app.readiness import V2_CAPABILITY_REQUIREMENTS
 from app.schemas.internal import AccessScope, QuestionPlanRequest
+from app.schemas.read_plan import ReadWindow, WindowKind
 
 from .conftest import FakeModelAdapter
 
@@ -32,8 +37,9 @@ def kind(t):
  if isinstance(t,Float):return 'double'
  if isinstance(t,Numeric):return f'decimal({t.precision},{t.scale})'
  for c,n in ((BigInteger,'bigint'),(Integer,'integer'),
-             (DateTime,'timestamp'),(Date,'date'),(Boolean,'boolean')):
+             (Date,'date'),(Boolean,'boolean')):
   if isinstance(t,c):return n
+ if isinstance(t,DateTime):return 'timestamp_utc' if t.timezone else 'timestamp'
  return 'string'
 tables={n:{'columns':{c.name:kind(c.type) for c in t.c},
  'key':[c.name for c in t.primary_key],
@@ -61,6 +67,42 @@ def test_current_mapping_matches_actual_fifteen_table_backend_schema():
         dictionary=schema,
         requirements=V2_CAPABILITY_REQUIREMENTS,
     )
+
+
+def test_every_metric_declares_its_own_bounded_or_accumulated_window():
+    for logical in GRID360_GOLD_PROFILE.metrics:
+        mapped = GRID360_GOLD_MAPPING.metric(logical.id)
+        assert mapped.max_window_days == logical.max_window_days
+        if logical.accumulated_period_phrases:
+            assert logical.max_window_days is None
+        else:
+            assert logical.max_window_days == 366 * 5
+
+
+def test_gold_plan_validator_enforces_metric_window_cap_even_if_global_cap_is_higher():
+    profile = GRID360_GOLD_PROFILE
+    source_id = "gold.local"
+    policy = ReadAccessPolicy(profile, source_id)
+    validator = ReadPlanValidator(profile, source_id, policy, max_window_days=366 * 10)
+    context = demo_access_context(profile, "d" * 32, source_id=source_id)
+    intent = QuestionInterpreter(profile).interpret(
+        "Qual foi a receita no último trimestre?"
+    ).intent
+    assert intent is not None
+    proposed = ReadPlanBuilder(profile, source_id).build(intent)
+    long_window = proposed.model_copy(
+        update={
+            "window": ReadWindow(
+                kind=WindowKind.BOUNDED,
+                start="2000-01-01",
+                end="2005-01-05",
+                granularity="month",
+            )
+        }
+    )
+
+    with pytest.raises(PlanCapabilityUnavailable, match="limite"):
+        validator.approve(long_window, context)
 
 
 def test_tariff_uses_only_comparable_population_and_preserves_real_case():
@@ -199,7 +241,21 @@ def test_existing_core_plans_with_current_gold_profile_without_querying(question
     assert selected.table.value in backend_schema().tables
 
 
-@pytest.mark.parametrize("mutation", ["version", "column", "type", "grain", "period"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "version",
+        "column",
+        "type",
+        "grain",
+        "period",
+        "dimension_type",
+        "period_type",
+        "decimal_shape",
+        "timestamp_timezone",
+        "sensitive_column",
+    ],
+)
 def test_v2_mapping_rejects_backend_schema_drift(mutation):
     schema = backend_schema().model_dump()
     table = schema["tables"]["indicadores_dec_fec"]
@@ -213,6 +269,20 @@ def test_v2_mapping_rejects_backend_schema_drift(mutation):
         table["key"] = ("competencia",)
     if mutation == "period":
         table["period_column"] = None
+    if mutation == "dimension_type":
+        table["columns"]["municipio"] = "double"
+    if mutation == "period_type":
+        table["columns"]["competencia"] = "bigint"
+    if mutation == "decimal_shape":
+        schema["tables"]["diagnostico_receita"]["columns"][
+            "receita_total_reais"
+        ] = "decimal(38,0)"
+    if mutation == "timestamp_timezone":
+        schema["tables"]["atendimentos_uc"]["columns"][
+            "data_abertura"
+        ] = "timestamp"
+    if mutation == "sensitive_column":
+        schema["sensitive_columns"] = ["DEC"]
     from app.profiles.grid360_gold_mapping import CatalogMappingError
 
     with pytest.raises(CatalogMappingError):
@@ -247,3 +317,49 @@ def test_mapping_rejects_unknown_readiness_dependency():
             profile=GRID360_GOLD_PROFILE,
             dictionary=backend_schema(),
         )
+
+
+@pytest.mark.parametrize("mutation", ["unit", "unit_kind", "numerator", "denominator"])
+def test_v2_validator_rejects_semantic_changes_with_physically_valid_columns(mutation):
+    from app.profiles.grid360_gold_mapping import CatalogMappingError
+
+    data = GRID360_GOLD_MAPPING.model_dump(mode="json")
+    metric = next(m for m in data["metrics"] if m["metric_id"] == "billing.effective_tariff")
+    if mutation == "unit":
+        metric["unit"] = "kWh"
+    elif mutation == "unit_kind":
+        metric["unit_kind"] = "energy"
+    elif mutation == "numerator":
+        metric["sources"][0]["numerator_column"] = "receita_total_reais"
+    else:
+        metric["sources"][0]["denominator_column"] = "consumo_total_kwh"
+    with pytest.raises(CatalogMappingError):
+        validate_mapping(
+            type(GRID360_GOLD_MAPPING).model_validate(data),
+            profile=GRID360_GOLD_PROFILE,
+            dictionary=backend_schema(),
+        )
+
+
+def test_mapping_validator_uses_immutable_signature_after_nested_mutation():
+    from app.profiles.grid360_gold_mapping import CatalogMappingError
+
+    source = GRID360_GOLD_MAPPING.metric("network.equivalent_interruption_duration").sources[0]
+    dimension_id = "network.feeder"
+    original = source.dimension_columns[dimension_id]
+    try:
+        source.dimension_columns[dimension_id] = "municipio"
+        with pytest.raises(CatalogMappingError, match="definição semântica versionada"):
+            validate_mapping(
+                GRID360_GOLD_MAPPING,
+                profile=GRID360_GOLD_PROFILE,
+                dictionary=backend_schema(),
+            )
+        with pytest.raises(CatalogMappingError, match="definição semântica versionada"):
+            select_source(
+                GRID360_GOLD_MAPPING.metric("network.equivalent_interruption_duration"),
+                {dimension_id},
+                {"interrupcoes.dec_fec"},
+            )
+    finally:
+        source.dimension_columns[dimension_id] = original

@@ -1,6 +1,5 @@
 """Carrega e confere metadados locais para o futuro executor, sem SQL ou imports GenAI."""
 
-import json
 from pathlib import Path
 
 from sqlalchemy import BigInteger, DateTime, Float, Numeric, Text
@@ -29,13 +28,12 @@ _TYPES = {"bigint": BigInteger, "double": Float, "decimal": Numeric, "string": T
 
 def load_gold_catalog(payload: dict | None = None) -> GoldCatalog:
     """Falha antes de disponibilizar um catálogo incompatível com os modelos instalados."""
-    if payload is None:
-        payload = json.loads(
-            (Path(__file__).parents[1] / "catalogs" / "gold_v2.json").read_text(
-                encoding="utf-8"
-            )
+    approved = GoldCatalog.model_validate_json(
+        (Path(__file__).parents[1] / "catalogs" / "gold_v2.json").read_text(
+            encoding="utf-8"
         )
-    catalog = GoldCatalog.model_validate(payload)
+    )
+    catalog = approved if payload is None else GoldCatalog.model_validate(payload)
     if len({m.metric_id for m in catalog.metrics}) != len(catalog.metrics):
         raise ValueError("Métrica duplicada no catálogo.")
     for metric in catalog.metrics:
@@ -54,10 +52,18 @@ def load_gold_catalog(payload: dict | None = None) -> GoldCatalog:
             raise ValueError("DEC/FEC exige granularidade mensal.")
         if metric.null_rule != _NULL_RULES[metric.aggregation]:
             raise ValueError("Regra de ausência inconsistente.")
+        if bool(metric.accumulated_period_phrases) != (metric.max_window_days is None):
+            raise ValueError("Limite de janela inconsistente com o modo temporal.")
         if metric.aggregation == "key_grain_read" and not metric.required_dimension_ids:
             raise ValueError("Leitura por chave exige filtro obrigatório.")
         if len({s.table for s in metric.sources}) != len(metric.sources):
             raise ValueError("Fonte duplicada.")
+        dimensions = {d for s in metric.sources for d in s.dimension_columns}
+        if set(metric.dimension_operators) != dimensions or any(
+            not operators or len(set(operators)) != len(operators)
+            for operators in metric.dimension_operators.values()
+        ):
+            raise ValueError("Operadores de filtro incompatíveis com as dimensões.")
         for source in metric.sources:
             if source.table not in _CAPABILITY_TABLES.get(source.capability_id, set()):
                 raise ValueError("Tabela fora da capacidade autorizada.")
@@ -91,12 +97,24 @@ def load_gold_catalog(payload: dict | None = None) -> GoldCatalog:
                     source.capability_id != "atendimento.mensal"
                     or source.temporal_column != "data_abertura"
                     or not isinstance(table.c[source.temporal_column].type, DateTime)
+                    or not table.c[source.temporal_column].type.timezone
                 ):
                     raise ValueError("Projeção temporal incompatível.")
             elif source.temporal_column != (
                 "competencia" if "competencia" in table.c else None
             ):
                 raise ValueError("Coluna temporal incompatível.")
+            if (
+                source.temporal_transform == "identity"
+                and source.temporal_column is not None
+                and not isinstance(table.c[source.temporal_column].type, Text)
+            ):
+                raise ValueError("Competência deve ser texto no schema Gold v2.")
+            if any(
+                not isinstance(table.c[column].type, Text)
+                for column in source.dimension_columns.values()
+            ):
+                raise ValueError("Dimensão deve ser texto no schema Gold v2.")
             ratio = metric.aggregation == "ratio_of_sums"
             if ratio:
                 if (
@@ -123,6 +141,22 @@ def load_gold_catalog(payload: dict | None = None) -> GoldCatalog:
             for column, kind in pairs:
                 if kind is None or not isinstance(table.c[column].type, _TYPES[kind]):
                     raise ValueError("Tipo incompatível.")
+            decimal_columns = {
+                column for column, kind in pairs if kind == "decimal" and column is not None
+            }
+            if set(source.decimal_shapes) != decimal_columns:
+                raise ValueError("Precisão decimal incompatível com as medidas.")
+            for column, shape in source.decimal_shapes.items():
+                physical_type = table.c[column].type
+                if (
+                    not isinstance(physical_type, Numeric)
+                    or (physical_type.precision, physical_type.scale) != shape
+                ):
+                    raise ValueError("Precisão decimal diverge do contrato Gold v2.")
+    # Compatibilidade física não aprova outra fórmula/população sob a mesma versão.
+    # Mudanças de negócio devem entrar no artefato versionado e em sua revisão.
+    if catalog != approved:
+        raise ValueError("Catálogo diverge da definição semântica versionada.")
     return catalog
 
 
@@ -134,6 +168,9 @@ def select_catalog_source(
     window: dict,
 ):
     """Seleciona metadados; autorização de valores/lote e execução pertencem ao coordenador."""
+    # Os mapas Pydantic são mutáveis apesar de ``frozen=True``; revalida o snapshot recebido
+    # antes de qualquer seleção para não confiar em um catálogo alterado após o carregamento.
+    catalog = load_gold_catalog(catalog.model_dump(mode="json"))
     metric = next((m for m in catalog.metrics if m.metric_id == metric_id), None)
     if metric is None:
         raise ValueError("Métrica fora do catálogo.")
@@ -153,6 +190,14 @@ def select_catalog_source(
             raise ValueError("Histórico acumulado não admite recorte por datas.")
     elif window.phrase in all_accumulated:
         raise ValueError("Métrica mensal exige período de calendário.")
+    if (
+        window.kind == WindowKind.BOUNDED
+        and (
+            metric.max_window_days is None
+            or (window.end - window.start).days > metric.max_window_days
+        )
+    ):
+        raise ValueError("Janela solicitada excede o limite da métrica.")
     if (
         not set(metric.required_capability_ids) <= available_capabilities
         or not set(metric.required_dimension_ids) <= filter_ids

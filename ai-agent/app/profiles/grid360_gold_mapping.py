@@ -17,15 +17,18 @@ Regras fixas:
   agregar entre alimentadores nem entre meses.
 """
 
+import re
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
 from app.readiness import V2_CAPABILITY_REQUIREMENTS, CapabilityRequirement, GoldTable, ReasonCode
 from app.readiness.models import ReadinessVersion
 from app.schemas.analysis import LogicalIdentifier
-from app.schemas.domain_profile import DomainProfile, UnitKind
+from app.schemas.domain_profile import DomainProfile, FilterOperator, UnitKind
 
 MAPPING_VERSION = "gold-catalog-v2"
 # Versão do contrato físico Backend; validada contra suas tabelas em processo separado.
@@ -71,7 +74,7 @@ class NullRule(StrEnum):
 
 
 class Rounding(BaseModel):
-    """Arredondamento só na apresentação, depois do cálculo; proposta a confirmar com Dados."""
+    """Arredondamento só na apresentação, depois do cálculo; não altera controles Gold."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -94,6 +97,7 @@ class SourceMapping(BaseModel):
     denominator_column: PhysicalColumn | None = None
     nullable_columns: tuple[PhysicalColumn, ...] = ()
     dimension_columns: dict[LogicalIdentifier, PhysicalColumn] = Field(default_factory=dict)
+    decimal_shapes: dict[PhysicalColumn, tuple[int, int]] = Field(default_factory=dict)
 
     def measure_columns(self) -> tuple[str, ...]:
         return tuple(
@@ -113,11 +117,15 @@ class MetricMapping(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     metric_id: LogicalIdentifier
+    label: OpenPoint
+    definition: OpenPoint
+    dimension_operators: dict[LogicalIdentifier, tuple[FilterOperator, ...]]
     # Capacidade da fonte padrão (a primeira); cada fonte declara a sua.
     capability_id: LogicalIdentifier
     required_capability_ids: tuple[LogicalIdentifier, ...] = Field(min_length=1)
     accumulated_period_phrases: tuple[str, ...] = ()
     granularities: tuple[Literal["month", "year"], ...] = ("month", "year")
+    max_window_days: int | None = Field(ge=1)
     aggregation: Aggregation
     unit: str = Field(min_length=1, max_length=200)
     unit_kind: UnitKind
@@ -139,6 +147,8 @@ class MetricMapping(BaseModel):
             raise ValueError("Soma ou média exige medida numérica")
         if self.aggregation is Aggregation.KEY_GRAIN_READ and self.granularities != ("month",):
             raise ValueError("Leitura DEC/FEC exige granularidade mensal")
+        if bool(self.accumulated_period_phrases) != (self.max_window_days is None):
+            raise ValueError("limite de janela precisa corresponder ao modo temporal")
         ratio = self.aggregation is Aggregation.RATIO_OF_SUMS
         for source in self.sources:
             has_measure = source.measure_column is not None
@@ -236,6 +246,11 @@ def select_source(
     ``None`` quando nenhuma fonte serve ou falta dimensão obrigatória; nunca combina fontes.
     """
 
+    approved_signature = _APPROVED_METRIC_SIGNATURES.get(metric.metric_id)
+    if approved_signature is not None and metric.model_dump_json() != approved_signature:
+        raise CatalogMappingError(
+            f"{metric.metric_id}: diverge da definição semântica versionada"
+        )
     if not set(metric.required_capability_ids) <= set(available_capabilities):
         return None
     if not set(metric.required_dimension_ids) <= set(dimension_ids):
@@ -291,17 +306,31 @@ def validate_mapping(
                 )
         logical = profile_metrics.get(metric.metric_id)
         if logical is not None:
+            if (logical.label, logical.definition) != (metric.label, metric.definition):
+                errors.append(f"{metric.metric_id}: rótulo ou definição difere do perfil")
             if tuple(g.value for g in logical.granularities) != metric.granularities:
                 errors.append(f"{metric.metric_id}: granularidades diferem do perfil")
+            if logical.max_window_days != metric.max_window_days:
+                errors.append(f"{metric.metric_id}: limite de janela difere do perfil")
             if logical.accumulated_period_phrases != metric.accumulated_period_phrases:
                 errors.append(f"{metric.metric_id}: modo temporal difere do perfil")
             if logical.unit != metric.unit:
                 errors.append(f"{metric.metric_id}: unidade difere do perfil")
+            if metric.unit_kind not in logical.accepted_unit_kinds:
+                errors.append(f"{metric.metric_id}: tipo da unidade difere do perfil")
             if metric.dimension_ids() != set(logical.dimension_ids):
                 errors.append(f"{metric.metric_id}: dimensões diferem das sustentadas pelas fontes")
+            operators = {
+                d.id: d.operators for d in profile.dimensions if d.id in logical.dimension_ids
+            }
+            if metric.dimension_operators != operators:
+                errors.append(f"{metric.metric_id}: operadores diferem do perfil")
         for source in metric.sources:
             used_capabilities.add(source.capability_id)
             errors.extend(_source_errors(metric, source, capabilities, dictionary))
+        approved_signature = _APPROVED_METRIC_SIGNATURES.get(metric.metric_id)
+        if approved_signature is not None and metric.model_dump_json() != approved_signature:
+            errors.append(f"{metric.metric_id}: diverge da definição semântica versionada")
 
     declared_unavailable = {item.capability_id: item for item in mapping.unavailable}
     for capability_id in sorted(used_capabilities & set(declared_unavailable)):
@@ -365,13 +394,24 @@ def _source_errors(
         if (
             source.capability_id != "atendimento.mensal"
             or source.temporal_column != "data_abertura"
-            or table.columns.get(source.temporal_column) != "timestamp"
+            or table.columns.get(source.temporal_column) != "timestamp_utc"
             or requirement is None
             or not requirement.requires_coverage
         ):
             errors.append(f"{where}: projeção mensal exige timestamp e cobertura")
     elif source.temporal_column != table.period_column:
         errors.append(f"{where}: coluna temporal difere do period_column do dicionário")
+    if (
+        source.temporal_transform == "identity"
+        and source.temporal_column is not None
+        and table.columns.get(source.temporal_column) != "string"
+    ):
+        errors.append(f"{where}: período por competência deve ser string")
+    for dimension_id, column in source.dimension_columns.items():
+        if table.columns.get(column) != "string":
+            errors.append(
+                f"{where}: dimensão {dimension_id} deve ser string no schema Gold v2"
+            )
     expected_types = (
         ((source.measure_column, metric.measure_type),)
         if metric.aggregation is not Aggregation.RATIO_OF_SUMS
@@ -387,6 +427,20 @@ def _source_errors(
         family = _NUMERIC_TYPES.get(actual.split("(", 1)[0].strip().casefold())
         if family != expected.value:
             errors.append(f"{where}: coluna {column} tem tipo {actual}, esperado {expected.value}")
+    decimal_columns = {
+        column
+        for column, expected in expected_types
+        if column is not None and expected is ColumnType.DECIMAL
+    }
+    if set(source.decimal_shapes) != decimal_columns:
+        errors.append(f"{where}: precisão decimal não corresponde às medidas financeiras")
+    for column, shape in source.decimal_shapes.items():
+        actual = table.columns.get(column, "")
+        match = re.fullmatch(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)", actual.casefold())
+        if match is None or tuple(map(int, match.groups())) != shape:
+            errors.append(
+                f"{where}: coluna {column} tem tipo {actual}, esperado decimal{shape}"
+            )
     if (
         metric.aggregation is Aggregation.SUM
         and metric.measure_type is not None
@@ -427,6 +481,29 @@ _DIAGNOSTICO_GRAIN = (
 )
 _BAIRRO_GRAIN = ("competencia", "municipio", "bairro", "classe_consumo")
 _MENSAL_GRAIN = ("id_uc", "competencia")
+_DECIMAL_SHAPES = {
+    GoldTable.DIAGNOSTICO_RECEITA: {
+        "receita_total_reais": (38, 2),
+        "receita_base_comparavel_reais": (38, 2),
+    },
+    GoldTable.CONSUMO_RECEITA_BAIRRO: {
+        "receita_total_reais": (38, 2),
+        "receita_base_comparavel_reais": (38, 2),
+    },
+    GoldTable.CONSUMO_MENSAL_UC: {
+        "receita_reais": (30, 2),
+        "receita_base_comparavel_reais": (30, 2),
+    },
+}
+
+
+def _decimal_shapes_for(table: GoldTable, columns: dict[str, str]) -> dict[str, tuple[int, int]]:
+    referenced = set(columns.values())
+    return {
+        name: shape
+        for name, shape in _DECIMAL_SHAPES.get(table, {}).items()
+        if name in referenced
+    }
 
 
 def _diagnostico(**columns: str) -> SourceMapping:
@@ -437,6 +514,7 @@ def _diagnostico(**columns: str) -> SourceMapping:
         grain=_DIAGNOSTICO_GRAIN,
         nullable_columns=tuple(columns.values()),
         dimension_columns=_DIAGNOSTICO_DIMENSIONS,
+        decimal_shapes=_decimal_shapes_for(GoldTable.DIAGNOSTICO_RECEITA, columns),
         **columns,
     )
 
@@ -449,6 +527,7 @@ def _bairro(**columns: str) -> SourceMapping:
         grain=_BAIRRO_GRAIN,
         nullable_columns=tuple(columns.values()),
         dimension_columns=_BAIRRO_DIMENSIONS,
+        decimal_shapes=_decimal_shapes_for(GoldTable.CONSUMO_RECEITA_BAIRRO, columns),
         **columns,
     )
 
@@ -461,6 +540,7 @@ def _mensal(**columns: str) -> SourceMapping:
         grain=_MENSAL_GRAIN,
         nullable_columns=tuple(columns.values()),
         dimension_columns=_MENSAL_DIMENSIONS,
+        decimal_shapes=_decimal_shapes_for(GoldTable.CONSUMO_MENSAL_UC, columns),
         **columns,
     )
 
@@ -483,12 +563,27 @@ def _dec_fec(column: str) -> SourceMapping:
 _SUM_NULLS = NullRule.SUM_IGNORES_NULL_ALL_NULL_IS_ABSENT
 _RATIO_NULLS = NullRule.RATIO_ABSENT_ON_NULL_OR_ZERO_DENOMINATOR
 
+
+def _business_metric(metric_id: str) -> dict:
+    logical = next(m for m in GRID360_GOLD_PROFILE.metrics if m.id == metric_id)
+    return {
+        "metric_id": metric_id,
+        "label": logical.label,
+        "definition": logical.definition,
+        "dimension_operators": {
+            d.id: d.operators
+            for d in GRID360_GOLD_PROFILE.dimensions
+            if d.id in logical.dimension_ids
+        },
+        "max_window_days": logical.max_window_days,
+    }
+
 GRID360_GOLD_MAPPING = GoldCatalogMapping(
     profile_id="v-energy-grid-360-gold",
     dictionary_version=DICTIONARY_VERSION,
     metrics=(
         MetricMapping(
-            metric_id="billing.revenue",
+            **_business_metric("billing.revenue"),
             required_capability_ids=("faturamento.receita",),
             capability_id="faturamento.receita",
             aggregation=Aggregation.SUM,
@@ -504,7 +599,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             ),
         ),
         MetricMapping(
-            metric_id="energy.consumption",
+            **_business_metric("energy.consumption"),
             required_capability_ids=("consumo.mensal_uc",),
             capability_id="faturamento.receita",
             aggregation=Aggregation.SUM,
@@ -520,7 +615,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             ),
         ),
         MetricMapping(
-            metric_id="billing.average_ticket",
+            **_business_metric("billing.average_ticket"),
             required_capability_ids=("faturamento.receita",),
             capability_id="faturamento.receita",
             aggregation=Aggregation.RATIO_OF_SUMS,
@@ -542,7 +637,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             ),
         ),
         MetricMapping(
-            metric_id="billing.effective_tariff",
+            **_business_metric("billing.effective_tariff"),
             required_capability_ids=("faturamento.receita", "consumo.mensal_uc"),
             capability_id="faturamento.receita",
             aggregation=Aggregation.RATIO_OF_SUMS,
@@ -568,7 +663,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             ),
         ),
         MetricMapping(
-            metric_id="energy.average_consumption_per_uc",
+            **_business_metric("energy.average_consumption_per_uc"),
             required_capability_ids=("consumo.mensal_uc",),
             capability_id="faturamento.receita",
             aggregation=Aggregation.RATIO_OF_SUMS,
@@ -590,7 +685,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             ),
         ),
         MetricMapping(
-            metric_id="network.equivalent_interruption_duration",
+            **_business_metric("network.equivalent_interruption_duration"),
             required_capability_ids=("interrupcoes.dec_fec",),
             capability_id="interrupcoes.dec_fec",
             aggregation=Aggregation.KEY_GRAIN_READ,
@@ -604,7 +699,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             sources=(_dec_fec("DEC"),),
         ),
         MetricMapping(
-            metric_id="network.equivalent_interruption_frequency",
+            **_business_metric("network.equivalent_interruption_frequency"),
             required_capability_ids=("interrupcoes.dec_fec",),
             capability_id="interrupcoes.dec_fec",
             aggregation=Aggregation.KEY_GRAIN_READ,
@@ -618,7 +713,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             sources=(_dec_fec("FEC"),),
         ),
         MetricMapping(
-            metric_id="service.attendance",
+            **_business_metric("service.attendance"),
             capability_id="atendimento.mensal",
             required_capability_ids=("atendimento.mensal",),
             aggregation=Aggregation.COUNT_NON_NULL,
@@ -640,7 +735,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             ),
         ),
         MetricMapping(
-            metric_id="service.satisfaction",
+            **_business_metric("service.satisfaction"),
             capability_id="atendimento.mensal",
             required_capability_ids=("atendimento.mensal",),
             aggregation=Aggregation.AVERAGE_NON_NULL,
@@ -663,7 +758,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             ),
         ),
         MetricMapping(
-            metric_id="service.accumulated_attendance",
+            **_business_metric("service.accumulated_attendance"),
             accumulated_period_phrases=("histórico acumulado",),
             capability_id="atendimento.uc_acumulado",
             required_capability_ids=("atendimento.uc_acumulado",),
@@ -686,7 +781,7 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
             ),
         ),
         MetricMapping(
-            metric_id="service.accumulated_satisfaction",
+            **_business_metric("service.accumulated_satisfaction"),
             accumulated_period_phrases=("histórico acumulado",),
             capability_id="atendimento.uc_acumulado",
             required_capability_ids=("atendimento.uc_acumulado",),
@@ -713,30 +808,44 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         UnavailableCapability(
             capability_id="faturamento.preco_volume",
             reasons=(ReasonCode.DEFINITION_PENDING,),
-            note="Falta tarifa homologada e método aprovado de decomposição preço × volume.",
+            note=(
+                "Fonte e método de preço observado disponíveis; mapeamento "
+                "consumidor das duas janelas, estados e controles de reconciliação "
+                "ainda não liberado."
+            ),
         ),
         UnavailableCapability(
             capability_id="faturamento.faturas_em_aberto",
             reasons=(ReasonCode.DEFINITION_PENDING,),
             note=(
-                "Fonte faturas_uc disponível; semântica/controles consumidores "
-                "não liberam saldo contábil."
+                "Fonte faturas_uc disponível; distinguir valor nominal "
+                "declarado e saldo indicativo. Controles consumidores "
+                "ainda não mapeados; a fonte não prova saldo contábil."
             ),
         ),
         UnavailableCapability(
             capability_id="consumo.variacao_uc",
             reasons=(ReasonCode.DEFINITION_PENDING,),
-            note="Janela e mínimo de meses da pergunta abertos com Dados; P1/P2 fixos na Gold.",
+            note=(
+                "Variação publicada usa janelas fixas da Gold; falta mapear sua "
+                "seleção e limitações no consumidor, sem comparação arbitrária."
+            ),
         ),
         UnavailableCapability(
             capability_id="interrupcoes.uc_acumulado",
             reasons=(ReasonCode.DEFINITION_PENDING,),
-            note="Só total acumulado por UC, sem mês e sem controle independente.",
+            note=(
+                "Fontes detalhada e acumulada disponíveis; contagem e duração por "
+                "UC ainda sem mapeamento consumidor e controles próprios."
+            ),
         ),
         UnavailableCapability(
             capability_id="apoio.fila_inspecao",
             reasons=(ReasonCode.DEFINITION_PENDING,),
-            note="Mapeamento dos rótulos de resultado de inspeção pendente (issue #39).",
+            note=(
+                "Fila com motivo e prioridade disponível; seleção, rótulos e "
+                "controles de uso pela IA ainda não mapeados."
+            ),
         ),
         UnavailableCapability(
             capability_id="apoio.medidor_uc",
@@ -753,4 +862,10 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         ),
     ),
     open_points=(),
+)
+
+# A validação compara com este snapshot imutável, não com os objetos compartilhados acima.
+# ``frozen=True`` não congela os dicionários aninhados do Pydantic.
+_APPROVED_METRIC_SIGNATURES = MappingProxyType(
+    {metric.metric_id: metric.model_dump_json() for metric in GRID360_GOLD_MAPPING.metrics}
 )
