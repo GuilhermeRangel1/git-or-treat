@@ -23,7 +23,7 @@ GoldBatchRef = Annotated[
         strict=True,
         max_length=100,
         pattern=(
-            r"^gold-csv-v1:GOLD_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}:"
+            r"^gold-csv-v[12]:GOLD_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}:"
             r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         ),
     ),

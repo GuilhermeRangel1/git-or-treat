@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Literal, Protocol
 from uuid import uuid4
 
@@ -18,6 +19,7 @@ from app.api.errors import (
 )
 from app.api.routes import router
 from app.config import Settings
+from app.readiness.models import PublicationFacts, ReadinessReport
 from app.schemas.access import AccessContext
 from app.schemas.domain_profile import DomainProfile
 from app.schemas.insights import ScreenContext, ScreenInsightResponse
@@ -57,6 +59,7 @@ def create_api_application(
     source_id: str,
     source_mode: SourceMode,
     access_context_resolver: AccessContextResolver | None,
+    readiness_handler: Callable[[PublicationFacts], ReadinessReport] | None = None,
 ) -> FastAPI:
     """Configura a aplicação HTTP sem conhecer a composição concreta do serviço."""
 
@@ -89,5 +92,6 @@ def create_api_application(
     application.state.access_context_resolver = access_context_resolver
     application.state.question_orchestrator = question_handler
     application.state.insight_orchestrator = insight_handler
+    application.state.readiness_handler = readiness_handler
     application.include_router(router)
     return application

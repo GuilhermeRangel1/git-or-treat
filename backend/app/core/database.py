@@ -11,7 +11,9 @@ engine_kwargs = {
 
 if settings.DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
-    engine_kwargs["execution_options"] = {"schema_translate_map": {"gold": None}}
+    engine_kwargs["execution_options"] = {
+        "schema_translate_map": {"gold": None, "gold_v2": None}
+    }
 else:
     # Boas práticas de pooling para PostgreSQL
     engine_kwargs.update(

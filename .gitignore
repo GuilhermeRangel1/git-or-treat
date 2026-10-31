@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.gold-v2.example
 *.pem
 *.key
 *.p12
