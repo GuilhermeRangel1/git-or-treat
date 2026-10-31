@@ -103,6 +103,16 @@ A apresentação inicial dos filtros é um resumo de competência, período de c
 
 Por solicitação da pessoa usuária nesta revisão, a linha de fonte/lote e última atualização foi retirada do topo do Panorama. A API preserva os metadados e os detalhes das métricas mantêm o lote; a origem continua sintética.
 
+### Panorama Gold v2 — 31/10/2026
+
+A tela apresenta quatro indicadores no topo (Valor faturado, Consumo apurado, UCs cadastradas no lote e UCs faturadas no mês); em Gold, receita e consumo identificam a base comparável, e o cadastro é fotografia do lote com todos os status, sem competência/variação histórica. Energia faturada não substitui consumo medido e sua ausência é explicada junto ao fundamento de consumo. Fundamentos organizam os quatro indicadores principais, preço observado/continuidade e proveniência; não há uma seção geral de limitações. A comparação parcial pode mostrar variação observada quando a API traz referência, com ressalva de fechamento não declarado.
+
+A série mensal abre nos últimos 12 meses até a competência selecionada, com opções para 24 meses ou todo o histórico. A janela altera apenas a visualização da série; KPIs e competência permanecem. A tendência é uma linha com lacunas preservadas, eixo iniciado em zero, pontos focáveis com competência/valor e tabela acessível. O aviso Gold de insight indisponível é compacto. Os filtros padronizam competência/comparação/município/classe; o link para Operação passa competência e município, sem encaminhar classe não suportada.
+
+A validação Playwright sem interceptações cobriu desktop (1366×768, 1280×720, 1440×900) e mobile (390×844) em claro; mobile e modal em escuro. Apply/Cancel/Clear, recorte combinado com comparação anual, reload, metadata e igualdade do KPI de receita ao ponto mensal da API foram verificados. Quatro ticks mobile e ausência de overflow confirmados. Esta implementação é parte da validação de WEB-01/WEB-07, sem mudar o estado canônico do PRD. Plano e resultado sanitizado em [ajustes do Panorama Gold v2](../plans/2026-10-31-panorama-gold-v2-ajustes.md) e relatório local ignorado `work/panorama-plan-implementation-report.md`.
+
+Após revisão de produto, os cartões não repetem “dados parciais”, “base comparável”, mensagens de comparação indisponível, origem, lote, fingerprint ou horário de atualização; definições e razões de ausência permanecem nos fundamentos de cada métrica. Os cartões mostram apenas variações calculadas. Variações positivas são verdes e negativas vermelhas.
+
 ### Operação — DEV-08
 
 A página `/operacao` integra o [contrato DEV-08](../contracts/operations-dev08.md) ao layer 06 do protótipo: consolidado, ranking dos alimentadores e investigação de séries/ocorrências. Os quatro cards usam `GET /operations/summary` 1.2.0 e a [definição consolidada aprovada](../decisions/0015-consolidado-demonstrativo-de-continuidade.md). A base incluída e a população cadastral do recorte são conceitos distintos; exclusões tornam o consolidado parcial e ficam explícitas nos fundamentos. Não se calcula média de DEC/FEC no cliente.
