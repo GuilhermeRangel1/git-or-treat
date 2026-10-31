@@ -1,0 +1,35 @@
+{
+  "valid": {
+    "schema_version": "gold-csv-v1",
+    "run_id": "GOLD_20250101T000000Z_aaaaaaaa",
+    "publication_id": "8b9502c2-c188-4528-ab3c-7dff79ed908f"
+  },
+  "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+  "invalid_changes": [
+    {
+      "schema_version": "gold-csv-v3"
+    },
+    {
+      "run_id": "LOTE_DEV"
+    },
+    {
+      "publication_id": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "extra": "campo inesperado"
+    }
+  ],
+  "invalid_batch_refs": [
+    "",
+    "v1",
+    "gold-csv-v3:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+    "gold-csv-v1:LOTE_DEV:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+    "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:00000000-0000-0000-0000-000000000000",
+    "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-1528-ab3c-7dff79ed908f",
+    "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-7b3c-7dff79ed908f",
+    "GOLD-CSV-V1:GOLD_20250101T000000Z_AAAAAAAA:8B9502C2-C188-4528-AB3C-7DFF79ED908F",
+    "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f ",
+    "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f\n",
+    "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f:extra"
+  ]
+}

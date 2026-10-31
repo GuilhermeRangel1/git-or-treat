@@ -4,11 +4,11 @@ Requisito DE-06; dependência DEV-01. Esta entrega valida a infraestrutura com d
 
 ## Identidade e contrato
 
-O identificador `--batch` tem de 1 a 100 caracteres ASCII entre letras, números, ponto, hífen e sublinhado. A versão suportada é `gold-csv-v1`, informada por `--schema-version` e persistida no lote atual e nas tentativas. Versão desconhecida é recusada antes de alterar a publicação. O SHA-256 identifica o conteúdo e o inventário dos arquivos, separadamente do nome do lote. Cada execução recebe um UUID `attempt_id`, inclusive as repetições sem alteração.
+O identificador do lote é o `run_id` do manifesto; `--batch`, se informado, apenas confere esse valor. A versão suportada é `gold-csv-v1`, declarada no manifesto ou explicitamente em `--schema-version` no formato legado, e persistida no lote atual e nas tentativas. Versão desconhecida é recusada antes de alterar a publicação. O SHA-256 identifica o conteúdo e o inventário dos arquivos, separadamente do nome do lote. Cada execução recebe um UUID `attempt_id`, inclusive as repetições sem alteração.
 
 São esperadas sete pastas, com um ou mais arquivos `*.csv` por pasta: `consumo_mensal_uc`, `consumo_receita_bairro`, `diagnostico_receita`, `fila_inspecao`, `indicadores_dec_fec`, `variacao_consumo_uc` e `visao_360_uc`. Os cabeçalhos e chaves estão no [contrato físico v1](gold-csv-v1.md). Partes adicionais da mesma tabela são aceitas e entram nos hashes; as chaves são únicas no conjunto, não apenas dentro de cada arquivo. Arquivos auxiliares e pastas fora desse inventário não são importados.
 
-O [snapshot v1](../../backend/app/models/gold_v1.py) usa metadados próprios para preservar a revisão histórica `goldv1000001`. Os [modelos atuais](../../backend/app/models/gold_load.py) copiam esse esquema e acrescentam versão/auditoria. A revisão `goldv1000002` atualiza bancos existentes; atribui `gold-csv-v1` aos lotes da revisão anterior sem reimportar nem alterar seus fatos. Para um esquema Gold futuro, criar nova revisão e mapeamento explícito; não editar o snapshot ou aceitar uma nova versão apenas trocando a string.
+O [snapshot v1](../../backend/app/models/gold_v1.py) usa metadados próprios para preservar a revisão histórica `goldv1000001`. Os [modelos atuais](../../backend/app/models/gold_load.py) copiam esse esquema e acrescentam versão/auditoria. A revisão histórica `goldv1000002` atualiza bancos existentes; atribui `gold-csv-v1` aos lotes da revisão anterior sem reimportar nem alterar seus fatos. Para um esquema Gold futuro, criar nova revisão e mapeamento explícito; não editar o snapshot ou aceitar uma nova versão apenas trocando a string.
 
 ## Publicação e auditoria
 
@@ -36,18 +36,18 @@ $env:APP_ENV = "development"
 $env:ANALYTICS_SOURCE = "unavailable"
 $env:ORDERS_AUTH_MODE = "service"
 $env:DATABASE_URL = "sqlite:///../work/dev12-sintetico.db"
-venv/Scripts/python.exe scripts/generate_gold_sample.py --directory ../work/dev12-lote-01
-venv/Scripts/python.exe -m alembic upgrade head
-venv/Scripts/python.exe scripts/load_gold.py --directory ../work/dev12-lote-01 --batch sintetico-001 --schema-version gold-csv-v1
-venv/Scripts/python.exe scripts/load_gold.py --directory ../work/dev12-lote-01 --batch sintetico-001 --schema-version gold-csv-v1
+.venv/Scripts/python.exe scripts/generate_gold_sample.py --directory ../work/dev12-lote-01
+.venv/Scripts/python.exe -m alembic upgrade head
+.venv/Scripts/python.exe scripts/load_gold.py --directory ../work/dev12-lote-01 --schema-version gold-csv-v1
+.venv/Scripts/python.exe scripts/load_gold.py --directory ../work/dev12-lote-01 --schema-version gold-csv-v1
 ```
 
-A primeira carga retorna JSON com `status=loaded`; a segunda, `status=unchanged`, com UUIDs distintos. O controle independente da amostra é: duas linhas mensais/UCs, 30 kWh e R$ 25,50; demais seis tabelas têm uma linha cada. Esse controle não representa métricas do dataset real.
+A primeira carga retorna JSON com `status=loaded`; a segunda, `status=unchanged`, com `attempt_id` distintos e `publication_id`/`batch_ref` iguais. O controle independente da amostra é: duas linhas mensais/UCs, 30 kWh e R$ 25,50; demais seis tabelas têm uma linha cada. Esse controle não representa métricas do dataset real.
 
 Para inspecionar com seu cliente SQL, sem consultar linhas de negócio:
 
 ```sql
-SELECT lote, schema_version, fingerprint, importado_em FROM gold_carga_atual;
+SELECT lote, schema_version, publication_id, origem, fingerprint, importado_em FROM gold_carga_atual;
 SELECT id, lote, schema_version, status, iniciado_em, finalizado_em,
        erro_codigo, erro_mensagem, manifesto
 FROM gold_carga_tentativas ORDER BY iniciado_em DESC, id;
@@ -71,9 +71,9 @@ Para demonstrar rejeição e recuperação, em uma cópia sintética troque o ca
 Na pasta `backend/`, definir `TEST_POSTGRES_URL` e `TEST_GOLD_POSTGRES_URL` para dois bancos vazios distintos, descartáveis, terminados em `_test`, com papel sem superusuário:
 
 ```powershell
-venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_gold_import.py tests/test_database.py tests/test_migrations.py
-venv/Scripts/python.exe -m pytest -q -p no:cacheprovider
-venv/Scripts/python.exe -m compileall -q app tests scripts
+.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_gold_import.py tests/test_database.py tests/test_migrations.py
+.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider
+.venv/Scripts/python.exe -m compileall -q app tests scripts
 ```
 
 Sem as variáveis, as variantes PostgreSQL são ignoradas; isso não equivale a aprovação delas. A CI prepara `v_energy_test` e `gold_import_test` separados e propaga as duas URLs também para os testes do contêiner. Os testes verificam publicação inteira, repetição, falha tardia, tipos/chaves, controles, auditoria, mudanças nos arquivos, preservação integral de ordem/históricos e migração de lote existente. Incluem ausências e zeros distintos, conferência do manifesto/auditoria e precisão Decimal no PostgreSQL; SQLite não comprova precisão de 38 dígitos. O teste por subprocesso também executa o gerador e o CLI reais.
@@ -81,3 +81,29 @@ Sem as variáveis, as variantes PostgreSQL são ignoradas; isso não equivale a 
 Resultados da entrega: 62 testes dirigidos aprovados e suíte completa com 484 aprovados, sem ignorados, em ambiente local Python 3.14.3/PostgreSQL 18.4; suíte completa também com 484 aprovados em Python 3.12.15/PostgreSQL 16.15, fontes atuais montados para leitura na imagem local existente. O build novo no registry DHI retornou 401; reconstrução da imagem continua sem prova nesta rodada. [Detalhes da evidência](../plans/2026-10-27-dev12-separacao.md#evidência-da-conclusão-técnica).
 
 Documentação consultada via Context7 em 27/10/2026: [transações SQLAlchemy Core 2](https://docs.sqlalchemy.org/en/20/core/connections.html) e [cópia de metadados](https://docs.sqlalchemy.org/en/20/core/metadata.html). Versão local SQLAlchemy 2.1.5. Evidência e resultados desta entrega ficam também no Registro de progresso do PRD.
+
+## Preparação para GENAI-01: schema, origem e publicação
+
+O contrato atual de manifesto, compatibilidade com o exportador e erros está em [Gold CSV v1](gold-csv-v1.md#origem-e-publicação). A carga usa agora origem validada; o nome passado no terminal não pode inventar um lote. A revisão acrescenta `invalid_manifest` e recusa divergência de `--batch` com `invalid_batch`. Campos extras, versões incompatíveis e origem modificada durante a carga também são rejeitados. As migrações e a verificação final de arquivos permanecem obrigatórias.
+
+Aplique `alembic upgrade head` com o proprietário/migrador autorizado. No PostgreSQL, a migração move as sete tabelas para `gold`, preservando seus nomes `gold_*` e dados; `gold_carga_atual`/`gold_carga_tentativas` permanecem operacionais. Não editar o snapshot v1. SQLite usa tradução de schema só para testes locais e não comprova permissões PostgreSQL. Dê upgrade antes de iniciar carga/consumidores; downgrade revoga os grants antes de mover as tabelas de volta; exige parar consumidores e reprovisionar o leitor após novo upgrade.
+
+Depois da migração, um administrador provisiona o leitor no banco escolhido:
+
+```powershell
+psql --host localhost --port 5432 --username <administrador> --dbname <banco> --file scripts/provision_gold_reader.sql
+```
+
+O script cria `venergy_gold_reader` sem senha versionada e concede leitura apenas às sete tabelas e à vista mínima de publicação; não há grants de futuras tabelas por padrão. Ele recusa papel existente privilegiado ou com memberships inesperados. Usa timeout de 5 s e transações de leitura por padrão. Provisionar senha com `\password venergy_gold_reader` numa sessão administrativa autorizada; não usar esse papel para carga ou migração. A conexão do futuro executor deverá usar esse login. Nenhum endpoint ou credencial de consulta Gold é ativado nesta preparação.
+
+Se houver ownership, privilégios residuais em outros schemas ou privilégios de `PUBLIC` que permitam escrita/leitura fora da lista autorizada (inclusive dentro de `gold`), o script falha e exige revisão administrativa. O bloqueio de escrita depende também dos grants, não apenas de `default_transaction_read_only`, que o cliente pode alterar. Validar privilégios novamente após novas migrações.
+
+O Compose usa PostgreSQL 16 com volume novo `pgdata16` montado em `/var/lib/postgresql/data`. O antigo volume `pgdata` não é removido nem reutilizado. Antes de trocar um ambiente PostgreSQL 18 com dados úteis, faça backup validado e planeje exportação/restauração compatível ou recarga autorizada dos CSVs e preservação das ordens; não trate essa troca como upgrade automático. Não executar `down -v` como procedimento de migração.
+
+Para a prova do leitor, o administrador prepara um terceiro banco vazio `gold_reader_test`, separado de `v_energy_test` e `gold_import_test`. `TEST_GOLD_READER_ADMIN_URL` aponta para ele; `TEST_POSTGRES_URL` fornece o migrador do mesmo servidor. O teste usa senha artificial temporária, executa o script de provisionamento real e comprova SELECT, negação de escrita/leitura operacional e timeout. As URLs nunca devem apontar para bancos com dados úteis; a preparação automática do CI é exclusiva de bancos descartáveis. Sem essa variável, o teste é ignorado e não comprova permissões.
+
+```powershell
+.venv/Scripts/python.exe -m pytest -q tests/test_gold_import.py tests/test_gold_manifest.py tests/test_gold_reader.py tests/test_migrations.py tests/test_database.py
+```
+
+A reconciliação Gold → CSV → banco depende dos controles fornecidos por Dados para o mesmo lote exportado: contagens, chaves e somas relevantes. A carga atual confere a origem declarada, o conteúdo dos arquivos e os controles observados no banco; não declara ter certificado a origem Delta ou a cobertura de todos os domínios GenAI.

@@ -59,3 +59,16 @@ Aprovada em 27/10/2026 com base nos comentários de Backend (Fcc2187) e Engenhar
 2. Backend: criar `venergy_gold_reader` por migração ou script de inicialização, com `SELECT` só no schema `gold`, e testá-lo no PostgreSQL do CI.
 3. Congelar a convenção de nomes físicos e o mapeamento CSV → coluna no dicionário Gold (DE-08).
 4. Confirmar o comportamento idempotente do carregador e o registro do manifesto (DE-06), com a pessoa dona da exportação da Gold.
+
+## Complemento de implementação — preparação de publicação, 28/10/2026
+
+A preparação na branch `feat/integracao-genai-gold` mantém o motor/executor aprovados. A migração `goldv1000003` move as relações analíticas v1 ao schema `gold`, preservando nomes e conteúdo; metadados operacionais da carga ficam separados e uma vista expõe a identidade mínima. O papel é provisionado por administrador fora das migrações comuns, pois o migrador de testes não tem `CREATEROLE`. Grants específicos evitam liberar automaticamente tabelas futuras; senha fica fora do código.
+
+Para distinguir origem e publicação local, adota-se UUID4 persistido como `publication_id`, separado de cada `attempt_id`. Usar apenas hash dos arquivos confundiria ciclos distintos de publicação, como A → B → A. Origem, conteúdo e versão iguais retornam `unchanged`; outro run de origem gera nova publicação mesmo com arquivos iguais. Legados mantêm dados, mas só ganham identidade real após carga validada, sem backfill fictício.
+
+Formato, exemplos e compatibilidade estão no contrato interno e em `gold-csv-v1.md`. A modelagem prepara GENAI-01; revisão entre equipes e execução do fluxo GenAI permanecem pendentes. As descrições anteriores deste documento retratam sua base histórica, não o estado atual do carregador.
+
+
+### Linhagem mínima para prontidão — 31/10/2026
+
+A implementação `goldv2000002` acrescenta `gold.publicacao_linhagem`, com versão, lote, publicação e somente os IDs `run_id_silver`/`lote_bronze_silver`. O leitor recebe SELECT nessa view, sem acesso à tabela operacional `public.gold_carga_atual`, ao manifesto completo ou ao cadastro pessoal. É extensão da minimização e do papel somente leitura já decididos nesta ADR. A observação de prontidão usa snapshot somente leitura e revalida publicação; a regressão do papel restrito deve passar no PostgreSQL configurado, sem inferir essa evidência a partir de SQLite.

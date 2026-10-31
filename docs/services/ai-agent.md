@@ -122,6 +122,10 @@ Esta é uma fronteira interna provisória para permitir substituição controlad
 
 Histórico da revisão de 25/10/2026 (GENAI-01): a descrição original apresentou como proposta o Backend como único executor SQL da Gold e duas operações internas da GenAI, planejar e sintetizar, sem chamada de volta ao Backend. A decisão foi aprovada em 25/10/2026 com base nos comentários de concordância de Backend e Engenharia de Dados no PR #54, sem Approve formal no GitHub. O [contrato](../contracts/genai-query-execution.md) continua preparação documental: nenhuma rota interna, adaptador ou composição de consulta Gold mudou. A aprovação da propriedade e do fluxo não autoriza acesso real; permanecem as dependências indicadas na ADR-0002. A priorização pré-Gold está registrada na [ADR-0016](../decisions/0016-priorizacao-melhorias-pre-gold.md).
 
+Envelopes internos (GENAI-01, parte A1): `app/schemas/internal.py` modela as duas operações do [contrato interno](../contracts/genai-query-execution.md). São eles: `AccessScope` (escopo sem correlação, convertido por `to_context`), `QuestionPlanRequest`, `QuestionPlanResponse` (estados `planned`, `needs_clarification`, `refused` e `recoverable_error`, com fingerprint conferido contra o plano) e `QuestionSynthesisRequest`. Os envelopes são usados pelas operações do núcleo; a síntese recebe a publicação esperada em `QuestionSynthesisRequest.expected_batch_ref`. Ainda não há rotas internas.
+
+Operações do núcleo (GENAI-01, parte A2): `QuestionOrchestrator.plan()` aplica guardrail, interpretação e aprovação do plano e devolve `QuestionPlanResponse`, sem chamar a fonte nem o modelo. `QuestionOrchestrator.synthesize()` reaprova o plano no escopo recebido, confere o fingerprint e aplica o `EvidenceGuard` ao lookup, com a publicação esperada recebida em `request.expected_batch_ref`, separada do lookup. Só chama o modelo quando há evidência. No planejador, os passos equivalentes são `plan()` e `accept_lookup()`. `answer()` continua atendendo `POST /api/v1/questions` com o mesmo comportamento, compondo planejar, fonte local e a mesma geração. Ainda não há rotas internas para as duas operações.
+
 Qualquer adaptador de fonte, inclusive uma implementação futura do Backend, deve manter os nomes de parâmetros do protocolo: `retrieve(self, plan, access_context)`. Isso permite chamadas por palavra-chave compatíveis com `EvidenceSource`. O contexto é recebido por chamada e não deve ser guardado entre consultas.
 
 ### Perfil de domínio e catálogo de capacidades
@@ -369,3 +373,39 @@ Esses exemplos não são respostas esperadas; os números só podem ser preenchi
 ## Avaliação
 
 Preparar casos representativos para consumo, faturamento, rede, atendimento, geografia, classe, GD e perguntas impossíveis. Conferir correção numérica e recusa adequada. IA-08 é diferencial de automação; mesmo sem ele, evidência manual reproduzível é necessária para IA-01 a IA-06.
+
+## Preparação da identidade de publicação Gold — 28/10/2026
+
+O Backend passa a validar a origem do manifesto e persistir a origem e `publication_id`, derivando deles o `batch_ref`. A identidade permanece em repetição e muda atomicamente em nova publicação. O schema analítico e o papel de leitura seguem a ADR-0017; [manifesto e compatibilidade](../contracts/gold-csv-v1.md#origem-e-publicação) e [migração, permissões e recuperação](../contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação) descrevem o uso. `EvidenceProvenance` aceita `batch_ref` canônico e o `EvidenceGuard` exige a referência esperada para fonte Gold, preservando-a na evidência reduzida e recusando divergência. Backend e GenAI testam os mesmos exemplos em `docs/contracts/examples/gold-publication-v1.json`. Os envelopes completos, os endpoints de planejar/sintetizar e o executor de consultas de negócio continuam pendentes. Esta preparação não ativa a fonte real nem conclui GENAI-01 ou requisitos IA/DE.
+
+
+### Envelopes de planejamento e síntese Gold
+
+`app.schemas.internal` prepara as operações internas do GENAI-01. O planejamento Gold exige publicação e cobertura temporal por métrica lógica; a síntese exige publicação esperada separada do lookup. Usa o `GoldBatchRef` compartilhado, preserva fontes sintéticas e rejeita campos extras, cobertura duplicada ou fora do escopo. Os schemas não executam SQL, resolvem períodos nem comparam a evidência; o núcleo aplica o EvidenceGuard na etapa seguinte. Ver B1 a B5 no [contrato interno](../contracts/genai-query-execution.md). Rotas e integração Backend continuam pendentes.
+
+
+### GENAI-01 — referência final e prazo recebido
+
+As operações públicas do núcleo `plan` e `synthesize` aceitam envelopes internos v1 com referência de pacote Gold CSV v2. Cada requisição exige `remaining_timeout_ms` de 1 a 35.000, enviado pelo Backend confiável. A execução usa o menor valor entre o saldo e o teto local, incluindo espera por capacidade, e rejeita conclusão atrasada. Isso não cria endpoints internos nem autoriza fonte real: o Backend continua o único executor SQL e autoridade do orçamento global. Transporte e coordenação pertencem à integração posterior descrita no contrato.
+
+
+### GENAI-02 — controle de atendimento Gold v2, 31/10/2026
+
+O verificador `scripts/gold_coverage.py` preserva satisfação zero quando observada e não aplica uma escala máxima sem homologação. A saída adicional `reconciliacoes.atendimento_protocolos_x_visao_360` recalcula protocolos e notas de `atendimentos_uc` contra o resumo por UC, com contagem exata, tolerância 0,005 para médias e nulidade preservada. Publica só estados e contadores de divergência; não envia registros ao modelo nem libera capacidades no runtime. Detalhe ausente ou inválido não comprova zero. Reconciliação contra Silver, cobertura mensal C15 e aplicação à prontidão continuam separadas. Ver `docs/gold-coverage-v0.md`, atualização C14.
+
+
+Complemento de 31/10/2026: C14 confere flags de nota presentes e a população sem UCs de teste. C15 compara os meses de abertura com `cobertura_dominios`, preservando estado e ausência de data. Ambos devolvem diagnósticos agregados sem autenticar declarações de cobertura ou liberar métricas; a prontidão do PR #71 e a identidade do lote no Backend continuam fronteiras de integração próprias.
+
+
+### GENAI-02 — prontidão v2 por capacidade, 31/10/2026
+
+A função pública existente `app.readiness.evaluate_readiness` recebe fatos explícitos do Backend; v2 reconhece quinze fontes analíticas sem cadastro pessoal e exige resultados de controle aprovados/passados no mesmo lote, além da cobertura do recorte. C14 governa atendimento acumulado e C14/C15 o mensal. Contagem coerente não aprova mês não certificado. Datas sem competência são observação obrigatória; inventário incompleto é parcial, com decisão independente por capacidade. `GoldBatchRef` continua compartilhado com o núcleo; os controles CSV não concedem autorização ou aprovação automaticamente. Compatibilidade v1 é explícita e recusa referências CSV v2. Fonte existente não homologa medida: faturas, medidores, recuperação individual e outras capacidades pendentes permanecem bloqueadas pelos critérios documentados em [gold-readiness.md](../gold-readiness.md). A fábrica injeta o avaliador na operação `POST /api/v1/internal/gold-readiness`, com autenticação de serviço obrigatória inclusive localmente. Não chama LLM nem banco. Observação dos fatos no Backend e consumo pelo fluxo público continuam etapas separadas. Não ativa banco, consulta ou interpretação Gold e não conclui GENAI-02.
+
+### Operação interna de prontidão conectada — GENAI-02
+
+A fábrica atual injeta `evaluate_readiness` em `POST /api/v1/internal/gold-readiness`. Esta operação exige token de serviço configurado inclusive no modo local e recebe fatos técnicos, nunca registros ou SQL; retorna o relatório tipado sem chamar modelo. O observador e cliente Backend, acionáveis pela CLI, calculam C14/C15 na publicação real e preservam o lote até a resposta. A prova privada com pacote v2, importador, SQLite temporário e GenAI HTTP local passou; atendimento mensal não certificado permaneceu bloqueado. Isso substitui a pendência anterior de ausência de chamador desta operação, mas não conecta o chat público. A regressão com papel restrito passou separadamente em PostgreSQL 16 descartável no Docker; a conferência no destino permanece necessária. Ver [operação e limitações](../gold-readiness.md#operação-executável-e-prova-privada).
+
+
+### Controles adicionais recebidos do Backend — GENAI-02
+
+A operação interna de prontidão existente recebe os resultados observados de receita, consumo e continuidade pela mesma versão v2. Não executa SQL nem recalcula medidas; exige sucesso, aceite explícito e identidade de publicação, além de cobertura fechada do recorte. Testes HTTP cobrem controle falho, não aprovado, antigo e período não fechado, preservando atendimento independente. O relatório permanece separado das perguntas e insights públicos.

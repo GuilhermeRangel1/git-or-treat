@@ -251,7 +251,8 @@ def assert_gold_audit_migration_preserves_the_previous_batch(connection):
         else:
             command.downgrade(config, revision)
         assert connection.execute(select(gold_v1.BATCH)).mappings().one() == before
-        assert connection.scalar(text("SELECT receita_reais FROM gold_consumo_mensal_uc")) == Decimal("25.50")
+        table_name = "gold.gold_consumo_mensal_uc" if connection.dialect.name == "postgresql" and revision == "head" else "gold_consumo_mensal_uc"
+        assert connection.scalar(text(f"SELECT receita_reais FROM {table_name}")) == Decimal("25.50")
         connection.commit()
 
 

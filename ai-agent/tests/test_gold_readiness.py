@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 import app.readiness.evaluate as evaluate_module
 from app.readiness import (
@@ -21,6 +21,7 @@ from app.readiness import (
     evaluate_readiness,
 )
 from app.readiness.requirements import DOCUMENTED_CONTROLS, TABLES_WITH_COMPETENCIA
+from app.schemas.evidence import GoldBatchRef
 
 DICTIONARY = Path(__file__).resolve().parents[2] / "docs" / "dicionario_gold.md"
 
@@ -92,6 +93,51 @@ def test_ready_lot_releases_only_capabilities_with_approved_definition_and_contr
     for capability_id in NOT_IN_GOLD:
         assert _reasons(report, capability_id) == (ReasonCode.SOURCE_NOT_IN_GOLD,)
     assert set(report.capabilities) == {req.id for req in CAPABILITY_REQUIREMENTS}
+
+
+@pytest.mark.parametrize("reference", [REF_A, REF_B])
+def test_publication_reference_round_trips_through_readiness(reference: str) -> None:
+    validated = TypeAdapter(GoldBatchRef).validate_python(reference)
+    data = _facts(batch_ref=validated, expected_batch_ref=validated)
+    for table in data["tables"].values():
+        table["batch_ref"] = validated
+
+    report = _evaluate(data)
+
+    assert report.lot_state is LotState.READY
+    assert report.batch_ref == validated
+    assert ReadinessReport.model_validate_json(report.model_dump_json()) == report
+
+
+@pytest.mark.parametrize("field", ["batch_ref", "expected_batch_ref", "table", "report"])
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "SINTETICO_DEV",
+        "LOTE_DEV",
+        REF_A.replace("-4000-", "-1000-"),
+        f" {REF_A}",
+        f"{REF_A} ",
+        123,
+    ],
+)
+def test_invalid_reference_is_rejected_at_every_readiness_boundary(field, reference) -> None:
+    with pytest.raises(ValidationError):
+        TypeAdapter(GoldBatchRef).validate_python(reference)
+
+    data = _facts()
+    if field == "report":
+        report = _evaluate(data).model_dump(mode="json")
+        report["batch_ref"] = reference
+        with pytest.raises(ValidationError):
+            ReadinessReport.model_validate(report)
+        return
+    if field == "table":
+        data["tables"]["visao_360_uc"]["batch_ref"] = reference
+    else:
+        data[field] = reference
+    with pytest.raises(ValidationError):
+        PublicationFacts.model_validate(data)
 
 
 def test_unreachable_backend_takes_precedence_and_never_reads_as_empty() -> None:
@@ -459,10 +505,11 @@ def test_same_facts_produce_the_same_report() -> None:
 
 
 def test_every_capability_points_to_official_gold_tables() -> None:
-    text = DICTIONARY.read_text(encoding="utf-8")
-    official = set(re.findall(r"^## [1-7]\. `([a-z0-9_]+)`", text, flags=re.MULTILINE))
+    text = DICTIONARY.read_text(encoding="utf-8").split("## 1.", 1)[0]
+    official = set(re.findall(r"^\| `([a-z0-9_]+)` \|", text, flags=re.MULTILINE))
 
-    assert len(official) == 7
+    official.discard("controle_gold")
+    assert len(official) == 15
     assert {table.value for table in GoldTable} == official
     for requirement in CAPABILITY_REQUIREMENTS:
         assert {table.value for table in requirement.tables} <= official
@@ -503,3 +550,184 @@ def test_models_are_immutable() -> None:
         facts.backend_reachable = False
     with pytest.raises(ValidationError):
         table.has_rows = True
+
+
+V2_REF = REF_A.replace("gold-csv-v1:", "gold-csv-v2:")
+
+
+def _v2_facts():
+    data = _facts()
+    data.update(readiness_version="gold-readiness-v2", batch_ref=V2_REF,
+                expected_batch_ref=V2_REF, approved_controls=[],
+                control_results={"C14": {"status": "passed", "approved": True,
+                                         "batch_ref": V2_REF},
+                                 "C15": {"status": "passed", "approved": True,
+                                         "batch_ref": V2_REF}})
+    for table in data["tables"].values():
+        table["batch_ref"] = V2_REF
+    data["tables"]["atendimentos_uc"] = _table(ref=V2_REF, periods=())
+    data["tables"]["cobertura_dominios"] = _table(ref=V2_REF, periods=PERIODS)
+    data["coverage"] = {"atendimento.mensal": {
+        "batch_ref": V2_REF, "requested_periods": ["2001-01"],
+        "observed_periods": ["2001-01"], "closed_periods": ["2001-01"],
+        "has_undated_records": False,
+    }}
+    return data
+
+
+def test_v2_attendance_uses_current_controls_and_preserves_version():
+    report = _evaluate(_v2_facts())
+    assert report.readiness_version == "gold-readiness-v2"
+    assert report.capabilities["atendimento.uc_acumulado"].status is CapabilityStatus.AVAILABLE
+    assert report.capabilities["atendimento.mensal"].status is CapabilityStatus.AVAILABLE
+    assert ReasonCode.SOURCE_NOT_IN_GOLD not in _reasons(report, "apoio.medidor_uc")
+    assert ReasonCode.SOURCE_NOT_IN_GOLD not in _reasons(report, "faturamento.faturas_em_aberto")
+
+
+@pytest.mark.parametrize("status", ["failed", "pending", "unavailable"])
+def test_v2_failed_monthly_control_blocks_only_monthly_attendance(status):
+    data = _v2_facts()
+    data["control_results"]["C15"]["status"] = status
+    report = _evaluate(data)
+    assert report.capabilities["atendimento.mensal"].status is CapabilityStatus.UNAVAILABLE
+    assert report.capabilities["atendimento.uc_acumulado"].status is CapabilityStatus.AVAILABLE
+
+
+def test_v2_partial_coverage_is_not_released_by_passing_controls():
+    data = _v2_facts()
+    data["coverage"]["atendimento.mensal"]["closed_periods"] = []
+    report = _evaluate(data)
+    assert report.capabilities["atendimento.mensal"].status is CapabilityStatus.UNAVAILABLE
+    assert report.capabilities["atendimento.uc_acumulado"].status is CapabilityStatus.AVAILABLE
+
+
+@pytest.mark.parametrize("case", ["missing", "unapproved", "old_publication"])
+def test_v2_control_evidence_must_be_approved_for_current_publication(case):
+    data = _v2_facts()
+    if case == "missing":
+        del data["control_results"]["C14"]
+    elif case == "unapproved":
+        data["control_results"]["C14"]["approved"] = False
+    else:
+        data["control_results"]["C14"]["batch_ref"] = REF_B
+    report = _evaluate(data)
+    assert report.capabilities["atendimento.uc_acumulado"].status is CapabilityStatus.UNAVAILABLE
+    assert report.capabilities["atendimento.mensal"].status is CapabilityStatus.UNAVAILABLE
+
+
+@pytest.mark.parametrize("case", ["missing", "old_publication", "undated", "missing_observation"])
+def test_v2_coverage_evidence_is_bound_to_publication_and_requested_period(case):
+    data = _v2_facts()
+    if case == "missing":
+        data["coverage"] = {}
+    elif case == "old_publication":
+        data["coverage"]["atendimento.mensal"]["batch_ref"] = REF_B
+    elif case == "undated":
+        data["coverage"]["atendimento.mensal"]["has_undated_records"] = True
+    else:
+        data["coverage"]["atendimento.mensal"]["observed_periods"] = []
+    report = _evaluate(data)
+    assert report.capabilities["atendimento.mensal"].status is CapabilityStatus.UNAVAILABLE
+    assert report.capabilities["atendimento.uc_acumulado"].status is CapabilityStatus.AVAILABLE
+
+
+def test_v2_confirmed_zero_is_distinct_from_empty_unobserved_table():
+    data = _v2_facts()
+    data["tables"]["atendimentos_uc"] = {"present": True, "has_rows": False,
+                                         "batch_ref": V2_REF}
+    coverage = data["coverage"]["atendimento.mensal"]
+    coverage.update(observed_periods=[], zero_confirmed_periods=["2001-01"])
+    report = _evaluate(data)
+    assert report.capabilities["atendimento.mensal"].status is CapabilityStatus.AVAILABLE
+    assert report.capabilities["atendimento.uc_acumulado"].status is CapabilityStatus.UNAVAILABLE
+    coverage["zero_confirmed_periods"] = []
+    assert _evaluate(data).capabilities["atendimento.mensal"].status is CapabilityStatus.UNAVAILABLE
+
+
+def test_v2_confirmed_zero_does_not_replace_missing_coverage_table():
+    data = _v2_facts()
+    data["coverage"]["atendimento.mensal"].update(
+        observed_periods=[], zero_confirmed_periods=["2001-01"])
+    data["tables"]["cobertura_dominios"] = {"present": True, "has_rows": False,
+                                           "batch_ref": V2_REF}
+    report = _evaluate(data)
+    assert ReasonCode.TABLE_EMPTY in _reasons(report, "atendimento.mensal")
+
+
+def test_v2_new_sources_are_not_falsely_absent_or_automatically_approved():
+    report = _evaluate(_v2_facts())
+    for capability in ("faturamento.faturas_em_aberto", "apoio.medidor_uc",
+                       "apoio.energia_recuperavel", "faturamento.preco_volume"):
+        assert ReasonCode.SOURCE_NOT_IN_GOLD not in _reasons(report, capability)
+        assert ReasonCode.DEFINITION_PENDING in _reasons(report, capability)
+        assert report.capabilities[capability].status is CapabilityStatus.UNAVAILABLE
+
+
+@pytest.mark.parametrize("case", ["legacy_controls", "legacy_version", "contradictory_zero",
+                                  "duplicate_month", "bad_year", "string_boolean"])
+def test_v2_incompatible_or_contradictory_facts_are_rejected(case):
+    data = _v2_facts()
+    if case == "legacy_controls":
+        data["approved_controls"] = ["C14", "C15"]
+    elif case == "legacy_version":
+        data["readiness_version"] = "gold-readiness-v1"
+    elif case == "contradictory_zero":
+        data["coverage"]["atendimento.mensal"]["zero_confirmed_periods"] = ["2001-01"]
+    elif case == "duplicate_month":
+        data["coverage"]["atendimento.mensal"]["requested_periods"] = ["2001-01", "2001-01"]
+    elif case == "bad_year":
+        data["coverage"]["atendimento.mensal"]["requested_periods"] = ["0000-01"]
+    else:
+        data["control_results"]["C14"]["approved"] = "false"
+    with pytest.raises(ValidationError):
+        PublicationFacts.model_validate(data)
+
+
+@pytest.mark.parametrize("case", ["mixed", "stale", "unidentified", "unavailable"])
+def test_v2_invalid_publication_cannot_release_any_capability(case):
+    data = _v2_facts()
+    if case == "mixed":
+        data["tables"]["atendimentos_uc"]["batch_ref"] = REF_B
+    elif case == "stale":
+        data["expected_batch_ref"] = REF_B
+    elif case == "unidentified":
+        data["batch_ref"] = None
+    else:
+        data["backend_reachable"] = False
+    assert _available(_evaluate(data)) == set()
+
+
+def test_v2_old_failed_controls_do_not_leak_counts_or_periods_in_report():
+    data = _v2_facts()
+    data["control_results"]["C15"]["status"] = "failed"
+    report = _evaluate(data).model_dump(mode="json")
+    assert report.pop("readiness_version") == "gold-readiness-v2"
+    assert report.pop("batch_ref") == V2_REF
+    assert all(isinstance(value, str) and not re.search(r"[0-9]", value)
+               for value in _scalars(report))
+
+
+
+def test_v2_undated_record_observation_cannot_be_omitted():
+    data = _v2_facts()
+    del data["coverage"]["atendimento.mensal"]["has_undated_records"]
+    with pytest.raises(ValidationError):
+        PublicationFacts.model_validate(data)
+
+
+def test_v2_monthly_attendance_requires_month_present_in_coverage_table():
+    data = _v2_facts()
+    coverage = data["coverage"]["atendimento.mensal"]
+    for field in ("requested_periods", "observed_periods", "closed_periods"):
+        coverage[field] = ["2002-01"]
+    report = _evaluate(data)
+    assert report.capabilities["atendimento.mensal"].status is CapabilityStatus.UNAVAILABLE
+    assert ReasonCode.PERIOD_MISSING in _reasons(report, "atendimento.mensal")
+
+
+def test_v2_incomplete_inventory_is_partial_without_blocking_independent_attendance():
+    data = _v2_facts()
+    del data["tables"]["gd_uc"], data["tables"]["tratativas_uc"]
+    report = _evaluate(data)
+    assert report.lot_state is LotState.PARTIAL
+    assert report.capabilities["atendimento.mensal"].status is CapabilityStatus.AVAILABLE

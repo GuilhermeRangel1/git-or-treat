@@ -172,6 +172,9 @@ def test_service_rollback_keeps_same_session_usable_after_insert_and_update_erro
 ):
     database_path = (tmp_path / "same_session_rollback.sqlite").as_posix()
     engine = create_engine(f"sqlite:///{database_path}")
+    engine = engine.execution_options(
+        schema_translate_map={"gold": None, "gold_v2": None}
+    )
     Base.metadata.create_all(bind=engine)
     db = sessionmaker(bind=engine)()
     create_payload = OrderCreateRequest(

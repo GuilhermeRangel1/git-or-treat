@@ -5,29 +5,36 @@ from collections.abc import Iterable
 from app.readiness.models import (
     CapabilityReadiness,
     CapabilityStatus,
+    GoldTable,
     LotState,
     PublicationFacts,
     ReadinessReport,
     ReasonCode,
 )
-from app.readiness.requirements import CAPABILITY_REQUIREMENTS, CapabilityRequirement
+from app.readiness.requirements import (
+    CAPABILITY_REQUIREMENTS,
+    V2_CAPABILITY_REQUIREMENTS,
+    CapabilityRequirement,
+)
 
 _REASON_ORDER = {reason: index for index, reason in enumerate(ReasonCode)}
-_REQUIRED_TABLES = frozenset(table for req in CAPABILITY_REQUIREMENTS for table in req.tables)
 
 
 def evaluate_readiness(facts: PublicationFacts) -> ReadinessReport:
-    lot_state, lot_reason = _lot_state(facts)
+    requirements = (V2_CAPABILITY_REQUIREMENTS if facts.readiness_version == "gold-readiness-v2"
+                    else CAPABILITY_REQUIREMENTS)
+    lot_state, lot_reason = _lot_state(facts, requirements)
     if lot_reason is not None:
-        capabilities = {req.id: _blocked(req, lot_reason) for req in CAPABILITY_REQUIREMENTS}
+        capabilities = {req.id: _blocked(req, lot_reason) for req in requirements}
     else:
-        capabilities = {req.id: _evaluate(req, facts) for req in CAPABILITY_REQUIREMENTS}
+        capabilities = {req.id: _evaluate(req, facts) for req in requirements}
     return ReadinessReport(
+        readiness_version=facts.readiness_version,
         lot_state=lot_state, batch_ref=facts.batch_ref, capabilities=capabilities
     )
 
 
-def _lot_state(facts: PublicationFacts) -> tuple[LotState, ReasonCode | None]:
+def _lot_state(facts: PublicationFacts, requirements) -> tuple[LotState, ReasonCode | None]:
     # Indisponibilidade nunca vira "vazio": o Backend não conseguiu observar o lote.
     if not facts.backend_reachable:
         return LotState.UNAVAILABLE, ReasonCode.BACKEND_UNAVAILABLE
@@ -41,7 +48,9 @@ def _lot_state(facts: PublicationFacts) -> tuple[LotState, ReasonCode | None]:
         return LotState.MIXED, ReasonCode.PUBLICATION_MIXED
     if not any(table.has_rows for table in present):
         return LotState.EMPTY, None
-    for name in _REQUIRED_TABLES:
+    inventory = (set(GoldTable) if facts.readiness_version == "gold-readiness-v2"
+                 else {table for req in requirements for table in req.tables})
+    for name in inventory:
         table = facts.tables.get(name)
         if table is None or not table.has_rows:
             return LotState.PARTIAL, None
@@ -59,18 +68,53 @@ def _evaluate(req: CapabilityRequirement, facts: PublicationFacts) -> Capability
     if req.source_not_in_gold:
         return _unavailable([ReasonCode.SOURCE_NOT_IN_GOLD])
     reasons: list[ReasonCode] = []
+    v2 = facts.readiness_version == "gold-readiness-v2"
+    coverage = facts.coverage.get(req.id)
+    confirmed_empty = False
+    if v2 and req.requires_coverage:
+        if coverage is None:
+            reasons.append(ReasonCode.COVERAGE_MISSING)
+        elif coverage.batch_ref != facts.batch_ref:
+            reasons.append(ReasonCode.COVERAGE_PUBLICATION_MISMATCH)
+        else:
+            requested = set(coverage.requested_periods)
+            usable = set(coverage.observed_periods) | set(coverage.zero_confirmed_periods)
+            coverage_table = facts.tables.get(GoldTable.COBERTURA_DOMINIOS)
+            if (coverage_table is None or not coverage_table.present
+                    or not requested <= set(coverage_table.periods)):
+                reasons.append(ReasonCode.PERIOD_MISSING)
+            if (coverage.has_undated_records or not requested <= set(coverage.closed_periods)
+                    or not requested <= usable):
+                reasons.append(ReasonCode.COVERAGE_INCOMPLETE)
+            else:
+                confirmed_empty = (req.allows_confirmed_empty
+                                   and requested <= set(coverage.zero_confirmed_periods))
     for name in req.tables:
         table = facts.tables.get(name)
         if table is None or not table.present:
             reasons.append(ReasonCode.TABLE_MISSING)
-        elif not table.has_rows:
+        elif not table.has_rows and not (confirmed_empty and name is GoldTable.ATENDIMENTOS_UC):
             # Tabela vazia é ausência de evidência, nunca zero.
             reasons.append(ReasonCode.TABLE_EMPTY)
-        elif req.temporal_column is not None:
+        elif req.temporal_column is not None and not v2:
             period_reason = _period_reason(table.periods, req.min_consecutive_months)
             if period_reason is not None:
                 reasons.append(period_reason)
-    if not set(req.required_controls) <= facts.approved_controls:
+        elif (v2 and req.temporal_column is not None and coverage is not None
+              and not set(coverage.requested_periods) <= set(table.periods)):
+            reasons.append(ReasonCode.PERIOD_MISSING)
+    if v2:
+        for control_id in req.required_controls:
+            control = facts.control_results.get(control_id)
+            if control is None:
+                reasons.append(ReasonCode.CONTROL_PENDING)
+            elif control.batch_ref != facts.batch_ref:
+                reasons.append(ReasonCode.CONTROL_PUBLICATION_MISMATCH)
+            elif control.status == "failed":
+                reasons.append(ReasonCode.CONTROL_FAILED)
+            elif control.status != "passed" or not control.approved:
+                reasons.append(ReasonCode.CONTROL_PENDING)
+    elif not set(req.required_controls) <= facts.approved_controls:
         reasons.append(ReasonCode.CONTROL_PENDING)
     if not req.definition_approved:
         reasons.append(ReasonCode.DEFINITION_PENDING)

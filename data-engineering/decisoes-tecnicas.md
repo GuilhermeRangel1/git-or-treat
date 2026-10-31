@@ -114,7 +114,12 @@ Cada seta só existe se a anterior fechou a conta. As duas contas que governam o
 | D59 | Silver | **Nulo tipado exige destino explícito:** timestamp inválido de ocorrência/atendimento vai à quarentena; nota de satisfação inválida fica nula com `_nota_invalida`; coordenadas inválidas ficam nulas com `_geo_invalida`. Medidas necessárias malformadas vão à quarentena | conversão silenciosa para nulo esconderia perda de significado; o histórico de R24/R25 descreve versões anteriores, não a regra atual | notebook Silver, transformações e relatório por arquivo/aba na seção 13 | **implementado localmente; conferir volumes no lote autorizado** |
 | D60 | Silver | **Tratativa localizável:** `atendimentos_historico` usa `(protocolo, posicao_historico)` como chave, com posição de 1 em diante no array original | `sequencia` vem do JSON e pode ser ausente, inválida ou repetida; sem ordinal não é possível localizar uma tratativa específica na Bronze | `posexplode` e verificação de unicidade no notebook; amostra de linhagem sem exposição de identificadores | **implementado localmente; validar no lote autorizado** |
 | D19 | Gold | Modelo de métricas (receita, DEC/FEC, GD, UC 360) | responder às perguntas do portal/IA | PRD §5, dicionário | **proposta** |
-| D20 | Gold | **Mascaramento/hash** de dado pessoal | LGPD: não expor CPF/nome a portal, IA e CSV local | seção 9 | **pendente** |
+| D20 | Gold | Exclusão de PII dos agregados/IA; exceção restrita para nome de exibição do titular | Identificação do atendimento separada do consumo analítico | seção 9.3 | exclusão decidida em 28/10; exceção solicitada em 30/10/2026, revisão do time e ACLs pendentes |
+| D61 | Silver | **Reparo de encoding em `bairro`:** a Silver repara texto em UTF-8 lido como Latin-1 antes da padronização (função `reparar_encoding`). A Bronze guarda o texto cru de propósito. Nenhum mapeamento de grafias é aplicado, porque não há fonte de referência | sem o reparo, o mesmo bairro aparece com grafias diferentes e duplica linhas em `consumo_receita_bairro` | mesma entrada Bronze (`f875fb45`): Silver `b8bccba8`, sem reparo, 331 bairros distintos e 338 linhas com texto quebrado (padrão de busca desta conferência); Silver `c5ba30e0`, com reparo, 272 e 0 suspeitos; mantido na `c738405b`. A contagem de linhas reparadas na Bronze está no PRD (entrada de 24/10). O commit `5679271` (24/10, 01:58, Recife) é posterior à execução `c5ba30e0` (24/10, 00:54): o reparo já estava no notebook do Workspace quando ela rodou. Varredura de todas as colunas de texto das 9 tabelas: 0 suspeitos | **implementado e verificado nas execuções `c5ba30e0` e `c738405b`** |
+| D62 | Silver / Gold | **Data de ligação anterior a 1950:** a Silver preserva o valor; o tratamento fica na Gold (nulo, sem coluna nova, contrato `gold-csv-v1`), na próxima execução da Gold | as 90 UCs afetadas (de 45.000) têm todas data 01-01, entre 1900 e 1948, e nenhuma UC tem ligação entre 1949 e 1997; 89 têm série mensal normal: são UCs reais com data de cadastro inválida na origem. Alterar a Silver invalidaria a evidência e exigiria nova Silver e nova Gold | medido em 28/10 na Gold `81c5530b`; a Silver continua preservando o valor (`validacao_silver_v1`: 0 falhas) | **proposto por Dados; implementação na Gold pendente (Bia)** |
+| D63 | Gold | **Valor nominal declarado em aberto separado do saldo:** publicar `valor_fatura_declarada_em_aberto_reais` para status EM ABERTO e valor utilizável; sinais conflitantes permanecem visíveis e não viram recebimento | permite atender a consulta de faturas sem inventar contabilidade ou pagamentos parciais; D55 permanece | proposta aceita pela pessoa usuária em 30/10/2026, contratos e PRD atualizados | implementado localmente; validar com consumidores e lote real |
+| D64 | Gold | **Cobertura da extração e estudo retrospectivo:** distinguir extração reconciliada de fechamento contábil; acrescentar bairro à decomposição; estimativa por inspeção condicionada a validação temporal e população elegível | impede certificar completude por contagem ou apresentar histórico como previsão sem avaliar | dicionário e contratos candidatos; cortes 60/20/20, MAE ao menos 5% menor que média simples e cobertura de intervalo ao menos 80% são critérios propostos para o estudo | implementação candidata autorizada em 30/10/2026; aprovação do lote/método em uso real não presumida |
+| D65 | Gold | **Referência histórica global com grupos opcionais:** avaliar média global de kWh por inspeção concluída e médias por grupo apenas com ganho de calibração, amostra suficiente e aprovação temporal | permite avaliar a alternativa sem chamar uma média de grupo de estimativa individual da UC | `MEDIA_GLOBAL_COM_GRUPOS_OPCIONAIS_V2`; critérios provisórios; médias e intervalos históricos são publicados em campos próprios, com referência global/grupo e estado; campos de estimativa individual ficam nulos | implementação candidata em notebooks; depende de decisão explícita de escopo/aceite do WEB-04, revisão de Dados/Produto e validação no lote real |
 
 ---
 
@@ -651,35 +656,21 @@ de negócio da versão atual.
 - **GD:** potência instalada **não** prova energia gerada/abatida por competência (PRD §4.2, GD).
 - **Inspeção:** separar suspeita, ordem operacional e resultado; `inspecoes.xlsx` é histórico (PRD §5.4).
 
-### 9.3 Hashing / mascaramento de dado pessoal — **por que e como** (D20, pendente)
+### 9.3 Exclusão de dados pessoais na projeção Gold (D20, decidido)
 
-**Por quê.** A Silver preserva `cpf_cnpj` e `nome_titular` como **dígitos/texto reais** porque a Bronze é a fonte
-rastreável e a Silver resolve qualidade — a proteção não é papel delas. Mas a Gold alimenta **CSV exportado para o
-banco local**, que por sua vez alimenta **API, portal e agente Text-to-SQL**. Expor CPF/nome nessa ponta é risco
-de LGPD e de vazamento no Git. Marcar/anonimizar na Gold resolve isso sem perder o rastro, porque o dado cru segue
-íntegro na Bronze/Silver dentro do ambiente autorizado (`AGENTS.md`: não copiar dado pessoal para commits/logs).
+**Decisão — 28/10/2026:** publicar a Visão 360 e a fila de inspeção com as colunas analíticas necessárias, excluindo CPF/CNPJ, nome do titular, endereço, CEP, coordenadas e metadados técnicos iniciados por `_`. Esses campos não são substituídos por hash nem por versões mascaradas. A projeção é definida em `notebook/Silver_to_gold.ipynb` e descrita no [dicionário Gold](../docs/dicionario_gold.md).
 
-**Por que hashing e não simplesmente "apagar" ou "substituir por sequencial".** Existem três usos concorrentes:
+**Motivo:** os consumidores identificam a unidade por `id_uc` e usam classe e território como contexto. O escopo analítico combinado não exige agrupar por titular; manter identificadores pessoais transformados acrescentaria dados sem necessidade demonstrada. A exclusão reduz a exposição na Gold e nos CSVs. `id_uc` continua sendo um identificador da unidade; esta projeção não constitui garantia de anonimização do conjunto.
 
-- o **portal** mostra o titular (talvez mascarado, ex.: `***.***.***-09`);
-- o **agente/IA** às vezes precisa **contar** UCs por titular ou reconhecer "mesmo titular" sem ler o nome;
-- a **reconciliação** precisa continuar possível entre Gold e Silver.
+**Limite:** a decisão não apaga os registros de origem. Bronze e Silver permanecem no ambiente autorizado, com acesso restrito e rastreabilidade. A recomendação anterior de hash com salt mais mascaramento fica substituída por esta decisão.
 
-O hash **determinístico** (mesma entrada → mesma saída) permite agrupar/contar por titular sem revelar o valor; um
-sequencial arbitrário até permitiria isso, mas quebraria a reprodutibilidade entre execuções (reimportar a Gold
-renumeraria titulares). O hash determinístico mantém a chave estável.
+**Verificação:** a projeção da Gold foi reportada como conferida nas tabelas Delta oficiais, com 15 colunas na Visão 360 e 14 na fila. Os cabeçalhos dos sete CSVs recebidos foram conferidos localmente contra o contrato do Backend; Visão 360 e fila mantêm as 15 e 14 colunas esperadas, sem campos pessoais adicionais. No portal, confirmar que número da UC, classe e município/bairro atendem à identificação na tela do atendente antes de registrar essa suposição como validada.
 
-**Opções e custo:**
+**Revisão pontual — 30/10/2026, solicitada por Guilherme nesta implementação:** DEV13.2 U03 e issue #75 exigem identificar o titular no portal. Publicar somente o nome atual de exibição em `gold_cadastro.cadastro_titular_uc`, ligado por `id_uc`, com estado explícito de ausência/conflito. Preparo, schema e pacote cadastral são separados dos analíticos. A exclusão continua integral na Visão 360 agregada, fila, catálogo e contexto GenAI. Não usar nome como chave, não derivar uma referência de cliente de CPF/nome, não incluir CPF/CNPJ ou endereço nesta exceção.
 
-| Opção | O que faz | Ganho | Custo / risco |
-|---|---|---|---|
-| **A. Hash determinístico com *salt* secreto** (ex.: SHA-256 de `salt + cpf`) | substitui CPF/nome reais pelo hash na Gold | agrupa/conta sem revelar; estável entre execuções | o *salt* precisa ser segredo (não versionar); hash de domínio pequeno (CPF) ainda é atacável por força bruta se o *salt* vazar |
-| **B. Mascaramento parcial** (`***.***.***-09`, primeiro nome) | mostra o suficiente para o usuário humano | baixo risco, legível para o operador | não serve para agrupar por titular no agente |
-| **C. Não expor** (Gold sem CPF/nome; só `id_uc`) | nenhum dado pessoal sai | risco zero | o portal perde "de quem é a UC"; a IA não responde por titular |
+**Alternativas:** manter apenas `id_uc` não entrega a identificação pessoal solicitada; inserir nome nos agregados/CSV analíticos amplia exposição; a projeção restrita atende ao pedido de nome sem ampliar o catálogo da IA. A proposta de endereço e referência estável de cliente do PDF permanece fora desta autorização e não será fabricada.
 
-**Recomendação conservadora:** **A + B** — o hash substitui o identificador pessoal nos fatos exportados (para
-agrupar), e uma versão mascarada **B** fica só para exibição; o CPF/`nome_titular` real **não** sai da camada
-Bronze/Silver. Decidir o *salt* e onde guardá-lo é requisito para a Gold (pendência).
+**Operação e consequências:** conforme ajuste solicitado em 30/10/2026, a exportação cadastral é obrigatória para concluir a entrega: `sim` é padrão e único valor aceito, com Volume restrito previamente provisionado. Reutiliza a linhagem e referencia a tentativa analítica; ambos os pacotes precisam estar validados antes de liberar manifestos. O operador precisa validar permissões herdadas no catálogo e schemas, inclusive preparo; separar schemas não comprova isolamento por si só. O consumidor usa papel cadastral próprio, fora de `venergy_gold_reader`, autorização individual e nenhuma passagem do nome para o modelo. Revisão de Dados/Produto, ACLs reais e integração do consumidor permanecem pendentes; a solicitação da pessoa usuária autoriza esta implementação, sem representar aprovação externa já obtida. Contrato: [gold-cadastro-v1](../docs/contracts/gold-cadastro-v1.md).
 
 ### 9.4 Exportação (DE-06)
 
@@ -967,3 +958,10 @@ O run de §11.3 valida somente a revisão anterior, não D53–D60. Nesta revis�
   `Bronze_to_Silver.ipynb` (a versão R30/R31 rodou e passou nos invariantes; a versão R34–R38 aguarda nova
   execução).
 - Job: `data-engineering/configuracao/databricks/v-energy-grid-360.yaml`.
+
+
+### Controle de cobertura mensal — decisão de implementação de 30/10/2026
+
+Para DEV13.1 D02/D09, DEV13.2 C01 e períodos da GenAI, publicar `cobertura_dominios` junto aos dados analíticos. Não inferir fechamento de quantidade de linhas, meses consecutivos, data de publicação Silver ou calendário. O padrão é `NAO_CERTIFICADA`; evidência explícita e vinculada ao mesmo run/lote permite `FECHADO`, `PARCIAL` ou `AUSENTE`. Zero confirmado é zero de registros em recorte fechado, sem converter medidas ausentes em zero. Cadastros atuais não provam história mensal; GD/medidor não aceitam fechamento histórico por esta fonte.
+
+O operador fornece a janela esperada e declarações por intervalo/recorte após conferir a origem; ausência de declaração conserva a limitação em vez de bloquear projeções independentes. O código verifica formato, identidade, corte, sobreposição, escopo e contradições, mas não fabrica aprovação externa. A referência de evidência não contém PII e não é interpretada como instrução. O contrato [gold-cobertura-v1](../docs/contracts/gold-cobertura-v1.md) distingue o corte da evidência das contagens do snapshot e orienta consumidores. Isso prepara o controle; não aprova a semântica de linguagem relativa nem certifica o lote real.
