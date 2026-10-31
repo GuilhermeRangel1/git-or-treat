@@ -30,7 +30,7 @@ import statistics
 import sys
 import unicodedata
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -1461,11 +1461,19 @@ def attendance_monthly_control(base: Path, detail_check: dict) -> dict:
             values = {name: _get(row, idx, name) for name in required}
             if table == "atendimentos_uc":
                 raw = values["data_abertura"]
+                if "_abertura_futura" in idx:
+                    flag = _get(row, idx, "_abertura_futura")
+                    if flag not in {"true", "false", "True", "False"}:
+                        return {"estado": "nao_verificavel", "motivo": "FLAG_ABERTURA_INVALIDA"}
+                    if flag.lower() == "true" and raw is not None and not _is_null(raw):
+                        return {"estado": "nao_verificavel", "motivo": "ABERTURA_CONTRADIZ_FLAG"}
                 if raw is None or _is_null(raw):
                     undated += 1
                     continue
                 try:
                     date = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                    # Timestamps Spark sem offset são UTC conforme o contrato Gold.
+                    date = date.replace(tzinfo=UTC) if date.tzinfo is None else date.astimezone(UTC)
                 except ValueError:
                     return {"estado": "nao_verificavel", "motivo": "DATA_INVALIDA"}
                 monthly[date.strftime("%Y-%m")] += 1
@@ -1581,7 +1589,9 @@ def _json_target_error(base: Path, target: Path) -> str | None:
     if resolved == root or root in resolved.parents:
         return f"--json não pode gravar dentro do diretório do lote: {target}"
     if target.exists():
-        inputs = [path for table in TABLES for path in find_table_files(base, table)]
+        inputs = [path for table in (*TABLES, "atendimentos_uc", "cobertura_dominios")
+                  for path in find_table_files(base, table)]
+        inputs.extend(base / path for path in MANIFEST_PATHS if (base / path).is_file())
         if any(resolved == path.resolve() or os.path.samefile(target, path) for path in inputs):
             return f"--json não pode sobrescrever um arquivo de entrada: {target}"
     # Checa o pai como o sistema o verá na gravação: no Linux, "x/.." exige que x exista.

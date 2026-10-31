@@ -958,3 +958,41 @@ def test_c15_invalid_or_missing_coverage_never_passes(tmp_path, case):
                "zero_registros_confirmado"], [row, row] if case == "duplicate" else [row])
     check = gold_coverage.build_report(tmp_path)["reconciliacoes"]["atendimento_mensal_c15"]
     assert check["estado"] == "nao_verificavel"
+
+
+@pytest.mark.parametrize(("opening", "flag", "expected_state"), [
+    ("2025-02-01T01:00:00+02:00", "false", "verificada"),
+    ("2025-01-01T00:00:00Z", "true", "nao_verificavel"),
+    ("2025-01-01T00:00:00Z", "invalid", "nao_verificavel"),
+])
+def test_c15_uses_utc_month_and_checks_opening_flags(tmp_path, opening, flag, expected_state):
+    _c14(tmp_path, ("1", "0", "0"), ("", "", ""))
+    _write(tmp_path, "atendimentos_uc", ["protocolo", "id_uc", "nota_satisfacao",
+           "data_abertura", "_abertura_futura"], [["A", UC_IDS[0], "", opening, flag]])
+    _write(tmp_path, "cobertura_dominios", ["dominio", "competencia", "recorte",
+           "estado_cobertura", "qtd_registros", "qtd_sem_competencia", "zero_registros_confirmado"],
+           [["atendimentos", "2025-01", "DOMINIO", "FECHADO", "1", "0", "false"]])
+    check = gold_coverage.build_report(tmp_path)["reconciliacoes"]["atendimento_mensal_c15"]
+    assert check["estado"] == expected_state
+    if expected_state == "verificada":
+        assert check["consistente"] is True
+
+
+@pytest.mark.parametrize("table", ["atendimentos_uc", "cobertura_dominios", "manifest"])
+def test_json_hard_link_to_new_control_inputs_is_refused(tmp_path, capsys, table):
+    batch = tmp_path / "lote"
+    _batch(batch)
+    if table == "manifest":
+        source = batch / "manifest.json"
+        source.write_text("{}", encoding="utf-8")
+    else:
+        _write(batch, table, ["coluna"], [["preservar"]])
+        source = batch / table / (table + ".csv")
+    original = source.read_bytes()
+    target = tmp_path / "external.json"
+    try:
+        os.link(source, target)
+    except OSError:
+        pytest.skip("o sistema não permite criar hard link")
+    _refused(batch, target, capsys)
+    assert source.read_bytes() == original
