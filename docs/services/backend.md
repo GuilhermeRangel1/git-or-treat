@@ -6,9 +6,25 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas podem consultar registros sintéticos por interface injetável; o modo `gold` lê os dados importados em Receita, UC e fila, conforme o contrato provisório. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. As cargas v1 e v2 são transacionais, conforme os [contratos provisórios v1](../contracts/gold-csv-v1.md) e [v2](../contracts/gold-csv-v2.md); as rotas ainda não consomem as tabelas analíticas do contrato v2. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas podem consultar registros sintéticos por interface injetável; o modo `gold` lê os dados importados conforme o contrato provisório. Receita e o catálogo de filtros aceitam publicações v1 ou v2; UC e fila aceitam somente v1 e recusam a v2 até serem adaptadas. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. As cargas v1 e v2 são transacionais, conforme os [contratos provisórios v1](../contracts/gold-csv-v1.md) e [v2](../contracts/gold-csv-v2.md). O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
-A entrega local em `data/gold/v2` conserva o esquema `gold-csv-v1`; selecionar o diretório explicitamente na carga, sem apagar a v1. O [mapeamento DEV-13.2](../contracts/gold-v2-jornadas-dev132.md) registra campos, chaves, grãos, ausências e a verificação nas três jornadas. O período informado na fila é cobertura do consumo do lote, não uma janela própria da suspeita.
+Receita v2 apresenta preço observado somente a partir da receita e do consumo da base comparável e retorna, em `window_decomposition`, a decomposição materializada nas duas janelas da publicação. As sete parcelas são somadas por recorte, com método e janelas confrontados com o manifesto; grupos sem base comum mantêm resultado parcial e não são tratados como zero. O total só é exibido quando todos os grupos o possuem e o resíduo só é declarado com parcelas completas. Filtro por alimentador torna essa análise indisponível porque a tabela não tem esse grão; não se atribui a ela o recorte dos fatos mensais. Comparação entre meses e comparação entre janelas são independentes. O método continua candidato, sem homologar tarifa, energia faturada ou fechamento contábil.
+
+A entrega local em `data/gold/v2` passou a usar o esquema `gold-csv-v2`; selecionar o diretório e a versão explicitamente na carga, sem apagar a v1. O [mapeamento histórico DEV-13.2](../contracts/gold-v2-jornadas-dev132.md) descreve uma entrega anterior de sete tabelas, não o pacote atual de quinze. O período informado na fila v1 é cobertura do consumo do lote, não uma janela própria da suspeita.
+
+Para revisar a publicação já carregada no banco SQLite isolado local `backend/data/gold/receita-v2.sqlite`, sem alterar `.env`, executar no PowerShell em `backend/`:
+
+```powershell
+$env:DATABASE_URL = 'sqlite:///data/gold/receita-v2.sqlite'
+$env:ANALYTICS_SOURCE = 'gold'
+$env:APP_ENV = 'development'
+$env:ORDERS_AUTH_MODE = 'service'
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+```
+
+Em outro terminal, em `frontend/`, executar `npm run dev -- --host 127.0.0.1` e abrir `/receita`. O banco SQLite contém dados da entrega privada e permanece ignorado pelo Git. É uma validação local, não substitui PostgreSQL ou aceite das métricas. Para execução direta com PostgreSQL, o hostname `db` configurado para Compose só resolve dentro da rede Docker; usar a conexão local apropriada sem publicar credenciais. Não alterar o banco operacional existente para executar esta prova.
+
+A prova posterior usou PostgreSQL 18 no banco isolado `gold_receita_v2_test`, com migrações, importação das quinze tabelas e reconciliação privada da API; a conexão local foi preparada apenas no processo e o banco operacional anterior foi preservado. Para reproduzir, configure o endereço local e credenciais por um canal seguro no processo, sem gravá-los no repositório; o arquivo `.env` do Compose não deve ser exposto.
 
 ## DEV-01: contratos antes da Gold
 

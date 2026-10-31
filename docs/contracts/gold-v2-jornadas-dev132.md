@@ -1,5 +1,7 @@
 # DEV-13.2 — Mapeamento e proveniência do lote local v2
 
+> Registro histórico da entrega de sete tabelas em 29/10. A pasta local `v2` foi substituída posteriormente pelo pacote de quinze tabelas `gold-csv-v2`; para o estado atual de Receita, consulte o [handoff](../plans/2026-10-27-dev13-handoff.md#receita-e-entrega-gold-csv-v2--31102026).
+
 Conferência em 29/10/2026, limitada a Receita, UC 360 e Inspeções. Requisitos WEB-02/03/04/07; dependências DE-06/DE-08. Referência semântica: [dicionário Gold](../dicionario_gold.md). Esta conferência valida o lote recebido contra o contrato físico e o consumo da aplicação; não substitui a reconciliação do Delta na origem nem conclui esses requisitos.
 
 ## Pastas e identidade
