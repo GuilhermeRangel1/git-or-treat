@@ -457,26 +457,14 @@ def test_column_from_another_table_or_old_name_is_rejected(sql: str, reason: str
         validate_sql(sql, load_gold_dictionary(), "sqlite")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "O validador não lê 'relationships' do TOML: JOIN entre tabelas permitidas é aceito "
-        "mesmo sem chave em comum declarada. Quando a proibição existir, este teste passa e o "
-        "xfail estrito obriga a removê-lo."
-    ),
-)
 def test_undeclared_join_between_receita_and_visao_360_is_rejected() -> None:
     sql = (
         "SELECT r.municipio, SUM(r.receita_total_reais), COUNT(v.id_uc) "
         "FROM diagnostico_receita AS r JOIN visao_360_uc AS v ON r.municipio = v.municipio "
         "GROUP BY r.municipio"
     )
-    try:
+    with pytest.raises(SqlRejected, match="join_not_approved"):
         validate_sql(sql, load_gold_dictionary(), "sqlite")
-    except SqlRejected:
-        return
-    raise AssertionError("JOIN não declarado foi aceito")
 
 
 # --- (d) ponta a ponta: plano -> SQL regenerado -> execução no mock ----------------------
