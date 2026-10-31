@@ -171,3 +171,6 @@ O pacote final usa referências `gold-csv-v2`, independentes do envelope interno
 ### Prontidão dos quatro domínios — continuação GENAI-02
 
 `observe_domain_readiness` amplia a observação de atendimento no mesmo snapshot para receita, consumo e continuidade. Os cálculos por controle ficam em `gold_domain_controls`, sem novo orquestrador. `evaluate_domain_readiness` usa a coordenação HTTP e prazo existentes; `check_gold_readiness.py --scope domains` é o chamador operacional. O padrão `attendance` permanece compatível. A ampliação não herda aprovações anteriores: somente os IDs explicitamente aceitos pelo operador são aprovados, e sucesso técnico não certifica a fonte. A [matriz de prontidão](../gold-readiness.md#controles-dos-quatro-domínios-na-publicação-v2) distingue controles internos, cobertura e conferência externa.
+
+
+Os chamadores de prontidão podem fornecer `expected_batch_ref` para vincular a avaliação à publicação do recorte que já conhecem. O contrato existente valida o formato antes de I/O e distingue referência inválida de publicação trocada; ambos impedem HTTP GenAI. A CLI aceita `GOLD_READINESS_EXPECTED_BATCH_REF` opcional. Omitir a referência apenas fixa a publicação corrente no início; não comprova identidade com uma tela já exibida. A integração de um consumidor real deve obter a referência no servidor e propagá-la.

@@ -5,6 +5,8 @@ from typing import Literal
 import httpx
 from sqlalchemy.engine import Engine
 
+from app.repositories.gold_publication import GoldPublicationInvalid
+from app.schemas.gold_publication import PublicationReference
 from app.schemas.gold_readiness import GoldReadinessReport
 from app.services.genai_client import GenAIResponseInvalid, _post_genai_json
 from app.services.genai_deadline import GenAIRequestDeadline
@@ -18,13 +20,18 @@ from app.services.gold_attendance_readiness import (
 async def _evaluate_readiness(
     engine: Engine, *, http_client: httpx.AsyncClient, base_url: str, service_token: str,
     requested_periods: tuple[str, ...], approved_controls: frozenset[str], correlation_id: str,
-    scope: Literal["attendance", "domains"],
+    scope: Literal["attendance", "domains"], expected_batch_ref: str | None = None,
 ) -> GoldReadinessReport:
     observer = observe_domain_readiness if scope == "domains" else observe_attendance_readiness
     deadline = GenAIRequestDeadline.start(35)
+    if expected_batch_ref is not None:
+        try:
+            PublicationReference.parse(expected_batch_ref)
+        except ValueError:
+            raise GoldPublicationInvalid("A referência esperada da publicação é inválida.") from None
     facts = await deadline.run(35, lambda: asyncio.to_thread(
         observer, engine, requested_periods=requested_periods,
-        approved_controls=approved_controls,
+        approved_controls=approved_controls, expected_batch_ref=expected_batch_ref,
     ))
     expected = facts["batch_ref"]
     data = await deadline.run(35, lambda: _post_genai_json(
@@ -53,18 +60,22 @@ async def _evaluate_readiness(
 async def evaluate_attendance_readiness(
     engine: Engine, *, http_client: httpx.AsyncClient, base_url: str, service_token: str,
     requested_periods: tuple[str, ...], approved_controls: frozenset[str], correlation_id: str,
+    expected_batch_ref: str | None = None,
 ) -> GoldReadinessReport:
     """Compatibilidade do chamador de atendimento; usa o coordenador compartilhado."""
     return await _evaluate_readiness(engine,http_client=http_client,base_url=base_url,
         service_token=service_token,requested_periods=requested_periods,
-        approved_controls=approved_controls,correlation_id=correlation_id,scope="attendance")
+        approved_controls=approved_controls,correlation_id=correlation_id,scope="attendance",
+        expected_batch_ref=expected_batch_ref)
 
 
 async def evaluate_domain_readiness(
     engine: Engine, *, http_client: httpx.AsyncClient, base_url: str, service_token: str,
     requested_periods: tuple[str, ...], approved_controls: frozenset[str], correlation_id: str,
+    expected_batch_ref: str | None = None,
 ) -> GoldReadinessReport:
     """Reutiliza o mesmo transporte e prazo para os quatro domínios."""
     return await _evaluate_readiness(engine,http_client=http_client,base_url=base_url,
         service_token=service_token,requested_periods=requested_periods,
-        approved_controls=approved_controls,correlation_id=correlation_id,scope="domains")
+        approved_controls=approved_controls,correlation_id=correlation_id,scope="domains",
+        expected_batch_ref=expected_batch_ref)

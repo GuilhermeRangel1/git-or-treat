@@ -265,6 +265,10 @@ def test_domain_transport_keeps_controls_and_revalidates_publication(published, 
             headers={"X-Correlation-ID": "a" * 32},
         )
 
+    expected = observe_domain_readiness(
+        published, requested_periods=("2001-01",), approved_controls=frozenset()
+    )["batch_ref"]
+
     async def run():
         async with httpx.AsyncClient(
             transport=httpx.MockTransport(transport)
@@ -277,6 +281,7 @@ def test_domain_transport_keeps_controls_and_revalidates_publication(published, 
                 requested_periods=("2001-01",),
                 approved_controls=frozenset({"C01", "C02", "C04"}),
                 correlation_id="a" * 32,
+                expected_batch_ref=expected,
             )
 
     if case == "same":
@@ -507,3 +512,58 @@ def test_domain_aggregates_execute_with_nonempty_postgres_publication(published)
             assert facts["coverage"]["faturamento.receita"]["closed_periods"] == []
     finally:
         engine.dispose()
+
+
+@pytest.mark.parametrize("scope", ["attendance", "domains"])
+@pytest.mark.parametrize("case", ["stale", "malformed"])
+def test_consumer_reference_is_checked_before_genai_call(published, scope, case):  # noqa: F811
+    import asyncio
+    from uuid import uuid4
+
+    import httpx
+
+    from app.repositories.gold_publication import (
+        GoldPublicationChanged,
+        GoldPublicationInvalid,
+    )
+    from app.services.gold_readiness import (
+        evaluate_attendance_readiness,
+        evaluate_domain_readiness,
+    )
+
+    current = observe_domain_readiness(
+        published, requested_periods=("2001-01",), approved_controls=frozenset()
+    )["batch_ref"]
+    expected = (
+        current.rsplit(":", 1)[0] + ":" + str(uuid4())
+        if case == "stale"
+        else "invalid-private-reference"
+    )
+
+    def transport(request):
+        pytest.fail("Não pode chamar GenAI para a publicação incorreta.")
+
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(transport)
+        ) as client:
+            evaluate = (
+                evaluate_domain_readiness
+                if scope == "domains"
+                else evaluate_attendance_readiness
+            )
+            return await evaluate(
+                published,
+                http_client=client,
+                base_url="http://genai",
+                service_token="controlled-token",
+                requested_periods=("2001-01",),
+                approved_controls=frozenset(),
+                correlation_id="a" * 32,
+                expected_batch_ref=expected,
+            )
+
+    with pytest.raises(
+        GoldPublicationChanged if case == "stale" else GoldPublicationInvalid
+    ):
+        asyncio.run(run())

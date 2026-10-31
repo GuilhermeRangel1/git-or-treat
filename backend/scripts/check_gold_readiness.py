@@ -51,7 +51,8 @@ def main():
             return await evaluate(
                 engine, http_client=client, base_url=base, service_token=token,
                 requested_periods=tuple(args.period),
-                approved_controls=frozenset(args.approve_control), correlation_id=uuid4().hex)
+                approved_controls=frozenset(args.approve_control), correlation_id=uuid4().hex,
+                expected_batch_ref=os.getenv("GOLD_READINESS_EXPECTED_BATCH_REF"))
     try:
         report = asyncio.run(run())
     except (ValueError, SQLAlchemyError, GoldPublicationUnavailable, GenAIResponseInvalid,
