@@ -4,5 +4,6 @@ from app.models.operational import InspectionOrder, OrderStatus, OperationalOrde
 from app.models.analytical import GoldIndicador
 from app.models.auth import AuthSession, AuthUser
 from app.models import gold_load  # Registra o contrato atual sem alterar snapshots Alembic.
+from app.models import gold_v2_load  # Registra o snapshot v2 em schema físico separado.
 
 __all__ = ["TimestampMixin", "InspectionOrder", "OrderStatus", "OperationalOrderHistory", "OrderAction", "GoldIndicador", "AuthUser", "AuthSession"]

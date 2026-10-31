@@ -14,6 +14,10 @@ Em 27/10/2026, a [ADR-0016](../decisions/0016-priorizacao-melhorias-pre-gold.md)
 
 ## Caminhos e pontos de extensão
 
+Atualização contratual de 31/10/2026: o núcleo existente oferece `QuestionOrchestrator.plan()` e `synthesize()`. O primeiro produz o plano lógico sem consultar fonte ou modelo; o segundo revalida plano, escopo e publicação esperada e aplica a fundamentação à evidência recebida. O Backend será o coordenador e único executor SQL, conforme a ADR-0002. As rotas internas, o cliente e a coordenação desse fluxo ainda precisam ser ligados em GENAI-07; `answer()` mantém o caminho público existente.
+
+Os envelopes internos v1 aceitam referências de publicação Gold CSV v1/v2 e exigem `remaining_timeout_ms`. A política definida é 35 segundos para a requisição completa e até 5 segundos para SQL, sempre consumindo o saldo do mesmo prazo no Backend. Reutilize o controlador de execução e os envelopes existentes; confira os exemplos compartilhados em `docs/contracts/examples/genai-internal-contract-v1.json`. Essa preparação não comprova consulta Gold em runtime nem dispensa a revisão dos consumidores.
+
 | Responsabilidade | Código existente a inspecionar | Como evoluir |
 | --- | --- | --- |
 | Entrada conversacional | [endpoint Backend](../../backend/app/api/v1/endpoints/ai.py), [cliente GenAI](../../backend/app/services/genai_client.py), [rotas GenAI](../../ai-agent/app/api/routes.py) | Preserve Portal → Backend `/api/v1/ai/questions` → GenAI `/api/v1/questions` e valide os envelopes em ambos os serviços. `/api/v1/ai/query` é legado e retorna 503 nesta base. |

@@ -49,7 +49,7 @@ def _gold_profile() -> DomainProfile:
 
     data = profile_data()
     data.update(
-        profile_id="grid360_gold",
+        profile_id="v-energy-grid-360-gold",
         domains=[
             {"id": "faturamento", "label": "Faturamento", "example_questions": ["Quanto?"]}
         ],
@@ -169,12 +169,16 @@ def test_gold_guard_rejects_invalid_expected_publication() -> None:
         EvidenceGuard(_gold_profile()).validate(plan, lookup, expected_batch_ref="LOTE_DEV")
 
 
-def test_shared_batch_reference_examples_are_accepted_or_rejected() -> None:
+@pytest.mark.parametrize("schema_version", ["gold-csv-v1", "gold-csv-v2"])
+def test_shared_batch_reference_examples_are_accepted_or_rejected(schema_version) -> None:
     path = CONTRACT.parent / "examples/gold-publication-v1.json"
     examples = json.loads(path.read_text(encoding="utf-8"))
-    lookup = EvidenceLookupResult.model_validate(_lookup_example())
-    assert lookup.evidence.provenance.batch_ref == examples["batch_ref"]
-    assert _lookup_example()["evidence"]["provenance"]["batch_ref"] == examples["batch_ref"]
+    raw = _lookup_example()
+    expected = examples["batch_ref"].replace("gold-csv-v1:", schema_version + ":")
+    raw["evidence"]["provenance"]["batch_ref"] = expected
+    lookup = EvidenceLookupResult.model_validate(raw)
+    assert lookup.evidence.provenance.batch_ref == expected
+    assert _lookup_example()["evidence"]["provenance"]["batch_ref"].startswith("gold-csv-v2:")
     for value in examples["invalid_batch_refs"]:
         invalid = _lookup_example()
         invalid["evidence"]["provenance"]["batch_ref"] = value
