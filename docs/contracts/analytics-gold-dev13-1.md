@@ -1,6 +1,6 @@
 # DEV-13.1 — consumo da API Gold
 
-Este contrato acompanha a [ADR-0018](../decisions/0018-api-gold-dev13-1.md), o [dicionário](../dicionario_gold.md) e o [plano](../plans/2026-10-28-dev13-1-gold-api-plano.md). Escopo: API de Panorama, fila/criação de Ordens e Operação. Não afirma aceite do portal ou reconciliação Databricks → CSV.
+Este contrato acompanha a [ADR-0021](../decisions/0021-api-gold-dev13-1.md), o [dicionário](../dicionario_gold.md) e o [plano](../plans/2026-10-28-dev13-1-gold-api-plano.md). Escopo: API de Panorama, fila/criação de Ordens e Operação. Não afirma aceite do portal ou reconciliação Databricks → CSV.
 
 ## Seleção e acesso
 
@@ -8,7 +8,7 @@ Este contrato acompanha a [ADR-0018](../decisions/0018-api-gold-dev13-1.md), o [
 
 O modo Gold exige identidade/permissão de leitura no servidor. O portal usa `ORDERS_AUTH_MODE=session`; CLI/Swagger pode usar credenciais privadas em `ORDERS_AUTH_MODE=service`. A permissão de leitura existente é reutilizada como contenção técnica, sem concluir autorização individual por área/território. `ORDERS_AUTH_MODE=demo` continua incompatível com Gold.
 
-Chamadas autenticadas usam `Authorization: Bearer <credencial>`. Não colocar credenciais em `VITE_*`, exemplos com dados reais ou proxy. Banco e CSV não são acessados pelo navegador.
+O portal autenticado usa o cookie HttpOnly `grid360_session`, conforme o [contrato de sessão](local-auth.md). O modo `session` rejeita credenciais Bearer; somente CLI/Swagger no modo `service` usa `Authorization: Bearer <credencial>`. Não colocar credenciais em `VITE_*`, exemplos com dados reais ou proxy. Banco e CSV não são acessados pelo navegador.
 
 As rotas existentes selecionam o contrato conforme a fonte. Gold responde `metadata.contract_version = "2.0.0"`. Operação sintética mantém suas versões 1.0/1.1/1.2; a persistência operacional mantém o ciclo DEV-06/07. Não ativar a integração visual sem adaptar os decoders para Gold.
 

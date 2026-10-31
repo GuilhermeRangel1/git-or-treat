@@ -1,6 +1,8 @@
-# ADR-0018 — API analítica sobre a publicação Gold
+# ADR-0021 — API analítica sobre a publicação Gold
 
 **Data:** 28/10/2026. **Estado:** implementação técnica autorizada da DEV-13.1, com homologação de negócio e aceite integrado pendentes. Escopo desta rodada: API; telas em etapa posterior.
+
+**Identificação:** renumerada de ADR-0018 para ADR-0021 em 31/10/2026 para preservar a ADR-0018 de janelas relativas GenAI já integrada à `develop`. Conteúdo e estado da decisão mantidos.
 
 ## Contexto
 

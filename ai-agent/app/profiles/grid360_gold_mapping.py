@@ -308,6 +308,8 @@ def validate_mapping(
                 )
         logical = profile_metrics.get(metric.metric_id)
         if logical is not None:
+            if logical.required_filter_dimension_ids != metric.required_dimension_ids:
+                errors.append(f"{metric.metric_id}: filtros obrigatórios diferem do perfil")
             if (logical.label, logical.definition) != (metric.label, metric.definition):
                 errors.append(f"{metric.metric_id}: rótulo ou definição difere do perfil")
             if tuple(g.value for g in logical.granularities) != metric.granularities:

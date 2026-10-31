@@ -10,7 +10,7 @@
 
 **Especificação:** [mapeamento e evidências](2026-10-28-dev13-1-gold-api-mapeamento.md), [dicionário](../dicionario_gold.md), [PRD](../PRD.md) e contratos DEV-05/06/07/08. Propostas de alteração semântica deste plano ainda não são decisões aprovadas.
 
-**Execução em 28/10/2026:** etapas 1–4 implementadas na API; etapa 5 com reconciliação e medições locais, sem SLA ou CI remota observados. As caixas abaixo conservam a especificação granular do plano; a comprovação e os limites do trabalho executado estão na [evidência da API](2026-10-28-dev13-1-gold-api-evidencias.md). A etapa 6 não foi executada, conforme a prioridade API primeiro. A [ADR-0018](../decisions/0018-api-gold-dev13-1.md) registra as escolhas técnicas adotadas, sem homologar os aceites de negócio.
+**Execução em 28/10/2026:** etapas 1–4 implementadas na API; etapa 5 com reconciliação e medições locais, sem SLA ou CI remota observados. As caixas abaixo conservam a especificação granular do plano; a comprovação e os limites do trabalho executado estão na [evidência da API](2026-10-28-dev13-1-gold-api-evidencias.md). A etapa 6 não foi executada, conforme a prioridade API primeiro. A [ADR-0021](../decisions/0021-api-gold-dev13-1.md) registra as escolhas técnicas adotadas, sem homologar os aceites de negócio.
 
 ## Restrições globais
 

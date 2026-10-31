@@ -8,7 +8,7 @@ Conectar Panorama, Ordens e Operação aos contratos reais da API, preservando s
 
 Requisitos relacionados: WEB-01 a WEB-07, especialmente WEB-01/07 no Panorama, WEB-04/05 na criação e ciclo das ordens e WEB-06/07 em Operação; integração DE-04/05/06/08. Dependências: DEV-02 a DEV-08 e DEV-12, contrato API Gold entregue e banco já carregado. Receita e UC 360 não entram nesta implementação; seus vínculos não podem sugerir disponibilidade Gold inexistente.
 
-Fontes: [PRD](../PRD.md), [dicionário](../dicionario_gold.md), [contrato Gold v2](../contracts/analytics-gold-dev13-1.md), [ADR-0018](../decisions/0018-api-gold-dev13-1.md), [arquitetura frontend](../architecture/frontend.md), [guia frontend](../services/frontend.md), [guia backend](../services/backend.md) e [evidências da API](2026-10-28-dev13-1-gold-api-evidencias.md). Aplicadas as skills backend-coding-standards e frontend-coding-standards; organização orientada por writing-plans. As versões usadas pelo projeto estão em `frontend/package.json`; não se propõe atualização de bibliotecas.
+Fontes: [PRD](../PRD.md), [dicionário](../dicionario_gold.md), [contrato Gold v2](../contracts/analytics-gold-dev13-1.md), [ADR-0021](../decisions/0021-api-gold-dev13-1.md), [arquitetura frontend](../architecture/frontend.md), [guia frontend](../services/frontend.md), [guia backend](../services/backend.md) e [evidências da API](2026-10-28-dev13-1-gold-api-evidencias.md). Aplicadas as skills backend-coding-standards e frontend-coding-standards; organização orientada por writing-plans. As versões usadas pelo projeto estão em `frontend/package.json`; não se propõe atualização de bibliotecas.
 
 ## Diagnóstico do código atual
 

@@ -4,7 +4,7 @@ Data: 28/10/2026. Escopo: backend de Panorama, fila/criação de Ordens e Opera�
 
 ## Resultado e rastreabilidade
 
-Implementação sobre a branch `dev13.1`, base `026cb33`, usando o [dicionário](../dicionario_gold.md), o [mapeamento](2026-10-28-dev13-1-gold-api-mapeamento.md) e o [plano](2026-10-28-dev13-1-gold-api-plano.md). Contrato executável descrito em [API Gold v2](../contracts/analytics-gold-dev13-1.md) e decisões em [ADR-0018](../decisions/0018-api-gold-dev13-1.md).
+Implementação sobre a branch `dev13.1`, base `026cb33`, usando o [dicionário](../dicionario_gold.md), o [mapeamento](2026-10-28-dev13-1-gold-api-mapeamento.md) e o [plano](2026-10-28-dev13-1-gold-api-plano.md). Contrato executável descrito em [API Gold v2](../contracts/analytics-gold-dev13-1.md) e decisões em [ADR-0021](../decisions/0021-api-gold-dev13-1.md).
 
 | Caminho executável | Composição e comportamento |
 | --- | --- |
