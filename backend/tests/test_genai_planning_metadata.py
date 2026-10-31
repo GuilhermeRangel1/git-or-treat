@@ -1,5 +1,6 @@
 """Metadados v2 de planejamento limitados à publicação e ao escopo."""
 
+import asyncio
 import json
 import os
 import subprocess
@@ -8,16 +9,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+import httpx
 import pytest
 from sqlalchemy import create_engine, insert, update
 
 from app.models.gold_v2_load import BATCH, TABLES
 from app.repositories.gold_publication import GoldPublicationChanged
+from app.schemas.ai import AIQuestionRequest
 from app.schemas.genai_internal import (
     AccessScope,
     QuestionPlanRequest,
-    QuestionPlanResponse,
+    QuestionSynthesisRequest,
 )
+from app.services.genai_client import GenAIQuestionClient
+from app.services.genai_planning import plan_gold_question
 from app.services.genai_publication import GoldPublicationContext
 from tests.support.migrations import migrated_database
 
@@ -184,13 +189,16 @@ def test_planning_fields_reject_metadata_from_a_replaced_publication(gold_v2_dat
 
 
 @pytest.mark.parametrize(
-    "month,status",
-    [("abril de 2025", "planned"), ("junho de 2025", "needs_clarification")],
+    "month,status,revoke",
+    [("abril de 2025", "planned", False),
+     ("junho de 2025", "needs_clarification", False),
+     ("março de 2025", "needs_clarification", False),
+     ("abril de 2025", "refused", True)],
 )
 def test_database_metadata_drives_the_composed_genai_plan(
-    gold_v2_database, month, status
+    gold_v2_database, month, status, revoke
 ):
-    """Banco migrado → produtor real → contrato wire → núcleo em outro processo."""
+    """Banco → produtor → cliente Backend → HTTP ASGI GenAI → núcleo, sem imports cruzados."""
     genai_root = Path(__file__).resolve().parents[2] / "ai-agent"
     if not (genai_root / "app/agent/composition.py").is_file():
         pytest.skip("A imagem Backend isolada não contém GenAI; execute no checkout completo.")
@@ -216,35 +224,93 @@ def test_database_metadata_drives_the_composed_genai_plan(
         }
     )
     code = """
-import asyncio, json, sys
-from app.agent.composition import compose_core
-from app.agent.execution import ExecutionController
+import asyncio, json, sys, httpx
+from app.config import Settings
+from app.main import create_app
 from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
-from app.schemas.internal import QuestionPlanRequest
 class NoExternalCalls:
     async def retrieve(self, *args, **kwargs):
         raise AssertionError("Planning must not execute an evidence lookup")
     async def generate(self, *args, **kwargs):
         raise AssertionError("Planning must not call a model")
-request = QuestionPlanRequest.model_validate(json.load(sys.stdin))
-core = compose_core(profile=GRID360_GOLD_PROFILE, source_id="gold.local",
+class TestAudit:
+    durable = True
+    def record(self, event):
+        pass
+incoming = json.load(sys.stdin)
+app = create_app(settings=Settings(_env_file=None, enable_demo_access=False,
+        service_api_token="test-planning-service-token-0000000000"),
+    domain_profile=GRID360_GOLD_PROFILE, source_id="gold.local", source_mode="external",
     evidence_source=NoExternalCalls(), model_adapter=NoExternalCalls(),
-    execution_controller=ExecutionController())
-result = asyncio.run(core.question.plan(request, "a" * 32))
-print(result.model_dump_json())
+    access_context_resolver=lambda request: None, event_sink=TestAudit(),
+    require_durable_audit=True)
+async def send():
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                 base_url="http://genai") as client:
+        result = await client.post(incoming["path"], json=incoming["payload"],
+                                   headers=incoming["headers"])
+        return {"status": result.status_code, "headers": dict(result.headers),
+                "body": result.json()}
+print(json.dumps(asyncio.run(send())))
 """
-    completed = subprocess.run(
-        [sys.executable, "-c", code],
-        input=request.model_dump_json(),
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=30,
-        encoding="utf-8",
-        cwd=genai_root,
-        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-    )
-    response = QuestionPlanResponse.model_validate(json.loads(completed.stdout))
+    def dispatch(outgoing):
+        completed = subprocess.run(
+            [sys.executable, "-c", code],
+            input=json.dumps({
+                "path": outgoing.url.path,
+                "payload": json.loads(outgoing.content),
+                "headers": dict(outgoing.headers),
+            }),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+            encoding="utf-8",
+            cwd=genai_root,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        )
+        result = json.loads(completed.stdout)
+        return httpx.Response(result["status"], headers=result["headers"], json=result["body"])
+
+    async def plan():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(dispatch)) as transport:
+            client = GenAIQuestionClient(
+                http_client=transport, base_url="http://genai",
+                service_token="test-planning-service-token-0000000000",
+            )
+            scope_reads = 0
+            def resolve_scope():
+                nonlocal scope_reads
+                scope_reads += 1
+                if revoke and scope_reads > 1:
+                    return scope.model_copy(update={"allowed_metric_ids": frozenset()})
+                return scope
+            admitted = await plan_gold_question(
+                gold_v2_database, client, AIQuestionRequest(question=request.question),
+                resolve_scope=resolve_scope, correlation_id="a" * 32,
+                expected_batch_ref=publication.batch_ref,
+            )
+            result = admitted.response
+            if result.plan is not None:
+                assert admitted.source.table == "consumo_receita_bairro"
+                assert admitted.publication.batch_ref == publication.batch_ref
+            if result.plan is not None:
+                synthesis = QuestionSynthesisRequest(
+                    question=request.question,
+                    access_scope=scope,
+                    remaining_timeout_ms=35000,
+                    plan=result.plan,
+                    plan_fingerprint=result.plan_fingerprint,
+                    expected_batch_ref=publication.batch_ref,
+                    lookup={"status": "no_evidence", "message": "Sem registros no recorte."},
+                )
+                answer = await client.synthesize(synthesis, correlation_id="a" * 32)
+                assert answer.status == "no_evidence"
+                assert answer.answer is None
+                assert answer.correlation_id == "a" * 32
+            return result
+
+    response = asyncio.run(plan())
     publication.assert_current(gold_v2_database)
     assert response.status.value == status
     if status != "planned":

@@ -422,7 +422,7 @@ O perfil Gold v2 acrescenta contagem de chamados e satisfação, mensais por abe
 
 #### GENAI-04 — vocabulário e janelas relativas Gold v2 (implementação em validação)
 
-O perfil recusa misturar receita faturada com valor pago e consumo medido com energia faturada; “conta de luz”, “valor pago” e “energia faturada” pedem esclarecimento. Valores de dimensão fornecidos no envelope do Backend são associados ao perfil apenas durante aquele planejamento. O interpretador corrige a busca de frases com acentos sem alterar a grafia enviada no filtro. A semântica proposta para expressões mensais está registrada na [ADR-0018](../decisions/0018-genai-janelas-relativas-gold-v2.md). Validação de Dados/Backend e integração com executor real permanecem pendentes.
+O perfil recusa misturar receita faturada com valor pago e consumo medido com energia faturada; “conta de luz”, “valor pago” e “energia faturada” pedem esclarecimento. Valores de dimensão fornecidos no envelope do Backend são associados ao perfil apenas durante aquele planejamento. O interpretador corrige a busca de frases com acentos sem alterar a grafia enviada no filtro. A semântica para expressões mensais, aprovada pela pessoa usuária em 31/10/2026, está registrada na [ADR-0018](../decisions/0018-genai-janelas-relativas-gold-v2.md). A aprovação desta entrega resolve a decisão temporal; execução quantitativa permanece nos cartões de executor/coordenação.
 
 Rótulos, definições e operadores de filtro derivam do perfil lógico e acompanham o mapeamento. A validação recusa alteração semântica de unidade, população/fórmula, agregação e dependências sob a definição versionada, mesmo quando colunas e tipos ainda existem. Mudanças legítimas devem atualizar a definição e sua revisão entre serviços; metadados de negócio não conferem autorização de acesso.
 
@@ -438,3 +438,15 @@ A resolução Gold confere cada menção explícita de dimensão para que um val
 
 
 O perfil Gold declara agrupamento e ordenação indisponíveis também na revalidação de planos (`supports_grouping`/`supports_ordering`), com defaults compatíveis para os demais perfis. Pedidos de ranking, filtros numéricos, situação da fatura ou presença de leitura não representados no catálogo recebem esclarecimento em vez de retornar um total com qualificadores descartados. Sinônimos de pagamento/arrecadação e energia injetada/compensada/entregue são distinguidos de receita faturada e consumo medido.
+
+
+### Operações internas Gold v2 — integração HTTP de 31/10/2026
+
+`POST /api/v1/internal/question-plans` e `POST /api/v1/internal/question-syntheses` estão implementadas na borda existente e delegam a `QuestionOrchestrator.plan/synthesize`. Exigem composição `external` com fonte `gold.local`, perfil `v-energy-grid-360-gold` e token de serviço configurado, inclusive localmente. `create_app` mantém suas exigências de auditoria durável e dependências explícitas; a configuração demonstrativa padrão não habilita essas rotas. A aplicação não ganha credencial Gold: o Backend continua sendo o executor pela ADR-0002. Escopo/cobertura são exclusivamente internos. A resposta de síntese preserva a correlação do cabeçalho no envelope.
+
+A guarda da evidência permite valores dinâmicos exatamente iguais aos filtros de igualdade/inclusão já reautorizados no perfil Gold; não confia em valores novos do registro. As provas HTTP dirigidas exercitam zero, período parcial, autorização e recusa de publicação/recorte divergentes. A implantação do coordenador e a execução quantitativa Gold continuam pendentes.
+
+
+### GENAI-04 — decisão temporal aprovada e chamador Backend
+
+A pessoa usuária aprovou a ADR-0018 nesta entrega: âncora na competência mais recente do lote, janela mensal inclusiva e esclarecimento de lacunas. O Backend agora possui um chamador operacional do planejamento (`plan_gold_question`, exposto pela CLI homônima), que conserva a publicação e reautoriza o escopo, antes de admitir a fonte física e a cobertura efetiva do recorte. As rotas internas e o núcleo são os mesmos já existentes. Não há SQL nem credencial Gold na GenAI. Comparação sem suporte, inclusive com base zero, permanece esclarecimento sem plano; cálculo percentual pertence à execução quantitativa, sem converter nulo/ausência em zero.

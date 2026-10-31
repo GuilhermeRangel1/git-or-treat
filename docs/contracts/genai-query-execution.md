@@ -504,3 +504,19 @@ As requisições internas de planejamento e síntese exigem `remaining_timeout_m
 O campo é exclusivamente interno: o navegador não escolhe o prazo ou o escopo. Os contratos públicos permanecem v1. Os envelopes internos v1 ainda estão em preparação e suas rotas não foram implantadas; esta finalização acrescenta um campo obrigatório e exige atualização conjunta de Backend e GenAI antes da ativação. Não se atribui automaticamente um novo saldo a envelopes antigos sem esse campo. Em rollback, restaurar o par de serviços/contratos compatível e manter a integração Gold desativada até reconferir os vetores.
 
 A política de despacho usada nesta entrega é `completed_lookup`: lookups concluídos seguem à síntese; ausência e esclarecimento são determinísticos no núcleo, sem fonte ou modelo. Falha de execução, acesso, prazo ou publicação interrompe a coordenação. Os exemplos e essa política seguem para revisão conjunta no PR #79, sem presumir aprovação de outro integrante. A aplicação no transporte/executor e o teste pelo endpoint público pertencem a GENAI-07/09.
+
+
+## Atualização de implementação — HTTP interno (31/10/2026)
+
+As duas rotas definidas neste contrato estão implementadas em `ai-agent/app/api/routes.py`, delegando ao núcleo existente; o cliente `GenAIQuestionClient` do Backend oferece `plan` e `synthesize`. Esta atualização supera as referências históricas acima a rotas/cliente ainda inexistentes. As operações só são habilitadas na composição externa Gold v2 com token configurado, sem dispensa demonstrativa. A política do núcleo revalida escopo, plano e publicação esperada; síntese preserva a correlação HTTP no envelope.
+
+A prova entre serviços usa a fábrica externa real e HTTP ASGI, com ponte de transporte controlada entre processos e banco SQLite v2 artificial. Não equivale à implantação em rede nem ao executor/coordenador no endpoint do portal. As cláusulas propostas de semântica relativa e as pendências de autorização individual, SQL e reconciliação Gold permanecem abertas. Implementação de borda: FastAPI no intervalo `>=0.115,<1.0` do projeto, conforme [dependências no decorador](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/), consultadas via Context7 em 31/10/2026; nenhuma decisão arquitetural nova.
+
+
+### Planejamento operacional — complemento GENAI-04
+
+`backend/app/services/genai_planning.py::plan_gold_question` é o coordenador executável da fase de planejamento. `backend/scripts/plan_gold_question.py` é seu chamador operacional, com configuração de leitura e escopo local explícitos. Reutiliza B1/B2/B3/B4/B6/B7: captura publicação; produz metadados autorizados; chama o cliente interno com saldo do prazo; revalida publicação, escopo atual, fingerprint e catálogo; confere competências na fonte/recorte selecionados. Retorna o mesmo `QuestionPlanResponse` e a referência/fonte admitidas, ou recusa/esclarecimento sem plano. Nenhum novo envelope HTTP é necessário.
+
+Cobertura produzida por união de fontes é observacional. A existência de um mês em outra tabela ou em outro recorte não autoriza o plano: a admissão consulta somente a fonte escolhida com os filtros parametrizados e exige cada competência da janela. O produtor limita SQL ao saldo de 5 s; a operação usa prazo global de 35 s e não renova o relógio entre etapas. O papel de runtime é `venergy_gold_reader`; a CLI não registra valores do lote. A ADR-0018 foi aprovada pela pessoa usuária em 31/10/2026, superando a pendência semântica histórica.
+
+Essa operação entrega o planejamento à admissão de fonte do Backend. Não é o executor quantitativo, não substitui a avaliação de prontidão nem ativa o endpoint Gold do portal; essas fronteiras permanecem GENAI-06/07/09/10. Nenhum estado oficial IA é concluído pela operação de planejamento.

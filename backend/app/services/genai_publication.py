@@ -3,8 +3,9 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from time import monotonic
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.engine import Connection, Engine
 
 from app.models.gold_v2 import TABLES as GOLD_V2_TABLES
@@ -15,6 +16,7 @@ from app.schemas.genai_internal import (
     TemporalCoverage,
 )
 from app.schemas.gold_publication import PublicationReference
+from app.services.genai_client import GenAITimeout
 from app.services.gold_catalog import load_gold_catalog
 
 
@@ -99,6 +101,19 @@ def _planning_metadata(
     connection, access_scope: AccessScope, catalog
 ) -> dict[str, object]:
     """Resolve cobertura observada e vocabulário público do schema físico v2."""
+    expires = monotonic() + 5
+
+    def execute(statement):
+        milliseconds = int((expires - monotonic()) * 1000)
+        if milliseconds < 1:
+            raise GenAITimeout
+        if connection.dialect.name == "postgresql":
+            connection.execute(
+                text("SELECT set_config('statement_timeout', :timeout, true)"),
+                {"timeout": f"{milliseconds}ms"},
+            )
+        return connection.execute(statement)
+
     metric_ids = access_scope.allowed_metric_ids
     metrics_by_id = {metric.metric_id: metric for metric in catalog.metrics}
     if not metric_ids <= metrics_by_id.keys():
@@ -129,7 +144,7 @@ def _planning_metadata(
                     period = func.strftime("%Y-%m", column)
             else:
                 period = column
-            values = connection.execute(
+            values = execute(
                 select(period).where(column.is_not(None)).distinct().limit(1201)
             ).scalars()
             competencies.update(values)
@@ -165,7 +180,7 @@ def _planning_metadata(
             column = GOLD_V2_TABLES[table_name].c[column_name]
             values.update(
                 value
-                for value in connection.execute(
+                for value in execute(
                     select(column).where(column.is_not(None)).distinct().limit(2001)
                 ).scalars()
                 if isinstance(value, str) and value.strip()

@@ -99,3 +99,8 @@ Limites: capacidades não cobertas, dependências bloqueadas e próximo cartão.
 Faça a revisão procurar o chamador de runtime e a configuração, além da definição do componente. Para preparação, identifique o consumidor futuro sem afirmar que já existe. Para integração, exija teste que atravesse a ligação nova. Para aceite, reconcilie contra o lote real e revise os critérios do PRD.
 
 O harness orienta o trabalho; não é uma trava automática de arquitetura nem prova de conformidade de commits anteriores. Descoberta da skill e carregamento das regras dependem do cliente. Mudanças funcionais atualizam guias, registro do PRD e cartões conforme o workflow; a instalação destas instruções, por si só, não conclui requisitos nem cartões.
+
+
+### Atualização de fronteira — 31/10/2026
+
+As rotas internas de planejamento/síntese e os métodos correspondentes de `GenAIQuestionClient` estão implementados. Isso supera a fotografia anterior que os listava como não ligados. As rotas exigem composição externa Gold v2 e token, e chamam o núcleo existente. A prova banco → produtor → cliente → HTTP ASGI → núcleo usa aplicação real com dependências controladas. O endpoint do portal ainda não coordena planejar → executar → sintetizar, e o executor quantitativo continua pendente. Não habilitar demonstração como fallback nem concluir aceite Gold por essa prova.

@@ -82,7 +82,7 @@ Nove regressões reproduziram totais indevidos para pedidos com qualificadores n
 
 `supports_grouping` e `supports_ordering` são capacidades explícitas do perfil. Gold v2 as mantém desabilitadas; o validador recusa também um plano externo que acrescente agrupamento ou ordenação. Os defaults preservam o comportamento dos demais perfis. Pergunta, interpretação e plano recebido passam pela mesma definição de capacidades.
 
-## Conferência dos dez critérios originais
+## Conferência dos dez critérios originais — histórico antes da prova PostgreSQL
 
 | Critério | Evidência atual | Estado de aceite |
 | --- | --- | --- |
@@ -104,3 +104,44 @@ Vocabulário complementar conferido contra o dicionário v2: receita recebida/pa
 
 
 Verificação final consolidada desta continuação: suíte completa GenAI com 3.681 aprovados, 4 skips e 1 xfail histórico (38,73 s); suíte completa Backend com 821 aprovados e 90 skips (172,51 s). Ruff, compileall e diff-check dos arquivos alterados passaram. Os totais anteriores são registros das etapas; esta é a referência final da árvore local atual.
+
+
+## Fronteira HTTP e evidência por recorte — 31/10/2026
+
+As rotas internas `question-plans` e `question-syntheses` agora chamam o núcleo existente na composição externa Gold v2. Exigem token de serviço configurado; modo demo não habilita essas operações. O cliente Backend usa os caminhos contratuais e confere correlação e schema de resposta. A correlação da síntese é preservada no cabeçalho e no corpo.
+
+O teste de banco já existente foi ampliado, sem criar uma matriz paralela: banco SQLite v2 migrado → produtor real → cliente Backend → aplicação GenAI `create_app` em processo separado → HTTP ASGI → núcleo. Presença/ausência de mês e filtros canônicos continuam conferidos. A síntese de ausência atravessa o mesmo cliente e aplicação sem consultar fonte/modelo. A ponte entre processos é controlada; não representa uma rede de serviços implantada.
+
+`test_gold_planning_http.py` comprova janeiro–março para `este ano` na cobertura controlada, recusa de GD sem autorização, esclarecimento para mês ausente, zero observado na resposta e recusa de publicação divergente. A síntese aceita dimensões exatamente iguais ao filtro aprovado, incluindo município da publicação; um registro com outro município é recusado. Esse comportamento corrige a rejeição indevida que existia quando o vocabulário estático não continha os municípios reais.
+
+Verificações dirigidas: 141 testes GenAI e 28 Backend passaram; Ruff e compileall passaram. Não foram adicionados novos casos combinatórios à matriz. O executor, a coordenação do portal e a reconciliação com lote PostgreSQL autorizado permanecem pendentes; a tabela dos dez critérios mantém as quatro cláusulas parciais até essa prova. Valor zero observado não comprova cálculo de comparação percentual com denominador zero.
+
+
+### 31/10/2026 — GENAI-04: verificação dirigida da continuação local
+
+- Branch confirmada pelo Git: `feat/ai-agent-vocabulario-periodos-gold-v2`, worktree `genai03-public-metadata/git-or-treat`, base `dc6ea3f`. Preservadas as alterações sem commit das rotas internas, cliente e guarda de evidência.
+- Reutilizado o teste HTTP de zero: medida nula ou ausente retorna `recoverable_error` sem evidência numérica; zero observado continua respondido. Não foi criado outro caso de uso nem ampliada a matriz.
+- Verificações nesta rodada: em `ai-agent`, `python -m pytest -q tests/test_gold_planning_http.py tests/test_gold_question_filters.py tests/test_gold_temporal.py tests/test_evidence_guard.py tests/test_core_plan_synthesis.py --tb=short`: 157 passaram. Em `backend`, `python -m pytest -q tests/test_genai_planning_metadata.py tests/test_genai_client.py --tb=short`: 28 passaram. Ruff dos arquivos de código alterados passou com a configuração de cada módulo; `python -m compileall -q app tests/test_gold_planning_http.py` passou em GenAI.
+- GENAI-04 permanece em validação; IA-01/IA-02/IA-06 mantêm seus estados. Continuam abertas a homologação temporal da ADR-0018 e as provas dependentes do executor/coordenador Backend e lote PostgreSQL autorizado. Ausência de medida não comprova percentual comparativo com denominador zero. Sem commit/push nesta rodada.
+
+
+## Entrega dirigida de 31/10/2026 — planejamento operacional
+
+A pessoa usuária aprovou a ADR-0018 nesta entrega. `backend/app/services/genai_planning.py::plan_gold_question` liga o produtor ao cliente HTTP existente e admite o plano na fonte física, mantendo publicação, fingerprint, escopo atual e prazo global. `backend/scripts/plan_gold_question.py` é seu chamador operacional. O produtor agora limita o conjunto de consultas de metadados ao saldo SQL de 5 s.
+
+Corrigida uma lacuna de integração: a união de meses de várias tabelas não prova a cobertura da fonte selecionada. A admissão consulta as competências com os filtros efetivos, na mesma publicação; mês existente apenas em outra tabela/recorte pede esclarecimento. A revogação durante o planejamento retorna recusa com o erro público obrigatório, sem entregar plano.
+
+| Pendência anterior | Resultado observado nesta rodada | Alcance |
+| --- | --- | --- |
+| Aprovação temporal | Aprovação expressa da pessoa usuária registrada na ADR-0018 e índice | Decisão resolvida para esta entrega; não atribuída a outros integrantes |
+| Produtor ligado em runtime | Serviço Backend e CLI chamam as rotas internas existentes; admissão por catálogo/fonte/recorte | Planejamento executável; a medida quantitativa não é executada |
+| PostgreSQL e lote v2 autorizado | Prova privada passou com PostgreSQL 16, importador real, papel `venergy_gold_reader`, GenAI por TCP/HTTP local e CLI real | Plano do recorte preservado; sem registros ou valores reais publicados |
+| Janela relativa no lote real | Últimos 12 meses confrontados com competências físicas por controle independente; lacuna não é encurtada | Âncora e limites inclusivos verificados |
+| Calendário/fuso do lote | Cobertura de atendimento UTC confrontada com conversão dos timestamps em Python | Não confunde competência de faturamento com abertura/pagamento |
+| Zero/nulo/comparação | Teste HTTP existente distingue zero de medida nula/ausente e esclarece comparação com base zero sem plano | Não afirma cálculo percentual com denominador zero |
+
+Verificações observadas: Backend `python -m pytest -q tests/test_genai_planning_metadata.py tests/test_genai_client.py tests/test_genai_publication.py tests/test_genai_plan.py --tb=short`: **96 passaram, 19 skips** dependentes de PostgreSQL nessa execução local. Prova privada opt-in `GOLD_PLANNING_TEST_DATABASE_URL=<leitor do banco descartável *_test> python -m pytest -q tests/test_genai_planning_real.py --tb=no`: **1 passou em 6,46 s**, após carga do pacote autorizado pelo importador e provisionamento do leitor pelo script existente. GenAI `python -m pytest -q tests/test_gold_planning_http.py --tb=short`: **5 passaram** após a checagem de comparação sem suporte; a regressão dirigida de 157 casos desta continuação permanece registrada acima. Ruff por módulo, compileall e `git diff --check` passaram.
+
+Para reproduzir a prova privada, prepare um PostgreSQL 16 descartável vazio com nome terminado em `_test`; execute as migrações, `scripts/load_gold.py` com `--schema-version gold-csv-v2` e o diretório privado aceito, e `scripts/provision_gold_reader.sql` como administrador. Execute o teste com `GOLD_PLANNING_TEST_DATABASE_URL` apontando para o leitor desse banco. O teste inicia/encerra a GenAI local sem LLM, confere reautorização e remove os arquivos privados de entrada/auditoria que cria. O pacote original permanece intacto. A prova não requer nova auditoria Silver nem publica dados.
+
+**Limite preservado:** esta rodada resolve aprovação, runtime de planejamento e a prova PostgreSQL de períodos/valores canônicos. A execução quantitativa, incluindo percentual comparativo com denominador zero, e o coordenador Gold do endpoint do portal continuam nas fronteiras GENAI-06/07/09/10. A admissão de fonte não é apresentada como executor de medidas. Por isso, as cláusulas compostas que exigem essa fronteira final permanecem abertas; não se concluem GENAI-04 integral nem IA-01/IA-02/IA-06 por este plano.
