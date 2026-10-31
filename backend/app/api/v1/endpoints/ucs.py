@@ -40,6 +40,9 @@ def _source_period(repository):
     from app.repositories.gold import GoldAnalyticsRepository
     if isinstance(repository, GoldAnalyticsRepository):
         months = repository.options()["competencias"]
+        if not months:
+            from app.services.analytics import AnalyticsAPIError
+            raise AnalyticsAPIError(503, "source_unavailable", "Gold sem competências observadas.")
         return months[0], months[-1]
     return DEFAULT_START, DEFAULT_END
 

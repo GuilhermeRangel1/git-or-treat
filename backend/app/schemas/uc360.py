@@ -129,6 +129,12 @@ class UCProfile(BaseModel):
     status: str
 
 
+class UCGoldGeneration(BaseModel):
+    capacity_kwp: float | None = Field(ge=0)
+    connection_date: str | None
+    modality: str | None
+
+
 class UCOverviewData(BaseModel):
     profile: UCProfile
     period: AnalyticsPeriod
@@ -136,6 +142,7 @@ class UCOverviewData(BaseModel):
     open_invoices: UCCountMeasure
     current_meter: UCMeterMeasure
     distributed_generation: UCGenerationSection
+    gold_generation: UCGoldGeneration | None = None
     section_status: dict[str, AnalyticsStatus]
 
 
@@ -179,7 +186,7 @@ class UCInvoiceHistoryItem(InvoiceDetail):
 
 
 class UCMeterHistoryItem(MeterDetail):
-    pass
+    installed_at: str | None
 
 
 class UCGenerationHistoryItem(GenerationDetail):
@@ -187,7 +194,7 @@ class UCGenerationHistoryItem(GenerationDetail):
 
 
 class UCInterruptionHistoryItem(InterruptionDetail):
-    pass
+    duration_hours: float | None
 
 
 class UCCallHistoryItem(CallDetail):
