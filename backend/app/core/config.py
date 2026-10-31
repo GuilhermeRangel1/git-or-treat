@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: int = 30
     DB_POOL_RECYCLE: int = 1800
     DB_ECHO: bool = False
+    GENAI_GOLD_DATABASE_URL: SecretStr | None = None
 
     # Data directory (Mocks now, Gold exported CSVs later)
     GOLD_DATA_DIR: Path = Path(__file__).resolve().parent.parent.parent / "data" / "gold"
