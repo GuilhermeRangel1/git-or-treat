@@ -17,6 +17,7 @@ from app.profiles.grid360_sql_demo import GRID360_SQL_DEMO_PROFILE
 from app.providers.factory import build_model_adapter, build_model_router
 from app.providers.protocols import ModelAdapter
 from app.providers.routing import ModelRouter, ModelTier
+from app.readiness import evaluate_readiness
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.domain_profile import DomainProfile
 from app.sql.demo import SQL_DEMO_SOURCE_ID, build_sql_demo_source
@@ -144,6 +145,7 @@ def create_app(
         source_id=source_id,
         source_mode=source_mode,
         access_context_resolver=access_context_resolver,
+        readiness_handler=evaluate_readiness,
     )
 
 

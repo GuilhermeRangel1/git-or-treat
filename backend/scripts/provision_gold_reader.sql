@@ -36,7 +36,7 @@ GRANT USAGE ON SCHEMA gold TO venergy_gold_reader;
 GRANT USAGE ON SCHEMA gold_v2 TO venergy_gold_reader;
 GRANT SELECT ON gold.gold_consumo_mensal_uc, gold.gold_consumo_receita_bairro,
     gold.gold_diagnostico_receita, gold.gold_fila_inspecao, gold.gold_indicadores_dec_fec,
-    gold.gold_variacao_consumo_uc, gold.gold_visao_360_uc, gold.publicacao_atual
+    gold.gold_variacao_consumo_uc, gold.gold_visao_360_uc, gold.publicacao_atual, gold.publicacao_linhagem
 TO venergy_gold_reader;
 GRANT SELECT ON gold_v2.diagnostico_receita, gold_v2.indicadores_dec_fec,
     gold_v2.fila_inspecao, gold_v2.visao_360_uc, gold_v2.consumo_mensal_uc,
@@ -59,7 +59,7 @@ BEGIN
             OR ((n.nspname = 'gold' AND c.relname NOT IN (
                 'gold_consumo_mensal_uc', 'gold_consumo_receita_bairro', 'gold_diagnostico_receita',
                 'gold_fila_inspecao', 'gold_indicadores_dec_fec', 'gold_variacao_consumo_uc',
-                'gold_visao_360_uc', 'publicacao_atual'
+                'gold_visao_360_uc', 'publicacao_atual', 'publicacao_linhagem'
             )) OR (n.nspname = 'gold_v2' AND c.relname NOT IN (
                 'diagnostico_receita', 'indicadores_dec_fec', 'fila_inspecao', 'visao_360_uc',
                 'consumo_mensal_uc', 'consumo_receita_bairro', 'variacao_consumo_uc', 'faturas_uc',

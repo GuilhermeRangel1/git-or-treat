@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from app.api.access import require_service_auth, resolve_access_context
+from app.api.errors import ServiceAuthenticationError
+from app.readiness.models import PublicationFacts, ReadinessReport
 from app.schemas.access import AccessContext
 from app.schemas.capabilities import CapabilitiesResponse
 from app.schemas.insights import ScreenInsightRequest, ScreenInsightResponse
@@ -14,6 +16,22 @@ from app.schemas.responses import PublicError, PublicErrorCode, PublicErrorRespo
 
 router = APIRouter()
 ResolvedAccess = Annotated[AccessContext | None, Depends(resolve_access_context)]
+
+
+def require_readiness_auth(request: Request) -> None:
+    """Prontidão real nunca herda a dispensa de token da demonstração local."""
+    if request.app.state.service_api_token is None:
+        raise ServiceAuthenticationError(configured=False)
+    require_service_auth(request, request.headers.get("authorization"))
+
+
+@router.post("/api/v1/internal/gold-readiness", response_model=ReadinessReport,
+             dependencies=[Depends(require_readiness_auth)])
+async def gold_readiness(payload: PublicationFacts, request: Request) -> ReadinessReport:
+    handler = request.app.state.readiness_handler
+    if handler is None:
+        raise ServiceAuthenticationError(configured=False)
+    return handler(payload)
 
 
 @router.get("/health", include_in_schema=False)
