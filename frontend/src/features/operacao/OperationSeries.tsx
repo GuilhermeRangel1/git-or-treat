@@ -1,12 +1,24 @@
 import "./operation-series.css";
-import type { OperationPoint, OperationPeriod } from "./contract";
+import type { OperationPeriod, OperationStatus } from "./contract";
 import { formatMonth, formatNumber, monthsInPeriod } from "./operation-format";
 
-type MonthlyValue = { month: string; dec: number | null; fec: number | null };
+type SeriesPoint = {
+  period: OperationPeriod;
+  status: OperationStatus;
+  dec_hours_per_uc: number | null;
+  fec_interruptions_per_uc: number | null;
+  denominator_uc_count: number | null;
+};
+type MonthlyValue = {
+  month: string;
+  dec: number | null;
+  fec: number | null;
+  denominator: number | null;
+};
 
 function chartValues(
   period: OperationPeriod,
-  series: OperationPoint[],
+  series: SeriesPoint[],
 ): MonthlyValue[] {
   const byMonth = new Map(series.map((point) => [point.period.start, point]));
   return monthsInPeriod(period).map((month) => {
@@ -17,6 +29,7 @@ function chartValues(
       month,
       dec: eligible ? point.dec_hours_per_uc : null,
       fec: eligible ? point.fec_interruptions_per_uc : null,
+      denominator: point?.denominator_uc_count ?? null,
     };
   });
 }
@@ -113,7 +126,9 @@ function SeriesChart({
         {values.map(({ month, value }) => (
           <li key={month}>
             {formatMonth(month)}:{" "}
-            {value === null ? "indisponível" : `${formatNumber(value)} ${unit}`}
+            {value === null
+              ? `indisponível ${unit}`
+              : `${formatNumber(value)} ${unit}`}
           </li>
         ))}
       </ul>
@@ -126,7 +141,7 @@ export default function OperationSeries({
   series,
 }: {
   period: OperationPeriod;
-  series: OperationPoint[];
+  series: SeriesPoint[];
 }) {
   const values = chartValues(period, series);
   return (
@@ -157,10 +172,13 @@ export default function OperationSeries({
               <th scope="col" className="px-4 py-3">
                 FEC (interrupções/UC)
               </th>
+              <th scope="col" className="px-4 py-3">
+                Base (UCs)
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {values.map(({ month, dec, fec }) => (
+            {values.map(({ month, dec, fec, denominator }) => (
               <tr key={month}>
                 <th scope="row" className="px-4 py-3 font-medium">
                   {formatMonth(month)}
@@ -170,6 +188,13 @@ export default function OperationSeries({
                 </td>
                 <td className="px-4 py-3">
                   {fec === null ? "Indisponível" : formatNumber(fec)}
+                </td>
+                <td className="px-4 py-3">
+                  {denominator === null
+                    ? "Indisponível"
+                    : denominator <= 0
+                      ? `${formatNumber(denominator, 0)} · inválida`
+                      : formatNumber(denominator, 0)}
                 </td>
               </tr>
             ))}

@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { ChevronDown, RotateCcw, SlidersHorizontal } from "lucide-react";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
 import MonthYearField from "@/shared/ui/MonthYearField";
@@ -10,7 +10,42 @@ import {
 import { formatMonth } from "./operation-format";
 
 const controlClass =
-  "min-h-11 w-full rounded-lg border border-control bg-surface px-3 py-2 text-sm text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+  "min-h-11 w-full appearance-none rounded-lg border border-control bg-canvas px-3 pr-10 text-sm text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-1.5 text-sm font-medium text-content">
+      {label}
+      <span className="relative">
+        <select
+          className={controlClass}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {options.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          aria-hidden="true"
+          className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+        />
+      </span>
+    </label>
+  );
+}
 
 export default function OperationFilters({
   query,
@@ -50,6 +85,14 @@ export default function OperationFilters({
     setOpen(true);
   }
 
+  function resetDraft() {
+    setStart(competencyOptions.at(-1) ?? "2025-01");
+    setEnd(competencyOptions.at(-1) ?? "2025-02");
+    setFeederId("");
+    setMunicipality("");
+    setErrors([]);
+  }
+
   function apply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const params = new URLSearchParams({
@@ -78,46 +121,63 @@ export default function OperationFilters({
     setOpen(false);
   }
 
+  const summary = [
+    {
+      label: "Período",
+      value:
+        query.start === query.end
+          ? formatMonth(query.start)
+          : `${formatMonth(query.start)} – ${formatMonth(query.end)}`,
+    },
+    ...(municipalityOptions.length > 0
+      ? [
+          {
+            label: "Município",
+            value: query.municipality ?? "Todos os municípios",
+          },
+        ]
+      : []),
+    {
+      label: "Alimentador",
+      value: query.feederId ?? "Todos os alimentadores",
+    },
+    {
+      label: "Ordenação do ranking",
+      value: query.metric === "dec" ? "DEC decrescente" : "FEC decrescente",
+    },
+  ];
+  const canReset =
+    Boolean(query.feederId || query.municipality) ||
+    start !== (competencyOptions.at(-1) ?? "2025-01") ||
+    end !== (competencyOptions.at(-1) ?? "2025-02");
+
   return (
     <>
       <section
         aria-label="Filtros aplicados"
-        className="flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface p-4"
+        className="mt-2 flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"
       >
-        <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-3">
-          <div>
-            <p className="text-xs text-muted">Período</p>
-            <p className="mt-1 font-medium">
-              {formatMonth(query.start)} – {formatMonth(query.end)}
-            </p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted">Alimentador</p>
-            <p className="mt-1 truncate font-medium">
-              {query.feederId ?? "Todos os alimentadores"}
-            </p>
-          </div>
-          {municipalityOptions.length > 0 ? (
-            <div className="min-w-0">
-              <p className="text-xs text-muted">Município</p>
-              <p className="mt-1 truncate font-medium">
-                {query.municipality ?? "Todos os municípios"}
-              </p>
+        <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-4">
+          {summary.map((item) => (
+            <div className="min-w-0" key={item.label}>
+              <dt className="text-xs text-muted">{item.label}</dt>
+              <dd className="mt-1 truncate font-medium text-content">
+                {item.value}
+              </dd>
             </div>
-          ) : null}
-          <div className="min-w-0">
-            <p className="text-xs text-muted">Ordenação do ranking</p>
-            <p className="mt-1 font-medium">
-              {query.metric === "dec" ? "DEC decrescente" : "FEC decrescente"}
-            </p>
-          </div>
-        </div>
+          ))}
+        </dl>
         <Button
           ref={triggerRef}
           type="button"
           variant="control"
           className="w-full lg:w-auto"
-          leftIcon={<SlidersHorizontal size={16} aria-hidden="true" />}
+          leftIcon={
+            <SlidersHorizontal
+              className="size-4 text-muted"
+              aria-hidden="true"
+            />
+          }
           onClick={showDialog}
         >
           Ajustar filtros
@@ -128,28 +188,27 @@ export default function OperationFilters({
         open={open}
         onClose={() => setOpen(false)}
         triggerRef={triggerRef}
-        title="Ajustar filtros de operação"
-        description="Escolha o intervalo mensal e, se necessário, um alimentador."
+        title="Ajustar filtros"
+        description="Escolha o período e o território para consultar a continuidade."
         closeLabel="Fechar filtros"
         size="md"
         header="inline"
       >
-        <form className="grid gap-4 sm:grid-cols-2" onSubmit={apply} noValidate>
+        <form
+          aria-label="Filtros de operação"
+          className="grid gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-2"
+          onSubmit={apply}
+        >
           {competencyOptions.length > 0 ? (
-            <label className="grid gap-1.5 text-sm font-medium">
-              Mês inicial
-              <select
-                className={controlClass}
-                value={start}
-                onChange={(event) => setStart(event.target.value)}
-              >
-                {competencyOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {formatMonth(item)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              label="Mês inicial"
+              value={start}
+              onChange={setStart}
+              options={competencyOptions.map((item) => ({
+                value: item,
+                label: formatMonth(item),
+              }))}
+            />
           ) : (
             <MonthYearField
               label="Mês inicial"
@@ -159,7 +218,7 @@ export default function OperationFilters({
               onChange={setStart}
               yearRef={startRef}
               invalid={errors.some((item) =>
-                /início|Mês inv|Informe início|120 meses/.test(item),
+                /início|Mês inv|120 meses/.test(item),
               )}
               describedBy={
                 errors.length ? "operation-filter-errors" : undefined
@@ -167,20 +226,15 @@ export default function OperationFilters({
             />
           )}
           {competencyOptions.length > 0 ? (
-            <label className="grid gap-1.5 text-sm font-medium">
-              Mês final
-              <select
-                className={controlClass}
-                value={end}
-                onChange={(event) => setEnd(event.target.value)}
-              >
-                {competencyOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {formatMonth(item)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              label="Mês final"
+              value={end}
+              onChange={setEnd}
+              options={competencyOptions.map((item) => ({
+                value: item,
+                label: formatMonth(item),
+              }))}
+            />
           ) : (
             <MonthYearField
               label="Mês final"
@@ -198,23 +252,17 @@ export default function OperationFilters({
             />
           )}
           {feederOptions.length > 0 && competencyOptions.length > 0 ? (
-            <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
-              Alimentador
-              <select
-                className={controlClass}
-                value={feederId}
-                onChange={(event) => setFeederId(event.target.value)}
-              >
-                <option value="">Todos os alimentadores</option>
-                {feederOptions.map((id) => (
-                  <option key={id} value={id}>
-                    {id}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              label="Alimentador"
+              value={feederId}
+              onChange={setFeederId}
+              options={[
+                { value: "", label: "Todos os alimentadores" },
+                ...feederOptions.map((item) => ({ value: item, label: item })),
+              ]}
+            />
           ) : (
-            <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
+            <label className="grid gap-1.5 text-sm font-medium text-content sm:col-span-2">
               Alimentador
               <input
                 className={controlClass}
@@ -238,21 +286,18 @@ export default function OperationFilters({
             </label>
           )}
           {municipalityOptions.length > 0 ? (
-            <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
-              Município
-              <select
-                className={controlClass}
-                value={municipality}
-                onChange={(event) => setMunicipality(event.target.value)}
-              >
-                <option value="">Todos os municípios</option>
-                {municipalityOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              label="Município"
+              value={municipality}
+              onChange={setMunicipality}
+              options={[
+                { value: "", label: "Todos os municípios" },
+                ...municipalityOptions.map((item) => ({
+                  value: item,
+                  label: item,
+                })),
+              ]}
+            />
           ) : null}
           {errors.length > 0 ? (
             <div
@@ -268,17 +313,32 @@ export default function OperationFilters({
               </ul>
             </div>
           ) : null}
-          <div className="flex flex-wrap gap-2 sm:col-span-2">
-            <Button type="submit" variant="accent">
-              Aplicar filtros
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
-              Cancelar
-            </Button>
+          <div className="flex flex-col-reverse justify-between gap-3 border-t border-divider pt-4 sm:col-span-2 sm:flex-row sm:items-center">
+            {canReset ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={resetDraft}
+                leftIcon={<RotateCcw className="size-3.5" aria-hidden="true" />}
+              >
+                Limpar filtros
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary">
+                Aplicar filtros
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

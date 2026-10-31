@@ -36,6 +36,7 @@ function isGoldDetail(
 }
 import {
   applyOperationFilters,
+  paginateOperationRanking,
   paginateOperationDetail,
   parseOperationParams,
   returnToOperationRanking,
@@ -140,7 +141,7 @@ export default function OperacaoPage() {
     ? `${query.detailFeederId} / visão do alimentador`
     : "Continuidade, onde importa.";
   const pageSubtitle = query?.detailFeederId
-    ? `${goldDetail?.data.summary.municipality ?? syntheticDetail?.data.summary.municipalities.join(", ") ?? "Território não informado"} · evolução mensal · ocorrências`
+    ? `${goldDetail?.data.summary.municipality ?? syntheticDetail?.data.summary.municipalities.join(", ") ?? "Território não informado"} · ${goldDetail ? "evolução mensal · agregado Gold" : "evolução mensal · ocorrências"}`
     : "Compare alimentadores e investigue os registros que sustentam os indicadores internos.";
   const pageSource = query?.detailFeederId
     ? (detail.data?.metadata.source ?? summary.data?.metadata.source)
@@ -206,7 +207,9 @@ export default function OperacaoPage() {
         </h1>
         <p className="text-sm leading-[22px] text-muted">{pageSubtitle}</p>
       </header>
-      <OperationSource source={pageSource} />
+      {options.data?.kind === "synthetic" ? (
+        <OperationSource source={pageSource} />
+      ) : null}
       <OperationFilters
         query={query}
         feederOptions={feederOptions}
@@ -282,7 +285,16 @@ export default function OperacaoPage() {
             detail={goldDetail}
             metric={query.metric}
             search={location.search}
+            rankingPage={query.rankingPage}
             onMetricChange={updateSearch}
+            onRankingPage={(page) =>
+              updateSearch(
+                paginateOperationRanking(
+                  new URLSearchParams(location.search),
+                  page,
+                ),
+              )
+            }
             detailLoading={detail.isLoading}
             detailError={detail.isError}
             onRetryDetail={() => void detail.refetch()}
@@ -331,8 +343,16 @@ export default function OperacaoPage() {
           ranking={goldRanking}
           metric={query.metric}
           search={location.search}
+          rankingPage={query.rankingPage}
           onMetricChange={updateSearch}
-          summaryLoading={summary.isLoading}
+          onRankingPage={(page) =>
+            updateSearch(
+              paginateOperationRanking(
+                new URLSearchParams(location.search),
+                page,
+              ),
+            )
+          }
           summaryError={summary.isError}
           rankingLoading={ranking.isLoading}
           rankingError={ranking.isError}

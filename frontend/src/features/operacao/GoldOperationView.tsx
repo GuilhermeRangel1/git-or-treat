@@ -1,13 +1,14 @@
 import Button from "@/shared/ui/Button";
 import { Link } from "react-router-dom";
-import { Fragment } from "react";
 import type { OperationMetric } from "./contract";
 import type {
   GoldOperationDetailEnvelope,
   GoldOperationRankingEnvelope,
   GoldOperationSummaryEnvelope,
 } from "./gold-contract";
-import { formatMonth, formatNumber, formatPeriod } from "./operation-format";
+import { formatNumber } from "./operation-format";
+import OperationSeries from "./OperationSeries";
+import GoldOperationFoundations from "./GoldOperationFoundations";
 
 function stateLabel(state: string) {
   return (
@@ -36,9 +37,10 @@ export default function GoldOperationView({
   detail,
   metric,
   search,
+  rankingPage,
   onMetricChange,
+  onRankingPage,
   onBack,
-  summaryLoading,
   summaryError,
   rankingLoading,
   rankingError,
@@ -53,9 +55,10 @@ export default function GoldOperationView({
   detail?: GoldOperationDetailEnvelope;
   metric: OperationMetric;
   search: string;
+  rankingPage: number;
   onMetricChange: (next: URLSearchParams) => void;
+  onRankingPage: (page: number) => void;
   onBack: () => void;
-  summaryLoading?: boolean;
   summaryError?: boolean;
   rankingLoading?: boolean;
   rankingError?: boolean;
@@ -67,11 +70,14 @@ export default function GoldOperationView({
 }) {
   const s = summary?.data.summary;
   const selected = detail?.data.summary;
-  const metadata = detail?.metadata ?? summary?.metadata ?? ranking?.metadata;
-  const definition =
-    detail?.data.definition ??
-    summary?.data.definition ??
-    ranking?.data.definition;
+  const pageSize = 20;
+  const rankingItems = ranking?.data.items ?? [];
+  const pageCount = Math.max(1, Math.ceil(rankingItems.length / pageSize));
+  const currentRankingPage = Math.min(rankingPage, pageCount);
+  const visibleItems = rankingItems.slice(
+    (currentRankingPage - 1) * pageSize,
+    currentRankingPage * pageSize,
+  );
   return (
     <div className="grid gap-5">
       {detailLoading && !detail ? (
@@ -111,18 +117,6 @@ export default function GoldOperationView({
               ← Voltar ao ranking
             </Button>
           </div>
-          <p className="text-sm text-muted">
-            Janela solicitada: {formatPeriod(selected.period)} · cadastro atual
-            sem vigência histórica comprovada.
-          </p>
-          <p className="text-xs text-muted">
-            Competências observadas:{" "}
-            {selected.observed_competencies.join(", ") || "nenhuma"}.
-            Competências sem linha:{" "}
-            {selected.missing_competencies.join(", ") ||
-              "nenhuma na janela solicitada"}
-            .
-          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <article className="rounded-lg border border-border p-4">
               <h3>DEC · {stateLabel(selected.dec_status)}</h3>
@@ -145,49 +139,21 @@ export default function GoldOperationView({
               </p>
             </article>
           </div>
-          <p className="rounded-lg bg-[var(--status-warning-bg)] p-3 text-sm">
-            Ocorrências individuais indisponíveis: a Gold publica apenas
-            agregados por alimentador e competência.
-          </p>
-          <h3 className="font-semibold">Série mensal</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[440px] text-left text-sm">
-              <thead>
-                <tr>
-                  <th>Mês</th>
-                  <th>DEC (h/UC)</th>
-                  <th>FEC (interrupções/UC)</th>
-                  <th>Base</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.data.series.map((p) => (
-                  <tr key={p.period.start} className="border-t border-border">
-                    <th>{formatMonth(p.period.start)}</th>
-                    <td>{value(p.dec_hours_per_uc, "")}</td>
-                    <td>{value(p.fec_interruptions_per_uc, "")}</td>
-                    <td>{base(p.denominator_uc_count)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div>
+            <h3 className="mb-3 font-semibold">Evolução mensal no período</h3>
+            <OperationSeries
+              period={selected.period}
+              series={detail.data.series}
+            />
           </div>
-          {[
-            ...selected.limitations,
-            ...(detail.data.definition.completeness
-              ? [detail.data.definition.completeness]
-              : []),
-          ].map((item) => (
-            <p key={item} className="text-xs text-muted">
-              {item}
-            </p>
-          ))}
+          <GoldOperationFoundations
+            summary={selected}
+            metadata={detail.metadata}
+            definition={detail.data.definition}
+          />
         </section>
       ) : !detailLoading && !detailError ? (
         <>
-          {summaryLoading && !s ? (
-            <p role="status">Carregando consolidado Gold…</p>
-          ) : null}
           {summaryError && !s ? (
             <div role="alert" className="grid gap-2 rounded-xl bg-surface p-4">
               <p>Não foi possível carregar o consolidado Gold.</p>
@@ -239,15 +205,20 @@ export default function GoldOperationView({
                     {value(s.dec_hours_per_uc, "h/UC")}
                   </p>
                   <p className="text-sm text-muted">
-                    Numerador {value(s.duration_hours_sum, "h")} · base{" "}
-                    {base(s.dec_denominator_uc_count)}
+                    Base DEC · {base(s.dec_denominator_uc_count)}
                   </p>
-                  <p className="text-xs text-muted">
-                    Incluídos:{" "}
-                    {s.dec_included_feeder_ids.join(", ") || "nenhum"} ·
-                    excluídos:{" "}
-                    {s.dec_excluded_feeder_ids.join(", ") || "nenhum"}
+                  <p className="mt-1 text-xs text-muted">
+                    {s.dec_included_feeder_ids.length} alimentadores incluídos ·{" "}
+                    {s.dec_excluded_feeder_ids.length} excluídos
                   </p>
+                  <div className="mt-2">
+                    <GoldOperationFoundations
+                      summary={s}
+                      metadata={summary!.metadata}
+                      definition={summary!.data.definition}
+                      indicator="dec"
+                    />
+                  </div>
                 </article>
                 <article className="rounded-xl bg-surface p-5">
                   <h2>FEC · {stateLabel(s.fec_status)}</h2>
@@ -255,25 +226,22 @@ export default function GoldOperationView({
                     {value(s.fec_interruptions_per_uc, "interrupções/UC")}
                   </p>
                   <p className="text-sm text-muted">
-                    Numerador {value(s.interruption_count, "registros")} · base{" "}
-                    {base(s.fec_denominator_uc_count)}
+                    Base FEC · {base(s.fec_denominator_uc_count)}
                   </p>
-                  <p className="text-xs text-muted">
-                    Incluídos:{" "}
-                    {s.fec_included_feeder_ids.join(", ") || "nenhum"} ·
-                    excluídos:{" "}
-                    {s.fec_excluded_feeder_ids.join(", ") || "nenhum"}
+                  <p className="mt-1 text-xs text-muted">
+                    {s.fec_included_feeder_ids.length} alimentadores incluídos ·{" "}
+                    {s.fec_excluded_feeder_ids.length} excluídos
                   </p>
+                  <div className="mt-2">
+                    <GoldOperationFoundations
+                      summary={s}
+                      metadata={summary!.metadata}
+                      definition={summary!.data.definition}
+                      indicator="fec"
+                    />
+                  </div>
                 </article>
               </div>
-              <p className="text-sm text-muted">
-                Janela solicitada: {formatPeriod(s.period)}.{" "}
-                {s.limitations.join(" ")}
-              </p>
-              <p className="rounded-lg bg-[var(--status-warning-bg)] p-3 text-sm">
-                Cadastro atual sem vigência histórica comprovada. Resultados
-                observados não demonstram homologação regulatória.
-              </p>
             </section>
           ) : null}
           <section className="grid gap-4 rounded-xl bg-surface p-5">
@@ -289,6 +257,7 @@ export default function GoldOperationView({
                     const p = new URLSearchParams(search);
                     p.set("metric", "dec");
                     p.delete("feeder_id");
+                    p.delete("ranking_page");
                     onMetricChange(p);
                   }}
                 >
@@ -300,6 +269,7 @@ export default function GoldOperationView({
                     const p = new URLSearchParams(search);
                     p.set("metric", "fec");
                     p.delete("feeder_id");
+                    p.delete("ranking_page");
                     onMetricChange(p);
                   }}
                 >
@@ -341,127 +311,160 @@ export default function GoldOperationView({
                   Nenhum alimentador foi retornado para este recorte.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table
-                    aria-label="Ranking de alimentadores"
-                    className="w-full min-w-[600px] text-left text-sm"
-                  >
-                    <thead>
-                      <tr>
-                        <th>Pos.</th>
-                        <th>Alimentador</th>
-                        <th>Município</th>
-                        <th>DEC</th>
-                        <th>FEC</th>
-                        <th>Base</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        ...ranking.data.items.map((p) => ({
-                          ...p,
-                          ranked: true,
-                        })),
-                        ...ranking.data.excluded.map((p) => ({
-                          ...p,
-                          rank: null,
-                          ranked: false,
-                        })),
-                      ].map((p) => (
-                        <Fragment key={p.feeder_id}>
-                          <tr
-                            key={p.feeder_id}
-                            className="border-t border-border"
-                          >
-                            <td>{p.rank ?? "—"}</td>
-                            <th>{p.feeder_id}</th>
-                            <td>{p.municipality || "não informado"}</td>
-                            <td>
-                              {value(p.dec_hours_per_uc, "h/UC")}
-                              <small className="block text-xs text-muted">
-                                {stateLabel(p.dec_status)}
-                              </small>
-                            </td>
-                            <td>
-                              {value(p.fec_interruptions_per_uc, "int./UC")}
-                              <small className="block text-xs text-muted">
-                                {stateLabel(p.fec_status)}
-                              </small>
-                            </td>
-                            <td>{base(p.denominator_uc_count)}</td>
-                            <td>
-                              <Link
-                                to={`?${(() => {
-                                  const params = new URLSearchParams(search);
-                                  params.set("feeder_id", p.feeder_id);
-                                  params.delete("page");
-                                  return params.toString();
-                                })()}`}
-                                className="underline"
+                <>
+                  {ranking.data.items.length > 0 ? (
+                    <>
+                      <p className="text-sm text-muted">
+                        {ranking.data.items.length} alimentadores com indicador
+                        calculável · página {currentRankingPage} de {pageCount}
+                      </p>
+                      <div className="min-w-0 overflow-x-auto rounded-xl">
+                        <table
+                          aria-label="Ranking de alimentadores"
+                          className="w-full min-w-[760px] table-fixed bg-surface text-left text-sm"
+                        >
+                          <colgroup>
+                            <col className="w-[7%]" />
+                            <col className="w-[18%]" />
+                            <col className="w-[18%]" />
+                            <col className="w-[16%]" />
+                            <col className="w-[16%]" />
+                            <col className="w-[13%]" />
+                            <col className="w-[12%]" />
+                          </colgroup>
+                          <thead className="font-mono text-xs leading-[18px] text-muted">
+                            <tr className="h-11 border-b border-border">
+                              <th scope="col" className="pr-2 font-normal">
+                                Pos.
+                              </th>
+                              <th scope="col" className="pr-2 font-normal">
+                                Alimentador
+                              </th>
+                              <th scope="col" className="pr-2 font-normal">
+                                Município
+                              </th>
+                              <th scope="col" className="pr-2 font-normal">
+                                DEC
+                              </th>
+                              <th scope="col" className="pr-2 font-normal">
+                                FEC
+                              </th>
+                              <th scope="col" className="pr-2 font-normal">
+                                Base
+                              </th>
+                              <th scope="col" className="font-normal">
+                                Detalhes
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-sm leading-[22px]">
+                            {visibleItems.map((p) => (
+                              <tr
+                                key={p.feeder_id}
+                                className="h-14 border-b border-border align-middle"
                               >
-                                Investigar
-                              </Link>
-                            </td>
-                          </tr>
-                          <tr
-                            key={`${p.feeder_id}-limitations`}
-                            className="border-b border-border"
+                                <td className="py-3 pr-2">{p.rank}</td>
+                                <th
+                                  scope="row"
+                                  className="break-words py-3 pr-2 font-medium"
+                                >
+                                  {p.feeder_id}
+                                </th>
+                                <td className="break-words py-3 pr-2">
+                                  {p.municipality || "não informado"}
+                                </td>
+                                <td className="py-3 pr-2">
+                                  {value(p.dec_hours_per_uc, "h/UC")}
+                                </td>
+                                <td className="py-3 pr-2">
+                                  {value(p.fec_interruptions_per_uc, "int./UC")}
+                                </td>
+                                <td className="py-3 pr-2">
+                                  {base(p.denominator_uc_count)}
+                                </td>
+                                <td className="align-top py-1">
+                                  <Link
+                                    to={`?${(() => {
+                                      const params = new URLSearchParams(
+                                        search,
+                                      );
+                                      params.set("feeder_id", p.feeder_id);
+                                      params.delete("page");
+                                      return params.toString();
+                                    })()}`}
+                                    className="inline-flex min-h-11 items-center gap-1 rounded-md py-2 pl-0 pr-2 text-sm font-medium text-content underline decoration-border underline-offset-4 hover:decoration-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                  >
+                                    Detalhes
+                                  </Link>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <nav
+                        aria-label="Paginação do ranking"
+                        className="flex flex-wrap items-center justify-between gap-3"
+                      >
+                        <p className="text-sm text-muted">
+                          Mostrando {(currentRankingPage - 1) * pageSize + 1}–
+                          {Math.min(
+                            currentRankingPage * pageSize,
+                            ranking.data.items.length,
+                          )}{" "}
+                          de {ranking.data.items.length}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            disabled={currentRankingPage <= 1}
+                            onClick={() =>
+                              onRankingPage(currentRankingPage - 1)
+                            }
                           >
-                            <td
-                              colSpan={7}
-                              className="px-2 pb-2 text-xs text-muted"
-                            >
+                            Anterior
+                          </Button>
+                          <Button
+                            variant="outline"
+                            disabled={currentRankingPage >= pageCount}
+                            onClick={() =>
+                              onRankingPage(currentRankingPage + 1)
+                            }
+                          >
+                            Próxima
+                          </Button>
+                        </div>
+                      </nav>
+                    </>
+                  ) : null}
+                  {ranking.data.excluded.length > 0 ? (
+                    <details className="rounded-lg border border-border p-3 text-sm">
+                      <summary className="cursor-pointer font-medium">
+                        Sem indicador calculável ·{" "}
+                        {ranking.data.excluded.length}
+                      </summary>
+                      <ul className="mt-3 grid gap-2">
+                        {ranking.data.excluded.map((p) => (
+                          <li
+                            key={p.feeder_id}
+                            className="border-t border-border pt-2"
+                          >
+                            <strong>{p.feeder_id}</strong> ·{" "}
+                            {p.municipality || "município não informado"}
+                            <p className="text-xs text-muted">
                               {p.limitations.join(" ") ||
-                                "Sem limitações adicionais informadas."}
-                            </td>
-                          </tr>
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                                "A fonte não informou a causa."}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
+                </>
               )
             ) : null}
           </section>
         </>
-      ) : null}
-      {metadata && definition ? (
-        <section
-          className="grid gap-2 rounded-xl border border-border bg-surface p-4 text-sm"
-          aria-label="Fundamentos Gold de operação"
-        >
-          <h2 className="font-semibold">Fundamentos Gold</h2>
-          <p>
-            <strong>Publicação:</strong> lote {metadata.source.version} · schema{" "}
-            {metadata.schema_version} · contrato {metadata.contract_version} ·
-            fingerprint {metadata.fingerprint}
-          </p>
-          <p>
-            <strong>Temporalidade:</strong> mensal · janela solicitada{" "}
-            {metadata.period ? formatPeriod(metadata.period) : "indisponível"}.
-          </p>
-          <p>
-            <strong>DEC ({definition.dec_unit}):</strong>{" "}
-            {definition.dec_formula}
-          </p>
-          <p>
-            <strong>FEC ({definition.fec_unit}):</strong>{" "}
-            {definition.fec_formula}
-          </p>
-          <p>
-            <strong>População:</strong> {definition.population} ·{" "}
-            {definition.completeness}
-          </p>
-          <p>
-            <strong>Eventos:</strong> {definition.event_grain}
-          </p>
-          <p>
-            <strong>Limitações:</strong>{" "}
-            {metadata.limitations.join(" ") ||
-              "Nenhuma limitação adicional informada."}
-          </p>
-        </section>
       ) : null}
     </div>
   );
