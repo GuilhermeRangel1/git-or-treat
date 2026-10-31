@@ -283,6 +283,30 @@ def _record_failed_attempt(engine, attempt_id, manifest, signature, origin, erro
     raise public from None
 
 
+def _coverage_windows(connection) -> list[dict]:
+    """Metadados observados; não certifica a origem nem promove um mês a fechado."""
+    columns = TABLES["cobertura_dominios"].c
+    groups = connection.execute(select(
+        columns.dominio, columns.recorte, columns.estado_cobertura,
+        func.min(columns.competencia).label("start"),
+        func.max(columns.competencia).label("end"),
+        func.count().label("rows"),
+    ).group_by(columns.dominio, columns.recorte, columns.estado_cobertura)
+      .order_by(columns.dominio, columns.recorte, columns.estado_cobertura)).mappings()
+    windows = {}
+    for row in groups:
+        key = (row["dominio"], row["recorte"])
+        if key not in windows:
+            windows[key] = {"domain":key[0], "scope":key[1], "start":row["start"],
+                "end":row["end"], "rows":0, "states":{}, "is_certification":False}
+        item = windows[key]
+        item["start"] = min(item["start"], row["start"])
+        item["end"] = max(item["end"], row["end"])
+        item["rows"] += row["rows"]
+        item["states"][row["estado_cobertura"] or "NAO_INFORMADO"] = row["rows"]
+    return list(windows.values())
+
+
 def _publish(engine, directory, source: GoldManifestV2, origin, files, hashes, signature, attempt_id, manifest):
     with engine.begin() as connection:
         if connection.dialect.name == "postgresql":
@@ -361,6 +385,7 @@ def _publish(engine, directory, source: GoldManifestV2, origin, files, hashes, s
             "scope": "analytical_only",
             "complete_delivery": False,
             "tables": manifest,
+            "coverage_windows": _coverage_windows(connection),
             "restricted_cadastro": {
                 "status": "not_imported",
                 "export_id": source.cadastro_export_id,

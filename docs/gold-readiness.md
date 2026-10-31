@@ -129,3 +129,47 @@ Por orientação da pessoa usuária, o lote atual e a conferência de origem rea
 Esta etapa entrega a prontidão operacional consumível pelas etapas seguintes. A conferência ponta a ponta com o portal deve acompanhar GENAI-07/09/11/12/13 e a adaptação analítica DEV-13, conforme o consumidor, sem simular que a aplicação já usa os dados reais. Esse item da checklist permanece aberto; não bloqueia preparar catálogo e vocabulário (GENAI-03/04). O cartão não é marcado como concluído só pela disponibilidade da operação interna.
 
 Após vincular a publicação esperada pelo consumidor, a suíte Backend Docker/PostgreSQL passou em 851 testes/8 skips. A conferência da origem permanece a premissa aceita acima; a nova verificação trata identidade/estabilidade da publicação, não refaz a Silver.
+
+
+## Conferência dos itens compostos ainda abertos
+
+A atualização abaixo consolida evidência da publicação v2, sem repetir auditoria da Silver. A fonte atual continua sendo a base aceita. Um teste de consistência ou uma regra conservadora documentada não é aprovação automática de uma medida ainda candidata.
+
+### Manifesto e preservação da publicação
+
+`backend/tests/test_gold_import_v2_atomicity.py` exercita o importador público com quinze CSVs controlados e os schemas completos. A repetição preserva `batch_ref`; outra entrega substitui o snapshot sem acumular fatos. No cenário de erro tardio, o cabeçalho do último CSV é inválido: a auditoria mostra que a Visão 360 anterior já havia sido processada na tentativa, mas a publicação atual e os dados das quinze tabelas permanecem iguais ao snapshot anterior. A tentativa falha fica registrada fora do rollback. Isso verifica uma carga parcial real, não uma recusa apenas no parser do manifesto. Os pacotes são artificiais e temporários, sem registros da origem.
+
+O teste privado existente `test_real_v2_package_load_is_repeatable_and_rejects_invalid_delivery` foi executado novamente com o pacote aceito: 1 passou em 262,98 s. Confere contagens do manifesto, repetição idempotente e identidade da publicação; um manifesto incompatível não substitui a publicação válida. Banco temporário removido ao final; CSVs originais não foram alterados. O cadastro restrito permanece separado do pacote analítico.
+
+### Rastreabilidade das regras que afetam as métricas
+
+| Regra | Fonte canônica | Tratamento seguro disponível | O que a integração consumidora ainda deve comprovar |
+| --- | --- | --- | --- |
+| Chaves, unicidade e cardinalidade | Contrato CSV v2: inventário/grãos; dicionário por tabela | Chaves físicas e validação da carga; joins apenas com cadastro único, sem unir fatos crus | Adaptadores mantêm os grãos e não multiplicam valores ao mapear contratos da API. |
+| Dimensões históricas | Dicionário: diagnóstico, bairro, continuidade e cadastro | Dimensões são cadastrais atuais; não existe SCD implícita nem população histórica inventada | Comparações não apresentam cadastro atual como vigência histórica. |
+| Sentinelas e pagamento | D15/D55/D63 e dicionário de faturas | Flags preservadas; nominal declarado em aberto é distinto do saldo; ausência/data não comprovam pagamento | Exposição mantém nulos e sinais conflitantes, sem converter valor cobrado em recebido. |
+| Ajustes/estornos | Decisões Silver/Gold e dicionário financeiro | Valores e flags não autorizam inferir recebimento nem apagar incerteza | Fórmula aprovada da métrica e tratamento dos casos inconclusivos no consumidor. |
+| Estimativa de recuperação | D65 e dicionário da fila | Média histórica em campos próprios; estimativa individual não homologada permanece nula | Não chamar referência histórica de estimativa da UC ou receita recuperável. |
+| Energia e leitura | Dicionário de série/diagnóstico e base comparável | Consumo medido é distinto de energia faturada; leitura observada é distinta de válida | Catálogo e respostas preservam nomes, unidades, população e limitações. |
+
+Essa conferência localiza regras e impactos já existentes; não implementa SCD, não modifica o notebook e não homologa metodologias candidatas. A parte de interpretação/exposição pertence ao catálogo e aos adaptadores consumidores. O item composto continua parcial até essa aplicação ser conferida.
+
+### Controles por domínio e recorte
+
+| Domínio | Controle executável sobre a publicação | Casos cobertos pelas regressões |
+| --- | --- | --- |
+| Receita | C01/C02/C04/C12/C13: série, diagnóstico e bairro | Diferenças de valores/dimensões, nulos, ausência de evidência, duplicidade por grafia e cobertura parcial. |
+| Consumo | C03/C10 e cobertura da fonte | Flags/contagens, média por leitura distinta de média mensal, medida inteiramente nula e mês não fechado. |
+| Interrupções | C11: eventos, denominador cadastral, DEC/FEC | Duração/frequência, publicação estável e cobertura global/alimentadores; tabela esparsa não vira malha artificial. |
+| Atendimento | C14/C15: protocolos, notas e cobertura mensal | Zero válido, nulo/ausência, contagens/médias divergentes, UTC e cobertura não certificada. |
+
+As referências de origem aceitas continuam registradas na seção histórica de [controles independentes](gold-coverage-v0.md) e nas decisões de Dados. Não se reutiliza um aceite antigo como aprovação implícita de qualquer nova regra/recorte. A matriz demonstra controles e cenários existentes; não contém benchmarks reais ou uma nova aprovação externa. A evidência de liberação final por recorte deve acompanhar o consumidor real, mantendo os bloqueios atuais onde a cobertura ou a definição não permitem responder.
+
+
+### Resultado desta conferência
+
+O manifesto interno agora conserva `coverage_windows` em novas publicações: domínio, recorte, extremos observados, linhas e estados, sempre com `is_certification=false`. Janela com lacuna não vira série contínua; ausência de cobertura gera lista vazia. O manifesto de entrada CSV não mudou. Publicação antiga ou repetição idempotente pode não conter o novo campo; isso não é autorização para certificar períodos nem motivo para fabricar outra identidade.
+
+Verificações em 31/10/2026: suíte completa Backend na imagem Docker com PostgreSQL 16, `python -m pytest -q -rs --tb=short`: **859 passaram, 8 skips**, 59,79 s. Os oito cenários novos cobrem dois dialetos: repetição/troca, rollback tardio, cobertura vazia e extremos com lacuna. Prova privada atualizada com pacote real: **1 passou**, 273,77 s; confere contagens das janelas contra o manifesto, repetição e preservação da publicação diante de entrega inválida. O tempo inclui carga e limpeza; não é latência da pergunta. Sem registros ou medidas reais publicados.
+
+O item composto de manifesto/carga dispõe agora de evidência técnica reproduzível para a parte analítica v2, incluindo janelas observadas, falha parcial, repetição e nova publicação. A conferência das regras localiza limites e decisões existentes, mas não homologa energia faturada, valor recebido ou estimativa individual indisponíveis. Os controles por domínio já executados não aprovam automaticamente todos os recortes. O vínculo efetivo API/portal permanece aberto. Nenhum requisito oficial ou cartão completo é concluído automaticamente por esta atualização.

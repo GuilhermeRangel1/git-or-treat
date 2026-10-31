@@ -5,11 +5,11 @@ import shutil
 from pathlib import Path
 
 import pytest
+from sqlalchemy import create_engine, select
+
 from app.models.gold_v2_load import BATCH
 from app.schemas.gold_publication_v2 import read_export_manifest_v2
 from app.services.gold_import_v2 import GoldV2ImportError, import_gold_v2
-from sqlalchemy import create_engine, select
-
 from tests.support.migrations import migrated_database
 
 PACKAGE = os.getenv("GOLD_CSV_V2_DIR")
@@ -57,10 +57,14 @@ def test_real_v2_package_load_is_repeatable_and_rejects_invalid_delivery(tmp_pat
 
                 with engine.connect() as published_connection:
                     current = published_connection.execute(
-                        select(BATCH.c.publication_id, BATCH.c.schema_version)
+                        select(BATCH.c.publication_id, BATCH.c.schema_version, BATCH.c.manifesto)
                     ).one()
                     assert current.publication_id == loaded["publication_id"]
                     assert current.schema_version == "gold-csv-v2"
+                    windows=current.manifesto["coverage_windows"]
+                    assert sum(w["rows"] for w in windows) == expected["cobertura_dominios"]
+                    assert all(w["is_certification"] is False for w in windows)
+
     finally:
         engine.dispose()
         for suffix in ("", "-journal", "-wal", "-shm"):
