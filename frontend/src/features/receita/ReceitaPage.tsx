@@ -459,6 +459,11 @@ export default function ReceitaPage() {
           <div className="grid min-w-0 gap-4 min-[1850px]:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <RevenueDecomposition envelope={envelope} />
             <RevenueBreakdown
+              key={JSON.stringify([
+                envelope.metadata.filters,
+                envelope.metadata.period,
+                parsed.groupBy,
+              ])}
               envelope={envelope}
               groupBy={parsed.groupBy}
               onGroupByChange={applyGroupBy}

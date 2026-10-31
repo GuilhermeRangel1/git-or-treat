@@ -10,7 +10,8 @@ const money = new Intl.NumberFormat("pt-BR", {
 const axisMoney = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
-  maximumFractionDigits: 0,
+  notation: "compact",
+  maximumFractionDigits: 1,
 });
 const decimal = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 2,
@@ -179,7 +180,12 @@ export default function RevenueSeries({
         `${monthLabel(row.competencia)}: ${row.billed_amount === null ? "sem dado" : money.format(row.billed_amount)}`,
     )
     .join("; ");
-  const tickStep = Math.max(1, Math.ceil(rows.length / 12));
+  const tickStep = Math.max(
+    1,
+    Math.ceil(
+      rows.length / Math.max(2, Math.floor((chartWidth - chart.left) / 90)),
+    ),
+  );
   const monthTicks = rows.filter(
     (_, index) => index % tickStep === 0 || index === rows.length - 1,
   );
@@ -380,7 +386,10 @@ export default function RevenueSeries({
                   fontSize="13"
                   fontWeight="600"
                 >
-                  Faturamento · {money.format(activePoint.value)}
+                  Faturamento ·{" "}
+                  {money.format(activePoint.value).length > 13
+                    ? axisMoney.format(activePoint.value)
+                    : money.format(activePoint.value)}
                 </text>
               </g>
             ) : null}

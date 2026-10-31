@@ -59,7 +59,7 @@ export type RevenueEnvelope = {
     comparison: RevenueComparison;
     price_volume: {
       method: "endpoint_price_volume";
-      reference_version: "dev03-v1" | "gold-csv-v1";
+      reference_version: "dev03-v1" | "gold-csv-v1" | "gold-csv-v2";
       price_effect_brl: number | null;
       volume_effect_brl: number | null;
       interaction_effect_brl: number | null;
@@ -67,6 +67,17 @@ export type RevenueEnvelope = {
       status: RevenueStatus;
       limitations: string[];
     };
+    window_decomposition: {
+      status: RevenueStatus;
+      windows: string[];
+      method: string | null;
+      components: Record<string, number | null>;
+      total_change_brl: number | null;
+      residual_brl: number | null;
+      group_count: number;
+      incomplete_groups: number;
+      limitations: string[];
+    } | null;
     coverage: {
       requested_months: string[];
       billed_amount: RevenueMetricCoverage;
@@ -291,6 +302,53 @@ export function decodeRevenueEnvelope(input: unknown): RevenueEnvelope {
   const root = object(input, "resposta");
   const data = object(root.data, "data");
   const metadata = object(root.metadata, "metadata");
+  const windowInput =
+    data.window_decomposition == null
+      ? null
+      : object(data.window_decomposition, "data.window_decomposition");
+  const windowComponents = windowInput
+    ? object(windowInput.components, "data.window_decomposition.components")
+    : {};
+  if (windowInput) {
+    const count = number(
+      windowInput.group_count,
+      "data.window_decomposition.group_count",
+    );
+    const incomplete = number(
+      windowInput.incomplete_groups,
+      "data.window_decomposition.incomplete_groups",
+    );
+    const windows = strings(
+      windowInput.windows,
+      "data.window_decomposition.windows",
+    );
+    const available =
+      windowInput.status === "available" || windowInput.status === "partial";
+    const required = [
+      "volume",
+      "preco",
+      "interacao",
+      "entradas",
+      "saidas",
+      "sem_leitura",
+      "outros",
+    ];
+    if (
+      !Number.isInteger(count) ||
+      count < 0 ||
+      !Number.isInteger(incomplete) ||
+      incomplete < 0 ||
+      incomplete > count ||
+      ![0, 4].includes(windows.length) ||
+      (available &&
+        (windows.length !== 4 ||
+          required.some((key) => !(key in windowComponents))))
+    ) {
+      throw new RevenueContractError(
+        "data.window_decomposition contém janelas, grupos ou componentes inválidos.",
+      );
+    }
+  }
   if (metadata.contract_version !== "1.1.0") {
     throw new RevenueContractError("metadata.contract_version deve ser 1.1.0.");
   }
@@ -358,7 +416,9 @@ export function decodeRevenueEnvelope(input: unknown): RevenueEnvelope {
   const priceVolume = object(data.price_volume, "data.price_volume");
   if (
     priceVolume.method !== "endpoint_price_volume" ||
-    !["dev03-v1", "gold-csv-v1"].includes(String(priceVolume.reference_version))
+    !["dev03-v1", "gold-csv-v1", "gold-csv-v2"].includes(
+      String(priceVolume.reference_version),
+    )
   ) {
     throw new RevenueContractError(
       "data.price_volume contém método ou versão inválida.",
@@ -443,10 +503,60 @@ export function decodeRevenueEnvelope(input: unknown): RevenueEnvelope {
       ),
       series,
       comparison: comparison(data.comparison, "data.comparison"),
+      window_decomposition: windowInput
+        ? {
+            status: status(
+              windowInput.status,
+              "data.window_decomposition.status",
+            ),
+            windows: strings(
+              windowInput.windows,
+              "data.window_decomposition.windows",
+            ).map((value, index) =>
+              month(value, `data.window_decomposition.windows[${index}]`),
+            ),
+            method:
+              windowInput.method === null
+                ? null
+                : string(
+                    windowInput.method,
+                    "data.window_decomposition.method",
+                  ),
+            components: Object.fromEntries(
+              Object.entries(windowComponents).map(([key, value]) => [
+                key,
+                nullableNumber(
+                  value,
+                  `data.window_decomposition.components.${key}`,
+                ),
+              ]),
+            ),
+            total_change_brl: nullableNumber(
+              windowInput.total_change_brl,
+              "data.window_decomposition.total_change_brl",
+            ),
+            residual_brl: nullableNumber(
+              windowInput.residual_brl,
+              "data.window_decomposition.residual_brl",
+            ),
+            group_count: number(
+              windowInput.group_count,
+              "data.window_decomposition.group_count",
+            ),
+            incomplete_groups: number(
+              windowInput.incomplete_groups,
+              "data.window_decomposition.incomplete_groups",
+            ),
+            limitations: strings(
+              windowInput.limitations,
+              "data.window_decomposition.limitations",
+            ),
+          }
+        : null,
       price_volume: {
         method: "endpoint_price_volume",
         reference_version: priceVolume.reference_version as
-          "dev03-v1" | "gold-csv-v1",
+          "dev03-v1" | "gold-csv-v1" | "gold-csv-v2",
         price_effect_brl: nullableNumber(
           priceVolume.price_effect_brl,
           "data.price_volume.price_effect_brl",

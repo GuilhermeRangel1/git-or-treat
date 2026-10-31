@@ -78,7 +78,7 @@ function MetricCard({
     <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
       <h3 className="text-sm text-muted">{label}</h3>
       <p
-        className={`break-words font-heading ${valueClassName ?? "text-4xl"} leading-tight font-semibold tracking-tight text-content`}
+        className={`min-w-0 [overflow-wrap:anywhere] font-heading ${valueClassName ?? "text-4xl"} leading-tight font-semibold tracking-tight text-content`}
       >
         {value}
       </p>
@@ -135,14 +135,14 @@ export default function RevenueSummary({
           <h3 className="text-sm text-muted">Variação</h3>
           <p
             className={
-              "flex items-center justify-center gap-2 break-words font-heading text-4xl leading-tight font-semibold tracking-tight " +
+              "flex min-w-0 flex-wrap items-center justify-center gap-2 [overflow-wrap:anywhere] font-heading text-4xl leading-tight font-semibold tracking-tight " +
               signStyle
             }
           >
             <span aria-hidden="true">
               {change === null ? "" : change > 0 ? "▲" : change < 0 ? "▼" : "▶"}
             </span>
-            {signedMoney(change)}
+            <span className="min-w-0">{signedMoney(change)}</span>
           </p>
           <p className="text-xs text-muted">
             Período: {competenceLabel(initial.competencia)} →{" "}

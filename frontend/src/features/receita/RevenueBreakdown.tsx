@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { RevenueEnvelope } from "./contract";
 import type { RevenueGroupBy } from "./revenue-filters";
 
@@ -42,6 +43,14 @@ export default function RevenueBreakdown({
   ) => void;
 }) {
   const breakdown = envelope.data.breakdown;
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const totalPages = Math.max(1, Math.ceil(breakdown.items.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleItems = breakdown.items.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
   const reconciliation = breakdown.reconciliation;
   const closesWithTotal =
     reconciliation.status === "available" &&
@@ -111,7 +120,7 @@ export default function RevenueBreakdown({
                 </tr>
               </thead>
               <tbody>
-                {breakdown.items.map((item) => {
+                {visibleItems.map((item) => {
                   const neighborhood = displayValue(
                     item.label,
                     "Não informado",
@@ -138,7 +147,7 @@ export default function RevenueBreakdown({
                     >
                       <th
                         scope="row"
-                        className="px-3 py-2 font-semibold text-content"
+                        className="max-w-80 px-3 py-2 font-semibold [overflow-wrap:anywhere] text-content"
                       >
                         <span>{rowLabel}</span>
                         <span className="ml-2 inline-flex flex-wrap items-center gap-x-1 text-xs font-normal text-muted">
@@ -221,6 +230,35 @@ export default function RevenueBreakdown({
               </tfoot>
             </table>
           </div>
+          {totalPages > 1 ? (
+            <nav
+              aria-label="Paginação dos recortes"
+              className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm"
+            >
+              <span>
+                Página {currentPage} de {totalPages} · {breakdown.items.length}{" "}
+                recortes
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-control px-3 py-2 disabled:opacity-50"
+                  disabled={currentPage === 1}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-control px-3 py-2 disabled:opacity-50"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  Próxima
+                </button>
+              </div>
+            </nav>
+          ) : null}
           {closesWithTotal ? (
             <p className="mt-3 text-sm text-muted">
               Os recortes fecham com o total.
