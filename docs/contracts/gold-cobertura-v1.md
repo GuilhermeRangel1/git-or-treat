@@ -41,7 +41,7 @@ O envelope contém exatamente `schema_version` (`gold-cobertura-v1` ou `gold-cob
 | `data_corte` | ISO com offset; não posterior à referência da extração. Para `FECHADO`, ao menos o início do mês seguinte ao último mês declarado. |
 | `referencia_evidencia` | Identificador opaco não vazio de até 256 caracteres; sem texto livre, dados pessoais ou segredo. |
 
-As declarações são fornecidas pelo operador responsável com base em evidência de origem conferida. Identidade, formato e coerência são validados pelo código; preencher o JSON não produz aprovação externa nem prova, sozinho, a completude do fornecedor. Nunca utilizar saída de modelo ou texto do dataset como declaração de fechamento.
+No Job `v-energy-grid-360`, a tarefa `Cobertura_Declaracao` gera a declaração do lote Silver ativo e a entrega à Gold por task values. Ela confere a reconciliação da Bronze (`bronze_hist.reconciliacao`), a quarentena da Silver, a contagem aceita contra o que a Gold observa na janela e a identidade origem = aceitos + excluídos + quarentena; se alguma conferência não fechar, a tarefa falha e a Gold não roda. A data de corte é a data da carga na Bronze e o hash é o SHA-256 dos hashes dos arquivos de origem. Fora do Job, as declarações são fornecidas pelo operador responsável com base em evidência de origem conferida. Identidade, formato e coerência são validados pelo código; preencher o JSON não produz aprovação externa nem prova, sozinho, a completude do fornecedor. Nunca utilizar saída de modelo ou texto do dataset como declaração de fechamento.
 
 ## Consumo por Backend e GenAI
 
