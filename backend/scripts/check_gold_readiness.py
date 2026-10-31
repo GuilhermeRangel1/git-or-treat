@@ -18,14 +18,19 @@ from app.services.genai_client import (
     GenAIServiceUnavailable,
     GenAITimeout,
 )
-from app.services.gold_readiness import evaluate_attendance_readiness
+from app.services.gold_readiness import (
+    evaluate_attendance_readiness,
+    evaluate_domain_readiness,
+)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--period", action="append", required=True,
                         help="Competência solicitada YYYY-MM; repetir para mais meses.")
-    parser.add_argument("--approve-control", action="append", choices=["C14", "C15"], default=[],
+    parser.add_argument("--scope", choices=["attendance", "domains"], default="attendance",
+                        help="Atendimento compatível ou avaliação dos quatro domínios.")
+    parser.add_argument("--approve-control", action="append", choices=["C01","C02","C03","C04","C10","C11","C12","C13","C14","C15"], default=[],
                         help="Aceite explícito da regra do controle; não força resultado passado.")
     args = parser.parse_args()
     url = os.getenv("GOLD_READINESS_DATABASE_URL")
@@ -39,12 +44,15 @@ def main():
     if engine.dialect.name == "sqlite":
         engine = engine.execution_options(schema_translate_map={"gold": None, "gold_v2": None})
 
+    evaluate = evaluate_domain_readiness if args.scope == "domains" else evaluate_attendance_readiness
+
     async def run():
         async with httpx.AsyncClient(timeout=35, trust_env=False) as client:
-            return await evaluate_attendance_readiness(
+            return await evaluate(
                 engine, http_client=client, base_url=base, service_token=token,
                 requested_periods=tuple(args.period),
-                approved_controls=frozenset(args.approve_control), correlation_id=uuid4().hex)
+                approved_controls=frozenset(args.approve_control), correlation_id=uuid4().hex,
+                expected_batch_ref=os.getenv("GOLD_READINESS_EXPECTED_BATCH_REF"))
     try:
         report = asyncio.run(run())
     except (ValueError, SQLAlchemyError, GoldPublicationUnavailable, GenAIResponseInvalid,

@@ -400,3 +400,8 @@ A função pública existente `app.readiness.evaluate_readiness` recebe fatos ex
 ### Operação interna de prontidão conectada — GENAI-02
 
 A fábrica atual injeta `evaluate_readiness` em `POST /api/v1/internal/gold-readiness`. Esta operação exige token de serviço configurado inclusive no modo local e recebe fatos técnicos, nunca registros ou SQL; retorna o relatório tipado sem chamar modelo. O observador e cliente Backend, acionáveis pela CLI, calculam C14/C15 na publicação real e preservam o lote até a resposta. A prova privada com pacote v2, importador, SQLite temporário e GenAI HTTP local passou; atendimento mensal não certificado permaneceu bloqueado. Isso substitui a pendência anterior de ausência de chamador desta operação, mas não conecta o chat público. A regressão com papel restrito passou separadamente em PostgreSQL 16 descartável no Docker; a conferência no destino permanece necessária. Ver [operação e limitações](../gold-readiness.md#operação-executável-e-prova-privada).
+
+
+### Controles adicionais recebidos do Backend — GENAI-02
+
+A operação interna de prontidão existente recebe os resultados observados de receita, consumo e continuidade pela mesma versão v2. Não executa SQL nem recalcula medidas; exige sucesso, aceite explícito e identidade de publicação, além de cobertura fechada do recorte. Testes HTTP cobrem controle falho, não aprovado, antigo e período não fechado, preservando atendimento independente. O relatório permanece separado das perguntas e insights públicos.

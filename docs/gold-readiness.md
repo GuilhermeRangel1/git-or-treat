@@ -74,3 +74,58 @@ A operação GenAI exige token configurado mesmo no modo local; ausência não h
 A verificação privada opt-in `tests/test_gold_readiness_real.py` usa `GOLD_CSV_V2_DIR`, `GOLD_READINESS_TEST_URL` e `GOLD_READINESS_TEST_TOKEN`. Importa as quinze tabelas pelo importador real em banco temporário, pede avaliação por HTTP e confere a identidade preservada e os estados de atendimento. A execução local passou sem provedor de IA; o atendimento acumulado foi liberado e o mensal permaneceu indisponível por cobertura não certificada. Nenhum dataset ou credencial integra o teste no repositório. O banco temporário é removido ao final.
 
 A regressão com papel restrito passou em PostgreSQL 16 descartável no Docker, incluindo a migração da view de linhagem e os bloqueios de escrita e de acesso fora do escopo. Ainda permanecem a conferência no PostgreSQL de destino, a incorporação ao coordenador de perguntas/insights, o mesmo lote no portal e os controles dos outros domínios. A conclusão da ligação C14/C15 não conclui GENAI-02 integralmente ou IA-01/03/04/06.
+
+
+## Controles dos quatro domínios na publicação v2
+
+A CLI aceita `--scope domains` para usar `evaluate_domain_readiness` e `observe_domain_readiness`. O escopo padrão `attendance` preserva a operação anterior. Ambas as operações reutilizam a mesma coordenação, referência, prazo e snapshot; não há outro banco ou executor na GenAI. Flags `--approve-control` continuam aceites explícitos do operador e não são preenchidas a partir da aprovação histórica do relatório CSV.
+
+A versão de prontidão permanece `gold-readiness-v2`: o envelope não muda, mas o observador passa a preencher controles já previstos. A compatibilidade v1 e os controles candidatos do relatório histórico permanecem preservados. Os IDs abaixo identificam a família do controle; estas verificações internas complementam o controle de origem e **não substituem seus valores de referência ou sua aprovação externa**.
+
+| Controle | Verificação adicional sobre a publicação carregada |
+| --- | --- |
+| C01 | Reconcilia consumo medido e receita da série UC/mês com o diagnóstico por competência. Não chama consumo medido de energia faturada. |
+| C02 | Reconcilia os mesmos valores por competência e classe cadastral atual. |
+| C03 | Confere presença dos pares UC/mês e coerência de flags/contagens de faturas e leituras observadas. Não presume que toda linha tenha as duas fontes. |
+| C04 | Reconcilia os mesmos valores por competência e município cadastral atual; ausência cadastral usa `Não informado`. |
+| C10 | Confere tipos/ausências da população de médias históricas e consumo mensal. Não compara média por leitura com média mensal; a distribuição de nulos e a ausência de série continuam evidências a conferir contra a origem. |
+| C11 | Reconcilia eventos, duração e UCs distintas com numeradores, denominador cadastral e fórmulas DEC/FEC, sem somar razões nem preencher duração desconhecida. Indicadores continuam esparsos nos meses sem ocorrência. |
+| C12 | Reconcilia diagnóstico e bairro em consumo, receita e UCs faturadas por mês, condicionado também à reconciliação da série. |
+| C13 | Detecta bairros que diferem somente por caixa, acentos, espaços extras ou mojibake latin-1/UTF-8. |
+
+Receita é faturamento, não recebimento; a conferência considera as fontes presentes independentemente, preserva ausência de medida e não fabrica zero. Contagens conciliam exatamente; diferenças em consumo e receita nos agregados usam tolerância absoluta de 0,01 na unidade publicada para acomodar representação numérica/centavos, sem tolerância por percentual. C11 usa 0,0001 para duração/razões em ponto flutuante. Essas tolerâncias técnicas não aprovam metodologia de negócio nem completude da origem. Médias históricas por leitura não são recalculáveis a partir da média de somas mensais.
+
+Cobertura de faturamento/consumo é confrontada com as contagens de faturas/leituras observadas da série. Mês com medida inteiramente nula não vira período utilizável só porque a extração está fechada. Cobertura de ocorrências é confrontada com eventos e precisa ser conferida também para cada alimentador cadastral; fechamento global não se propaga aos alimentadores. São necessários mesmo lote/linhagem, mês fechado, corte posterior ao mês e não futuro e referência de evidência. Extração exige JSON de reconciliação íntegro, sem exclusões da origem, preservando quarentena separada; esse JSON não prova sozinho o inventário do fornecedor. Falha mantém o mês fora dos períodos fechados, mesmo com controle numérico passado.
+
+A saída continua apenas com estados e metadados técnicos. Cadastro pessoal, medidas, UCs, protocolos e alimentadores não são devolvidos. Esta etapa ainda não entrega catálogo/perguntas/insights Gold nem prova o mesmo lote no portal; C05/C06/C07/C08/C09 e definições consumidoras pendentes não são aprovados por consequência.
+
+As reconciliações agrupam a série mensal e os eventos no SQL do Backend antes da comparação. Os joins são apenas com a chave única de UC do cadastro; faturas e eventos não são unidos entre si. Agregações e leitura do resultado continuam no mesmo snapshot, com teto SQL de 5 s e orçamento total de 35 s; não há aumento de prazo para esconder custo da conferência.
+
+
+Verificação desta ampliação: Backend Docker/PostgreSQL 16 com agregados não vazios e leitor restrito, 847 testes passaram/8 skips; GenAI completa, 3.407 passaram/4 skips; operação HTTP, 24 passaram. Prova privada `--scope domains` pelo serviço Backend e GenAI HTTP passou com o pacote real, mantendo mesma referência e o prazo. Isso comprova execução e proteções, não homologa automaticamente resultados contra a Silver nem libera todas as capacidades. A primeira tentativa excedeu o orçamento e foi recusada; as agregações SQL corrigiram o custo sem aumentar o limite.
+
+
+## Publicação esperada pelo consumidor
+
+As operações públicas Backend `evaluate_attendance_readiness` e `evaluate_domain_readiness` aceitam `expected_batch_ref` opcional. Quando um consumidor já conhece a publicação do seu recorte, deve fornecê-la: referência malformada é recusada antes do banco/HTTP; referência válida de outra publicação interrompe o fluxo antes de chamar a GenAI, com `publication_changed`. A referência também é conferida depois do retorno, como anteriormente. A CLI lê o equivalente em `GOLD_READINESS_EXPECTED_BATCH_REF`, sem imprimi-lo.
+
+Sem essa referência, a operação preserva a compatibilidade: fixa a publicação corrente no início e exige estabilidade durante a avaliação. Isso **não comprova** que corresponde ao lote previamente visto por uma tela. A integração dos consumidores deve passar a referência obtida pelo Backend para aquele recorte; não aceitar uma referência enviada pelo navegador como autorização ou origem confiável.
+
+## Estado consolidado do GENAI-02 em 31/10/2026
+
+Por orientação da pessoa usuária, o lote atual e a conferência de origem realizada por Dados são a base aceita desta continuação. Não se reabre uma auditoria da Silver nem se solicita novo CSV para avançar. Essa é uma premissa explícita de trabalho; os testes registrados aqui não são uma nova certificação da origem. Permanecem ativos os controles automáticos de integridade, identidade, qualidade e cobertura.
+
+| Parte do cartão | Evidência / estado nesta fatia |
+| --- | --- |
+| Schema, tipos, chaves, grão e contagens | Importador v2 e migrações existentes; regressões Docker e prova privada com as quinze tabelas. |
+| Inventário e cobertura por domínio | Matriz v2 reconhece as quinze fontes, com estados independentes e sem cadastro pessoal. |
+| Referência e estabilidade da publicação | Referência canônica; snapshot somente leitura; vínculo antes/depois do HTTP; consumidor pode exigir sua publicação esperada. |
+| Controles e exemplos da primeira integração | Controles de atendimento e verificações adicionais de receita, consumo e continuidade; exemplos controlados e regressões públicas, sem valores reais no repositório. |
+| Manifesto, repetição e carga parcial | Implementados na carga versionada existente; esta fatia reutiliza o importador e as regressões, sem introduzir outro formato de carga. |
+| Referências independentes da origem | Base de Dados aceita como premissa pela pessoa usuária; sem nova auditoria nesta continuação. Não equivale a aprovar automaticamente qualquer controle futuro. |
+| Prontidão e compatibilidade | V1/v2 explícitas; só controle passado/aprovado e cobertura válida liberam a capacidade; fonte existente não homologa medida candidata. |
+| Uso da mesma publicação no portal | Ainda precisa ser exercitado quando os adaptadores consumidores estiverem compostos. A operação atual oferece a verificação, mas o portal permanece no fluxo demonstrativo. |
+
+Esta etapa entrega a prontidão operacional consumível pelas etapas seguintes. A conferência ponta a ponta com o portal deve acompanhar GENAI-07/09/11/12/13 e a adaptação analítica DEV-13, conforme o consumidor, sem simular que a aplicação já usa os dados reais. Esse item da checklist permanece aberto; não bloqueia preparar catálogo e vocabulário (GENAI-03/04). O cartão não é marcado como concluído só pela disponibilidade da operação interna.
+
+Após vincular a publicação esperada pelo consumidor, a suíte Backend Docker/PostgreSQL passou em 851 testes/8 skips. A conferência da origem permanece a premissa aceita acima; a nova verificação trata identidade/estabilidade da publicação, não refaz a Silver.
