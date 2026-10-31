@@ -24,7 +24,7 @@ Use as versões retornadas pelo detalhe, sem fixá-las no cliente. As duas vers�
 
 `suspicion_reference` identifica UC + kind/version/is_demo da fonte + versão da regra por SHA-256. `updated_at` não cria nova identidade: a versão da fonte precisa identificar snapshot imutável. `suspicion_snapshot` preserva detalhe e metadados completos: motivo, sinais, pontuação, estimativa, janela, atualização e limites. Estimativa ausente continua nula. Gold e inspeções históricas XLSX não são alteradas.
 
-O JSON persistido usa `snapshot_schema_version: "1"`, com modelo operacional independente de `SuspicionResponse`. Registros anteriores sem esse campo são lidos como versão 1, sem reescrever o banco. Campos adicionais da evidência e metadados JSON são preservados; acrescentar campos obrigatórios ao contrato analítico não invalida o histórico. Uma futura versão do snapshot deve ter adaptador explícito; não alterar silenciosamente o significado de v1. Não há nova migração SQL: o versionamento vive no JSON existente.
+O contrato inicial persistia `snapshot_schema_version: "1"`, com modelo operacional independente de `SuspicionResponse`. As criações posteriores a partir da fila Gold v2 usam `snapshot_schema_version: "2"`, preservando a identidade da publicação e a evidência mapeada no contrato [Gold DEV-13.1](analytics-gold-dev13-1.md). Registros antigos sem campo explícito continuam legíveis como legado/v1, sem reescrever o banco. Campos adicionais da evidência e metadados JSON são preservados; acrescentar campos obrigatórios ao contrato analítico não invalida o histórico. Cada versão tem adaptador explícito; não se altera silenciosamente o significado dos snapshots. Não há nova migração SQL: o versionamento vive no JSON existente.
 
 ## Repetição e concorrência
 

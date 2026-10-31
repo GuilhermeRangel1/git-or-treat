@@ -101,7 +101,7 @@ Filtros da URL são validados antes do envio: comparação, município e classe 
 
 A apresentação inicial dos filtros é um resumo de competência, período de comparação, território e classe, conforme as capturas do protótipo fornecidas na revisão. “Ajustar filtros” expande os controles na mesma superfície; edições são aplicadas automaticamente na URL e nos dados. Fechar ajustes ou Escape recolhe os campos; Escape retorna foco ao botão. URLs inválidas abrem os campos para correção. Desktop usa quatro colunas com ação lateral; mobile organiza o resumo em duas colunas e a ação abaixo. Os períodos e valores seguem a fixture vigente, sem trocar pelos exemplos visuais do Figma.
 
-Por solicitação da pessoa usuária nesta revisão, a linha de fonte/lote e última atualização foi retirada do topo do Panorama. A API preserva os metadados e os detalhes das métricas mantêm o lote; a origem continua sintética.
+Na revisão de 25/10/2026, a linha de fonte/lote e última atualização foi retirada do topo do Panorama. Naquela entrega, a origem ainda era sintética. A integração posterior de Panorama e Ordens com Gold v2 está registrada nas seções abaixo; os metadados continuam na API e na proveniência dos fundamentos, sem voltar a afirmar que a fonte vigente é sempre sintética.
 
 ### Panorama Gold v2 — 31/10/2026
 

@@ -93,6 +93,8 @@ O exemplo é artificial. Copiar lote, fingerprint e regra do detalhe atual, não
 
 Prioridade operacional BAIXA/MEDIA/ALTA é escolha da OS, distinta da categoria da Gold. Evidências de criação são congeladas como `snapshot_schema_version = "2"`; v1 e legado continuam válidos. Snapshot operacional não depende da validade futura dos DTOs analíticos.
 
+No snapshot v2 de criação, o portal lê os nomes físicos mapeados do contrato Gold: `historical_recovery_mean_kwh_per_inspection`, limites inferior/superior, referência e estado históricos, além do estado e método da estimativa individual. Zero numérico é evidência válida; nulo ou estado indisponível não vira zero nem estimativa inventada. Motivo e categoria vêm do snapshot da ordem. Fingerprint, referência da suspeita, schema, lote e códigos técnicos permanecem acessíveis em proveniência recolhida, para não substituir o motivo e as evidências na leitura inicial. Snapshots legados continuam explicitamente identificados e não herdam dados de uma publicação corrente.
+
 Reenvio da mesma intenção confirmada consulta o banco operacional antes de exigir a fonte atual. A adição de fingerprint opcional não deve alterar hashes históricos de intenções sintéticas que não o enviaram. Ordem ativa única por UC, controle otimista, transições, conclusão com resultado, cancelamento dedicado e histórico permanecem nos contratos DEV-06/07.
 
 Recarga nova/repetida/falha não reescreve ordens, resultados, snapshots ou eventos. O lote antigo no snapshot é evidência histórica intencional, não sinal de que a tela analítica continua consultando essa publicação. Consulta, listagem e ciclo das ordens existentes não exigem a presença da UC na Gold atual.
