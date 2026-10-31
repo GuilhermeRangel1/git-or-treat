@@ -44,7 +44,7 @@ function ItemCard({
   return (
     <article
       aria-label={`Suspeita ${item.uc_id}`}
-      className="rounded-lg border border-border bg-surface p-4"
+      className="min-w-0 rounded-lg border border-border bg-surface p-4 [overflow-wrap:anywhere]"
     >
       <p className="text-xs text-muted">UC / prioridade</p>
       <h3 className="mt-1 font-heading text-lg leading-[26px] font-semibold">
@@ -189,8 +189,10 @@ export default function InspectionQueue({
                           formatNumber(item.priority ?? 0)}
                       </p>
                     </th>
-                    <td className="px-3 py-3 leading-5">{item.reason}</td>
-                    <td className="px-3 py-3 text-sm leading-5 text-muted">
+                    <td className="px-3 py-3 leading-5 [overflow-wrap:anywhere]">
+                      {item.reason}
+                    </td>
+                    <td className="px-3 py-3 text-sm leading-5 text-muted [overflow-wrap:anywhere]">
                       {item.signals.length
                         ? item.signals.map((signal) => signal.label).join(" · ")
                         : item.indicators.join(" · ") ||
@@ -229,8 +231,13 @@ export default function InspectionQueue({
               <ArrowUpRight size={16} aria-hidden="true" />
             </Link>
             <p className="text-xs leading-5 text-muted">
-              Ordenação: {sortDescription}. Empates seguem energia disponível e
-              número da UC; indisponibilidade permanece explícita.
+              Ordenação: {sortDescription}.{" "}
+              {result.metadata.source.version.startsWith("gold-csv-v2:") &&
+              field === "priority"
+                ? "A posição segue a ordem de triagem publicada na Gold."
+                : result.metadata.source.kind === "gold_csv"
+                  ? "O desempate usa o número da UC."
+                  : "Empates seguem energia disponível e número da UC; indisponibilidade permanece explícita."}
             </p>
           </div>
         </>

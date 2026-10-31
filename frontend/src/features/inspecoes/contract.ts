@@ -26,6 +26,7 @@ export type QueueEnvelope = {
   data: {
     items: QueueItem[];
     filter_options: Record<string, string[]>;
+    neighborhoods: { municipio: string; bairro: string }[];
     summary: {
       total_units: number;
       highest_priority: number | null;
@@ -48,10 +49,16 @@ export type DetailEnvelope = {
     estimate_evidence: {
       baseline_kwh: number | null;
       observed_kwh: number | null;
-      horizon_months: number;
+      horizon_months: number | null;
       reference: string;
       unavailable_reason: string | null;
     };
+    historical_recovery: {
+      mean_kwh_per_inspection: number;
+      lower_kwh_per_inspection: number;
+      upper_kwh_per_inspection: number;
+      reference: string;
+    } | null;
     limitations: string[];
   };
   metadata: Metadata;
@@ -145,6 +152,18 @@ export function decodeQueue(value: unknown): QueueEnvelope {
   const filter_options: Record<string, string[]> = {};
   for (const key of ["municipio", "bairro", "classe", "alimentador"])
     filter_options[key] = strings(options[key]);
+  const neighborhoods =
+    data.neighborhoods === undefined
+      ? []
+      : Array.isArray(data.neighborhoods)
+        ? data.neighborhoods.map((value) => {
+            const item = record(value);
+            return {
+              municipio: string(item.municipio),
+              bairro: string(item.bairro),
+            };
+          })
+        : invalid();
   const page = number(pagination.page),
     page_size = number(pagination.page_size),
     total = number(pagination.total),
@@ -179,7 +198,7 @@ export function decodeQueue(value: unknown): QueueEnvelope {
   )
     invalid();
   return {
-    data: { items, filter_options, summary },
+    data: { items, filter_options, neighborhoods, summary },
     pagination: { page, page_size, total, total_pages },
     metadata: metadata(root.metadata),
   };
@@ -188,12 +207,30 @@ export function decodeDetail(value: unknown): DetailEnvelope {
   const root = record(value),
     data = record(root.data),
     evidence = record(data.estimate_evidence);
-  const horizon = number(evidence.horizon_months);
-  if (!Number.isSafeInteger(horizon) || horizon < 1) invalid();
+  const horizon = nullable(evidence.horizon_months);
+  if (horizon !== null && (!Number.isSafeInteger(horizon) || horizon < 1))
+    invalid();
+  const historical =
+    data.historical_recovery == null ? null : record(data.historical_recovery);
+  const recovery = historical
+    ? {
+        mean_kwh_per_inspection: number(historical.mean_kwh_per_inspection),
+        lower_kwh_per_inspection: number(historical.lower_kwh_per_inspection),
+        upper_kwh_per_inspection: number(historical.upper_kwh_per_inspection),
+        reference: string(historical.reference),
+      }
+    : null;
+  if (
+    recovery &&
+    (recovery.lower_kwh_per_inspection > recovery.upper_kwh_per_inspection ||
+      !["global", "0", "1"].includes(recovery.reference))
+  )
+    invalid();
   return {
     data: {
       ...item(data),
       rule_version: string(data.rule_version),
+      historical_recovery: recovery,
       estimate_evidence: {
         baseline_kwh: nullable(evidence.baseline_kwh),
         observed_kwh: nullable(evidence.observed_kwh),

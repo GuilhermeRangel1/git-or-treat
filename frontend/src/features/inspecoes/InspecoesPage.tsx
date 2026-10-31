@@ -80,6 +80,17 @@ export default function InspecoesPage() {
   );
   const detail = useSuspicion(parsed?.detail ?? null, parsed !== null);
   const active = parsed?.detail ? detail : queue;
+  const errorPayload =
+    active.error instanceof ApiError ? active.error.data : null;
+  const estimateSortUnavailable = !!(
+    errorPayload &&
+    typeof errorPayload === "object" &&
+    "error" in errorPayload &&
+    errorPayload.error &&
+    typeof errorPayload.error === "object" &&
+    "code" in errorPayload.error &&
+    errorPayload.error.code === "estimate_sort_unavailable"
+  );
   const metadata = active.data?.metadata;
   const back = new URLSearchParams(params);
   back.delete("uc");
@@ -125,6 +136,7 @@ export default function InspecoesPage() {
           params={params}
           request={parsed?.request ?? ""}
           options={queue.data?.data.filter_options ?? {}}
+          neighborhoods={queue.data?.data.neighborhoods ?? []}
           metadata={metadata}
           onChange={setParams}
         />
@@ -149,8 +161,23 @@ export default function InspecoesPage() {
               ? "Não foi possível atualizar as evidências. Exibindo a última consulta válida; ela pode estar desatualizada."
               : active.error instanceof ApiError && active.error.status === 404
                 ? "Suspeita não encontrada para esta UC."
-                : "Não foi possível consultar as evidências. Tente novamente."}
+                : estimateSortUnavailable
+                  ? "Ordenação por energia estimada indisponível para esta fonte. Escolha prioridade para consultar a fila."
+                  : "Não foi possível consultar as evidências. Tente novamente."}
           </p>
+          {estimateSortUnavailable ? (
+            <button
+              className={`${inspectionAction} mt-3`}
+              onClick={() => {
+                const next = new URLSearchParams(params);
+                next.delete("order_by");
+                next.set("page", "1");
+                setParams(next);
+              }}
+            >
+              Ordenar por prioridade
+            </button>
+          ) : null}
           <button
             className={`${inspectionAction} mt-3`}
             onClick={() => void active.refetch()}
@@ -181,7 +208,7 @@ export default function InspecoesPage() {
               units={["UCs", "inspeções", "kWh (estimativa indisponível)"]}
               limitations={metadata.limitations}
               periodLabel="Cobertura do consumo no lote"
-              periodNote="A fila não fornece competência própria nem janela dos históricos acumulados. A cobertura acima não é o período da suspeita."
+              periodNote="São os extremos das competências de consumo observadas; não comprovam todos os meses. A fila não fornece competência própria nem janela dos históricos acumulados. Esse intervalo não é o período da suspeita."
             />
           )}
           {parsed?.detail && detail.data ? (

@@ -35,7 +35,7 @@ export default function InspectionFoundations({
         <h3 id="source-title" className="font-heading text-lg font-semibold">
           Fonte e limites
         </h3>
-        <p className="text-sm">
+        <p className="text-sm [overflow-wrap:anywhere]">
           {metadata.source.is_demo
             ? "Demonstração com dados sintéticos"
             : "Fonte analítica"}{" "}
@@ -98,31 +98,37 @@ export default function InspectionFoundations({
                 </li>
               ))}
             </ul>
-            <p
-              className="mt-4 rounded-lg bg-canvas p-3 font-mono text-sm"
-              aria-label="Composição da prioridade"
-            >
-              min(1;{" "}
-              {detail.signals
-                .map((signal) => formatNumber(signal.weight))
-                .join(" + ") || "0"}
-              ) ={" "}
-              {detail.priority === null
-                ? "score não fornecido"
-                : formatNumber(detail.priority)}
-            </p>
+            {metadata.source.is_demo ? (
+              <p
+                className="mt-4 rounded-lg bg-canvas p-3 font-mono text-sm"
+                aria-label="Composição da prioridade"
+              >
+                min(1;{" "}
+                {detail.signals
+                  .map((signal) => formatNumber(signal.weight))
+                  .join(" + ") || "0"}
+                ) ={" "}
+                {detail.priority === null
+                  ? "score não fornecido"
+                  : formatNumber(detail.priority)}
+              </p>
+            ) : null}
             <h4 className="mt-5 font-semibold">
               O que define a posição na fila
             </h4>
             <p className="mt-2 text-sm text-muted">
               {metadata.source.is_demo
                 ? "Na ordenação padrão, as maiores pontuações aparecem primeiro no recorte filtrado. Alterar filtros ou ordenação pode mudar a posição."
-                : "Ordenação categórica: Alta, Média, Revisar e Baixa. A ordem não corresponde a um score de risco."}
+                : metadata.source.version.startsWith("gold-csv-v2:")
+                  ? "A ordem segue a posição publicada: categoria, histórico de irregularidades, média de consumo e UC; casos para revisão ficam ao final."
+                  : "Ordenação categórica publicada, sem score de risco."}
             </p>
             <p className="mt-2 text-sm text-muted">
               {metadata.source.is_demo
                 ? "Desempate: maior estimativa disponível, depois número da UC em ordem crescente. Estimativas ausentes ficam por último."
-                : "Desempate por número da UC crescente. Estimativas de recuperação não foram fornecidas."}
+                : metadata.source.version.startsWith("gold-csv-v2:")
+                  ? "Desempate: mais irregularidades, maior média de consumo e número da UC. A média é por leitura e não indica período próprio."
+                  : "Desempate por número da UC crescente. Estimativas de recuperação não foram fornecidas."}
             </p>
           </section>
 
@@ -140,7 +146,9 @@ export default function InspectionFoundations({
             <p className="mt-2 font-heading text-2xl font-semibold text-brand">
               {energy(detail.potential_recoverable_energy_kwh)}
             </p>
-            <ConsumptionComparison evidence={detail.estimate_evidence} />
+            {metadata.source.is_demo ? (
+              <ConsumptionComparison evidence={detail.estimate_evidence} />
+            ) : null}
             <dl className="mt-4 grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-muted">
@@ -164,14 +172,22 @@ export default function InspectionFoundations({
               </div>
               <div>
                 <dt className="text-muted">Horizonte de projeção</dt>
-                <dd>{detail.estimate_evidence.horizon_months} mês(es)</dd>
+                <dd>
+                  {detail.estimate_evidence.horizon_months === null
+                    ? "Não informado"
+                    : `${detail.estimate_evidence.horizon_months} mês(es)`}
+                </dd>
               </div>
             </dl>
-            <p className="mt-3 text-sm">
-              Regra: máximo entre zero e (referência − observação), multiplicado
-              pelo horizonte em meses; arredondamento a duas casas.
-            </p>
-            {detail.potential_recoverable_energy_kwh !== null &&
+            {metadata.source.is_demo ? (
+              <p className="mt-3 text-sm">
+                Regra: máximo entre zero e (referência − observação),
+                multiplicado pelo horizonte em meses; arredondamento a duas
+                casas.
+              </p>
+            ) : null}
+            {metadata.source.is_demo &&
+            detail.potential_recoverable_energy_kwh !== null &&
             detail.estimate_evidence.baseline_kwh !== null &&
             detail.estimate_evidence.observed_kwh !== null ? (
               <p className="mt-2 font-mono text-sm">

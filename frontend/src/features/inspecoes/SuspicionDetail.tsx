@@ -73,7 +73,7 @@ export default function SuspicionDetail({
                   ? `Prioridade categórica: ${priority}`
                   : `Prioridade analítica: ${priority} de 1`
               }
-              className="inline-flex min-h-9 items-center rounded-full border border-[var(--status-info-text)] bg-[var(--status-info-bg)] px-3 text-sm font-semibold text-[var(--status-info-text)]"
+              className="inline-flex min-h-9 max-w-full items-center rounded-full border border-[var(--status-info-text)] bg-[var(--status-info-bg)] px-3 text-sm font-semibold [overflow-wrap:anywhere] text-[var(--status-info-text)]"
             >
               Prioridade {priority}
               {data.priority !== null ? " / 1" : ""}
@@ -111,6 +111,35 @@ export default function SuspicionDetail({
               </p>
             )}
           </div>
+
+          {data.historical_recovery ? (
+            <div className="mt-4 rounded-lg bg-canvas p-3">
+              <p className="font-medium">
+                Média histórica de recuperação por inspeção
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {energy(data.historical_recovery.mean_kwh_per_inspection)} por
+                inspeção
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Intervalo histórico:{" "}
+                {energy(data.historical_recovery.lower_kwh_per_inspection)} a{" "}
+                {energy(data.historical_recovery.upper_kwh_per_inspection)} por
+                inspeção. Referência:{" "}
+                {data.historical_recovery.reference === "global"
+                  ? "geral"
+                  : data.historical_recovery.reference === "1"
+                    ? "com histórico anterior de irregularidade"
+                    : "sem histórico anterior de irregularidade"}
+                .
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Referência candidata baseada em inspeções anteriores; não é
+                estimativa para esta UC nem garantia de recuperação. Método
+                sujeito a homologação.
+              </p>
+            </div>
+          ) : null}
 
           <p className="mt-4 text-muted">
             Verificar cadastro, medição, histórico e eventual geração própria

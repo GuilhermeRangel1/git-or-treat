@@ -41,12 +41,14 @@ export default function InspectionFilters({
   params,
   options,
   metadata,
+  neighborhoods,
   onChange,
 }: {
   params: URLSearchParams;
   request: string;
   options: Record<string, string[]>;
   metadata?: Metadata;
+  neighborhoods: { municipio: string; bairro: string }[];
   onChange: (next: URLSearchParams) => void;
 }) {
   const searchKey = params.toString();
@@ -172,7 +174,16 @@ export default function InspectionFilters({
                 <option value="">Todos</option>
                 {Array.from(
                   new Set([
-                    ...(options[key] ?? []),
+                    ...(key === "bairro" &&
+                    draft.get("municipio") &&
+                    neighborhoods.length
+                      ? neighborhoods
+                          .filter(
+                            (entry) =>
+                              entry.municipio === draft.get("municipio"),
+                          )
+                          .map((entry) => entry.bairro)
+                      : (options[key] ?? [])),
                     ...(draft.get(key) ? [draft.get(key)!] : []),
                   ]),
                 ).map((value) => (
@@ -192,8 +203,12 @@ export default function InspectionFilters({
               onChange={(event) => updateDraft("order_by", event.target.value)}
             >
               <option value="priority">Prioridade</option>
-              <option value="potential_recoverable_energy_kwh">
+              <option
+                value="potential_recoverable_energy_kwh"
+                disabled={metadata?.source.kind === "gold_csv"}
+              >
                 Energia estimada
+                {metadata?.source.kind === "gold_csv" ? " (indisponível)" : ""}
               </option>
               <option value="uc_id">Número da UC</option>
             </select>
