@@ -23,13 +23,15 @@ Respostas Gold trazem `metadata` com:
 | `source.kind` / `is_demo` | `gold` / `false` |
 | `source.version` | Identificador do lote publicado |
 | `source.updated_at` | Importação local; não equivale a processamento Gold nem fechamento mensal |
-| `schema_version` | Contrato físico, atualmente `gold-csv-v1` |
+| `schema_version` | Contrato físico, atualmente `gold-csv-v2` |
 | `fingerprint` | SHA-256 do inventário/conteúdo validado pelo carregador |
 | `period` | Janela solicitada em análises mensais; `null` para a fila cadastral |
 | `temporal_scope` | `monthly` ou `snapshot` |
 | `filters` / `limitations` | Recorte aplicado e limites de interpretação |
 
 Consultas de uma resposta usam um snapshot transacional consistente. Entre respostas, o cliente deve reenviar `expected_lote` **e** `expected_fingerprint`, recebidos nos metadados. Se a publicação divergir, HTTP 409 `stale_batch`; o cliente deve atualizar o conjunto relacionado, não juntar respostas de publicações diferentes. Só o nome do lote é insuficiente: a carga pode substituir conteúdo sob o mesmo rótulo.
+
+Os leitores analíticos usam as tabelas de `gold_v2` e recusam publicação física v1 ou desconhecida. A tabela operacional compartilhada `gold_carga_atual` mantém sua localização. As etapas 1 e 2 alteram o destino físico e alinham as definições das métricas ao CSV v2; ativação e validação no lote real continuam pendentes.
 
 Sem publicação, conexão ou esquema suportado: HTTP 503, sem SQL/credenciais na resposta. Entrada inválida e parâmetro sem suporte: HTTP 422. Campos indisponíveis usam `null` e motivo, nunca zero artificial. A carga atual é determinada por `gold_carga_atual`; a última tentativa pode ter falhado sem substituir a publicação válida.
 
@@ -41,12 +43,12 @@ Parâmetros: `competencia=YYYY-MM`, `comparacao=anterior|ano_anterior|nenhuma`, 
 
 `data.metricas` conserva identificadores de produto onde a semântica é compatível e informa valor, unidade, definição, fórmula, estado e limitações. `valorAtual`, referência e variações podem ser nulos.
 
-- `receitaFaturada`: receita nas UCs/mês presentes em faturas e leituras. Não representa pagamento nem toda fatura da Silver.
-- `energiaConsumida`: consumo medido no mesmo universo elegível.
-- `precoMedioEfetivo`: preço observado = soma da receita / soma do consumo medido elegível; não é tarifa homologada. Consumo zero/ausente impede o quociente.
+- `receitaFaturada`: receita de pares UC/mês com fatura e todas as leituras observadas válidas (`receita_base_comparavel_reais`). Não representa pagamento nem toda fatura da Silver.
+- `energiaConsumida`: consumo dos mesmos pares UC/mês da receita comparável (`consumo_base_comparavel_kwh`). Totais independentes de receita e consumo não são combinados.
+- `precoMedioEfetivo`: preço observado = soma da receita comparável / soma do consumo comparável; não é tarifa homologada. Consumo zero/ausente impede o quociente.
 - `receitaPaga` e `energiaFaturada`: indisponíveis como grandezas independentes nesta exportação.
-- `ucsAtivas`: indisponível como série histórica. O cadastro atual não prova atividade na competência antiga.
-- `ucsFaturadasNoMes`: base distinta mensal elegível, separada do cadastro ativo; não somar meses para obter UCs únicas na janela.
+- `ucsAtivas`: identificador legado preservado; em Gold representa **UCs cadastradas no lote**, contagem distinta de `visao_360_uc.id_uc`, filtrada pelo município/classe cadastrais atuais. Inclui todos os status. Não representa UCs ativas históricas; não acompanha competência e não publica comparação mensal.
+- `ucsFaturadasNoMes`: contagem distinta de `consumo_mensal_uc.id_uc` com `tem_fatura=true` na competência. Filtros dimensionais usam `LEFT JOIN` 1:1 com `visao_360_uc`, com dimensões ausentes como `Não informado`. Contagem inclui faturas sem leitura e não depende da base comparável financeira. Nunca soma contagens dimensionais. É um indicador complementar de cobertura de faturamento, não um cartão obrigatório específico de WEB-01.
 - DEC/FEC: usam a mesma definição e cálculo de Operação; classe específica torna essas métricas indisponíveis, pois não há numeradores por classe. O filtro continua afetando as métricas financeiras.
 
 Comparações são observadas, com a mesma definição e recorte nas duas competências. Base anterior zero admite diferença absoluta e percentual nulo; referência ausente não gera variação. Fechamento/completude não declarados ficam explícitos. Totais com contribuições ausentes são parciais; ausência integral de medida não é soma zero.
@@ -63,11 +65,11 @@ O insight atual é exclusivamente sintético e não passa a explicar números re
 
 `GET /api/v1/inspections/queue`
 
-Filtros: município, bairro, classe e alimentador. Página/tamanho são aplicados no banco, depois do recorte; resumo/contagem representam todo o recorte. `order_by=uc_id|category` no Gold; categoria é ordenação textual explícita, não score nem política homologada de despacho. Não são suportadas ordenações por score ou recuperação no Gold. A ordenação sintética continua no seu contrato anterior.
+Filtros: município, bairro, classe e alimentador. Filtros são aplicados antes de ordenação/paginação; contagem e resumo cobrem o recorte filtrado inteiro. No Gold, `order_by=queue_position|uc_id|category`; `queue_position` usa `posicao_fila_inspecao` ascendente por padrão, com desempate estável por `id_uc`. Direção explícita `asc|desc` é aceita. `uc_id` continua disponível explicitamente; `category` ordena textualmente e desempata por UC. A ordenação sintética mantém seu contrato e padrão anteriores. Não se ordena por `ordem_prioridade_inspecao`, score ou recuperação.
 
 `data.items` contém UC/território, categoria original, motivo, evidências tipadas e variação quando exportada. Média histórica é kWh por leitura, não necessariamente por mês. Categorias não afirmam fraude; a contagem irregular depende do resultado exato do dicionário. `REVISAR` continua categoria própria.
 
-`potential_recoverable_energy_kwh = null`, com `recovery_unavailable_reason`. Médias e diferenças de consumo não são convertidas em recuperação. Os totais resumem categorias e a ausência de estimativa no recorte, sem pesos inventados.
+`potential_recoverable_energy_kwh = null`, com `recovery_unavailable_reason` derivado de `estado_estimativa_recuperacao` e estados preservados na evidência. Estados `BASE_INSUFICIENTE` e `CANDIDATO_REPROVADO_NA_VALIDACAO_TEMPORAL` explicam insuficiência ou reprovação do método; `ESTIMATIVA_UC_INDISPONIVEL` informa que há apenas referência histórica. Médias por inspeção e diferenças de consumo não são convertidas em recuperação individual. Os totais resumem categorias e a ausência de estimativa no recorte, sem pesos inventados.
 
 `GET /api/v1/inspections/queue/{uc_id}` entrega detalhe, `rule_version`, limitações e os mesmos metadados de publicação. Uma UC ausente retorna 404; isso não apaga ordens históricas.
 

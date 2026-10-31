@@ -16,9 +16,9 @@ Consultas Gold usam SQL para filtros, agregações, contagens e paginação. Met
 
 Leituras Gold reutilizam o controle de identidade e permissão de leitura existente no servidor: sessão individual no portal e credenciais de serviço privadas apenas em CLI/Swagger no desenvolvimento. Essa contenção técnica não conclui perfis por área/território de WEB-10. O modo `demo` permanece restrito à fonte sintética. Credenciais não são adicionadas ao frontend ou ao proxy.
 
-Panorama usa receita faturada e consumo medido da interseção fatura/leitura. Preço observado é a razão desses totais, sem alegar tarifa homologada. Receita paga, energia faturada independente e população ativa histórica não são deduzidas. Ausência de declaração de fechamento mensal fica explícita; comparações observadas não comprovam completude da origem.
+Panorama usa `receita_base_comparavel_reais` e `consumo_base_comparavel_kwh` para receita, consumo e preço; os totais financeiros independentes não são combinados nem usados como fallback. Preço observado é a razão da mesma base comparável, sem alegar tarifa homologada. Receita paga, energia faturada independente e população ativa histórica não são deduzidas. `ucsFaturadasNoMes` fica indisponível porque a Gold publica contagens distintas por grupo dimensional, sem IDs para deduplicar UCs entre linhas agregadas. Ausência de declaração de fechamento mensal fica explícita; comparações observadas não comprovam completude da origem.
 
-A fila reproduz categorias e evidências da Gold, sem score ou energia recuperável inventados. A ordem padrão por UC não aprova política de despacho. A prioridade operacional BAIXA/MEDIA/ALTA continua distinta da classificação de triagem. A variação da Gold conserva suas duas janelas fixas e contagens de meses observados.
+A fila reproduz categoria, motivo e evidências da Gold, sem score ou energia recuperável inventados. Para CSV v2, a ordem padrão usa `posicao_fila_inspecao` ascendente, antes da paginação; `uc_id` e categoria textual continuam como opções explícitas. Isso preserva a posição calculada pela Gold e não aprova política de despacho ou ordenação por `ordem_prioridade_inspecao`. A prioridade operacional BAIXA/MEDIA/ALTA continua distinta da classificação de triagem. A variação da Gold conserva suas duas janelas fixas e contagens de meses observados.
 
 A criação de ordem grava evidência operacional v2 independente dos DTOs analíticos em evolução. Ordem e evento continuam atômicos. A publicação usa trava exclusiva transacional; criação Gold usa a contraparte compartilhada na mesma transação que valida o lote e grava ordem/evento. Reenvio confirmado continua resolvido antes de exigir Gold. Snapshots v1/legados permanecem legíveis e não são reescritos por cargas novas.
 
@@ -39,3 +39,8 @@ As lacunas de dados continuam nos requisitos originais. A aceitação desta impl
 ## Fontes técnicas
 
 Context7 não estava disponível na sessão. Foram consultadas as fontes primárias: [SQLAlchemy — conexões e isolamento](https://docs.sqlalchemy.org/en/21/core/connections.html), [PostgreSQL 18 — isolamento](https://www.postgresql.org/docs/18/transaction-iso.html) e [travas consultivas transacionais](https://www.postgresql.org/docs/18/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS). Versões efetivamente executadas e resultados ficam na evidência da entrega; documentação não substitui teste de concorrência.
+
+
+### Revisao de 31/10/2026: KPIs cadastrais e faturamento por UC
+
+A limitacao anterior de UCs faturadas considerava apenas contagens dimensionais. A projecao `consumo_mensal_uc` traz IDs, competencia e `tem_fatura`: a API passa a contar UCs distintas nessa fonte, com filtros pelo cadastro unico de `visao_360_uc`. O identificador legado `ucsAtivas` representa em Gold a base cadastrada atual, rotulada UCs cadastradas no lote, incluindo todos os status e sem comparacao historica. Energia faturada permanece sem medida comprovada. Regras e evidencias: [mapeamento](../plans/2026-10-31-panorama-kpis-mapeamento.md).
