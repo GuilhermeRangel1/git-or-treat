@@ -1,7 +1,7 @@
 # Engenharia de dados — Bronze, Silver e Gold
 
 Os notebooks versionados cobrem ingestão, perfilamento, Silver, Gold e exportação.
-O Job `v-energy-grid-360` encadeia cinco tarefas
+O Job `v-energy-grid-360` encadeia seis tarefas (a `Cobertura_Declaracao` confere Bronze, Silver e totais entre a Silver e a Gold e entrega a declaração de cobertura)
 ([YAML versionado](configuracao/databricks/v-energy-grid-360.yaml)) e cada uma já foi executada no
 Databricks; o run limpo de ponta a ponta e o print do Workflow serão registrados no PRD. Na Bronze, valores ausentes,
 duplicatas, datas ambíguas e vínculos inconsistentes são medidos e preservados;
@@ -156,7 +156,7 @@ Evidência histórica: a Gold oficial `GOLD_20261027T014656Z_81c5530b` (Silver `
    as evidências. A carga no banco local é uma etapa separada do notebook de
    exportação; registre o processo e os resultados de reconciliação utilizados.
 
-O YAML versionado registra a configuração do Job de cinco tarefas, sem agendamento ativo. Confira os valores
+O YAML versionado registra a configuração do Job de seis tarefas, sem agendamento ativo. Confira os valores
 e a configuração atual no Workspace antes de executar os notebooks.
 
 ## Estratégia de agendamento (proposta, não ativada)
@@ -178,9 +178,14 @@ Execução mensal, no dia 5, às 03:00 (America/Recife). Decisão do time penden
 ![Workflow com as duas tarefas concluídas](evidencias/workflow/workflow-graph.png)
 
 O run `14313419965490` de 18/10/2026 terminou em `Succeeded` em 21m 03s e
-comprovou o encadeamento das duas tarefas **na versão anterior**. O print do Workflow de cinco tarefas será
-acrescentado depois do run limpo de ponta a ponta. Ele não
+comprovou o encadeamento das duas tarefas **na versão anterior**. Ele não
 valida o scanner, as vistas, o perfil por origem nem a migração desta mudança.
+
+## Run limpo de ponta a ponta (30–31/10/2026)
+
+![Workflow de seis tarefas concluído](evidencias/workflow/workflow-run-limpo.png)
+
+O run `250327107715287` do Job `v-energy-grid-360` executou as seis tarefas, de `Landing_to_Bronze` a `Exportacao_Gold`, e terminou em `Succeeded` em 44m 56s, sem parâmetros manuais além de `AMBIENTE` e `CADASTRO_RESTRITO_VALIDADO`. A declaração de cobertura e as janelas de preço × volume vieram da tarefa `Cobertura_Declaracao`. Execução Gold `GOLD_20261031T020143Z_fd69c375`, sobre a Silver `20261031T013826Z_a84f91b9`. O detalhe, as verificações e os limites estão em [evidencias/workflow/run-limpo-250327107715287.md](evidencias/workflow/run-limpo-250327107715287.md).
 
 
 ### Complementos da visão 360 e nome restrito — 30/10/2026
