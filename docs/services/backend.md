@@ -6,7 +6,7 @@
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
-As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar registros sintéticos relacionados, por interface injetável; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. A carga CSV v1 é transacional e repetível, conforme o [contrato provisório](../contracts/gold-csv-v1.md); as rotas ainda não consomem essas tabelas. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
+As ordens têm persistência operacional inicial, separada da tabela `gold_indicadores`. As rotas analíticas têm contratos de consumo e podem consultar a fonte sintética explícita; ainda não leem Gold. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. As cargas v1 e v2 são transacionais, conforme os [contratos provisórios v1](../contracts/gold-csv-v1.md) e [v2](../contracts/gold-csv-v2.md); as rotas ainda não consomem as tabelas carregadas. O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
 ## DEV-01: contratos antes da Gold
 
@@ -100,7 +100,7 @@ A DEV-07 acrescenta histórico persistido com ator/versão, registro dedicado de
 
 ## Carga da Gold e consistência
 
-O script `backend/scripts/load_gold.py` importa as sete tabelas CSV do lote v1 após `alembic upgrade head`, em transação única, com chaves, tipos, contagens, somas e hashes validados. Não altera ordens operacionais nem ativa a fonte da API. Consulte organização, comandos e limites no [contrato CSV v1](../contracts/gold-csv-v1.md). A prova Databricks → CSV, as definições DE-08 e a adaptação API/portal permanecem pendentes.
+O script `backend/scripts/load_gold.py` importa as sete tabelas CSV v1 ou, com seleção explícita, as quinze tabelas analíticas do CSV v2. A migração `goldv2000001` mantém a v1 em `gold` e cria as tabelas v2 em `gold_v2`; as duas versões compartilham o registro de publicação e auditoria, e a carga mantém hashes, contagens e controles em uma transação. O leitor dedicado recebe `SELECT` apenas nas tabelas analíticas v1/v2; o schema do cadastro restrito não é concedido. Nenhuma carga ativa a fonte das rotas da API. O teste com o pacote real v2 em SQLite temporário e os limites estão no [contrato CSV v2](../contracts/gold-csv-v2.md). Postgres/Databricks no ambiente de destino, integração API/portal/GenAI e pacote cadastral continuam pendentes.
 
 ## Qualidade
 

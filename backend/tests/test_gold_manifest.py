@@ -150,13 +150,18 @@ def test_reference_contract_rejects_a_different_publication(database, batch):
             current_publication(connection, first["batch_ref"])
 
 
-@pytest.mark.parametrize("value", ["", "v1", "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+@pytest.mark.parametrize("value", ["", "v1",
     "gold-csv-v1:LOTE_DEV:8b9502c2-c188-4528-ab3c-7dff79ed908f",
     "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:not-a-uuid",
     "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f:extra"])
 def test_batch_reference_rejects_invalid_envelopes(value):
     with pytest.raises(ValueError):
         PublicationReference.parse(value)
+
+
+def test_batch_reference_accepts_v2_publication():
+    value = "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+    assert PublicationReference.parse(value).batch_ref == value
 
 
 def test_shared_publication_envelope_examples():

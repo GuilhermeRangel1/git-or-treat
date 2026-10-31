@@ -1,6 +1,6 @@
 # Contrato candidato dos CSVs Gold v2
 
-Preparação de DE-04/DE-06/DE-08, em 30/10/2026. Descreve o produtor em [Exportacao_Gold_SQLite.ipynb](../../data-engineering/notebook/Exportacao_Gold_SQLite.ipynb). Não habilita a carga nem altera o [contrato histórico v1](gold-csv-v1.md). O Backend e a GenAI ainda precisam implementar e validar a compatibilidade antes do consumo.
+Contrato candidato de DE-04/DE-06/DE-08, atualizado em 30/10/2026. Descreve o produtor em [Exportacao_Gold_SQLite.ipynb](../../data-engineering/notebook/Exportacao_Gold_SQLite.ipynb). O Backend agora valida e importa o pacote analítico v2 descrito aqui, sem alterar o [contrato histórico v1](gold-csv-v1.md). A carga não ativa as rotas analíticas, o chat ou os insights; consulta e reconciliação pela API/portal continuam pendentes.
 
 ## Origem e pacote
 
@@ -81,18 +81,20 @@ O manifesto é serializado antes de abrir o arquivo temporário. Só após escri
 | Nulos CSV | Campo vazio representa nulo. | Marcador reservado distinto de string vazia. |
 | Manifesto | Campos extras recusados. | Novos campos de tentativa, schemas, versões e formato. |
 | Processamento | Exige `data_processamento_gold`. | Produtor agora emite o mesmo nome; o nome antigo `data_processamento` não é emitido. |
-| Identidade da publicação | Parser Backend e `GoldBatchRef` GenAI aceitam somente v1. | Compatibilidade v2 ainda não implementada. |
-| Banco | Snapshot físico v1 e migrações existentes. | Exige migração e mapeamento explícitos, sem editar silenciosamente o snapshot histórico. |
+| Identidade da publicação | Backend aceita referências v1/v2; `GoldBatchRef` GenAI permanece em v1. | A referência analítica é `gold-csv-v2:<run_id>:<publication_id>`; o produtor não fornece `publication_id` local. |
+| Banco | Snapshot físico imutável em `gold`. | Tabelas v2 ficam em `gold_v2`, com nomes lógicos do inventário e migração própria; o snapshot v1 permanece intacto. |
 
-A carga deve preservar as garantias existentes de publicação transacional, idempotência, auditoria, identidade e conservação de ordens. O formato final da referência v2 precisa ser acordado nos dois serviços; o exportador não fabrica `publication_id` nem altera envelopes GenAI.
+O carregador `backend/app/services/gold_import_v2.py` preserva publicação transacional, idempotência, auditoria, identidade e conservação das ordens. Ele lê somente as quinze pastas analíticas, confere manifesto, schema, tipos, chaves, contagens, hashes e reconciliação financeira; `\N` vira nulo e string vazia é preservada. A carga do cadastro não faz parte deste fluxo.
+
+Na verificação local de 30/10/2026, o pacote real de quinze CSVs foi carregado em SQLite temporário: 5.633.972 linhas, repetição idempotente e manifesto inválido sem substituir a publicação. O banco temporário foi removido e os CSVs não foram copiados ao repositório. Isso valida o importador contra aquele pacote; não comprova Postgres/Databricks, nem reconciliação pela API.
 
 ## Pendências para aprovação e aceite
 
-- Aprovação conjunta do inventário e dos novos campos, tipos, nulos e limites do manifesto; conferir tamanho máximo antes de alterar o limite v1 de 64 KiB.
-- Validação estrita de identidade, schema, controles, partes CSV e versão pelo consumidor, com falha preservando o lote válido anterior.
-- Execução real de escrita/releitura CSV, controle de concorrência e comparação com a publicação aprovada na origem.
+- Aprovação conjunta do inventário e dos novos campos, tipos, nulos e limites do manifesto; o consumidor v2 usa limite próprio de 64 KiB e não altera o parser v1.
+- Importação v2 pelo Backend está implementada e passou no pacote real em SQLite temporário; falta executar a migração e a importação em PostgreSQL no ambiente de destino e validar concorrência nesse dialecto.
 - Reconciliação da mesma exportação no banco, na API e no portal/GenAI. Os testes do produtor não comprovam essas etapas.
-- A infraestrutura de cobertura mensal está implementada; as declarações de completude continuam dependentes da evidência de origem. Receita e inspeções mantêm suas definições pendentes; cadastro, tratativas e GD precisam de carga/consumidores autorizados. Quinze tabelas não encerram automaticamente a [issue 75](https://github.com/GuilhermeRangel1/git-or-treat/issues/75).
+- O pacote cadastral restrito `gold-cadastro-v1` está referenciado no manifesto, mas não está presente no pacote analítico usado aqui e não é carregado nem concedido ao papel GenAI. Sua carga e consulta autenticada no Backend são uma entrega separada necessária para exibir nome na visão 360; não é requisito do catálogo GenAI.
+- As declarações de completude continuam dependentes da evidência de origem. Receita e inspeções mantêm definições pendentes; tratativas e GD ainda precisam de consumidores autorizados. Quinze tabelas não encerram automaticamente a [issue 75](https://github.com/GuilhermeRangel1/git-or-treat/issues/75).
 
 A evolução autorizada de faturamento total e consumo independente altera também os schemas e o significado dos agregados em relação ao contrato v1. Os consumidores precisam mapear as parcelas, a base comparável e as contagens de qualidade; não basta aceitar colunas extras mantendo a fórmula anterior de tarifa.
 
