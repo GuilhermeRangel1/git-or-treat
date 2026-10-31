@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.database import get_analytics_db
 from app.main import app
 from app.models.gold_load import ATTEMPTS, BATCH, TABLES
+from app.models.gold_v2_load import TABLES as V2_TABLES
 from app.services.gold_import import import_gold
 from tests.test_gold_import import SAMPLES, write_origin
 
@@ -22,7 +23,7 @@ def gold_client(tmp_path, monkeypatch):
             rows = [*rows, rows[0].replace("FAKE-A;", "FAKE-B;", 1).replace(";FAKE-AL;", ";FAKE-OTHER;")]
         (folder / "part.csv").write_text(header + "\n" + "\n".join(rows) + "\n", encoding="utf-8")
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    engine = engine.execution_options(schema_translate_map={"gold": None})
+    engine = engine.execution_options(schema_translate_map={"gold": None, "gold_v2": None})
     for table in [ATTEMPTS, BATCH, *TABLES.values()]:
         table.create(engine)
     write_origin(tmp_path, "test-v1")
@@ -71,6 +72,19 @@ def test_revenue_feeder_uses_monthly_source_with_current_registration(gold_clien
     assert response.json()["data"]["total_billed_amount"] == 10.10
     assert response.json()["data"]["total_measured_energy_kwh"] == 10
     assert any("JOIN main.gold_visao_360_uc" in sql and "GROUP BY" in sql for sql in statements)
+
+
+def test_revenue_combined_filters_reconcile_feeder_and_territory(gold_client):
+    client, _ = gold_client
+    base = "/api/v1/revenue?competencia_inicio=2025-01&competencia_fim=2025-01&municipio=Cidade%20fict%C3%ADcia&bairro=Bairro%20fict%C3%ADcio&classe=Residencial"
+    territory = client.get(base).json()["data"]
+    first = client.get(base + "&alimentador=FAKE-AL").json()["data"]
+    second = client.get(base + "&alimentador=FAKE-OTHER").json()["data"]
+    assert territory["total_billed_amount"] == 25.50
+    assert first["total_billed_amount"] == 10.10
+    assert second["total_billed_amount"] == 15.40
+    assert round(first["total_billed_amount"] + second["total_billed_amount"], 2) == territory["total_billed_amount"]
+    assert first["total_measured_energy_kwh"] + second["total_measured_energy_kwh"] == territory["total_measured_energy_kwh"] == 30
 
 
 def test_missing_month_is_not_zero_and_unknown_filter_is_rejected(gold_client):
@@ -131,6 +145,44 @@ def test_no_fallback_for_unsupported_gold_consumers(gold_client):
     client, _ = gold_client
     assert client.get("/api/v1/panorama").status_code == 503
     assert client.get("/api/v1/operations/summary").status_code == 503
+
+
+def test_v2_publication_never_labels_old_v1_facts_as_current(gold_client):
+    client, _ = gold_client
+    dependency = app.dependency_overrides[get_analytics_db]()
+    db = next(dependency)
+    try:
+        for name in ("visao_360_uc", "consumo_mensal_uc", "consumo_receita_bairro"):
+            V2_TABLES[name].create(db.get_bind())
+        db.execute(V2_TABLES["visao_360_uc"].insert(), [
+            {"id_uc": "X", "municipio": "Cidade fictícia", "bairro": "Bairro fictício", "classe": "Residencial", "alimentador": "AL-X"},
+            {"id_uc": "Y", "municipio": "Cidade fictícia", "bairro": "Bairro fictício", "classe": "Residencial", "alimentador": "AL-Y"},
+            {"id_uc": "Z", "municipio": "Cidade fictícia", "bairro": "Bairro fictício", "classe": "Residencial", "alimentador": "AL-X"},
+        ])
+        db.execute(V2_TABLES["consumo_mensal_uc"].insert(), [
+            {"id_uc": "X", "competencia": "2025-01", "receita_reais": 100, "consumo_kwh": 10, "tem_fatura": True},
+            {"id_uc": "Y", "competencia": "2025-01", "receita_reais": 50, "consumo_kwh": 20, "tem_fatura": True},
+            {"id_uc": "Z", "competencia": "2025-01", "receita_reais": None, "consumo_kwh": 5, "tem_fatura": False},
+        ])
+        db.execute(V2_TABLES["consumo_receita_bairro"].insert().values(
+            competencia="2025-01", municipio="Cidade fictícia", bairro="Bairro fictício", classe_consumo="Residencial",
+            receita_total_reais=150, consumo_total_kwh=35, qtd_ucs_distintas_faturadas_no_mes=2,
+        ))
+        db.execute(BATCH.update().values(schema_version="gold-csv-v2", publication_id="artificial-publication"))
+        db.commit()
+    finally:
+        dependency.close()
+    result = client.get("/api/v1/revenue?competencia_inicio=2025-01&competencia_fim=2025-01")
+    assert result.status_code == 200, result.text
+    assert result.json()["data"]["total_billed_amount"] == 150
+    assert result.json()["metadata"]["source"]["version"].startswith("gold-csv-v2:")
+    feeder = client.get("/api/v1/revenue?competencia_inicio=2025-01&competencia_fim=2025-01&municipio=Cidade%20fict%C3%ADcia&alimentador=AL-X")
+    assert feeder.status_code == 200, feeder.text
+    assert feeder.json()["data"]["total_billed_amount"] == 100
+    assert feeder.json()["data"]["total_measured_energy_kwh"] == 15
+    assert feeder.json()["data"]["comparison"]["initial"]["billed_uc_count"] == 1
+    assert client.get("/api/v1/ucs?q=FAKE").status_code == 503
+    assert client.get("/api/v1/analytics/options").status_code == 200
 
 
 @pytest.mark.parametrize("path", [
