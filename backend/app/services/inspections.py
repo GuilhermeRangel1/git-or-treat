@@ -105,7 +105,11 @@ def create_from_queue(
     existing = _replay(db, key, fingerprint)
     if existing:
         return existing, False
-    snapshot = build_suspicion_response(repository_provider(), uc_id)
+    repository = repository_provider()
+    if not repository.source_is_demo:
+        from app.services.analytics import AnalyticsAPIError
+        raise AnalyticsAPIError(503, "rule_unavailable", "Criação de ordens pela Gold aguarda homologação e identidade autorizada.")
+    snapshot = build_suspicion_response(repository, uc_id)
     if (snapshot.metadata.source.version != payload.source_version
             or snapshot.data.rule_version != payload.rule_version):
         raise OrderConflictError("A suspeita mudou. Atualize a fila antes de criar a ordem.", "stale_suspicion")

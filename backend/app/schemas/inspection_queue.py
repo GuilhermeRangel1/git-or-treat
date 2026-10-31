@@ -12,15 +12,23 @@ class SignalEvidence(BaseModel):
 class EstimateEvidence(BaseModel):
     baseline_kwh: float | None = Field(ge=0)
     observed_kwh: float | None = Field(ge=0)
-    horizon_months: int = Field(ge=1)
+    horizon_months: int | None = Field(ge=1)
     reference: str
     unavailable_reason: str | None = None
+
+
+class HistoricalRecoveryReference(BaseModel):
+    mean_kwh_per_inspection: float = Field(ge=0)
+    lower_kwh_per_inspection: float = Field(ge=0)
+    upper_kwh_per_inspection: float = Field(ge=0)
+    reference: str
 
 
 class SuspicionDetail(InspectionQueueItem):
     rule_version: str
     signals: list[SignalEvidence]
     estimate_evidence: EstimateEvidence
+    historical_recovery: HistoricalRecoveryReference | None = None
     limitations: list[str]
 
 
@@ -38,6 +46,7 @@ class QueueSummary(BaseModel):
 class QueueData(BaseModel):
     items: list[InspectionCandidate]
     filter_options: dict[str, list[str]]
+    neighborhoods: list[dict[str, str]] = Field(default_factory=list)
     summary: QueueSummary
 
 

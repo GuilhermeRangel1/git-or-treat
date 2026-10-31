@@ -74,7 +74,7 @@ class GoldAnalyticsRepository:
         from app.services.analytics import AnalyticsAPIError
         from app.services.uc_analytics import validate_uc_id
         uc_id = validate_uc_id(uc_id)
-        uc = TABLES["visao_360_uc"]
+        uc = self.tables["visao_360_uc"]
         row = self.db.execute(select(uc).where(uc.c.id_uc == uc_id)).mappings().first()
         if row is None:
             raise AnalyticsAPIError(404, "not_found", "Unidade consumidora não encontrada.")
@@ -147,9 +147,20 @@ class GoldAnalyticsRepository:
                       for field, value in filters.model_dump(exclude_none=True).items() if field in columns]
         return self.rows(select(table).where(*conditions))
 
+    def queue_options(self):
+        table = self.tables["fila_inspecao"]
+        return {field: list(self.db.scalars(select(table.c[field]).where(table.c[field].is_not(None)).distinct().order_by(table.c[field])))
+                for field in ("municipio", "bairro", "classe", "alimentador")}
+
+    def queue_neighborhoods(self):
+        table = self.tables["fila_inspecao"]
+        return self.rows(select(table.c.municipio, table.c.bairro).where(
+            table.c.municipio.is_not(None), table.c.bairro.is_not(None),
+        ).distinct().order_by(table.c.municipio, table.c.bairro))
+
     def queue(self, filters, page, page_size, order_by, direction):
         from app.services.analytics import AnalyticsAPIError
-        table = TABLES["fila_inspecao"]
+        table = self.tables["fila_inspecao"]
         ranking = case(
             (table.c.prioridade_inspecao.startswith("ALTA"), 3),
             (table.c.prioridade_inspecao.startswith("MEDIA"), 2),
@@ -159,7 +170,11 @@ class GoldAnalyticsRepository:
             raise AnalyticsAPIError(422, "invalid_query", "Ordenação inválida.")
         # Estimativas ausentes não recebem ordenação numérica fictícia.
         if order_by == "potential_recoverable_energy_kwh":
-            return self.page(select(table).where(*self.conditions(table, filters)), page, page_size, table.c.id_uc.asc())
+            raise AnalyticsAPIError(422, "estimate_sort_unavailable", "Ordenação por energia estimada indisponível para esta publicação Gold.")
+        if order_by == "priority" and self.schema_version == "gold-csv-v2":
+            position = table.c.posicao_fila_inspecao
+            return self.page(select(table).where(*self.conditions(table, filters)), page, page_size,
+                             position.asc() if direction == "desc" else position.desc(), table.c.id_uc.asc())
         sort = ranking if order_by == "priority" else table.c.id_uc
         return self.page(select(table).where(*self.conditions(table, filters)), page, page_size,
                          sort.desc() if direction == "desc" else sort.asc(), table.c.id_uc.asc())

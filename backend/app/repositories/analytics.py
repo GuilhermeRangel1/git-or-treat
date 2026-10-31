@@ -139,7 +139,7 @@ def get_analytics_repository(db: Session | None = Depends(get_analytics_db), req
         from app.repositories.gold import GoldAnalyticsRepository
         allow_v2 = request is not None and request.url.path in {
             f"{settings.API_V1_STR}/revenue", f"{settings.API_V1_STR}/analytics/options",
-        }
+        } or (request is not None and (request.url.path == f"{settings.API_V1_STR}/inspections/queue" or request.url.path.startswith(f"{settings.API_V1_STR}/inspections/queue/")) and request.method == "GET")
         return GoldAnalyticsRepository(db, allow_v2=allow_v2)
     if settings.ANALYTICS_SOURCE != "synthetic":
         raise AnalyticsSourceUnavailable()
