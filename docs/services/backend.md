@@ -156,3 +156,8 @@ O Backend passa a validar a origem do manifesto e persistir a origem e `publicat
 ### Preparação B11 de compatibilidade interna
 
 `app/schemas/genai_internal.py` descreve os envelopes internos v1, reutilizando pergunta/resposta públicas, plano B3 e lookup B9. `app/services/genai_contracts.py` confere respostas contra versão, conteúdo e correlação do corpo/cabeçalho. Vetores compartilhados com a suíte GenAI, teste HTTP de recusa de escopo enviado pelo portal e prova do núcleo sem modelo para ausência/esclarecimento verificam as fronteiras preparadas. Clientes e rotas internas, coordenador, executor e teste ponta a ponta continuam pendentes; não ativa a Gold ou confirma B6/B9.
+
+
+### GENAI-01 — finalização contratual v2
+
+O pacote final usa referências `gold-csv-v2`, independentes do envelope interno v1. As requisições internas de plano e síntese exigem `remaining_timeout_ms` (inteiro estrito de 1 a 35.000). O Backend é a autoridade do prazo global de 35 s e limita SQL a 5 s; o helper `GenAIRequestDeadline.remaining_timeout_ms` fornece o saldo sem renovar o relógio. O contrato de consulta descreve atualização conjunta dos consumidores e despacho `completed_lookup`. Os controles ainda precisam ser ligados ao cliente, executor e coordenador; o endpoint público continua sem consulta Gold nesta fatia.

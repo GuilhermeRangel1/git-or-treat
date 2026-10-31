@@ -81,7 +81,7 @@ O manifesto é serializado antes de abrir o arquivo temporário. Só após escri
 | Nulos CSV | Campo vazio representa nulo. | Marcador reservado distinto de string vazia. |
 | Manifesto | Campos extras recusados. | Novos campos de tentativa, schemas, versões e formato. |
 | Processamento | Exige `data_processamento_gold`. | Produtor agora emite o mesmo nome; o nome antigo `data_processamento` não é emitido. |
-| Identidade da publicação | Backend aceita referências v1/v2; `GoldBatchRef` GenAI permanece em v1. | A referência analítica é `gold-csv-v2:<run_id>:<publication_id>`; o produtor não fornece `publication_id` local. |
+| Identidade da publicação | A referência v1 continua aceita para compatibilidade. | Backend e GenAI validam referências v1/v2 e preservam a versão; a referência analítica é `gold-csv-v2:<run_id>:<publication_id>`. O produtor não fornece `publication_id` local. Aceitar a referência não ativa a consulta Gold. |
 | Banco | Snapshot físico imutável em `gold`. | Tabelas v2 ficam em `gold_v2`, com nomes lógicos do inventário e migração própria; o snapshot v1 permanece intacto. |
 
 O carregador `backend/app/services/gold_import_v2.py` preserva publicação transacional, idempotência, auditoria, identidade e conservação das ordens. Ele lê somente as quinze pastas analíticas, confere manifesto, schema, tipos, chaves, contagens, hashes e reconciliação financeira; `\N` vira nulo e string vazia é preservada. A carga do cadastro não faz parte deste fluxo.

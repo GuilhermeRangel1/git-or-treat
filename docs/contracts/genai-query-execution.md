@@ -45,7 +45,7 @@ O plano é construído de forma determinística a partir do perfil e do catálog
 
 ## Operação 1 — planejar
 
-**Rota proposta:** `POST /api/v1/internal/question-plans` na GenAI, acessível só pela rede privada, com o mesmo `Authorization: Bearer` de serviço e `X-Correlation-ID` do contrato de chat.
+**Rota definida no contrato:** `POST /api/v1/internal/question-plans` na GenAI, acessível só pela rede privada, com o mesmo `Authorization: Bearer` de serviço e `X-Correlation-ID` do contrato de chat. Caminho confirmado pela pessoa usuária em 31/10/2026; implementação HTTP em GENAI-07.
 
 ### Requisição (proposta: `QuestionPlanRequest`)
 
@@ -53,8 +53,9 @@ O plano é construído de forma determinística a partir do perfil e do catálog
 {
   "contract_version": "v1",
   "question": "Qual foi a energia faturada em Recife em março de 2025?",
+  "remaining_timeout_ms": 35000,
   "context": [],
-  "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+  "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
   "temporal_coverage": [{"metric_id": "energia_faturada", "kind": "monthly", "competencies": ["2025-03"]}],
   "access_scope": {
     "caller_ref": "user.7f3c2a",
@@ -110,7 +111,7 @@ A mesma revalidação vale para um resultado servido de cache: a chave inclui es
 
 ## Operação 2 — sintetizar
 
-**Rota proposta:** `POST /api/v1/internal/question-syntheses` na GenAI, com os mesmos cabeçalhos da operação 1.
+**Rota definida no contrato:** `POST /api/v1/internal/question-syntheses` na GenAI, com os mesmos cabeçalhos da operação 1. Caminho confirmado pela pessoa usuária em 31/10/2026; implementação HTTP em GENAI-07. Durante a transição, `POST /api/v1/questions` permanece disponível para o fluxo existente; o coordenador Gold usa as duas operações internas, sem fallback silencioso para o fluxo demonstrativo.
 
 ### Requisição (proposta: `QuestionSynthesisRequest`)
 
@@ -142,7 +143,7 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
 **Identidade publicada pelo Backend e validação de proveniência na GenAI implementadas; os envelopes completos e sua ligação ao runtime Gold continuam propostos.**
 
 - A carga valida o manifesto de origem da Gold (ambiente `prod`, IDs de linhagem, versão e inventário), conforme [Gold CSV v1](gold-csv-v1.md#origem-e-publicação). O Backend lê a publicação efetivamente carregada, nunca a última execução no Databricks.
-- `batch_ref` tem formato canônico `gold-csv-v1:<run_id>:<publication_id>`. O run vem do manifesto; `publication_id` é UUID4 gerado e persistido na mesma transação da publicação. `unchanged` preserva essa identidade; nova publicação muda o UUID; tentativa rejeitada conserva os fatos e a referência anteriores. `attempt_id` identifica outra coisa: cada tentativa de carga.
+- `batch_ref` tem formato canônico `gold-csv-v2:<run_id>:<publication_id>`. O run vem do manifesto; `publication_id` é UUID4 gerado e persistido na mesma transação da publicação. `unchanged` preserva essa identidade; nova publicação muda o UUID; tentativa rejeitada conserva os fatos e a referência anteriores. `attempt_id` identifica outra coisa: cada tentativa de carga.
 - O parser `PublicationReference` do Backend e o tipo `GoldBatchRef` da GenAI rejeitam versões incompatíveis, IDs de reserva, UUIDs fora de v4, espaços e formas não canônicas. Ambos usam os exemplos artificiais de [publicação v1](examples/gold-publication-v1.json). `EvidenceProvenance.batch_ref` preserva a referência na redução da evidência. Para fonte `gold.*`, `EvidenceGuard.validate` exige `expected_batch_ref`, informado pelo chamador confiável; ausência, formato inválido ou diferença na proveniência impedem a aceitação. Não se obtém a referência esperada do próprio lookup. Fontes demonstrativas continuam sem referência Gold.
 - Publicações legadas sem origem validada não podem fornecer `batch_ref`. Falta de manifesto, ambiente não produtivo e identificadores manuais/de reserva são recusados pela carga. A versão ausente do exportador legado só é adaptada com `--schema-version` explicitamente informado.
 - A vista `gold.publicacao_atual` expõe a identidade mínima ao leitor restrito. O helper Backend consegue rejeitar uma referência esperada diferente; a prova de ausência de mistura durante uma consulta real pertence ao futuro executor transacional GENAI-06/07.
@@ -185,7 +186,7 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
 
 Os envelopes montados pelo Backend usam as mensagens públicas de `map_failure` (`app/schemas/responses.py`) para o mesmo código, para que o portal veja o mesmo texto vindo de qualquer serviço. Nenhum erro expõe SQL, nome físico, stack trace, credencial ou corpo upstream.
 
-**Proposta a confirmar:** o Backend sempre chama sintetizar quando a execução terminou com um `EvidenceLookupResult`, inclusive em `no_evidence` e `needs_clarification`, para que mensagens e eventos fiquem em um só lugar. Falhas de execução (banco, timeout, plano rejeitado) não chamam sintetizar.
+**Política confirmada pela pessoa usuária em 31/10/2026:** o Backend sempre chama sintetizar quando a execução terminou com um `EvidenceLookupResult`, inclusive em `no_evidence` e `needs_clarification`, para que mensagens e eventos fiquem em um só lugar. Falhas de execução (banco, timeout, plano rejeitado) não chamam sintetizar. A ligação ao coordenador pertence a GENAI-07.
 
 ### Repetição e idempotência
 
@@ -222,7 +223,7 @@ Proposta:
 - Planejar não chama modelo nem fonte; deve terminar bem abaixo do prazo de uma requisição.
 - A execução no Backend usa timeout próprio, no máximo equivalente a `GENAI_SOURCE_TIMEOUT_MS`, e o limite de linhas do plano (até 100).
 - Sintetizar usa o orçamento de modelo atual. Como a fonte não é chamada nessa operação, `GENAI_SOURCE_MAX_CALLS` não se aplica a ela.
-- A soma das três etapas pode passar dos 35 s de hoje. Backend e GenAI precisam acordar um prazo total para a rota pública e a fatia de cada etapa (ver "Pontos a confirmar" na ADR-0002).
+- Decisão de 30/10/2026: 35 segundos para a requisição completa, incluindo planejamento, SQL e síntese; SQL tem teto de 5 segundos. Cada etapa recebe o menor valor entre seu limite local e o saldo disponível. O Backend mantém o relógio monotônico único; o prazo não reinicia entre chamadas.
 
 Correlação e auditoria:
 
@@ -329,7 +330,7 @@ A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "63967671
       "window": {"kind": "bounded", "phrase": null, "start": "2025-03-01", "end": "2025-03-31", "granularity": "month"},
       "filters": [{"dimension_id": "municipio", "operator": "eq", "values": ["Recife"]}],
       "dimension_ids": ["municipio"],
-      "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+      "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
     }
   },
   "message": null,
@@ -390,7 +391,7 @@ Um `lookup` ou plano com texto SQL, nome de tabela ou coluna física em qualquer
 
 Este contrato é preparação. Não há rota interna, executor Gold, catálogo aprovado, autenticação de pessoa usuária nem auditoria durável implementados. Não conclui IA-01, IA-03 ou IA-06 e não autoriza uso de dados Gold. O motor do P-04 foi escolhido na [ADR-0017](../decisions/0017-banco-local-postgresql.md); o fluxo depende da configuração efetiva do papel de leitura preparado pelo Backend, da homologação do dicionário Gold (DE-08) e da reconciliação da carga real (DE-06).
 
-`ai-agent/tests/test_internal_contract_examples.py` confere os exemplos deste contrato com os schemas existentes da GenAI. Lacunas documentadas, sem teste até existir modelo: envelopes completos de planejar e sintetizar, estados `planned` e `refused` desses envelopes e `access_scope` sem correlação. A referência de publicação dispõe de exemplos comuns e testes nos dois serviços; a GenAI testa a aceitação do lookup completo, a preservação da referência e a recusa de referência ausente, inválida ou divergente. A integração HTTP e a fixação transacional do lote durante uma consulta de negócio continuam fora desta preparação.
+`ai-agent/tests/test_internal_contract_examples.py` confere os exemplos deste contrato com os schemas existentes da GenAI. Os envelopes completos de planejar e sintetizar, os estados `planned` e `refused` e o escopo sem correlação têm schemas e vetores compartilhados validados nos dois serviços; rotas e coordenação permanecem pendentes. A referência de publicação dispõe de exemplos comuns e testes nos dois serviços; a GenAI testa a aceitação do lookup completo, a preservação da referência e a recusa de referência ausente, inválida ou divergente. A integração HTTP e a fixação transacional do lote durante uma consulta de negócio continuam fora desta preparação.
 
 
 ## Definições dos envelopes Gold — B1 a B5 (29/10/2026)
@@ -447,20 +448,20 @@ Referência: [SQLAlchemy Core 2.0 — isolamento por conexão](https://docs.sqla
 
 ### Prazo B6 compartilhado — preparação
 
-`backend/app/services/genai_deadline.py::GenAIRequestDeadline.start(total_seconds)` cria um prazo por requisição com relógio monotônico. Os valores total e por etapa são explícitos: esta preparação não escolhe uma divisão de segundos, não acrescenta defaults e não altera o timeout HTTP atual.
+`backend/app/services/genai_deadline.py::GenAIRequestDeadline.start(total_seconds)` cria um prazo por requisição com relógio monotônico. Os valores total e por etapa são explícitos: o contrato final fixa 35 segundos totais e teto SQL de 5 segundos; o componente genérico não altera sozinho o timeout HTTP atual.
 
 O futuro coordenador deve criar a instância na entrada, preservá-la durante planejamento, consulta e síntese e limitar cada etapa pelo menor valor entre seu teto e o tempo restante. `remaining_seconds(stage_limit_seconds)` fornece o limite para HTTP; `sql_timeout_ms(stage_limit_seconds)` arredonda para baixo e recusa menos de um milissegundo, sem devolver zero, que desativaria o timeout PostgreSQL. O executor deverá aplicar o valor no banco dentro da transação e manter o cancelamento concreto do driver.
 
 `run(stage_limit_seconds, operation)` só cria a operação assíncrona se houver prazo, aplica cancelamento ao exceder o limite e rejeita resultado concluído depois do prazo total. Traduz somente o timeout que ele próprio disparou para `GenAITimeout`; preserva falhas da operação e cancelamento externo. Não repete operações. Após falha de etapa, o coordenador deve encerrar o fluxo, mesmo que reste tempo global; não iniciar síntese para falha de execução.
 
-Cancelamento de coroutine não prova interrupção de SQL ou trabalho em thread. A integração dos limites HTTP, timeout/cancelamento de consulta, início do orçamento na rota e valores acordados com GenAI permanecem pendentes. Testes com relógio controlado e cancelamento assíncrono comprovam o componente, não o prazo ponta a ponta.
+Cancelamento de coroutine não prova interrupção de SQL ou trabalho em thread. A integração dos limites HTTP, timeout/cancelamento de consulta, início do orçamento na rota e revisão conjunta de sua aplicação permanecem pendentes. Testes com relógio controlado e cancelamento assíncrono comprovam o componente, não o prazo ponta a ponta.
 
 Referência consultada via Context7: Python, `asyncio.timeout` e `Timeout.expired`, documentação CPython 3.13; verificação no Python 3.12 usado pelo projeto. A API existe desde Python 3.11.
 
 
 ### Decisão de despacho B9 — preparação opt-in
 
-`backend/app/services/genai_flow.py::should_synthesize` prepara a matriz proposta sem ativá-la. O argumento obrigatório `policy="completed_lookup"` seleciona explicitamente a proposta de sintetizar todo lookup concluído válido. Não existe política default; a confirmação com GenAI e a ligação ao coordenador continuam pendentes.
+`backend/app/services/genai_flow.py::should_synthesize` prepara a matriz proposta sem ativá-la. O argumento obrigatório `policy="completed_lookup"` seleciona explicitamente o despacho de todo lookup concluído válido, conforme o comportamento do núcleo. Não existe política default silenciosa; a ligação ao coordenador e a revisão conjunta permanecem pendentes.
 
 - Planejamento `needs_clarification`, `refused` ou `recoverable_error`: devolver sua resposta sem consulta ou síntese. Lookup presente nesse caminho é uma inconsistência de contrato, não autorização para sintetizar.
 - Planejamento `planned` e lookup válido `available`, `no_evidence` ou `needs_clarification`: a política opt-in permite a etapa de síntese. Zero em registros é evidência válida. Sem evidência e esclarecimento não autorizam inferir números nem exigem chamada ao modelo; o núcleo já usa mensagens determinísticas nesses estados.
@@ -474,10 +475,32 @@ O schema independente `backend/app/schemas/genai_evidence.py` valida os estados 
 
 `backend/app/schemas/genai_internal.py` valida os envelopes v1 de planejamento e síntese de forma independente da GenAI, reutilizando o contrato público existente, plano B3 e lookup B9. Escopo é exclusivamente interno; o corpo público não aceita `access_scope`, referência de publicação ou cobertura temporal. O schema não constrói autorização e não substitui a política de acesso.
 
-Os [vetores compartilhados de envelopes](examples/genai-internal-contract-v1.json) são gerados de exemplos sintéticos e exercitados pelas duas suítes: 16 válidos e 24 inválidos, cobrindo os cinco tipos de mensagem (requisição/resposta de planejamento, lookup, requisição/resposta de síntese). As duas bordas conferem versões, campos extras, estados, fingerprint, publicação, cobertura, escopo e coerência de estado/correlação da resposta aninhada. As listas que representam conjuntos no escopo são comparadas ordenadas; listas do plano continuam preservando sua ordem conforme B3.
+Os [vetores compartilhados de envelopes](examples/genai-internal-contract-v1.json) são gerados de exemplos sintéticos e exercitados pelas duas suítes: 21 válidos e 43 inválidos, cobrindo os cinco tipos de mensagem (requisição/resposta de planejamento, lookup, requisição/resposta de síntese). As duas bordas conferem versões, campos extras, estados, fingerprint, publicação, cobertura, escopo e coerência de estado/correlação da resposta aninhada. As listas que representam conjuntos no escopo são comparadas ordenadas; listas do plano continuam preservando sua ordem conforme B3.
 
 `backend/app/services/genai_contracts.py` prepara validação de respostas de planejar/sintetizar com conferência da correlação esperada contra corpo e cabeçalho. Não cria novas rotas ou presume seus caminhos. A validação de transporte/status HTTP continua obrigatória no futuro cliente; os helpers não são chamadores da GenAI e ainda não estão conectados ao coordenador.
 
 Testes adicionais usam a rota pública Backend para recusar o envelope interno e o núcleo realmente composto da GenAI para sintetizar ausência/esclarecimento sem modelo ou fonte. O núcleo também recusa publicação divergente e escopo insuficiente antes do modelo. Esses testes usam perfil controlado e fixtures, não o catálogo Gold ainda em PR, e não comprovam o fluxo completo Backend HTTP → executor → GenAI HTTP.
 
-Permanecem pendentes a conexão das rotas internas e clientes, o coordenador e executor com autorização, o acordo dos limites B6 e política B9, e a verificação ponta a ponta pelo endpoint público. B11 não fica concluída apenas por validação dos schemas ou por esta suíte sintética. A imagem Backend inclui o mesmo arquivo de vetores, sem manter cópia paralela.
+Permanecem pendentes a conexão das rotas internas e clientes, o coordenador e executor com autorização, a aplicação do prazo total B6 e da política B9 no coordenador, e a verificação ponta a ponta pelo endpoint público. B11 não fica concluída apenas por validação dos schemas ou por esta suíte sintética. A imagem Backend inclui o mesmo arquivo de vetores, sem manter cópia paralela.
+
+
+### Publicação final Gold CSV v2 — compatibilidade GENAI-01
+
+O pacote final usa `gold-csv-v2`; a versão do envelope de planejamento, lookup e síntese continua `contract_version: v1`. São versões independentes. Backend e GenAI aceitam referências canônicas v1 e v2, preservam a versão recebida sem conversão e rejeitam versões desconhecidas. A aceitação da referência v2 não habilita o importador de manifesto v2 nem autoriza consulta: carga, mapeamento e executor pertencem às entregas correspondentes. O produtor candidato está no [PR #81](https://github.com/GuilhermeRangel1/git-or-treat/pull/81).
+
+A publicação efetivamente validada pelo Backend fixa a versão: evidência v1 com publicação esperada v2, mesmo com o mesmo run e UUID, é recusada pelo núcleo antes do modelo. Não há fallback de publicação v2 para v1. O catálogo lógico e a versão do envelope permanecem independentes da versão física dos CSVs.
+
+Os vetores compartilhados de envelopes incluem 21 mensagens válidas e 43 inválidas, com publicação v2 no planejamento, lookup e síntese, compatibilidade v1 e rejeição de `gold-csv-v3`. Os exemplos não contêm registros do lote real: esta fronteira verifica contrato; GENAI-06/07/09 comprovam execução e consumo dos CSVs reais. Os exemplos históricos de publicação v1 permanecem para regressão.
+
+Para concluir GENAI-01, revisar e aprovar estes exemplos e os envelopes dos dois serviços. A ausência das rotas e do coordenador pertence à integração GENAI-07 e não deve ser confundida com ausência de schemas. A validação integral de IA-01/IA-03/IA-06 continua dependente do fluxo real e das autorizações.
+
+
+### Prazo final do contrato e migração dos consumidores
+
+A pessoa usuária definiu 35 segundos no total e SQL limitado a 5 segundos. O Backend cria `GenAIRequestDeadline.start(35)` na entrada da requisição, antes de resolver escopo/publicação, e imediatamente antes de cada chamada calcula `remaining_timeout_ms(35)`; o SQL recebe `sql_timeout_ms(5)`. O saldo arredonda para baixo, nunca vira zero e nunca renova o relógio. Sem saldo, não despacha nova etapa. Transporte, fila, revalidação, consulta e síntese consomem o mesmo orçamento global.
+
+As requisições internas de planejamento e síntese exigem `remaining_timeout_ms`, inteiro estrito de 1 a 35.000. Ausência, nulo, booleano, string, fração, zero, negativo ou valor superior são rejeitados nos dois serviços. A GenAI limita a operação ao menor valor entre o saldo recebido e seu teto local; a espera no semáforo consome esse limite, e uma operação que termina atrasada não produz resposta válida. A espera do cliente HTTP também deve usar o saldo local mais recente. O Backend descarta resultado ou resposta se seu prazo global tiver expirado, inclusive depois da síntese. Não se compara relógio monotônico entre processos; o número é um teto relativo e o relógio do Backend é a autoridade final.
+
+O campo é exclusivamente interno: o navegador não escolhe o prazo ou o escopo. Os contratos públicos permanecem v1. Os envelopes internos v1 ainda estão em preparação e suas rotas não foram implantadas; esta finalização acrescenta um campo obrigatório e exige atualização conjunta de Backend e GenAI antes da ativação. Não se atribui automaticamente um novo saldo a envelopes antigos sem esse campo. Em rollback, restaurar o par de serviços/contratos compatível e manter a integração Gold desativada até reconferir os vetores.
+
+A política de despacho usada nesta entrega é `completed_lookup`: lookups concluídos seguem à síntese; ausência e esclarecimento são determinísticos no núcleo, sem fonte ou modelo. Falha de execução, acesso, prazo ou publicação interrompe a coordenação. Os exemplos e essa política seguem para revisão conjunta no PR #79, sem presumir aprovação de outro integrante. A aplicação no transporte/executor e o teste pelo endpoint público pertencem a GENAI-07/09.

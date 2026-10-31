@@ -49,6 +49,7 @@ class TemporalCoverage(BaseModel):
 
 class QuestionPlanRequest(AIQuestionRequest):
     access_scope: AccessScope
+    remaining_timeout_ms: int = Field(strict=True, gt=0, le=35000)
     batch_ref: GoldBatchRef | None = None
     temporal_coverage: tuple[TemporalCoverage, ...] = Field(default=(), max_length=100)
 
@@ -98,6 +99,7 @@ class QuestionPlanResponse(BaseModel):
 
 class QuestionSynthesisRequest(AIQuestionRequest):
     access_scope: AccessScope
+    remaining_timeout_ms: int = Field(strict=True, gt=0, le=35000)
     plan: LogicalReadPlan
     plan_fingerprint: PlanFingerprint
     lookup: EvidenceLookupResult

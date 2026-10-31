@@ -43,12 +43,16 @@ class GenAIRequestDeadline:
             raise GenAITimeout
         return min(remaining, stage_limit_seconds)
 
-    def sql_timeout_ms(self, stage_limit_seconds: float) -> int:
-        # Zero significa timeout desativado no PostgreSQL; nunca o devolvemos.
+    def remaining_timeout_ms(self, stage_limit_seconds: float) -> int:
+        """Saldo inteiro para o envelope interno; nunca renova o prazo."""
         milliseconds = int(self.remaining_seconds(stage_limit_seconds) * 1000)
         if milliseconds < 1:
             raise GenAITimeout
         return milliseconds
+
+    def sql_timeout_ms(self, stage_limit_seconds: float) -> int:
+        # Zero significa timeout desativado no PostgreSQL; nunca o devolvemos.
+        return self.remaining_timeout_ms(stage_limit_seconds)
 
     async def run(self, stage_limit_seconds: float, operation: Callable[[], Awaitable[T]]) -> T:
         """Não cria a operação se o prazo acabou; não repete ou oculta falhas.

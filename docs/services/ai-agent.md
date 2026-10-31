@@ -378,3 +378,8 @@ O Backend passa a validar a origem do manifesto e persistir a origem e `publicat
 ### Envelopes de planejamento e síntese Gold
 
 `app.schemas.internal` prepara as operações internas do GENAI-01. O planejamento Gold exige publicação e cobertura temporal por métrica lógica; a síntese exige publicação esperada separada do lookup. Usa o `GoldBatchRef` compartilhado, preserva fontes sintéticas e rejeita campos extras, cobertura duplicada ou fora do escopo. Os schemas não executam SQL, resolvem períodos nem comparam a evidência; o núcleo aplica o EvidenceGuard na etapa seguinte. Ver B1 a B5 no [contrato interno](../contracts/genai-query-execution.md). Rotas e integração Backend continuam pendentes.
+
+
+### GENAI-01 — referência final e prazo recebido
+
+As operações públicas do núcleo `plan` e `synthesize` aceitam envelopes internos v1 com referência de pacote Gold CSV v2. Cada requisição exige `remaining_timeout_ms` de 1 a 35.000, enviado pelo Backend confiável. A execução usa o menor valor entre o saldo e o teto local, incluindo espera por capacidade, e rejeita conclusão atrasada. Isso não cria endpoints internos nem autoriza fonte real: o Backend continua o único executor SQL e autoridade do orçamento global. Transporte e coordenação pertencem à integração posterior descrita no contrato.

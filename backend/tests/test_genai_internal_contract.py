@@ -5,8 +5,6 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
-
 from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_evidence import EvidenceLookupResult
 from app.schemas.genai_internal import (
@@ -15,8 +13,12 @@ from app.schemas.genai_internal import (
     QuestionSynthesisRequest,
 )
 from app.services.genai_client import GenAIResponseInvalid
-from app.services.genai_contracts import validate_plan_response, validate_synthesis_response
+from app.services.genai_contracts import (
+    validate_plan_response,
+    validate_synthesis_response,
+)
 from app.services.genai_flow import should_synthesize
+from pydantic import ValidationError
 
 FIXTURE = json.loads(
     (
@@ -104,3 +106,19 @@ def test_b9_decision_accepts_the_same_lookups_as_genai(vector):
     assert should_synthesize(
         planning_status="planned", lookup=deepcopy(vector["payload"]), policy="completed_lookup"
     )
+
+
+def test_one_backend_deadline_supplies_decreasing_budgets_to_both_envelopes():
+    from app.services.genai_deadline import GenAIRequestDeadline
+
+    now = [0.0]
+    deadline = GenAIRequestDeadline.start(35, clock=lambda: now[0])
+    plan = deepcopy(next(v["payload"] for v in FIXTURE["valid"] if v["id"] == "gold-plan-request-gold-v2"))
+    plan["remaining_timeout_ms"] = deadline.remaining_timeout_ms(35)
+    assert QuestionPlanRequest.model_validate(plan).remaining_timeout_ms == 35000
+    now[0] = 2
+    assert deadline.sql_timeout_ms(5) == 5000
+    now[0] = 7
+    synthesis = deepcopy(next(v["payload"] for v in FIXTURE["valid"] if v["id"] == "request-synthesis-available-gold-v2"))
+    synthesis["remaining_timeout_ms"] = deadline.remaining_timeout_ms(35)
+    assert QuestionSynthesisRequest.model_validate(synthesis).remaining_timeout_ms == 28000

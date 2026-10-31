@@ -55,10 +55,14 @@ def test_public_request_does_not_accept_backend_scope_or_publication():
 
 
 @pytest.mark.parametrize("status", ["no_evidence", "needs_clarification"])
-def test_b9_empty_or_clarification_synthesis_uses_core_without_model_or_source(status):
+@pytest.mark.parametrize("publication_version", ["gold-csv-v1", "gold-csv-v2"])
+def test_b9_empty_or_clarification_synthesis_uses_core_without_model_or_source(
+    status, publication_version
+):
     payload = next(
         v["payload"] for v in FIXTURE["valid"] if v["id"] == "request-synthesis-" + status
     )
+    payload = json.loads(json.dumps(payload).replace("gold-csv-v1:", publication_version + ":"))
     source, model = SpySource(), SpyModel()
     core = _core(source=source, model=model, profile=_gold_profile(), source_id="gold.local")
 
@@ -71,7 +75,7 @@ def test_b9_empty_or_clarification_synthesis_uses_core_without_model_or_source(s
     assert source.calls == model.calls == 0
 
 
-@pytest.mark.parametrize("case", ["publication", "scope"])
+@pytest.mark.parametrize("case", ["publication", "publication_schema", "scope"])
 def test_synthesis_core_revalidates_publication_and_scope_before_model(case):
     payload = deepcopy(
         next(v["payload"] for v in FIXTURE["valid"] if v["id"] == "request-synthesis-available")
@@ -80,6 +84,10 @@ def test_synthesis_core_revalidates_publication_and_scope_before_model(case):
         payload["expected_batch_ref"] = (
             "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:00000000-0000-4000-8000-000000000001"
         )
+    elif case == "publication_schema":
+        payload["expected_batch_ref"] = payload["expected_batch_ref"].replace(
+            "gold-csv-v1:", "gold-csv-v2:"
+        )
     else:
         payload["access_scope"]["allowed_metric_ids"] = []
     source, model = SpySource(), SpyModel()
@@ -87,5 +95,33 @@ def test_synthesis_core_revalidates_publication_and_scope_before_model(case):
     response = asyncio.run(
         core.synthesize(QuestionSynthesisRequest.model_validate(payload), FIXTURE["correlation_id"])
     )
-    assert response.status.value == ("recoverable_error" if case == "publication" else "refused")
+    assert response.status.value == ("refused" if case == "scope" else "recoverable_error")
     assert source.calls == model.calls == 0
+
+
+def test_synthesis_respects_remaining_backend_deadline_before_default_model_timeout():
+    class WaitingModel(SpyModel):
+        async def generate(self, question, context, evidence):
+            self.calls += 1
+            await asyncio.Event().wait()
+
+    payload = deepcopy(next(
+        v["payload"] for v in FIXTURE["valid"]
+        if v["id"] == "request-synthesis-available-gold-v2"
+    ))
+    payload["remaining_timeout_ms"] = 100
+    source, model = SpySource(), WaitingModel()
+    core = _core(source=source, model=model, profile=_gold_profile(), source_id="gold.local")
+
+    async def run():
+        return await asyncio.wait_for(
+            core.synthesize(
+                QuestionSynthesisRequest.model_validate(payload), FIXTURE["correlation_id"]
+            ),
+            timeout=1,
+        )
+
+    response = asyncio.run(run())
+    assert response.status.value == "recoverable_error"
+    assert response.error.code.value == "limit_exceeded"
+    assert response.answer is None and source.calls == 0 and model.calls == 1
