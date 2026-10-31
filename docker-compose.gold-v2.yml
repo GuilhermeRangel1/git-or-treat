@@ -1,0 +1,29 @@
+services:
+  gold-loader:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${GOLD_CSV_V2_HOST_DIR:?Configure GOLD_CSV_V2_HOST_DIR in .env.gold-v2}
+        target: /gold-input
+        read_only: true
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        alembic upgrade head &&
+        python scripts/load_gold.py
+        --directory /gold-input
+        --schema-version gold-csv-v2
+    restart: "no"
+
+  backend:
+    depends_on:
+      gold-loader:
+        condition: service_completed_successfully
