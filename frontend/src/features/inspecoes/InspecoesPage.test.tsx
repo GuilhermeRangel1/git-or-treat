@@ -146,6 +146,136 @@ it("mostra origem e unidades sem atribuir à fila o período do consumo", async 
   ).toBeVisible();
 });
 
+it("na Gold v2 desativa ordenação por energia e preserva a volta do detalhe", async () => {
+  const goldItem = {
+    ...item,
+    priority: null,
+    priority_label: "ALTA - HISTORICO IRREGULAR",
+    reason: "Histórico confirmado",
+    potential_recoverable_energy_kwh: null,
+    signals: [],
+  };
+  const goldMetadata = {
+    ...metadata,
+    source: {
+      ...metadata.source,
+      kind: "gold_csv",
+      is_demo: false,
+      version: "gold-csv-v2:artificial:publicacao",
+    },
+  };
+  const queue = {
+    ...envelope(),
+    data: {
+      ...envelope().data,
+      items: [goldItem],
+      neighborhoods: [
+        { municipio: "Recife", bairro: "Centro" },
+        { municipio: "Olinda", bairro: "Bairro Novo" },
+      ],
+      summary: {
+        total_units: 1,
+        highest_priority: null,
+        estimated_units: 0,
+        unavailable_estimate_units: 1,
+      },
+    },
+    pagination: { page: 1, page_size: 10, total: 1, total_pages: 1 },
+    metadata: goldMetadata,
+  };
+  const evidence = {
+    data: {
+      ...goldItem,
+      rule_version: "gold-csv-v2",
+      historical_recovery: {
+        mean_kwh_per_inspection: 20,
+        lower_kwh_per_inspection: 5,
+        upper_kwh_per_inspection: 40,
+        reference: "global",
+      },
+      estimate_evidence: {
+        baseline_kwh: null,
+        observed_kwh: null,
+        horizon_months: null,
+        reference: "Não informado",
+        unavailable_reason: "Estimativa ausente",
+      },
+      limitations: [],
+    },
+    metadata: goldMetadata,
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation(async (url: string) =>
+        respond(url.includes("/queue/UC-") ? evidence : queue),
+      ),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes?municipio=Recife&page=1");
+  await firstEvidenceLink();
+  await user.click(screen.getByRole("button", { name: /Ajustar filtros/ }));
+  expect(
+    screen.getByRole("option", { name: /Energia estimada \(indisponível\)/ }),
+  ).toBeDisabled();
+  await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+  expect(
+    screen.getByRole("option", { name: "Bairro Novo" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("option", { name: "Centro" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Fechar filtros" }));
+  await user.click(
+    (
+      await screen.findAllByRole("link", { name: "Ver evidência de UC-1004" })
+    )[0],
+  );
+  expect(await screen.findByText("Histórico confirmado")).toBeVisible();
+  expect(
+    screen.getByText("Média histórica de recuperação por inspeção"),
+  ).toBeVisible();
+  expect(screen.getByText(/não é estimativa para esta UC/)).toBeVisible();
+  expect(
+    screen.getByText(/A fila não informa uma janela temporal própria/),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Ver fundamentos" }));
+  expect(screen.getAllByText("Não informado").length).toBeGreaterThan(0);
+  expect(
+    screen.queryByText(/Regra: máximo entre zero/),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Fechar fundamentos" }));
+  await user.click(screen.getByRole("link", { name: "Voltar à fila" }));
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "municipio=Recife&page=1",
+  );
+});
+
+it("oferece recuperação para link antigo com ordenação por energia indisponível", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation(async (url: string) =>
+        url.includes("potential_recoverable_energy_kwh")
+          ? respond({ error: { code: "estimate_sort_unavailable" } }, 422)
+          : respond(envelope()),
+      ),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes?order_by=potential_recoverable_energy_kwh");
+  await user.click(
+    await screen.findByRole("button", { name: "Ordenar por prioridade" }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).not.toHaveTextContent(
+      "order_by=",
+    ),
+  );
+  expect(await firstEvidenceLink()).toBeVisible();
+});
+
 it("abre evidências reproduzíveis e volta preservando a página e os filtros", async () => {
   const fetch = vi
     .fn()
