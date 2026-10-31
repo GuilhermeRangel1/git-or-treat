@@ -1,0 +1,11 @@
+# Fila de inspeções — Gold CSV v2
+
+Escopo: WEB-04, WEB-05 e WEB-07; publicação analítica carregada de DE-06 e dicionário DE-08. A consulta usa `gold_v2.fila_inspecao` e a identidade da publicação sob o mesmo lock compartilhado com a carga. A UC é a chave da fila; o detalhe também verifica sua presença em `visao_360_uc` da mesma publicação.
+
+- As opções de município, bairro, classe e alimentador vêm da própria fila. Pares município/bairro permitem restringir o bairro ao município escolhido; combinações inconsistentes são recusadas pelo servidor.
+- Prioridade e motivo são os campos publicados, com os indicadores históricos e cadastrais disponíveis. A ordem padrão usa `posicao_fila_inspecao` crescente, que segue categoria, mais irregularidades anteriores, maior média de consumo por leitura e UC. Direção inversa inverte a posição publicada; ordenação por UC usa a direção solicitada. A paginação é aplicada no banco.
+- Estimativa individual de recuperação não é fornecida ou homologada. A ordenação por ela é desabilitada na interface e recusada pela API com `estimate_sort_unavailable`; não há fallback silencioso. Quando a publicação informa referência histórica disponível e valores válidos, o detalhe mostra média e intervalo por inspeção, identifica o grupo ou referência geral e declara que o método é candidato. Isso não é uma previsão para a UC, garantia de recuperação ou aceite da estimativa individual.
+- Os extremos de competências do consumo observado não certificam todos os meses e não são janela da suspeita, nem atribuem janela aos históricos acumulados. A Gold não informa horizonte de projeção: o campo é nulo. A fórmula demonstrativa e os sinais sintéticos não são aplicados à Gold.
+- A leitura não implica homologação de prioridade ou fraude. A criação de ordens a partir da Gold permanece bloqueada na interface e no servidor: depende do aceite da regra, da representação da prioridade categórica no snapshot operacional e de identidade/autorização adequadas. O fluxo sintético continua separado.
+
+A prova opt-in `tests/test_gold_inspections_v2_real.py` consulta uma publicação privada no banco isolado, compara fila e filtros com SQL e verifica a hierarquia, motivos e posição em todo o lote. Ela não constitui homologação humana, validação da Silver nem aceite da estimativa.
