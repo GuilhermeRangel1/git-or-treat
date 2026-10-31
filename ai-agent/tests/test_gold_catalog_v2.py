@@ -363,3 +363,13 @@ def test_mapping_validator_uses_immutable_signature_after_nested_mutation():
             )
     finally:
         source.dimension_columns[dimension_id] = original
+
+
+def test_source_selection_rejects_unknown_metric_even_with_existing_source():
+    from app.profiles.grid360_gold_mapping import CatalogMappingError
+
+    unknown = GRID360_GOLD_MAPPING.metric("billing.revenue").model_copy(
+        update={"metric_id": "billing.unapproved_revenue"}
+    )
+    with pytest.raises(CatalogMappingError, match="fora do catálogo"):
+        select_source(unknown, set(), {r.id for r in V2_CAPABILITY_REQUIREMENTS})

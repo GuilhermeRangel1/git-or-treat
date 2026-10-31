@@ -247,7 +247,9 @@ def select_source(
     """
 
     approved_signature = _APPROVED_METRIC_SIGNATURES.get(metric.metric_id)
-    if approved_signature is not None and metric.model_dump_json() != approved_signature:
+    if approved_signature is None:
+        raise CatalogMappingError(f"{metric.metric_id}: métrica fora do catálogo versionado")
+    if metric.model_dump_json() != approved_signature:
         raise CatalogMappingError(
             f"{metric.metric_id}: diverge da definição semântica versionada"
         )

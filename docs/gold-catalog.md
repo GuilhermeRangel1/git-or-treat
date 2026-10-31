@@ -79,3 +79,32 @@ As capacidades fora das onze métricas conservam motivos específicos. A decompo
 Atendimento e disponibilização do catálogo físico deixaram de ser pendências desta fatia. As onze métricas e a compatibilidade entre serviços são preparação testada, sem consulta Gold implantada. Capacidades candidatas ainda não liberadas permanecem explicitamente fora do perfil; a presença de faturas, medidores, decomposição ou fila no schema não aprova suas medidas automaticamente.
 
 A composição de perguntas/insights Gold e o executor pertencem às etapas de integração correspondentes. Vocabulário amplo, valores dinâmicos e resolução de períodos serão conferidos no PR de linguagem. Não presumir aprovação de controles/metodologia ou conclusão integral do cartão por existirem metadados e testes; os critérios transversais e o estado do consumidor continuam necessários.
+
+
+## Progresso por critério — GENAI-03 (31/10/2026)
+
+Conferência das dez caixas do cartão técnico: **sete critérios comprovados e três
+parciais**. Essa contagem mede a checklist do catálogo; não é percentual de entrega
+da IA integrada nem altera os estados IA-01 a IA-06 do PRD.
+
+| Checklist / item | Situação | Evidência ou trabalho restante |
+| --- | --- | --- |
+| Implementação 1 — definição, fórmula, unidade, grão, filtros e limitações aprovadas | Parcial | Onze métricas mapeadas e confrontadas com dicionário/modelos v2. Falta revisão explícita da semântica v2 e atendimento com Dados; o comentário de 29/10 no PR #73 ainda descreve a interseção v1. |
+| Implementação 2 — tempo próprio e ausência de competência | Comprovado | Coluna mensal UTC e acumulado sem datas; planejador e seleção Backend rejeitam calendário incompatível. |
+| Implementação 3 — agregações e denominadores | Comprovado | Razões de somas, satisfação por nota de protocolo e DEC/FEC sem consolidação; regressões de fórmula/unidade e denominadores. |
+| Implementação 4 — sensibilidade e catálogo fechado | Comprovado | Sem joins ou conversões implícitas, sem cadastro pessoal; rejeição de colunas sensíveis e de métrica desconhecida na seleção direta. |
+| Implementação 5 — rótulos e descrições na API/portal | Parcial | Rótulos versionados e iguais no perfil e artefato Backend; uso pela evidência/API/portal depende dos adaptadores de GENAI-07/11/12. |
+| Implementação 6 — drift e capacidade incompleta | Comprovado | Rejeição de divergências de unidade, fórmula, grão, schema, tipo, precisão, fuso e dependências. |
+| Robustez 1 — contrato completo por métrica | Comprovado | Operações, dimensões, operadores, agregação, grão, unidades, precisão, nulidade, tempo e dependências de cobertura versionados nas onze métricas. |
+| Robustez 2 — relacionamentos e cardinalidade | Comprovado | Uma fonte por consulta, chave primária conferida, sem relacionamentos ou conversões autorizados; fórmulas do dicionário preservadas sem consolidar DEC/FEC. A revisão de definições permanece explicitamente no item 1. |
+| Robustez 3 — metadados até evidência/portal | Parcial | Contrato entre núcleo e Backend testado; consistência na evidência e na interface ainda requer os consumidores de GENAI-07/11/12. |
+| Robustez 4 — núcleo composto e contrato de schema | Comprovado | `core.question.plan`, `validate_mapping`, `select_source` e carregador Backend exercitados; descoberta de coluna não libera capacidade. |
+
+A correção da seleção direta recusa IDs ausentes da definição versionada antes de
+considerar fontes existentes. Uma cópia de receita com ID novo reproduzia aceitação
+indevida; o teste público passa após a correção. Essa proteção não substitui a
+revalidação de identidade, plano, publicação e cobertura no futuro executor.
+
+Próximo passo: conferir as definições atuais com Dados no PR #73 e consumir estes
+metadados ao integrar o fluxo existente. O cartão continua aberto; execução SQL e
+reconciliação de dados são entregas GENAI-06/07/10, sem criar um segundo núcleo.
