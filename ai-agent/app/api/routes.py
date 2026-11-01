@@ -16,7 +16,12 @@ from app.schemas.insights import (
     ScreenInsightRequest,
     ScreenInsightResponse,
 )
-from app.schemas.internal import QuestionPlanRequest, QuestionPlanResponse, QuestionSynthesisRequest
+from app.schemas.internal import (
+    QuestionPlanRequest,
+    QuestionPlanResponse,
+    QuestionPlanStatus,
+    QuestionSynthesisRequest,
+)
 from app.schemas.questions import QuestionRequest, QuestionResponse
 from app.schemas.responses import PublicError, PublicErrorCode, PublicErrorResponse
 
@@ -43,7 +48,16 @@ def require_gold_auth(request: Request) -> None:
 )
 async def plan_question(payload: QuestionPlanRequest, request: Request) -> QuestionPlanResponse:
     """Recebe escopo e cobertura do Backend autenticado, sem consultar fonte ou modelo."""
-    return await request.app.state.question_orchestrator.plan(payload, request.state.correlation_id)
+    response = await request.app.state.question_orchestrator.plan(
+        payload, request.state.correlation_id
+    )
+    catalog = request.app.state.domain_profile.physical_catalog
+    if response.status is not QuestionPlanStatus.PLANNED or catalog is None:
+        return response
+    # O Backend recusa executar plano produzido sob outro catálogo físico.
+    return QuestionPlanResponse.model_validate(
+        {**response.model_dump(mode="json"), "physical_catalog": catalog.model_dump(mode="json")}
+    )
 
 
 @router.post(

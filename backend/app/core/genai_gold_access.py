@@ -16,8 +16,13 @@ from app.core.order_access import READ, bearer, get_order_identity
 from app.schemas.genai_internal import AccessScope
 
 GOLD_METRICS = frozenset({
+    "billing.price_volume",
+    "network.interruption_events",
+    "energy.gd_consumption_drop",
     "billing.revenue", "energy.consumption", "billing.average_ticket",
     "billing.effective_tariff", "energy.average_consumption_per_uc",
+    "service.attendance", "service.satisfaction",
+    "service.accumulated_attendance", "service.accumulated_satisfaction",
     "network.equivalent_interruption_duration",
     "network.equivalent_interruption_frequency",
 })

@@ -51,6 +51,9 @@ def has_incomplete_calendar_period(text: str) -> bool:
     remaining = normalized
     for match in reversed(matches):
         remaining = remaining[:match.start()] + " " + remaining[match.end():]
+    # Dois meses completos ligados por "entre ... e ..." não são intervalo incompleto.
+    if len(matches) == 2 and all(re.fullmatch(_MONTH_TOKEN, m.group()) for m in matches):
+        remaining = re.sub(r"\bentre\b", " ", remaining)
     return bool(re.search(
         r"\b(?:desde|ate|entre|" + "|".join(_MONTH_NUMBERS) + r")\b", remaining
     ))
@@ -94,6 +97,8 @@ class GoldTemporalWindowResolver:
         """`None` significa ausência de série mensal; tupla vazia, cobertura ainda não há."""
 
         normalized = _normalize(phrase)
+        if normalized == "neste ano":
+            normalized = "este ano"
         if normalized == _normalize("histórico acumulado"):
             return ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=phrase)
         if competencies is None or not competencies:

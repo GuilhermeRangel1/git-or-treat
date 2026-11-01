@@ -219,7 +219,9 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     batch_ref=planned.publication.batch_ref, lot_state="partial",
                     capabilities={key: {"status": "available"} for key in (
                         "faturamento.receita", "faturamento.receita_bairro",
-                        "interrupcoes.dec_fec",
+                        "interrupcoes.dec_fec", "consumo.mensal_uc",
+                        "atendimento.mensal", "atendimento.uc_acumulado", "consumo.variacao_uc",
+                        "interrupcoes.uc_acumulado", "faturamento.preco_volume",
                     )},
                 )
             api.dependency_overrides[get_db] = operational_db
@@ -508,8 +510,15 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     999.0, 12.0, 0.0,
                 ]
                 assert grouped.evidence.records[0]["municipality"] == "Outra Cidade"
-                truncated_plan = LogicalReadPlan.model_validate({
+                ranked_plan = LogicalReadPlan.model_validate({
                     **grouped_plan.model_dump(mode="json"), "limit": 1,
+                })
+                ranked_planned = await plan_read(ranked_plan, "b" * 32)
+                ranked = execute_gold_plan(reader, ranked_planned, resolve_scope=resolve)
+                assert ranked.evidence is not None
+                assert [row["value"] for row in ranked.evidence.records] == [999.0]
+                truncated_plan = LogicalReadPlan.model_validate({
+                    **grouped_plan.model_dump(mode="json"), "limit": 1, "order": None,
                 })
                 truncated_planned = await plan_read(truncated_plan, "f" * 32)
                 truncated = execute_gold_plan(reader, truncated_planned, resolve_scope=resolve)
@@ -619,6 +628,147 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     runtime_app.state, "genai_gold_readiness_gate",
                     controlled_readiness, raising=False,
                 )
+                # GENAI-10B: expectativas literais independentes para FAT-10 e ATE-01/03/04.
+                with owner.begin() as domain_write:
+                    domain_write.execute(TABLES["atendimentos_uc"].insert(), [
+                        {"protocolo": "D1", "id_uc": "DOMAIN1", "data_abertura": datetime.fromisoformat(
+                            "2001-02-01T01:00:00+00:00"), "nota_satisfacao": 0.0},
+                        {"protocolo": "D2", "id_uc": "DOMAIN1", "data_abertura": datetime.fromisoformat(
+                            "2001-02-01T02:00:00+00:00"), "nota_satisfacao": 4.0},
+                        {"protocolo": "D3", "id_uc": "DOMAIN2", "data_abertura": None,
+                         "nota_satisfacao": None},
+                    ])
+                    domain_write.execute(TABLES["visao_360_uc"].insert(), [
+                        {"id_uc": "DOMAIN1", "total_chamados_callcenter": 2},
+                        {"id_uc": "DOMAIN2", "total_chamados_callcenter": 1},
+                    ])
+                with owner.begin() as gd_write:
+                    gd_write.execute(TABLES["variacao_consumo_uc"].insert(), [
+                        {"id_uc": key, "municipio": "Lumenia", "possui_gd": "Sim",
+                         "consumo_medio_inicial": 100, "consumo_medio_final": 60,
+                         "meses_com_leitura_p1": count, "meses_com_leitura_p2": 6,
+                         "queda_consumo_superior_30_pct": True}
+                        for key, count in (("GD_ELIGIBLE", 6), ("GD_PARTIAL", 5))
+                    ])
+                with owner.begin() as domain_write:
+                    origin_metadata = domain_write.execute(select(BATCH.c.origem)).scalar_one()
+                    domain_write.execute(TABLES["ocorrencias_uc"].insert(), [
+                        {"id_ocorrencia": "EVENT_SHARED", "id_uc": uc, "alimentador": "AL-TESTE",
+                         "data_abertura": datetime.fromisoformat("2001-01-10T00:00:00+00:00")}
+                        for uc in ("DOMAIN1", "DOMAIN2")
+                    ])
+                    domain_write.execute(TABLES["decomposicao_receita"].insert(), {
+                        "municipio": "Lumenia", "bairro": "Quadra X", "classe_consumo": "RESIDENCIAL",
+                        "inicio_p0": "2000-01", "fim_p0": "2000-12", "inicio_p1": "2001-01", "fim_p1": "2001-12",
+                        "metodo": "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3",
+                        "estado_decomposicao": "CALCULADA_BASE_COMUM",
+                        "run_id_silver": origin_metadata["run_id_silver"],
+                        "lote_bronze_silver": origin_metadata["lote_bronze_silver"],
+                        "efeito_volume_reais": 10, "efeito_preco_observado_reais": 5,
+                        "efeito_interacao_reais": 5, "variacao_entradas_reais": 0,
+                        "variacao_saidas_reais": 0, "variacao_sem_leitura_fora_base_reais": 0,
+                        "variacao_outros_fora_base_reais": 0, "variacao_faturamento_total_reais": 20,
+                        "faturamento_p0_reais": 100, "faturamento_p1_reais": 120,
+                        "residuo_reconciliacao_reais": 0, "qtd_ucs_base_comum": 2, "qtd_ucs_observadas": 2,
+                        "qtd_ucs_entrantes": 0, "qtd_ucs_saintes": 0,
+                    })
+                domain_cases = [
+                    ("INT-03", "Quantas interrupções houve no alimentador AL-TESTE em janeiro de 2001?",
+                     "network.interruption_events", "1.0 ocorrências"),
+                    ("FAT-11", "Quanto da variação da receita residencial em Lumenia foi efeito preço e quanto foi efeito volume?",
+                     "billing.price_volume", "Efeito volume: 10.0 R$"),
+                    ("CON-08", "Quantas UCs com GD em Lumenia tiveram queda de consumo acima de 30%?",
+                     "energy.gd_consumption_drop", "1.0 UCs"),
+                    ("ATE-01", "Quantos chamados foram abertos em fevereiro de 2001?",
+                     "service.attendance", "2.0 protocolos"),
+                    ("ATE-03", "Quantos chamados de atendimento existem no histórico acumulado?",
+                     "service.accumulated_attendance", "3.0 protocolos"),
+                    ("ATE-04", "Qual é a satisfação média do atendimento no histórico acumulado?",
+                     "service.accumulated_satisfaction", "2.0 pontos"),
+                    ("FAT-10", "Qual classe mais contribuiu para a receita em Lumenia em janeiro de 2001?",
+                     "billing.revenue", "12.0 R$"),
+                ]
+                for case_id, question, metric_id, expected_text in domain_cases:
+                    if case_id == "FAT-10":
+                        with owner.begin() as domain_write:
+                            domain_write.execute(TABLES["diagnostico_receita"].insert(), {
+                                "competencia": "2001-01", "municipio": "Lumenia",
+                                "classe_consumo": "COMERCIAL", "subgrupo_tarifario": "T",
+                                "bandeira_tarifaria": "T", "possui_gd": "Não",
+                                "receita_total_reais": 4,
+                            })
+                    GENAI_TRANSPORT_EVENTS.clear()
+                    result = public_client.post("/api/v1/ai/questions", headers=origin,
+                                                json={"question": question})
+                    assert result.status_code == 200, case_id
+                    body = result.json()
+                    assert body["status"] == "answered", (case_id, body)
+                    assert body["analysis_context"]["metric"] == metric_id
+                    assert expected_text in body["answer"], case_id
+                    assert body["audit_reference"] and not body["evidence"][0]["is_demo"]
+                    assert [e["path"] for e in GENAI_TRANSPORT_EVENTS] == [
+                        "/api/v1/internal/question-plans", "/api/v1/internal/question-syntheses",
+                    ]
+                    assert GENAI_TRANSPORT_EVENTS[0]["response"]["plan"] == (
+                        GENAI_TRANSPORT_EVENTS[1]["request"]["plan"]
+                    )
+                with owner.begin() as domain_write:
+                    domain_write.execute(TABLES["diagnostico_receita"].delete().where(
+                        TABLES["diagnostico_receita"].c.municipio == "Lumenia",
+                        TABLES["diagnostico_receita"].c.classe_consumo == "COMERCIAL",
+                    ))
+                # FAT-09/CON-06: o mês intermediário não pertence à comparação.
+                with owner.begin() as comparison_write:
+                    comparison_write.execute(TABLES["diagnostico_receita"].insert(), [
+                        {"competencia": month, "municipio": "Lumenia",
+                         "classe_consumo": "RESIDENCIAL", "subgrupo_tarifario": "T",
+                         "bandeira_tarifaria": "T", "possui_gd": "Não",
+                         "receita_total_reais": value, "consumo_total_kwh": value}
+                        for month, value in (("2001-02", 9999), ("2001-04", 24))
+                    ])
+                try:
+                    compared = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                        "question": "Quanto cresceu a receita residencial em Lumenia entre janeiro de 2001 e abril de 2001?",
+                    })
+                    assert compared.status_code == 200
+                    compared_body = compared.json()
+                    assert compared_body["status"] == "answered", compared_body
+                    assert "12.0 R$" in compared_body["answer"]
+                    assert "24.0 R$" in compared_body["answer"]
+                    assert "100.0 %" in compared_body["answer"]
+                    assert "9999" not in compared_body["answer"]
+                    consumption = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                        "question": "O consumo residencial em Lumenia caiu entre janeiro de 2001 e abril de 2001?",
+                    }).json()
+                    assert consumption["status"] == "answered", consumption
+                    assert "30.0 kWh" in consumption["answer"]
+                    assert "24.0 kWh" in consumption["answer"]
+                    assert "-6.0 kWh" in consumption["answer"]
+                    assert "-20.0 %" in consumption["answer"]
+                    with owner.begin() as ranking_write:
+                        ranking_write.execute(TABLES["consumo_receita_bairro"].insert(), [
+                            {"competencia": month, "municipio": "Luz Clara", "bairro": name,
+                             "classe_consumo": "RESIDENCIAL", "consumo_total_kwh": value}
+                            for name, month, value in [
+                                ("Quadra A", "2001-01", 100), ("Quadra A", "2001-04", 50),
+                                ("Quadra B", "2001-01", 1000), ("Quadra B", "2001-04", 990),
+                            ]
+                        ])
+                    ranking = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                        "question": "Qual bairro de Luz Clara mais perdeu volume residencial entre janeiro de 2001 e abril de 2001?",
+                    }).json()
+                    assert ranking["status"] == "answered", ranking
+                    assert "Quadra A" in ranking["answer"] and "Quadra B" not in ranking["answer"]
+                    assert "-50.0 kWh" in ranking["answer"]
+                finally:
+                    with owner.begin() as comparison_write:
+                        comparison_write.execute(TABLES["consumo_receita_bairro"].delete().where(
+                            TABLES["consumo_receita_bairro"].c.municipio == "Luz Clara",
+                        ))
+                        comparison_write.execute(TABLES["diagnostico_receita"].delete().where(
+                            TABLES["diagnostico_receita"].c.municipio == "Lumenia",
+                            TABLES["diagnostico_receita"].c.competencia.in_(("2001-02", "2001-04")),
+                        ))
                 GENAI_TRANSPORT_EVENTS.clear()
                 reader_sql.clear()
                 public = public_client.post("/api/v1/ai/questions", headers=origin, json={

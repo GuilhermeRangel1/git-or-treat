@@ -18,6 +18,8 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
+    SerializerFunctionWrapHandler,
+    model_serializer,
     StringConstraints,
     model_validator,
 )
@@ -127,14 +129,28 @@ class LogicalReadPlan(BaseModel):
     group_by_dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
     unit: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
     window: ReadWindow
+    comparison_periods: tuple[
+        Annotated[str, StringConstraints(pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")],
+        Annotated[str, StringConstraints(pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")],
+    ] | None = None
     filters: tuple[ReadFilter, ...] = Field(default=(), max_length=20)
     order: ReadOrder | None = None
     limit: int = Field(ge=1, le=100, strict=True)
 
+    @model_serializer(mode="wrap")
+    def omit_absent_comparison(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
+        payload = handler(self)
+        if self.comparison_periods is None:
+            payload.pop("comparison_periods", None)
+        return payload
+
     def fingerprint(self) -> str:
         """SHA-256 B3: defaults/nulos presentes e listas na ordem recebida."""
+        payload = self.model_dump(mode="json")
+        if self.comparison_periods is None:
+            payload.pop("comparison_periods", None)
         canonical = json.dumps(
-            self.model_dump(mode="json"),
+            payload,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=True,
@@ -143,6 +159,17 @@ class LogicalReadPlan(BaseModel):
 
     @model_validator(mode="after")
     def require_consistent_dimensions(self) -> Self:
+        if self.comparison_periods is not None:
+            baseline, target = self.comparison_periods
+            if (
+                baseline >= target or baseline.startswith("0000")
+                or self.window.kind is not WindowKind.BOUNDED
+                or self.window.granularity != "month"
+                or self.window.start is None or self.window.end is None
+                or self.window.start.isoformat() != baseline + "-01"
+                or self.window.end.strftime("%Y-%m") != target
+            ):
+                raise ValueError("comparação exige dois meses distintos e ordenados na janela")
         if len(self.dimension_ids) != len(set(self.dimension_ids)):
             raise ValueError("dimensão repetida no plano")
         if len(self.group_by_dimension_ids) != len(set(self.group_by_dimension_ids)):
@@ -160,3 +187,23 @@ class LogicalReadPlan(BaseModel):
         }:
             raise ValueError("ordenação exige métrica ou dimensão declarada")
         return self
+
+
+def normalized_filters(filters: tuple[ReadFilter, ...]) -> list[dict[str, object]]:
+    """Forma canônica para chaves de cache; espelha a GenAI e não altera o fingerprint.
+
+    A ordem dos filtros e dos valores de ``in`` não muda o recorte consultado.
+    """
+
+    def value_key(value: object) -> tuple[str, str]:
+        return (type(value).__name__, json.dumps(value))
+
+    normalized = []
+    for item in sorted(filters, key=lambda current: current.dimension_id):
+        values = list(item.values)
+        if item.operator is FilterOperator.IN:
+            values = sorted(values, key=value_key)
+        normalized.append(
+            {"dimension_id": item.dimension_id, "operator": item.operator.value, "values": values}
+        )
+    return normalized

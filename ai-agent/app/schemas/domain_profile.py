@@ -8,6 +8,7 @@ from typing import Annotated, Self
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.schemas.analysis import LogicalIdentifier
+from app.schemas.physical_catalog import PhysicalCatalogRef
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
 
 CatalogText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
@@ -53,6 +54,7 @@ class EvidenceFieldRole(StrEnum):
     UNIT = "unit"
     PERIOD = "period"
     DIMENSION = "dimension"
+    LABEL = "label"
 
 
 class EvidenceFieldDefinition(BaseModel):
@@ -129,6 +131,7 @@ class DimensionDefinition(BaseModel):
     id: LogicalIdentifier
     label: CatalogText
     role: DimensionRole
+    parent_dimension_id: LogicalIdentifier | None = None
     aliases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=30)
     value_type: FilterValueType
     operators: tuple[FilterOperator, ...] = Field(min_length=1)
@@ -207,6 +210,17 @@ class MetricDefinition(BaseModel):
     # Teto explícito para janelas datadas; None representa histórico sem período de calendário.
     max_window_days: int | None = Field(default=None, ge=1)
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=30)
+    absorbed_metric_ids: tuple[LogicalIdentifier, ...] = ()
+    observation_labels: dict[CatalogPhrase, CatalogText] = Field(default_factory=dict)
+    requires_published_windows: bool = False
+    aggregate_subject_aliases: tuple[CatalogPhrase, ...] = ()
+    default_period_phrase: CatalogPhrase | None = None
+    fixed_filter_values: dict[LogicalIdentifier, str] = Field(default_factory=dict)
+    supports_comparison: bool = False
+    comparison_grouping_dimension_ids: tuple[LogicalIdentifier, ...] = ()
+    grouping_requires_comparison: bool = False
+    accumulated_metric_id: LogicalIdentifier | None = None
+    grouping_dimension_ids: tuple[LogicalIdentifier, ...] | None = None
     required_filter_dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=30)
     sensitivity: CatalogSensitivity
     evidence_fields: tuple[EvidenceFieldDefinition, ...] = Field(default=(), max_length=30)
@@ -231,6 +245,24 @@ class MetricDefinition(BaseModel):
             or not set(self.required_filter_dimension_ids) <= set(self.dimension_ids)
         ):
             raise ValueError("filtro obrigatório duplicado ou fora das dimensões da métrica")
+        if not self.fixed_filter_values.keys() <= set(self.required_filter_dimension_ids):
+            raise ValueError("filtro fixo exige dimensão obrigatória declarada")
+        if self.default_period_phrase is not None and self.default_period_phrase not in (
+            self.accumulated_period_phrases
+        ):
+            raise ValueError("janela padrão da métrica exige frase publicada declarada")
+        if self.requires_published_windows and not self.observation_labels:
+            raise ValueError("janelas publicadas exigem componentes classificados")
+        if self.grouping_dimension_ids is not None and not set(
+            self.grouping_dimension_ids
+        ) <= set(self.dimension_ids):
+            raise ValueError("agrupamento fora das dimensões da métrica")
+        if not set(self.comparison_grouping_dimension_ids) <= set(
+            self.grouping_dimension_ids or ()
+        ):
+            raise ValueError("agrupamento comparativo fora dos agrupamentos da métrica")
+        if self.accumulated_period_phrases and self.supports_comparison:
+            raise ValueError("histórico acumulado não permite comparação mensal")
         if self.accumulated_period_phrases and self.max_window_days is not None:
             raise ValueError("histórico acumulado não admite limite de janela datada")
         if len({field.name for field in self.evidence_fields}) != len(self.evidence_fields):
@@ -277,6 +309,7 @@ class DetailRule(BaseModel):
 
 
 class AmbiguityRule(BaseModel):
+    resolved_metric_ids: tuple[LogicalIdentifier, ...] = ()
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     phrases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=20)
@@ -343,6 +376,8 @@ class DomainProfile(BaseModel):
     units: tuple[UnitDefinition, ...] = Field(default=(), max_length=50)
     detail_rules: tuple[DetailRule, ...] = Field(default=(), max_length=20)
     clarifications: ClarificationMessages
+    # Catálogo físico da fonte; definido pela composição Gold, ausente nos demais perfis.
+    physical_catalog: PhysicalCatalogRef | None = None
     operations: tuple[CatalogOperation, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -360,9 +395,23 @@ class DomainProfile(BaseModel):
 
         domain_set = set(domain_ids)
         dimension_set = set(dimension_ids)
+        for dimension in self.dimensions:
+            if dimension.parent_dimension_id is not None and (
+                dimension.parent_dimension_id not in dimension_set
+                or dimension.parent_dimension_id == dimension.id
+            ):
+                raise ValueError("dimensão pai inexistente ou autorreferente")
         for metric in self.metrics:
             if metric.domain_id not in domain_set:
                 raise ValueError("métrica referencia domínio inexistente")
+            if metric.accumulated_metric_id is not None:
+                target = next(
+                    (m for m in self.metrics if m.id == metric.accumulated_metric_id), None
+                )
+                if target is None or target.domain_id != metric.domain_id or not (
+                    target.accumulated_period_phrases
+                ):
+                    raise ValueError("variante acumulada inexistente ou incompatível")
             unknown_dimensions = set(metric.dimension_ids) - dimension_set
             if unknown_dimensions:
                 raise ValueError("métrica referencia dimensão inexistente")

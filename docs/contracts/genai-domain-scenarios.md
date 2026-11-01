@@ -1,0 +1,164 @@
+# GENAI-10A — Matriz única de cenários dos domínios Gold v2
+
+**Cartão:** GENAI-10A. **Requisitos:** IA-01, IA-02, IA-03, IA-06. **Natureza:** preparação (matriz versionada e validação de formato). Nenhum cenário foi executado contra o lote nesta etapa e nenhum requisito é concluído por este documento.
+
+Referências: [dicionário Gold](../dicionario_gold.md), [contrato CSV v2](gold-csv-v2.md), catálogo `backend/app/catalogs/gold_v2.json`, perfil `ai-agent/app/profiles/grid360_gold.py`, [prontidão](../gold-readiness.md), [controles C01–C15](../gold-coverage-v0.md), [matriz de linguagem Q04](../gold-question-matrix.md) e [primeira pergunta](genai-first-question.md). A Gold v2 é a única referência; não há fallback v1.
+
+## Arquivos
+
+| Arquivo | Papel |
+| --- | --- |
+| `ai-agent/tests/fixtures/gold_domain_scenarios.json` | Matriz única: casos, regras de período e amostra, controles, tolerâncias e critérios de regressão. |
+| `ai-agent/tests/test_gold_domain_scenarios.py` | Valida formato, IDs, referências, cobertura mínima, exemplos do PRD, SQL somente leitura e ausência de valores do lote. |
+| `work/genai10a/` (ignorado pelo Git) | Resultados observados, valores de controle e amostras resolvidas. Nunca versionado. |
+
+O runner da fase seguinte lê a matriz, resolve períodos e amostras na publicação vigente, chama `POST /api/v1/ai/questions`, executa o controle em conexão somente leitura e grava apenas em `work/genai10a/`. No repositório e no stdout ficam somente estado e classe por ID e a cobertura por domínio.
+
+## Campos de cada caso
+
+| Campo | Conteúdo |
+| --- | --- |
+| `id` | `FAT-`, `CON-`, `INT-`, `ATE-`, `AMB-` ou `SEG-` seguido de dois dígitos. |
+| `dominio` | `faturamento`, `consumo`, `interrupcoes`, `atendimento`, `ambiguidade_limites` ou `protecao_falhas`. |
+| `obrigatorio` | `false` apenas para diferenciais (acompanhamento contextual) e zero de atendimento sem declaração. |
+| `exemplo_prd` | Exemplo de negócio do PRD coberto pelo caso, quando houver. |
+| `pergunta`, `contexto` | Texto em português com marcadores (`{municipio}`, `{bairro}`, `{alimentador}`, `{classe}`, `{mes_extenso}`, `{ano}`, `{mes_p0}`...) preenchidos em execução. |
+| `metrica`, `capacidade` | ID do perfil e capacidade de prontidão v2; nulos quando a pergunta não deve produzir plano. |
+| `periodo.regra` | Regra determinística resolvida na publicação (por exemplo, `ULTIMA_COMPETENCIA_RECEITA`). Nunca data fixa do lote. |
+| `filtros`, `amostra` | Dimensões do perfil. Municípios só do case (Recife, Olinda, Jaboatão dos Guararapes) ou fictícios; bairro, alimentador e recortes de limite vêm de `regras_amostra`. |
+| `fonte_lote` | Tabela `gold_v2.*` e publicação `gold-csv-v2` vigente, cujo `batch_ref` é lido na execução. |
+| `unidade` | Unidade publicada pelo catálogo. |
+| `estado_esperado`, `status_publico_esperado` | Estado da tabela abaixo e o envelope público correspondente. |
+| `tipo_verificacao` | O que o caso mede: `interpretacao`, `plano`, `numero`, `fundamentacao`, `recusa`. |
+| `controle` | `ref` (ID existente ou SQL proposto), `estado_do_controle` e `aprovado_por`. |
+| `tolerancia` | Chave de `tolerancias`. |
+| `bloqueio` | Motivo, dono, estado público atual esperado e, quando houver, pergunta para Dados. |
+| `referencias` | IDs Q04, famílias do corpus de segurança, controles existentes relacionados, consulta usada pelo runner e testes técnicos. |
+| `modo_execucao` | `fluxo_integrado` (runner) ou `regressao_tecnica` (falhas que exigem injeção, provadas pelas suítes). |
+| `resultado_observado`, `referencia_execucao` | Sempre `null` no repositório. |
+
+## Estados esperados
+
+| Estado | Envelope público | Regra |
+| --- | --- | --- |
+| `sucesso` | `answered` | Número reconciliado, com período, filtros, unidade e fonte. |
+| `zero` | `answered` | Zero observado; distinto de ausência e de nulo. |
+| `nulo` | `needs_clarification` | Medida nula não vira zero nem resultado parcial. |
+| `base_zero` | `needs_clarification` | Razão com denominador zero não produz número nem percentual. |
+| `parcial` | `answered` com limitação ou `needs_clarification` | Período parcial é declarado ou esclarecido; nunca completado. |
+| `ausencia` | `needs_clarification` | Recorte sem linhas ou sem cobertura; ausência não é zero. |
+| `ambiguidade` | `needs_clarification` | Leituras diferentes mudam o resultado; filtros e período preservados. |
+| `filtro_sem_suporte` | `needs_clarification` | Filtro, agrupamento ou comparação sem capacidade; o filtro não é removido. |
+| `recusa` | `refused` | Escrita, SQL livre, PII ou injeção; não consulta a fonte. |
+| `acesso_negado` | HTTP 403 `access_denied` | Sem permissão; não planeja nem consulta. |
+| `indisponibilidade` | HTTP 503 ou `recoverable_error` | Falha de fonte, modelo, auditoria ou gate; não vira ausência nem demonstração. |
+| `bloqueado` | `bloqueio.estado_publico_atual` | Capacidade ausente, definição pendente ou cobertura não certificada; o domínio continua pendente. |
+
+## Controles
+
+**Existentes (por ID).** C01–C15 ficam no bloco `controles` com `tipo=existente`, sem SQL novo, e com a aprovação já registrada:
+
+- C01–C04 e C10–C15: aprovados pela pessoa usuária para o lote local ([dicionário](../dicionario_gold.md), 01/11/2026);
+- C05–C09: referência histórica de Dados ([gold-coverage-v0.md](../gold-coverage-v0.md)), fora dessa aprovação.
+
+Quando o runner precisa do número, `referencias.consulta_runner` indica o SQL que aplica a definição do controle ao recorte do caso (por exemplo, C04 → `CTL-FAT-MUN`; C11 → `CTL-INT-DEC-FEC`; C14 → `CTL-ATE-ACUMULADO`/`CTL-ATE-SATISFACAO`; C15 → `CTL-ATE-MES`).
+
+**Propostos.** Os `CTL-*` são SQL independentes do compilador de planos, escritos a partir do dicionário: somente `SELECT`, parâmetros nomeados, apenas tabelas `gold_v2.*` e nunca o cadastro restrito. A saída inclui contadores (`linhas`, `linhas_com_valor`, `denominador`) que permitem distinguir zero, nulo, ausência e base zero. Os controles de capacidades que ainda não existem (comparação, contribuição, ranking por bairro, preço-volume, contagem de ocorrências) já estão escritos para o 10B usar como expectativa.
+
+**Estado e aprovação.** `estado_do_controle` assume:
+
+- `existente_referenciado` (controle C01–C15);
+- `proposto` (SQL novo aguardando aprovação);
+- `estado_sem_valor` (caso sem número; o esperado é o estado público);
+- `bloqueado` (sem capacidade e sem controle);
+- `aprovado`.
+
+`aprovado_por` fica vazio até a pessoa usuária aprovar o caso e seu controle; o teste exige `aprovado_por` preenchido se e somente se o estado for `aprovado`. A aprovação histórica de um controle existente não aprova automaticamente o uso dele em um caso desta matriz.
+
+## Tolerâncias
+
+O runner aplica ao valor do controle o **mesmo arredondamento do catálogo** (casas decimais e half-even) e só então compara.
+
+| Chave | Absoluta | Justificativa |
+| --- | --- | --- |
+| `reais` | 0,01 | Centavos; mesma tolerância dos controles de receita. |
+| `kwh` | 0,01 | Duas casas publicadas pelo catálogo. |
+| `razao_reais` | 0,01 | Ticket médio com duas casas. |
+| `razao_tarifa` | 0,0001 | Preço observado com quatro casas. |
+| `razao_kwh` | 0,01 | Consumo médio por UC com duas casas. |
+| `dec_fec` | 0,0001 | Tolerância de ponto flutuante do C11. O catálogo publica DEC/FEC com duas casas; sem arredondar o controle antes, a diferença chegaria a 0,005. |
+| `nota` | 0,005 | Definida por Dados no C14. |
+| `contagem` | 0 | Protocolos e UCs exatos. |
+| `estado` | — | Caso sem número: compara estado, ausência de número e filtros preservados. |
+
+## Cobertura por domínio
+
+Casos marcados com * não são obrigatórios.
+
+| Domínio | Casos e estado esperado |
+| --- | --- |
+| Faturamento (17) | FAT-01 a FAT-06 sucesso; FAT-07 ambiguidade; FAT-08 filtro sem suporte; FAT-09, FAT-10 e FAT-11 bloqueados; FAT-12 zero; FAT-13 nulo; FAT-14 ausência; FAT-15 base zero; FAT-16 e FAT-17 parcial. |
+| Consumo (11) | CON-01, CON-02, CON-04 e CON-05 sucesso; CON-03 e CON-09 ambiguidade; CON-06, CON-07 e CON-08 bloqueados; CON-10 nulo; CON-11 parcial. |
+| Interrupções (7) | INT-01, INT-02, INT-03, INT-06 e INT-07 bloqueados; INT-04 ambiguidade; INT-05 filtro sem suporte. |
+| Atendimento (7) | ATE-01 bloqueado; ATE-02* zero bloqueado; ATE-03, ATE-04 e ATE-05 sucesso; ATE-06 recusa; ATE-07 filtro sem suporte. |
+| Ambiguidade e limites (8) | AMB-01, AMB-02, AMB-03 e AMB-06 ambiguidade; AMB-04 sucesso; AMB-05* sucesso; AMB-07 filtro sem suporte; AMB-08 bloqueado. |
+| Proteção e falhas (7) | SEG-01 a SEG-04 recusa (todas as famílias do `safety_corpus.json`); SEG-05 acesso negado; SEG-06 indisponibilidade (regressão técnica); SEG-07 perguntas do projeto que devem passar (`safety_project_questions.json`). |
+
+Interrupções não tem caso numérico executável neste lote: DEC/FEC e a contagem dependem de cobertura certificada ou de definição de Dados. Responder "sem evidência" não conta como cobertura do domínio.
+
+## Exemplos de negócio do PRD
+
+| Exemplo | Casos |
+| --- | --- |
+| Residencial × comercial | FAT-02, FAT-03, FAT-09, CON-07 |
+| Competência × pagamento | FAT-07, FAT-08 |
+| Preço/volume | FAT-06 (preço observado), FAT-11 |
+| GD com queda de consumo | CON-08, CON-09 |
+| Continuidade | INT-01, INT-02, INT-03, INT-04 |
+| Atendimento | ATE-01, ATE-03 |
+
+Dimensões usadas somente quando o dicionário e o catálogo v2 as sustentam: bairro (`consumo_receita_bairro`), classe e GD (`diagnostico_receita`), alimentador (`indicadores_dec_fec`). "Solar" não é atributo físico: CON-09 esclarece.
+
+## Bloqueios e donos
+
+| Casos | Dono | Motivo |
+| --- | --- | --- |
+| FAT-09, CON-06, AMB-08 | 10B | Comparação entre dois períodos não existe no plano. |
+| FAT-10, CON-07 | 10B | Agrupamento e ordenação desabilitados no perfil Gold. |
+| FAT-08 | Dados | Pagamento por competência e valor recebido sem regra validada. |
+| FAT-11 | Dados | `faturamento.preco_volume` com definição pendente (DADOS-02). |
+| CON-08 | Dados | `consumo.variacao_uc` com definição pendente (DADOS-03). |
+| INT-03 | Dados | Sem métrica de contagem de ocorrências (DADOS-01). |
+| INT-01, INT-02, INT-06, INT-07 | Dados | Cobertura de ocorrências não certificada; o gate bloqueia DEC/FEC. |
+| ATE-01, ATE-02 | Dados | Cobertura mensal de atendimentos não certificada. |
+
+Um bloqueio não é contornado: o estado público atual esperado fica registrado (`needs_clarification` ou `error:service_unavailable`) e o caso continua pendente até a capacidade ou a certificação existirem.
+
+## Perguntas para Dados
+
+Não bloqueiam a matriz; os casos correspondentes ficam bloqueados até a resposta.
+
+- **DADOS-01:** "Contagem de interrupções" deve contar ocorrências distintas (`COUNT(DISTINCT id_ocorrencia)` em `ocorrencias_uc` por alimentador e mês de abertura em UTC) ou pares UC–ocorrência (`frequencia_total_interrupcoes`)? E por qual atribuição: o `alimentador` da ocorrência ou o alimentador cadastral da UC usado no DEC/FEC?
+- **DADOS-02:** Quais janelas P0/P1 e qual estado de `decomposicao_receita` (`CALCULADA_BASE_COMUM`) a GenAI pode apresentar como "efeito preço" e "efeito volume"? Entradas, saídas e parcelas fora da base comum devem aparecer na resposta?
+- **DADOS-03:** A pergunta "GD com queda acima de 30%" deve usar somente as janelas fixas P1/P2 de `variacao_consumo_uc` com o piso de seis meses com leitura por janela? Comparação indisponível (flag `false` com média ausente) deve ser contada como "sem queda" ou excluída?
+
+## Critérios de regressão
+
+| Classe | Significado |
+| --- | --- |
+| `PASS` | Estado, plano, número e fundamentação conferem. |
+| `FAIL` | Divergência inesperada, classificada por tipo (`interpretacao`, `plano`, `numero`, `fundamentacao`, `recusa`). |
+| `FALHA_CONHECIDA` | Divergência listada em `falhas_conhecidas`, com motivo e dono; não conta como `PASS`. |
+| `BLOQUEADO` | Caso bloqueado cujo estado público observado é o registrado em `bloqueio.estado_publico_atual`. |
+| `SEM_AMOSTRA_NO_LOTE` | A regra de amostra não encontrou recorte (por exemplo, nenhum zero observado); é pendência, nunca `PASS`. |
+
+O relatório sai por domínio e por classe, sem taxa global de acerto. Um domínio só está coberto com todos os casos obrigatórios em `PASS`; um caso obrigatório em `FAIL`, `FALHA_CONHECIDA`, `BLOQUEADO` ou `SEM_AMOSTRA_NO_LOTE` mantém o domínio pendente. Casos obrigatórios nunca usam skip ou xfail. A matriz é revalidada após mudança de fórmula, catálogo, consulta, prompt ou modelo. `falhas_conhecidas` começa vazio e só recebe entradas após execução.
+
+## Privacidade
+
+O repositório guarda somente perguntas com marcadores, regras e SQL. Valores de controle, competências resolvidas, bairros, alimentadores, respostas e referências de execução ficam em `work/genai10a/`. O teste da matriz rejeita identificadores de lote, UUIDs, competências literais, anos e decimais nas perguntas, além de bairro, alimentador ou UC escritos diretamente.
+
+## Verificação desta etapa
+
+- `ai-agent`: `python -m pytest -q tests/test_gold_domain_scenarios.py` valida a matriz.
+- Os 22 SQL propostos e as 16 regras com SQL passaram por `EXPLAIN` em PostgreSQL 16 descartável com as migrações do Backend aplicadas e o schema `gold_v2` vazio. Isso confere colunas, tipos e funções, sem executar contra o lote.

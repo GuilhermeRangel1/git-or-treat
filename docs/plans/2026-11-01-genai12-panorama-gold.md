@@ -64,3 +64,11 @@ Aplicar `alembic upgrade head` antes do consumidor: `genai12000001` cria `gold.p
 A retenção continua a política existente de 30 dias. O digest de contexto não guarda números/filtros em claro e exige publicação corrente para reprodução. Comparações sem fechamento mensal são observações do publicado, sem certificação de cobertura completa. Não há causalidade, fallback sintético ou ampliação automática para outros domínios. Cancelamento assíncrono não prova cancelamento imediato de trabalho SQL em thread; permanecem orçamento SQL de 5 s e prazo total de 35 s.
 
 Revisão separada por especificação e padrões: achados sobre 409, competência comparativa ausente, referência v1, timeout, ACL de metadados, tipos e tupla posicional foram corrigidos e reconferidos; sem achado crítico remanescente na releitura.
+
+
+### 01/11/2026 — integração local Panorama, Assistente e contratos Gold
+
+- Rotas combinadas preservam publicação esperada/catálogo físico no chat e a síntese interna autenticada do insight Gold. A versão Playwright permanece fixada em1.64.1 e os scripts de motion e Panorama coexistem.
+- Verificações: GenAI 4.005 passaram/3 skips; Backend 897 passaram/110 skips; 69 testes de Panorama/Assistente, build e formatação passaram. Ruff das rotas resolvidas e diff-check passaram; revisão estática da resolução sem bloqueios.
+- PostgreSQL: tentativa inicial rejeitada por papel de teste privilegiado, sem relaxar as verificações. Reexecução em dois bancos novos descartáveis com papel NOSUPERUSER: 27 testes passaram, incluindo leituras analíticas e ciclo de migração. Bancos e papel temporários removidos ao final.
+- Não houve nova jornada visual ou chamada Gemini. As lacunas de preflight da tela previstas em GENAI-13 permanecem registradas; requisitos oficiais não são concluídos automaticamente por esta integração.

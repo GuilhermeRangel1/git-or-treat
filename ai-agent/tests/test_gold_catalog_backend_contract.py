@@ -25,7 +25,7 @@ def test_backend_artifact_matches_mapping_and_is_loadable_without_genai_imports(
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "11"
+    assert result.stdout.strip() == "14"
 
 
 def test_business_metadata_matches_logical_profile_without_physical_names():

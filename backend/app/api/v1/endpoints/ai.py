@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 from typing import Annotated
 
@@ -9,6 +10,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
@@ -20,7 +22,6 @@ from app.schemas.ai import (
     AIQueryRequest,
     AIQuestionError,
     AIQuestionErrorResponse,
-    AIQuestionRequest,
     AIQuestionResponse,
 )
 from app.schemas.ai_insight import (
@@ -28,6 +29,7 @@ from app.schemas.ai_insight import (
     PanoramaInsightEnvelope,
     PanoramaInsightRequest,
 )
+from app.schemas.ai_question_publication import AIQuestionPublicRequest
 from app.schemas.genai_internal import AccessScope
 from app.services.analytics import AnalyticsAPIError
 from app.services.genai_audit import AuditStore
@@ -41,7 +43,12 @@ from app.services.genai_client import (
 from app.services.genai_coordination import answer_gold_question
 from app.services.genai_executor import GoldExecutionDenied
 from app.services.gold_panorama_coordination import generate_gold_panorama_insight
-from app.core.config import settings
+
+from app.services.genai_expected_publication import (
+    ExpectedPublicationMismatch,
+    resolve_expected_batch_ref,
+)
+from app.services.gold_catalog import GoldCatalogIncompatible
 from app.services.panorama_insights import (
     StalePanoramaInsight,
     UnsupportedPanoramaInsight,
@@ -176,7 +183,7 @@ def query_analytical_data(
     summary="Envia uma pergunta conversacional ao serviço GenAI",
 )
 async def ask_genai_question(
-    payload: AIQuestionRequest,
+    payload: AIQuestionPublicRequest,
     request: Request,
     genai: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
     gold_resources: Annotated[
@@ -187,19 +194,41 @@ async def ask_genai_question(
 ) -> AIQuestionResponse | JSONResponse:
     """Encaminha pergunta e contexto transitório sem acessar banco ou persistir sessão."""
 
+    question = payload.without_publication()
     try:
         if gold_resources is not None:
             engine, resolve_scope = gold_resources
+            expected_batch_ref = None
+            if payload.expected_publication is not None:
+                expected_batch_ref = await asyncio.to_thread(
+                    resolve_expected_batch_ref, db.get_bind(), payload.expected_publication,
+                )
             result = await answer_gold_question(
-                engine, genai, payload, resolve_scope=resolve_scope,
+                engine, genai, question, resolve_scope=resolve_scope,
                 correlation_id=request.state.correlation_id,
                 readiness_gate=readiness_gate,
                 audit_store=AuditStore(db.get_bind()),
+                expected_batch_ref=expected_batch_ref,
             )
         else:
+            if payload.expected_publication is not None:
+                return _question_error(
+                    request, status_code=422, code="invalid_request", retryable=False,
+                    message="A publicação esperada só se aplica à fonte Gold.",
+                )
             result = await genai.ask(
-                payload, correlation_id=request.state.correlation_id,
+                question, correlation_id=request.state.correlation_id,
             )
+    except ExpectedPublicationMismatch:
+        return _question_error(
+            request, status_code=409, code="invalid_context", retryable=False,
+            message="Os dados da tela foram atualizados. Recarregue a tela antes de perguntar.",
+        )
+    except GoldCatalogIncompatible:
+        return _question_error(
+            request, status_code=503, code="service_unavailable", retryable=False,
+            message="O catálogo Gold dos serviços não é compatível; a consulta não foi executada.",
+        )
     except GoldExecutionDenied:
         return _question_error(
             request, status_code=403, code="access_denied", retryable=False,
