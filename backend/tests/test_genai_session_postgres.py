@@ -676,7 +676,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     ("INT-03", "Quantas interrupções houve no alimentador AL-TESTE em janeiro de 2001?",
                      "network.interruption_events", "1.0 ocorrências"),
                     ("FAT-11", "Quanto da variação da receita residencial em Lumenia foi efeito preço e quanto foi efeito volume?",
-                     "billing.price_volume", "Efeito volume: 10.0 R$"),
+                     "billing.price_volume", "R$ 10,00"),
                     ("CON-08", "Quantas UCs com GD em Lumenia tiveram queda de consumo acima de 30%?",
                      "energy.gd_consumption_drop", "1.0 UCs"),
                     ("ATE-01", "Quantos chamados foram abertos em fevereiro de 2001?",
@@ -686,7 +686,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     ("ATE-04", "Qual é a satisfação média do atendimento no histórico acumulado?",
                      "service.accumulated_satisfaction", "2.0 pontos"),
                     ("FAT-10", "Qual classe mais contribuiu para a receita em Lumenia em janeiro de 2001?",
-                     "billing.revenue", "12.0 R$"),
+                     "billing.revenue", "R$ 12,00"),
                 ]
                 for case_id, question, metric_id, expected_text in domain_cases:
                     if case_id == "FAT-10":
@@ -705,6 +705,27 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert body["status"] == "answered", (case_id, body)
                     assert body["analysis_context"]["metric"] == metric_id
                     assert expected_text in body["answer"], case_id
+                    if case_id == "FAT-11":
+                        # Valores literais da fixture, ligados ao componente exibido.
+                        expected_components = {
+                            "Efeito volume": "R$ 10,00",
+                            "Efeito preço observado": "R$ 5,00",
+                            "Interação preço-volume": "R$ 5,00",
+                            "Entradas na base": "R$ 0,00",
+                            "Saídas da base": "R$ 0,00",
+                            "Sem leitura fora da base": "R$ 0,00",
+                            "Outras parcelas fora da base": "R$ 0,00",
+                            "Variação total": "R$ 20,00",
+                            "Participações de UCs na base comum": "2 participações",
+                            "Participações de UCs observadas": "2 participações",
+                        }
+                        for label, amount in expected_components.items():
+                            matching = [line for line in body["answer"].splitlines()
+                                        if f"({label})" in line]
+                            assert len(matching) == 1, label
+                            assert amount in matching[0], (label, amount)
+                            assert "P0 2000-01 a 2000-12; P1 2001-01 a 2001-12" in matching[0]
+                        assert "billing.price_volume" not in body["answer"]
                     assert body["audit_reference"] and not body["evidence"][0]["is_demo"]
                     assert [e["path"] for e in GENAI_TRANSPORT_EVENTS] == [
                         "/api/v1/internal/question-plans", "/api/v1/internal/question-syntheses",
@@ -733,8 +754,8 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert compared.status_code == 200
                     compared_body = compared.json()
                     assert compared_body["status"] == "answered", compared_body
-                    assert "12.0 R$" in compared_body["answer"]
-                    assert "24.0 R$" in compared_body["answer"]
+                    assert "R$ 12,00" in compared_body["answer"]
+                    assert "R$ 24,00" in compared_body["answer"]
                     assert "100.0 %" in compared_body["answer"]
                     assert "9999" not in compared_body["answer"]
                     consumption = public_client.post("/api/v1/ai/questions", headers=origin, json={
