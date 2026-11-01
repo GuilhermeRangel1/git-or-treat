@@ -49,3 +49,7 @@ No Backend, `python -m pytest -q -p no:cacheprovider --tb=short tests/test_genai
 Integração de software demonstrada com publicação e dados artificiais; não é aceite Gold real. Não houve prova privada com lote autorizado, revisão visual do portal, destino durável real de auditoria (GENAI-08), cancelamento por desconexão HTTP nem ensaio de desempenho. A fábrica externa já exige auditoria durável e recusa configuração incompleta; o destino artificial desta prova não autoriza liberação pública real.
 
 GENAI-07 permanece em andamento. A operação pública está ligada, mas o sucesso depende de publicação/controles aprovados e composição externa operacional completa. Revisão independente encontrou e corrigiu perda de vocabulário, falta de gate de prontidão e etapas fora do deadline. Nenhum requisito oficial foi concluído por estas provas.
+
+## Consolidação após a integração dos PRs
+
+A pendência de destino durável e propagação de escopo/correlação foi comprovada pelos GENAI-08/09 e reconferida na branch de consolidação. O fluxo público com PostgreSQL, processos GenAI e ingresso durável está em `tests/test_genai_session_postgres.py`; falha de confirmação impede resposta quantitativa. A amostra Gold e a referência vista no portal constam em [primeira pergunta](genai-first-question.md). [Matriz da consolidação](genai-consolidation.md): GENAI-07 com todos os itens técnicos comprovados para a primeira fatia; as limitações históricas acima não representam mais falta de auditoria integrada. Requisitos oficiais IA e expansão de domínios mantêm os estados do PRD.

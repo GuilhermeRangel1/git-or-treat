@@ -169,6 +169,28 @@ def test_same_name_in_two_dimensions_requires_clarification():
     assert result.plan is None
 
 
+@pytest.mark.parametrize('explicit_class', [False, True])
+def test_full_feeder_identifier_does_not_invent_a_class_from_its_suffix(explicit_class):
+    question = 'DEC no alimentador AL-TESTE mês passado?'
+    if explicit_class:
+        question += ' Na classe TESTE.'
+    core, request = _setup(question)
+    payload = request.model_dump(mode='python')
+    payload['dimension_value_coverage'] = [
+        {'dimension_id': 'network.feeder', 'values': ['AL-TESTE']},
+        {'dimension_id': 'customer.consumption_class', 'values': ['TESTE']},
+    ]
+    result = asyncio.run(core.question.plan(QuestionPlanRequest.model_validate(payload), 'f' * 32))
+    if explicit_class:
+        assert result.status.value == 'needs_clarification'
+        assert result.plan is None
+    else:
+        assert result.status.value == 'planned', result.model_dump_json()
+        assert {f.dimension_id: f.values for f in result.plan.filters} == {
+            'network.feeder': ('AL-TESTE',),
+        }
+
+
 @pytest.mark.parametrize(
     "original,answer,metric,expected",
     [

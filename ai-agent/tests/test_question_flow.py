@@ -258,6 +258,9 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
         "error": None,
         "analysis_context": {
             "metric": "energy.consumption",
+            "metric_label": None,
+            "metric_definition": None,
+            "filter_labels": {},
             "unit": "unidades fictícias",
             "period": "período de demonstração",
             "filters": {},

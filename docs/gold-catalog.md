@@ -111,3 +111,7 @@ Próximo passo: consumir os metadados pela evidência/API/portal ao integrar o f
 existente. As definições e fórmulas v2 não têm dúvida bloqueante identificada no
 repositório. O cartão continua aberto pelos dois critérios de consumidor parciais;
 execução SQL e reconciliação integrada pertencem a GENAI-06/07/10.
+
+## Consolidação de rótulos e definições
+
+A apresentação pública usa os rótulos e definições do perfil, iguais aos do artefato Backend por teste entre serviços. O Assistente consome os campos opcionais de apresentação sem tabela paralela de traduções e preserva IDs no contexto validado. O trecho quantitativo apresenta rótulos de dimensões, sem expor colunas físicas. GENAI-03 com os itens técnicos comprovados na [consolidação](contracts/genai-consolidation.md); escopos/capacidades e aceites dos demais domínios continuam separados.

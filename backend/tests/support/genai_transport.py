@@ -19,6 +19,12 @@ class NoSource:
         raise AssertionError('Backend must execute Gold')
 class Model:
     async def generate(self, question, context, evidence):
+        if os.environ.get('GENAI_TEST_PRIVACY_PROBE') == '1':
+            serialized = evidence.model_dump_json()
+            assert 'private-nested-probe' not in serialized
+            assert 'private-alias-probe' not in serialized
+            assert all(set(row) <= {'observation_id', 'value', 'unit', 'period'}
+                       for row in evidence.records)
         if os.environ.get('GENAI_TEST_MODEL_FAILURE') == 'unavailable':
             raise ModelProviderUnavailable('private provider detail')
         return GeneratedAnswer(status='answered', answer='Resultado observado no recorte solicitado.',
@@ -28,6 +34,12 @@ class Audit:
     def record(self, event):
         pass
 incoming = json.load(sys.stdin)
+if (os.environ.get('GENAI_TEST_PRIVACY_PROBE') == '1'
+        and incoming['path'].endswith('question-syntheses')):
+    records = incoming['payload']['lookup']['evidence']['records']
+    for row in records:
+        row['derived_contact'] = {'aliases': ['private-nested-probe']}
+        row['customer_alias'] = 'private-alias-probe'
 audit_url = os.environ.get('GENAI_TEST_AUDIT_URL')
 if audit_url:
     from app.audit import BackendEventSink
@@ -64,6 +76,9 @@ def dispatch_genai(request: httpx.Request) -> httpx.Response:
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     assert completed.returncode == 0, completed.stderr
+    if os.environ.get('GENAI_TEST_PRIVACY_PROBE') == '1':
+        assert 'private-nested-probe' not in completed.stdout + completed.stderr
+        assert 'private-alias-probe' not in completed.stdout + completed.stderr
     result = json.loads(completed.stdout)
     assert result["status"] == 200, result
     GENAI_TRANSPORT_EVENTS.append({

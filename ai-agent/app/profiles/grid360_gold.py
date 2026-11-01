@@ -30,7 +30,9 @@ _CURRENT_REGISTRY = (
     "vigência histórica."
 )
 _GD_PRESENCE = "GD indica presença de cadastro de geração distribuída, sem vigência nem injeção."
-_PREPARATION_ONLY = "Catálogo preparado para Gold v2; consulta integrada ainda não habilitada."
+_CAPABILITY_LIMIT = (
+    "A consulta depende das capacidades e do escopo autorizados para a publicação Gold v2."
+)
 
 
 def _field(name: str, role: str, value_type: str, dimension_id: str | None = None) -> dict:
@@ -247,7 +249,7 @@ def _metric(
         ),
         "sensitivity": "internal",
         "evidence_fields": _evidence_fields(dimension_ids),
-        "limitation_texts": (*limitations, _PREPARATION_ONLY),
+        "limitation_texts": (*limitations, _CAPABILITY_LIMIT),
         "accepted_unit_kinds": unit_kinds,
         "accumulated_period_phrases": ("histórico acumulado",) if accumulated else (),
     }

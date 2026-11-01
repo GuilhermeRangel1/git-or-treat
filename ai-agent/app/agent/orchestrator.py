@@ -62,14 +62,17 @@ logger = logging.getLogger(__name__)
 _Outcome = TypeVar("_Outcome", QuestionResponse, QuestionResponse | PlannedQuestion)
 
 
-def _describe_observation(observation: dict[str, object]) -> str:
+def _describe_observation(
+    observation: dict[str, object], dimension_labels: dict[str, str] | None = None,
+) -> str:
     labels: list[str] = []
     if "period" in observation:
         labels.append(str(observation["period"]))
     dimensions = observation.get("dimensions", {})
     if isinstance(dimensions, dict):
         for dimension_id, dimension_value in dimensions.items():
-            labels.append(f"{dimension_id}={dimension_value}")
+            label = (dimension_labels or {}).get(dimension_id, dimension_id)
+            labels.append(f"{label}={dimension_value}")
     value_with_unit = f"{observation['value']} {observation['unit']}"
     return f"{', '.join(labels)}: {value_with_unit}" if labels else value_with_unit
 
@@ -479,10 +482,13 @@ class QuestionOrchestrator:
                 model_tier=tier,
             )
 
+        profile = self._analysis_planner.profile
+        metric = next(item for item in profile.metrics if item.id == read_plan.metric_id)
+        labels = {item.id: item.label for item in profile.dimensions}
         answer = None
         if generated.status == "answered":
             values = ", ".join(
-                _describe_observation(observations[item])
+                _describe_observation(observations[item], labels)
                 for item in generated.observation_ids
             )
             prefix = "Demonstração sintética: " if evidence.reference.is_demo else ""
@@ -508,6 +514,11 @@ class QuestionOrchestrator:
             model_tier=tier,
             analysis_context=AppliedQueryContext(
                 metric=read_plan.metric_id,
+                metric_label=metric.label,
+                metric_definition=metric.definition,
+                filter_labels={
+                    item.dimension_id: labels[item.dimension_id] for item in read_plan.filters
+                },
                 unit=read_plan.unit,
                 period=period,
                 filters={

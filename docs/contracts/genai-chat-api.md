@@ -111,3 +111,7 @@ O contexto não é gravado em banco, não recebe ID de sessão e expira com o es
 A referência pública audit_reference é preenchida somente após confirmação durável. A trilha autorizada permite reproduzir a execução; correlação sozinha não é auditoria. O Assistente mostra a referência, respeita is_demo e descarta mensagens/contexto quando a identidade confirmada muda. Estados de negócio e erros HTTP não são convertidos em resposta quantitativa.
 
 O contrato está integrado na fatia Gold v2 do GENAI-09; cobertura dos demais domínios e aceite oficial IA-01/IA-05 permanecem separados. Evidências e limites em [primeira pergunta](genai-first-question.md).
+
+## Rótulos do catálogo no contrato público v1
+
+`analysis_context.metric` e as chaves de `filters` preservam os IDs lógicos. Os campos opcionais `metric_label`, `metric_definition` e `filter_labels` vêm do perfil validado contra o catálogo Backend, e o Assistente os usa para apresentar métrica, definição e dimensões. Só filtros aplicados admitem rótulos. Respostas antigas continuam aceitas pelo portal novo; Backend com o schema estendido deve preceder a GenAI nova, por causa da validação estrita de campos. Não foram alterados IDs, autorização, fórmulas ou versão Gold. Evidências em [consolidação](genai-consolidation.md).

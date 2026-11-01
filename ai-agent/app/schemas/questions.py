@@ -76,6 +76,11 @@ class AppliedQueryContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     metric: QueryContextText | None = None
+    metric_label: QueryContextText | None = None
+    metric_definition: ResponseLimitation | None = None
+    filter_labels: dict[ResponseFilterKey, QueryContextText] = Field(
+        default_factory=dict, max_length=20,
+    )
     unit: QueryContextText | None = None
     period: QueryContextText | None = None
     filters: dict[
@@ -88,6 +93,8 @@ class AppliedQueryContext(BaseModel):
 
     @model_validator(mode="after")
     def require_applied_context(self) -> Self:
+        if not self.filter_labels.keys() <= self.filters.keys():
+            raise ValueError("rótulos exigem filtros aplicados correspondentes")
         if self.metric is None and self.unit is None and self.period is None and not self.filters:
             raise ValueError("recorte aplicado vazio deve ser omitido")
         return self
