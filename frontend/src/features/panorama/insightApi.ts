@@ -68,12 +68,25 @@ export async function requestPanoramaInsight(
   }
 
   try {
-    return decodePanoramaInsight(
+    const result = decodePanoramaInsight(
       response,
       filters,
       data.loteVersao,
       data.dataAtualizacao,
+      data.origem?.isDemo ?? true,
     );
+    const metric =
+      data.origem?.kind === "gold"
+        ? data.metricas.receitaFaturada
+        : data.metricas.energiaFaturada;
+    if (
+      result.insight.status === "answered" &&
+      (result.metric.id !== metric.id ||
+        result.insight.context.unit !== metric.unidade ||
+        result.insight.observation.values[0]?.value !== metric.valorAtual)
+    )
+      throw new Error("O insight não corresponde aos números exibidos.");
+    return result;
   } catch {
     throw new PanoramaInsightApiError(
       "O serviço retornou um insight incompatível com o recorte atual.",
