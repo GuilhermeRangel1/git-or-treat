@@ -3022,3 +3022,19 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Arquivos/comandos/limites em [GENAI-10B](contracts/genai-domain-implementation.md).
   Branch `feat/genai-cobertura-dominios`, alterações locais posteriores a a68f484;
   revisão independente de especificação e padrões incorporada, sem novo commit.
+
+### GENAI-10A/10B — inventário de evidências por caso (01/11/2026)
+
+- Cruzamento dos 57 IDs da matriz com a rodada local já executada, sem duplicatas ou casos ausentes. Registro sanitizado versionado na branch 10A em `docs/contracts/genai-domain-case-evidence.md`; valores privados preservados fora do Git.
+- Trata-se de organização da evidência existente, sem novo aceite numérico ou execução. Continuam abertas revisão de Dados, cobertura mensal, amostras ausentes e jornada visual. Estado dos requisitos preservado.
+
+
+### Revalidação HTTP pública — 01/11/2026
+
+Rodada `20261101T195433_504518Z`: 57 casos avaliados com cliente HTTP externo ao processo do Backend isolado, login e cookies reais, endpoint público `/api/v1/ai/questions`, leitura Gold restrita e auditoria reais. Modelo controlado, sem novas chamadas Gemini. O transporte entre Backend e núcleo usa o adaptador de integração de teste existente; não comprova tráfego HTTP entre esses dois serviços nem qualidade de linguagem do provedor.
+
+Resultado por ID idêntico ao anterior: 43 PASS, cinco BLOQUEADO, sete SEM_AMOSTRA_NO_LOTE e dois NAO_EXECUTADO (SEG-06/07, provas técnicas separadas). Sem divergências ou erros de execução. As duas contas temporárias e suas sessões foram removidas; Backend isolado encerrado.
+
+Comando na worktree 10B: `docker exec --env-file work/genai10/.env.genai10b-backend -w /repo/backend genai10b-tests python /repo/work/genai10/http-acceptance.py`. Script e valores privados permanecem ignorados. A primeira tentativa foi rejeitada no login por Host interno não permitido; o cliente passou a enviar o Host local autorizado, sem mudar a proteção do servidor.
+
+A fronteira HTTP pública foi comprovada; renderização/interação no navegador, revisão de Dados e lacunas de fonte continuam pendentes. Critérios e estados preservados.

@@ -160,3 +160,19 @@ que a matriz possa referenciar as métricas novas sem duplicar commits.
 Estado sincronizado no Trello: **9/10** entregáveis técnicos; aceite real integral por cenário permanece pendente.
 
 Tentativa de jornada visual em 01/11/2026: portal isolado na porta 5183 e Backend com modelo controlado preparados; a ferramenta de navegador recusou acesso com `Local browser use is disabled in Work settings`. Nenhuma jornada foi declarada aprovada. O ambiente visual foi encerrado; nenhuma conta visual chegou a ser criada.
+
+
+## Inventário de evidência por cenário — 01/11/2026
+
+Os 57 casos da rodada já executada foram cruzados por ID com a matriz, sem nova chamada ao modelo e sem exportar valores privados. O registro sanitizado `docs/contracts/genai-domain-case-evidence.md` pertence à branch 10A e reúne estado esperado, estado observado, HTTP e classe de cada caso. Não substitui a conferência privada dos valores nem encerra o aceite integral.
+
+
+### Revalidação HTTP pública — 01/11/2026
+
+Rodada `20261101T195433_504518Z`: 57 casos avaliados com cliente HTTP externo ao processo do Backend isolado, login e cookies reais, endpoint público `/api/v1/ai/questions`, leitura Gold restrita e auditoria reais. Modelo controlado, sem novas chamadas Gemini. O transporte entre Backend e núcleo usa o adaptador de integração de teste existente; não comprova tráfego HTTP entre esses dois serviços nem qualidade de linguagem do provedor.
+
+Resultado por ID idêntico ao anterior: 43 PASS, cinco BLOQUEADO, sete SEM_AMOSTRA_NO_LOTE e dois NAO_EXECUTADO (SEG-06/07, provas técnicas separadas). Sem divergências ou erros de execução. As duas contas temporárias e suas sessões foram removidas; Backend isolado encerrado.
+
+Comando na worktree 10B: `docker exec --env-file work/genai10/.env.genai10b-backend -w /repo/backend genai10b-tests python /repo/work/genai10/http-acceptance.py`. Script e valores privados permanecem ignorados. A primeira tentativa foi rejeitada no login por Host interno não permitido; o cliente passou a enviar o Host local autorizado, sem mudar a proteção do servidor.
+
+A fronteira HTTP pública foi comprovada; renderização/interação no navegador, revisão de Dados e lacunas de fonte continuam pendentes. Critérios e estados preservados.
