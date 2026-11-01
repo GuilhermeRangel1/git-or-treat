@@ -107,6 +107,10 @@ class PlannedQuestion(BaseModel):
 class QuestionAnalysisPlanner:
     """Prepara a interpretação e consulta a fonte só após resolver ambiguidades."""
 
+    @property
+    def profile(self) -> DomainProfile:
+        return self._access_policy.profile
+
     def __init__(
         self,
         interpreter: QuestionInterpreter,

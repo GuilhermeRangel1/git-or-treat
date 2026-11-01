@@ -24,6 +24,17 @@ const answered = {
 };
 
 describe("contrato de perguntas do chat", () => {
+  it("recusa rótulos de filtros que não pertencem ao recorte aplicado", () => {
+    expect(() =>
+      decodeAIQuestionResponse({
+        ...answered,
+        analysis_context: {
+          ...answered.analysis_context,
+          filter_labels: { outro: "Outro" },
+        },
+      }),
+    ).toThrow("Resposta inválida do serviço.");
+  });
   it("aceita resposta v1 fundamentada e marcada como demonstrativa", () => {
     expect(decodeAIQuestionResponse(answered)).toMatchObject({
       contract_version: "v1",

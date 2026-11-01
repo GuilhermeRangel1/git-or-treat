@@ -47,6 +47,9 @@ def test_question_reads_approved_revenue_from_synthetic_database(tmp_path) -> No
     assert "3500.5 unidades fictícias" in body["answer"]
     assert body["analysis_context"] == {
         "metric": "billing.revenue",
+        "metric_label": None,
+        "metric_definition": None,
+        "filter_labels": {"geography.municipality": "Município"},
         "unit": "unidades fictícias",
         "period": "2025-01-01 a 2025-01-31",
         "filters": {"geography.municipality": "Municipio Ficticio A"},

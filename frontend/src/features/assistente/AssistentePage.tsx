@@ -124,17 +124,21 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   const context = response.analysis_context;
   if (!context) return null;
   const details = [
-    context.metric && ["Métrica", context.metric],
+    context.metric && ["Métrica", context.metric_label ?? context.metric],
     context.unit && ["Unidade", context.unit],
     context.period && ["Período", context.period],
     ...Object.entries(context.filters).map(([key, value]) => [
-      key,
+      context.filter_labels?.[key] ?? key,
       formatFilterValue(value),
     ]),
   ].filter((detail): detail is [string, string] => Boolean(detail));
   if (details.length === 0) return null;
   return (
-    <dl className="mt-3 flex flex-wrap gap-2" aria-label="Recorte analisado">
+    <dl
+      className="mt-3 flex flex-wrap gap-2"
+      aria-label="Recorte analisado"
+      title={context.metric_definition ?? undefined}
+    >
       {details.map(([label, value]) => (
         <div
           key={label}

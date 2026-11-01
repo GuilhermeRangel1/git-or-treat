@@ -104,6 +104,9 @@ def test_http_synthesis_preserves_zero_and_rejects_changed_publication():
         assert result.json()["status"] == "answered"
         assert "0 R$" in result.json()["answer"]
         assert result.json()["analysis_context"]["period"] == "2025-03-01 a 2025-03-31"
+        assert result.json()["analysis_context"]["metric"] == "billing.revenue"
+        assert result.json()["analysis_context"]["metric_label"] == "Receita faturada"
+        assert result.json()["analysis_context"]["metric_definition"]
         # Ausência de medida não pode virar o zero observado acima.
         record = synthesis["lookup"]["evidence"]["records"][0]
         for missing_value in (None, "absent"):
