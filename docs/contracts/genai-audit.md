@@ -26,18 +26,19 @@ Eventos têm schema fechado: estágio/código/estado, correlação, duração, c
 
 O serviço `verify_audited_execution` recebe o planejamento original autorizado fora da trilha, confere identidade atual antes de ler o artefato, fingerprint/lote/catálogo/template e reexecuta pelo executor existente, com nova validação de escopo e publicação. Retorna somente igualdade do resultado. O digest desconsidera selo de prontidão e chave de cache, preservando valores, filtros, período e lote do cálculo. A prova PostgreSQL também compara o valor com SQL fixo independente do compilador. Isto é integração de software com dados sintéticos, não aceite Gold real.
 
-**Limite restante:** a operação administrativa existente ainda só consulta/expurga; a reprodução possui serviço implementado e prova PostgreSQL, mas precisa de um consumidor administrativo autenticado para uso operacional. O operador precisa fornecer o plano original privadamente; valores não podem ser recuperados da trilha. Controle independente com lote real autorizado e privacidade integral permanecem abertos.
+**Limite restante:** o consumidor administrativo de reprodução agora existe no CLI e revalida a sessão individual atual antes de ler a referência. O operador ainda precisa fornecer o plano original privadamente; valores não podem ser recuperados da trilha. A referência de uma resposta HTTP pública ainda não foi reconciliada com um controle independente na mesma execução, e a privacidade integral em todas as superfícies permanece aberta.
 
 ## Operação administrativa
 
-Executar no ambiente privado do Backend, com `DATABASE_URL` operacional já configurada; não colocar credencial na linha de comando:
+Executar no ambiente privado do Backend. `DATABASE_URL` resolve a sessão individual; `GENAI_GOLD_DATABASE_URL` abre o leitor restrito; `GENAI_AUDIT_DATABASE_URL` deve usar o papel dedicado `venergy_genai_audit_operator`, provisionado por `scripts/provision_genai_audit_operator.sql` e limitado a `SELECT`/`DELETE` em `public.genai_audit_events`. Todas as URLs apontam para o mesmo banco; credenciais ficam em configuração privada, nunca na linha de comando.
 
 ```sh
 python scripts/genai_audit.py --reference <audit_reference>
+python scripts/genai_audit.py --verify-reference <audit_reference> --plan-file <caminho-privado/plan.json>
 python scripts/genai_audit.py --purge
 ```
 
-O primeiro comando retorna somente eventos ainda válidos; referência desconhecida/expirada retorna lista vazia. O segundo é idempotente e remove somente registros com `expires_at <= agora`. Falhas imprimem mensagem fixa, sem DSN ou detalhes SQL. Monitorar o aviso do expurgo e verificar sua execução antes de habilitar tráfego real. Backups e cópias externas precisam de política própria antes da implantação; o comando não remove backups.
+`--reference` retorna somente eventos ainda válidos; referência desconhecida/expirada retorna lista vazia. `--verify-reference` pede a sessão atual sem eco, valida o mesmo chamador antes de consultar a trilha, recebe o plano original em arquivo privado e retorna somente a referência e `reproduced: true`; não devolve números, template SQL ou parâmetros. Sessão inválida, revogada, de outro chamador, plano divergente ou publicação alterada falha sem revelar o motivo. O arquivo do plano não deve ser versionado. `--purge` é idempotente e remove somente registros com `expires_at <= agora`. Falhas imprimem mensagem fixa, sem DSN ou detalhes SQL. Monitorar o aviso do expurgo e verificar sua execução antes de habilitar tráfego real. Backups e cópias externas precisam de política própria antes da implantação; o comando não remove backups.
 
 ## Evidência de integração
 
@@ -65,3 +66,17 @@ Estes resultados sustentam dois critérios adicionais de robustez (observações
 `python -m pytest -q -p no:cacheprovider --tb=short tests/test_genai_session_postgres.py tests/test_genai_audit.py tests/test_genai_executor.py tests/test_ai_chat.py`: **23 aprovados**, um aviso preexistente, PostgreSQL 16 descartável. A prova confirma artefatos na trilha do fluxo público, ausência de Lumenia no plano/template persistido, resultado 12 por SQL fixo independente e reprodução autorizada; escopo revogado é recusado. O engine operacional oculta parâmetros SQL inclusive quando echo está ligado. Ruff dos arquivos de artefato/coordenação/contrato e teste PostgreSQL passou.
 
 GENAI-08 passa a **7/10** com persistência do artefato. O item de referência pública vinculada a controle independente permanece aberto pelo consumidor administrativo operacional e pelo aceite real; a prova sintética não fecha esse limite.
+
+### Carga Gold v2 disponível para testes locais — 31/10/2026
+
+Os CSVs Gold v2 recebidos foram carregados pelo `backend/scripts/load_gold.py --schema-version gold-csv-v2` em um PostgreSQL 16 local isolado, publicado somente em `127.0.0.1:5433`, com volume Docker persistente `genai08-gold-v2-data`. A configuração privada de conexão está no arquivo ignorado `.env.genai08-local`; não copiar credenciais para `.env`, comandos registrados, Git ou Trello. O banco da revisão DEV 13.1 na porta 5432 não foi alterado.
+
+Resultado observado: uma carga publicada, com as 15 tabelas Gold v2; duas execuções duplicadas interrompidas foram registradas como falhas. A consulta restrita do leitor Gold e o controle independente de linhas/total financeiro do manifesto foram conferidos; privilégios de leitura/escrita fora do escopo e criação de tabela temporária foram negados. As verificações não exibiram valores de negócio. O volume permanece disponível ao trocar de branch ou worktree; o arquivo ignorado de configuração permanece somente nesta worktree e precisa ser configurado privadamente em outra.
+
+### Consumidor administrativo de reprodução — 01/11/2026
+
+O script existente `backend/scripts/genai_audit.py` agora aceita `--verify-reference` e exige o `LogicalReadPlan` original em arquivo privado e uma sessão `grid360_session` válida digitada sem eco. Revalida identidade e permissão antes de ler a trilha e novamente antes/durante a execução; compara o chamador, fingerprint, publicação, catálogo e artefato e usa o executor restrito existente. A saída contém apenas referência e resultado booleano. A conexão operacional consulta a identidade, a Gold continua no papel somente leitura e `GENAI_AUDIT_DATABASE_URL` usa o novo papel `venergy_genai_audit_operator`, restrito à trilha.
+
+Prova dirigida no lote Gold v2 local: sessão temporária com permissão `orders:read` → plano determinístico → executor Gold → evento sanitizado gravado pelo papel operacional → `genai_audit.py --verify-reference` → reprodução aprovada. `SUM(receita_total_reais)` em SQL independente conferiu com o resultado; sessão inválida foi recusada sem saída de evento. A conta/sessão temporária foi removida depois da prova; nenhuma tabela Gold foi alterada. O comando `python -m pytest -q -p no:cacheprovider tests/test_genai_audit.py` passou: **3 aprovados**, um aviso preexistente Starlette/httpx. A verificação operacional do papel confirmou `SELECT`/`DELETE` apenas na tabela de auditoria, sem `INSERT`, leitura de usuários ou `CREATE/TEMP`.
+
+GENAI-08 avança a **8/10**: a trilha agora pode ser consultada e reproduzida por operador autorizado com uma identidade atual, plano privado e controle real independente. Permanecem abertos: vínculo dessa amostra com a resposta pública HTTP do fluxo completo e privacidade integral comprovada em API, contexto, histórico, logs, traces e relatórios. O smoke usou plano determinístico, sem provedor real; não conclui IA-03/IA-06 nem GENAI-08 integralmente.

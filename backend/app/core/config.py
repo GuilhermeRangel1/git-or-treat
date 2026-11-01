@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE: int = 1800
     DB_ECHO: bool = False
     GENAI_GOLD_DATABASE_URL: SecretStr | None = None
+    # Credencial operacional do CLI administrativo; nunca usada pela API.
+    GENAI_AUDIT_DATABASE_URL: SecretStr | None = None
     GENAI_GOLD_APPROVED_CONTROLS: list[str] = []
 
     # Data directory (Mocks now, Gold exported CSVs later)
