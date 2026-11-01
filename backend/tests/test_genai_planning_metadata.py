@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -273,6 +274,7 @@ print(json.dumps(asyncio.run(send())))
         return httpx.Response(result["status"], headers=result["headers"], json=result["body"])
 
     async def plan():
+        loop_thread = threading.get_ident()
         async with httpx.AsyncClient(transport=httpx.MockTransport(dispatch)) as transport:
             client = GenAIQuestionClient(
                 http_client=transport, base_url="http://genai",
@@ -281,6 +283,7 @@ print(json.dumps(asyncio.run(send())))
             scope_reads = 0
             def resolve_scope():
                 nonlocal scope_reads
+                assert threading.get_ident() != loop_thread
                 scope_reads += 1
                 if revoke and scope_reads > 1:
                     return scope.model_copy(update={"allowed_metric_ids": frozenset()})

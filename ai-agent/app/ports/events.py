@@ -1,5 +1,6 @@
 """Eventos internos com campos fechados; conteúdo do usuário nunca entra na trilha."""
 
+import asyncio
 import hashlib
 import logging
 import re
@@ -135,6 +136,14 @@ class EventTrace:
         self.catalog_version: str | None = None
         self.evidence_ref: str | None = None
         self.row_count = 0
+
+    async def emit_async(self, stage: EventStage, code: EventCode, outcome: EventOutcome) -> None:
+        """Aguarda a confirmação do sink síncrono sem bloquear o loop do consumidor.
+
+        O próximo estágio só começa após record retornar. Cancelar a espera não
+        interrompe uma operação já iniciada na thread; o adaptador deve limitar I/O.
+        """
+        await asyncio.to_thread(self.emit, stage, code, outcome)
 
     def emit(self, stage: EventStage, code: EventCode, outcome: EventOutcome) -> None:
         if self._require_durable and getattr(self._sink, "durable", False) is not True:
