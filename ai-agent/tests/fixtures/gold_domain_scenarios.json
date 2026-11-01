@@ -638,7 +638,7 @@
         "classe",
         "valor"
       ],
-      "sql": "SELECT classe_consumo AS classe, SUM(receita_total_reais) AS valor FROM gold_v2.diagnostico_receita WHERE competencia = :competencia AND municipio = :municipio GROUP BY classe_consumo ORDER BY SUM(receita_total_reais) DESC NULLS LAST, classe_consumo",
+      "sql": "SELECT classe_consumo AS classe, SUM(receita_total_reais) AS valor FROM gold_v2.diagnostico_receita WHERE competencia = :competencia AND municipio = :municipio GROUP BY classe_consumo ORDER BY SUM(receita_total_reais) DESC NULLS LAST, classe_consumo LIMIT 1",
       "observacao": "A soma das classes reconcilia com CTL-FAT-MUN no mesmo recorte."
     },
     "CTL-FAT-PRECO-VOLUME": {
@@ -884,7 +884,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi a receita faturada em {municipio} em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi a receita faturada no município de {municipio} em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita",
@@ -913,8 +913,8 @@
       ],
       "controle": {
         "ref": "C04",
-        "estado_do_controle": "existente_referenciado",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -966,8 +966,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-MUN-CLASSE-JANELA",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -1019,8 +1019,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-MUN-CLASSE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -1042,7 +1042,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi a receita residencial no bairro {bairro} de Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi a receita residencial no bairro {bairro} do município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita_bairro",
@@ -1079,8 +1079,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-BAIRRO",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -1100,7 +1100,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi o ticket médio em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o ticket médio no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.average_ticket",
       "capacidade": "faturamento.receita",
@@ -1129,8 +1129,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-TICKET",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "razao_reais",
       "bloqueio": null,
@@ -1145,7 +1145,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": "preco_volume",
-      "pergunta": "Qual foi o preço médio observado da energia residencial em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o preço médio observado da energia residencial no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.effective_tariff",
       "capacidade": "faturamento.receita",
@@ -1178,8 +1178,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-TARIFA",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "razao_tarifa",
       "bloqueio": null,
@@ -1349,7 +1349,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual classe mais contribuiu para a receita em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual classe mais contribuiu para a receita no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita",
@@ -1368,8 +1368,8 @@
         "publicacao": "gold-csv-v2 vigente; batch_ref lido na execução"
       },
       "unidade": "R$",
-      "estado_esperado": "bloqueado",
-      "status_publico_esperado": "conforme bloqueio.estado_publico_atual",
+      "estado_esperado": "sucesso",
+      "status_publico_esperado": "answered",
       "tipo_verificacao": [
         "interpretacao",
         "plano",
@@ -1378,19 +1378,14 @@
       ],
       "controle": {
         "ref": "CTL-FAT-CONTRIBUICAO-CLASSE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
-      "bloqueio": {
-        "motivo": "Agrupamento e ordenação desabilitados no perfil Gold (supports_grouping/ordering=false).",
-        "dono": "10B",
-        "estado_publico_atual": "needs_clarification",
-        "pergunta_dados": null
-      },
+      "bloqueio": null,
       "referencias": {},
       "modo_execucao": "fluxo_integrado",
-      "observacao": null,
+      "observacao": "Contribuição absoluta de receita por classe em uma competência; maior valor, desempate por classe. Não é explicação causal nem variação entre períodos.",
       "resultado_observado": null,
       "referencia_execucao": null
     },
@@ -1642,7 +1637,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi a receita em Recife neste ano?",
+      "pergunta": "Qual foi a receita no município de Recife neste ano?",
       "contexto": [],
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita",
@@ -1671,8 +1666,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-MUN-JANELA",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -1739,7 +1734,7 @@
       "dominio": "consumo",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi o consumo de energia em {municipio} em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o consumo de energia no município de {municipio} em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "energy.consumption",
       "capacidade": "faturamento.receita",
@@ -1768,8 +1763,8 @@
       ],
       "controle": {
         "ref": "CTL-CON-MUN",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "kwh",
       "bloqueio": null,
@@ -1822,8 +1817,8 @@
       ],
       "controle": {
         "ref": "CTL-CON-MUN-CLASSE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "kwh",
       "bloqueio": null,
@@ -1886,7 +1881,7 @@
       "dominio": "consumo",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi o consumo das unidades com geração distribuída em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o consumo das unidades com geração distribuída no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "energy.consumption",
       "capacidade": "faturamento.receita",
@@ -1919,8 +1914,8 @@
       ],
       "controle": {
         "ref": "CTL-CON-GD",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "kwh",
       "bloqueio": null,
@@ -1935,7 +1930,7 @@
       "dominio": "consumo",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi o consumo médio por unidade com leitura em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o consumo médio por unidade com leitura no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "energy.average_consumption_per_uc",
       "capacidade": "faturamento.receita",
@@ -1964,8 +1959,8 @@
       ],
       "controle": {
         "ref": "CTL-CON-MEDIO",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "razao_kwh",
       "bloqueio": null,
@@ -2762,8 +2757,8 @@
       ],
       "controle": {
         "ref": "C14",
-        "estado_do_controle": "existente_referenciado",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "contagem",
       "bloqueio": null,
@@ -2806,8 +2801,8 @@
       ],
       "controle": {
         "ref": "C14",
-        "estado_do_controle": "existente_referenciado",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "nota",
       "bloqueio": null,
@@ -2850,8 +2845,8 @@
       ],
       "controle": {
         "ref": "CTL-ATE-UNICIDADE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "contagem",
       "bloqueio": null,
@@ -3116,8 +3111,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-MUN",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -3140,7 +3135,7 @@
       "contexto": [
         {
           "role": "user",
-          "content": "Qual foi a receita residencial em Recife em {mes_extenso} de {ano}?"
+          "content": "Qual foi a receita residencial no município de Recife em {mes_extenso} de {ano}?"
         }
       ],
       "metrica": "billing.revenue",
@@ -3174,8 +3169,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-MUN-CLASSE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,

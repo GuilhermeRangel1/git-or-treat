@@ -120,8 +120,10 @@ def test_numeric_case_passes_and_uses_the_independent_control_with_resolved_scop
     outcome = run("FAT-01", client(lambda payload: REVENUE_OK, seen=seen), db)
     assert outcome.classe == "PASS" and outcome.divergencias == []
     assert outcome.valores_esperados == ["1234.57"]
-    assert seen == [{"question": "Qual foi a receita faturada em Recife em março de 2000?",
-                     "context": []}]
+    assert seen == [{
+        "question": "Qual foi a receita faturada no município de Recife em março de 2000?",
+        "context": [],
+    }]
     name, sql, params = db.calls[-1]
     assert name == "controle:C04" and sql == MATRIX["controles"]["C04"]["sql"]
     assert params == {"competencia": "2000-03"}
@@ -303,6 +305,10 @@ def test_main_runs_end_to_end_and_keeps_values_and_secrets_out_of_stdout(
 def test_full_execution_requires_approval_before_certifying_domain():
     matrix = copy.deepcopy(MATRIX)
     matrix["casos"] = [matrix_case(matrix, "FAT-01")]
+    # Estado artificial explícito: o aceite do lote versionado pode evoluir.
+    matrix["casos"][0]["controle"].update(
+        estado_do_controle="existente_referenciado", aprovado_por="",
+    )
     outcome = runner.Outcome("FAT-01", "faturamento", True, classe="PASS")
     summary = runner.summarize(matrix, [outcome])["dominios"]["faturamento"]
     assert not summary["coberto"]

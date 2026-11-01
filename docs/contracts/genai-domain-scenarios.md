@@ -236,3 +236,32 @@ a indicação explícita de histórico acumulado. Número coincidente em outra j
 divergência de plano. A referência de auditoria ainda é verificada por presença; sua
 reprodução operacional e a associação semântica de cada número permanecem parte da revisão
 integrada, conforme as limitações deste contrato.
+
+
+### Revalidação coordenada com GENAI-10B — 01/11/2026
+
+Os prompts de cenários que exigem município inequívoco passam a explicitar essa
+dimensão quando o nome também existe como bairro. Isso não transforma pergunta
+ambígua do usuário em filtro presumido: a distinção depende da qualificação explícita.
+FAT-10 agora descreve o alvo de maior contribuição absoluta de receita por classe em
+uma competência, implementado na branch independente `feat/genai-cobertura-dominios`.
+O controle SQL ordena receita decrescente, desempata por classe e limita a uma linha.
+O estado esperado não declara que a execução observada passou nem aprova o controle.
+
+Verificação da branch de validação, sem depender dos commits do 10B:
+`python -m pytest -q tests/test_gold_domain_runner.py
+ tests/test_gold_domain_runner_integration.py tests/test_gold_domain_scenarios.py`
+(em `ai-agent/`): 303 aprovados. A validação integrada deve usar as duas entregas;
+o runner preserva falhas, bloqueios, falta de amostra e ausência de aprovação.
+
+As rodadas privadas revelaram falhas e mantiveram os domínios pendentes. Os relatórios
+contêm valores e referências apenas no diretório ignorado `work/`; nenhum agregado,
+identificador de lote, bairro ou alimentador resolvido foi copiado para o repositório.
+A matriz não é marcada como aceita apenas porque seu formato ou os testes passaram.
+
+
+A [revalidação sanitizada](genai-domain-validation.md) registra a rodada, a correção
+posterior de FAT-10 e o aceite técnico local explícito de 17 casos numéricos. São
+37 PASS, onze bloqueados, sete sem amostra e duas regressões fora do runner. Esse
+resultado não conclui os domínios e não homologa Dados. Valores e auditoria detalhada
+permanecem privados; o relatório público contém somente IDs e estados.

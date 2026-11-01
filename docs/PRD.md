@@ -2991,3 +2991,24 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
   errado. Nenhuma consulta ao lote privado, chamada Gemini ou validação no portal nesta rodada.
 - Limites: PASS exploratório não encerra domínio; reprodução da auditoria, associação semântica
   dos números e reconciliação integrada permanecem pendentes. Alterações locais sem commit.
+
+
+### 2026-11-01 — IA-01/IA-03/IA-06 — revalidação da matriz GENAI-10A
+
+- Estados oficiais preservados. PR #99 mantém runner, matriz e evidências de validação;
+  implementação funcional foi separada na branch `feat/genai-cobertura-dominios`, sobre
+  `develop`, sem duplicação dos commits do runner.
+- Casos com município explícito evitam presumir uma dimensão homônima; FAT-10 define
+  maior contribuição absoluta por classe em uma competência com controle independente
+  ordenado e limitado. O resultado observado continua separado do estado esperado.
+- Verificação: 303 testes de matriz/runner aprovados na branch 10A isolada e diff-check
+  aprovado. Rodadas privadas sobre a Gold v2 revelaram falhas e bloqueios, preservados
+  nos relatórios ignorados. Nenhum domínio é certificado por essa preparação.
+- [Contrato e reprodução](contracts/genai-domain-scenarios.md). Aprovação por cenário,
+  cobertura suficiente, divergências remanescentes e jornada final continuam pendentes.
+
+- Revalidação controlada com SQL, sessão e auditoria reais: 37 PASS após corrigir e
+  reexecutar FAT-10, onze bloqueios, sete sem amostra e duas regressões técnicas
+  separadas. A pessoa usuária aprovou o uso dos controles nos 17 casos numéricos
+  reconciliados para esta entrega local; não é homologação de Dados ou fechamento
+  mensal. [Resultados por ID e limites](contracts/genai-domain-validation.md).
