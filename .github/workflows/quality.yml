@@ -149,7 +149,8 @@ jobs:
             -e TEST_GOLD_ORDERS_POSTGRES_URL \
             -e TEST_GOLD_ANALYTICS_POSTGRES_URL \
             -e TEST_GOLD_READER_ADMIN_URL \
-            venergy-backend:ci python -m pytest -q
+            -v "${{ github.workspace }}/ai-agent:/ai-agent:ro" \
+            venergy-backend:ci sh -c 'python -m pip install /ai-agent && python -m pytest -q'
 
   qualidade-frontend:
     name: CI Frontend
