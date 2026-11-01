@@ -22,6 +22,14 @@
     "interrupcoes",
     "atendimento"
   ],
+  "parametros_por_dimensao": {
+    "geography.municipality": "municipio",
+    "geography.neighborhood": "bairro",
+    "customer.consumption_class": "classe",
+    "generation.distributed": "gd",
+    "network.feeder": "alimentador"
+  },
+  "convencao_controle": "O valor esperado vem da coluna 'valor' ou de 'valor_por_metrica[metrica]'; várias linhas com 'competencia' são uma série e cada valor deve aparecer na resposta.",
   "estados_esperados": {
     "sucesso": {
       "status_publico": "answered",
@@ -337,7 +345,19 @@
       "descricao": "Energia e receita no último mês, município de maior receita (diagnostico_receita).",
       "definicao": "docs/gold-coverage-v0.md",
       "aprovacao_registrada": "Pessoa usuária, lote local (docs/dicionario_gold.md, 01/11/2026)",
-      "sql": null
+      "sql": "SELECT municipio, SUM(receita_total_reais) AS valor, SUM(consumo_total_kwh) AS consumo_kwh FROM gold_v2.diagnostico_receita WHERE competencia = :competencia GROUP BY municipio HAVING SUM(receita_total_reais) IS NOT NULL ORDER BY SUM(receita_total_reais) DESC, municipio LIMIT 1",
+      "parametros": [
+        "competencia"
+      ],
+      "saida": [
+        "municipio",
+        "valor",
+        "consumo_kwh"
+      ],
+      "conferencia": {
+        "municipio": "municipio"
+      },
+      "observacao": "Definição do C04 (scripts/gold_coverage.py): na competência, município de maior receita; o runner exige que seja o mesmo da amostra."
     },
     "C05": {
       "tipo": "existente",
@@ -386,7 +406,23 @@
       "descricao": "DEC/FEC do alimentador de maior DEC na última competência (indicadores_dec_fec).",
       "definicao": "docs/gold-coverage-v0.md",
       "aprovacao_registrada": "Pessoa usuária, lote local (docs/dicionario_gold.md, 01/11/2026)",
-      "sql": null
+      "sql": "SELECT id_alimentador AS alimentador, \"DEC\" AS dec, \"FEC\" AS fec FROM gold_v2.indicadores_dec_fec WHERE competencia = :competencia AND \"DEC\" IS NOT NULL ORDER BY \"DEC\" DESC, id_alimentador LIMIT 1",
+      "parametros": [
+        "competencia"
+      ],
+      "saida": [
+        "alimentador",
+        "dec",
+        "fec"
+      ],
+      "valor_por_metrica": {
+        "network.equivalent_interruption_duration": "dec",
+        "network.equivalent_interruption_frequency": "fec"
+      },
+      "conferencia": {
+        "alimentador": "alimentador"
+      },
+      "observacao": "Definição do C11: alimentador de maior DEC no mês; a média dos meses do controle original não é métrica aprovada e não é comparada."
     },
     "C12": {
       "tipo": "existente",
@@ -407,14 +443,35 @@
       "descricao": "Atendimento por UC: chamados e satisfação, incluindo ausência (visao_360_uc).",
       "definicao": "docs/gold-coverage-v0.md",
       "aprovacao_registrada": "Pessoa usuária, lote local (docs/dicionario_gold.md, 01/11/2026)",
-      "sql": null
+      "sql": "SELECT (SELECT COUNT(DISTINCT protocolo) FROM gold_v2.atendimentos_uc) AS chamados, (SELECT AVG(nota_satisfacao) FROM gold_v2.atendimentos_uc) AS media_satisfacao, (SELECT SUM(total_chamados_callcenter) FROM gold_v2.visao_360_uc) AS chamados_visao_360",
+      "parametros": [],
+      "saida": [
+        "chamados",
+        "media_satisfacao",
+        "chamados_visao_360"
+      ],
+      "valor_por_metrica": {
+        "service.accumulated_attendance": "chamados",
+        "service.accumulated_satisfaction": "media_satisfacao"
+      },
+      "observacao": "Definição do C14 no grão do protocolo (atendimentos_uc), independente da soma da Visão 360 usada pelo plano; chamados_visao_360 é registrada como conferência."
     },
     "C15": {
       "tipo": "existente",
       "descricao": "Atendimento mensal contra cobertura_dominios (atendimentos_uc).",
       "definicao": "docs/gold-readiness.md",
       "aprovacao_registrada": "Pessoa usuária, lote local (docs/dicionario_gold.md, 01/11/2026)",
-      "sql": null
+      "sql": "SELECT (SELECT COUNT(*) FROM gold_v2.atendimentos_uc a WHERE to_char(timezone('UTC', a.data_abertura), 'YYYY-MM') = :competencia) AS valor, c.estado_cobertura, c.qtd_registros, c.zero_registros_confirmado FROM gold_v2.cobertura_dominios c WHERE c.dominio = 'atendimentos' AND c.recorte = 'DOMINIO' AND c.competencia = :competencia",
+      "parametros": [
+        "competencia"
+      ],
+      "saida": [
+        "valor",
+        "estado_cobertura",
+        "qtd_registros",
+        "zero_registros_confirmado"
+      ],
+      "observacao": "Definição do C15: registros do mês UTC de abertura contra a cobertura declarada; sem FECHADO o caso continua bloqueado."
     },
     "CTL-FAT-MUN": {
       "tipo": "sql_proposto",
@@ -452,6 +509,24 @@
         "linhas_com_valor"
       ],
       "sql": "SELECT SUM(receita_total_reais) AS valor, COUNT(*) AS linhas, COUNT(receita_total_reais) AS linhas_com_valor FROM gold_v2.diagnostico_receita WHERE competencia = :competencia AND municipio = :municipio AND classe_consumo = :classe",
+      "observacao": null
+    },
+    "CTL-FAT-MUN-JANELA": {
+      "tipo": "sql_proposto",
+      "descricao": "Receita faturada por mês na janela e município.",
+      "relacionados": [
+        "C04"
+      ],
+      "parametros": [
+        "inicio",
+        "fim",
+        "municipio"
+      ],
+      "saida": [
+        "competencia",
+        "valor"
+      ],
+      "sql": "SELECT competencia, SUM(receita_total_reais) AS valor FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :inicio AND :fim AND municipio = :municipio GROUP BY competencia ORDER BY competencia",
       "observacao": null
     },
     "CTL-FAT-MUN-CLASSE-JANELA": {
@@ -778,38 +853,11 @@
       "parametros": [],
       "saida": [
         "protocolos",
-        "distintos",
+        "valor",
         "tratativas"
       ],
-      "sql": "SELECT COUNT(*) AS protocolos, COUNT(DISTINCT protocolo) AS distintos, (SELECT COUNT(*) FROM gold_v2.tratativas_uc) AS tratativas FROM gold_v2.atendimentos_uc",
+      "sql": "SELECT COUNT(*) AS protocolos, COUNT(DISTINCT protocolo) AS valor, (SELECT COUNT(*) FROM gold_v2.tratativas_uc) AS tratativas FROM gold_v2.atendimentos_uc",
       "observacao": "Resposta deve igualar protocolos distintos; contar tratativas como chamados é divergência."
-    },
-    "CTL-ATE-ACUMULADO": {
-      "tipo": "sql_proposto",
-      "descricao": "Definição do C14: total acumulado de chamados na Visão 360.",
-      "relacionados": [
-        "C14"
-      ],
-      "parametros": [],
-      "saida": [
-        "valor"
-      ],
-      "sql": "SELECT SUM(total_chamados_callcenter) AS valor FROM gold_v2.visao_360_uc",
-      "observacao": null
-    },
-    "CTL-ATE-SATISFACAO": {
-      "tipo": "sql_proposto",
-      "descricao": "Definição do C14: média das notas válidas do histórico.",
-      "relacionados": [
-        "C14"
-      ],
-      "parametros": [],
-      "saida": [
-        "valor",
-        "notas"
-      ],
-      "sql": "SELECT AVG(nota_satisfacao) AS valor, COUNT(nota_satisfacao) AS notas FROM gold_v2.atendimentos_uc",
-      "observacao": "Nota ausente não é zero; não é média de médias por UC."
     }
   },
   "criterios_regressao": {
@@ -818,7 +866,8 @@
       "FAIL": "Divergência inesperada; classificada por tipo_verificacao.",
       "FALHA_CONHECIDA": "Divergência listada em falhas_conhecidas, com motivo e dono; não conta como PASS.",
       "BLOQUEADO": "Caso bloqueado cujo estado público observado é bloqueio.estado_publico_atual; domínio continua pendente.",
-      "SEM_AMOSTRA_NO_LOTE": "Regra de amostra sem resultado no lote; pendência, nunca PASS."
+      "SEM_AMOSTRA_NO_LOTE": "Regra de amostra sem resultado no lote; pendência, nunca PASS.",
+      "NAO_EXECUTADO": "Caso de regressão técnica ou sem configuração exigida (por exemplo, conta sem permissão); listado com o motivo, nunca PASS."
     },
     "regras": [
       "Relatar por domínio e por classe; não publicar taxa global de acerto.",
@@ -872,8 +921,7 @@
       "referencias": {
         "existentes": [
           "C04"
-        ],
-        "consulta_runner": "CTL-FAT-MUN"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": "Mesma fatia reconciliada no GENAI-09.",
@@ -1622,7 +1670,7 @@
         "fundamentacao"
       ],
       "controle": {
-        "ref": "CTL-FAT-MUN",
+        "ref": "CTL-FAT-MUN-JANELA",
         "estado_do_controle": "proposto",
         "aprovado_por": ""
       },
@@ -2292,8 +2340,7 @@
       "referencias": {
         "existentes": [
           "C11"
-        ],
-        "consulta_runner": "CTL-INT-DEC-FEC"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": "Com cobertura certificada, o estado alvo é sucesso com o controle C11.",
@@ -2634,8 +2681,7 @@
         "existentes": [
           "C14",
           "C15"
-        ],
-        "consulta_runner": "CTL-ATE-MES"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": null,
@@ -2724,8 +2770,7 @@
       "referencias": {
         "existentes": [
           "C14"
-        ],
-        "consulta_runner": "CTL-ATE-ACUMULADO"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": null,
@@ -2769,8 +2814,7 @@
       "referencias": {
         "existentes": [
           "C14"
-        ],
-        "consulta_runner": "CTL-ATE-SATISFACAO"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": null,

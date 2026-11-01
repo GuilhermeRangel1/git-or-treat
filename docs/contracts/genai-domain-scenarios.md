@@ -1,6 +1,6 @@
 # GENAI-10A — Matriz única de cenários dos domínios Gold v2
 
-**Cartão:** GENAI-10A. **Requisitos:** IA-01, IA-02, IA-03, IA-06. **Natureza:** preparação (matriz versionada e validação de formato). Nenhum cenário foi executado contra o lote nesta etapa e nenhum requisito é concluído por este documento.
+**Cartão:** GENAI-10A. **Requisitos:** IA-01, IA-02, IA-03, IA-06. **Natureza:** preparação (matriz versionada, validação de formato e runner pronto). Nenhum cenário foi executado contra o lote e nenhum requisito é concluído por este documento.
 
 Referências: [dicionário Gold](../dicionario_gold.md), [contrato CSV v2](gold-csv-v2.md), catálogo `backend/app/catalogs/gold_v2.json`, perfil `ai-agent/app/profiles/grid360_gold.py`, [prontidão](../gold-readiness.md), [controles C01–C15](../gold-coverage-v0.md), [matriz de linguagem Q04](../gold-question-matrix.md) e [primeira pergunta](genai-first-question.md). A Gold v2 é a única referência; não há fallback v1.
 
@@ -10,9 +10,11 @@ Referências: [dicionário Gold](../dicionario_gold.md), [contrato CSV v2](gold-
 | --- | --- |
 | `ai-agent/tests/fixtures/gold_domain_scenarios.json` | Matriz única: casos, regras de período e amostra, controles, tolerâncias e critérios de regressão. |
 | `ai-agent/tests/test_gold_domain_scenarios.py` | Valida formato, IDs, referências, cobertura mínima, exemplos do PRD, SQL somente leitura e ausência de valores do lote. |
+| `ai-agent/scripts/run_gold_domain_scenarios.py` | Runner da matriz (seção [Runner](#runner)). |
+| `ai-agent/tests/test_gold_domain_runner.py` | Funções puras e `--dry-run`, sem rede nem banco. |
+| `ai-agent/tests/test_gold_domain_runner_integration.py` | Runner com servidor HTTP e banco de controle sintéticos. |
+| `ai-agent/tests/test_gold_domain_runner_postgres.py` | Adaptador PostgreSQL em banco descartável (opt-in, `GENAI10A_TEST_POSTGRES_DSN`). |
 | `work/genai10a/` (ignorado pelo Git) | Resultados observados, valores de controle e amostras resolvidas. Nunca versionado. |
-
-O runner da fase seguinte lê a matriz, resolve períodos e amostras na publicação vigente, chama `POST /api/v1/ai/questions`, executa o controle em conexão somente leitura e grava apenas em `work/genai10a/`. No repositório e no stdout ficam somente estado e classe por ID e a cobertura por domínio.
 
 ## Campos de cada caso
 
@@ -56,12 +58,19 @@ O runner da fase seguinte lê a matriz, resolve períodos e amostras na publica�
 
 ## Controles
 
-**Existentes (por ID).** C01–C15 ficam no bloco `controles` com `tipo=existente`, sem SQL novo, e com a aprovação já registrada:
+**Existentes (por ID).** C01–C15 ficam no bloco `controles` com `tipo=existente` e com a aprovação já registrada:
 
 - C01–C04 e C10–C15: aprovados pela pessoa usuária para o lote local ([dicionário](../dicionario_gold.md), 01/11/2026);
 - C05–C09: referência histórica de Dados ([gold-coverage-v0.md](../gold-coverage-v0.md)), fora dessa aprovação.
 
-Quando o runner precisa do número, `referencias.consulta_runner` indica o SQL que aplica a definição do controle ao recorte do caso (por exemplo, C04 → `CTL-FAT-MUN`; C11 → `CTL-INT-DEC-FEC`; C14 → `CTL-ATE-ACUMULADO`/`CTL-ATE-SATISFACAO`; C15 → `CTL-ATE-MES`).
+Os controles existentes usados como controle de casos numéricos têm SQL executável escrito a partir das definições de [gold-coverage-v0.md](../gold-coverage-v0.md) e de `ai-agent/scripts/gold_coverage.py`, sobre `gold_v2` e independente do compilador de planos:
+
+- **C04:** município de maior receita na competência, com receita e consumo; `conferencia` exige que seja o mesmo município da amostra.
+- **C11:** alimentador de maior DEC na competência; `valor_por_metrica` escolhe DEC ou FEC. A média dos meses do controle original não é métrica aprovada e não é comparada.
+- **C14:** protocolos distintos e média das notas em `atendimentos_uc`, fonte independente da soma da Visão 360 usada pelo plano; essa soma é registrada como conferência.
+- **C15:** registros do mês UTC de abertura contra a cobertura declarada.
+
+Os demais controles existentes continuam sem SQL, porque só aparecem como referência relacionada. Os CTL que apenas repetiam o caminho do plano foram retirados.
 
 **Propostos.** Os `CTL-*` são SQL independentes do compilador de planos, escritos a partir do dicionário: somente `SELECT`, parâmetros nomeados, apenas tabelas `gold_v2.*` e nunca o cadastro restrito. A saída inclui contadores (`linhas`, `linhas_com_valor`, `denominador`) que permitem distinguir zero, nulo, ausência e base zero. Os controles de capacidades que ainda não existem (comparação, contribuição, ranking por bairro, preço-volume, contagem de ocorrências) já estão escritos para o 10B usar como expectativa.
 
@@ -151,8 +160,55 @@ Não bloqueiam a matriz; os casos correspondentes ficam bloqueados até a respos
 | `FALHA_CONHECIDA` | Divergência listada em `falhas_conhecidas`, com motivo e dono; não conta como `PASS`. |
 | `BLOQUEADO` | Caso bloqueado cujo estado público observado é o registrado em `bloqueio.estado_publico_atual`. |
 | `SEM_AMOSTRA_NO_LOTE` | A regra de amostra não encontrou recorte (por exemplo, nenhum zero observado); é pendência, nunca `PASS`. |
+| `NAO_EXECUTADO` | Caso de regressão técnica, sem configuração exigida (conta sem permissão) ou com erro de infraestrutura; listado com o motivo, nunca `PASS`. |
 
-O relatório sai por domínio e por classe, sem taxa global de acerto. Um domínio só está coberto com todos os casos obrigatórios em `PASS`; um caso obrigatório em `FAIL`, `FALHA_CONHECIDA`, `BLOQUEADO` ou `SEM_AMOSTRA_NO_LOTE` mantém o domínio pendente. Casos obrigatórios nunca usam skip ou xfail. A matriz é revalidada após mudança de fórmula, catálogo, consulta, prompt ou modelo. `falhas_conhecidas` começa vazio e só recebe entradas após execução.
+O relatório sai por domínio e por classe, sem taxa global de acerto. Um domínio só está coberto com todos os casos obrigatórios em `PASS`; um caso obrigatório em `FAIL`, `FALHA_CONHECIDA`, `BLOQUEADO`, `SEM_AMOSTRA_NO_LOTE` ou `NAO_EXECUTADO` mantém o domínio pendente. Casos obrigatórios nunca usam skip ou xfail. A matriz é revalidada após mudança de fórmula, catálogo, consulta, prompt ou modelo. `falhas_conhecidas` começa vazio e só recebe entradas após execução.
+
+## Runner
+
+```
+python scripts/run_gold_domain_scenarios.py --dry-run
+python scripts/run_gold_domain_scenarios.py [--ids FAT-01,CON-01] [--domain faturamento] [--strict]
+```
+
+Executado em `ai-agent/`, com o extra `postgres` instalado. `--dry-run` valida a matriz, as regras e os controles sem rede e sem banco.
+
+**Variáveis** (apenas nomes; valores nunca são impressos nem gravados):
+
+| Variável | Uso |
+| --- | --- |
+| `GENAI10A_BACKEND_URL` | Raiz do Backend, sem credenciais na URL. |
+| `GENAI10A_ORIGIN` | Origem permitida em `BACKEND_CORS_ORIGINS`; enviada em todos os POST. |
+| `GENAI10A_USERNAME`, `GENAI10A_PASSWORD` | Conta de leitura com `orders:read`. |
+| `GENAI10A_CONTROL_DSN` | PostgreSQL usado nos controles; o runner abre a conexão como `read_only` e aplica `statement_timeout` de 5 s. |
+| `GENAI10A_DENIED_USERNAME`, `GENAI10A_DENIED_PASSWORD` | Opcionais: conta sem permissão para SEG-05; sem elas o caso fica `NAO_EXECUTADO`. |
+
+**Passos por caso:**
+
+1. Resolve o período e a amostra pelas regras da matriz. A grafia publicada dos municípios do case é buscada por comparação sem acento ou caixa.
+2. Preenche os marcadores e pergunta por `POST /api/v1/ai/questions` com a sessão individual.
+3. Nos casos numéricos sem bloqueio, executa o controle e arredonda como o catálogo.
+4. Compara:
+   - estado público com `status_publico_esperado` ou, quando há bloqueio, com `bloqueio.estado_publico_atual`;
+   - métrica (`interpretacao`);
+   - filtros (`plano`);
+   - evidência não demonstrativa, unidade, período e referência auditável (`fundamentacao`);
+   - números lidos do texto da resposta, dentro da tolerância (`numero`).
+
+Uma resposta numérica em caso bloqueado, de ambiguidade, recusa, acesso negado, indisponibilidade ou limite de dados é FAIL de tipo `recusa`.
+
+**Saída.** Em `work/genai10a/<execução>/`, o runner grava `resultados.json` (classe, estados, divergências, parâmetros resolvidos, valores esperados, números lidos e referência de auditoria) e `resumo.json`. Respostas completas, credenciais e DSN não são gravados, e o runner recusa qualquer pasta de saída fora de `work/`. No stdout saem somente ID, classe, estado e tipos de divergência, a cobertura por domínio e as listas de falhas inesperadas, falhas conhecidas, erros de execução e domínios pendentes.
+
+**Códigos de saída:**
+
+| Código | Significado |
+| --- | --- |
+| 0 | Sem falha inesperada. |
+| 1 | FAIL ou erro de execução. |
+| 2 | Configuração ou matriz inválida. |
+| 3 | Com `--strict`, algum domínio obrigatório continua pendente. |
+
+**Limite conhecido.** A API pública não tem campo numérico; o número é lido do texto da resposta (notação pt-BR ou en-US, com as duas leituras quando o separador é ambíguo). Uma leitura alternativa coincidente poderia mascarar uma divergência pequena; os demais checks e o registro em `resultados.json` permitem revisar o caso.
 
 ## Privacidade
 
@@ -160,5 +216,6 @@ O repositório guarda somente perguntas com marcadores, regras e SQL. Valores de
 
 ## Verificação desta etapa
 
-- `ai-agent`: `python -m pytest -q tests/test_gold_domain_scenarios.py` valida a matriz.
-- Os 22 SQL propostos e as 16 regras com SQL passaram por `EXPLAIN` em PostgreSQL 16 descartável com as migrações do Backend aplicadas e o schema `gold_v2` vazio. Isso confere colunas, tipos e funções, sem executar contra o lote.
+- `ai-agent`: `python -m pytest -q tests/test_gold_domain_scenarios.py tests/test_gold_domain_runner.py tests/test_gold_domain_runner_integration.py` valida a matriz e o runner sem rede.
+- `tests/test_gold_domain_runner_postgres.py` exercita o adaptador PostgreSQL em banco descartável `*_test`.
+- Os SQL dos 4 controles existentes, dos 21 propostos e das 16 regras passaram por `EXPLAIN` em PostgreSQL 16 descartável com as migrações do Backend aplicadas e `gold_v2` vazio. Isso confere colunas, tipos e funções, sem executar contra o lote.
