@@ -2832,3 +2832,25 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Serviço de reprodução reutiliza o executor e exige planejamento original autorizado, escopo atual, fingerprint, lote e template compatíveis. A prova PostgreSQL confirma valor 12 com SQL fixo independente e reexecução autorizada; recusa escopo revogado. Consumidor administrativo operacional de reprodução ainda pendente.
 - Seleção Backend sessão PostgreSQL/auditoria/executor/chat: 23 aprovados, um aviso preexistente. Comandos e limites em docs/contracts/genai-audit.md; Ruff dirigido passou.
 - GENAI-08 passa a 7/10, sem alterar estados oficiais IA. Restam aceite do controle independente/consumidor administrativo, critério integral de trilha reproduzível e privacidade em todas as superfícies. Continuação local sem commit/push.
+
+### 01/11/2026 — GENAI-09: referência de conferência no Assistente
+
+- Escopo IA-03/IA-05: integração executável de apresentação, na branch `feat/genai-primeira-pergunta-real`, baseada em `feat/genai-auditoria-evidencias` (8274009).
+- O Assistente mostra `audit_reference` recebido da API junto do resultado, permitindo ao analista localizar a trilha autorizada. Evidência com `is_demo: false` preserva a fonte e não recebe aviso de demonstração.
+- Verificações: Vitest dirigido `AssistentePage.test.tsx`: 12 passaram. Tipos TypeScript e Vite build passaram com cache incremental em /tmp; lint sem erros, com aviso preexistente em AuthProvider. Não foi executada jornada visual nesta rodada.
+- Limites: teste usa resposta controlada; não comprova número real, privacidade integral ou reprodução ponta a ponta. GENAI-09 continua em desenvolvimento e os estados oficiais IA permanecem inalterados. GENAI-08 permanece em validação (8/10). Sem commit/push desta mudança.
+
+### 01/11/2026 — GENAI-09: entrypoint Gold e diagnóstico do lote local
+
+- `ai-agent/app/gold_runtime.py::create_gold_app` compõe a fábrica existente com perfil Gold v2, fonte gold.local e auditoria durável obrigatória. A execução continua no Backend; token técnico não autoriza pergunta direta na GenAI.
+- Verificação Linux: `docker exec -w /repo/ai-agent genai08-tests-20261031 python -m pytest -q -p no:cacheprovider tests/test_gold_runtime.py`: 2 passaram. A tentativa Windows ficou sem conclusão e não conta como prova.
+- Observador existente executado no snapshot real com acesso administrativo de diagnóstico: controles C01/C02/C04 passaram. A pessoa usuária aprovou esses três controles para esta entrega local. Isso não aprova outros controles nem comprova o endpoint público.
+- Bloqueio operacional confirmado: v_energy_app não tem USAGE em gold_v2. Revisão automática rejeitou conceder leitura das quinze tabelas ao papel sem autorização explícita desse alcance; autorização solicitada. Nenhum privilégio foi alterado nessa tentativa. Processo público e jornada do portal ainda não comprovados; estados oficiais preservados. Alterações locais sem commit/push.
+
+### 01/11/2026 — GENAI-09: primeira resposta real pela API com Gemini
+
+- Login individual e pergunta pública concluídos com HTTP 200/answered e referência de auditoria. PostgreSQL Gold v2 real, planejamento/síntese HTTP e Gemini configurado; sem fallback sintético. Valor, unidade, mês, filtros e origem conferem com controle SQL independente. Evidência sanitizada e comandos em docs/contracts/genai-first-question.md; amostra privada em work/genai09-local, fora do Git.
+- A pessoa usuária autorizou leitura operacional local das 15 tabelas analíticas/views e teste privado Gemini. Privilégios aplicados somente ao papel operacional; leitor quantitativo preservado. C01/C02/C04 aprovados explicitamente para a entrega local. As rejeições automáticas anteriores foram resolvidas por autorização explícita do alcance antes da execução.
+- Prompt v3 corrige instrução de claims: filtro não constitui dimensão da linha agregada. A versão anterior foi recusada corretamente; guard preservado. EntryPoint Gold reutiliza a fábrica e exige auditoria durável; Backend mantém compatibilidade de eventos v1/v2/v3.
+- Verificações: GenAI 99 + 25 testes passaram; Backend auditoria 3 passaram (aviso preexistente). Reconciliação privada passou. Prontidão isolada pelo host: 32,94 s; conexão Docker direta permitiu resposta no prazo de 35 s. Sem jornada visual nesta rodada.
+- GENAI-09 segue em desenvolvimento; falta portal, variantes de falha e replay desta referência. Estados oficiais IA preservados. Alterações locais sem commit/push.

@@ -188,6 +188,11 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
         </section>
       )}
       <AnalysisContext response={response} />
+      {response.audit_reference && (
+        <p className="break-all text-xs text-muted">
+          Referência para conferência: {response.audit_reference}
+        </p>
+      )}
       {response.limitations.length > 0 && (
         <ul
           aria-label="Limitações"
