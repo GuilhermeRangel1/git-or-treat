@@ -183,6 +183,8 @@ class UCConsumptionHistoryItem(BaseModel):
 class UCInvoiceHistoryItem(InvoiceDetail):
     billed_amount: float | None
     billed_energy_kwh: float | None
+    declared_status: str | None = None
+    declared_open_amount: float | None = None
 
 
 class UCMeterHistoryItem(MeterDetail):

@@ -37,6 +37,35 @@ def search(repository, q, page, page_size, order_by):
     return items, pagination, "available" if pagination["total"] else "empty"
 
 
+def meter_at_reference(rows):
+    """Seleção indicativa no instante da Gold, sem presumir histórico completo."""
+    unavailable = {"item": None, "status": "unavailable", "limitations": ["Dados insuficientes para identificar o medidor na data de referência da Gold."]}
+    if not rows or any(row["ingestao_data"] is None for row in rows):
+        return unavailable
+    dates = {row["ingestao_data"].date() for row in rows}
+    if len(dates) != 1:
+        return unavailable
+    reference = dates.pop()
+    candidates = []
+    for row in rows:
+        installed, removed = row["data_instalacao"], row["data_retirada"]
+        if removed is not None and removed < reference:
+            continue
+        if installed is not None and installed > reference:
+            continue
+        if (installed is None or removed == reference or
+                row["flag_instalacao_sentinela"] or row["flag_instalacao_futura"] or
+                row["flag_retirada_sentinela"] or row["flag_retirada_futura"]):
+            return unavailable
+        candidates.append(row)
+    if len(candidates) != 1:
+        return unavailable
+    row = candidates[0]
+    return {"item": {"meter_id": row["id_medidor"], "installed_at": row["data_instalacao"].isoformat(),
+                     "removed_at": row["data_retirada"].isoformat() if row["data_retirada"] else None},
+            "status": "partial", "limitations": [f"Medidor indicado pelas datas na referência Gold de {reference.isoformat()}; ausência de retirada não comprova atividade e o histórico pode estar incompleto."]}
+
+
 def overview(repository, uc_id, start, end):
     from app.services.uc_analytics import _measure_change
     start, end = period(repository, start, end)
@@ -57,7 +86,10 @@ def overview(repository, uc_id, start, end):
     comparison = {**snapshots, **{key: _measure_change(snapshots["initial"][key], snapshots["final"][key], key.endswith("amount")) for key in ("measured_energy_kwh", "billed_energy_kwh", "billed_amount", "paid_amount")}}
     is_v2 = repository.schema_version == "gold-csv-v2"
     generation = None
+    current_meter = {"item": None, "status": "unavailable", "limitations": [ABSENT]}
     if is_v2:
+        meters = repository.tables["medidor_uc"]
+        current_meter = meter_at_reference(repository.rows(select(meters).where(meters.c.id_uc == row["id_uc"])))
         table = repository.tables["gd_uc"]
         gd_rows = repository.rows(select(table).where(table.c.id_uc == row["id_uc"]))
         if gd_rows:
@@ -65,7 +97,7 @@ def overview(repository, uc_id, start, end):
             generation = {"capacity_kwp": gd["potencia_kwp"], "connection_date": gd["data_conexao"].isoformat() if gd["data_conexao"] else None, "modality": gd["modalidade"]}
     return {"data": {"profile": profile(row), "period": {"start": start, "end": end, "granularity": "month"},
                      "comparison": comparison, "open_invoices": {"count": None, "status": "unavailable", "limitations": [ABSENT]},
-                     "current_meter": {"item": None, "status": "unavailable", "limitations": [ABSENT]},
+                     "current_meter": current_meter,
                      "distributed_generation": {"items": [], "status": "unavailable", "limitations": ([f"Indicador cadastral de GD: {row['possui_gd'] or 'não informado'}; a potência em kWp aparece separadamente como cadastro observado."] if is_v2 else [ABSENT, f"Indicador cadastral de GD: {row['possui_gd'] or 'não informado'}; sem potência ou histórico."])},
                      "gold_generation": generation,
                      "section_status": {name: "partial" if name == "consumption" or (is_v2 and name in {"invoices", "meters", "interruptions", "calls"}) else "unavailable" for name in ("consumption", "invoices", "meters", "distributed_generation", "interruptions", "calls")}},
@@ -103,7 +135,7 @@ def history(repository, uc_id, section, start, end, page, page_size, order_by):
              ["Registros observados na Gold; ausência de registros não comprova cobertura completa.",
               "Datas ausentes não podem ser atribuídas ao período selecionado." if section in {"calls", "interruptions"} else
               "O período não filtra vínculos de medidores; datas ausentes permanecem indisponíveis." if section == "meters" else
-              "Valor faturado não comprova pagamento; situação e data de pagamento permanecem indisponíveis."]
+              "Situação declarada e valor nominal em aberto vêm da fonte; não comprovam pagamento nem saldo contábil."]
              if repository.schema_version == "gold-csv-v2" and section in {"invoices", "meters", "interruptions", "calls"} else [ABSENT])
     return {"data": {"items": items}, "pagination": pagination, "status": "partial" if pagination["total"] else "unavailable",
             "period": {"start": start, "end": end, "granularity": "month"}, "limitations": notes}
@@ -122,7 +154,8 @@ def history_v2(repository, uc_id, section, start, end, page, page_size, order_by
         rows, pagination = repository.page(stmt, page, page_size, sort.desc().nulls_last(), t.c.id_fatura.asc())
         return [{"invoice_id": r["id_fatura"], "competencia": r["mes_referencia"], "billed_amount": r["valor_total"],
                  "paid_amount": None, "billed_energy_kwh": None, "due_date": r["data_vencimento"].isoformat() if r["data_vencimento"] else None,
-                 "payment_date": None, "payment_status": "unknown", "currency_unit": "BRL"} for r in rows], pagination
+                 "payment_date": None, "payment_status": "unknown", "currency_unit": "BRL",
+                 "declared_status": r["status"], "declared_open_amount": r["valor_fatura_declarada_em_aberto_reais"]} for r in rows], pagination
     if section == "meters":
         t = tables["medidor_uc"]
         columns = {"installed_at": t.c.data_instalacao, "removed_at": t.c.data_retirada, "meter_id": t.c.id_medidor}
