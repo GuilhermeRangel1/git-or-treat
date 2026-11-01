@@ -195,12 +195,8 @@ def test_table_reference_limit_is_audited_before_executor(service_and_audit, mon
         pytest.fail("consulta acima do limite chegou ao executor")
 
     monkeypatch.setattr(service._executor, "execute", fail_if_executed)
-    aliases = ["a", "b", "c", "d", "e", "f"]
-    sql = (
-        f"SELECT {aliases[0]}.municipio FROM gold_indicadores AS {aliases[0]} "
-        + " ".join(
-            f"JOIN gold_indicadores AS {alias} ON 1 = 1" for alias in aliases[1:]
-        )
+    sql = " UNION ALL ".join(
+        "SELECT municipio FROM gold_indicadores" for _ in range(6)
     )
 
     with pytest.raises(SqlRejected) as info:
