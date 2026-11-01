@@ -142,6 +142,12 @@ Decoders validam o JSON e seu contexto antes de apresentar dados; filtros invál
 
 ## DEV-13.1 — contratos Gold no portal
 
+Na UC 360, o resumo identifica contagem de faturas **declaradas** em aberto e o histórico pode mostrar data de pagamento informada com sinais consistentes; nenhum dos dois comprova quitação. A seção de tratativas mostra eventos estruturados e preserva conteúdo restrito. O detalhe de Operação apresenta ocorrências Gold paginadas, com aviso de cobertura e vínculo cadastral.
+
+O detalhe Gold de Inspeções apresenta o cenário de queda de consumo entre trimestres homólogos como potencial para investigação, com dados de origem e ressalva de GD quando cadastrada. O valor não é apresentado como recuperação comprovada ou previsão validada.
+
+Cartões e colunas de valor pago aparecem quando há observação, inclusive zero; sem observações, a tela informa a limitação uma vez. Na série de Receita, a ausência integral de energia faturada também é explicada junto à tabela, sem confundir com energia medida. Em GD, a ausência de linha é descrita como ausência de registro e não certifica inexistência de geração.
+
 Na integração DEV-13.2, Receita, UC 360 e opções analíticas compartilham a identidade de publicação Gold v2 com as demais jornadas. Suas consultas incluem essa identidade nas chaves de cache; uma divergência provoca atualização coordenada, sem misturar lotes. Inspeções apresenta a limitação de energia recuperável individual uma vez na fila e mantém os detalhes por UC. Em Receita, os valores dos cartões se ajustam ao espaço disponível.
 
 Panorama, Inspeções (entrada de criação de Ordens), fundamentos de Ordens e Operação têm adaptadores de contrato Gold v2, preservando os consumidores sintéticos. Nulos e estados parciais são explícitos; a interface não calcula recuperação nem reconstrói ocorrências. Snapshots operacionais v2 são históricos, independentes da Gold atual; legado/v1 permanecem legíveis.

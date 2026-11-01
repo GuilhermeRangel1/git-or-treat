@@ -316,20 +316,27 @@ describe("UC 360 search flow", () => {
       }),
     ).toBeTruthy();
     expect(
-      within(financialComparison).getByRole("heading", {
+      within(financialComparison).queryByRole("heading", {
         name: "Valor pago (BRL)",
       }),
+    ).toBeNull();
+    expect(
+      within(financialComparison).getByText(
+        /valor efetivamente pago não está disponível/,
+      ),
     ).toBeTruthy();
     const billingSupport = screen.getByRole("region", {
       name: "Apoio ao atendimento",
     });
     expect(
       within(billingSupport).getByRole("heading", {
-        name: "Faturas em aberto",
+        name: "Faturas declaradas em aberto",
       }),
     ).toBeTruthy();
     expect(
-      within(billingSupport).getByText(/contagem, sem saldo ou atraso/),
+      within(billingSupport).getByText(
+        /situação declarada, sem saldo confirmado/,
+      ),
     ).toBeTruthy();
     expect(
       screen.getByRole("columnheader", { name: "Competência" }),

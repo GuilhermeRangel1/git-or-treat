@@ -130,32 +130,38 @@ export function UC360SupportMetrics({ data }: { data: UCOverview["data"] }) {
           value={
             data.gold_generation?.capacity_kwp != null
               ? `${decimal.format(data.gold_generation.capacity_kwp)} kWp`
-              : data.distributed_generation.items.length > 0
-                ? data.distributed_generation.items
-                    .map((item) => `${decimal.format(item.capacity_kw)} kW`)
-                    .join(" · ")
-                : data.distributed_generation.status === "empty"
-                  ? "Sem cadastro"
-                  : "Sem dado"
+              : data.gold_generation_record === false
+                ? "Sem registro de GD"
+                : data.gold_generation_record === true
+                  ? "Potência não informada"
+                  : data.distributed_generation.items.length > 0
+                    ? data.distributed_generation.items
+                        .map((item) => `${decimal.format(item.capacity_kw)} kW`)
+                        .join(" · ")
+                    : data.distributed_generation.status === "empty"
+                      ? "Sem cadastro"
+                      : "Sem dado"
           }
           detail={
-            data.gold_generation
-              ? "Potência de pico cadastrada em kWp; não é geração ou energia compensada."
-              : "Potência cadastrada em kW; não é energia compensada."
+            data.gold_generation_record === false
+              ? "Nenhum cadastro de geração encontrado na fonte; cobertura não certificada."
+              : data.gold_generation
+                ? "Potência de pico cadastrada em kWp; não é geração ou energia compensada."
+                : "Potência cadastrada em kW; não é energia compensada."
           }
           status={
-            data.gold_generation
+            data.gold_generation_record != null
               ? "partial"
               : data.distributed_generation.status
           }
           limitations={data.distributed_generation.limitations}
         />
         <SummaryMetric
-          title="Faturas em aberto"
+          title="Faturas declaradas em aberto"
           value={
             data.open_invoices.count?.toLocaleString("pt-BR") ?? "Sem dado"
           }
-          detail={`${formatUCCompetence(data.period.start)} a ${formatUCCompetence(data.period.end)} · contagem, sem saldo ou atraso`}
+          detail={`${formatUCCompetence(data.period.start)} a ${formatUCCompetence(data.period.end)} · situação declarada, sem saldo confirmado`}
           status={data.open_invoices.status}
           limitations={data.open_invoices.limitations}
         />
@@ -170,6 +176,9 @@ export function UC360Comparison({
   comparison: UCOverview["data"]["comparison"];
 }) {
   const comparisonPeriod = `${formatUCCompetence(comparison.initial.competencia)} → ${formatUCCompetence(comparison.final.competencia)}`;
+  const showPaid =
+    comparison.initial.paid_amount.value !== null ||
+    comparison.final.paid_amount.value !== null;
   return (
     <section className="grid gap-4" aria-label="Indicadores comparativos">
       <h2 className="font-heading text-xl font-semibold text-content">
@@ -219,15 +228,22 @@ export function UC360Comparison({
             unit="BRL"
             period={comparisonPeriod}
           />
-          <Metric
-            title="Valor pago (BRL)"
-            current={comparison.final.paid_amount}
-            before={comparison.initial.paid_amount}
-            change={comparison.paid_amount}
-            unit="BRL"
-            period={comparisonPeriod}
-          />
+          {showPaid && (
+            <Metric
+              title="Valor pago (BRL)"
+              current={comparison.final.paid_amount}
+              before={comparison.initial.paid_amount}
+              change={comparison.paid_amount}
+              unit="BRL"
+              period={comparisonPeriod}
+            />
+          )}
         </div>
+        {!showPaid && (
+          <p className="text-xs text-muted">
+            O valor efetivamente pago não está disponível nesta consulta.
+          </p>
+        )}
       </div>
     </section>
   );

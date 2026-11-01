@@ -143,6 +143,7 @@ class UCOverviewData(BaseModel):
     current_meter: UCMeterMeasure
     distributed_generation: UCGenerationSection
     gold_generation: UCGoldGeneration | None = None
+    gold_generation_record: bool | None = None
     section_status: dict[str, AnalyticsStatus]
 
 
@@ -185,6 +186,7 @@ class UCInvoiceHistoryItem(InvoiceDetail):
     billed_energy_kwh: float | None
     declared_status: str | None = None
     declared_open_amount: float | None = None
+    declared_payment_date: str | None = None
 
 
 class UCMeterHistoryItem(MeterDetail):
@@ -203,6 +205,14 @@ class UCCallHistoryItem(CallDetail):
     pass
 
 
+class UCTreatmentHistoryItem(BaseModel):
+    call_id: str
+    position: int
+    treatment_date: str | None
+    action_category: str
+    channel: str
+
+
 UCHistoryItem = (
     UCConsumptionHistoryItem
     | UCInvoiceHistoryItem
@@ -210,6 +220,7 @@ UCHistoryItem = (
     | UCGenerationHistoryItem
     | UCInterruptionHistoryItem
     | UCCallHistoryItem
+    | UCTreatmentHistoryItem
 )
 
 

@@ -20,6 +20,7 @@ HISTORY_ORDER = {
     "distributed_generation": {"capacity_kw", "status"},
     "interruptions": {"competencia", "event_id", "duration_hours"},
     "calls": {"opened_at", "call_id", "category"},
+    "treatments": {"opened_at"},
 }
 
 
@@ -632,6 +633,8 @@ def build_uc_history(
     start, end = validate_period(start, end)
     unit = _lookup_unit(repository, uc_id)
     uc_id = unit["uc_id"]
+    if section == "treatments":
+        return {"data": {"items": []}, "pagination": {"page": page, "page_size": page_size, "total": 0, "total_pages": 0}, "status": "unavailable", "period": {"start": start, "end": end, "granularity": "month"}, "limitations": ["Tratativas não estão disponíveis na fonte demonstrativa."]}
     if section not in HISTORY_ORDER:
         raise AnalyticsAPIError(
             422,

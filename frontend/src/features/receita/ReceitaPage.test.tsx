@@ -16,6 +16,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ReceitaPage from "./ReceitaPage";
 import RevenueBreakdown from "./RevenueBreakdown";
+import RevenueSeries from "./RevenueSeries";
 import type { RevenueEnvelope } from "./contract";
 import { revenueRefinementDestination } from "./revenue-filters";
 
@@ -194,6 +195,35 @@ const response = {
     limitations: ["Valor pago está parcial."],
   },
 };
+
+it("oculta colunas inteiramente ausentes e volta a mostrá-las para zero observado", () => {
+  const data = structuredClone(response);
+  data.data.series.forEach((row) => {
+    (row as { paid_amount: number | null }).paid_amount = null;
+    (row as { billed_energy_kwh: number | null }).billed_energy_kwh = null;
+  });
+  const { rerender } = render(
+    <RevenueSeries envelope={data as unknown as RevenueEnvelope} />,
+  );
+  expect(
+    screen.queryByRole("columnheader", { name: "Receita paga (BRL)" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("columnheader", { name: "Energia faturada (kWh)" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/Energia faturada não está disponível/),
+  ).toBeVisible();
+  data.data.series[0].paid_amount = 0;
+  data.data.series[0].billed_energy_kwh = 0;
+  rerender(<RevenueSeries envelope={data as unknown as RevenueEnvelope} />);
+  expect(
+    screen.getByRole("columnheader", { name: "Receita paga (BRL)" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("columnheader", { name: "Energia faturada (kWh)" }),
+  ).toBeVisible();
+});
 
 it("pagina muitos recortes e mantém a soma de todos os grupos", async () => {
   const data = structuredClone(response);

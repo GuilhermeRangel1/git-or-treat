@@ -36,6 +36,17 @@ class ConsumptionComparison(BaseModel):
     unavailable_reason: str | None
 
 
+class InvestigationPotential(BaseModel):
+    baseline_start: str
+    baseline_end: str
+    recent_start: str
+    recent_end: str
+    baseline_kwh: float | None = Field(ge=0)
+    recent_kwh: float | None = Field(ge=0)
+    potential_kwh: float | None = Field(ge=0)
+    unavailable_reason: str | None
+
+
 class SuspicionDetail(InspectionQueueItem):
     rule_version: str
     signals: list[SignalEvidence]
@@ -149,6 +160,7 @@ class GoldSuspicionDetail(GoldInspectionItem):
     rule_version: str
     limitations: list[str]
     consumption_comparison: ConsumptionComparison | None = None
+    investigation_potential: InvestigationPotential | None = None
 
 
 class GoldSuspicionResponse(BaseModel):

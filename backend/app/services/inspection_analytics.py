@@ -1,6 +1,6 @@
 from app.repositories.analytics import AnalyticsRepository
 from app.repositories.gold_inspections import GoldInspectionRepository
-from app.services.gold_inspections import comparison_from_rows
+from app.services.gold_inspections import comparison_from_rows, investigation_potential_from_rows
 from app.schemas.analytics import AnalyticsFilters, AnalyticsSource, AnalyticsStatus
 from app.schemas.gold import GoldMetadata
 from app.schemas.inspection_queue import (
@@ -274,6 +274,7 @@ def build_gold_suspicion_response(repository: GoldInspectionRepository, uc_id: s
     return GoldSuspicionResponse(
         data=GoldSuspicionDetail(**item.model_dump(), rule_version=GOLD_INSPECTION_RULE_VERSION,
                                  consumption_comparison=comparison_from_rows(rows, end) if end else None,
+                                 investigation_potential=investigation_potential_from_rows(rows, end, repository.meter_rows(uc_id)) if end else None,
                                  limitations=list(GOLD_INSPECTION_LIMITATIONS)),
         metadata=_gold_metadata(repository, "available", AnalyticsFilters()),
     )

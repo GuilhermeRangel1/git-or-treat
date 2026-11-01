@@ -9,6 +9,7 @@ import type {
 import { formatNumber } from "./operation-format";
 import OperationSeries from "./OperationSeries";
 import GoldOperationFoundations from "./GoldOperationFoundations";
+import GoldOccurrences from "./GoldOccurrences";
 
 function stateLabel(state: string) {
   return (
@@ -150,6 +151,12 @@ export default function GoldOperationView({
             summary={selected}
             metadata={detail.metadata}
             definition={detail.data.definition}
+          />
+          <GoldOccurrences
+            key={`${selected.feeder_id}-${selected.period.start}-${selected.period.end}`}
+            feeder={selected.feeder_id}
+            start={selected.period.start}
+            end={selected.period.end}
           />
         </section>
       ) : !detailLoading && !detailError ? (

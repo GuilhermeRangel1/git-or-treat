@@ -1,5 +1,5 @@
 """UC Gold: agregado mensal e cadastro observado; detalhes ausentes explícitos."""
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -86,20 +86,33 @@ def overview(repository, uc_id, start, end):
     comparison = {**snapshots, **{key: _measure_change(snapshots["initial"][key], snapshots["final"][key], key.endswith("amount")) for key in ("measured_energy_kwh", "billed_energy_kwh", "billed_amount", "paid_amount")}}
     is_v2 = repository.schema_version == "gold-csv-v2"
     generation = None
+    generation_record = None
+    open_invoices = {"count": None, "status": "unavailable", "limitations": [ABSENT]}
     current_meter = {"item": None, "status": "unavailable", "limitations": [ABSENT]}
     if is_v2:
+        invoices = repository.tables["faturas_uc"]
+        invoice_summary = repository.rows(select(
+            func.count().label("total"),
+            func.sum(case((func.upper(func.trim(invoices.c.status)) == "EM ABERTO", 1), else_=0)).label("declared_open"),
+        ).where(invoices.c.id_uc == row["id_uc"], invoices.c.mes_referencia.between(start, end)))[0]
+        if invoice_summary["total"]:
+            open_invoices = {"count": invoice_summary["declared_open"], "status": "partial", "limitations": [
+                "Contagem por situação declarada nas faturas observadas na competência selecionada; não comprova saldo, quitação ou cobertura completa."
+            ]}
         meters = repository.tables["medidor_uc"]
         current_meter = meter_at_reference(repository.rows(select(meters).where(meters.c.id_uc == row["id_uc"])))
         table = repository.tables["gd_uc"]
         gd_rows = repository.rows(select(table).where(table.c.id_uc == row["id_uc"]))
+        generation_record = bool(gd_rows)
         if gd_rows:
             gd = gd_rows[0]
             generation = {"capacity_kwp": gd["potencia_kwp"], "connection_date": gd["data_conexao"].isoformat() if gd["data_conexao"] else None, "modality": gd["modalidade"]}
     return {"data": {"profile": profile(row), "period": {"start": start, "end": end, "granularity": "month"},
-                     "comparison": comparison, "open_invoices": {"count": None, "status": "unavailable", "limitations": [ABSENT]},
+                     "comparison": comparison, "open_invoices": open_invoices,
                      "current_meter": current_meter,
                      "distributed_generation": {"items": [], "status": "unavailable", "limitations": ([f"Indicador cadastral de GD: {row['possui_gd'] or 'não informado'}; a potência em kWp aparece separadamente como cadastro observado."] if is_v2 else [ABSENT, f"Indicador cadastral de GD: {row['possui_gd'] or 'não informado'}; sem potência ou histórico."])},
                      "gold_generation": generation,
+                     "gold_generation_record": generation_record,
                      "section_status": {name: "partial" if name == "consumption" or (is_v2 and name in {"invoices", "meters", "interruptions", "calls"}) else "unavailable" for name in ("consumption", "invoices", "meters", "distributed_generation", "interruptions", "calls")}},
             "status": "partial", "limitations": (["Consumo e receita mensais são agregados publicados; não são faturas individuais.",
                 "Nome do titular, pagamento efetivo e energia faturada não estão disponíveis no pacote analítico.",
@@ -129,14 +142,14 @@ def history(repository, uc_id, section, start, end, page, page_size, order_by):
             value = None if incomplete else point["consumo_kwh"]
             items.append({"competencia": point["competencia"], "measured_energy_kwh": value,
                           "billed_amount": point["receita_reais"], "status": "partial" if incomplete else "available" if value is not None else "unavailable"})
-    elif repository.schema_version == "gold-csv-v2" and section in {"invoices", "meters", "interruptions", "calls"}:
+    elif repository.schema_version == "gold-csv-v2" and section in {"invoices", "meters", "interruptions", "calls", "treatments"}:
         items, pagination = history_v2(repository, row["id_uc"], section, start, end, page, page_size, order_by)
     notes = (["Histórico mensal agregado da Gold; competências sem registro não são zero conhecido; leituras inválidas tornam o consumo indisponível."] if section == "consumption" else
              ["Registros observados na Gold; ausência de registros não comprova cobertura completa.",
               "Datas ausentes não podem ser atribuídas ao período selecionado." if section in {"calls", "interruptions"} else
               "O período não filtra vínculos de medidores; datas ausentes permanecem indisponíveis." if section == "meters" else
               "Situação declarada e valor nominal em aberto vêm da fonte; não comprovam pagamento nem saldo contábil."]
-             if repository.schema_version == "gold-csv-v2" and section in {"invoices", "meters", "interruptions", "calls"} else [ABSENT])
+             if repository.schema_version == "gold-csv-v2" and section in {"invoices", "meters", "interruptions", "calls"} else ["Tratativas dos chamados abertos no período; categorias restritas não revelam o texto original."] if section == "treatments" else [ABSENT])
     return {"data": {"items": items}, "pagination": pagination, "status": "partial" if pagination["total"] else "unavailable",
             "period": {"start": start, "end": end, "granularity": "month"}, "limitations": notes}
 
@@ -155,7 +168,9 @@ def history_v2(repository, uc_id, section, start, end, page, page_size, order_by
         return [{"invoice_id": r["id_fatura"], "competencia": r["mes_referencia"], "billed_amount": r["valor_total"],
                  "paid_amount": None, "billed_energy_kwh": None, "due_date": r["data_vencimento"].isoformat() if r["data_vencimento"] else None,
                  "payment_date": None, "payment_status": "unknown", "currency_unit": "BRL",
-                 "declared_status": r["status"], "declared_open_amount": r["valor_fatura_declarada_em_aberto_reais"]} for r in rows], pagination
+                 "declared_status": r["status"], "declared_open_amount": r["valor_fatura_declarada_em_aberto_reais"],
+                 "declared_payment_date": (r["data_pagamento"].isoformat() if r["data_pagamento"] is not None and (r["status"] or "").strip().upper() == "PAGA" and r["flag_paga"] is True and r["flag_tem_pagamento"] is True and
+                     all(r[flag] is False for flag in ("flag_data_pagamento_inconclusiva", "flag_pagamento_antes_emissao", "flag_pagamento_sentinela", "flag_pagamento_futuro")) else None)} for r in rows], pagination
     if section == "meters":
         t = tables["medidor_uc"]
         columns = {"installed_at": t.c.data_instalacao, "removed_at": t.c.data_retirada, "meter_id": t.c.id_medidor}
@@ -166,6 +181,14 @@ def history_v2(repository, uc_id, section, start, end, page, page_size, order_by
     first = datetime(int(start[:4]), int(start[5:]), 1, tzinfo=timezone.utc)
     year, month = int(end[:4]), int(end[5:])
     last = None if (year, month) == (9999, 12) else datetime(year + (month == 12), month % 12 + 1, 1, tzinfo=timezone.utc)
+    if section == "treatments":
+        t = tables["tratativas_uc"]
+        calls = tables["atendimentos_uc"]
+        stmt = select(t).join(calls, (t.c.protocolo == calls.c.protocolo) & (t.c.id_uc == calls.c.id_uc)).where(t.c.id_uc == uc_id, calls.c.data_abertura >= first)
+        if last is not None:
+            stmt = stmt.where(calls.c.data_abertura < last)
+        rows, pagination = repository.page(stmt, page, page_size, calls.c.data_abertura.desc(), t.c.protocolo.asc(), t.c.posicao_historico.asc())
+        return [{"call_id": r["protocolo"], "position": r["posicao_historico"], "treatment_date": r["data_tratativa"].isoformat() if r["data_tratativa"] else None, "action_category": r["acao_categoria"] or "Não informado", "channel": r["canal"] or "Não informado"} for r in rows], pagination
     t = tables["ocorrencias_uc" if section == "interruptions" else "atendimentos_uc"]
     opened = t.c.data_abertura
     if section == "interruptions":

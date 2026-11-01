@@ -111,6 +111,7 @@ def get_uc_history(
         "distributed_generation",
         "interruptions",
         "calls",
+        "treatments",
     ],
     repository: AnalyticsRepositoryDep,
     start: str | None = Query(None, min_length=7, max_length=7),

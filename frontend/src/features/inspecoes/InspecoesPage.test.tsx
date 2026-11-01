@@ -158,7 +158,7 @@ const goldItem = {
     inspections_performed: 0,
     confirmed_irregular_inspections: null,
     historical_average_kwh_per_reading: null,
-    distributed_generation_present: null,
+    distributed_generation_present: "Sim",
     cadastral_status: "ATIVA",
     call_center_contacts: null,
     interruptions: null,
@@ -207,6 +207,16 @@ const goldDetail = {
     ...goldItem,
     rule_version: "gold-fila-inspecao-v1",
     limitations: ["A categoria não é prioridade operacional."],
+    investigation_potential: {
+      baseline_start: "2023-11",
+      baseline_end: "2024-01",
+      recent_start: "2024-11",
+      recent_end: "2025-01",
+      baseline_kwh: 900,
+      recent_kwh: 600,
+      potential_kwh: 300,
+      unavailable_reason: null,
+    },
     consumption_comparison: {
       baseline_start: "2024-08",
       baseline_end: "2024-10",
@@ -325,6 +335,17 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
     await screen.findByText("Energia recuperável indisponível"),
   ).toBeVisible();
   expect(screen.getByText(/snapshot sem competência mensal/)).toBeVisible();
+  expect(
+    screen.getByRole("region", {
+      name: "Potencial estimado para investigação",
+    }),
+  ).toHaveTextContent("300 kWh");
+  expect(
+    screen.getByText(/geração distribuída cadastrada; ela pode influenciar/),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/Não é energia recuperada, previsão validada/),
+  ).toBeVisible();
   expect(
     screen.getByRole("region", { name: "Referência histórica de recuperação" }),
   ).toHaveTextContent("não é estimativa para esta UC");

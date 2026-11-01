@@ -148,6 +148,16 @@ export type GoldDetailEnvelope = {
     rule_version: string;
     limitations: string[];
     consumption_comparison: SyntheticDetailEnvelope["data"]["consumption_comparison"];
+    investigation_potential: {
+      baseline_start: string;
+      baseline_end: string;
+      recent_start: string;
+      recent_end: string;
+      baseline_kwh: number | null;
+      recent_kwh: number | null;
+      potential_kwh: number | null;
+      unavailable_reason: string | null;
+    } | null;
   };
   metadata: GoldMetadata;
 };
@@ -509,6 +519,9 @@ export function decodeDetail(value: unknown): DetailEnvelope {
         consumption_comparison: decodeConsumptionComparison(
           data.consumption_comparison,
         ),
+        investigation_potential: decodeInvestigationPotential(
+          data.investigation_potential,
+        ),
       },
       metadata: decodeGoldMetadata(root.metadata),
     };
@@ -555,6 +568,38 @@ export function decodeDetail(value: unknown): DetailEnvelope {
       limitations: strings(data.limitations),
     },
     metadata: metadata(root.metadata) as SyntheticMetadata,
+  };
+}
+
+function decodeInvestigationPotential(
+  value: unknown,
+): GoldDetailEnvelope["data"]["investigation_potential"] {
+  if (value == null) return null;
+  const item = record(value);
+  const baseline = nullable(item.baseline_kwh);
+  const recent = nullable(item.recent_kwh);
+  const potential = nullable(item.potential_kwh);
+  const reason =
+    item.unavailable_reason === null ? null : string(item.unavailable_reason);
+  if (
+    (potential === null &&
+      (baseline !== null || recent !== null || reason === null)) ||
+    (potential !== null &&
+      (baseline === null ||
+        recent === null ||
+        reason !== null ||
+        Math.abs(potential - Math.max(0, baseline - recent)) > 0.000001))
+  )
+    invalid();
+  return {
+    baseline_start: string(item.baseline_start),
+    baseline_end: string(item.baseline_end),
+    recent_start: string(item.recent_start),
+    recent_end: string(item.recent_end),
+    baseline_kwh: baseline,
+    recent_kwh: recent,
+    potential_kwh: potential,
+    unavailable_reason: reason,
   };
 }
 

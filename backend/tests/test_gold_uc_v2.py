@@ -30,7 +30,7 @@ def publish_fixture():
     dependency = app.dependency_overrides[get_analytics_db]()
     db = next(dependency)
     try:
-        for name in ("visao_360_uc", "consumo_mensal_uc", "faturas_uc", "medidor_uc", "atendimentos_uc", "ocorrencias_uc", "gd_uc"):
+        for name in ("visao_360_uc", "consumo_mensal_uc", "faturas_uc", "medidor_uc", "atendimentos_uc", "ocorrencias_uc", "gd_uc", "tratativas_uc"):
             TABLES[name].create(db.get_bind())
         db.execute(TABLES["visao_360_uc"].insert(), [
             {"id_uc": "FAKE-A", "municipio": "Cidade", "bairro": "Centro", "classe": "Residencial", "alimentador": "AL-1", "status": "ATIVA", "possui_gd": "Sim"},
@@ -41,14 +41,17 @@ def publish_fixture():
             {"id_uc": "FAKE-A", "competencia": "2025-02", "consumo_kwh": 30., "receita_reais": 50., "qtd_leituras_observadas": 2, "qtd_leituras_validas": 1},
             {"id_uc": "FAKE-B", "competencia": "2025-01", "consumo_kwh": 999., "receita_reais": 999., "qtd_leituras_observadas": 1, "qtd_leituras_validas": 1},
         ])
-        db.execute(TABLES["faturas_uc"].insert(), [
-            {"id_fatura": "F-1", "id_uc": "FAKE-A", "mes_referencia": "2025-01", "valor_total": 20., "data_vencimento": date(2025, 2, 10), "status": "EM ABERTO", "valor_fatura_declarada_em_aberto_reais": 20.},
+        for invoice in [
+            {"id_fatura": "F-1", "id_uc": "FAKE-A", "mes_referencia": "2025-01", "valor_total": 20., "data_vencimento": date(2025, 2, 10), "status": "EM ABERTO", "valor_fatura_declarada_em_aberto_reais": 20., "data_pagamento": date(2025, 2, 11), "flag_data_pagamento_inconclusiva": False, "flag_pagamento_antes_emissao": False, "flag_pagamento_sentinela": False, "flag_pagamento_futuro": False},
             {"id_fatura": "F-2", "id_uc": "FAKE-B", "mes_referencia": "2025-01", "valor_total": 999., "data_vencimento": date(2025, 2, 10), "status": None, "valor_fatura_declarada_em_aberto_reais": None},
-        ])
+            {"id_fatura": "F-3", "id_uc": "FAKE-A", "mes_referencia": "2025-02", "valor_total": 25., "status": "PAGA", "data_pagamento": date(2025, 3, 1), "flag_paga": True, "flag_tem_pagamento": True, "flag_data_pagamento_inconclusiva": False, "flag_pagamento_antes_emissao": False, "flag_pagamento_sentinela": False, "flag_pagamento_futuro": False},
+        ]:
+            db.execute(TABLES["faturas_uc"].insert().values(**invoice))
         db.execute(TABLES["medidor_uc"].insert().values(id_medidor="M-1", id_uc="FAKE-A", data_instalacao=None))
         db.execute(TABLES["medidor_uc"].insert().values(id_medidor="M-2", id_uc="FAKE-B", data_instalacao=date(2024, 1, 1), ingestao_data=datetime(2025, 3, 1, tzinfo=timezone.utc)))
         db.execute(TABLES["gd_uc"].insert().values(id_uc="FAKE-A", potencia_kwp=3.5, modalidade="AUTOCONSUMO"))
         db.execute(TABLES["atendimentos_uc"].insert().values(protocolo="C-1", id_uc="FAKE-A", data_abertura=datetime(2025, 1, 3, tzinfo=timezone.utc), assunto="Atendimento"))
+        db.execute(TABLES["tratativas_uc"].insert().values(protocolo="C-1", id_uc="FAKE-A", posicao_historico=1, acao_categoria="CONTEUDO_RESTRITO", canal="TELEFONE"))
         db.execute(TABLES["ocorrencias_uc"].insert().values(id_ocorrencia="E-1", id_uc="FAKE-A", data_abertura=datetime(2025, 2, 3, tzinfo=timezone.utc), duracao_min=None))
         db.execute(BATCH.update().values(schema_version="gold-csv-v2", publication_id="test-publication"))
         db.commit()
@@ -70,9 +73,12 @@ def test_uc_v2_search_overview_and_histories_keep_uc_scope_and_absence(gold_clie
     other_overview = client.get("/api/v1/ucs/FAKE-B/overview?start=2025-01&end=2025-02").json()["data"]
     assert other_overview["current_meter"]["item"]["meter_id"] == "M-2"
     assert other_overview["current_meter"]["status"] == "partial"
-    assert data["open_invoices"]["count"] is None
+    assert other_overview["gold_generation_record"] is False
+    assert data["open_invoices"]["count"] == 1
+    assert data["open_invoices"]["status"] == "partial"
     assert data["profile"]["customer_name"] is None
     assert data["gold_generation"]["capacity_kwp"] == 3.5
+    assert data["gold_generation_record"] is True
     series = client.get("/api/v1/ucs/FAKE-A/history/consumption?start=2025-01&end=2025-03").json()
     assert [item["competencia"] for item in series["data"]["items"]] == ["2025-02", "2025-01"]
     assert series["data"]["items"][0]["measured_energy_kwh"] is None
@@ -85,14 +91,22 @@ def test_uc_v2_search_overview_and_histories_keep_uc_scope_and_absence(gold_clie
     for section in ("invoices", "meters", "calls", "interruptions"):
         response = client.get(f"/api/v1/ucs/FAKE-A/history/{section}?start=2025-01&end=2025-02")
         assert response.status_code == 200, response.text
-        assert response.json()["pagination"]["total"] == 1
+        assert response.json()["pagination"]["total"] == (2 if section == "invoices" else 1)
         assert response.json()["metadata"]["status"] == "partial"
-    invoice = client.get("/api/v1/ucs/FAKE-A/history/invoices?start=2025-01&end=2025-02").json()["data"]["items"][0]
+    invoices = client.get("/api/v1/ucs/FAKE-A/history/invoices?start=2025-01&end=2025-02").json()["data"]["items"]
+    invoice = next(item for item in invoices if item["invoice_id"] == "F-1")
     assert invoice["invoice_id"] == "F-1" and invoice["paid_amount"] is None and invoice["payment_status"] == "unknown"
     assert invoice["declared_status"] == "EM ABERTO" and invoice["declared_open_amount"] == 20
+    assert invoice["declared_payment_date"] is None and invoice["payment_date"] is None
+    assert next(item for item in invoices if item["invoice_id"] == "F-3")["declared_payment_date"] == "2025-03-01"
+    assert client.get("/api/v1/ucs/FAKE-A/overview?start=2025-02&end=2025-02").json()["data"]["open_invoices"]["count"] == 0
+    assert client.get("/api/v1/ucs/FAKE-A/overview?start=2024-01&end=2024-01").json()["data"]["open_invoices"]["count"] is None
     other = client.get("/api/v1/ucs/FAKE-B/history/invoices?start=2025-01&end=2025-02").json()["data"]["items"][0]
     assert other["declared_status"] is None and other["declared_open_amount"] is None
     event = client.get("/api/v1/ucs/FAKE-A/history/interruptions?start=2025-01&end=2025-02").json()["data"]["items"][0]
     assert event["duration_hours"] is None
+    treatment = client.get("/api/v1/ucs/FAKE-A/history/treatments?start=2025-01&end=2025-02").json()
+    assert treatment["data"]["items"] == [{"call_id": "C-1", "position": 1, "treatment_date": None, "action_category": "CONTEUDO_RESTRITO", "channel": "TELEFONE"}]
+    assert client.get("/api/v1/ucs/FAKE-B/history/treatments?start=2025-01&end=2025-02").json()["data"]["items"] == []
     assert client.get("/api/v1/ucs/FAKE-A/history/invoices?order_by=payment_date").status_code == 422
     assert client.get("/api/v1/ucs/FAKE-A/history/distributed_generation").json()["metadata"]["status"] == "unavailable"

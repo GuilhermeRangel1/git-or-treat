@@ -80,6 +80,41 @@ def comparison_from_rows(rows, end):
     return result
 
 
+def investigation_potential_from_rows(rows, end, meters=()):
+    """Cenário de queda de consumo em trimestres homólogos, não recuperação comprovada."""
+    year, month = map(int, end.split("-"))
+    last = year * 12 + month - 1
+    if last - 14 < 12:
+        return None
+    recent = [f"{value // 12:04d}-{value % 12 + 1:02d}" for value in range(last - 2, last + 1)]
+    baseline = [f"{value // 12:04d}-{value % 12 + 1:02d}" for value in range(last - 14, last - 11)]
+    result = {"baseline_start": baseline[0], "baseline_end": baseline[-1],
+              "recent_start": recent[0], "recent_end": recent[-1],
+              "baseline_kwh": None, "recent_kwh": None, "potential_kwh": None,
+              "unavailable_reason": None}
+    for meter in meters:
+        for field, sentinel, future in (("data_instalacao", "flag_instalacao_sentinela", "flag_instalacao_futura"),
+                                        ("data_retirada", "flag_retirada_sentinela", "flag_retirada_futura")):
+            event_date = meter[field]
+            if (event_date is not None and not meter[sentinel] and not meter[future] and
+                    baseline[0] <= event_date.strftime("%Y-%m") <= recent[-1]):
+                result["unavailable_reason"] = "Instalação ou retirada de medidor registrada entre os períodos; a comparação exige revisão."
+                return result
+    by_month = {row["competencia"]: row for row in rows}
+    for competence in baseline + recent:
+        row = by_month.get(competence)
+        value = row["consumo_kwh"] if row else None
+        if (row is None or value is None or not math.isfinite(value) or value < 0 or
+                not row["qtd_leituras_observadas"] or row["qtd_leituras_observadas"] < 0 or
+                row["qtd_leituras_validas"] != row["qtd_leituras_observadas"]):
+            result["unavailable_reason"] = "São necessárias leituras válidas nos seis meses correspondentes; lacunas não são zero."
+            return result
+    earlier = math.fsum(by_month[m]["consumo_kwh"] for m in baseline)
+    current = math.fsum(by_month[m]["consumo_kwh"] for m in recent)
+    result.update(baseline_kwh=earlier, recent_kwh=current, potential_kwh=max(0.0, earlier - current))
+    return result
+
+
 def suspicion_response(repository, uc_id):
     row = repository.unit(uc_id)
     table = repository.tables["fila_inspecao"]

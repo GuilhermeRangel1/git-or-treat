@@ -20,6 +20,7 @@ it("apresenta a informação declarada sem afirmá-la como pagamento ou saldo", 
             currency_unit: "BRL",
             declared_status: "EM ABERTO",
             declared_open_amount: 20,
+            declared_payment_date: "2025-02-11",
           },
         ],
       },
@@ -67,4 +68,8 @@ it("apresenta a informação declarada sem afirmá-la como pagamento ou saldo", 
   expect(screen.queryByText("Situação desconhecida")).not.toBeInTheDocument();
   expect(screen.queryByText("Valor pago")).not.toBeInTheDocument();
   expect(screen.queryByText("Energia faturada")).not.toBeInTheDocument();
+  expect(
+    screen.getAllByText("Data de pagamento informada").length,
+  ).toBeGreaterThan(0);
+  expect(screen.getAllByText("11/02/2025").length).toBeGreaterThan(0);
 });

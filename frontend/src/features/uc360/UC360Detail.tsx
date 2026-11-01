@@ -207,11 +207,17 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                     Geração própria:{" "}
                     {selected.gold_generation?.capacity_kwp != null
                       ? `${selected.gold_generation.capacity_kwp.toLocaleString("pt-BR")} kWp (cadastro observado)`
-                      : selected.distributed_generation.items.length
-                        ? selected.distributed_generation.items
-                            .map((item) => formatUCPower(item.capacity_kw))
-                            .join(", ")
-                        : statusLabel(selected.distributed_generation.status)}
+                      : selected.gold_generation_record === false
+                        ? "sem registro na fonte; cobertura não certificada"
+                        : selected.gold_generation_record === true
+                          ? "cadastro encontrado; potência não informada"
+                          : selected.distributed_generation.items.length
+                            ? selected.distributed_generation.items
+                                .map((item) => formatUCPower(item.capacity_kw))
+                                .join(", ")
+                            : statusLabel(
+                                selected.distributed_generation.status,
+                              )}
                     . Potência não representa energia compensada.
                   </li>
                 </ul>

@@ -5,6 +5,7 @@ import type { UCOverview } from "./contract";
 import { decodeUCSearch } from "./contract";
 import UC360Detail from "./UC360Detail";
 import UC360SearchPanel from "./UC360SearchPanel";
+import { UC360Comparison, UC360SupportMetrics } from "./UC360Metrics";
 
 const period = {
   start: "2022-07",
@@ -41,6 +42,42 @@ const point = {
   billed_amount: measure,
   paid_amount: measure,
 };
+
+it("distingue cadastro de GD ausente de geração comprovadamente inexistente", () => {
+  const data = {
+    gold_generation: null,
+    gold_generation_record: false,
+    distributed_generation: {
+      items: [],
+      status: "unavailable",
+      limitations: [],
+    },
+    open_invoices: { count: null, status: "unavailable", limitations: [] },
+    period,
+  } as unknown as UCOverview["data"];
+  render(<UC360SupportMetrics data={data} />);
+  expect(screen.getByText("Sem registro de GD")).toBeVisible();
+  expect(screen.getByText(/cobertura não certificada/)).toBeVisible();
+});
+
+it("mantém valor pago quando há um zero observado", () => {
+  const comparison = {
+    initial: {
+      ...point,
+      competencia: period.start,
+      paid_amount: { ...measure, value: 0, status: "partial" },
+    },
+    final: { ...point, competencia: period.end },
+    measured_energy_kwh: change,
+    billed_energy_kwh: change,
+    billed_amount: change,
+    paid_amount: change,
+  } as UCOverview["data"]["comparison"];
+  render(<UC360Comparison comparison={comparison} />);
+  expect(
+    screen.getByRole("heading", { name: "Valor pago (BRL)" }),
+  ).toBeVisible();
+});
 
 it("preserva e valida a proveniência recebida na busca de UC", () => {
   const response = {

@@ -133,6 +133,54 @@ export default function SuspicionDetail({
               </dd>
             </div>
           </dl>
+          {data.investigation_potential && (
+            <section
+              className="mt-5 rounded-lg bg-canvas p-4 text-sm"
+              aria-label="Potencial estimado para investigação"
+            >
+              <h3 className="font-medium">
+                Potencial estimado para investigação
+              </h3>
+              <p className="mt-1 text-xs text-muted">
+                {periodLabel(data.investigation_potential.baseline_start)} a{" "}
+                {periodLabel(data.investigation_potential.baseline_end)}{" "}
+                comparado com{" "}
+                {periodLabel(data.investigation_potential.recent_start)} a{" "}
+                {periodLabel(data.investigation_potential.recent_end)}.
+              </p>
+              {data.investigation_potential.potential_kwh !== null ? (
+                <>
+                  <p className="mt-2 font-semibold">
+                    {energy(data.investigation_potential.potential_kwh)} nos
+                    três meses analisados
+                  </p>
+                  <p className="mt-1">
+                    Consumo medido:{" "}
+                    {energy(data.investigation_potential.baseline_kwh)} →{" "}
+                    {energy(data.investigation_potential.recent_kwh)}.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1">
+                  {data.investigation_potential.unavailable_reason}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-muted">
+                Diferença de consumo, limitada a zero quando houve aumento. Não
+                é energia recuperada, previsão validada nem prova de
+                irregularidade; um resultado zero não descarta irregularidade. A
+                cobertura das leituras não é certificada e mudanças de
+                atividade, ocupação ou medidor podem influenciar a comparação.
+              </p>
+              {evidence.distributed_generation_present?.trim().toLowerCase() ===
+                "sim" && (
+                <p className="mt-2 text-xs text-muted">
+                  Há geração distribuída cadastrada; ela pode influenciar a
+                  queda de consumo.
+                </p>
+              )}
+            </section>
+          )}
           {data.consumption_comparison && (
             <section
               className="mt-5 rounded-lg bg-canvas p-4 text-sm"

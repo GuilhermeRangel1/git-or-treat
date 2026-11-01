@@ -149,6 +149,14 @@ class GoldInspectionRepository:
         if not end:
             return None, []
         rows = self.connection.execute(
-            select(monthly).where(monthly.c.id_uc == uc_id).order_by(monthly.c.competencia.desc()).limit(6)
+            select(monthly).where(monthly.c.id_uc == uc_id, monthly.c.competencia <= end).order_by(monthly.c.competencia.desc()).limit(15)
         ).mappings().all()
         return end, rows
+
+    def meter_rows(self, uc_id: str) -> list:
+        meter = TABLES["medidor_uc"]
+        return self.connection.execute(select(
+            meter.c.data_instalacao, meter.c.data_retirada,
+            meter.c.flag_instalacao_sentinela, meter.c.flag_instalacao_futura,
+            meter.c.flag_retirada_sentinela, meter.c.flag_retirada_futura,
+        ).where(meter.c.id_uc == uc_id)).mappings().all()

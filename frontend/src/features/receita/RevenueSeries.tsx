@@ -143,6 +143,8 @@ export default function RevenueSeries({
   envelope: RevenueEnvelope;
 }) {
   const rows = envelope.data.series;
+  const showPaid = rows.some((row) => row.paid_amount !== null);
+  const showBilledEnergy = rows.some((row) => row.billed_energy_kwh !== null);
   const chartRef = useRef<SVGSVGElement>(null);
   const [chartWidth, setChartWidth] = useState(chart.width);
 
@@ -411,7 +413,7 @@ export default function RevenueSeries({
       <div className="mt-3 min-w-0 max-w-full overflow-x-auto">
         <table className="w-full min-w-[680px] border-collapse text-left text-sm">
           <caption className="sr-only">
-            Série mensal com faturamento, pagamento e energia
+            Série mensal de faturamento e energia
           </caption>
           <thead className="border-b border-border text-xs text-muted">
             <tr>
@@ -421,15 +423,19 @@ export default function RevenueSeries({
               <th scope="col" className="px-3 py-2 font-medium">
                 Receita faturada (BRL)
               </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Receita paga (BRL)
-              </th>
+              {showPaid && (
+                <th scope="col" className="px-3 py-2 font-medium">
+                  Receita paga (BRL)
+                </th>
+              )}
               <th scope="col" className="px-3 py-2 font-medium">
                 Energia medida (kWh)
               </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Energia faturada (kWh)
-              </th>
+              {showBilledEnergy && (
+                <th scope="col" className="px-3 py-2 font-medium">
+                  Energia faturada (kWh)
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -449,26 +455,37 @@ export default function RevenueSeries({
                     ? "Sem dado"
                     : money.format(row.billed_amount)}
                 </td>
-                <td className="px-3 py-3">
-                  {row.paid_amount === null
-                    ? "Sem dado"
-                    : money.format(row.paid_amount)}
-                </td>
+                {showPaid && (
+                  <td className="px-3 py-3">
+                    {row.paid_amount === null
+                      ? "Sem dado"
+                      : money.format(row.paid_amount)}
+                  </td>
+                )}
                 <td className="px-3 py-3">
                   {row.measured_energy_kwh === null
                     ? "Sem dado"
                     : `${decimal.format(row.measured_energy_kwh)} kWh`}
                 </td>
-                <td className="px-3 py-3">
-                  {row.billed_energy_kwh === null
-                    ? "Sem dado"
-                    : `${decimal.format(row.billed_energy_kwh)} kWh`}
-                </td>
+                {showBilledEnergy && (
+                  <td className="px-3 py-3">
+                    {row.billed_energy_kwh === null
+                      ? "Sem dado"
+                      : `${decimal.format(row.billed_energy_kwh)} kWh`}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {(!showPaid || !showBilledEnergy) && (
+        <p className="mt-3 text-xs text-muted">
+          {!showPaid && "Receita paga não está disponível neste recorte. "}
+          {!showBilledEnergy &&
+            "Energia faturada não está disponível; energia medida é uma grandeza diferente."}
+        </p>
+      )}
     </section>
   );
 }

@@ -20,11 +20,17 @@ function measureValue(measure: UCMeasure, kind: MeasureKind) {
     : `${decimal.format(measure.value)} kWh`;
 }
 
-function Coverage({ snapshot }: { snapshot: Snapshot }) {
+function Coverage({
+  snapshot,
+  showPaid,
+}: {
+  snapshot: Snapshot;
+  showPaid: boolean;
+}) {
   const measures = [
     ["Consumo medido", snapshot.measured_energy_kwh.status],
     ["Valor faturado", snapshot.billed_amount.status],
-    ["Valor pago", snapshot.paid_amount.status],
+    ...(showPaid ? [["Valor pago", snapshot.paid_amount.status] as const] : []),
   ] as const;
   const sameStatus = measures.every(([, status]) => status === measures[0][1]);
 
@@ -39,7 +45,13 @@ function Coverage({ snapshot }: { snapshot: Snapshot }) {
   );
 }
 
-function MobileSnapshot({ snapshot }: { snapshot: Snapshot }) {
+function MobileSnapshot({
+  snapshot,
+  showPaid,
+}: {
+  snapshot: Snapshot;
+  showPaid: boolean;
+}) {
   return (
     <article className="rounded-xl border border-control/50 bg-surface p-4">
       <h3 className="mb-3 grid gap-1">
@@ -67,15 +79,17 @@ function MobileSnapshot({ snapshot }: { snapshot: Snapshot }) {
             {statusLabel(snapshot.billed_amount.status)}
           </dd>
         </div>
-        <div className="grid min-w-0 gap-1">
-          <dt className="text-xs text-muted">Valor pago</dt>
-          <dd className="break-words text-sm font-medium text-content">
-            {measureValue(snapshot.paid_amount, "money")}
-          </dd>
-          <dd className="text-xs text-muted">
-            {statusLabel(snapshot.paid_amount.status)}
-          </dd>
-        </div>
+        {showPaid && (
+          <div className="grid min-w-0 gap-1">
+            <dt className="text-xs text-muted">Valor pago</dt>
+            <dd className="break-words text-sm font-medium text-content">
+              {measureValue(snapshot.paid_amount, "money")}
+            </dd>
+            <dd className="text-xs text-muted">
+              {statusLabel(snapshot.paid_amount.status)}
+            </dd>
+          </div>
+        )}
       </dl>
     </article>
   );
@@ -90,6 +104,9 @@ export default function UC360OverviewTable({
     { key: "final", snapshot: comparison.final },
     { key: "initial", snapshot: comparison.initial },
   ] as const;
+  const showPaid = snapshots.some(
+    ({ snapshot }) => snapshot.paid_amount.value !== null,
+  );
 
   return (
     <section
@@ -99,16 +116,8 @@ export default function UC360OverviewTable({
       <div className="hidden md:block">
         <table className="w-full table-fixed border-collapse text-left">
           <caption className="sr-only">
-            Comparação de consumo medido, valores faturados e pagos por
-            competência
+            Comparação de consumo medido e valores por competência
           </caption>
-          <colgroup>
-            <col className="w-[16%]" />
-            <col className="w-[20%]" />
-            <col className="w-[20%]" />
-            <col className="w-[18%]" />
-            <col className="w-[26%]" />
-          </colgroup>
           <thead>
             <tr className="h-8 font-mono text-xs tracking-wide text-muted">
               <th className="pb-2 font-medium" scope="col">
@@ -120,9 +129,11 @@ export default function UC360OverviewTable({
               <th className="pb-2 font-medium" scope="col">
                 Valor faturado
               </th>
-              <th className="pb-2 font-medium" scope="col">
-                Valor pago
-              </th>
+              {showPaid && (
+                <th className="pb-2 font-medium" scope="col">
+                  Valor pago
+                </th>
+              )}
               <th className="pb-2 font-medium" scope="col">
                 Cobertura
               </th>
@@ -143,11 +154,13 @@ export default function UC360OverviewTable({
                 <td className="pr-2 text-sm text-content">
                   {measureValue(snapshot.billed_amount, "money")}
                 </td>
-                <td className="pr-2 text-sm text-content">
-                  {measureValue(snapshot.paid_amount, "money")}
-                </td>
+                {showPaid && (
+                  <td className="pr-2 text-sm text-content">
+                    {measureValue(snapshot.paid_amount, "money")}
+                  </td>
+                )}
                 <td className="py-1">
-                  <Coverage snapshot={snapshot} />
+                  <Coverage snapshot={snapshot} showPaid={showPaid} />
                 </td>
               </tr>
             ))}
@@ -156,7 +169,7 @@ export default function UC360OverviewTable({
       </div>
       <div className="grid gap-3 md:hidden">
         {snapshots.map(({ key, snapshot }) => (
-          <MobileSnapshot key={key} snapshot={snapshot} />
+          <MobileSnapshot key={key} snapshot={snapshot} showPaid={showPaid} />
         ))}
       </div>
     </section>

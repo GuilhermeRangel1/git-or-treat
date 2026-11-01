@@ -17,6 +17,7 @@ const sectionLabels: Record<UCHistorySection, string> = {
   distributed_generation: "Geração própria",
   interruptions: "Interrupções",
   calls: "Chamados",
+  treatments: "Tratativas",
 };
 const historyLabels: Record<string, string> = {
   invoice_id: "Fatura",
@@ -33,6 +34,7 @@ const historyLabels: Record<string, string> = {
   payment_status: "Situação do pagamento",
   declared_status: "Situação declarada na fatura",
   declared_open_amount: "Valor nominal declarado em aberto",
+  declared_payment_date: "Data de pagamento informada",
   currency_unit: "Moeda",
   installed_at: "Instalado em",
   removed_at: "Retirado em",
@@ -42,6 +44,10 @@ const historyLabels: Record<string, string> = {
   duration_hours: "Duração",
   opened_at: "Aberto em",
   category: "Categoria",
+  position: "Posição",
+  treatment_date: "Data da tratativa",
+  action_category: "Ação classificada",
+  channel: "Canal",
 };
 const historyColumns: Record<UCHistorySection, string[]> = {
   consumption: [
@@ -61,11 +67,19 @@ const historyColumns: Record<UCHistorySection, string[]> = {
     "payment_status",
     "declared_status",
     "declared_open_amount",
+    "declared_payment_date",
   ],
   meters: ["meter_id", "installed_at", "removed_at"],
   distributed_generation: ["capacity_kw", "status"],
   interruptions: ["event_id", "competencia", "feeder_id", "duration_hours"],
   calls: ["call_id", "opened_at", "category"],
+  treatments: [
+    "call_id",
+    "position",
+    "treatment_date",
+    "action_category",
+    "channel",
+  ],
 };
 const money = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -80,9 +94,11 @@ function historyValue(key: string, value: unknown) {
     [
       "due_date",
       "payment_date",
+      "declared_payment_date",
       "installed_at",
       "removed_at",
       "opened_at",
+      "treatment_date",
     ].includes(key)
   )
     return formatUCDate(String(value));
@@ -126,6 +142,8 @@ function historyRowKey(
       return String(row.event_id);
     case "calls":
       return String(row.call_id);
+    case "treatments":
+      return `${row.call_id}-${row.position}`;
   }
 }
 
@@ -240,8 +258,11 @@ export function HistoryPanel({
         )
           return false;
         return (
-          !["declared_status", "declared_open_amount"].includes(key) ||
-          history?.metadata.source.kind === "gold_csv"
+          ![
+            "declared_status",
+            "declared_open_amount",
+            "declared_payment_date",
+          ].includes(key) || history?.metadata.source.kind === "gold_csv"
         );
       })
     : [];

@@ -93,6 +93,7 @@ export type UCOverview = {
       connection_date: string | null;
       modality: string | null;
     } | null;
+    gold_generation_record?: boolean | null;
     section_status: Record<string, UCStatus>;
   };
   metadata: UCMetadata;
@@ -135,6 +136,7 @@ export type UCInvoiceItem = Record<string, unknown> & {
   payment_status: "paid" | "partial" | "unpaid" | "unknown";
   declared_status?: string | null;
   declared_open_amount?: number | null;
+  declared_payment_date?: string | null;
   currency_unit: "BRL";
 };
 export type UCMeterHistoryItem = Record<string, unknown> & {
@@ -157,13 +159,21 @@ export type UCCallItem = Record<string, unknown> & {
   opened_at: string;
   category: string;
 };
+export type UCTreatmentItem = Record<string, unknown> & {
+  call_id: string;
+  position: number;
+  treatment_date: string | null;
+  action_category: string;
+  channel: string;
+};
 export type UCHistoryItem =
   | UCConsumptionItem
   | UCInvoiceItem
   | UCMeterHistoryItem
   | UCGenerationItem
   | UCInterruptionItem
-  | UCCallItem;
+  | UCCallItem
+  | UCTreatmentItem;
 export type UCHistory = {
   data: { items: UCHistoryItem[] };
   pagination: {
@@ -385,6 +395,11 @@ export function decodeUCOverview(value: unknown): UCOverview {
     data.gold_generation == null
       ? null
       : obj(data.gold_generation, "data.gold_generation");
+  if (
+    data.gold_generation_record != null &&
+    typeof data.gold_generation_record !== "boolean"
+  )
+    throw new UCContractError("gold_generation_record inválido.");
   return {
     data: {
       profile: profile(data.profile),
@@ -432,6 +447,8 @@ export function decodeUCOverview(value: unknown): UCOverview {
                 : str(goldGeneration.modality, "gold_generation.modality"),
           }
         : null,
+      gold_generation_record: data.gold_generation_record as
+        boolean | null | undefined,
       distributed_generation: {
         items: gd.items.map((raw, index) => {
           const item = obj(raw, `generation[${index}]`);
@@ -543,6 +560,11 @@ export function decodeUCHistory(
         if ("declared_status" in item && item.declared_status !== null)
           text("declared_status");
         if (
+          "declared_payment_date" in item &&
+          item.declared_payment_date !== null
+        )
+          text("declared_payment_date");
+        if (
           !["paid", "partial", "unpaid", "unknown"].includes(
             text("payment_status"),
           )
@@ -579,6 +601,14 @@ export function decodeUCHistory(
         text("call_id");
         text("opened_at");
         text("category");
+        break;
+      case "treatments":
+        text("call_id");
+        number("position");
+        required("treatment_date");
+        if (item.treatment_date !== null) text("treatment_date");
+        text("action_category");
+        text("channel");
         break;
     }
     return item as unknown as UCHistoryItem;

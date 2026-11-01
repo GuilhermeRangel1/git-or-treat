@@ -16,6 +16,7 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
     variation = TABLES["variacao_consumo_uc"].to_metadata(metadata)
     profile = TABLES["visao_360_uc"].to_metadata(metadata)
     monthly = TABLES["consumo_mensal_uc"].to_metadata(metadata)
+    TABLES["medidor_uc"].to_metadata(metadata)
     metadata.create_all(engine)
 
     with engine.begin() as connection:
@@ -65,6 +66,11 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
             for month, value in [("2024-08", 100), ("2024-09", 100), ("2024-10", 100),
                                  ("2024-11", 50), ("2024-12", 50), ("2025-01", 50)]
         ])
+        connection.execute(insert(monthly), [
+            {"id_uc": "UC-1", "competencia": month, "consumo_kwh": 300,
+             "qtd_leituras_observadas": 1, "qtd_leituras_validas": 1}
+            for month in ("2023-11", "2023-12", "2024-01")
+        ])
 
         context = SimpleNamespace(
             connection=connection, lote="fixture", schema_version="gold-csv-v2",
@@ -109,4 +115,5 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
     assert detail.data.consumption_comparison.baseline_kwh == 300
     assert detail.data.consumption_comparison.recent_kwh == 150
     assert detail.data.consumption_comparison.change_percent == -50
+    assert detail.data.investigation_potential.potential_kwh == 750
     assert incomplete.data.consumption_comparison.recent_kwh is None

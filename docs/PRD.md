@@ -457,6 +457,25 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 01/11/2026 — WEB-04 — cenário individual de investigação por consumo
+
+- A pessoa usuária aprovou a regra proposta de comparar a soma dos três meses recentes com os mesmos meses do ano anterior e apresentar `max(0, anterior − recente)` em kWh como potencial para investigação. Exige seis competências com leitura observada e válida; zero, ausência e dados inválidos continuam distintos. Instalação ou retirada válida de medidor na janela impede o cálculo, e GD cadastrada recebe alerta. O histórico pode ser incompleto e a comparação não identifica todas as alterações de atividade, ocupação ou medidor.
+- A API da suspeita e o portal mostram períodos, somas, resultado e limites. O cálculo usa dados Gold da mesma publicação; não muda fila, prioridade, ordens ou campos Gold de recuperação. A regra é uma hipótese exploratória, não estima de forma validada energia recuperada e não confirma irregularidade.
+- Evidência: testes direcionados backend para cálculo, virada de ano, lacuna e integração da fila; testes de frontend para número, ressalva e GD. Uma consulta autenticada à Gold local conferiu o resultado com a diferença das somas e o detalhe foi revisado no navegador. Regressões frontend passaram e teste de PostgreSQL descartável opcional permaneceu ignorado por configuração. Validação retrospectiva contra resultados de inspeção e aceite integral de WEB-04 continuam pendentes.
+
+### 01/11/2026 — WEB-02 / WEB-03 — apresentação contextual das ausências
+
+- Na UC 360, o valor pago só aparece como cartão ou coluna quando há valor observado em uma das competências; sem valor, a limitação é apresentada uma vez. A energia faturada continua identificada por ser necessária ao diagnóstico, sem confundi-la com consumo medido.
+- A série de Receita oculta colunas inteiramente nulas de valor pago e energia faturada, informa suas limitações junto à tabela e preserva a apresentação de zero conhecido. O Backend distingue cadastro de GD observado de ausência de linha, sem afirmar que a UC não possui geração.
+- Verificações: 19 testes backend e 72 testes frontend passaram; build, lint, formatação e fronteiras passaram, com aviso preexistente no lint. Navegador conferiu uma UC Gold sem registro de GD. Estados dos requisitos permanecem inalterados; as ausências de energia faturada e estimativa individual continuam pendentes de fonte/regra adequada.
+
+### 01/11/2026 — WEB-03 / WEB-06 — dados observados para atendimento e operação
+
+- UC 360: contagem parcial de faturas declaradas em aberto nas competências selecionadas; data de pagamento informada somente com status e sinais de qualidade consistentes, sem afirmar recebimento. Tratativas estruturadas são paginadas por chamada e posição, sem texto restrito.
+- Operação: consulta paginada por alimentador e data de abertura para ocorrências observadas, preservando identidade Gold, nulos e limite temporal do cadastro. A API real autenticada e uma amostra no navegador carregaram; isso não certifica cobertura completa ou conformidade regulatória.
+- Verificações direcionadas: 23 testes backend aprovados; 57 testes frontend aprovados, build, lint, formatação e fronteiras aprovados (lint com aviso preexistente). Login e rotas de UC/ocorrências exercitados com a publicação local. Dados individuais não foram registrados nesta evidência.
+- WEB-03/WEB-06 permanecem em seus estados anteriores; ainda exigem revisão completa de perfis, recortes e critérios. A estimativa individual de recuperação WEB-04 permanece pendente: a referência histórica publicada por inspeção não é previsão para uma UC. Seu método candidato e critérios estão no dicionário; são necessários validação e aceite do time antes de prometer o requisito.
+
 ### 2026-11-01 — DEV-13.1 / DEV-13.2 — integração das jornadas Gold
 
 - Estados dos requisitos preservados. Merge da develop `b804b58` na DEV-13.2: a fila usa o contrato Gold autenticado da DEV-13.1, com criação de ordens sujeita a permissão e fingerprint, preservando a comparação trimestral candidata, a referência histórica e os bairros dependentes do município da DEV-13.2. A comparação usa seis competências consecutivas de consumo do mesmo snapshot, não altera a categoria e não representa recuperação individual. As apresentações legadas permanecem para compatibilidade.
