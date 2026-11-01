@@ -325,8 +325,16 @@ class QuestionInterpreter:
         dimension_filters: dict[str, str] = {}
         if structured:
             matched_surfaces: dict[str, str] = {}
+            known_spans = self._dimension_value_matches(question, self._profile.dimensions)
             for dimension in self._profile.dimensions:
                 matches = self._dimension_value_matches(question, (dimension,))
+                # Um valor completo (AL-TESTE) absorve um fragmento conhecido
+                # de outra dimensão (classe TESTE), sem apagar menção separada.
+                matches = [match for match in matches if not any(
+                    start <= match[0] and match[1] <= end
+                    and (start, end) != match[:2]
+                    for start, end, _ in known_spans
+                )]
                 if self._has_unresolved_dimension_reference(detail_question, dimension, matches):
                     return self._clarify(
                         f"Há um valor não reconhecido de {dimension.label.lower()}. "
