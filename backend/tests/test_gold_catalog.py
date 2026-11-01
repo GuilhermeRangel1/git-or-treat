@@ -13,7 +13,7 @@ from app.services.gold_catalog import load_gold_catalog, select_catalog_source
 def test_loads_current_catalog_against_fifteen_table_schema():
     catalog = load_gold_catalog()
     assert catalog.mapping_version == "gold-catalog-v2"
-    assert len(catalog.metrics) == 11
+    assert len(catalog.metrics) == 14
     assert (
         select_catalog_source(
             catalog,

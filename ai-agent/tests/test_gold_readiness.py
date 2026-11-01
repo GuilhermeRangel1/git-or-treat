@@ -657,9 +657,15 @@ def test_v2_confirmed_zero_does_not_replace_missing_coverage_table():
 def test_v2_new_sources_are_not_falsely_absent_or_automatically_approved():
     report = _evaluate(_v2_facts())
     for capability in ("faturamento.faturas_em_aberto", "apoio.medidor_uc",
-                       "apoio.energia_recuperavel", "faturamento.preco_volume"):
+                       "apoio.energia_recuperavel"):
         assert ReasonCode.SOURCE_NOT_IN_GOLD not in _reasons(report, capability)
         assert ReasonCode.DEFINITION_PENDING in _reasons(report, capability)
+        assert report.capabilities[capability].status is CapabilityStatus.UNAVAILABLE
+    for capability in (
+        "faturamento.preco_volume", "interrupcoes.uc_acumulado", "consumo.variacao_uc",
+    ):
+        assert ReasonCode.DEFINITION_PENDING not in _reasons(report, capability)
+        assert ReasonCode.CONTROL_PENDING in _reasons(report, capability)
         assert report.capabilities[capability].status is CapabilityStatus.UNAVAILABLE
 
 

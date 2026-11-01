@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from app.config import Settings, get_settings
 from app.main import create_app
 from app.ports.evidence import EvidenceAccessDenied
-from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
+from app.profiles.grid360_gold_catalog import GRID360_GOLD_RUNTIME_PROFILE
 from app.schemas.access import AccessContext
 from app.schemas.evidence import EvidenceLookupResult
 from app.schemas.read_plan import LogicalReadPlan
@@ -27,7 +27,7 @@ def create_gold_app(settings: Settings | None = None) -> FastAPI:
         raise ValueError("Gold exige destino de auditoria durável configurado.")
     return create_app(
         settings=active,
-        domain_profile=GRID360_GOLD_PROFILE,
+        domain_profile=GRID360_GOLD_RUNTIME_PROFILE,
         evidence_source=BackendOwnedEvidenceSource(),
         source_id="gold.local",
         source_mode="external",

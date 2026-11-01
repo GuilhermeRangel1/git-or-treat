@@ -1,5 +1,7 @@
 """Prontidão por domínio pela operação pública do Backend, com banco controlado."""
 
+import pytest
+
 from app.services.gold_attendance_readiness import observe_domain_readiness
 from tests.test_gold_attendance_readiness import published  # noqa: F401
 
@@ -14,6 +16,47 @@ def test_domain_observation_does_not_promote_missing_measures_to_zero(published)
         assert facts["control_results"][key]["status"] == "failed"
     assert facts["control_results"]["C14"]["status"] == "passed"
     assert "UC_PRIVATE" not in str(facts)
+
+
+def test_gd_controls_reject_missing_uc_from_the_reference_population(published):  # noqa: F811
+    from sqlalchemy import select
+    from app.models.gold_v2_load import TABLES
+
+    with published.begin() as connection:
+        reference = connection.execute(select(TABLES["visao_360_uc"])).mappings().first()
+        connection.execute(TABLES["variacao_consumo_uc"].delete())
+        connection.execute(TABLES["variacao_consumo_uc"].insert(), {
+            "id_uc": reference["id_uc"], "municipio": reference["municipio"],
+            "possui_gd": reference["possui_gd"], "meses_com_leitura_p1": 0,
+            "meses_com_leitura_p2": 0, "queda_consumo_superior_30_pct": False,
+        })
+    facts = observe_domain_readiness(published, requested_periods=(),
+                                    approved_controls=frozenset({"C08", "C09"}))
+    assert all(facts["control_results"][key]["status"] == "passed" for key in ("C08", "C09"))
+    with published.begin() as connection:
+        connection.execute(TABLES["visao_360_uc"].insert(), {"id_uc": "MISSING_PRIVATE"})
+    facts = observe_domain_readiness(published, requested_periods=(),
+                                    approved_controls=frozenset({"C08", "C09"}))
+    assert all(facts["control_results"][key]["status"] == "failed" for key in ("C08", "C09"))
+    assert "MISSING_PRIVATE" not in str(facts)
+
+
+def test_gd_control_does_not_accept_non_finite_values_as_missing_measurements():
+    from sqlalchemy import Table
+    from app.services.gold_variation_controls import observe_variation_controls
+
+    population = {"SYNTHETIC": {"municipio": "Cidade", "possui_gd": "Sim"}}
+    def read_rows(statement):
+        if isinstance(statement, Table):
+            return [{"id_uc": "SYNTHETIC", "municipio": "Cidade", "possui_gd": "Sim",
+                     "consumo_medio_inicial": float("nan"), "consumo_medio_final": float("nan"),
+                     "meses_com_leitura_p1": 12, "meses_com_leitura_p2": 12,
+                     "queda_consumo_superior_30_pct": False, "variacao_pct": None}]
+        return [{"id_uc": "SYNTHETIC", "mean0": float("nan"), "mean1": float("nan"),
+                 "months0": 12, "months1": 12}]
+    assert observe_variation_controls(read_rows, population=population) == {
+        "C08": False, "C09": False,
+    }
 
 
 def seed_measures(engine):
@@ -126,7 +169,6 @@ def test_continuity_uses_events_and_population_instead_of_summing_ratios(publish
     assert "EVENT_PRIVATE" not in str(facts)
 
 
-import pytest
 
 
 @pytest.mark.parametrize(
@@ -567,3 +609,13 @@ def test_consumer_reference_is_checked_before_genai_call(published, scope, case)
         GoldPublicationChanged if case == "stale" else GoldPublicationInvalid
     ):
         asyncio.run(run())
+
+
+def test_accumulated_domain_observation_does_not_fabricate_monthly_coverage(published):  # noqa: F811
+    facts = observe_domain_readiness(
+        published, requested_periods=(), approved_controls=frozenset({"C14"}),
+    )
+    assert facts["coverage"] == {}
+    assert facts["control_results"]["C14"]["status"] == "passed"
+    assert facts["control_results"]["C14"]["approved"] is True
+    assert facts["batch_ref"] == facts["expected_batch_ref"]

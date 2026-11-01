@@ -29,3 +29,5 @@ relacionados na mesma mudança.
 - [ADR-0021 — API analítica sobre a publicação Gold](0021-api-gold-dev13-1.md): implementação técnica da DEV-13.1 em 28/10/2026; contratos Gold v2, identidade por lote/fingerprint, leitura consistente, categorias/evidências reais e ordens preservadas. Homologação de negócio e aceite do portal permanecem pendentes.
 
 - [D20 — projeção cadastral restrita](../../data-engineering/decisoes-tecnicas.md#93-exclusão-de-dados-pessoais-na-projeção-gold-d20-decidido): revisão pontual solicitada em 30/10/2026 para nome de exibição do titular, fora dos agregados e da GenAI; contratos e ACLs do consumidor continuam pendentes.
+
+- [ADR-0022 — Consumo das métricas documentadas na Gold v2](0022-consumo-metricas-documentadas-gold-v2.md): implementação local de comparação mensal, ranking de variação, GD/queda, eventos distintos e decomposição publicada; controles, cobertura e homologação permanecem distintos.

@@ -2972,6 +2972,28 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Verificações: GenAI completo 3.721 passaram/4 skips; Backend com PostgreSQL descartável e seleção de executor/plano/metadados/cliente/deadline 109 passaram; fronteira temporal ajustada 9 passaram; Ruff e diff-check passaram. Revisões independentes de padrões/especificação sem bloqueios após os ajustes. [Matriz, comandos, resultados e limites](contracts/genai-consolidation.md).
 - GENAI-02/04/06 concluídos no escopo técnico local. Requisitos oficiais IA preservam seus estados; cobertura e medidas não comprovadas continuam bloqueadas. Alterações desta continuação ainda sem commit/push.
 
+### 2026-11-01 — IA-01/IA-02/IA-03/IA-06 — integração incremental GENAI-10B
+
+- Estados oficiais preservados: esta fatia não conclui os quatro domínios reais.
+- Branch independente `feat/genai-cobertura-dominios`: contribuição de receita por classe,
+  variantes acumuladas de atendimento, qualificação de dimensões, proteção de texto de
+  chamados e leitura mínima autorizada. Reutiliza composição, plano e executor oficiais.
+- Verificações: GenAI 3.970 aprovados/3 skips; Backend 855 aprovados/101 skips; ensaio
+  HTTP/PostgreSQL descartável 1 aprovado; após ajuste do observador, prontidão/acesso
+  61 aprovados/1 skip. Observação real sem modelo confirmou acumulado disponível e
+  atendimento mensal indisponível, sem inventar competência ou certificação.
+- Revisões independentes apontaram perda de ranking no acompanhamento e período
+  acumulado contraditório; correções e regressões incorporadas. Alterações ainda locais.
+- [Arquivos, comandos, autorização de leitura e limites](contracts/genai-domain-implementation.md).
+  Comparações, definições/cobertura insuficientes e aceite integrado restante continuam abertos.
+
+
+- Revalidação adicional desta fatia: 17 cenários numéricos reconciliados na Gold v2
+  pelo fluxo público com modelo controlado; aceite técnico local explicitamente dado
+  pela pessoa usuária, sem homologação de Dados. Corrigido truncamento indevido do
+  ranking top-1; dez testes de executor e HTTP/PostgreSQL aprovados. Os onze bloqueios,
+  sete casos sem amostra e duas regressões separadas mantêm o aceite integral pendente.
+
 ### 01/11/2026 — IA-01 a IA-06 — referência obrigatória Gold v2 no harness
 
 - Por orientação da pessoa usuária, novos desenvolvimentos, cenários e aceites GenAI usam Gold v2, seu dicionário, contrato físico e catálogo aprovados. Regra descoberta pelo AGENTS raiz e aplicada pela skill genai-gold; detalhes em [política de versões](agents/genai-gold.md#referência-obrigatória-gold-v2).
@@ -3033,6 +3055,28 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
   pendentes valor recebido, cobertura mensal, amostras ausentes, revisão de Dados
   e jornada visual final. Alterações locais posteriores a adc5de5, sem novo commit.
 
+### 01/11/2026 — IA-01/02/03/06 — extensão integrada dos domínios GENAI-10B
+
+- Estado: implementação ampliada em validação; os requisitos IA não são marcados
+  Concluídos pela soma de testes ou por êxito parcial da matriz.
+- Caminho existente Portal → Backend autenticado → plano GenAI → executor restrito
+  → evidência → síntese/auditoria estendido para comparar meses, classificar perda
+  por bairro, contar GD elegível e eventos distintos e consumir preço/volume V3.
+- Regras de Dados verificadas no dicionário/notebook; [ADR-0022](decisions/0022-consumo-metricas-documentadas-gold-v2.md)
+  registra decisões, limites e autorização explícita da leitura local necessária.
+- Evidência: 3.979 testes GenAI; 858 Backend; ensaio PostgreSQL com 90 aprovados;
+  305 testes da matriz/runner em integração com o 10A. Rodada real de 57 casos,
+  modelo controlado, resultou em 43 PASS, cinco bloqueios, sete sem amostra e duas
+  regressões técnicas separadas. Nenhuma falha inesperada ou conta temporária
+  remanescente. A pessoa usuária aprovou cinco casos numéricos adicionais (22 no total).
+- Pendências: recebimento sem medida comprovada, certificação mensal de
+  continuidade/atendimento, amostras reais ausentes, revisão de Dados e jornada
+  visual final. A documentação e os parâmetros privados preservam a distinção
+  entre teste artificial, reconciliação local e homologação de negócio.
+- Arquivos/comandos/limites em [GENAI-10B](contracts/genai-domain-implementation.md).
+  Branch `feat/genai-cobertura-dominios`, alterações locais posteriores a a68f484;
+  revisão independente de especificação e padrões incorporada, sem novo commit.
+
 ### GENAI-10A/10B — inventário de evidências por caso (01/11/2026)
 
 - Cruzamento dos 57 IDs da matriz com a rodada local já executada, sem duplicatas ou casos ausentes. Registro sanitizado versionado na branch 10A em `docs/contracts/genai-domain-case-evidence.md`; valores privados preservados fora do Git.
@@ -3055,3 +3099,25 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Evidência: 57 casos, 43 PASS, cinco bloqueados, sete sem amostra e duas regressões técnicas separadas; rodada HTTP sem falhas inesperadas. Regras confrontadas com dicionário, notebooks e contratos de Dados; aceites locais preservados.
 - Decisão e transferência por critério em `docs/contracts/genai-domain-local-acceptance.md` (branch 10A). Pendências PEND-01 a PEND-05 em https://trello.com/c/4XzZJTsu : recebimento, cobertura mensal, amostras, jornada visual e homologação adicional. Nova tentativa de navegação recusada pela configuração do aplicativo; nenhuma aprovação visual declarada.
 - Estados oficiais IA preservados. Não houve alteração de código, permissões ou fonte nem nova rodada Gemini.
+
+
+
+### 01/11/2026 — integração local da cobertura Gold com invalidação de servidor
+
+- Combinação do código do PR #97 com o PR #102 na própria branch 10B. Schemas de evidência preservam simultaneamente janelas publicadas e catálogo físico; executor mantém linhagem preço/volume e erro seguro de schema incompatível. Nenhum commit funcional foi copiado por cherry-pick.
+- Verificações observadas: GenAI 3.998 passaram/3 skips; Backend 887 passaram/105 skips; PostgreSQL descartável da invalidação 4 passaram. Ruff dos três arquivos resolvidos e git diff --check passaram.
+- Prova curta Gold local com runtime atual e modelo controlado: FAT-09, FAT-11, CON-07 e CON-08 passaram sem divergências; relatório privado 20261101T203108_250684Z, contas temporárias removidas. Não foi repetida a matriz completa nem feita chamada Gemini adicional.
+- Requisitos oficiais e limitações de cobertura preservados. Integração remota da 10B depende do merge #97 e do CI na base final.
+
+### 01/11/2026 — GENAI-13 — invalidação de servidor (PR #97)
+
+- Estado: entrega parcial de servidor para IA-03/04/05/06; estados oficiais preservados. Contrato em `docs/contracts/genai-invalidation.md` (PR #95).
+- Pergunta pública aceita publicação esperada opcional, rejeita divergência antes de planejar e mantém captura de publicação no servidor. Plano/evidência conferem catálogo físico; chaves de cache incluem identidade do catálogo e filtros normalizados. Schema incompatível e publicação inválida falham sem fallback demonstrativo.
+- Arquivos: `backend/app/schemas/ai_question_publication.py`, `backend/app/services/genai_expected_publication.py`, coordenação/planejamento/executor, schemas de catálogo físico dos dois serviços e `ai-agent/app/providers/caching.py`.
+- Evidência observada: CI de qualidade do repositório, execução 41318865890 do commit 5ea20fe, concluída com sucesso. Revisões estáticas de padrões e especificação: registro obrigatório do PRD corrigido; nenhum bloqueio funcional identificado. Não houve nova execução local dos testes nesta revisão.
+- Limites: invalidação no Assistente e Panorama, envio da publicação esperada pela tela e descarte de resposta atrasada ainda dependem da integração GENAI-11/12. O catálogo físico opcional mantém compatibilidade declarada. Esta entrega não conclui o cartão GENAI-13 nem a validação visual.
+
+### 01/11/2026 — GENAI-10A — integração com a cobertura entregue
+
+- Branch do PR99 atualizada com a develop após o merge #102, preservando por merge os commits funcionais e os registros de progresso das duas entregas.
+- Matriz, runner e contrato do catálogo: 307 testes passaram na própria worktree atualizada. Classes observadas, pendências e escopo de aceite técnico mantidos; não houve nova chamada Gemini ou validação visual.

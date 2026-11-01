@@ -123,6 +123,7 @@ class QuestionAnalysisPlanner:
         self._interpreter = interpreter
         self._evidence_source = evidence_source
         self._access_policy = access_policy
+        self._max_evidence_bytes = max_evidence_bytes
         self._max_rows = max_rows
         self._plan_builder = ReadPlanBuilder(
             access_policy.profile, access_policy.source_id, default_limit=max_rows
@@ -297,7 +298,9 @@ class QuestionAnalysisPlanner:
         try:
             if plan_fingerprint != approved.fingerprint():
                 raise EvidenceContractInvalid("fingerprint divergente do plano aprovado")
-            evidence_result = self._check_lookup(approved, lookup, expected_batch_ref)
+            evidence_result = self._check_lookup(
+                approved, lookup, expected_batch_ref, profile=profile
+            )
         except EvidenceContractInvalid:
             if trace is not None:
                 trace.emit(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
@@ -336,13 +339,15 @@ class QuestionAnalysisPlanner:
         approved: LogicalReadPlan,
         evidence_result: object,
         expected_batch_ref: str | None,
+        *, profile: DomainProfile | None = None,
     ) -> EvidenceLookupResult:
         if not isinstance(evidence_result, EvidenceLookupResult):
             raise TypeError("Evidence source returned an unsupported result type.")
         evidence_result = EvidenceLookupResult.model_validate(evidence_result.model_dump())
-        return self._evidence_guard.validate(
-            approved, evidence_result, expected_batch_ref=expected_batch_ref
-        )
+        guard = (self._evidence_guard if profile is None else EvidenceGuard(
+            profile, max_bytes=self._max_evidence_bytes,
+        ))
+        return guard.validate(approved, evidence_result, expected_batch_ref=expected_batch_ref)
 
     @staticmethod
     def _emit_evidence(evidence_result: EvidenceLookupResult, trace: EventTrace | None) -> None:
