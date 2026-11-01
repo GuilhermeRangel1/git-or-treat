@@ -9,6 +9,9 @@ from app.schemas.genai_plan import ReadWindow, WindowKind
 from app.schemas.gold_catalog import GoldCatalog
 
 _CAPABILITY_TABLES = {
+    "faturamento.preco_volume": {"decomposicao_receita"},
+    "interrupcoes.uc_acumulado": {"ocorrencias_uc"},
+    "consumo.variacao_uc": {"variacao_consumo_uc"},
     "faturamento.receita": {"diagnostico_receita"},
     "faturamento.receita_bairro": {"consumo_receita_bairro"},
     "consumo.mensal_uc": {"consumo_mensal_uc"},
@@ -20,7 +23,10 @@ _NULL_RULES = {
     "sum": "sum_ignores_null_all_null_is_absent",
     "ratio_of_sums": "ratio_absent_on_null_or_zero_denominator",
     "key_grain_read": "read_null_is_absent",
+    "count_distinct": "count_requires_certified_zero",
     "count_non_null": "count_requires_certified_zero",
+    "count_gd_drop": "count_requires_certified_zero",
+    "published_decomposition": "read_null_is_absent",
     "average_non_null": "average_ignores_null_all_null_is_absent",
 }
 _TYPES = {"bigint": BigInteger, "double": Float, "decimal": Numeric, "string": Text}
@@ -94,7 +100,7 @@ def load_gold_catalog(payload: dict | None = None) -> GoldCatalog:
                 raise ValueError("Coluna fora do schema.")
             if source.temporal_transform == "utc_month":
                 if (
-                    source.capability_id != "atendimento.mensal"
+                    source.capability_id not in {"atendimento.mensal", "interrupcoes.uc_acumulado"}
                     or source.temporal_column != "data_abertura"
                     or not isinstance(table.c[source.temporal_column].type, DateTime)
                     or not table.c[source.temporal_column].type.timezone

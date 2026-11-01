@@ -172,6 +172,16 @@ def build_readiness_gate(engine: Engine, client: GenAIQuestionClient, approved_c
             while (year, month) <= (plan.window.end.year, plan.window.end.month):
                 periods.append(f"{year:04d}-{month:02d}")
                 year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        if plan.comparison_periods is not None:
+            periods = list(plan.comparison_periods)
+        if plan.metric_id == "billing.price_volume":
+            from app.services.gold_price_volume import configured_windows, window_months
+            def read_windows():
+                with planned.publication.execution_snapshot(engine) as connection:
+                    connection.exec_driver_sql("SET LOCAL statement_timeout = '5000ms'")
+                    return configured_windows(connection, plan)
+            windows = await planned.deadline.run(5, lambda: asyncio.to_thread(read_windows))
+            periods = list(window_months(windows)) if windows is not None else []
         return await client.evaluate_readiness(
             engine, requested_periods=tuple(periods),
             approved_controls=frozenset(approved_controls),

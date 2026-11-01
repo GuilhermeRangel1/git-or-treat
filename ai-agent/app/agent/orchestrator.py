@@ -68,6 +68,8 @@ def _describe_observation(
     labels: list[str] = []
     if "period" in observation:
         labels.append(str(observation["period"]))
+    if "label" in observation:
+        labels.append(str(observation["label"]))
     dimensions = observation.get("dimensions", {})
     if isinstance(dimensions, dict):
         for dimension_id, dimension_value in dimensions.items():
@@ -427,6 +429,8 @@ class QuestionOrchestrator:
             if read_plan.window.phrase is not None
             else f"{read_plan.window.start} a {read_plan.window.end}"
         )
+        if evidence.provenance and evidence.provenance.published_windows:
+            period = evidence.provenance.published_windows.describe()
         filters = {
             item.dimension_id: item.values[0] if len(item.values) == 1 else list(item.values)
             for item in read_plan.filters
@@ -489,10 +493,15 @@ class QuestionOrchestrator:
         if generated.status == "answered":
             values = ", ".join(
                 _describe_observation(observations[item], labels)
-                for item in generated.observation_ids
+                for item in (tuple(observations) if (read_plan.comparison_periods
+                             or evidence.provenance.published_windows is not None)
+                             else generated.observation_ids)
             )
             prefix = "Demonstração sintética: " if evidence.reference.is_demo else ""
             answer = f"{prefix}{read_plan.metric_id} — {period}: {values}."
+            if read_plan.comparison_periods and "row_4" not in observations:
+                answer += " Variação percentual indisponível: a base inicial não é positiva."
+
 
         error = (
             map_failure(FailureCode.POLICY_REFUSAL).error if generated.status == "refused" else None

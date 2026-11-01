@@ -1,8 +1,10 @@
 """Contrato interno de lookup v1; estados vazios não representam falha de execução."""
 
+from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
+from pydantic import SerializerFunctionWrapHandler, model_serializer
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -49,6 +51,33 @@ class GoldEvidenceQuality(BaseModel):
         return self
 
 
+class PublishedWindows(BaseModel):
+    """Janelas da decomposição materializada na mesma publicação Gold v2."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    p0_start: str = Field(pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")
+    p0_end: str = Field(pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")
+    p1_start: str = Field(pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")
+    p1_end: str = Field(pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")
+    method: Literal["PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3"]
+
+    @model_validator(mode="after")
+    def validate_windows(self):
+        values = [date.fromisoformat(value + "-01") for value in (
+            self.p0_start, self.p0_end, self.p1_start, self.p1_end,
+        )]
+        first, end_first, last, end_last = values
+        if (end_first >= last or any(
+            (end.year - start.year) * 12 + end.month - start.month != 11
+            for start, end in ((first, end_first), (last, end_last))
+        ) or first.month != last.month):
+            raise ValueError("decomposição exige duas janelas anuais equivalentes sem sobreposição")
+        return self
+
+    def describe(self) -> str:
+        return f"P0 {self.p0_start} a {self.p0_end}; P1 {self.p1_start} a {self.p1_end}"
+
+
 class EvidenceProvenance(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -63,6 +92,14 @@ class EvidenceProvenance(BaseModel):
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
     batch_ref: GoldBatchRef | None = None
     quality: GoldEvidenceQuality | None = None
+    published_windows: PublishedWindows | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_absent_windows(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
+        payload = handler(self)
+        if self.published_windows is None:
+            payload.pop("published_windows", None)
+        return payload
 
 
 class EvidenceResult(BaseModel):

@@ -107,6 +107,11 @@ class ReadPlanBuilder:
             selected_ids.add(key)
             filters[key] = ReadFilter(dimension_id=key, operator=FilterOperator.EQ, values=(value,))
 
+        for key, value in metric.fixed_filter_values.items():
+            if key not in filters:
+                raise PlanCapabilityUnavailable("Informe o filtro obrigatório deste indicador.")
+            if filters[key].values != (value,):
+                raise PlanCapabilityUnavailable("O filtro contradiz a definição deste indicador.")
         missing_filters = set(metric.required_filter_dimension_ids) - filters.keys()
         if missing_filters:
             labels = ", ".join(dimensions[key].label.lower() for key in sorted(missing_filters))
@@ -154,6 +159,30 @@ class ReadPlanBuilder:
                 if period_window is not None
                 else ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
             )
+        comparison_periods = None
+        if intent.comparison_period_phrases is not None:
+            if not metric.supports_comparison or temporal_coverage is None:
+                raise PlanCapabilityUnavailable("Este indicador não permite comparação de meses.")
+            coverage = temporal_coverage.get(metric.id)
+            if coverage is None or coverage[0] != "monthly":
+                raise PlanCapabilityUnavailable(
+                    "A comparação exige cobertura mensal dos dois períodos."
+                )
+            try:
+                pair = tuple(GoldTemporalWindowResolver().resolve(phrase, coverage[1])
+                             for phrase in intent.comparison_period_phrases)
+            except TemporalResolutionUnavailable as exc:
+                raise PlanCapabilityUnavailable(str(exc)) from exc
+            if any(w.start is None or w.end is None or
+                   (w.start.year, w.start.month) != (w.end.year, w.end.month) for w in pair):
+                raise PlanCapabilityUnavailable("Informe duas competências mensais completas.")
+            comparison_periods = tuple(w.start.strftime("%Y-%m") for w in pair)
+            if comparison_periods[0] >= comparison_periods[1]:
+                raise PlanCapabilityUnavailable(
+                    "Informe primeiro o mês inicial e depois o mês final."
+                )
+            window = ReadWindow(kind=WindowKind.BOUNDED, start=pair[0].start,
+                                end=pair[1].end, granularity=CatalogGranularity.MONTH)
         return LogicalReadPlan(
             catalog_version=self._profile.contract_version,
             operation="read",
@@ -167,8 +196,10 @@ class ReadPlanBuilder:
                    if intent.ranking_direction else None),
             unit=metric.unit,
             window=window,
+            comparison_periods=comparison_periods,
             filters=tuple(filters[key] for key in sorted(filters)),
-            limit=1 if intent.ranking_direction else self._default_limit,
+            limit=1 if intent.ranking_direction and comparison_periods is None
+            else self._default_limit,
         )
 
 
@@ -232,10 +263,21 @@ class ReadPlanValidator:
             or not set(plan.dimension_ids) <= set(metric.dimension_ids)
         ):
             raise PlanCapabilityUnavailable("Métrica, unidade ou dimensão indisponível.")
+        if plan.comparison_periods is not None and (
+            not metric.supports_comparison
+            or (plan.group_by_dimension_ids and (
+                not set(plan.group_by_dimension_ids)
+                <= set(metric.comparison_grouping_dimension_ids)
+                or plan.order is None or plan.order.direction != SortDirection.ASC
+            ))
+            or (plan.order is not None and not plan.group_by_dimension_ids)
+        ):
+            raise PlanCapabilityUnavailable("Comparação indisponível para esta operação.")
         if metric.grouping_dimension_ids is not None:
             if not set(plan.group_by_dimension_ids) <= set(metric.grouping_dimension_ids):
                 raise PlanCapabilityUnavailable("Este agrupamento não foi aprovado.")
-            if plan.group_by_dimension_ids and plan.order is not None and (
+            if (plan.comparison_periods is None and plan.group_by_dimension_ids
+                and plan.order is not None) and (
                 plan.window.start is None or plan.window.end is None
                 or (plan.window.start.year, plan.window.start.month)
                 != (plan.window.end.year, plan.window.end.month)
@@ -245,10 +287,18 @@ class ReadPlanValidator:
                 )
             if plan.order is not None and not plan.group_by_dimension_ids:
                 raise PlanCapabilityUnavailable("Ordenação exige agrupamento aprovado.")
+        if metric.grouping_requires_comparison and plan.group_by_dimension_ids and (
+            plan.comparison_periods is None
+        ):
+            raise PlanCapabilityUnavailable("Esse agrupamento exige comparação mensal explícita.")
         _validate_metric_period(metric, plan.window.phrase, self._profile, plan.window.granularity)
         self._validate_window(plan, metric.granularities, metric.max_window_days)
 
         dimensions = {item.id: item for item in self._profile.dimensions}
+        if any(not any(f.dimension_id == key and f.operator == FilterOperator.EQ
+                       and f.values == (value,) for f in plan.filters)
+               for key, value in metric.fixed_filter_values.items()):
+            raise PlanCapabilityUnavailable("O plano não conserva a definição do indicador.")
         if not set(metric.required_filter_dimension_ids) <= {
             item.dimension_id for item in plan.filters
         }:

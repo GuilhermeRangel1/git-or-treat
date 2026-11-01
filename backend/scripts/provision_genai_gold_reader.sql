@@ -35,6 +35,10 @@ GRANT SELECT ("competencia") ON gold_v2.consumo_mensal_uc TO venergy_genai_reade
 -- Atendimento: somente colunas necessárias à agregação; sem conteúdo de chamados ou cadastro.
 GRANT SELECT ("protocolo", "data_abertura", "nota_satisfacao") ON gold_v2.atendimentos_uc TO venergy_genai_reader;
 GRANT SELECT ("total_chamados_callcenter") ON gold_v2.visao_360_uc TO venergy_genai_reader;
+-- Alcance local autorizado em 01/11/2026: somente projeções analíticas, sem cadastro ou texto.
+GRANT SELECT ("municipio", "possui_gd", "consumo_medio_inicial", "consumo_medio_final", "meses_com_leitura_p1", "meses_com_leitura_p2", "queda_consumo_superior_30_pct") ON gold_v2.variacao_consumo_uc TO venergy_genai_reader;
+GRANT SELECT ("id_ocorrencia", "alimentador", "data_abertura") ON gold_v2.ocorrencias_uc TO venergy_genai_reader;
+GRANT SELECT ("municipio", "bairro", "classe_consumo", "qtd_ucs_base_comum", "qtd_ucs_entrantes", "qtd_ucs_saintes", "qtd_ucs_observadas", "faturamento_p0_reais", "faturamento_p1_reais", "efeito_volume_reais", "efeito_preco_observado_reais", "efeito_interacao_reais", "variacao_entradas_reais", "variacao_saidas_reais", "variacao_sem_leitura_fora_base_reais", "variacao_outros_fora_base_reais", "estado_decomposicao", "variacao_faturamento_total_reais", "residuo_reconciliacao_reais", "inicio_p0", "fim_p0", "inicio_p1", "fim_p1", "metodo", "run_id_silver", "lote_bronze_silver", "data_processamento_gold") ON gold_v2.decomposicao_receita TO venergy_genai_reader;
 DO $$
 DECLARE
     obj record;
@@ -91,7 +95,44 @@ BEGIN
                 ('atendimentos_uc', 'protocolo'),
                 ('atendimentos_uc', 'data_abertura'),
                 ('atendimentos_uc', 'nota_satisfacao'),
-                ('visao_360_uc', 'total_chamados_callcenter')
+                ('visao_360_uc', 'total_chamados_callcenter'),
+                ('variacao_consumo_uc', 'municipio'),
+                ('variacao_consumo_uc', 'possui_gd'),
+                ('variacao_consumo_uc', 'consumo_medio_inicial'),
+                ('variacao_consumo_uc', 'consumo_medio_final'),
+                ('variacao_consumo_uc', 'meses_com_leitura_p1'),
+                ('variacao_consumo_uc', 'meses_com_leitura_p2'),
+                ('variacao_consumo_uc', 'queda_consumo_superior_30_pct'),
+                ('ocorrencias_uc', 'id_ocorrencia'),
+                ('ocorrencias_uc', 'alimentador'),
+                ('ocorrencias_uc', 'data_abertura'),
+                ('decomposicao_receita', 'municipio'),
+                ('decomposicao_receita', 'bairro'),
+                ('decomposicao_receita', 'classe_consumo'),
+                ('decomposicao_receita', 'qtd_ucs_base_comum'),
+                ('decomposicao_receita', 'qtd_ucs_entrantes'),
+                ('decomposicao_receita', 'qtd_ucs_saintes'),
+                ('decomposicao_receita', 'qtd_ucs_observadas'),
+                ('decomposicao_receita', 'faturamento_p0_reais'),
+                ('decomposicao_receita', 'faturamento_p1_reais'),
+                ('decomposicao_receita', 'efeito_volume_reais'),
+                ('decomposicao_receita', 'efeito_preco_observado_reais'),
+                ('decomposicao_receita', 'efeito_interacao_reais'),
+                ('decomposicao_receita', 'variacao_entradas_reais'),
+                ('decomposicao_receita', 'variacao_saidas_reais'),
+                ('decomposicao_receita', 'variacao_sem_leitura_fora_base_reais'),
+                ('decomposicao_receita', 'variacao_outros_fora_base_reais'),
+                ('decomposicao_receita', 'estado_decomposicao'),
+                ('decomposicao_receita', 'variacao_faturamento_total_reais'),
+                ('decomposicao_receita', 'residuo_reconciliacao_reais'),
+                ('decomposicao_receita', 'inicio_p0'),
+                ('decomposicao_receita', 'fim_p0'),
+                ('decomposicao_receita', 'inicio_p1'),
+                ('decomposicao_receita', 'fim_p1'),
+                ('decomposicao_receita', 'metodo'),
+                ('decomposicao_receita', 'run_id_silver'),
+                ('decomposicao_receita', 'lote_bronze_silver'),
+                ('decomposicao_receita', 'data_processamento_gold')
             )
             SELECT 1 FROM pg_attribute a WHERE a.attrelid=obj.oid
                 AND a.attnum>0 AND NOT a.attisdropped

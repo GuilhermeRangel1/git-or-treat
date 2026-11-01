@@ -77,6 +77,21 @@ def _admit_plan(plan: LogicalReadPlan, scope: AccessScope) -> CatalogSource:
         or plan.unit != metric.unit
     ):
         raise GenAIResponseInvalid
+    if plan.comparison_periods is not None and (
+        plan.metric_id not in {"billing.revenue", "energy.consumption"}
+        or metric.aggregation != "sum"
+        or (plan.group_by_dimension_ids and (
+            plan.metric_id != "energy.consumption"
+            or plan.group_by_dimension_ids != ("geography.neighborhood",)
+            or plan.order is None or plan.order.direction != "asc"
+        ))
+        or (plan.order is not None and not plan.group_by_dimension_ids)
+    ):
+        raise GenAIResponseInvalid
+    if any(not any(item.dimension_id == key and item.operator.value == "eq"
+                   and item.values == (value,) for item in plan.filters)
+           for key, value in metric.fixed_filter_values.items()):
+        raise GenAIResponseInvalid
     for item in plan.filters:
         if item.operator.value not in metric.dimension_operators.get(item.dimension_id, ()):
             raise GenAIResponseInvalid
@@ -113,6 +128,14 @@ def _has_selected_coverage(
     plan: LogicalReadPlan, source: CatalogSource,
 ) -> bool:
     """A união de meses de outras fontes não prova cobertura da fonte escolhida."""
+    if plan.metric_id == "billing.price_volume":
+        from app.services.gold_price_volume import configured_windows
+        with publication.execution_snapshot(engine) as connection:
+            connection.exec_driver_sql("SET LOCAL statement_timeout = '5000ms'")
+            try:
+                return configured_windows(connection, plan) is not None
+            except ValueError:
+                return False
     if plan.window.kind != WindowKind.BOUNDED:
         return source.temporal_column is None
     if source.temporal_column is None:
@@ -133,6 +156,8 @@ def _has_selected_coverage(
             # Somente eq/in, já conferidos pelo catálogo. Valores são parâmetros SQL.
             query = query.where(table.c[source.dimension_columns[item.dimension_id]].in_(item.values))
         values = set(connection.execute(query.distinct().limit(1201)).scalars())
+        if plan.comparison_periods is not None:
+            return set(plan.comparison_periods) <= values
         cursor = plan.window.start.replace(day=1)
         while cursor <= plan.window.end:
             if cursor.strftime("%Y-%m") not in values:
