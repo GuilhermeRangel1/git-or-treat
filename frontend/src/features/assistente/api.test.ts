@@ -84,6 +84,22 @@ describe("cliente do chat", () => {
     });
   });
 
+  it("encaminha sinal de cancelamento para a pergunta em voo", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(validResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+    await askAIQuestion(
+      { contract_version: "v1", question: "Pergunta", context: [] },
+      controller.signal,
+    );
+    expect(fetchMock.mock.calls[0][1]?.signal).toBe(controller.signal);
+  });
+
   it("rejeita JSON de sucesso fora do contrato v1", async () => {
     vi.stubGlobal(
       "fetch",

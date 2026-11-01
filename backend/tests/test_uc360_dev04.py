@@ -2,6 +2,8 @@ from copy import deepcopy
 
 import pytest
 
+from tests.support.platform_auth import login_as_profile
+
 from app.core.config import settings
 from app.repositories.analytics import (
     AnalyticsSourceUnavailable,
@@ -16,6 +18,11 @@ def _use_repository(repository):
 
     app.dependency_overrides[get_analytics_repository] = lambda: repository
     return app
+
+
+@pytest.fixture(autouse=True)
+def authenticated_customer_service_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "customer_service")
 
 
 def test_search_and_overview_expose_known_comparison_as_json_numbers(

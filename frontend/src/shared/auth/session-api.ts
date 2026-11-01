@@ -1,7 +1,15 @@
+import {
+  PLATFORM_PERMISSIONS,
+  PROFILE_PERMISSIONS,
+  type PlatformPermission,
+  type PlatformProfile,
+} from "./platformAccess";
+
 export type SessionUser = {
   id: string;
   username: string;
-  permissions: Array<"orders:read" | "orders:write">;
+  profile: PlatformProfile | null;
+  permissions: PlatformPermission[];
 };
 
 export type SessionEnvelope = {
@@ -72,23 +80,43 @@ function decodeSession(value: unknown): SessionEnvelope {
       throw new SessionApiError("Não foi possível validar a sessão.", 0);
     }
     const row = envelope.user as Record<string, unknown>;
+    const validProfile =
+      row.profile === null ||
+      row.profile === "commercial" ||
+      row.profile === "customer_service" ||
+      row.profile === "losses" ||
+      row.profile === "operations" ||
+      row.profile === "admin";
     if (
       typeof row.id !== "string" ||
       !row.id ||
       typeof row.username !== "string" ||
       !row.username ||
+      !validProfile ||
       !Array.isArray(row.permissions) ||
       !row.permissions.every(
         (permission) =>
-          permission === "orders:read" || permission === "orders:write",
+          typeof permission === "string" &&
+          (PLATFORM_PERMISSIONS as readonly string[]).includes(permission),
       )
+    ) {
+      throw new SessionApiError("Não foi possível validar a sessão.", 0);
+    }
+    const permissions = [...new Set(row.permissions)] as PlatformPermission[];
+    const expected = row.profile
+      ? PROFILE_PERMISSIONS[row.profile as PlatformProfile]
+      : [];
+    if (
+      permissions.length !== expected.length ||
+      expected.some((permission) => !permissions.includes(permission))
     ) {
       throw new SessionApiError("Não foi possível validar a sessão.", 0);
     }
     user = {
       id: row.id,
       username: row.username,
-      permissions: [...new Set(row.permissions)] as SessionUser["permissions"],
+      profile: row.profile as PlatformProfile | null,
+      permissions,
     };
   }
   if ((user === null) !== (envelope.expires_at === null)) {

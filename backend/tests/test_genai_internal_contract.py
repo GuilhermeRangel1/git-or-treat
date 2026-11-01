@@ -5,6 +5,8 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
+
+from tests.support.platform_auth import login_as_profile
 from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_evidence import EvidenceLookupResult
 from app.schemas.genai_internal import (
@@ -40,6 +42,11 @@ def _normalize(payload):
         for field in ("allowed_operations", "allowed_metric_ids", "allowed_dimension_ids"):
             scope[field] = sorted(scope[field])
     return payload
+
+
+@pytest.fixture(autouse=True)
+def authenticated_commercial_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "commercial")
 
 
 @pytest.mark.parametrize("vector", FIXTURE["valid"], ids=lambda vector: vector["id"])

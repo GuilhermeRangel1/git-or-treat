@@ -40,6 +40,8 @@ EXPECTED_TABLES = {
     "gold_indicadores",
     "operational_inspection_orders",
     "operational_order_history",
+    "auth_users",
+    "auth_sessions",
 }
 
 

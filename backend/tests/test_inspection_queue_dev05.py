@@ -2,6 +2,8 @@ from copy import deepcopy
 
 import pytest
 
+from tests.support.platform_auth import login_as_profile
+
 from app.main import app
 from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository_provider
 
@@ -9,6 +11,11 @@ from app.repositories.analytics import SyntheticAnalyticsRepository, get_analyti
 @pytest.fixture(autouse=True)
 def synthetic_source(monkeypatch):
     monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "synthetic")
+
+
+@pytest.fixture(autouse=True)
+def authenticated_losses_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "losses")
 
 
 def test_detail_exposes_reproducible_priority_and_monthly_projection(client):

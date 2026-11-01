@@ -18,7 +18,21 @@ import { apiClient } from "@/shared/api/client";
 
 const account = {
   enabled: true,
-  user: { id: "user-a", username: "reader", permissions: ["orders:read"] },
+  user: {
+    id: "user-a",
+    username: "reader",
+    profile: "admin",
+    permissions: [
+      "panorama:read",
+      "revenue:read",
+      "ucs:read",
+      "inspections:read",
+      "orders:read",
+      "orders:write",
+      "operations:read",
+      "ai:ask",
+    ],
+  },
   expires_at: "2099-10-29T15:00:00Z",
 };
 const accountB = {
@@ -26,7 +40,18 @@ const accountB = {
   user: {
     id: "user-b",
     username: "operator",
-    permissions: ["orders:read", "orders:write"],
+    profile: "losses",
+    permissions: ["inspections:read", "orders:read", "orders:write", "ai:ask"],
+  },
+  expires_at: "2099-10-29T15:00:00Z",
+};
+const accountProfileChanged = {
+  enabled: true,
+  user: {
+    id: "user-a",
+    username: "reader",
+    profile: "customer_service",
+    permissions: ["ucs:read", "ai:ask"],
   },
   expires_at: "2099-10-29T15:00:00Z",
 };
@@ -171,6 +196,21 @@ describe("sessão por cookie", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "reload" }));
     expect(await screen.findByText("user-b")).toBeVisible();
+    expect(client.getQueryData(["private", "orders"])).toBeUndefined();
+  });
+
+  it("limpa cache quando o perfil da mesma identidade muda", async () => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json(account))
+      .mockResolvedValueOnce(Response.json(accountProfileChanged));
+    const client = mount();
+    await screen.findByText("user-a");
+    await userEvent.click(screen.getByRole("button", { name: "seed-cache" }));
+    await waitFor(() =>
+      expect(client.getQueryData(["private", "orders"])).toBe("cached"),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "reload" }));
+    expect(await screen.findByText("user-a")).toBeVisible();
     expect(client.getQueryData(["private", "orders"])).toBeUndefined();
   });
 

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query
 
 from app.api.v1.analytics_route import StrictAnalyticsRoute
-from app.repositories.gold_context import GoldContext, get_optional_gold_context
+from app.core.platform_identity import require_permission
+from app.repositories.gold_context import GoldContext, get_optional_gold_context_for
 from app.repositories.panorama import GoldPanoramaRepository, get_panorama_repository
 from app.schemas.common import AnalyticalMetadata
 from app.schemas.analytics import AnalyticsFilters, AnalyticsSource
@@ -9,7 +10,7 @@ from app.schemas.gold import GoldMetadata
 from app.schemas.panorama import PanoramaResponse
 from app.services.panorama import DEFAULT_PERIOD, build_gold_panorama, build_panorama
 
-router = APIRouter(route_class=StrictAnalyticsRoute)
+router = APIRouter(route_class=StrictAnalyticsRoute, dependencies=[Depends(require_permission("panorama:read"))])
 
 
 @router.get("", response_model=PanoramaResponse, summary="Indicadores do Panorama")
@@ -18,7 +19,7 @@ def get_panorama(
     comparacao: str = Query("anterior", description="Comparação com o período anterior (anterior, ano_anterior, nenhuma)"),
     municipio: str = Query("todos", description="Município do recorte ou 'todos'"),
     classe: str = Query("todas", description="Classe de consumo do recorte ou 'todas'"),
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("panorama:read")),
 ):
     """Indicadores do Panorama (WEB-01) com comparação de período e série mensal.
 

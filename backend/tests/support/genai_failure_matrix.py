@@ -209,8 +209,12 @@ def assert_first_question_failures(client, owner, monkeypatch, headers):
                        for item in retained)
         assert not body.get('audit_reference')
 
+    with owner.connect() as db:
+        previous_profile = db.scalar(
+            select(AuthUser.profile).where(AuthUser.username == 'reader')
+        )
     with owner.begin() as db:
-        db.execute(update(AuthUser).where(AuthUser.username == 'reader').values(permissions=[]))
+        db.execute(update(AuthUser).where(AuthUser.username == 'reader').values(profile=None))
     try:
         response, body = ask('E em Lumenia?', context=[{'role': 'user', 'content': QUESTION}])
         assert response.status_code == 403
@@ -219,7 +223,7 @@ def assert_first_question_failures(client, owner, monkeypatch, headers):
     finally:
         with owner.begin() as db:
             db.execute(update(AuthUser).where(AuthUser.username == 'reader')
-                       .values(permissions=['orders:read']))
+                       .values(profile=previous_profile))
 
     # Falhas e revogação não contaminam a requisição seguinte após restauração.
     recovered = client.post('/api/v1/ai/questions', headers=headers, json={'question': QUESTION})

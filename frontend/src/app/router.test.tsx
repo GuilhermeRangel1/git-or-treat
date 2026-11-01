@@ -168,3 +168,99 @@ it("mantém o redirecionamento inicial e trata caminhos desconhecidos", async ()
     }),
   ).toBeVisible();
 });
+
+function renderForProfile(
+  initialEntry: string,
+  profile: string | null,
+  permissions: string[],
+) {
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+    if (String(input).includes("/api/v1/auth/session")) {
+      return Response.json({
+        enabled: true,
+        user: { id: "profile-user", username: "perfil", profile, permissions },
+        expires_at: "2099-10-29T15:00:00Z",
+      });
+    }
+    return Response.json({ detail: "forbidden" }, { status: 403 });
+  });
+  vi.stubGlobal("fetch", fetchSpy);
+  render(
+    <AppProviders>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <AppRoutes />
+      </MemoryRouter>
+    </AppProviders>,
+  );
+  return fetchSpy;
+}
+
+it("uses the Atendimento entry and filters navigation by profile", async () => {
+  renderForProfile("/", "customer_service", ["ucs:read", "ai:ask"]);
+  expect(
+    await screen.findByRole("heading", {
+      name: "Cada unidade tem uma história.",
+    }),
+  ).toBeVisible();
+  expect(screen.getByRole("link", { name: "UC 360" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Assistente" })).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Panorama" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Inspeções" })).toBeNull();
+});
+
+it("denies a forbidden URL before mounting its page query", async () => {
+  const fetchSpy = renderForProfile("/panorama", "customer_service", [
+    "ucs:read",
+    "ai:ask",
+  ]);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Você não tem acesso a esta área",
+  );
+  expect(
+    fetchSpy.mock.calls.some((call) =>
+      String(call[0]).includes("/api/v1/panorama"),
+    ),
+  ).toBe(false);
+});
+
+it("protects UC detail without starting UC 360 queries", async () => {
+  const fetchSpy = renderForProfile("/uc-360/UC-1001", "commercial", [
+    "panorama:read",
+    "revenue:read",
+    "ai:ask",
+  ]);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Você não tem acesso a esta área",
+  );
+  expect(
+    fetchSpy.mock.calls.some((call) => String(call[0]).includes("/api/v1/ucs")),
+  ).toBe(false);
+});
+
+it("hides cross-links that the current profile cannot open", async () => {
+  renderForProfile("/panorama", "commercial", [
+    "panorama:read",
+    "revenue:read",
+    "ai:ask",
+  ]);
+  await screen.findByRole("heading", {
+    level: 1,
+    name: "Sua rede, em perspectiva.",
+  });
+  expect(screen.getByRole("link", { name: "Receita" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Assistente" })).toBeVisible();
+  expect(screen.queryByRole("link", { name: "OperaÃ§Ã£o" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Abrir operaÃ§Ã£o" })).toBeNull();
+});
+
+it("reserva o diagnostico de contratos para admin com sessao configurada", async () => {
+  const fetchSpy = renderForProfile("/dev/contratos", "commercial", [
+    "panorama:read",
+    "revenue:read",
+    "ai:ask",
+  ]);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Você não tem acesso a esta área",
+  );
+  expect(fetchSpy).toHaveBeenCalledOnce();
+});

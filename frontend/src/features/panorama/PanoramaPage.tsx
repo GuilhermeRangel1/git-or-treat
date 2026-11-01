@@ -15,8 +15,16 @@ import { usePanoramaInsight } from "./usePanoramaInsight";
 import { formatCompetenciaLabel } from "../../shared/analytics/syntheticData";
 import type { PanoramaFilterOptions } from "../../shared/analytics/types";
 import { useGoldPublicationKey } from "../../shared/analytics/goldPublication";
+import { useOptionalSession } from "@/shared/auth/useSession";
+import {
+  hasPermission,
+  type PlatformPermission,
+} from "@/shared/auth/platformAccess";
 
 export default function PanoramaPage() {
+  const session = useOptionalSession();
+  const canNavigate = (permission: PlatformPermission) =>
+    !session?.configured || hasPermission(session.user, permission);
   const publicationKey = useGoldPublicationKey();
   const [catalogState, setCatalogState] = useState<{
     publicationKey: string;
@@ -258,26 +266,32 @@ export default function PanoramaPage() {
 
           <footer className="space-y-6">
             <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:flex-wrap sm:items-center">
-              <Link
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-content px-4 text-sm font-medium text-canvas hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                to={`/receita?${revenueParams.toString()}`}
-              >
-                <ChartNoAxesCombined className="size-4" aria-hidden="true" />
-                Explorar receita
-              </Link>
-              <Link
-                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-control px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                to={`/operacao?competencia_inicio=${filters.periodo}&competencia_fim=${filters.periodo}${filters.municipio === "todos" ? "" : `&municipio=${encodeURIComponent(filters.municipio)}`}`}
-              >
-                Abrir operação
-              </Link>
-              <Link
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                to="/assistente"
-              >
-                <Bot className="size-4" aria-hidden="true" />
-                Perguntar à IA
-              </Link>
+              {canNavigate("revenue:read") ? (
+                <Link
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-content px-4 text-sm font-medium text-canvas hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  to={`/receita?${revenueParams.toString()}`}
+                >
+                  <ChartNoAxesCombined className="size-4" aria-hidden="true" />
+                  Explorar receita
+                </Link>
+              ) : null}
+              {canNavigate("operations:read") ? (
+                <Link
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-control px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  to={`/operacao?competencia_inicio=${filters.periodo}&competencia_fim=${filters.periodo}${filters.municipio === "todos" ? "" : `&municipio=${encodeURIComponent(filters.municipio)}`}`}
+                >
+                  Abrir operação
+                </Link>
+              ) : null}
+              {canNavigate("ai:ask") ? (
+                <Link
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  to="/assistente"
+                >
+                  <Bot className="size-4" aria-hidden="true" />
+                  Perguntar à IA
+                </Link>
+              ) : null}
               <PanoramaStatus
                 data={data}
                 isFetching={isFetching}

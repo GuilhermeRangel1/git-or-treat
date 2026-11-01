@@ -291,7 +291,12 @@ export default function AssistentePage() {
   const [draft, setDraft] = useState("");
   const nextMessageId = useRef(0);
   const historyRef = useRef<HTMLDivElement>(null);
-  const mutation = useMutation({ mutationFn: askAIQuestion, retry: false });
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const mutation = useMutation({
+    mutationFn: (request: AIQuestionRequest) =>
+      askAIQuestion(request, requestControllerRef.current?.signal),
+    retry: false,
+  });
   const hasMessages = messages.length > 0;
   const conversationContext = useMemo(() => makeContext(messages), [messages]);
 
@@ -299,6 +304,14 @@ export default function AssistentePage() {
     const history = historyRef.current;
     if (history) history.scrollTop = history.scrollHeight;
   }, [messages.length]);
+
+  useEffect(
+    () => () => {
+      requestControllerRef.current?.abort();
+      requestControllerRef.current = null;
+    },
+    [],
+  );
 
   async function send(
     questionText: string,
@@ -334,6 +347,8 @@ export default function AssistentePage() {
       setDraft("");
     }
 
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     try {
       const response = await mutation.mutateAsync({
         contract_version: "v1",
@@ -385,6 +400,9 @@ export default function AssistentePage() {
           retryAttempt !== undefined,
         ),
       );
+    } finally {
+      if (requestControllerRef.current === controller)
+        requestControllerRef.current = null;
     }
   }
 

@@ -1,4 +1,4 @@
-"""Autorização Gold derivada da sessão operacional existente do Backend."""
+"""Escopo analítico GenAI Gold v2 derivado do perfil da plataforma."""
 
 from collections.abc import Callable
 from hashlib import sha256
@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.order_access import READ, bearer, get_order_identity
+from app.core.platform_access import PlatformProfile
+from app.core.platform_identity import PlatformIdentity, bearer, get_platform_identity
 from app.schemas.genai_internal import AccessScope
 
 GOLD_METRICS = frozenset({
@@ -26,13 +27,53 @@ GOLD_DIMENSIONS = frozenset({
     "tariff.subgroup", "tariff.flag", "generation.distributed", "network.feeder",
 })
 
+COMMERCIAL_METRICS = frozenset({
+    "billing.revenue",
+    "energy.consumption",
+    "billing.average_ticket",
+    "billing.effective_tariff",
+    "energy.average_consumption_per_uc",
+})
+COMMERCIAL_DIMENSIONS = GOLD_DIMENSIONS - {"network.feeder"}
+OPERATIONS_METRICS = frozenset({
+    "network.equivalent_interruption_duration",
+    "network.equivalent_interruption_frequency",
+})
+OPERATIONS_DIMENSIONS = frozenset({
+    "geography.municipality", "network.feeder",
+})
+_PROFILE_GOLD_SCOPE = {
+    PlatformProfile.COMMERCIAL: (COMMERCIAL_METRICS, COMMERCIAL_DIMENSIONS),
+    PlatformProfile.OPERATIONS: (OPERATIONS_METRICS, OPERATIONS_DIMENSIONS),
+    # O catálogo e a leitura autorizados não definem capacidade de atendimento
+    # nem de perdas. ai:ask concede acesso ao chat, não a essas medidas Gold.
+    PlatformProfile.CUSTOMER_SERVICE: (frozenset(), frozenset()),
+    PlatformProfile.LOSSES: (frozenset(), frozenset()),
+    PlatformProfile.ADMIN: (GOLD_METRICS, GOLD_DIMENSIONS),
+}
+
+
+def build_profile_access_scope(identity: PlatformIdentity) -> AccessScope:
+    """Deriva apenas capacidades analíticas aprovadas para o cargo atual."""
+    if identity.auth_mode != "session" or "ai:ask" not in identity.permissions:
+        raise ValueError("Identidade sem acesso individual de perguntas GenAI.")
+    if identity.profile is None:
+        raise ValueError("Perfil sem escopo Gold autorizado.")
+    metrics, dimensions = _PROFILE_GOLD_SCOPE[identity.profile]
+    return AccessScope(
+        caller_ref="session:" + sha256(identity.actor.encode()).hexdigest(),
+        profile_id="v-energy-grid-360-gold", source_id="gold.local",
+        allowed_operations=frozenset({"read"}),
+        allowed_metric_ids=metrics, allowed_dimension_ids=dimensions,
+    )
+
 
 def get_genai_gold_access_resolver(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Callable[[], AccessScope]:
-    """Relê sessão, usuário ativo e permissões em uma transação nova a cada uso.
+    """Relê sessão, usuário ativo e perfil em uma transação nova a cada uso.
 
     A conexão operacional resolve a identidade; nunca é entregue ao leitor Gold.
     Não reutiliza objetos/transaction snapshot do identity map da requisição.
@@ -46,17 +87,15 @@ def get_genai_gold_access_resolver(
             raise HTTPException(503, "Consulta Gold exige sessão individual.")
         try:
             with Session(bind) as current:
-                identity = get_order_identity(request, credentials, current)
+                identity = get_platform_identity(request, credentials, current)
         except SQLAlchemyError:
             raise HTTPException(503, "Identidade Gold indisponível.") from None
-        if identity.auth_mode != "session" or READ not in identity.permissions:
+        if identity.auth_mode != "session" or "ai:ask" not in identity.permissions:
             raise HTTPException(403, "Acesso à Gold não autorizado.")
-        return AccessScope(
-            caller_ref="session:" + sha256(identity.actor.encode()).hexdigest(),
-            profile_id="v-energy-grid-360-gold", source_id="gold.local",
-            allowed_operations=frozenset({"read"}),
-            allowed_metric_ids=GOLD_METRICS, allowed_dimension_ids=GOLD_DIMENSIONS,
-        )
+        try:
+            return build_profile_access_scope(identity)
+        except ValueError:
+            raise HTTPException(403, "Acesso à Gold não autorizado.") from None
 
     resolve()
     return resolve

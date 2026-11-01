@@ -28,7 +28,7 @@ from app.services.gold_catalog import load_gold_catalog
 
 
 async def answer_gold_question(
-    engine: Engine,
+    engine: Engine | None,
     client: GenAIQuestionClient,
     request: AIQuestionRequest,
     *,
@@ -72,6 +72,10 @@ async def answer_gold_question(
         )
         reference = await deadline.run(35, lambda: audit("response", "completed", outcome))
         return planned.response.response.model_copy(update={"audit_reference": reference})
+    if engine is None:
+        # Identidade promovida entre a admissão HTTP e o planejamento: este
+        # pedido não reabre recursos sob a nova concessão.
+        raise GenAIServiceUnavailable(retryable=False)
     if planned.deadline is None or planned.access_scope is None or planned.source is None:
         raise GenAIResponseInvalid
     if readiness_gate is None:

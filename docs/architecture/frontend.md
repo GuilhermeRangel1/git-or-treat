@@ -4,6 +4,12 @@
 
 **Decisão estrutural:** [ADR-0001](../decisions/0001-arquitetura-frontend.md). Referências complementares: [ADR-0004 — contratos analíticos e fonte sintética](../decisions/0004-contratos-analiticos-e-fonte-sintetica.md), [ADR-0006 — Panorama](../decisions/0006-panorama-fonte-produto-e-contrato-dev01.md), [ADR-0008 — Receita](../decisions/0008-exploracao-demonstrativa-receita.md), [ADR-0009 — UC 360](../decisions/0009-uc360-contratos-de-consulta.md), [contrato de Inspeções DEV-05](../contracts/inspection-dev05.md) e [catálogo de contratos analíticos](../contracts/analytics-api.md).
 
+## Sessão e autorização WEB-10
+
+`AuthProvider` consome o perfil e o catálogo de permissões devolvidos pela sessão. Metadados de rota e navegação usam a mesma permissão requerida; guards bloqueiam acesso antes da montagem da página e de suas consultas. Rotas e ações da UI são uma barreira de experiência: o Backend revalida identidade e grants em cada endpoint. Sessão expirada/ausente recebe 401 e inicia reautenticação; 403 conserva sessão e apresenta acesso negado. Mudança de usuário ou perfil invalida caches e conversas de IA e descarta respostas em andamento.
+
+Os cinco perfis e os seus destinos iniciais são definidos no [contrato de acesso](../contracts/platform-access.md). Conta sem perfil não recebe destino nem permissões e vê a orientação de provisionamento. O Assistente aparece para todos, com capacidades de Gold v2 derivadas no Backend; o Frontend apresenta estados de recusa/limitação do contrato sem criar capacidades. Veja [ADR-0022](../decisions/0022-perfis-de-acesso-web10.md). A etapa 5 confirmou navegação/recursos por perfil no navegador e API; a suíte completa do Backend passou. Respostas Admin/reconciliação do Assistente com lote Gold autorizado seguem pendentes, portanto WEB-10 permanece em validação.
+
 ## Estrutura e ownership
 
 ```text
@@ -90,4 +96,4 @@ O chat não persiste histórico e sua limpeza remove o conteúdo da memória da 
 
 Os consumidores de Panorama, fila/Ordens e Operação agora distinguem contratos demonstrativos e Gold v2. `shared/analytics/goldContract.ts` valida metadados comuns; `goldPublication.ts` mantém identidade/geração da publicação analítica. O transporte aplica guardas apenas nas leituras analíticas, e `app/GoldPublicationNotice.tsx` coordena a atualização dos grupos de consultas após conflito, preservando ordens operacionais. Cada feature continua responsável por seus DTOs e apresentação; `shared` não importa features ou app.
 
-Essa preparação não ativa acesso Gold anônimo. A autenticação por sessão e a jornada principal do portal foram exercitadas no navegador contra API real; WEB-10 permanece pendente porque perfis/restrições de telas por cargo ainda não cobrem todo o escopo. O plano completo, os gates anteriores aos ajustes cosméticos e as verificações repetidas depois deles estão nas [evidências Gold](../plans/2026-10-29-dev13-1-gold-frontend-evidencias.md) e no [plano de autenticação e login](../plans/2026-10-29-backend-auth-login-grid360-plano.md).
+Essa preparação não ativa acesso Gold anônimo. A autenticação por sessão e a jornada principal do portal foram exercitadas no navegador contra API real. Os perfis WEB-10 foram implementados depois; o aceite integrado permanece em validação conforme o [PRD](../PRD.md#14-registro-de-progresso). O plano de login e as evidências Gold anteriores estão nas [evidências Gold](../plans/2026-10-29-dev13-1-gold-frontend-evidencias.md) e no [plano de autenticação e login](../plans/2026-10-29-backend-auth-login-grid360-plano.md).

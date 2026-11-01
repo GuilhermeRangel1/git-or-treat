@@ -3,8 +3,14 @@ from pydantic import SecretStr, ValidationError
 
 from app.core.config import Settings
 from app.middleware.request_limits import MAX_BODY_BYTES
+from tests.support.platform_auth import login_as_profile
 
 ORDER_URL = "/api/v1/inspections/orders"
+
+
+@pytest.fixture
+def commercial_session(client, monkeypatch):
+    return login_as_profile(client, monkeypatch, "commercial")
 
 
 @pytest.fixture
@@ -119,7 +125,9 @@ def test_large_body_rejected_even_without_content_length(client):
     assert client.post("/api/v1/ai/query", content=chunks()).status_code == 413
 
 
-def test_json_structure_characters_inside_strings_do_not_count_as_depth(client):
+def test_json_structure_characters_inside_strings_do_not_count_as_depth(
+    client, monkeypatch, commercial_session
+):
     payload = {"intent": "[" * 200 + '\\"' + "}" * 200, "target_table": "gold_indicadores"}
     response = client.post("/api/v1/ai/query", json=payload)
     assert response.status_code == 503
@@ -196,7 +204,7 @@ def test_invalid_unicode_and_nul_in_json_are_rejected_before_storage(client, enc
     assert response.status_code == 400
 
 
-def test_valid_unicode_surrogate_pair_remains_supported(client):
+def test_valid_unicode_surrogate_pair_remains_supported(client, monkeypatch, commercial_session):
     response = client.post('/api/v1/ai/query', content=r'{"intent":"\ud83d\ude00","target_table":"gold_indicadores"}', headers={'Content-Type': 'application/json'})
     assert response.status_code == 503
     assert response.json()["status"] == "error"

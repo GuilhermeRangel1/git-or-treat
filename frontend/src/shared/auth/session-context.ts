@@ -11,7 +11,7 @@ export type SessionValue = {
   needsReauthentication: boolean;
   lastConfirmedAccess: { actor: string; access: OrderAccess } | null;
   rememberOrderAccess: (actor: string, access: OrderAccess) => void;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<SessionUser | null>;
   logout: () => Promise<void>;
   reloadSession: () => Promise<void>;
   clearReauthentication: () => void;

@@ -38,7 +38,7 @@ class GoldPlanningResult:
     """Plano e referência capturada no servidor; o executor deve revalidar ambos."""
 
     response: QuestionPlanResponse
-    publication: GoldPublicationContext
+    publication: GoldPublicationContext | None
     source: CatalogSource | None = None
     access_scope: AccessScope | None = None
     deadline: GenAIRequestDeadline | None = None
@@ -55,6 +55,21 @@ def _stop(status: QuestionPlanStatus, message: str, correlation_id: str):
                    if status == QuestionPlanStatus.REFUSED else None),
         ),
     )
+
+
+def _scope_limitation(correlation_id: str) -> GoldPlanningResult:
+    message = "Seu perfil tem acesso ao Assistente, mas as consultas da sua área ainda não estão disponíveis."
+    response = QuestionPlanResponse(
+        correlation_id=correlation_id,
+        status=QuestionPlanStatus.NEEDS_CLARIFICATION,
+        response=AIQuestionResponse(
+            correlation_id=correlation_id,
+            status=QuestionPlanStatus.NEEDS_CLARIFICATION.value,
+            message=message,
+            limitations=["Ainda não há consultas disponíveis para esta área."],
+        ),
+    )
+    return GoldPlanningResult(response=response, publication=None)
 
 
 def _admit_plan(plan: LogicalReadPlan, scope: AccessScope) -> CatalogSource:
@@ -168,6 +183,10 @@ async def plan_gold_question(
     if expected_batch_ref is not None:
         PublicationReference.parse(expected_batch_ref)
     scope = await deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
+    # O escopo vazio é uma limitação de capacidade, não uma consulta recusada.
+    # Retorne antes de abrir o leitor, carregar publicação ou chamar o modelo.
+    if not scope.allowed_metric_ids:
+        return _scope_limitation(correlation_id)
     publication = await deadline.run(
         35, lambda: asyncio.to_thread(GoldPublicationContext.capture, engine)
     )

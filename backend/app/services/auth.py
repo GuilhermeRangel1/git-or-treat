@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.passwords import hash_password, verify_password
+from app.core.platform_access import permissions_for_profile
 from app.models.auth import AuthSession, AuthUser
 
 
@@ -83,7 +84,4 @@ def resolve_session(db: Session, token: str | None) -> tuple[AuthUser, AuthSessi
 
 
 def permissions_for(user: AuthUser) -> frozenset[str]:
-    permissions = frozenset(user.permissions or ()) & ALLOWED_PERMISSIONS
-    if "orders:write" in permissions:
-        permissions |= {"orders:read"}
-    return permissions
+    return permissions_for_profile(user.profile)
