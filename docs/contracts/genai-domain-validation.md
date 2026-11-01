@@ -155,3 +155,8 @@ Resultado por ID idêntico ao anterior: 43 PASS, cinco BLOQUEADO, sete SEM_AMOST
 Comando na worktree 10B: `docker exec --env-file work/genai10/.env.genai10b-backend -w /repo/backend genai10b-tests python /repo/work/genai10/http-acceptance.py`. Script e valores privados permanecem ignorados. A primeira tentativa foi rejeitada no login por Host interno não permitido; o cliente passou a enviar o Host local autorizado, sem mudar a proteção do servidor.
 
 A fronteira HTTP pública foi comprovada; renderização/interação no navegador, revisão de Dados e lacunas de fonte continuam pendentes. Critérios e estados preservados.
+
+
+## Encerramento técnico local autorizado — 01/11/2026
+
+O escopo dos cartões 10A/10B foi explicitamente revisado pela pessoa usuária para encerrar a entrega técnica com pendências transferidas: 10/10 no escopo local revisado. Os critérios originais não são declarados integralmente satisfeitos. Decisão e mapa de transferência em `docs/contracts/genai-domain-local-acceptance.md`, mantido pela branch 10A; pendências em https://trello.com/c/4XzZJTsu . Estados dos requisitos IA e classes dos 57 cenários preservados. Nova tentativa de navegador bloqueada; jornada visual pendente, sem novo aceite visual.

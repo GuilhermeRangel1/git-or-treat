@@ -1,6 +1,6 @@
 # GENAI-10A — Matriz única de cenários dos domínios Gold v2
 
-**Cartão:** GENAI-10A. **Requisitos:** IA-01, IA-02, IA-03, IA-06. **Natureza:** preparação (matriz versionada, validação de formato e runner pronto). Nenhum cenário foi executado contra o lote e nenhum requisito é concluído por este documento.
+**Cartão:** GENAI-10A. **Requisitos:** IA-01, IA-02, IA-03, IA-06. **Natureza vigente:** integração executável e aceite técnico local com pendências transferidas; ver `genai-domain-local-acceptance.md`. A matriz foi executada sobre o lote Gold v2, com modelo controlado. Requisitos IA completos e lacunas de fonte continuam com seus estados próprios.
 
 Referências: [dicionário Gold](../dicionario_gold.md), [contrato CSV v2](gold-csv-v2.md), catálogo `backend/app/catalogs/gold_v2.json`, perfil `ai-agent/app/profiles/grid360_gold.py`, [prontidão](../gold-readiness.md), [controles C01–C15](../gold-coverage-v0.md), [matriz de linguagem Q04](../gold-question-matrix.md) e [primeira pergunta](genai-first-question.md). A Gold v2 é a única referência; não há fallback v1.
 
