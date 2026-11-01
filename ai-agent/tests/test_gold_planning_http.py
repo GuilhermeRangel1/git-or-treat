@@ -102,7 +102,9 @@ def test_http_synthesis_preserves_zero_and_rejects_changed_publication():
         result = client.post(SYNTHESIS_PATH, json=synthesis, headers=HEADERS)
         assert result.status_code == 200
         assert result.json()["status"] == "answered"
-        assert "0 R$" in result.json()["answer"]
+        assert "R$ 0,00 em março de 2025" in result.json()["answer"]
+        assert "billing.revenue" not in result.json()["answer"]
+        assert result.json()["analysis_context"]["batch_reference"] == request.batch_ref
         assert result.json()["analysis_context"]["period"] == "2025-03-01 a 2025-03-31"
         assert result.json()["analysis_context"]["metric"] == "billing.revenue"
         assert result.json()["analysis_context"]["metric_label"] == "Receita faturada"

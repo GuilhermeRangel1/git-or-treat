@@ -21,6 +21,7 @@ export type AIQuestionError = {
 };
 
 export type AIAnalysisContext = {
+  batch_reference?: string | null;
   metric?: string | null;
   metric_label?: string | null;
   metric_definition?: string | null;
@@ -190,7 +191,13 @@ export function decodeAIQuestionResponse(value: unknown): AIQuestionResponse {
       }
       filters[key] = filter as string | number | boolean;
     }
-    for (const field of ["metric", "metric_label", "unit", "period"] as const) {
+    for (const field of [
+      "metric",
+      "metric_label",
+      "unit",
+      "period",
+      "batch_reference",
+    ] as const) {
       if (context[field] != null && !isText(context[field], 200)) {
         throw new Error("Resposta inválida do serviço.");
       }
@@ -217,6 +224,7 @@ export function decodeAIQuestionResponse(value: unknown): AIQuestionResponse {
       }
     }
     analysisContext = {
+      batch_reference: context.batch_reference as string | null | undefined,
       metric: context.metric as string | null | undefined,
       metric_label: context.metric_label as string | null | undefined,
       metric_definition: context.metric_definition as string | null | undefined,

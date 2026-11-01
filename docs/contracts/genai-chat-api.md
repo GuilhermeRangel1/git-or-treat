@@ -115,3 +115,12 @@ O contrato está integrado na fatia Gold v2 do GENAI-09; cobertura dos demais do
 ## Rótulos do catálogo no contrato público v1
 
 `analysis_context.metric` e as chaves de `filters` preservam os IDs lógicos. Os campos opcionais `metric_label`, `metric_definition` e `filter_labels` vêm do perfil validado contra o catálogo Backend, e o Assistente os usa para apresentar métrica, definição e dimensões. Só filtros aplicados admitem rótulos. Respostas antigas continuam aceitas pelo portal novo; Backend com o schema estendido deve preceder a GenAI nova, por causa da validação estrita de campos. Não foram alterados IDs, autorização, fórmulas ou versão Gold. Evidências em [consolidação](genai-consolidation.md).
+
+
+## Apresentação do Assistente — GENAI-11
+
+O campo opcional `analysis_context.batch_reference` contém a referência da publicação confirmada pela proveniência (`gold-csv-v2:lote:publication_id` no caminho Gold atual). Backend e portal validam esse texto, limitado a 200 caracteres; respostas anteriores sem o campo continuam válidas. A interface mostra lote e referência auditável nos detalhes “Como chegamos à resposta”, com a definição de negócio do indicador. Não expõe IDs de métricas, nomes de tabelas ou SQL. Filtros sem rótulo permanecem visíveis como “Filtro aplicado”.
+
+A resposta quantitativa é montada a partir das observações aprovadas: valores monetários em reais usam formato brasileiro e meses são escritos por extenso. Séries usam uma linha por observação; texto livre do modelo não substitui números validados. Demonstração tem aviso visível antes de abrir os fundamentos; limitações permanecem visíveis.
+
+O portal preserva o rascunho nas falhas, impede envio simultâneo e impõe prazo de 40 segundos, superior ao orçamento de 35 segundos do Backend. Timeout/rede permitem repetição manual; 401/403, 409, 422 e 429 orientam uma nova ação, sem repetição automática. Em 409, respostas anteriores são sinalizadas como desatualizadas e seus contextos e retentativas são descartados. Histórico permanece apenas em memória e não é cache de resposta vigente. A renderização é texto simples: HTML e links enviados no conteúdo não são executados.
