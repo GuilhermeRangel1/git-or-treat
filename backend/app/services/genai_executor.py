@@ -1,4 +1,4 @@
-"""Execução controlada de planos Gold v1 no Backend (GENAI-06)."""
+"""Execução controlada dos planos lógicos sobre a Gold v2 no Backend."""
 
 import calendar
 import json
@@ -8,7 +8,7 @@ from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from hashlib import sha256
 from math import isfinite
 
-from sqlalchemy import func, literal, select, text
+from sqlalchemy import case, exists, func, literal, or_, select, text, union_all
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
 
@@ -114,6 +114,10 @@ def _query(plan: LogicalReadPlan, source, metric):
         # temporal físico que a fonte não oferece.
         period = literal(plan.window.phrase)
 
+    if plan.comparison_periods is not None:
+        if period_column is None:
+            raise GoldExecutionDenied
+        filters.append(period.in_(plan.comparison_periods))
     for item in plan.filters:
         column_name = source.dimension_columns.get(item.dimension_id)
         if column_name is None:
@@ -137,12 +141,31 @@ def _query(plan: LogicalReadPlan, source, metric):
         selected.append(table.c[column_name].label(field_name))
 
     aggregation = metric.aggregation
-    if aggregation in ("sum", "count_non_null", "average_non_null"):
+    if aggregation == "published_decomposition":
+        from app.services.gold_price_volume import decomposition_query
+        if plan.window.kind is not WindowKind.CATALOG_PHRASE or dimensions:
+            raise GoldExecutionDenied
+        return decomposition_query(plan)
+    if aggregation == "count_gd_drop":
+        if plan.window.kind is not WindowKind.CATALOG_PHRASE or dimensions:
+            raise GoldExecutionDenied
+        eligible = (
+            (table.c.possui_gd == "Sim")
+            & (table.c.meses_com_leitura_p1 >= 6) & (table.c.meses_com_leitura_p2 >= 6)
+            & table.c.consumo_medio_inicial.is_not(None)
+            & table.c.consumo_medio_final.is_not(None)
+            & table.c.queda_consumo_superior_30_pct.is_(True)
+        )
+        value = func.count(case((eligible, 1)))
+        statement = select(*selected, value.label("value")).where(*filters)
+    elif aggregation in ("sum", "count_non_null", "average_non_null", "count_distinct"):
         if source.measure_column is None:
             raise GoldExecutionDenied
         measure = table.c[source.measure_column]
         if aggregation == "sum":
             value = func.sum(measure)
+        elif aggregation == "count_distinct":
+            value = func.count(func.distinct(measure))
         elif aggregation == "count_non_null":
             value = func.count(measure)
         else:
@@ -192,8 +215,31 @@ def _query(plan: LogicalReadPlan, source, metric):
     else:
         raise GoldExecutionDenied
 
+    if plan.comparison_periods is not None and plan.group_by_dimension_ids:
+        # Agrupa e classifica todos os bairros no banco antes do LIMIT de saída.
+        monthly = statement.subquery("monthly")
+        field = _DIMENSION_FIELDS[plan.group_by_dimension_ids[0]]
+        baseline, target = plan.comparison_periods
+        pairs = select(
+            monthly.c[field],
+            func.max(case((monthly.c.period == baseline, monthly.c.value))).label("initial"),
+            func.max(case((monthly.c.period == target, monthly.c.value))).label("final"),
+        ).group_by(monthly.c[field]).cte("pairs")
+        incomplete = exists(select(literal(1)).select_from(pairs).where(or_(
+            pairs.c.initial.is_(None), pairs.c.final.is_(None),
+        )))
+        winner = select(pairs).where(~incomplete).order_by(
+            (pairs.c.final - pairs.c.initial).asc(), pairs.c[field].asc(),
+        ).limit(1).cte("winner")
+        return union_all(
+            select(literal(baseline).label("period"), winner.c[field],
+                   winner.c.initial.label("value")),
+            select(literal(target).label("period"), winner.c[field],
+                   winner.c.final.label("value")),
+        ).order_by("period")
+
     order_by = []
-    if plan.order is not None:
+    if plan.order is not None and plan.comparison_periods is None:
         if plan.order.field_id == plan.metric_id:
             order_expression = value
         else:
@@ -206,7 +252,11 @@ def _query(plan: LogicalReadPlan, source, metric):
     if plan.window.kind is WindowKind.BOUNDED:
         order_by.append(period.asc())
     order_by.extend(column.asc() for column in dimensions.values())
-    statement = statement.order_by(*order_by).limit(min(plan.limit, MAX_EVIDENCE_ROWS) + 1)
+    # Um ranking explícito pede somente os primeiros grupos. Nos demais casos,
+    # a linha adicional detecta um resultado incompleto que não pode ser publicado.
+    extra_row = (0 if plan.order is not None and plan.group_by_dimension_ids
+                 and plan.comparison_periods is None else 1)
+    statement = statement.order_by(*order_by).limit(min(plan.limit, MAX_EVIDENCE_ROWS) + extra_row)
     return statement
 
 
@@ -284,6 +334,7 @@ def execute_gold_plan(
         raise GoldExecutionDenied
     statement = _query(plan, source, metric)
 
+    published = None
     with planned.publication.execution_snapshot(engine) as connection:
         connection.execute(
             text("SELECT set_config('statement_timeout', :timeout, true)"),
@@ -301,6 +352,9 @@ def execute_gold_plan(
                 # Coluna/tabela renomeada ou tipo alterado: incompatível, não transitório.
                 raise GoldCatalogIncompatible from None
             raise
+        if metric.aggregation == "published_decomposition":
+            from app.repositories.gold_publication import publication_lineage
+            origin = publication_lineage(connection, planned.publication.batch_ref)
 
     planned.deadline.remaining_seconds(35)
     if resolve_scope() != current_scope:
@@ -311,9 +365,21 @@ def execute_gold_plan(
         )
 
     records = []
-    for row in rows:
+    if metric.aggregation == "published_decomposition":
+        from app.services.gold_price_volume import decomposition_records
+        try:
+            records, published = decomposition_records(rows, plan, origin)
+        except (ValueError, TypeError, KeyError):
+            return _clarification("A decomposição publicada não tem base comum e reconciliação "
+                                  "válidas para um único par de janelas. Informe outro recorte.")
+    for row in (() if published is not None else rows):
         raw_value = row.get("value")
-        value = _rounded_number(raw_value, metric.rounding.decimals)
+        if plan.comparison_periods is not None and raw_value is not None:
+            value = float(raw_value)
+            if not isfinite(value):
+                raise GoldExecutionDenied
+        else:
+            value = _rounded_number(raw_value, metric.rounding.decimals)
         if value is None:
             return _clarification(
                 "O recorte contém medida nula ou razão sem denominador válido; "
@@ -325,6 +391,8 @@ def execute_gold_plan(
                 record[field_name] = row[field_name]
         records.append(record)
 
+    if not records and plan.comparison_periods is not None:
+        return _clarification("Não há dois meses completos em todos os grupos do recorte.")
     if not records:
         return EvidenceLookupResult(
             status=EvidenceLookupStatus.NO_EVIDENCE,
@@ -343,6 +411,7 @@ def execute_gold_plan(
         dimension_ids=plan.dimension_ids,
         batch_ref=planned.publication.batch_ref,
         quality=quality,
+        published_windows=published,
         physical_catalog=gold_physical_catalog(),
     )
     cache_payload = json.dumps(

@@ -446,7 +446,7 @@ O planejamento Gold v2 também resolve competências explícitas (mês/ano, AAAA
 A resolução Gold confere cada menção explícita de dimensão para que um valor reconhecido não oculte outro desconhecido. Ao retomar o contexto, reinterpreta a última fala com o prefixo ainda disponível nos três turnos do contrato e reaplica catálogo/escopo atuais. O teste integrado do produtor Backend lê tabelas v2 de um banco migrado artificial e envia o envelope ao núcleo em outro processo; isso comprova a ligação de componentes em teste, sem instalar um coordenador HTTP de produção.
 
 
-O perfil Gold declara agrupamento e ordenação indisponíveis também na revalidação de planos (`supports_grouping`/`supports_ordering`), com defaults compatíveis para os demais perfis. Pedidos de ranking, filtros numéricos, situação da fatura ou presença de leitura não representados no catálogo recebem esclarecimento em vez de retornar um total com qualificadores descartados. Sinônimos de pagamento/arrecadação e energia injetada/compensada/entregue são distinguidos de receita faturada e consumo medido.
+Antes da fatia GENAI-10B abaixo, o perfil Gold recusava agrupamento e ordenação na revalidação; a nova whitelist por métrica substitui essa restrição global para contribuição por classe em uma competência. Pedidos de ranking, filtros numéricos, situação da fatura ou presença de leitura não representados no catálogo recebem esclarecimento em vez de retornar um total com qualificadores descartados. Sinônimos de pagamento/arrecadação e energia injetada/compensada/entregue são distinguidos de receita faturada e consumo medido.
 
 
 ### Operações internas Gold v2 — integração HTTP de 31/10/2026
@@ -459,3 +459,30 @@ A guarda da evidência permite valores dinâmicos exatamente iguais aos filtros 
 ### GENAI-04 — decisão temporal aprovada e chamador Backend
 
 A pessoa usuária aprovou a ADR-0018 nesta entrega: âncora na competência mais recente do lote, janela mensal inclusiva e esclarecimento de lacunas. O Backend agora possui um chamador operacional do planejamento (`plan_gold_question`, exposto pela CLI homônima), que conserva a publicação e reautoriza o escopo, antes de admitir a fonte física e a cobertura efetiva do recorte. As rotas internas e o núcleo são os mesmos já existentes. Não há SQL nem credencial Gold na GenAI. Comparação sem suporte, inclusive com base zero, permanece esclarecimento sem plano; cálculo percentual pertence à execução quantitativa, sem converter nulo/ausência em zero.
+
+
+### GENAI-10B — contribuição por classe e atendimento acumulado
+
+O perfil v2 declara agrupamentos por métrica: somente receita por classe nesta fatia.
+A pergunta de maior contribuição em uma competência produz agrupamento, ordem pela
+receita e limite de uma linha; o acompanhamento conserva esses campos. Ranking de
+vários meses ou outras dimensões continua esclarecimento. As flags globais permitem
+a operação, mas não substituem a lista da métrica nem a revalidação do plano.
+
+As métricas mensais de atendimento declaram sua variante acumulada no próprio perfil.
+O período explícito de histórico seleciona essa variante, sem atribuir mês ao total.
+A guarda exige o período acumulado exato na observação. Qualificadores explícitos de
+dimensão distinguem município de bairro homônimo; pedidos não qualificados conservam
+a ambiguidade. A matriz, comandos e limites estão na
+[entrega incremental dos domínios](../contracts/genai-domain-implementation.md).
+
+
+### GENAI-10B — comparação, GD, eventos e decomposição publicados
+
+O núcleo existente passou a planejar dois meses explícitos de receita/consumo e
+ranking por variação absoluta de consumo por bairro, mantendo filtros, cobertura
+e base zero. GD/queda usa somente as janelas fixas e a população elegível de Dados.
+Eventos distintos não são FEC. Preço/volume exige componentes completos e janelas
+publicadas no envelope interno de evidência. O modelo não calcula fórmulas.
+Detalhes de semântica, controle e limites na [ADR-0022](../decisions/0022-consumo-metricas-documentadas-gold-v2.md)
+e na [entrega 10B](../contracts/genai-domain-implementation.md).

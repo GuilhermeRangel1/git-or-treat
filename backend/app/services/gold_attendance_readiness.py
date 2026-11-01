@@ -96,7 +96,7 @@ def _observe_publication(
     requested_periods é um recorte global da publicação para uso interno autorizado.
     Recortes por UC/geografia exigem observação própria; estes fatos não os autorizam.
     """
-    if (not requested_periods or len(requested_periods) > 1200
+    if ((not requested_periods and not include_domains) or len(requested_periods) > 1200
             or len(set(requested_periods)) != len(requested_periods)):
         raise ValueError("Recorte mensal inválido.")
     for period in requested_periods:
@@ -221,6 +221,9 @@ def _observe_publication(
                 "status":"passed" if value else "failed", "approved":key in approved_controls}
                 for key,value in results.items()})
             facts["coverage"].update(coverage)
+        if not requested_periods:
+            # Histórico acumulado não declara cobertura de nenhum mês.
+            facts["coverage"] = {}
     context.assert_current(engine)
     if monotonic() >= expires:
         raise GenAITimeout

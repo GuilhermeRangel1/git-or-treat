@@ -4,6 +4,7 @@ import json
 import re
 from calendar import monthrange
 from datetime import date
+from decimal import DecimalException
 from hashlib import sha256
 from math import isfinite
 
@@ -55,7 +56,13 @@ def safe_reference_source(source_id: str, raw_reference: str) -> str:
     return f"{prefix}:{reference_digest}"
 
 
-def _observation_period(value: object, plan: LogicalReadPlan) -> str:
+def _observation_period(
+    value: object, plan: LogicalReadPlan, *, accumulated: bool = False
+) -> str:
+    if accumulated:
+        if plan.window.kind is not WindowKind.CATALOG_PHRASE or value != plan.window.phrase:
+            raise EvidenceContractInvalid("período acumulado incompatível com o plano")
+        return value
     period = _safe_period(value)
     if plan.window.kind is WindowKind.BOUNDED:
         expected_length = {"year": 4, "month": 7, "day": 10}.get(plan.window.granularity)
@@ -158,6 +165,8 @@ class EvidenceGuard:
         )
         if metric is None or not metric.evidence_fields:
             raise EvidenceContractInvalid("métrica sem classificação de evidência")
+        if metric.requires_published_windows != (provenance.published_windows is not None):
+            raise EvidenceContractInvalid("janelas publicadas ausentes ou não esperadas")
         if any(item not in metric.limitation_texts for item in result.limitations):
             raise EvidenceContractInvalid("limitação não aprovada no catálogo")
         if evidence.reference.is_demo and not result.limitations:
@@ -198,15 +207,24 @@ class EvidenceGuard:
             ):
                 raise EvidenceContractInvalid("medida ausente ou inválida")
             for field in fields.values():
-                if field.role is EvidenceFieldRole.UNIT and row.get(field.name) != plan.unit:
+                expected_unit = metric.observation_labels.get(row.get("label"), plan.unit)
+                if field.role is EvidenceFieldRole.UNIT and row.get(field.name) != expected_unit:
                     raise EvidenceContractInvalid("unidade incompatível")
             safe_row: dict[str, object] = {
-                "observation_id": f"row_{index}", "value": value, "unit": plan.unit
+                "observation_id": f"row_{index}", "value": value, "unit": expected_unit
             }
             row_dimensions: dict[str, object] = {}
             for field in fields.values():
                 if field.role is EvidenceFieldRole.PERIOD:
-                    safe_row["period"] = _observation_period(row.get(field.name), plan)
+                    safe_row["period"] = _observation_period(
+                        row.get(field.name), plan,
+                        accumulated=bool(metric.accumulated_period_phrases),
+                    )
+                elif field.role is EvidenceFieldRole.LABEL:
+                    label = row.get(field.name)
+                    if label not in metric.observation_labels:
+                        raise EvidenceContractInvalid("rótulo de observação não aprovado")
+                    safe_row["label"] = label
                 elif field.role is EvidenceFieldRole.DIMENSION:
                     dimension_id = field.dimension_id
                     if field.name not in row:
@@ -260,6 +278,24 @@ class EvidenceGuard:
             if row_dimensions:
                 safe_row["dimensions"] = row_dimensions
             safe_records.append(safe_row)
+
+        if metric.observation_labels:
+            if (len(safe_records) != len(metric.observation_labels)
+                    or {row.get("label") for row in safe_records}
+                    != set(metric.observation_labels)):
+                raise EvidenceContractInvalid("decomposição parcial ou com componentes repetidos")
+            for row in safe_records:
+                row["period"] = provenance.published_windows.describe()
+        if plan.comparison_periods is not None:
+            from app.agent.comparison import ComparisonUnavailable, comparison_records
+            try:
+                safe_records = comparison_records(plan, safe_records)
+            except (ComparisonUnavailable, DecimalException, OverflowError):
+                return EvidenceLookupResult(
+                    status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
+                    message="A comparação exige os dois meses no mesmo recorte em todos os grupos; "
+                    "ausência não equivale a zero. Informe outro recorte.",
+                )
 
         safe_source = safe_reference_source(plan.source_id, evidence.reference.source)
         safe_reference = EvidenceReference(

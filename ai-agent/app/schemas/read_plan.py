@@ -10,11 +10,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializerFunctionWrapHandler,
     StrictBool,
     StrictFloat,
     StrictInt,
     StrictStr,
     StringConstraints,
+    model_serializer,
     model_validator,
 )
 
@@ -111,20 +113,43 @@ class LogicalReadPlan(BaseModel):
     group_by_dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
     unit: PlanUnit
     window: ReadWindow
+    comparison_periods: tuple[
+        Annotated[str, StringConstraints(pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")],
+        Annotated[str, StringConstraints(pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")],
+    ] | None = None
     filters: tuple[ReadFilter, ...] = Field(default=(), max_length=20)
     order: ReadOrder | None = None
     limit: int = Field(ge=1, le=100, strict=True)
 
+    @model_serializer(mode="wrap")
+    def omit_absent_comparison(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
+        payload = handler(self)
+        if self.comparison_periods is None:
+            payload.pop("comparison_periods", None)
+        return payload
+
     def fingerprint(self) -> str:
         """Identificador estável do plano aprovado, sem pergunta ou identidade."""
 
-        canonical = json.dumps(
-            self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
-        )
+        payload = self.model_dump(mode="json")
+        if self.comparison_periods is None:
+            payload.pop("comparison_periods", None)
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @model_validator(mode="after")
     def require_consistent_dimensions(self) -> Self:
+        if self.comparison_periods is not None:
+            baseline, target = self.comparison_periods
+            if (
+                baseline >= target or baseline.startswith("0000")
+                or self.window.kind is not WindowKind.BOUNDED
+                or self.window.granularity != "month"
+                or self.window.start is None or self.window.end is None
+                or self.window.start.isoformat() != baseline + "-01"
+                or self.window.end.strftime("%Y-%m") != target
+            ):
+                raise ValueError("comparação exige dois meses distintos e ordenados na janela")
         if len(self.dimension_ids) != len(set(self.dimension_ids)):
             raise ValueError("dimensão repetida no plano")
         if len(self.group_by_dimension_ids) != len(set(self.group_by_dimension_ids)):

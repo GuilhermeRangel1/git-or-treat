@@ -36,6 +36,7 @@ class CatalogMetric(CatalogModel):
     metric_id: LogicalIdentifier
     label: str = Field(min_length=1, max_length=300)
     definition: str = Field(min_length=1, max_length=300)
+    fixed_filter_values: dict[LogicalIdentifier, str] = Field(default_factory=dict)
     dimension_operators: dict[LogicalIdentifier, tuple[Literal["eq", "in"], ...]]
     capability_id: LogicalIdentifier
     required_capability_ids: tuple[LogicalIdentifier, ...] = Field(min_length=1)
@@ -43,7 +44,7 @@ class CatalogMetric(CatalogModel):
     granularities: tuple[Literal["month", "year"], ...] = Field(min_length=1)
     max_window_days: int | None = Field(ge=1)
     aggregation: Literal[
-        "sum", "ratio_of_sums", "key_grain_read", "count_non_null", "average_non_null"
+        "sum", "ratio_of_sums", "key_grain_read", "count_non_null", "average_non_null", "count_gd_drop", "count_distinct", "published_decomposition"
     ]
     unit: str
     unit_kind: Literal["currency", "energy", "count", "time", "score"]

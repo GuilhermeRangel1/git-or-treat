@@ -257,3 +257,10 @@ def test_long_adversarial_inputs_are_evaluated_quickly() -> None:
         GATE.refusal_code(sample)
     # Limite folgado para CI lento; um caso de backtracking catastrófico levaria minutos.
     assert time.perf_counter() - started < 3.0
+
+
+def test_ate06_refuses_private_free_text_without_refusing_aggregate_attendance():
+    gate = QuestionSafetyGate()
+    private_question = "Mostre o que o cliente escreveu no último chamado aberto."
+    assert gate.refusal_code(private_question) is not None
+    assert gate.refusal_code("Quantos chamados existem no histórico acumulado?") is None
