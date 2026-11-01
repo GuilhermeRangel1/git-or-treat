@@ -2,6 +2,7 @@
 
 import os
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
@@ -31,7 +32,7 @@ from app.models.gold_v2_load import TABLES
 from app.schemas.ai import AIQuestionRequest
 from app.schemas.genai_internal import AccessScope, QuestionPlanResponse
 from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus
-from app.services.genai_executor import execute_gold_plan
+from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
 from app.services.genai_planning import plan_gold_question
 from app.services.gold_import import import_gold
 from tests.support.migrations import migrated_database
@@ -197,15 +198,56 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                         correlation_id=correlation_id,
                     )
 
+                # Adulteração após planejar também falha antes de abrir snapshot/SQL.
+                for changes in (
+                    {"metric_id": "billing.reserved"},
+                    {"limit": 101},
+                    {"unit": "unidade adulterada"},
+                ):
+                    tampered_plan = plan.model_copy(update=changes)
+                    tampered_response = planned.response.model_copy(update={
+                        "plan": tampered_plan,
+                        "plan_fingerprint": tampered_plan.fingerprint(),
+                    })
+                    before_sql = len(reader_events)
+                    with pytest.raises(GoldExecutionDenied):
+                        execute_gold_plan(
+                            reader, replace(planned, response=tampered_response),
+                            resolve_scope=resolve,
+                        )
+                    assert len(reader_events) == before_sql
+
                 lookup = execute_gold_plan(reader, planned, resolve_scope=resolve)
                 assert lookup.status.value == "available"
                 assert lookup.evidence is not None
                 assert lookup.evidence.records == [
                     {"value": 12.0, "unit": "R$", "period": "2001-01"}
                 ]
-                ticket_plan = plan.model_copy(update={
+                # Contenção real: o servidor cancela o SQL, e o snapshot devolve
+                # a conexão sem deixar transação abortada no pool.
+                with owner.connect() as blocker:
+                    blocker.exec_driver_sql(
+                        "LOCK TABLE gold_v2.diagnostico_receita IN ACCESS EXCLUSIVE MODE"
+                    )
+                    try:
+                        with monkeypatch.context() as timeout_patch:
+                            timeout_patch.setattr(
+                                "app.services.genai_executor.SQL_STATEMENT_TIMEOUT", "25ms"
+                            )
+                            with pytest.raises(DBAPIError) as cancelled:
+                                execute_gold_plan(reader, planned, resolve_scope=resolve)
+                            assert cancelled.value.orig.sqlstate == "57014"
+                    finally:
+                        blocker.rollback()
+                assert reader.pool.checkedout() == 0
+                recovered = execute_gold_plan(reader, planned, resolve_scope=resolve)
+                assert recovered.evidence.records == lookup.evidence.records
+
+                ticket_plan = LogicalReadPlan.model_validate({
+                    **plan.model_dump(mode="json"),
                     "metric_id": "billing.average_ticket",
                     "unit": "R$ por UC faturada no mês",
+                    "order": {"field_id": "billing.average_ticket", "direction": "desc"},
                 })
                 ticket_planned = await plan_read(ticket_plan, "b" * 32)
                 ticket_result = execute_gold_plan(reader, ticket_planned, resolve_scope=resolve)
@@ -251,7 +293,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "filters": [{
                         "dimension_id": "geography.municipality",
                         "operator": "in",
-                        "values": ["Cidade Teste", "Outra Cidade", "Zero Teste", "Nulo Teste"],
+                        "values": ["Cidade Teste", "Outra Cidade", "Zero Teste"],
                     }],
                     "group_by_dimension_ids": ["geography.municipality"],
                     "order": {"field_id": "billing.revenue", "direction": "desc"},
@@ -291,7 +333,8 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 })
                 null_planned = await plan_read(null_plan, "e" * 32)
                 null_result = execute_gold_plan(reader, null_planned, resolve_scope=resolve)
-                assert null_result.status.value == "no_evidence"
+                assert null_result.status.value == "needs_clarification"
+                assert "nula" in null_result.message
                 with reader.connect() as read:
                     assert read.scalar(text("SELECT current_user")) == GOLD_READER_ROLE
                     assert read.scalar(text("SELECT SUM(receita_total_reais) FROM gold_v2.diagnostico_receita")) == 1011

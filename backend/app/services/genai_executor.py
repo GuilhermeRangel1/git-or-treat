@@ -143,7 +143,8 @@ def _query(plan: LogicalReadPlan, source, metric):
             raise GoldExecutionDenied
         numerator = func.sum(table.c[source.numerator_column])
         denominator = func.sum(table.c[source.denominator_column])
-        selected.append((numerator / func.nullif(denominator, 0)).label("value"))
+        value = numerator / func.nullif(denominator, 0)
+        selected.append(value.label("value"))
         grouped_columns = [] if plan.window.kind is WindowKind.CATALOG_PHRASE else [period]
         grouped_columns.extend(dimensions.values())
         statement = select(*selected).where(*filters)
@@ -284,7 +285,10 @@ def execute_gold_plan(
         raw_value = row.get("value")
         value = _rounded_number(raw_value, metric.rounding.decimals)
         if value is None:
-            continue
+            return _clarification(
+                "O recorte contém medida nula ou razão sem denominador válido; "
+                "não é possível tratá-la como zero nem apresentar um resultado parcial."
+            )
         record = {"value": value, "unit": plan.unit, "period": str(row["period"])}
         for field_name in _DIMENSION_FIELDS.values():
             if field_name in row:
