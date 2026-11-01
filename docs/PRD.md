@@ -457,6 +457,32 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-10-31 — WEB-04 — comparação proposta de consumo trimestral
+
+- A pessoa usuária autorizou uma regra candidata de três meses contra os três anteriores para discussão posterior com o time. O detalhe Gold v2 expõe os períodos e a soma observada em kWh; a última competência é a da publicação. Sem seis meses com leituras válidas, a comparação é indisponível; com base zero não se calcula percentual. A existência de leituras não certifica cobertura completa.
+- A comparação é contextual e não altera a prioridade ou identifica a janela que originou a suspeita publicada: a fila também usa histórico de inspeção e outras condições. Nenhuma estimativa de recuperação individual ou diagnóstico de fraude é inferido.
+- Verificações: backend `pytest tests/test_gold_inspections_v2.py -q -p no:cacheprovider --tb=short`: 3 passaram com dados artificiais, incluindo meses ausentes, inválidos e zero. Frontend: build, lint, formatação e 18 testes de Inspeções passaram; após a inclusão do teste de apresentação, os 4 testes do contrato Gold passaram. Nenhuma reconciliação com lote real ou verificação visual foi executada; WEB-04 permanece Em validação. Trello não conectado.
+
+### 2026-10-31 — WEB-03 / WEB-04 — devolutiva de Dados e referência do medidor
+
+- Dados confirmou que a Gold atual não fornece pagamento efetivo, tarifa homologada, compensação solar mensal ou estimativa individual por UC; o nome do titular fica em pacote restrito separado. Informou que a seleção do medidor na data de referência e a definição da janela da suspeita cabem a Dev/IA. Nenhuma nova exportação foi solicitada.
+- Na UC 360, o backend usa a data de referência Gold dos vínculos e indica candidato único com instalação conhecida, sem datas inválidas ou concorrentes. A resposta é parcial: ausência de retirada e cobertura não comprovam atividade. Datas incompatíveis, retirada no dia da referência e múltiplos candidatos impedem a seleção. A interface sinaliza que é possível medidor, não confirmação atual.
+- A fila usa motivos diferentes, incluindo histórico de irregularidade, média de consumo zero e ausência de inspeção; não há regra aprovada que determine uma janela de suspeita para todos eles. A janela permanece indisponível até definição da regra, sem atribuir um intervalo de consumo genérico ao motivo.
+- Verificações: `pytest tests/test_gold_uc_v2.py -q -p no:cacheprovider --tb=short`: 2 passaram, incluindo conflitos e limites de datas; prova opt-in da UC no SQLite passou sem comprovar seleção de medidor real. Frontend: 9 testes dirigidos, build e lint passaram. Não houve prova PostgreSQL nem inspeção visual desta seleção. WEB-03 e WEB-04 mantêm seus estados; Trello não conectado.
+
+### 2026-10-31 — WEB-03 — situação declarada de faturas Gold v2
+
+- A revisão dos campos indisponíveis identificou que o backend não expunha `status` e `valor_fatura_declarada_em_aberto_reais`, embora constem na Gold v2 oficial. A API e o histórico da UC mostram esses campos como situação e valor nominal declarados, separados do pagamento confirmado e do saldo contábil. Nulos permanecem ausentes; a alteração não calcula pagamento parcial nem altera a contagem de faturas em aberto.
+- Verificações: `pytest tests/test_gold_uc_v2.py -q -p no:cacheprovider --tb=short`: passou com faturas artificiais; prova opt-in `tests/test_gold_uc_v2_real.py` comparou uma fatura com a Gold carregada em SQLite: passou. Frontend: 18 testes de contrato e UC passaram; build, lint e formatação passaram. A primeira execução do pytest no sandbox falhou ao criar diretório temporário; a repetição fora do sandbox passou.
+- Limites: não houve nova reconciliação desta alteração no PostgreSQL nem validação visual em navegador; WEB-03 continua Em andamento. Status declarado não comprova pagamento; cadastro restrito, energia faturada e medidor atual continuam indisponíveis quando não comprovados. Trello não conectado.
+
+### 2026-10-31 — WEB-02 / WEB-03 / WEB-04 / WEB-07 — apresentação da Gold v2 oficial
+
+- A pessoa usuária confirmou a Gold v2 atual como entrega oficial disponível para as três jornadas. Essa confirmação não implica homologação das fórmulas, cobertura individual ou dados ausentes; os estados dos requisitos permanecem inalterados. Não foi solicitada nova exportação.
+- Receita e UC 360 deixam de chamar a Gold de provisória e de apresentar o prefixo do formato como se fosse o identificador do lote. O painel compartilhado mostra a identificação completa da publicação e esclarece que a data de importação não é necessariamente a data da coleta. Inspeções explica que a criação de ordens ainda depende da integração operacional da prioridade e de autorização; as guardas permanecem ativas.
+- Verificações: 53 testes dirigidos das três jornadas passaram; build, lint, formatação e fronteiras do frontend passaram. A execução inicial dos testes no sandbox falhou por permissão no diretório temporário; repetida fora do sandbox, passou. A tela de Receita foi aberta no navegador com a publicação Gold já carregada; nenhuma nova reconciliação de banco ou auditoria visual integral foi executada nesta alteração.
+- Limites: faltam provas adicionais com a publicação oficial no ambiente de entrega, desempenho, revisão visual e aceite das regras; prioridade, referência histórica e decomposição mantêm suas limitações específicas. Criação de ordem Gold não foi implementada ou liberada nesta alteração. Trello não conectado.
+
 ### 2026-10-30 — DE-04 / DE-06 / DE-08 / WEB-03 / WEB-04 — #47 e #48 em preparação candidata
 
 - Estados preservados: DE-04 e DE-08 `Pendente`; DE-06 `Em andamento`; WEB-03 `Pendente`; WEB-04 `Em validação`. Nenhum critério integral foi concluído por esta fatia. A revisão conjunta de Dados/Produto e a execução no lote real continuam pendentes.
