@@ -110,6 +110,7 @@ class AIEvidenceReference(BaseModel):
 class AIAnalysisContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    batch_reference: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
     metric_label: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
     metric_definition: Annotated[str, StringConstraints(min_length=1, max_length=500)] | None = None
     filter_labels: dict[AIIdentifier, Annotated[str, StringConstraints(min_length=1, max_length=200)]] = Field(default_factory=dict, max_length=20)

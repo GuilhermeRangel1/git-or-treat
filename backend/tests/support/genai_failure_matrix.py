@@ -225,7 +225,7 @@ def assert_first_question_failures(client, owner, monkeypatch, headers):
     recovered = client.post('/api/v1/ai/questions', headers=headers, json={'question': QUESTION})
     assert recovered.status_code == 200
     assert recovered.json()['status'] == 'answered'
-    assert '12.0 R$' in recovered.json()['answer']
+    assert 'R$ 12,00' in recovered.json()['answer']
     assert recovered.json()['audit_reference']
     assert all(not item['is_demo'] for item in recovered.json()['evidence'])
 

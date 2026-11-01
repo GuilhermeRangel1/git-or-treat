@@ -32,13 +32,38 @@ export async function askAIQuestion(
   request: AIQuestionRequest,
 ): Promise<AIQuestionResponse> {
   let rawResponse: unknown;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 40_000);
   try {
     rawResponse = await apiClient<unknown>("/api/v1/ai/questions", {
       method: "POST",
+      signal: controller.signal,
       body: JSON.stringify(request),
     });
   } catch (error) {
+    if (timedOut) {
+      throw new AIChatApiError(
+        "A consulta demorou mais que o esperado. Tente novamente em instantes.",
+        true,
+      );
+    }
     if (!(error instanceof ApiError)) throw error;
+
+    const accessMessages: Record<number, string> = {
+      401: "Sua sessão expirou. Entre novamente para continuar.",
+      403: "Seu acesso não permite consultar esses dados.",
+      409: "Os dados disponíveis mudaram. Envie uma nova pergunta para consultar a versão atual.",
+      422: "Não foi possível entender a solicitação. Revise a pergunta e envie novamente.",
+      429: "Há muitas consultas no momento. Aguarde um pouco antes de enviar outra pergunta.",
+    };
+    const accessMessage = accessMessages[error.status ?? 0];
+    if (accessMessage) {
+      throw new AIChatApiError(accessMessage, false, error.status);
+    }
 
     const publicError = decodeAIQuestionErrorResponse(error.data);
     if (publicError) {
@@ -63,13 +88,15 @@ export async function askAIQuestion(
       false,
       error.status,
     );
+  } finally {
+    clearTimeout(timeout);
   }
 
   try {
     return decodeAIQuestionResponse(rawResponse);
   } catch {
     throw new AIChatApiError(
-      "O serviço retornou uma resposta fora do contrato esperado.",
+      "Não foi possível apresentar a resposta. Tente uma nova pergunta em instantes.",
       false,
     );
   }
