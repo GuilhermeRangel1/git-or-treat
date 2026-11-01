@@ -43,6 +43,7 @@ def test_model_metadata_loads_without_importing_database_engine():
             "operational_order_history",
             "auth_users",
             "auth_sessions",
+            "genai_audit_events",
         }
         assert "app.core.database" not in sys.modules
 

@@ -1,5 +1,6 @@
 """Liga a interpretação a uma fonte de evidências sem gerar texto natural."""
 
+import asyncio
 from collections.abc import Mapping
 from enum import StrEnum
 from typing import Self
@@ -137,7 +138,7 @@ class QuestionAnalysisPlanner:
         budget: RequestBudget | None = None,
         trace: EventTrace | None = None,
     ) -> AnalysisPlan:
-        planned = self.plan(question, context, access_context, trace)
+        planned = await asyncio.to_thread(self.plan, question, context, access_context, trace)
         if planned.read_plan is None:
             return AnalysisPlan(
                 status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
@@ -263,7 +264,7 @@ class QuestionAnalysisPlanner:
     ) -> tuple[LogicalReadPlan, EvidenceLookupResult]:
         """Ponto único de validação, inclusive para planos propostos futuramente por LLM."""
 
-        approved = self._approve(proposed, access_context, trace)
+        approved = await asyncio.to_thread(self._approve, proposed, access_context, trace)
         return approved, await self.retrieve(approved, access_context, budget, trace)
 
     def accept_lookup(
@@ -363,7 +364,7 @@ class QuestionAnalysisPlanner:
 
         if trace is not None:
             trace.source_calls += 1
-            trace.emit(EventStage.SOURCE, EventCode.STARTED, EventOutcome.STARTED)
+            await trace.emit_async(EventStage.SOURCE, EventCode.STARTED, EventOutcome.STARTED)
         try:
             evidence_result = (
                 await budget.source(
@@ -374,31 +375,31 @@ class QuestionAnalysisPlanner:
             )
             evidence_result = self._check_lookup(approved, evidence_result, None)
             if trace is not None:
-                trace.emit(EventStage.SOURCE, EventCode.COMPLETED, EventOutcome.SUCCESS)
-            self._emit_evidence(evidence_result, trace)
+                await trace.emit_async(EventStage.SOURCE, EventCode.COMPLETED, EventOutcome.SUCCESS)
+            await asyncio.to_thread(self._emit_evidence, evidence_result, trace)
         except AuditUnavailable:
             raise
         except EvidenceToolUnavailable:
             if trace is not None:
-                trace.emit(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+                await trace.emit_async(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             raise
         except EvidenceAccessDenied:
             if trace is not None:
-                trace.emit(EventStage.SOURCE, EventCode.DENIED, EventOutcome.REFUSED)
+                await trace.emit_async(EventStage.SOURCE, EventCode.DENIED, EventOutcome.REFUSED)
             raise
         except EvidenceContractInvalid:
             if trace is not None:
-                trace.emit(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
+                await trace.emit_async(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
             raise
         except ExecutionLimitExceeded:
             raise
         except (TypeError, ValidationError) as exc:
             if trace is not None:
-                trace.emit(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
+                await trace.emit_async(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
             raise EvidenceContractInvalid("Evidence source returned an invalid result.") from exc
         except Exception as exc:
             if trace is not None:
-                trace.emit(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+                await trace.emit_async(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             raise EvidenceToolUnavailable("Evidence source failed.") from exc
         return evidence_result
 

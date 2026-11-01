@@ -2806,6 +2806,39 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Prontidão com lote incompatível, capacidade ausente, gate ausente ou controles padrão não aprovados resulta em bloqueio; os dois primeiros casos não executam a coluna métrica nem chamam síntese. Competência sem cobertura pede esclarecimento e indisponibilidade não ativa a fonte demonstrativa. `EvidenceGuard` rejeita qualidade ausente, de lote diferente ou ligada a fonte sintética.
 - Verificações no PostgreSQL 16 descartável: seleção Backend do coordenador/sessão/contratos/metadados — **107 aprovados**, 1 aviso preexistente Starlette/httpx; teste PostgreSQL isolado — **1 aprovado**, mesmo aviso; deadline Backend — **15 aprovados**. Seleção GenAI de EvidenceGuard, contratos, envelopes e vetores — **263 aprovados**; composição externa/limites de importação — **17**; limites do núcleo — **10**; roteamento do orquestrador — **28**. Ruff, compileall e `git diff --check` passaram. Comandos completos em [coordenação Gold](contracts/genai-gold-coordination.md).
 - O avanço comprova integração de software e não aceite Gold real: não há lote real autorizado nem aprovação humana das capacidades, auditoria durável GENAI-08, cancelamento por desconexão HTTP, revisão visual do portal ou ensaio operacional de carga. Estados oficiais IA permanecem inalterados; GENAI-07 continua aberto.
+
+### 31/10/2026 — GENAI-08: auditoria persistida e evidências delimitadas
+
+- Implementada trilha correlacionada entre Backend e GenAI, com ingresso interno autenticado, persistência antes da confirmação e bloqueio quando a auditoria obrigatória falha. Referência pública permite consulta administrativa; não contém SQL ou credenciais.
+- Retenção de 30 dias aprovada pela pessoa usuária nesta entrega, com expurgo na inicialização e a cada hora. Contrato e limites em [auditoria GenAI](contracts/genai-audit.md).
+- Prova dirigida Backend com PostgreSQL descartável: 134 testes aprovados, um aviso preexistente. Evidências, composição e transporte de auditoria no GenAI: `python -m pytest -q -p no:cacheprovider tests/test_evidence_guard.py tests/test_core_plan_synthesis.py tests/test_durable_audit.py`, 67 aprovados. Dados artificiais; não constitui aceite de lote real.
+- Observações fora da janela aprovada são recusadas; versão do prompt registrada e campos derivados aninhados minimizados antes do modelo.
+- Permanecem pendentes reprodução independente com plano/template seguro e reconciliação integral dos critérios de privacidade e fundamentação. Requisitos oficiais IA permanecem abertos.
+
+### 31/10/2026 — GENAI-08: validação sem refletir conteúdo rejeitado
+
+- A resposta 422 do ingresso de auditoria usa mensagem fixa, sem reproduzir valores ou nomes livres recebidos. A prova HTTP envia um campo sensível artificial e confirma ausência do conteúdo na resposta e ausência de nova gravação.
+- `python -m pytest -q -p no:cacheprovider tests/test_genai_audit.py`: 3 aprovados, um aviso preexistente. `git diff --check`: passou. Continuação local após os commits 537705c e 25680b3; checklist permanece 4/10.
+
+### 31/10/2026 — IA-03 / IA-06 — GENAI-08: observações e prompts
+
+- Prompts usados pelos dois provedores passam a `genai-grounding-v2`, com glossário lógico separado e tratado como dado não confiável. Término informado como incompleto, bloqueado ou ferramenta é recusado mesmo quando contém JSON válido. Backend aceita eventos v1/v2.
+- Provas e comandos em [auditoria GenAI](contracts/genai-audit.md): 171 testes GenAI aprovados; 11 testes Backend com PostgreSQL descartável aprovados, um aviso preexistente. Observações e claims são conferidas com plano, filtros, janela, métrica, unidade, publicação e regras numéricas do executor antes de publicar narrativa.
+- GENAI-08 avança a 6/10. Plano/template reproduzível, controle independente e privacidade integral continuam abertos; estados oficiais IA preservados. Continuação local, sem novo commit/push.
+
+### 31/10/2026 — IA-03 / IA-06 — GENAI-08: artefato de execução persistido
+
+- O fluxo público grava plano estrutural com valores de filtros ocultados, template PostgreSQL parametrizado, versões/digest do catálogo, limites e digest do resultado nos eventos privados do Backend. Não amplia schema/permissões do leitor nem a rota de ingresso GenAI.
+- Serviço de reprodução reutiliza o executor e exige planejamento original autorizado, escopo atual, fingerprint, lote e template compatíveis. A prova PostgreSQL confirma valor 12 com SQL fixo independente e reexecução autorizada; recusa escopo revogado. Consumidor administrativo operacional de reprodução ainda pendente.
+- Seleção Backend sessão PostgreSQL/auditoria/executor/chat: 23 aprovados, um aviso preexistente. Comandos e limites em docs/contracts/genai-audit.md; Ruff dirigido passou.
+- GENAI-08 passa a 7/10, sem alterar estados oficiais IA. Restam aceite do controle independente/consumidor administrativo, critério integral de trilha reproduzível e privacidade em todas as superfícies. Continuação local sem commit/push.
+
+### 01/11/2026 — IA-05 / IA-06 — auditoria durável sem bloquear o loop GenAI
+
+- Eventos assíncronos aguardam a confirmação do sink em thread; etapas síncronas do planejador que emitem eventos usam a mesma fronteira de execução. Não há disparo desacompanhado da confirmação de auditoria.
+- Provas de auditoria lenta conferem que o loop segue disponível e fonte/modelo não avançam antes da confirmação; falha em cada estágio mantém recusa. O teste de cancelamento agora aguarda o início real da fonte antes de cancelar.
+- Verificações: suíte GenAI completa, 3.713 passaram/4 skips; seleção auditoria/núcleo reutilizável, 45 passaram; Ruff dos arquivos alterados passou. Limites de cancelamento de I/O em thread documentados no contrato. Estados oficiais preservados.
+
 ### 01/11/2026 — IA-05 / IA-06 — revisão da autorização no planejamento Gold
 
 - A releitura síncrona de sessão/permissões em `plan_gold_question` passa a executar em thread, aguardada pelo prazo original da requisição. As três revalidações permanecem antes da admissão e da entrega do plano, sem bloquear o event loop do Backend.

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     demo_source: Literal["fixture", "sqlite"] = "fixture"
     demo_sqlite_path: Path | None = None
     service_api_token: SecretStr | None = None
+    audit_url: str | None = None
+    audit_write_token: SecretStr | None = None
     model_provider: Literal["unavailable", "gemini", "groq"] = "unavailable"
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_api_key: SecretStr | None = None

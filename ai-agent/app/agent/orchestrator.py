@@ -148,7 +148,7 @@ class QuestionOrchestrator:
         trace = self._trace(correlation_id)
 
         async def plan_only(_budget: RequestBudget) -> QuestionResponse | PlannedQuestion:
-            return self._plan_step(request, access_context, trace)
+            return await asyncio.to_thread(self._plan_step, request, access_context, trace)
 
         outcome = await self._run(
             trace, plan_only, timeout_seconds=request.remaining_timeout_ms / 1000
@@ -203,21 +203,23 @@ class QuestionOrchestrator:
         timeout_seconds: float | None = None,
     ) -> _Outcome | QuestionResponse:
         try:
-            trace.emit(EventStage.REQUEST, EventCode.STARTED, EventOutcome.STARTED)
+            await trace.emit_async(EventStage.REQUEST, EventCode.STARTED, EventOutcome.STARTED)
             response = await self._execution.run(action, timeout_seconds=timeout_seconds)
         except AuditUnavailable:
             return self._recoverable_error(FailureCode.AUDIT_UNAVAILABLE)
         except asyncio.CancelledError:
             with suppress(AuditUnavailable):
-                trace.emit(EventStage.RESPONSE, EventCode.CANCELLED, EventOutcome.CANCELLED)
+                await trace.emit_async(
+                    EventStage.RESPONSE, EventCode.CANCELLED, EventOutcome.CANCELLED,
+                )
             raise
         except ExecutionLimitExceeded:
             response = self._recoverable_error(FailureCode.EXECUTION_LIMIT)
         try:
             if isinstance(response, PlannedQuestion):
-                trace.emit(EventStage.RESPONSE, EventCode.READY, EventOutcome.SUCCESS)
+                await trace.emit_async(EventStage.RESPONSE, EventCode.READY, EventOutcome.SUCCESS)
                 return response
-            trace.emit(
+            await trace.emit_async(
                 EventStage.RESPONSE,
                 EventCode.COMPLETED
                 if response.status is QuestionStatus.ANSWERED
@@ -249,7 +251,7 @@ class QuestionOrchestrator:
         budget: RequestBudget,
         trace: EventTrace,
     ) -> QuestionResponse:
-        planned = self._plan_step(request, access_context, trace)
+        planned = await asyncio.to_thread(self._plan_step, request, access_context, trace)
         if isinstance(planned, QuestionResponse):
             return planned
         assert planned.read_plan is not None
@@ -278,11 +280,12 @@ class QuestionOrchestrator:
         budget: RequestBudget,
         trace: EventTrace,
     ) -> QuestionResponse:
-        refusal = self._safety_refusal(request, trace)
+        refusal = await asyncio.to_thread(self._safety_refusal, request, trace)
         if refusal is not None:
             return refusal
         try:
-            read_plan, lookup = self._analysis_planner.accept_lookup(
+            read_plan, lookup = await asyncio.to_thread(
+                self._analysis_planner.accept_lookup,
                 request.plan,
                 request.plan_fingerprint,
                 request.lookup,
@@ -532,7 +535,7 @@ class QuestionOrchestrator:
 
         try:
             trace.model_calls += 1
-            trace.emit(EventStage.MODEL, start_code, EventOutcome.STARTED)
+            await trace.emit_async(EventStage.MODEL, start_code, EventOutcome.STARTED)
             generated_result = await budget.model(
                 lambda: adapter.generate(
                     request.question,
@@ -546,28 +549,28 @@ class QuestionOrchestrator:
                 else generated_result
             )
             if generated.status == "refused":
-                trace.emit(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
+                await trace.emit_async(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
             else:
-                trace.emit(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
+                await trace.emit_async(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
         except ModelProviderUnavailable:
-            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             return self._recoverable_error(FailureCode.MODEL_UNAVAILABLE)
         except ModelProviderRejected:
-            trace.emit(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
+            await trace.emit_async(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
             return self._recoverable_error(FailureCode.MODEL_REJECTED)
         except ModelProviderInvalidResponse:
-            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
             return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
         except ExecutionLimitExceeded:
             raise
         except AuditUnavailable:
             raise
         except (ValidationError, TypeError, ValueError):
-            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
             logger.warning("O adaptador de modelo retornou uma resposta inválida.")
             return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
         except Exception:
-            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             logger.warning("Falha ao gerar resposta pelo adaptador de modelo.")
             return self._recoverable_error(FailureCode.UNEXPECTED)
         return generated

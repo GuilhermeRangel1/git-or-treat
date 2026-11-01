@@ -165,6 +165,11 @@ def test_groq_request_targets_chat_completions_with_bearer_key_and_json_mode() -
     assert json.dumps(GeneratedAnswer.model_json_schema(), ensure_ascii=False) in system["content"]
     assert user["role"] == "user"
     prompt = json.loads(user["content"])
+    assert prompt["glossary"] == {
+        "metric_id": "consumption_demo", "unit": "unidades fictícias",
+        "source_id": "synthetic_fixture",
+    }
+    assert "genai-grounding-v2" in system["content"]
     assert prompt["question"] == QUESTION
     assert prompt["context"] == [{"role": "user", "content": "Pergunta anterior"}]
     assert prompt["evidence"]["reference"]["source"] == "synthetic_fixture:consumption_demo"
@@ -675,3 +680,12 @@ def test_orchestrator_recovers_when_gemini_and_groq_are_down() -> None:
 
     assert calls == ["gemini:gemini-primary", "groq:groq-model"]
     assert response.status is QuestionStatus.RECOVERABLE_ERROR
+
+
+@pytest.mark.parametrize("reason", ["length", "tool_calls", "content_filter"])
+def test_incomplete_completion_rejects_even_valid_json(reason):
+    payload = _completion(ANSWER.model_dump_json())
+    payload["choices"][0]["finish_reason"] = reason
+    handler = RecordingHandler(httpx.Response(200, json=payload))
+    with pytest.raises(ModelProviderInvalidResponse):
+        _generate(_adapter(handler))

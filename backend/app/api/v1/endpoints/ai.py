@@ -7,7 +7,9 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
+from app.core.database import get_db
 from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
     get_question_gold_resources,
@@ -28,6 +30,7 @@ from app.schemas.ai_insight import (
 )
 from app.schemas.genai_internal import AccessScope
 from app.services.analytics import AnalyticsAPIError
+from app.services.genai_audit import AuditStore
 from app.services.genai_client import (
     GenAIInsightClient,
     GenAIQuestionClient,
@@ -164,6 +167,7 @@ async def ask_genai_question(
         tuple[Engine, Callable[[], AccessScope]] | None, Depends(get_question_gold_resources)
     ],
     readiness_gate: Annotated[Callable | None, Depends(get_question_gold_readiness_gate)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> AIQuestionResponse | JSONResponse:
     """Encaminha pergunta e contexto transitório sem acessar banco ou persistir sessão."""
 
@@ -174,6 +178,7 @@ async def ask_genai_question(
                 engine, genai, payload, resolve_scope=resolve_scope,
                 correlation_id=request.state.correlation_id,
                 readiness_gate=readiness_gate,
+                audit_store=AuditStore(db.get_bind()),
             )
         else:
             result = await genai.ask(

@@ -1,11 +1,10 @@
 """Adaptador opcional para o Gemini Developer API via SDK oficial Google Gen AI."""
 
-import json
 from typing import Any
 
 from pydantic import ValidationError
 
-from app.generation.prompts import SYSTEM_INSTRUCTION
+from app.generation.prompts import SYSTEM_INSTRUCTION, generation_contents
 from app.providers.protocols import (
     GeneratedAnswer,
     ModelProviderInvalidResponse,
@@ -53,14 +52,7 @@ class GeminiModelAdapter:
         context: list[ConversationTurn],
         evidence: EvidenceResult,
     ) -> GeneratedAnswer:
-        contents = json.dumps(
-            {
-                "question": question,
-                "context": [turn.model_dump(mode="json") for turn in context],
-                "evidence": evidence.model_dump(mode="json"),
-            },
-            ensure_ascii=False,
-        )
+        contents = generation_contents(question, context, evidence)
         try:
             response = await self._client.aio.models.generate_content(
                 model=self._model_name,
@@ -91,6 +83,11 @@ class GeminiModelAdapter:
             ) from None
 
         try:
+            candidates = getattr(response, "candidates", None)
+            if candidates:
+                reason = getattr(candidates[0], "finish_reason", None)
+                if reason is not None and getattr(reason, "value", reason) != "STOP":
+                    raise ValueError("geracao incompleta")
             response_text = response.text
             if not isinstance(response_text, str) or not response_text.strip():
                 raise ValueError("resposta vazia")
