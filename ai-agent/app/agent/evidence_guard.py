@@ -2,6 +2,7 @@
 
 import json
 import re
+from calendar import monthrange
 from datetime import date
 from hashlib import sha256
 from math import isfinite
@@ -23,7 +24,7 @@ from app.schemas.evidence import (
     EvidenceResult,
     GoldBatchRef,
 )
-from app.schemas.read_plan import LogicalReadPlan
+from app.schemas.read_plan import LogicalReadPlan, WindowKind
 
 _PERIOD = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$")
 _BATCH_REF = TypeAdapter(GoldBatchRef)
@@ -52,6 +53,24 @@ def safe_reference_source(source_id: str, raw_reference: str) -> str:
         prefix = f"source:{sha256(source_id.encode('utf-8')).hexdigest()[:16]}"
     reference_digest = sha256(raw_reference.encode("utf-8")).hexdigest()
     return f"{prefix}:{reference_digest}"
+
+
+def _observation_period(value: object, plan: LogicalReadPlan) -> str:
+    period = _safe_period(value)
+    if plan.window.kind is WindowKind.BOUNDED:
+        expected_length = {"year": 4, "month": 7, "day": 10}.get(plan.window.granularity)
+        if len(period) != expected_length:
+            raise EvidenceContractInvalid("período de observação com granularidade incompatível")
+        if len(period) == 4:
+            start, end = date(int(period), 1, 1), date(int(period), 12, 31)
+        elif len(period) == 7:
+            start = date.fromisoformat(period + "-01")
+            end = start.replace(day=monthrange(start.year, start.month)[1])
+        else:
+            start = end = date.fromisoformat(period)
+        if start < plan.window.start or end > plan.window.end:
+            raise EvidenceContractInvalid("período de observação fora da janela aprovada")
+    return period
 
 
 class EvidenceGuard:
@@ -180,7 +199,7 @@ class EvidenceGuard:
             row_dimensions: dict[str, object] = {}
             for field in fields.values():
                 if field.role is EvidenceFieldRole.PERIOD:
-                    safe_row["period"] = _safe_period(row.get(field.name))
+                    safe_row["period"] = _observation_period(row.get(field.name), plan)
                 elif field.role is EvidenceFieldRole.DIMENSION:
                     dimension_id = field.dimension_id
                     if field.name not in row:
