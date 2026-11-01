@@ -86,3 +86,7 @@ GENAI-08 avança a **8/10**: a trilha agora pode ser consultada e reproduzida po
 A fronteira `EventTrace.emit_async` aguarda o sink síncrono em thread. Planejamento, consulta, síntese e insights aguardam a confirmação antes de avançar; falha mantém a resposta Gold bloqueada. Cancelar a espera não interrompe I/O já iniciado na thread; o adaptador HTTP mantém seu timeout de 2 segundos.
 
 Verificação da revisão: suíte GenAI completa com **3.713 aprovados e 4 ignorados**, incluindo auditoria lenta sem bloquear o loop, confirmação antes do próximo estágio, indisponibilidade e cancelamento após início efetivo da fonte. Ruff dos arquivos alterados passou.
+
+## Consolidação da primeira fatia
+
+As duas pendências históricas de referência pública reconciliada e privacidade de ponta a ponta ficam substituídas pela evidência do GENAI-09 e pela prova integrada adicional de aliases/campos derivados/aninhados. A matriz de teste verifica a remoção antes do provedor e ausência na resposta/contexto, persistência, logs do subprocesso e relatório de transporte. Resultados e limites em [consolidação](genai-consolidation.md). GENAI-08 com todos os itens técnicos comprovados nesta primeira fatia, sem encerrar automaticamente IA-03/IA-06 ou certificar uma implantação de produção.

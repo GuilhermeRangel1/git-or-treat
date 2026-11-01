@@ -2931,3 +2931,24 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Backend: `python -m pytest -q tests/test_gold_operation_states.py tests/test_operations_summary.py tests/test_operations_dev08.py`: 86 passaram, com aviso preexistente Starlette/httpx. Regressão de estados usa observações artificiais; não executa nova reconciliação do lote real.
 - Frontend: `npm test -- src/features/operacao/operations-state.test.ts src/features/operacao/OperacaoPage.test.tsx`: 33 passaram. Prettier e oxlint dos dois arquivos alterados, fronteiras e build passaram.
 - Os cinco checks GitHub do head anterior `b587f99` passaram, incluindo GenAI. Esta revisão permanece local, aguardando commit/push e a CI do novo head; não conclui requisitos nem autoriza merge por si só.
+
+### 01/11/2026 — IA-03 / IA-05 / IA-06 — consolidação de auditoria GENAI-07/08
+
+- Base `c5501f2`, branch `feat/genai-consolidacao-gold`: reconciliadas as pendências dos cartões com a evidência integrada posterior do GENAI-09. Caminho: portal/rota pública Backend → sessão → planejamento → leitor PostgreSQL restrito → síntese GenAI → confirmação durável correlacionada. Referência da tela, SQL independente e replay constam no registro anterior da primeira pergunta.
+- Ampliada somente a matriz pública PostgreSQL existente: aliases e campos derivados/aninhados artificiais na fronteira de síntese são removidos antes do provedor e não chegam a resposta/contexto, trilha persistida, logs do subprocesso ou relatório de transporte. Sem novo fluxo de produção, conta real ou envio externo.
+- Verificações: Backend `tests/test_genai_session_postgres.py tests/test_genai_audit.py tests/test_ai_chat.py`, PostgreSQL 16 descartável: 21 passaram; GenAI `tests/test_evidence_guard.py tests/test_safe_events.py tests/test_durable_audit.py tests/test_reusable_core.py tests/test_genai_regression.py`: 183 passaram. Comandos e revisão das cláusulas em [matriz da consolidação](contracts/genai-consolidation.md).
+- GENAI-07 e GENAI-08 têm os itens técnicos comprovados para a primeira fatia; estados oficiais IA-03/IA-05/IA-06 preservados. Demais domínios, produção e operação sob carga continuam dependências explícitas.
+
+### 01/11/2026 — IA-01 / IA-03 / IA-05 / IA-06 — rótulos e acesso Gold consolidados
+
+- GENAI-03: contexto aplicado v1 preserva IDs e acrescenta rótulo/definição da métrica e rótulos de filtros do perfil; Backend valida o mesmo contrato e Assistente apresenta os textos sem duplicar catálogo. Rótulo sem filtro correspondente é recusado. Removido aviso histórico de preparação incompatível com a consulta integrada atual.
+- Verificações observadas: GenAI catálogo/envelopes/guard, 210 passaram; Backend contrato, 119 passaram; Assistente decoder/apresentação/sessão, 19 passaram. Build, fronteiras e lint frontend passaram, com aviso preexistente no AuthProvider. Compatibilidade e ordem Backend → GenAI documentadas no contrato de chat.
+- GENAI-05: conferência somente leitura no executor privado local confirmou credencial dedicada/destino, papel leitor, publicação v2 e ACL efetiva da matriz do provisionador. Nenhuma permissão/conta foi criada ou alterada. Sessão e reautorização pelo fluxo consumidor têm prova PostgreSQL e jornada real anteriores.
+- A execução real do GENAI-09 supre a cláusula de amostra/consumidor do GENAI-06; custo/cancelamento por desconexão permanecem abertos. GENAI-03 e GENAI-05 têm os itens técnicos comprovados no escopo local. Estados oficiais IA permanecem inalterados. [Matriz e limitações](contracts/genai-consolidation.md).
+
+### 01/11/2026 — IA-01 / IA-03 / IA-05 / IA-06 — reconferência pública e fonte do portal
+
+- GENAI-02: fonte efetiva do Panorama no ambiente Docker Gold reconciliada com SQL independente da receita comparável, tolerância R$ 0,01. Lote/fingerprint coincidem e chamada com publicação fixada preserva o total; conta temporária e sessões removidas. Não é nova revisão visual nem aprovação dos controles de todos os domínios.
+- GENAI-04: cinco pedidos sem suporte pela matriz PostgreSQL pública esclarecem/recusam sem síntese ou número: pagamento, UC fora do escopo, janela relativa incompleta, recorte diário e ranking. Prova integrada existente: 1 passou em 79,08 s. A matriz integral do cartão continua pendente.
+- Após os rótulos opcionais: regressão completa GenAI 3.719 passaram/4 skips; seleção Backend de sessão, PostgreSQL, auditoria, chat, cliente e envelopes: 130 passaram. Primeiras duas falhas de expectativa do contrato demonstrativo foram corrigidas e não contam como aceite. Evidências detalhadas, tentativas anteriores e limites em [consolidação](contracts/genai-consolidation.md).
+- Estados oficiais IA e DE preservados. GENAI-02 ainda depende de regras dimensionais/controles aprovados por domínio; GENAI-04 exige matriz integral; GENAI-06 mantém cláusula de custo/cancelamento/concorrência.
