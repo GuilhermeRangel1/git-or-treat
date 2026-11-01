@@ -227,7 +227,7 @@ export default function PanoramaPage() {
             />
           </section>
 
-          <div className="grid min-w-0 grid-cols-1 items-start gap-6">
+          <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]">
             <PanoramaSeriesChart
               data={data.serieMensal}
               selectedPeriod={filters.periodo}

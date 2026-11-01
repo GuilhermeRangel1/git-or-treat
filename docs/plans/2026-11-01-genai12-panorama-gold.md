@@ -72,3 +72,10 @@ Revisão separada por especificação e padrões: achados sobre 409, competênci
 - Verificações: GenAI 4.005 passaram/3 skips; Backend 897 passaram/110 skips; 69 testes de Panorama/Assistente, build e formatação passaram. Ruff das rotas resolvidas e diff-check passaram; revisão estática da resolução sem bloqueios.
 - PostgreSQL: tentativa inicial rejeitada por papel de teste privilegiado, sem relaxar as verificações. Reexecução em dois bancos novos descartáveis com papel NOSUPERUSER: 27 testes passaram, incluindo leituras analíticas e ciclo de migração. Bancos e papel temporários removidos ao final.
 - Não houve nova jornada visual ou chamada Gemini. As lacunas de preflight da tela previstas em GENAI-13 permanecem registradas; requisitos oficiais não são concluídos automaticamente por esta integração.
+
+
+### 01/11/2026 — IA-04 — insight ao lado do gráfico
+
+- A pedido da pessoa usuária e conforme a referência visual enviada, Panorama usa duas colunas em telas a partir de1280px: gráfico flexível e insight de280–320px à direita, com alturas alinhadas. Em telas menores permanece empilhado, gráfico antes do insight.
+- Arquivo: frontend/src/features/panorama/PanoramaPage.tsx, na branch do PR103. Tokens, conteúdo e controles do card preservados.
+- npm run build e npm run format:check passaram. Sem nova prova visual: navegador local segue indisponível; não declarar fidelidade visual validada nesta rodada.

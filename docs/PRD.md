@@ -3180,3 +3180,10 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 
 - Branch do PR99 atualizada com a develop após o merge #102, preservando por merge os commits funcionais e os registros de progresso das duas entregas.
 - Matriz, runner e contrato do catálogo: 307 testes passaram na própria worktree atualizada. Classes observadas, pendências e escopo de aceite técnico mantidos; não houve nova chamada Gemini ou validação visual.
+
+
+### 01/11/2026 — IA-04 — insight ao lado do gráfico
+
+- A pedido da pessoa usuária e conforme a referência visual enviada, Panorama usa duas colunas em telas a partir de1280px: gráfico flexível e insight de280–320px à direita, com alturas alinhadas. Em telas menores permanece empilhado, gráfico antes do insight.
+- Arquivo: frontend/src/features/panorama/PanoramaPage.tsx, na branch do PR103. Tokens, conteúdo e controles do card preservados.
+- npm run build e npm run format:check passaram. Sem nova prova visual: navegador local segue indisponível; não declarar fidelidade visual validada nesta rodada.
