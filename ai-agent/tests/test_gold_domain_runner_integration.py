@@ -323,3 +323,39 @@ def test_matching_number_for_wrong_period_fails():
     reply[1]["analysis_context"]["period"] = "abril de 2000"
     outcome = run("FAT-01", client(lambda payload: reply), revenue_database())
     assert outcome.classe == "FAIL" and "plano" in outcome.divergencias
+
+
+def test_comparison_requires_both_aggregates_delta_and_percentage():
+    filters = {"geography.municipality": "JABOATAO DOS GUARARAPES",
+               "customer.consumption_class": "COMERCIAL"}
+    db = revenue_database(**{"controle:CTL-FAT-COMPARACAO": [
+        {"valor": 80, "valor_final": 100, "variacao": 20, "percentual": 25},
+    ]})
+    full = answered("1999-03: 80 R$; 2000-03: 100 R$; "
+                    "Variação absoluta de 1999-03 a 2000-03: 20 R$; "
+                    "Variação percentual de 1999-03 a 2000-03: 25 %.",
+                    "billing.revenue", filters, "R$", period="1999-03-01 a 2000-03-31")
+    outcome = run("FAT-09", client(lambda payload: full), db)
+    assert outcome.classe == "PASS" and outcome.valores_esperados == [
+        "80.00", "100.00", "20.00", "25.00",
+    ]
+    partial = answered("1999-03: 80 R$; 2000-03: 100 R$; "
+                       "Variação absoluta de 1999-03 a 2000-03: 20 R$.", "billing.revenue",
+                       filters, "R$", period="1999-03-01 a 2000-03-31")
+    outcome = run("FAT-09", client(lambda payload: partial), db)
+    assert outcome.classe == "FAIL" and "numero" in outcome.divergencias
+
+
+def test_comparison_cannot_pass_with_initial_and_final_values_swapped():
+    db = revenue_database(**{"controle:CTL-FAT-COMPARACAO": [
+        {"valor": 80, "valor_final": 100, "variacao": 20, "percentual": 25},
+    ]})
+    wrong = answered(
+        "1999-03: 100 R$; 2000-03: 80 R$; Variação absoluta de 1999-03 a 2000-03: 20 R$; "
+        "Variação percentual de 1999-03 a 2000-03: 25 %.",
+        "billing.revenue", {"geography.municipality": "JABOATAO DOS GUARARAPES",
+                            "customer.consumption_class": "COMERCIAL"}, "R$",
+        period="1999-03-01 a 2000-03-31",
+    )
+    outcome = run("FAT-09", client(lambda payload: wrong), db)
+    assert outcome.classe == "FAIL" and "numero" in outcome.divergencias

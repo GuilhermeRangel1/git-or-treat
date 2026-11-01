@@ -3012,3 +3012,23 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
   separadas. A pessoa usuária aprovou o uso dos controles nos 17 casos numéricos
   reconciliados para esta entrega local; não é homologação de Dados ou fechamento
   mensal. [Resultados por ID e limites](contracts/genai-domain-validation.md).
+
+
+### 01/11/2026 — IA-01/02/03/06 — revalidação ampliada da matriz GENAI-10A
+
+- Estado: em validação local; sem concluir integralmente os IDs IA.
+- Matriz/runner conferem controles de comparação por mês/tipo, maior perda por
+  bairro e componentes publicados de preço-volume. Valores inicial/final
+  invertidos, parcelas ausentes e grupo incompleto não são aprovados por simples
+  presença dos números na resposta. As pendências de Dados foram confrontadas
+  com o dicionário e notebook; cinco casos de implementação avançaram.
+- Rodada completa no lote Gold v2 com SQL, sessão, leitor restrito e auditoria
+  reais e modelo controlado: 43 PASS, cinco bloqueios, sete sem amostra, duas
+  regressões técnicas separadas; sem falha inesperada. A pessoa usuária aprovou
+  FAT-09/FAT-11/CON-06/CON-07/CON-08 localmente, somando 22 casos numéricos.
+- Verificação conjunta dos arquivos exatos desta branch com o catálogo/núcleo
+  ampliados do 10B: 305 aprovados. Integração do 10B em develop precede a atualização
+  da base do PR #99; nenhum commit funcional foi copiado entre as branches.
+- Evidências em [GENAI-10A](contracts/genai-domain-validation.md). Permanecem
+  pendentes valor recebido, cobertura mensal, amostras ausentes, revisão de Dados
+  e jornada visual final. Alterações locais posteriores a adc5de5, sem novo commit.

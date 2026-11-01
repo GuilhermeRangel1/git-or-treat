@@ -265,3 +265,31 @@ posterior de FAT-10 e o aceite técnico local explícito de 17 casos numéricos.
 37 PASS, onze bloqueados, sete sem amostra e duas regressões fora do runner. Esse
 resultado não conclui os domínios e não homologa Dados. Valores e auditoria detalhada
 permanecem privados; o relatório público contém somente IDs e estados.
+
+
+## Situação vigente após a extensão do 10B — 01/11/2026
+
+Esta seção supera as pendências de implementação descritas na fotografia inicial.
+FAT-09/CON-06/CON-07/CON-08/FAT-11 estão implementados e reconciliados localmente;
+a pessoa usuária aprovou expressamente os cinco controles nesta entrega local.
+AMB-08 pede esclarecimento por comparação anual sem janelas equivalentes, como
+comportamento definido. O bloqueio de INT-03 agora é certificação de cobertura,
+pois a métrica de eventos distintos já existe, separada de DEC/FEC.
+
+As regras de preço-volume, janelas GD e pares UC–ocorrência constam no dicionário
+e no notebook de Dados; a ausência anterior estava no consumidor. DADOS-01/02/03
+continuam referências históricas e de revisão, sem serem usadas como justificativa
+genérica para parar a implementação. Homologação externa não é presumida.
+
+Os controles de comparação conferem cada número em seu período/tipo e o rótulo do
+bairro; não basta encontrar os mesmos números em qualquer ordem. Preço/volume
+confere as parcelas individualmente e usa as janelas efetivamente publicadas.
+GD aplica a elegibilidade mínima documentada sem reconstruir a flag bruta a partir
+de médias arredondadas. Resultados e limites no
+[relatório sanitizado](genai-domain-validation.md).
+
+Ordem de integração: implementação `feat/genai-cobertura-dominios` primeiro;
+matriz/runner `feat/genai-10a-runner` (PR #99) depois, com atualização normal da base.
+O 10A referencia as três métricas novas, mas não carrega cópia da implementação.
+Até atualizar a base, seu teste conjunto usa o catálogo/perfil do 10B em diretório
+ignorado. Isso é dependência explícita entre PRs, não duplicação de commits.

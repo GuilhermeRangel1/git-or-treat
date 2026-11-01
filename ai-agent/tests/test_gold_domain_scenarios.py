@@ -229,9 +229,13 @@ def test_sql_controls_are_read_only_parameterized_and_gold_v2_only():
         assert ";" not in sql
         assert not re.search(r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|GRANT|TRUNCATE|COPY)\b",
                              sql, re.IGNORECASE)
-        tables = set(re.findall(r"\b(?:FROM|JOIN)\s+([a-z_0-9.]+)", sql, re.IGNORECASE))
-        tables -= {"m", "b", "x"}
-        assert tables and all(table.startswith("gold_v2.") for table in tables), control_id
+        from sqlglot import exp, parse_one
+        from sqlglot.optimizer.scope import traverse_scope
+        expression = parse_one(sql, dialect="postgres")
+        tables = [source for scope in traverse_scope(expression)
+                  for source in scope.sources.values() if isinstance(source, exp.Table)]
+        assert tables and all(table.db == "gold_v2" and not table.catalog
+                              for table in tables), control_id
         assert "gold_cadastro" not in sql
         assert set(re.findall(r":([a-z_0-9]+)", sql)) == set(control["parametros"]), control_id
         mapping = control.get("valor_por_metrica") or {}

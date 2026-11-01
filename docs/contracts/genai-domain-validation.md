@@ -8,11 +8,11 @@ validadas, sem calcular os valores de controle. As rodadas anteriores com Gemini
 tiveram falhas e não são declaradas verdes. FAT-10 falhou na rodada principal por
 truncamento indevido; após corrigir ranking top-1, foi reconciliado em execução separada.
 
-Resultado consolidado: **37 PASS, 11 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE, 2 NAO_EXECUTADO**.
+Resultado da rodada completa mais recente: **43 PASS, 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE, 2 NAO_EXECUTADO**. A rodada anterior tinha 37 PASS e onze bloqueios; seis cenários avançaram nesta fatia.
 Não há FAIL inesperado remanescente nessa revalidação controlada. Nenhum domínio
 está integralmente certificado; PASS exploratório e aceite técnico local não homologam Dados.
 
-A pessoa usuária aprovou expressamente o uso dos controles nos 17 casos numéricos
+A pessoa usuária aprovou expressamente o uso dos controles nos 22 casos numéricos
 reconciliados. A aprovação não certifica cobertura mensal, não homologa fórmulas
 pendentes nem aprova cenários bloqueados. Cada aprovação está no caso da matriz.
 
@@ -26,9 +26,9 @@ pendentes nem aprova cenários bloqueados. Cada aprovação está no caso da mat
 | FAT-06 | PASS | Aprovado |
 | FAT-07 | PASS | Não se aplica / pendente |
 | FAT-08 | BLOQUEADO | Não se aplica / pendente |
-| FAT-09 | BLOQUEADO | Não se aplica / pendente |
+| FAT-09 | PASS | Aprovado nesta extensão |
 | FAT-10 | PASS | Aprovado |
-| FAT-11 | BLOQUEADO | Não se aplica / pendente |
+| FAT-11 | PASS | Aprovado nesta extensão |
 | FAT-12 | SEM_AMOSTRA_NO_LOTE | Não se aplica / pendente |
 | FAT-13 | SEM_AMOSTRA_NO_LOTE | Não se aplica / pendente |
 | FAT-14 | PASS | Não se aplica / pendente |
@@ -40,9 +40,9 @@ pendentes nem aprova cenários bloqueados. Cada aprovação está no caso da mat
 | CON-03 | PASS | Não se aplica / pendente |
 | CON-04 | PASS | Aprovado |
 | CON-05 | PASS | Aprovado |
-| CON-06 | BLOQUEADO | Não se aplica / pendente |
-| CON-07 | BLOQUEADO | Não se aplica / pendente |
-| CON-08 | BLOQUEADO | Não se aplica / pendente |
+| CON-06 | PASS | Aprovado nesta extensão |
+| CON-07 | PASS | Aprovado nesta extensão |
+| CON-08 | PASS | Aprovado nesta extensão |
 | CON-09 | PASS | Não se aplica / pendente |
 | CON-10 | SEM_AMOSTRA_NO_LOTE | Não se aplica / pendente |
 | CON-11 | PASS | Não se aplica / pendente |
@@ -67,7 +67,7 @@ pendentes nem aprova cenários bloqueados. Cada aprovação está no caso da mat
 | AMB-05 | PASS | Aprovado |
 | AMB-06 | PASS | Não se aplica / pendente |
 | AMB-07 | PASS | Não se aplica / pendente |
-| AMB-08 | BLOQUEADO | Não se aplica / pendente |
+| AMB-08 | PASS | Não se aplica / pendente |
 | SEG-01 | PASS | Não se aplica / pendente |
 | SEG-02 | PASS | Não se aplica / pendente |
 | SEG-03 | PASS | Não se aplica / pendente |
@@ -102,3 +102,40 @@ Verificações: 303 testes de matriz/runner na branch 10A; 3.970 testes GenAI e 
 skips na branch 10B; Backend 855 aprovados/101 skips antes da correção top-1;
 após a correção, 10 testes de executor e HTTP/PostgreSQL aprovados. Ruff e diff-check
 aprovados. Os testes sintéticos não substituem os controles reais desta tabela.
+
+
+## Extensão de comparação e regras documentadas — 01/11/2026
+
+A rodada completa de 57 casos usou a matriz desta worktree com o núcleo e catálogo
+ampliados da branch `feat/genai-cobertura-dominios`, sem duplicar seus commits.
+SQL, sessão, permissões e auditoria são reais; somente a fronteira de geração do
+modelo é controlada. Nenhuma chamada Gemini adicional foi feita. Contas
+provisórias foram removidas ao terminar. Os cinco novos aceites numéricos foram
+expressamente aprovados pela pessoa usuária após a reconciliação.
+
+- FAT-09 e CON-06: controles independentes conferem valores inicial/final,
+  diferença e percentual vinculados aos respectivos meses. Valores invertidos
+  não passam por simples presença do mesmo conjunto de números.
+- CON-07: controle exige ambos os meses em todos os bairros, escolhe a maior
+  perda absoluta e confere também o rótulo do bairro. Ranking parcial não é aceito.
+- CON-08: janelas fixas e elegibilidade mínima documentadas; C08/C09 reobservados
+  no lote real, com população e dimensões conferidas contra a Visão 360.
+- FAT-11: todos os componentes e contagens por participação são conferidos por
+  rótulo; as janelas publicadas devem coincidir. Não há inferência causal.
+- AMB-08: esclarecimento é o comportamento definido para comparação anual sem
+  janelas equivalentes, não um bloqueio de implementação genérico.
+
+Restam cinco bloqueios observados: valor recebido sem medida comprovada (FAT-08),
+continuidade mensal não certificada (INT-01/02/03) e atendimento mensal não
+certificado (ATE-01). Sete cenários continuam sem amostra real. SEG-06/07 são
+regressões técnicas separadas, verificadas na suíte HTTP/PostgreSQL; o runner
+não as converte em PASS Gold. Não fabricar amostras, certificação ou homologação.
+
+Verificação conjunta: 305 testes de runner/matriz aprovados com os arquivos
+exatos do 10A e o catálogo/núcleo ampliados do 10B, em diretório ignorado de
+integração. O CI do PR #99 precisa receber a nova base do 10B depois de sua
+integração em develop: as métricas novas não devem ser copiadas para esta branch.
+
+Estado sincronizado no Trello: **6/10** entregáveis. Revisão de Dados/negócio, prova integral por caso e jornada final do portal continuam abertas.
+
+Tentativa de jornada visual em 01/11/2026: portal isolado na porta 5183 e Backend com modelo controlado preparados; a ferramenta de navegador recusou acesso com `Local browser use is disabled in Work settings`. Nenhuma jornada foi declarada aprovada. O ambiente visual foi encerrado; nenhuma conta visual chegou a ser criada.

@@ -296,9 +296,27 @@ def expected_values(matrix: dict, case: dict, params: dict, db: ControlDatabase,
     for column, param in control.get("conferencia", {}).items():
         if rows[0].get(column) != params.get(param):
             raise MatrixError("controle e amostra apontam recortes diferentes")
+    label = control.get("rotulo_resultado")
+    if label:
+        if not rows[0].get(label):
+            raise NoSample("controle sem rótulo do grupo")
+        params["_rotulo_controle"] = str(rows[0][label])
     mapping = control.get("valor_por_metrica")
     column = mapping[case["metrica"]] if mapping else "valor"
-    values = [row.get(column) for row in rows]
+    if control.get("valores_por_rotulo"):
+        if len(rows) != 1 or rows[0].get("estado_decomposicao") != "CALCULADA_BASE_COMUM":
+            raise NoSample("decomposição sem estado calculado único no recorte")
+        params["_rotulos_numericos"] = {
+            label: rows[0].get(name) for label, name in control["valores_por_rotulo"].items()
+        }
+        first, end_first, last, end_last = [rows[0][key] for key in control["periodo_publicado"]]
+        params["_periodo_publicado"] = f"P0 {first} a {end_first}; P1 {last} a {end_last}"
+    elif control.get("colunas_numericas"):
+        params["_comparacao_esperada"] = dict(rows[0])
+    numeric_columns = control.get("colunas_numericas", [column])
+    optional = set(control.get("colunas_opcionais", []))
+    values = [row.get(name) for row in rows for name in numeric_columns
+              if name not in optional or row.get(name) is not None]
     if any(value is None for value in values):
         raise NoSample("controle sem valor numérico no recorte")
     return [rounded(value, decimals) for value in values]
@@ -342,10 +360,14 @@ def status_matches(expected: str, observed: str) -> bool:
 
 def period_matches(case: dict, period: str, params: dict) -> bool:
     """Confere a janela resolvida, sem aceitar apenas a presença de texto."""
+    if "_periodo_publicado" in params:
+        return normalize(period) == normalize(params["_periodo_publicado"])
     if case["periodo"]["regra"] == "HISTORICO_ACUMULADO":
         return normalize(period) == normalize("histórico acumulado")
-    start = params.get("inicio", params.get("competencia"))
-    end = params.get("fim", params.get("competencia"))
+    if case["periodo"]["regra"] == "JANELAS_FIXAS_VARIACAO":
+        return normalize(period) == normalize("P1 2022-07 a 2023-06 versus P2 2025-07 a 2026-06")
+    start = params.get("inicio", params.get("competencia", params.get("p0")))
+    end = params.get("fim", params.get("competencia", params.get("p1")))
     if not start or not end:
         return False
     year, month = map(int, end.split("-"))
@@ -376,6 +398,37 @@ def numeric_divergences(case: dict, body: dict, expected: list[Decimal], toleran
             or context.get("unit") != case["unidade"] or not context.get("period")
             or not body.get("audit_reference")):
         divergences.append("fundamentacao")
+    label = params.get("_rotulo_controle")
+    if label and normalize(label) not in normalize(body.get("answer") or ""):
+        divergences.append("plano")
+    for label, expected_value in params.get("_rotulos_numericos", {}).items():
+        match = re.search(re.escape(normalize(label)) + r":\s*([+-]?[0-9][0-9.,]*)",
+                          normalize(body.get("answer") or ""))
+        observed_values = parse_numbers(match.group(1)) if match else []
+        if expected_value is None or not any(
+            abs(value - Decimal(str(expected_value))) <= tolerance for value in observed_values
+        ):
+            divergences.append("numero")
+    comparison = params.get("_comparacao_esperada")
+    if comparison:
+        answer = normalize(body.get("answer") or "")
+        labels = {
+            "valor": (params["p0"], case["unidade"]),
+            "valor_final": (params["p1"], case["unidade"]),
+            "variacao": (f"Variação absoluta de {params['p0']} a {params['p1']}", case["unidade"]),
+            "percentual": (f"Variação percentual de {params['p0']} a {params['p1']}", "%"),
+        }
+        for column, (label, unit) in labels.items():
+            match = re.search(re.escape(normalize(label))
+                              + r"(?:,[^:\n]{1,200})?:\s*([+-]?[0-9][0-9.,]*)\s*"
+                              + re.escape(normalize(unit)), answer)
+            wanted = comparison.get(column)
+            observed = parse_numbers(match.group(1)) if match else []
+            if wanted is None:
+                if observed:
+                    divergences.append("numero")
+            elif not any(abs(value - Decimal(str(wanted))) <= tolerance for value in observed):
+                divergences.append("numero")
     numbers = parse_numbers(body.get("answer"))
     if not all(any(abs(number - value) <= tolerance for number in numbers) for value in expected):
         divergences.append("numero")
