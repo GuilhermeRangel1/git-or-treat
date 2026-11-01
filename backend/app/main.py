@@ -105,6 +105,11 @@ async def analytics_unavailable_handler(
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError):
+    if request.url.path == f"{settings.API_V1_STR}/internal/genai-audit-events":
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "Evento de auditoria inválido."},
+        )
     if request.url.path == f"{settings.API_V1_STR}/auth/login":
         # Pydantic's default error payload includes rejected input values. The
         # login payload contains a password, so expose locations/messages only.

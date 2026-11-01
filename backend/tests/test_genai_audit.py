@@ -55,8 +55,10 @@ def test_internal_ingress_requires_own_token_and_confirms_persistence(client, mo
     assert client.post(path, json=event, headers=headers).status_code == 201
     assert len(AuditStore(test_engine).read("a" * 32)) == 1
     assert client.get(path, headers=headers).status_code == 405
-    assert client.post(path, json=event | {"question": "segredo"},
-                       headers=headers).status_code == 422
+    rejected = client.post(path, json=event | {"question": "segredo"}, headers=headers)
+    assert rejected.status_code == 422
+    assert "segredo" not in rejected.text
+    assert rejected.json() == {"detail": "Evento de auditoria inválido."}
     assert len(AuditStore(test_engine).read("a" * 32)) == 1
     monkeypatch.setattr(settings, "GENAI_AUDIT_WRITE_TOKEN", None)
     assert client.post(path, json=event, headers=headers).status_code == 503
