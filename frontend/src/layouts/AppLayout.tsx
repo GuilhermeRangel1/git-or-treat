@@ -4,14 +4,24 @@ import type { NavItem } from "./navigation";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import MobileMenu from "./components/MobileMenu";
+import { useSession } from "@/shared/auth/useSession";
+import { hasPermission } from "@/shared/auth/platformAccess";
 
 export default function AppLayout({ navigation }: { navigation: NavItem[] }) {
+  const { configured, user } = useSession();
   const { pathname } = useLocation();
   const menuRef = useRef<HTMLDialogElement>(null);
   const isUCDetail = Boolean(
     matchPath({ path: "/uc-360/:ucId", end: true }, pathname),
   );
-  const current = navigation.find((item) =>
+  const visibleNavigation = configured
+    ? navigation.filter(
+        (item) =>
+          item.requiredPermission !== undefined &&
+          hasPermission(user, item.requiredPermission),
+      )
+    : navigation;
+  const current = visibleNavigation.find((item) =>
     matchPath({ path: item.path, end: false }, pathname),
   );
   const conversationLayout = current?.layout === "conversation";
@@ -25,7 +35,7 @@ export default function AppLayout({ navigation }: { navigation: NavItem[] }) {
       >
         Ir para o conteúdo
       </a>
-      <Sidebar items={navigation} />
+      <Sidebar items={visibleNavigation} />
       <div
         className={`min-w-0 flex-1 ${conversationLayout ? "flex min-h-0 flex-col" : ""}`}
       >
@@ -57,7 +67,7 @@ export default function AppLayout({ navigation }: { navigation: NavItem[] }) {
           <Outlet />
         </main>
       </div>
-      <MobileMenu items={navigation} dialogRef={menuRef} />
+      <MobileMenu items={visibleNavigation} dialogRef={menuRef} />
     </div>
   );
 }

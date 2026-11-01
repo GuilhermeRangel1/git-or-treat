@@ -52,7 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setCurrentSession = useCallback(
     (enabled: boolean, nextUser: SessionUser | null) => {
-      const nextIdentity = enabled ? (nextUser?.id ?? null) : null;
+      const nextIdentity =
+        enabled && nextUser
+          ? JSON.stringify([
+              nextUser.id,
+              nextUser.profile,
+              [...nextUser.permissions].sort(),
+            ])
+          : null;
       if (identityRef.current !== nextIdentity) clearIdentityData();
       identityRef.current = nextIdentity;
       setSessionConfigured(enabled);
@@ -115,15 +122,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient, reloadSession]);
 
   const login = useCallback(
-    async (username: string, password: string) => {
+    async (username: string, password: string): Promise<SessionUser | null> => {
       const requestId = ++requestIdRef.current;
       setError(null);
       setLogoutFailed(false);
       const result = await loginSession(username, password);
-      if (!aliveRef.current || requestId !== requestIdRef.current) return;
+      if (!aliveRef.current || requestId !== requestIdRef.current) return null;
       setCurrentSession(result.enabled, result.user);
       setLoading(false);
       clearReauthenticationRequired();
+      return result.user;
     },
     [setCurrentSession],
   );

@@ -30,6 +30,7 @@ export const routes = [
     label: "Panorama",
     subtitle: "Visão executiva e KPIs gerais",
     requirementId: "WEB-01",
+    requiredPermission: "panorama:read",
     icon: LayoutDashboard,
     contentHeading: true,
     Component: PanoramaPage,
@@ -41,6 +42,7 @@ export const routes = [
     subtitle:
       "Compare períodos, investigue territórios e separe preço efetivo de volume faturado.",
     requirementId: "WEB-02",
+    requiredPermission: "revenue:read",
     icon: ChartNoAxesCombined,
     Component: ReceitaPage,
   },
@@ -51,6 +53,7 @@ export const routes = [
     section: "Atendimento",
     subtitle: "Localize a UC pelo número informado no atendimento.",
     requirementId: "WEB-03",
+    requiredPermission: "ucs:read",
     icon: Building2,
     Component: UC360Page,
   },
@@ -63,6 +66,7 @@ export const routes = [
     subtitle:
       "Uma fila explicável para orientar a investigação de perdas. Suspeita não é fraude comprovada.",
     requirementId: "WEB-04",
+    requiredPermission: "inspections:read",
     icon: ClipboardCheck,
     Component: InspecoesPage,
   },
@@ -73,6 +77,7 @@ export const routes = [
     subtitle:
       "Criação, atualização, resultado e cancelamento no mesmo contexto operacional.",
     requirementId: "WEB-05",
+    requiredPermission: "orders:read",
     icon: ClipboardList,
     Component: OrdensPage,
   },
@@ -84,6 +89,7 @@ export const routes = [
     subtitle:
       "Compare alimentadores e investigue os registros que sustentam os indicadores internos.",
     requirementId: "WEB-06",
+    requiredPermission: "operations:read",
     icon: Activity,
     Component: OperacaoPage,
   },
@@ -93,6 +99,7 @@ export const routes = [
     contentHeading: true,
     layout: "conversation",
     requirementId: "IA-05",
+    requiredPermission: "ai:ask",
     icon: Bot,
     Component: AssistentePage,
   },

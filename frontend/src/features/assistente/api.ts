@@ -30,12 +30,14 @@ export class AIChatApiError extends Error {
 
 export async function askAIQuestion(
   request: AIQuestionRequest,
+  signal?: AbortSignal,
 ): Promise<AIQuestionResponse> {
   let rawResponse: unknown;
   try {
     rawResponse = await apiClient<unknown>("/api/v1/ai/questions", {
       method: "POST",
       body: JSON.stringify(request),
+      signal,
     });
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;

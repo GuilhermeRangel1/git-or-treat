@@ -13,7 +13,7 @@ const demoSession: SessionValue = {
   needsReauthentication: false,
   lastConfirmedAccess: null,
   rememberOrderAccess: () => {},
-  login: async () => {},
+  login: async () => null,
   logout: async () => {},
   reloadSession: async () => {},
   clearReauthentication: () => {},
