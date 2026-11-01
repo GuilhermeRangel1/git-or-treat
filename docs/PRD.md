@@ -3005,3 +3005,10 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 ### 01/11/2026 — IA-03 / IA-05 — commits GENAI-11
 
 - Geração e contratos registrados em `4d0b985`; interface, robustez e testes em `e835d8e`, na branch `feat/genai-assistente-gold`. Evidência documental acompanha a mesma entrega. GENAI-11 mantém 9/10; movimento reduzido ativo continua pendente. Nenhuma credencial ou resultado privado integra os commits.
+
+### 01/11/2026 — IA-03 / IA-05 — GENAI-11: movimento reduzido comprovado
+
+- Chromium headless com Playwright 1.64.1 executou o portal com preferência normal e reduzida. A prova revelou que o spinner do botão compartilhado continuava girando; `Button.tsx` foi corrigido para respeitar a preferência e ocultar o ícone decorativo.
+- `npm run test:motion` passou nas duas configurações: CSS computado dos dois indicadores, envio por Enter, bloqueio durante consulta, requisição única, resposta, retorno de foco, fundamentos por teclado e limitações visíveis. Sessão/resposta artificiais isolam essa prova de apresentação; a integração real Gold v2 permanece sustentada pela jornada anterior. Windows não foi alterado.
+- Os 33 testes do Assistente, build, formatação, fronteiras e `git diff --check` passaram; lint sem erros, com aviso preexistente do AuthProvider. [Reprodução, evidência e limites](plans/2026-11-01-genai11-assistente-gold.md).
+- GENAI-11: 10/10 critérios técnicos comprovados para a entrega local. IA-03/IA-05 mantêm os estados oficiais; complemento ainda sem commit/push.

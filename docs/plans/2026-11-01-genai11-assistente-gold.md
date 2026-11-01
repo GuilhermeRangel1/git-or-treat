@@ -1,6 +1,6 @@
 # GENAI-11 — Assistente com respostas Gold v2
 
-Estado: 9/10 critérios técnicos comprovados; pendente exercitar movimento reduzido em navegador real. Branch `feat/genai-assistente-gold`, base `b804b58`; implementação registrada nos commits `4d0b985` e `e835d8e`.
+Estado: 10/10 critérios técnicos comprovados na entrega local. Branch `feat/genai-assistente-gold`, base `b804b58`; implementação inicial registrada nos commits `4d0b985` e `e835d8e`. Complemento de movimento reduzido validado localmente, ainda sem commit/push.
 
 ## Caminho e resultado
 
@@ -27,6 +27,14 @@ A continuação da validação liberou o navegador integrado. A jornada autentic
 
 Os textos principais e secundários medidos no claro ficaram em 15,53:1 e 5,52:1; no escuro, 13,24:1 e 7,15:1. O rótulo de recusa escuro apresentou 4,31:1 e foi corrigido para o token existente `action-danger-text` (#ffb4ab); o aviso demonstrativo passou a usar `status-warning-text`. A cor corrigida foi confirmada no navegador. Respostas fora de ordem após troca de identidade e de rota, dupla submissão no mesmo ciclo e ausência de contexto herdado passaram nos testes da tela. A conta temporária foi desconectada e removida; viewport restaurado. Captura local sem valores privados: `work/genai11-local/assistente-mobile-claro.png`, ignorada pelo Git.
 
-Pendente somente o exercício com movimento reduzido ativo no navegador: `prefers-reduced-motion` retornou falso nesta sessão. A regra `motion-reduce:animate-none` está implementada no indicador, mas não foi validada sob essa preferência real. O último item de robustez/acessibilidade permanece aberto por essa prova; não representa uma certificação completa por leitor de tela.
+### Prova complementar de movimento reduzido
 
-IA-03 e IA-05 preservam seus estados oficiais no PRD; este registro não conclui o card integralmente. Scripts, credenciais e resultados privados ficam em `work/`, ignorados pelo Git; nenhum conteúdo do lote foi copiado para esta evidência pública.
+Playwright 1.64.1 com Chromium headless 156 executou o portal real com `reducedMotion: "no-preference"` e `"reduce"`. O teste inicialmente falhou com `Movimento reduce: none, spin`: o indicador da conversa respeitava a preferência, mas o spinner do botão compartilhado continuava animando. `Button.tsx` passou a respeitar `motion-reduce:animate-none` e a ocultar o ícone decorativo das tecnologias assistivas.
+
+Após a correção, as duas configurações passaram. Foram medidos `matchMedia` e `getComputedStyle(...).animationName` dos dois indicadores: animação ativa na configuração normal e `none` em ambos com redução ativa. Envio por Enter, bloqueio durante a consulta, uma única requisição, resposta visível, rascunho limpo, foco devolvido ao campo, anúncio `polite`, abertura dos fundamentos por teclado e limitações visíveis também passaram. Nenhuma configuração do Windows foi alterada.
+
+Reprodução em `frontend/`: `npm ci`, `npx playwright install chromium`; iniciar `npm run dev -- --port 5180 --strictPort` e, em outro terminal, executar `npm run test:motion`. `MOTION_BASE_URL` permite indicar outro endereço local. Script versionado: `scripts/check-assistente-motion.mjs`. A prova intercepta somente endpoints `/api/v1/`, com sessão e resposta artificiais; não acessa banco ou Gemini nem substitui a jornada Gold autorizada já registrada acima. Referência da API de emulação: [documentação oficial Playwright](https://github.com/microsoft/playwright/blob/main/docs/src/emulation.md).
+
+Regressão complementar: 33 testes do Assistente, build, formatação, fronteiras e `git diff --check` passaram; lint sem erros, com o aviso preexistente do AuthProvider. O último critério técnico de acessibilidade foi comprovado por essa prova complementar; não representa certificação completa por leitor de tela.
+
+IA-03 e IA-05 preservam seus estados oficiais no PRD; a conclusão dos critérios técnicos do GENAI-11 não encerra automaticamente esses requisitos. Scripts, credenciais e resultados privados ficam em `work/`, ignorados pelo Git; nenhum conteúdo do lote foi copiado para esta evidência pública.
