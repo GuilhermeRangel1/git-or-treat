@@ -5,6 +5,7 @@ export type AIConversationTurn = {
 
 export type AIQuestionRequest = {
   contract_version: "v1";
+  expected_publication?: { lote: string; fingerprint: string };
   question: string;
   context: AIConversationTurn[];
 };

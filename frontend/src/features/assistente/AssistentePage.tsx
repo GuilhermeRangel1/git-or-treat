@@ -20,6 +20,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { useGoldPublicationRevision } from "@/shared/analytics/goldPublication";
 import Button from "@/shared/ui/Button";
 import { AIChatApiError, askAIQuestion } from "./api";
 import type {
@@ -318,6 +319,7 @@ function MessageCard({
 }
 
 export default function AssistentePage() {
+  const publicationRevision = useGoldPublicationRevision();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const nextMessageId = useRef(0);
@@ -325,6 +327,18 @@ export default function AssistentePage() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const mutation = useMutation({ mutationFn: askAIQuestion, retry: false });
+  // Publication changes invalidate interpretation history, including saved retries.
+  useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
+    setMessages((current) =>
+      current.map((message) => ({
+        ...message,
+        contextEligible: false,
+        retryRequest: undefined,
+        outdated: message.role === "assistant" && Boolean(message.response),
+      })),
+    );
+  }, [publicationRevision]);
   const hasMessages = messages.length > 0;
   const conversationContext = useMemo(() => makeContext(messages), [messages]);
 
@@ -388,15 +402,37 @@ export default function AssistentePage() {
           response.status,
         ),
       };
-      setMessages((current) =>
-        updateConversationInteraction(
-          current,
+      setMessages((current) => {
+        const received = response.analysis_context?.batch_reference;
+        const changed =
+          received &&
+          current.some((turn) => {
+            const previous = turn.response?.analysis_context?.batch_reference;
+            return turn.contextEligible && previous && previous !== received;
+          });
+        return updateConversationInteraction(
+          current.map((message) =>
+            !changed || message.id === userMessageId
+              ? message
+              : {
+                  ...message,
+                  contextEligible: false,
+                  retryRequest: undefined,
+                  outdated:
+                    message.role === "assistant" && Boolean(message.response),
+                },
+          ),
           userMessageId,
           assistantMessage,
           retryAttempt !== undefined,
-        ),
-      );
+        );
+      });
     } catch (error) {
+      if (
+        error instanceof AIChatApiError &&
+        error.code === "superseded_request"
+      )
+        return;
       const safeError =
         error instanceof AIChatApiError
           ? error
@@ -414,7 +450,7 @@ export default function AssistentePage() {
       };
       setMessages((current) =>
         updateConversationInteraction(
-          safeError.status === 409
+          [401, 403, 409].includes(safeError.status ?? 0)
             ? current.map((message) => ({
                 ...message,
                 contextEligible: false,

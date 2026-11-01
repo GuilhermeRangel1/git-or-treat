@@ -19,6 +19,7 @@ it("confere os números do KPI e apresenta Gold sem aviso demonstrativo", async 
     isDemo: false,
     version: data.loteVersao,
     contractVersion: "v1",
+    fingerprint: "a".repeat(64),
     limitations: [],
   };
   data.periodoIncompleto = false;
@@ -26,6 +27,7 @@ it("confere os números do KPI e apresenta Gold sem aviso demonstrativo", async 
   const envelope = {
     metric: { id: metric.id, definicao: "Receita comparável", formula: "soma" },
     source: {
+      fingerprint: "a".repeat(64),
       kind: "gold",
       isDemo: false,
       loteVersao: data.loteVersao,
@@ -79,6 +81,18 @@ it("confere os números do KPI e apresenta Gold sem aviso demonstrativo", async 
     data,
     new AbortController().signal,
   );
+  expect(
+    JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string).fingerprint,
+  ).toBe("a".repeat(64));
+  envelope.source.fingerprint = "b".repeat(64);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(JSON.stringify(envelope))),
+  );
+  await expect(
+    requestPanoramaInsight(filters, data, new AbortController().signal),
+  ).rejects.toThrow(/incompatível/);
+  envelope.source.fingerprint = "a".repeat(64);
   const query = {
     data: result,
     isError: false,
