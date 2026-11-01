@@ -475,3 +475,14 @@ A guarda exige o período acumulado exato na observação. Qualificadores explí
 dimensão distinguem município de bairro homônimo; pedidos não qualificados conservam
 a ambiguidade. A matriz, comandos e limites estão na
 [entrega incremental dos domínios](../contracts/genai-domain-implementation.md).
+
+
+### GENAI-10B — comparação, GD, eventos e decomposição publicados
+
+O núcleo existente passou a planejar dois meses explícitos de receita/consumo e
+ranking por variação absoluta de consumo por bairro, mantendo filtros, cobertura
+e base zero. GD/queda usa somente as janelas fixas e a população elegível de Dados.
+Eventos distintos não são FEC. Preço/volume exige componentes completos e janelas
+publicadas no envelope interno de evidência. O modelo não calcula fórmulas.
+Detalhes de semântica, controle e limites na [ADR-0022](../decisions/0022-consumo-metricas-documentadas-gold-v2.md)
+e na [entrega 10B](../contracts/genai-domain-implementation.md).

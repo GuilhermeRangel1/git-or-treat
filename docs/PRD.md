@@ -2999,3 +2999,26 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Por orientação da pessoa usuária, novos desenvolvimentos, cenários e aceites GenAI usam Gold v2, seu dicionário, contrato físico e catálogo aprovados. Regra descoberta pelo AGENTS raiz e aplicada pela skill genai-gold; detalhes em [política de versões](agents/genai-gold.md#referência-obrigatória-gold-v2).
 - Gold v1 fica restrita à compatibilidade legada explícita. Versão de envelope HTTP v1 não é versão dos dados; fixtures sintéticas continuam úteis para CI e não certificam aceite real. Capacidades v2 insuficientes continuam bloqueadas, sem fallback.
 - Mudança documental de orientação e revisão, sem remoção de código ou alteração de estados funcionais IA. Sincronização no cartão transversal do quadro GenAI para todos os colaboradores.
+
+
+### 01/11/2026 — IA-01/02/03/06 — extensão integrada dos domínios GENAI-10B
+
+- Estado: implementação ampliada em validação; os requisitos IA não são marcados
+  Concluídos pela soma de testes ou por êxito parcial da matriz.
+- Caminho existente Portal → Backend autenticado → plano GenAI → executor restrito
+  → evidência → síntese/auditoria estendido para comparar meses, classificar perda
+  por bairro, contar GD elegível e eventos distintos e consumir preço/volume V3.
+- Regras de Dados verificadas no dicionário/notebook; [ADR-0022](decisions/0022-consumo-metricas-documentadas-gold-v2.md)
+  registra decisões, limites e autorização explícita da leitura local necessária.
+- Evidência: 3.979 testes GenAI; 858 Backend; ensaio PostgreSQL com 90 aprovados;
+  305 testes da matriz/runner em integração com o 10A. Rodada real de 57 casos,
+  modelo controlado, resultou em 43 PASS, cinco bloqueios, sete sem amostra e duas
+  regressões técnicas separadas. Nenhuma falha inesperada ou conta temporária
+  remanescente. A pessoa usuária aprovou cinco casos numéricos adicionais (22 no total).
+- Pendências: recebimento sem medida comprovada, certificação mensal de
+  continuidade/atendimento, amostras reais ausentes, revisão de Dados e jornada
+  visual final. A documentação e os parâmetros privados preservam a distinção
+  entre teste artificial, reconciliação local e homologação de negócio.
+- Arquivos/comandos/limites em [GENAI-10B](contracts/genai-domain-implementation.md).
+  Branch `feat/genai-cobertura-dominios`, alterações locais posteriores a a68f484;
+  revisão independente de especificação e padrões incorporada, sem novo commit.

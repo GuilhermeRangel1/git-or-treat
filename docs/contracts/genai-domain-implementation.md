@@ -54,7 +54,7 @@ real ficaram no diretório ignorado da worktree do 10A. Elas revelaram falhas de
 interpretação, configuração e prontidão; nenhuma falha ou falta de amostra foi
 convertida em PASS. Contas temporárias foram removidas ao terminar cada rodada.
 
-## O que impede o aceite completo
+## Limites da primeira fatia (superados parcialmente pela extensão abaixo)
 
 Continuam pendentes comparações entre períodos e ranking de variação por bairro,
 perguntas de preço/volume e GD/queda conforme definições ainda bloqueadas no catálogo,
@@ -84,3 +84,79 @@ aprovou expressamente os 17 cenários numéricos para esta entrega local. Isso n
 homologa Dados, não certifica os meses de atendimento/continuidade e não conclui os
 quatro domínios. A tabela sanitizada e as aprovações pertencem à entrega do PR #99;
 parâmetros, valores e referências permanecem exclusivamente no diretório privado.
+
+
+## Extensão executável de comparação e regras de Dados — 01/11/2026
+
+Decisões e fontes: [ADR-0022](../decisions/0022-consumo-metricas-documentadas-gold-v2.md),
+`docs/dicionario_gold.md` e células de `Silver_to_gold.ipynb`. A pessoa usuária
+orientou usar as regras existentes e autorizou explicitamente as novas concessões
+locais; nenhuma aprovação de Dados foi inventada.
+
+### Comportamento e limites
+
+- FAT-09/CON-06 comparam dois meses explícitos, com campo opcional
+  `comparison_periods` no plano. Fingerprints e envelopes sem o campo continuam
+  iguais aos vetores legados. Backend revalida a operação, o filtro e a cobertura
+  dos dois meses; meses intermediários não entram na consulta nem no percentual.
+- CON-07 usa a diferença bruta absoluta por bairro antes de arredondar, com
+  desempate por rótulo. SQL confere ambos os meses em todos os grupos, classifica
+  no banco e só então limita a saída. Nenhum bairro incompleto é descartado para
+  produzir um vencedor aparente; o estado é esclarecimento.
+- CON-08 usa as janelas fixas publicadas, seis meses com leitura em cada uma e a
+  flag bruta estritamente inferior a −30%. C08/C09 conferem população completa,
+  município/GD da Visão 360, médias e contagens contra a série mensal. Valores
+  não finitos não equivalem a ausência; a média arredondada zero não apaga uma
+  flag bruta válida. O filtro GD=Sim é declarado e revalidado nos dois serviços.
+- INT-03 conta IDs distintos de ocorrência por alimentador do evento e abertura
+  UTC. Evento associado a duas UCs conta uma vez. C11 e cobertura mensal
+  continuam obrigatórios; DEC/FEC mantêm seus grãos, unidades e denominadores.
+- FAT-11 consome a decomposição V3 materializada. Confere janelas anuais
+  equivalentes, estado CALCULADA_BASE_COMUM, origem da publicação, contadores por
+  linha e identidade dos sete componentes financeiros. A síntese recebe todos
+  os componentes classificados e as janelas reais; não recalcula via prompt.
+  Ausência de configuração/base/cobertura ou mistura de estados não vira zero.
+- A interpretação de agrupamento preserva município e classe mesmo quando
+  existe bairro homônimo. A guarda usa os valores do perfil enriquecido pelo
+  envelope interno; não aceita qualquer rótulo vindo da evidência.
+
+### Acesso local autorizado
+
+O provisionamento e sua matriz de verificação acrescentam somente:
+`variacao_consumo_uc(municipio, possui_gd, consumo_medio_inicial,
+consumo_medio_final, meses_com_leitura_p1, meses_com_leitura_p2,
+queda_consumo_superior_30_pct)`; `ocorrencias_uc(id_ocorrencia, alimentador,
+data_abertura)`; e as colunas analíticas/metadados já versionados de
+`decomposicao_receita`. Aplicado no PostgreSQL local após autorização expressa.
+Sem escrita, cadastro pessoal ou texto de chamados. O ensaio descartável prova
+as negativas de acesso e mantém somente as colunas autorizadas.
+
+### Verificações e aceite
+
+- GenAI: 3.979 aprovados e três skips de ambiente, após catálogo/contratos ampliados.
+- Backend completo: 858 aprovados e 101 skips; PostgreSQL restrito separado:
+  90 testes aprovados na fatia ampliada, um aviso Starlette/httpx preexistente.
+- Observação adicional no banco descartável `v_energy_test`: um teste aprovado.
+  A primeira tentativa apontou nome de banco incompatível, sem alterar o teste
+  para ignorar a proteção; a reexecução usou o banco descartável exigido.
+- Runner/matriz do 10A contra núcleo/catálogo ampliados: 305 aprovados.
+- Rodada completa privada sobre Gold v2: 43 PASS, cinco BLOQUEADO, sete
+  SEM_AMOSTRA_NO_LOTE e duas regressões técnicas separadas, sem falha inesperada.
+  SQL, sessão, ACL e auditoria reais; modelo controlado. Não houve novas chamadas
+  Gemini. Contas temporárias removidas ao terminar.
+- A pessoa usuária aprovou o aceite técnico local de FAT-09/FAT-11/CON-06/CON-07/CON-08,
+  somando 22 casos numéricos aprovados localmente. Isso não certifica cobertura
+  mensal nem substitui revisão de Dados/negócio ou jornada final no portal.
+
+### Pendências reais
+
+FAT-08 precisa de medida de recebimento comprovada. INT-01/02/03 e ATE-01 precisam
+certificação mensal válida da origem; sete casos precisam amostras reais ainda
+não encontradas. SEG-06/07 são regressões HTTP/PostgreSQL executadas separadamente,
+sem PASS Gold artificial. Revisão de Dados e jornada visual final continuam
+pendentes. A integração do PR #99 deve ocorrer depois desta implementação para
+que a matriz possa referenciar as métricas novas sem duplicar commits.
+
+Estado sincronizado no Trello: **9/10** entregáveis técnicos; aceite real integral por cenário permanece pendente.
+
+Tentativa de jornada visual em 01/11/2026: portal isolado na porta 5183 e Backend com modelo controlado preparados; a ferramenta de navegador recusou acesso com `Local browser use is disabled in Work settings`. Nenhuma jornada foi declarada aprovada. O ambiente visual foi encerrado; nenhuma conta visual chegou a ser criada.

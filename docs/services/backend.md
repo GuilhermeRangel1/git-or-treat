@@ -253,3 +253,16 @@ No ranking explícito com agrupamento, o executor retorna exatamente o limite do
 A linha extra para detectar truncamento é preservada nas consultas completas; não
 converte uma solicitação legítima de top-1 em erro por existir um segundo grupo.
 O teste integrado confere duas classes e mantém a recusa da consulta completa truncada.
+
+
+### GENAI-10B — execução das métricas documentadas v2
+
+O catálogo físico inclui comparação mensal, GD/queda elegível, contagem distinta
+de eventos e decomposição publicada. O executor revalida o filtro intrínseco GD,
+usa SQL parametrizado e classifica os bairros antes de limitar a saída. C08/C09
+confrontam população e medidas; preço/volume exige cobertura dos dois domínios nas
+janelas publicadas, método V3, mesma origem e reconciliação por linha. Campos
+opcionais ausentes preservam envelopes/fingerprints existentes. As novas leituras
+locais foram explicitamente autorizadas e estão reproduzíveis no provisionamento;
+escrita, conteúdo de chamados e cadastro continuam fora do leitor. Veja a
+[entrega 10B](../contracts/genai-domain-implementation.md).
