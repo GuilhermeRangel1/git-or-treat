@@ -59,6 +59,16 @@ export type DetailEnvelope = {
       upper_kwh_per_inspection: number;
       reference: string;
     } | null;
+    consumption_comparison: {
+      baseline_start: string;
+      baseline_end: string;
+      recent_start: string;
+      recent_end: string;
+      baseline_kwh: number | null;
+      recent_kwh: number | null;
+      change_percent: number | null;
+      unavailable_reason: string | null;
+    } | null;
     limitations: string[];
   };
   metadata: Metadata;
@@ -226,11 +236,36 @@ export function decodeDetail(value: unknown): DetailEnvelope {
       !["global", "0", "1"].includes(recovery.reference))
   )
     invalid();
+  const comparison =
+    data.consumption_comparison == null
+      ? null
+      : record(data.consumption_comparison);
+  const percent = comparison?.change_percent;
+  if (
+    percent != null &&
+    (typeof percent !== "number" || !Number.isFinite(percent))
+  )
+    invalid();
   return {
     data: {
       ...item(data),
       rule_version: string(data.rule_version),
       historical_recovery: recovery,
+      consumption_comparison: comparison
+        ? {
+            baseline_start: string(comparison.baseline_start),
+            baseline_end: string(comparison.baseline_end),
+            recent_start: string(comparison.recent_start),
+            recent_end: string(comparison.recent_end),
+            baseline_kwh: nullable(comparison.baseline_kwh),
+            recent_kwh: nullable(comparison.recent_kwh),
+            change_percent: percent as number | null,
+            unavailable_reason:
+              comparison.unavailable_reason === null
+                ? null
+                : string(comparison.unavailable_reason),
+          }
+        : null,
       estimate_evidence: {
         baseline_kwh: nullable(evidence.baseline_kwh),
         observed_kwh: nullable(evidence.observed_kwh),

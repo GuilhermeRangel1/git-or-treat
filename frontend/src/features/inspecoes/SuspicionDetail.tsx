@@ -112,6 +112,40 @@ export default function SuspicionDetail({
             )}
           </div>
 
+          {data.consumption_comparison && (
+            <div className="mt-4 rounded-lg bg-canvas p-3">
+              <p className="font-medium">Comparação proposta de consumo</p>
+              <p className="mt-1 text-xs text-muted">
+                {periodLabel(data.consumption_comparison.baseline_start)} a{" "}
+                {periodLabel(data.consumption_comparison.baseline_end)}{" "}
+                comparado com{" "}
+                {periodLabel(data.consumption_comparison.recent_start)} a{" "}
+                {periodLabel(data.consumption_comparison.recent_end)}.
+              </p>
+              {data.consumption_comparison.baseline_kwh !== null &&
+                data.consumption_comparison.recent_kwh !== null && (
+                  <p className="mt-1">
+                    {energy(data.consumption_comparison.baseline_kwh)} →{" "}
+                    {energy(data.consumption_comparison.recent_kwh)}
+                    {data.consumption_comparison.change_percent !== null
+                      ? ` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`
+                      : ""}
+                  </p>
+                )}
+              {data.consumption_comparison.unavailable_reason && (
+                <p className="mt-1 text-muted">
+                  {data.consumption_comparison.unavailable_reason}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-muted">
+                Regra proposta: três meses contra os três anteriores, terminando
+                na última competência da publicação. Dados observados não
+                certificam cobertura completa. Esta comparação não define a
+                prioridade nem comprova irregularidade.
+              </p>
+            </div>
+          )}
+
           {data.historical_recovery ? (
             <div className="mt-4 rounded-lg bg-canvas p-3">
               <p className="font-medium">
