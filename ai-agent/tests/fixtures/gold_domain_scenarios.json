@@ -22,6 +22,14 @@
     "interrupcoes",
     "atendimento"
   ],
+  "parametros_por_dimensao": {
+    "geography.municipality": "municipio",
+    "geography.neighborhood": "bairro",
+    "customer.consumption_class": "classe",
+    "generation.distributed": "gd",
+    "network.feeder": "alimentador"
+  },
+  "convencao_controle": "O valor esperado vem da coluna 'valor' ou de 'valor_por_metrica[metrica]'; várias linhas com 'competencia' são uma série e cada valor deve aparecer na resposta.",
   "estados_esperados": {
     "sucesso": {
       "status_publico": "answered",
@@ -337,7 +345,19 @@
       "descricao": "Energia e receita no último mês, município de maior receita (diagnostico_receita).",
       "definicao": "docs/gold-coverage-v0.md",
       "aprovacao_registrada": "Pessoa usuária, lote local (docs/dicionario_gold.md, 01/11/2026)",
-      "sql": null
+      "sql": "SELECT municipio, SUM(receita_total_reais) AS valor, SUM(consumo_total_kwh) AS consumo_kwh FROM gold_v2.diagnostico_receita WHERE competencia = :competencia GROUP BY municipio HAVING SUM(receita_total_reais) IS NOT NULL ORDER BY SUM(receita_total_reais) DESC, municipio LIMIT 1",
+      "parametros": [
+        "competencia"
+      ],
+      "saida": [
+        "municipio",
+        "valor",
+        "consumo_kwh"
+      ],
+      "conferencia": {
+        "municipio": "municipio"
+      },
+      "observacao": "Definição do C04 (scripts/gold_coverage.py): na competência, município de maior receita; o runner exige que seja o mesmo da amostra."
     },
     "C05": {
       "tipo": "existente",
@@ -386,7 +406,23 @@
       "descricao": "DEC/FEC do alimentador de maior DEC na última competência (indicadores_dec_fec).",
       "definicao": "docs/gold-coverage-v0.md",
       "aprovacao_registrada": "Pessoa usuária, lote local (docs/dicionario_gold.md, 01/11/2026)",
-      "sql": null
+      "sql": "SELECT id_alimentador AS alimentador, \"DEC\" AS dec, \"FEC\" AS fec FROM gold_v2.indicadores_dec_fec WHERE competencia = :competencia AND \"DEC\" IS NOT NULL ORDER BY \"DEC\" DESC, id_alimentador LIMIT 1",
+      "parametros": [
+        "competencia"
+      ],
+      "saida": [
+        "alimentador",
+        "dec",
+        "fec"
+      ],
+      "valor_por_metrica": {
+        "network.equivalent_interruption_duration": "dec",
+        "network.equivalent_interruption_frequency": "fec"
+      },
+      "conferencia": {
+        "alimentador": "alimentador"
+      },
+      "observacao": "Definição do C11: alimentador de maior DEC no mês; a média dos meses do controle original não é métrica aprovada e não é comparada."
     },
     "C12": {
       "tipo": "existente",
@@ -407,14 +443,35 @@
       "descricao": "Atendimento por UC: chamados e satisfação, incluindo ausência (visao_360_uc).",
       "definicao": "docs/gold-coverage-v0.md",
       "aprovacao_registrada": "Pessoa usuária, lote local (docs/dicionario_gold.md, 01/11/2026)",
-      "sql": null
+      "sql": "SELECT (SELECT COUNT(DISTINCT protocolo) FROM gold_v2.atendimentos_uc) AS chamados, (SELECT AVG(nota_satisfacao) FROM gold_v2.atendimentos_uc) AS media_satisfacao, (SELECT SUM(total_chamados_callcenter) FROM gold_v2.visao_360_uc) AS chamados_visao_360",
+      "parametros": [],
+      "saida": [
+        "chamados",
+        "media_satisfacao",
+        "chamados_visao_360"
+      ],
+      "valor_por_metrica": {
+        "service.accumulated_attendance": "chamados",
+        "service.accumulated_satisfaction": "media_satisfacao"
+      },
+      "observacao": "Definição do C14 no grão do protocolo (atendimentos_uc), independente da soma da Visão 360 usada pelo plano; chamados_visao_360 é registrada como conferência."
     },
     "C15": {
       "tipo": "existente",
       "descricao": "Atendimento mensal contra cobertura_dominios (atendimentos_uc).",
       "definicao": "docs/gold-readiness.md",
       "aprovacao_registrada": "Pessoa usuária, lote local (docs/dicionario_gold.md, 01/11/2026)",
-      "sql": null
+      "sql": "SELECT (SELECT COUNT(*) FROM gold_v2.atendimentos_uc a WHERE to_char(timezone('UTC', a.data_abertura), 'YYYY-MM') = :competencia) AS valor, c.estado_cobertura, c.qtd_registros, c.zero_registros_confirmado FROM gold_v2.cobertura_dominios c WHERE c.dominio = 'atendimentos' AND c.recorte = 'DOMINIO' AND c.competencia = :competencia",
+      "parametros": [
+        "competencia"
+      ],
+      "saida": [
+        "valor",
+        "estado_cobertura",
+        "qtd_registros",
+        "zero_registros_confirmado"
+      ],
+      "observacao": "Definição do C15: registros do mês UTC de abertura contra a cobertura declarada; sem FECHADO o caso continua bloqueado."
     },
     "CTL-FAT-MUN": {
       "tipo": "sql_proposto",
@@ -452,6 +509,24 @@
         "linhas_com_valor"
       ],
       "sql": "SELECT SUM(receita_total_reais) AS valor, COUNT(*) AS linhas, COUNT(receita_total_reais) AS linhas_com_valor FROM gold_v2.diagnostico_receita WHERE competencia = :competencia AND municipio = :municipio AND classe_consumo = :classe",
+      "observacao": null
+    },
+    "CTL-FAT-MUN-JANELA": {
+      "tipo": "sql_proposto",
+      "descricao": "Receita faturada por mês na janela e município.",
+      "relacionados": [
+        "C04"
+      ],
+      "parametros": [
+        "inicio",
+        "fim",
+        "municipio"
+      ],
+      "saida": [
+        "competencia",
+        "valor"
+      ],
+      "sql": "SELECT competencia, SUM(receita_total_reais) AS valor FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :inicio AND :fim AND municipio = :municipio GROUP BY competencia ORDER BY competencia",
       "observacao": null
     },
     "CTL-FAT-MUN-CLASSE-JANELA": {
@@ -543,11 +618,22 @@
         "classe"
       ],
       "saida": [
-        "competencia",
-        "valor"
+        "valor",
+        "valor_final",
+        "variacao",
+        "percentual"
       ],
-      "sql": "SELECT competencia, SUM(receita_total_reais) AS valor FROM gold_v2.diagnostico_receita WHERE competencia IN (:p0, :p1) AND municipio = :municipio AND classe_consumo = :classe GROUP BY competencia ORDER BY competencia",
-      "observacao": "Variação absoluta = p1 − p0; percentual só com p0 > 0. Base zero e competência ausente são estados próprios."
+      "sql": "WITH meses AS (SELECT competencia, SUM(receita_total_reais) AS total FROM gold_v2.diagnostico_receita WHERE competencia IN (:p0, :p1) AND municipio = :municipio AND classe_consumo = :classe GROUP BY competencia) SELECT p0.total AS valor, p1.total AS valor_final, p1.total - p0.total AS variacao, CASE WHEN p0.total > 0 THEN (p1.total - p0.total) / p0.total * 100 END AS percentual FROM meses p0 CROSS JOIN meses p1 WHERE p0.competencia = :p0 AND p1.competencia = :p1",
+      "observacao": "Variação absoluta = p1 − p0; percentual só com p0 > 0. Base zero e competência ausente são estados próprios.",
+      "colunas_numericas": [
+        "valor",
+        "valor_final",
+        "variacao",
+        "percentual"
+      ],
+      "colunas_opcionais": [
+        "percentual"
+      ]
     },
     "CTL-FAT-CONTRIBUICAO-CLASSE": {
       "tipo": "sql_proposto",
@@ -563,7 +649,7 @@
         "classe",
         "valor"
       ],
-      "sql": "SELECT classe_consumo AS classe, SUM(receita_total_reais) AS valor FROM gold_v2.diagnostico_receita WHERE competencia = :competencia AND municipio = :municipio GROUP BY classe_consumo ORDER BY SUM(receita_total_reais) DESC NULLS LAST, classe_consumo",
+      "sql": "SELECT classe_consumo AS classe, SUM(receita_total_reais) AS valor FROM gold_v2.diagnostico_receita WHERE competencia = :competencia AND municipio = :municipio GROUP BY classe_consumo ORDER BY SUM(receita_total_reais) DESC NULLS LAST, classe_consumo LIMIT 1",
       "observacao": "A soma das classes reconcilia com CTL-FAT-MUN no mesmo recorte."
     },
     "CTL-FAT-PRECO-VOLUME": {
@@ -577,14 +663,56 @@
         "classe"
       ],
       "saida": [
+        "valor",
+        "efeito_volume_reais",
+        "efeito_preco_observado_reais",
+        "efeito_interacao_reais",
+        "variacao_entradas_reais",
+        "variacao_saidas_reais",
+        "variacao_sem_leitura_fora_base_reais",
+        "variacao_outros_fora_base_reais",
+        "variacao_faturamento_total_reais",
+        "qtd_ucs_base_comum",
+        "qtd_ucs_observadas",
+        "inicio_p0",
+        "fim_p0",
+        "inicio_p1",
+        "fim_p1",
         "estado_decomposicao",
-        "efeito_volume",
-        "efeito_preco",
-        "efeito_interacao",
-        "variacao_total"
+        "metodo"
       ],
-      "sql": "SELECT estado_decomposicao, SUM(efeito_volume_reais) AS efeito_volume, SUM(efeito_preco_observado_reais) AS efeito_preco, SUM(efeito_interacao_reais) AS efeito_interacao, SUM(variacao_faturamento_total_reais) AS variacao_total FROM gold_v2.decomposicao_receita WHERE classe_consumo = :classe GROUP BY estado_decomposicao ORDER BY estado_decomposicao",
-      "observacao": "Tabela vazia com configuração NAO_CONFIGURADA ou COBERTURA_NAO_CERTIFICADA mantém o caso bloqueado."
+      "sql": "SELECT SUM(variacao_faturamento_total_reais) AS valor, SUM(efeito_volume_reais) AS efeito_volume_reais, SUM(efeito_preco_observado_reais) AS efeito_preco_observado_reais, SUM(efeito_interacao_reais) AS efeito_interacao_reais, SUM(variacao_entradas_reais) AS variacao_entradas_reais, SUM(variacao_saidas_reais) AS variacao_saidas_reais, SUM(variacao_sem_leitura_fora_base_reais) AS variacao_sem_leitura_fora_base_reais, SUM(variacao_outros_fora_base_reais) AS variacao_outros_fora_base_reais, SUM(variacao_faturamento_total_reais) AS variacao_faturamento_total_reais, SUM(qtd_ucs_base_comum) AS qtd_ucs_base_comum, SUM(qtd_ucs_observadas) AS qtd_ucs_observadas, inicio_p0, fim_p0, inicio_p1, fim_p1, estado_decomposicao, metodo FROM gold_v2.decomposicao_receita WHERE classe_consumo = :classe GROUP BY inicio_p0, fim_p0, inicio_p1, fim_p1, estado_decomposicao, metodo",
+      "observacao": "Tabela vazia com configuração NAO_CONFIGURADA ou COBERTURA_NAO_CERTIFICADA mantém o caso bloqueado.",
+      "valores_por_rotulo": {
+        "Efeito volume": "efeito_volume_reais",
+        "Efeito preço observado": "efeito_preco_observado_reais",
+        "Interação preço-volume": "efeito_interacao_reais",
+        "Entradas na base": "variacao_entradas_reais",
+        "Saídas da base": "variacao_saidas_reais",
+        "Sem leitura fora da base": "variacao_sem_leitura_fora_base_reais",
+        "Outras parcelas fora da base": "variacao_outros_fora_base_reais",
+        "Variação total": "variacao_faturamento_total_reais",
+        "Participações de UCs na base comum": "qtd_ucs_base_comum",
+        "Participações de UCs observadas": "qtd_ucs_observadas"
+      },
+      "colunas_numericas": [
+        "efeito_volume_reais",
+        "efeito_preco_observado_reais",
+        "efeito_interacao_reais",
+        "variacao_entradas_reais",
+        "variacao_saidas_reais",
+        "variacao_sem_leitura_fora_base_reais",
+        "variacao_outros_fora_base_reais",
+        "variacao_faturamento_total_reais",
+        "qtd_ucs_base_comum",
+        "qtd_ucs_observadas"
+      ],
+      "periodo_publicado": [
+        "inicio_p0",
+        "fim_p0",
+        "inicio_p1",
+        "fim_p1"
+      ]
     },
     "CTL-CON-MUN": {
       "tipo": "sql_proposto",
@@ -673,11 +801,22 @@
         "classe"
       ],
       "saida": [
-        "competencia",
-        "valor"
+        "valor",
+        "valor_final",
+        "variacao",
+        "percentual"
       ],
-      "sql": "SELECT competencia, SUM(consumo_total_kwh) AS valor FROM gold_v2.diagnostico_receita WHERE competencia IN (:p0, :p1) AND municipio = :municipio AND classe_consumo = :classe GROUP BY competencia ORDER BY competencia",
-      "observacao": null
+      "sql": "WITH meses AS (SELECT competencia, SUM(consumo_total_kwh) AS total FROM gold_v2.diagnostico_receita WHERE competencia IN (:p0, :p1) AND municipio = :municipio AND classe_consumo = :classe GROUP BY competencia) SELECT p0.total AS valor, p1.total AS valor_final, p1.total - p0.total AS variacao, CASE WHEN p0.total > 0 THEN (p1.total - p0.total) / p0.total * 100 END AS percentual FROM meses p0 CROSS JOIN meses p1 WHERE p0.competencia = :p0 AND p1.competencia = :p1",
+      "observacao": null,
+      "colunas_numericas": [
+        "valor",
+        "valor_final",
+        "variacao",
+        "percentual"
+      ],
+      "colunas_opcionais": [
+        "percentual"
+      ]
     },
     "CTL-CON-BAIRRO-VOLUME": {
       "tipo": "sql_proposto",
@@ -694,14 +833,27 @@
       ],
       "saida": [
         "bairro",
-        "variacao"
+        "valor",
+        "valor_final",
+        "variacao",
+        "percentual"
       ],
-      "sql": "SELECT bairro, SUM(CASE WHEN competencia = :p1 THEN consumo_total_kwh END) - SUM(CASE WHEN competencia = :p0 THEN consumo_total_kwh END) AS variacao FROM gold_v2.consumo_receita_bairro WHERE competencia IN (:p0, :p1) AND municipio = :municipio AND classe_consumo = :classe GROUP BY bairro ORDER BY variacao ASC NULLS LAST, bairro",
-      "observacao": "Bairro sem uma das competências tem variação nula; não entra como maior perda."
+      "sql": "WITH pares AS (SELECT bairro, SUM(CASE WHEN competencia = :p0 THEN consumo_total_kwh END) AS inicial, SUM(CASE WHEN competencia = :p1 THEN consumo_total_kwh END) AS final FROM gold_v2.consumo_receita_bairro WHERE competencia IN (:p0, :p1) AND municipio = :municipio AND classe_consumo = :classe GROUP BY bairro) SELECT bairro, inicial AS valor, final AS valor_final, final-inicial AS variacao, CASE WHEN inicial > 0 THEN (final-inicial)/inicial*100 END AS percentual FROM pares WHERE NOT EXISTS (SELECT 1 FROM pares WHERE inicial IS NULL OR final IS NULL) ORDER BY variacao ASC NULLS LAST, bairro LIMIT 1",
+      "observacao": "Comparação exige dois meses em todos os bairros; ausência em qualquer grupo pede esclarecimento, sem excluir silenciosamente o grupo. Empate usa bairro.",
+      "colunas_numericas": [
+        "valor",
+        "valor_final",
+        "variacao",
+        "percentual"
+      ],
+      "colunas_opcionais": [
+        "percentual"
+      ],
+      "rotulo_resultado": "bairro"
     },
     "CTL-CON-GD-QUEDA": {
       "tipo": "sql_proposto",
-      "descricao": "Definição do C08: UCs com GD e queda acima de 30% no município (janelas fixas).",
+      "descricao": "UCs com GD e queda bruta superior a 30%, elegíveis nas janelas fixas documentadas.",
       "relacionados": [
         "C08",
         "C09"
@@ -712,8 +864,8 @@
       "saida": [
         "valor"
       ],
-      "sql": "SELECT COUNT(*) AS valor FROM gold_v2.variacao_consumo_uc WHERE municipio = :municipio AND possui_gd = 'Sim' AND queda_consumo_superior_30_pct",
-      "observacao": "Janelas P1/P2 fixas da Gold; GD não comprova fonte solar."
+      "sql": "SELECT COUNT(*) AS valor FROM gold_v2.variacao_consumo_uc WHERE municipio = :municipio AND possui_gd = 'Sim' AND queda_consumo_superior_30_pct AND meses_com_leitura_p1 >= 6 AND meses_com_leitura_p2 >= 6 AND consumo_medio_inicial IS NOT NULL AND consumo_medio_final IS NOT NULL",
+      "observacao": "P1 julho/2022 a junho/2023 e P2 julho/2025 a junho/2026; ao menos seis meses com leitura por janela; GD não comprova causa nem origem solar."
     },
     "CTL-INT-DEC-FEC": {
       "tipo": "sql_proposto",
@@ -748,7 +900,7 @@
         "pares_uc_ocorrencia"
       ],
       "sql": "SELECT COUNT(DISTINCT id_ocorrencia) AS valor, COUNT(*) AS pares_uc_ocorrencia FROM gold_v2.ocorrencias_uc WHERE alimentador = :alimentador AND to_char(timezone('UTC', data_abertura), 'YYYY-MM') = :competencia",
-      "observacao": "Ocorrência distinta difere de pares UC-ocorrência (frequencia_total_interrupcoes); definição pendente de Dados."
+      "observacao": "Contagem distinta de eventos por alimentador da ocorrência e mês de abertura UTC, conforme o dicionário e notebook; pares UC–ocorrência continuam uma medida diferente. Falta cobertura certificada para o aceite mensal."
     },
     "CTL-ATE-MES": {
       "tipo": "sql_proposto",
@@ -778,38 +930,11 @@
       "parametros": [],
       "saida": [
         "protocolos",
-        "distintos",
+        "valor",
         "tratativas"
       ],
-      "sql": "SELECT COUNT(*) AS protocolos, COUNT(DISTINCT protocolo) AS distintos, (SELECT COUNT(*) FROM gold_v2.tratativas_uc) AS tratativas FROM gold_v2.atendimentos_uc",
+      "sql": "SELECT COUNT(*) AS protocolos, COUNT(DISTINCT protocolo) AS valor, (SELECT COUNT(*) FROM gold_v2.tratativas_uc) AS tratativas FROM gold_v2.atendimentos_uc",
       "observacao": "Resposta deve igualar protocolos distintos; contar tratativas como chamados é divergência."
-    },
-    "CTL-ATE-ACUMULADO": {
-      "tipo": "sql_proposto",
-      "descricao": "Definição do C14: total acumulado de chamados na Visão 360.",
-      "relacionados": [
-        "C14"
-      ],
-      "parametros": [],
-      "saida": [
-        "valor"
-      ],
-      "sql": "SELECT SUM(total_chamados_callcenter) AS valor FROM gold_v2.visao_360_uc",
-      "observacao": null
-    },
-    "CTL-ATE-SATISFACAO": {
-      "tipo": "sql_proposto",
-      "descricao": "Definição do C14: média das notas válidas do histórico.",
-      "relacionados": [
-        "C14"
-      ],
-      "parametros": [],
-      "saida": [
-        "valor",
-        "notas"
-      ],
-      "sql": "SELECT AVG(nota_satisfacao) AS valor, COUNT(nota_satisfacao) AS notas FROM gold_v2.atendimentos_uc",
-      "observacao": "Nota ausente não é zero; não é média de médias por UC."
     }
   },
   "criterios_regressao": {
@@ -818,7 +943,8 @@
       "FAIL": "Divergência inesperada; classificada por tipo_verificacao.",
       "FALHA_CONHECIDA": "Divergência listada em falhas_conhecidas, com motivo e dono; não conta como PASS.",
       "BLOQUEADO": "Caso bloqueado cujo estado público observado é bloqueio.estado_publico_atual; domínio continua pendente.",
-      "SEM_AMOSTRA_NO_LOTE": "Regra de amostra sem resultado no lote; pendência, nunca PASS."
+      "SEM_AMOSTRA_NO_LOTE": "Regra de amostra sem resultado no lote; pendência, nunca PASS.",
+      "NAO_EXECUTADO": "Caso de regressão técnica ou sem configuração exigida (por exemplo, conta sem permissão); listado com o motivo, nunca PASS."
     },
     "regras": [
       "Relatar por domínio e por classe; não publicar taxa global de acerto.",
@@ -835,7 +961,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi a receita faturada em {municipio} em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi a receita faturada no município de {municipio} em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita",
@@ -864,16 +990,15 @@
       ],
       "controle": {
         "ref": "C04",
-        "estado_do_controle": "existente_referenciado",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
       "referencias": {
         "existentes": [
           "C04"
-        ],
-        "consulta_runner": "CTL-FAT-MUN"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": "Mesma fatia reconciliada no GENAI-09.",
@@ -918,8 +1043,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-MUN-CLASSE-JANELA",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -971,8 +1096,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-MUN-CLASSE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -994,7 +1119,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi a receita residencial no bairro {bairro} de Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi a receita residencial no bairro {bairro} do município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita_bairro",
@@ -1031,8 +1156,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-BAIRRO",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -1052,7 +1177,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi o ticket médio em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o ticket médio no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.average_ticket",
       "capacidade": "faturamento.receita",
@@ -1081,8 +1206,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-TICKET",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "razao_reais",
       "bloqueio": null,
@@ -1097,7 +1222,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": "preco_volume",
-      "pergunta": "Qual foi o preço médio observado da energia residencial em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o preço médio observado da energia residencial no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.effective_tariff",
       "capacidade": "faturamento.receita",
@@ -1130,8 +1255,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-TARIFA",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "razao_tarifa",
       "bloqueio": null,
@@ -1266,8 +1391,8 @@
         "publicacao": "gold-csv-v2 vigente; batch_ref lido na execução"
       },
       "unidade": "R$",
-      "estado_esperado": "bloqueado",
-      "status_publico_esperado": "conforme bloqueio.estado_publico_atual",
+      "estado_esperado": "sucesso",
+      "status_publico_esperado": "answered",
       "tipo_verificacao": [
         "interpretacao",
         "plano",
@@ -1276,23 +1401,18 @@
       ],
       "controle": {
         "ref": "CTL-FAT-COMPARACAO",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
-      "bloqueio": {
-        "motivo": "Comparação entre dois períodos não existe no plano Gold.",
-        "dono": "10B",
-        "estado_publico_atual": "needs_clarification",
-        "pergunta_dados": null
-      },
+      "bloqueio": null,
       "referencias": {
         "q04": [
           "Q04-04"
         ]
       },
       "modo_execucao": "fluxo_integrado",
-      "observacao": null,
+      "observacao": "Capacidade implementada no 10B; controle proposto exige reconciliação e aceite local, sem homologação presumida.",
       "resultado_observado": null,
       "referencia_execucao": null
     },
@@ -1301,7 +1421,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual classe mais contribuiu para a receita em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual classe mais contribuiu para a receita no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita",
@@ -1320,8 +1440,8 @@
         "publicacao": "gold-csv-v2 vigente; batch_ref lido na execução"
       },
       "unidade": "R$",
-      "estado_esperado": "bloqueado",
-      "status_publico_esperado": "conforme bloqueio.estado_publico_atual",
+      "estado_esperado": "sucesso",
+      "status_publico_esperado": "answered",
       "tipo_verificacao": [
         "interpretacao",
         "plano",
@@ -1330,19 +1450,14 @@
       ],
       "controle": {
         "ref": "CTL-FAT-CONTRIBUICAO-CLASSE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
-      "bloqueio": {
-        "motivo": "Agrupamento e ordenação desabilitados no perfil Gold (supports_grouping/ordering=false).",
-        "dono": "10B",
-        "estado_publico_atual": "needs_clarification",
-        "pergunta_dados": null
-      },
+      "bloqueio": null,
       "referencias": {},
       "modo_execucao": "fluxo_integrado",
-      "observacao": null,
+      "observacao": "Contribuição absoluta de receita por classe em uma competência; maior valor, desempate por classe. Não é explicação causal nem variação entre períodos.",
       "resultado_observado": null,
       "referencia_execucao": null
     },
@@ -1353,7 +1468,7 @@
       "exemplo_prd": "preco_volume",
       "pergunta": "Quanto da variação da receita residencial foi efeito preço e quanto foi efeito volume?",
       "contexto": [],
-      "metrica": null,
+      "metrica": "billing.price_volume",
       "capacidade": "faturamento.preco_volume",
       "periodo": {
         "regra": "SEM_PERIODO"
@@ -1370,8 +1485,8 @@
         "publicacao": "gold-csv-v2 vigente; batch_ref lido na execução"
       },
       "unidade": "R$",
-      "estado_esperado": "bloqueado",
-      "status_publico_esperado": "conforme bloqueio.estado_publico_atual",
+      "estado_esperado": "sucesso",
+      "status_publico_esperado": "answered",
       "tipo_verificacao": [
         "interpretacao",
         "plano",
@@ -1380,19 +1495,18 @@
       ],
       "controle": {
         "ref": "CTL-FAT-PRECO-VOLUME",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
-      "bloqueio": {
-        "motivo": "faturamento.preco_volume com definição pendente; janelas e método da decomposição não aprovados para o consumidor.",
-        "dono": "Dados",
-        "estado_publico_atual": "needs_clarification",
-        "pergunta_dados": "DADOS-02"
+      "bloqueio": null,
+      "referencias": {
+        "historico_perguntas_dados": [
+          "DADOS-02"
+        ]
       },
-      "referencias": {},
       "modo_execucao": "fluxo_integrado",
-      "observacao": null,
+      "observacao": "Consumidor do método V3 valida todas as parcelas, duas janelas anuais equivalentes, mesma origem e cobertura certificada. Controle independente de cenário ainda proposto, sem homologação presumida.",
       "resultado_observado": null,
       "referencia_execucao": null
     },
@@ -1594,7 +1708,7 @@
       "dominio": "faturamento",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi a receita em Recife neste ano?",
+      "pergunta": "Qual foi a receita no município de Recife neste ano?",
       "contexto": [],
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita",
@@ -1622,9 +1736,9 @@
         "fundamentacao"
       ],
       "controle": {
-        "ref": "CTL-FAT-MUN",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "ref": "CTL-FAT-MUN-JANELA",
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -1691,7 +1805,7 @@
       "dominio": "consumo",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi o consumo de energia em {municipio} em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o consumo de energia no município de {municipio} em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "energy.consumption",
       "capacidade": "faturamento.receita",
@@ -1720,8 +1834,8 @@
       ],
       "controle": {
         "ref": "CTL-CON-MUN",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "kwh",
       "bloqueio": null,
@@ -1774,8 +1888,8 @@
       ],
       "controle": {
         "ref": "CTL-CON-MUN-CLASSE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "kwh",
       "bloqueio": null,
@@ -1838,7 +1952,7 @@
       "dominio": "consumo",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi o consumo das unidades com geração distribuída em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o consumo das unidades com geração distribuída no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "energy.consumption",
       "capacidade": "faturamento.receita",
@@ -1871,8 +1985,8 @@
       ],
       "controle": {
         "ref": "CTL-CON-GD",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "kwh",
       "bloqueio": null,
@@ -1887,7 +2001,7 @@
       "dominio": "consumo",
       "obrigatorio": true,
       "exemplo_prd": null,
-      "pergunta": "Qual foi o consumo médio por unidade com leitura em Recife em {mes_extenso} de {ano}?",
+      "pergunta": "Qual foi o consumo médio por unidade com leitura no município de Recife em {mes_extenso} de {ano}?",
       "contexto": [],
       "metrica": "energy.average_consumption_per_uc",
       "capacidade": "faturamento.receita",
@@ -1916,8 +2030,8 @@
       ],
       "controle": {
         "ref": "CTL-CON-MEDIO",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "razao_kwh",
       "bloqueio": null,
@@ -1955,8 +2069,8 @@
         "publicacao": "gold-csv-v2 vigente; batch_ref lido na execução"
       },
       "unidade": "kWh",
-      "estado_esperado": "bloqueado",
-      "status_publico_esperado": "conforme bloqueio.estado_publico_atual",
+      "estado_esperado": "sucesso",
+      "status_publico_esperado": "answered",
       "tipo_verificacao": [
         "interpretacao",
         "plano",
@@ -1965,19 +2079,14 @@
       ],
       "controle": {
         "ref": "CTL-CON-COMPARACAO",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "kwh",
-      "bloqueio": {
-        "motivo": "Comparação entre dois períodos não existe no plano Gold.",
-        "dono": "10B",
-        "estado_publico_atual": "needs_clarification",
-        "pergunta_dados": null
-      },
+      "bloqueio": null,
       "referencias": {},
       "modo_execucao": "fluxo_integrado",
-      "observacao": null,
+      "observacao": "Capacidade implementada no 10B; controle proposto exige reconciliação e aceite local, sem homologação presumida.",
       "resultado_observado": null,
       "referencia_execucao": null
     },
@@ -2009,8 +2118,8 @@
         "publicacao": "gold-csv-v2 vigente; batch_ref lido na execução"
       },
       "unidade": "kWh",
-      "estado_esperado": "bloqueado",
-      "status_publico_esperado": "conforme bloqueio.estado_publico_atual",
+      "estado_esperado": "sucesso",
+      "status_publico_esperado": "answered",
       "tipo_verificacao": [
         "interpretacao",
         "plano",
@@ -2019,23 +2128,18 @@
       ],
       "controle": {
         "ref": "CTL-CON-BAIRRO-VOLUME",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "kwh",
-      "bloqueio": {
-        "motivo": "Comparação e ranking por bairro sem capacidade no plano Gold.",
-        "dono": "10B",
-        "estado_publico_atual": "needs_clarification",
-        "pergunta_dados": null
-      },
+      "bloqueio": null,
       "referencias": {
         "q04": [
           "Q04-03"
         ]
       },
       "modo_execucao": "fluxo_integrado",
-      "observacao": null,
+      "observacao": "Capacidade implementada no 10B; controle proposto exige reconciliação e aceite local, sem homologação presumida.",
       "resultado_observado": null,
       "referencia_execucao": null
     },
@@ -2046,7 +2150,7 @@
       "exemplo_prd": "gd_queda",
       "pergunta": "Quantas UCs com geração distribuída em Olinda tiveram queda de consumo acima de 30%?",
       "contexto": [],
-      "metrica": null,
+      "metrica": "energy.gd_consumption_drop",
       "capacidade": "consumo.variacao_uc",
       "periodo": {
         "regra": "JANELAS_FIXAS_VARIACAO"
@@ -2067,8 +2171,8 @@
         "publicacao": "gold-csv-v2 vigente; batch_ref lido na execução"
       },
       "unidade": "UCs",
-      "estado_esperado": "bloqueado",
-      "status_publico_esperado": "conforme bloqueio.estado_publico_atual",
+      "estado_esperado": "sucesso",
+      "status_publico_esperado": "answered",
       "tipo_verificacao": [
         "interpretacao",
         "plano",
@@ -2077,16 +2181,11 @@
       ],
       "controle": {
         "ref": "CTL-CON-GD-QUEDA",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "contagem",
-      "bloqueio": {
-        "motivo": "consumo.variacao_uc com definição pendente: janelas fixas P1/P2 e seleção pelo consumidor não aprovadas.",
-        "dono": "Dados",
-        "estado_publico_atual": "needs_clarification",
-        "pergunta_dados": "DADOS-03"
-      },
+      "bloqueio": null,
       "referencias": {
         "existentes": [
           "C08",
@@ -2094,10 +2193,13 @@
         ],
         "q04": [
           "Q04-05"
+        ],
+        "historico_perguntas_dados": [
+          "DADOS-03"
         ]
       },
       "modo_execucao": "fluxo_integrado",
-      "observacao": null,
+      "observacao": "Janelas fixas documentadas; somente UCs com GD, seis meses com leitura em cada janela e base inicial positiva. Controle de cenário proposto; C08/C09 têm referência aprovada em docs/gold-coverage-v0.md.",
       "resultado_observado": null,
       "referencia_execucao": null
     },
@@ -2292,8 +2394,7 @@
       "referencias": {
         "existentes": [
           "C11"
-        ],
-        "consulta_runner": "CTL-INT-DEC-FEC"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": "Com cobertura certificada, o estado alvo é sucesso com o controle C11.",
@@ -2362,7 +2463,7 @@
       "exemplo_prd": "continuidade",
       "pergunta": "Quantas interrupções houve no alimentador {alimentador} em {mes_extenso} de {ano}?",
       "contexto": [],
-      "metrica": null,
+      "metrica": "network.interruption_events",
       "capacidade": "interrupcoes.uc_acumulado",
       "periodo": {
         "regra": "ULTIMA_COMPETENCIA_DEC_FEC"
@@ -2394,14 +2495,18 @@
       },
       "tolerancia": "contagem",
       "bloqueio": {
-        "motivo": "Sem métrica de contagem de ocorrências; definição pendente (ocorrência distinta × pares UC-ocorrência).",
+        "motivo": "Métrica de eventos distintos integrada, sem equivalência com DEC/FEC; cobertura mensal de ocorrências ainda não certificada no lote local.",
         "dono": "Dados",
-        "estado_publico_atual": "needs_clarification",
-        "pergunta_dados": "DADOS-01"
+        "estado_publico_atual": "error:service_unavailable",
+        "pergunta_dados": null
       },
-      "referencias": {},
+      "referencias": {
+        "historico_perguntas_dados": [
+          "DADOS-01"
+        ]
+      },
       "modo_execucao": "fluxo_integrado",
-      "observacao": "Contagem de ocorrências é distinta de DEC/FEC; a resposta atual deve esclarecer, não devolver FEC.",
+      "observacao": "Referências: docs/dicionario_gold.md; data-engineering/notebook/Silver_to_gold.ipynb. Implementação documentada não equivale a homologação de Dados.",
       "resultado_observado": null,
       "referencia_execucao": null
     },
@@ -2634,8 +2739,7 @@
         "existentes": [
           "C14",
           "C15"
-        ],
-        "consulta_runner": "CTL-ATE-MES"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": null,
@@ -2716,16 +2820,15 @@
       ],
       "controle": {
         "ref": "C14",
-        "estado_do_controle": "existente_referenciado",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "contagem",
       "bloqueio": null,
       "referencias": {
         "existentes": [
           "C14"
-        ],
-        "consulta_runner": "CTL-ATE-ACUMULADO"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": null,
@@ -2761,16 +2864,15 @@
       ],
       "controle": {
         "ref": "C14",
-        "estado_do_controle": "existente_referenciado",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "nota",
       "bloqueio": null,
       "referencias": {
         "existentes": [
           "C14"
-        ],
-        "consulta_runner": "CTL-ATE-SATISFACAO"
+        ]
       },
       "modo_execucao": "fluxo_integrado",
       "observacao": null,
@@ -2806,8 +2908,8 @@
       ],
       "controle": {
         "ref": "CTL-ATE-UNICIDADE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "contagem",
       "bloqueio": null,
@@ -3072,8 +3174,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-MUN",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -3096,7 +3198,7 @@
       "contexto": [
         {
           "role": "user",
-          "content": "Qual foi a receita residencial em Recife em {mes_extenso} de {ano}?"
+          "content": "Qual foi a receita residencial no município de Recife em {mes_extenso} de {ano}?"
         }
       ],
       "metrica": "billing.revenue",
@@ -3130,8 +3232,8 @@
       ],
       "controle": {
         "ref": "CTL-FAT-MUN-CLASSE",
-        "estado_do_controle": "proposto",
-        "aprovado_por": ""
+        "estado_do_controle": "aprovado",
+        "aprovado_por": "Pessoa usuária — aceite técnico local em 01/11/2026; reconciliação com modelo controlado"
       },
       "tolerancia": "reais",
       "bloqueio": null,
@@ -3253,8 +3355,8 @@
         "publicacao": "gold-csv-v2 vigente; batch_ref lido na execução"
       },
       "unidade": null,
-      "estado_esperado": "bloqueado",
-      "status_publico_esperado": "conforme bloqueio.estado_publico_atual",
+      "estado_esperado": "ambiguidade",
+      "status_publico_esperado": "needs_clarification",
       "tipo_verificacao": [
         "interpretacao",
         "plano",
@@ -3266,19 +3368,14 @@
         "aprovado_por": ""
       },
       "tolerancia": "estado",
-      "bloqueio": {
-        "motivo": "Comparação não representada no plano; base zero e período parcial dependem da capacidade do 10B.",
-        "dono": "10B",
-        "estado_publico_atual": "needs_clarification",
-        "pergunta_dados": null
-      },
+      "bloqueio": null,
       "referencias": {
         "q04": [
           "Q04-14"
         ]
       },
       "modo_execucao": "fluxo_integrado",
-      "observacao": null,
+      "observacao": "Esclarecimento intencional: ano completo e ano parcial não são comparados sem janelas equivalentes; a capacidade integrada nesta fatia compara dois meses explícitos.",
       "resultado_observado": null,
       "referencia_execucao": null
     },

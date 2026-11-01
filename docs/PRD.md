@@ -3045,6 +3045,60 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - GENAI-11: 10/10 critérios técnicos comprovados para a entrega local. IA-03/IA-05 mantêm os estados oficiais; complemento ainda sem commit/push.
 
 
+### 2026-11-01 — IA-01/IA-03/IA-06 — correção do relatório de cenários GENAI-10A
+
+- Estado oficial preservado; preparação do runner do PR #99, sem novo aceite Gold.
+- Arquivos: `ai-agent/scripts/run_gold_domain_scenarios.py`, testes focados do runner e
+  `docs/contracts/genai-domain-scenarios.md`. Cobertura exige todos os casos obrigatórios
+  da matriz e aprovação explícita dos controles numéricos por cenário; omissões e controles
+  sem aprovação ficam registrados. Período diferente da janela resolvida reprova o plano.
+- Verificações: 63 testes focados do runner passaram com dados sintéticos e transporte HTTP
+  controlado. Incluem execução parcial, aprovação ausente/presente e número correto no período
+  errado. Nenhuma consulta ao lote privado, chamada Gemini ou validação no portal nesta rodada.
+- Limites: PASS exploratório não encerra domínio; reprodução da auditoria, associação semântica
+  dos números e reconciliação integrada permanecem pendentes. Alterações locais sem commit.
+
+
+### 2026-11-01 — IA-01/IA-03/IA-06 — revalidação da matriz GENAI-10A
+
+- Estados oficiais preservados. PR #99 mantém runner, matriz e evidências de validação;
+  implementação funcional foi separada na branch `feat/genai-cobertura-dominios`, sobre
+  `develop`, sem duplicação dos commits do runner.
+- Casos com município explícito evitam presumir uma dimensão homônima; FAT-10 define
+  maior contribuição absoluta por classe em uma competência com controle independente
+  ordenado e limitado. O resultado observado continua separado do estado esperado.
+- Verificação: 303 testes de matriz/runner aprovados na branch 10A isolada e diff-check
+  aprovado. Rodadas privadas sobre a Gold v2 revelaram falhas e bloqueios, preservados
+  nos relatórios ignorados. Nenhum domínio é certificado por essa preparação.
+- [Contrato e reprodução](contracts/genai-domain-scenarios.md). Aprovação por cenário,
+  cobertura suficiente, divergências remanescentes e jornada final continuam pendentes.
+
+- Revalidação controlada com SQL, sessão e auditoria reais: 37 PASS após corrigir e
+  reexecutar FAT-10, onze bloqueios, sete sem amostra e duas regressões técnicas
+  separadas. A pessoa usuária aprovou o uso dos controles nos 17 casos numéricos
+  reconciliados para esta entrega local; não é homologação de Dados ou fechamento
+  mensal. [Resultados por ID e limites](contracts/genai-domain-validation.md).
+
+
+### 01/11/2026 — IA-01/02/03/06 — revalidação ampliada da matriz GENAI-10A
+
+- Estado: em validação local; sem concluir integralmente os IDs IA.
+- Matriz/runner conferem controles de comparação por mês/tipo, maior perda por
+  bairro e componentes publicados de preço-volume. Valores inicial/final
+  invertidos, parcelas ausentes e grupo incompleto não são aprovados por simples
+  presença dos números na resposta. As pendências de Dados foram confrontadas
+  com o dicionário e notebook; cinco casos de implementação avançaram.
+- Rodada completa no lote Gold v2 com SQL, sessão, leitor restrito e auditoria
+  reais e modelo controlado: 43 PASS, cinco bloqueios, sete sem amostra, duas
+  regressões técnicas separadas; sem falha inesperada. A pessoa usuária aprovou
+  FAT-09/FAT-11/CON-06/CON-07/CON-08 localmente, somando 22 casos numéricos.
+- Verificação conjunta dos arquivos exatos desta branch com o catálogo/núcleo
+  ampliados do 10B: 305 aprovados. Integração do 10B em develop precede a atualização
+  da base do PR #99; nenhum commit funcional foi copiado entre as branches.
+- Evidências em [GENAI-10A](contracts/genai-domain-validation.md). Permanecem
+  pendentes valor recebido, cobertura mensal, amostras ausentes, revisão de Dados
+  e jornada visual final. Alterações locais posteriores a adc5de5, sem novo commit.
+
 ### 01/11/2026 — IA-01/02/03/06 — extensão integrada dos domínios GENAI-10B
 
 - Estado: implementação ampliada em validação; os requisitos IA não são marcados
@@ -3091,6 +3145,7 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Estados oficiais IA preservados. Não houve alteração de código, permissões ou fonte nem nova rodada Gemini.
 
 
+
 ### 01/11/2026 — integração local da cobertura Gold com invalidação de servidor
 
 - Combinação do código do PR #97 com o PR #102 na própria branch 10B. Schemas de evidência preservam simultaneamente janelas publicadas e catálogo físico; executor mantém linhagem preço/volume e erro seguro de schema incompatível. Nenhum commit funcional foi copiado por cherry-pick.
@@ -3120,3 +3175,8 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Verificações: GenAI 4.005 passaram/3 skips; Backend 897 passaram/110 skips; 69 testes de Panorama/Assistente, build e formatação passaram. Ruff das rotas resolvidas e diff-check passaram; revisão estática da resolução sem bloqueios.
 - PostgreSQL: tentativa inicial rejeitada por papel de teste privilegiado, sem relaxar as verificações. Reexecução em dois bancos novos descartáveis com papel NOSUPERUSER: 27 testes passaram, incluindo leituras analíticas e ciclo de migração. Bancos e papel temporários removidos ao final.
 - Não houve nova jornada visual ou chamada Gemini. As lacunas de preflight da tela previstas em GENAI-13 permanecem registradas; requisitos oficiais não são concluídos automaticamente por esta integração.
+
+### 01/11/2026 — GENAI-10A — integração com a cobertura entregue
+
+- Branch do PR99 atualizada com a develop após o merge #102, preservando por merge os commits funcionais e os registros de progresso das duas entregas.
+- Matriz, runner e contrato do catálogo: 307 testes passaram na própria worktree atualizada. Classes observadas, pendências e escopo de aceite técnico mantidos; não houve nova chamada Gemini ou validação visual.
