@@ -1,6 +1,8 @@
 # GENAI-05 — sessão Backend e leitura Gold restrita
 
-Base: [sessão DEV-13.1](local-auth.md), [ADR-0020](../decisions/0020-autenticacao-backend-por-sessao.md), [catálogo Gold](../gold-catalog.md) e [contrato de execução](genai-query-execution.md). Acesso é global como na contenção atual da API Gold, sem acrescentar RBAC por domínio/território.
+> **Atualização WEB-10 etapa 4 (01/11/2026):** o escopo efetivo agora é derivado do perfil persistido e de `PlatformIdentity`; a seção seguinte documenta as permissões por cargo. Grants do papel leitor continuam somente uma barreira técnica e não concedem, por si, cada domínio à pessoa usuária. Atendimento e Perdas recebem `needs_clarification` antes de abrir o leitor enquanto não houver capacidade aprovada.
+
+Base: [sessão DEV-13.1](local-auth.md), [ADR-0020](../decisions/0020-autenticacao-backend-por-sessao.md), [ADR-0022](../decisions/0022-perfis-de-acesso-web10.md), [catálogo Gold](../gold-catalog.md) e [contrato de execução](genai-query-execution.md). O acesso é separado por perfil; restrições por linha, município, bairro, equipe ou carteira continuam fora de WEB-10.
 
 ## Identidade e autorização
 
@@ -8,15 +10,17 @@ Base: [sessão DEV-13.1](local-auth.md), [ADR-0020](../decisions/0020-autenticac
 
 A escolha segue a semântica de identity map e isolamento do SQLAlchemy 2.x, consultada via Context7 na [documentação oficial de sessão](https://docs.sqlalchemy.org/en/20/orm/session_basics.html) e de [transações](https://docs.sqlalchemy.org/en/20/orm/session_transaction.html). Expirar objetos dentro de uma transação antiga não garante observar uma revogação concorrente já confirmada.
 
-| Identidade existente | Acesso GenAI Gold |
+| Identidade/perfil | Acesso GenAI Gold |
 | --- | --- |
-| `reader`, com `orders:read` | leitura dos agregados/colunas abaixo |
-| `operator`, com `orders:write` que implica `orders:read` | mesma leitura; nunca escrita Gold |
+| `commercial` | `ai:ask` e as cinco métricas comerciais e dimensões autorizadas pela matriz Gold v2 abaixo |
+| `operations` | `ai:ask`, DEC/FEC e dimensões de operação autorizadas pela matriz Gold v2 abaixo |
+| `admin` | união das capacidades já implementadas para Comercial e Operação; mantém allowlist, prontidão e leitor restrito |
+| `customer_service` / `losses` | `ai:ask`; HTTP 200 com `needs_clarification` antes de criar engine, consultar metadados Gold ou chamar planejamento/síntese |
 | sessão ausente, inválida, expirada/revogada ou usuário inativo | HTTP 401 |
-| usuário ativo sem leitura | HTTP 403 |
-| modo `demo`/`service` | acesso individual Gold GenAI indisponível, HTTP 503 |
+| usuário ativo sem `ai:ask` | HTTP 403 |
+| modo `demo`/`service` | acesso individual GenAI Gold indisponível, HTTP 503 |
 
-O `caller_ref` é o SHA-256 do ator interno com prefixo `session:`; não transporta ID bruto de usuário, cookie ou token. `AccessScope` só permite `read` e os IDs lógicos listados no módulo `app/core/genai_gold_access.py`. Texto da pergunta, histórico, `session_id` conversacional e cabeçalhos não concedem acesso. O token Backend → GenAI continua identificando somente o serviço técnico.
+O `caller_ref` é o SHA-256 do ator interno com prefixo `session:`; não transporta ID bruto de usuário, cookie ou token. `AccessScope` só permite `read` e os IDs lógicos listados no módulo `app/core/genai_gold_access.py`. Texto da pergunta, histórico, `session_id` conversacional e cabeçalhos não concedem acesso. O token Backend → GenAI continua identificando somente o serviço técnico. Escopo vazio de Atendimento/Perdas retorna a limitação pública existente antes de criar o leitor, capturar publicação, consultar metadados ou chamar a GenAI; não habilita consultas UC/ordens nem amplia grants.
 
 ## Fonte e colunas concedidas
 
@@ -140,3 +144,13 @@ Verificação reproduzível em `backend/`, PostgreSQL 16 descartável configurad
 ## Conferência do ambiente Gold local na consolidação
 
 A credencial privada do executor existente foi conferida por `create_genai_gold_engine`, sem exibir o segredo. Uma transação somente leitura executou apenas o bloco de validação efetiva do provisionador, sem alterar grants. Confirmados papel dedicado, matriz de colunas, ausência de escrita/CREATE/TEMP e publicação v2. Sessão, duas identidades e revogação são provas distintas pelo endpoint integrado, não inferidas do papel técnico. Os três itens restantes do GENAI-05 são comprovados para esse ambiente local; não é implantação de produção. Detalhes e limites em [consolidação](genai-consolidation.md).
+
+## Evidência WEB-10 etapa 4 — 01/11/2026
+
+Em `backend/`, `ANALYTICS_SOURCE=synthetic`, `ORDERS_AUTH_MODE=session` e PostgreSQL 16 descartável com papel leitor restrito: `python -m pytest -q -p no:cacheprovider --basetemp=.pytest-task4-final-r2 --tb=short tests/test_genai_profile_access.py tests/test_genai_session_access.py tests/test_genai_session_postgres.py` reportou **15 aprovados e 1 aviso preexistente Starlette/httpx** em 210,19 s. A composição HTTP, sessão e leitor PostgreSQL eram reais; os dados eram sintéticos. Admin consultou faturamento e DEC/FEC; Comercial→DEC/FEC e Operação→faturamento foram recusados sem SQL de métrica; downgrade Admin→Operação com cookie ativo e replay entre chamadores distintos também passaram. Atendimento/Perdas receberam `needs_clarification` antes de engine, metadados Gold, planejamento ou síntese.
+
+`python -m compileall -q` dos módulos/testes alterados e `git diff --check` passaram. Ruff não estava instalado e permaneceu sem verificação. Esta evidência não reconcilia lote Gold real, não habilita capacidades de Atendimento/Perdas, não conclui IA-01/IA-06 e não substitui a prova de jornadas integradas dos cinco perfis.
+
+### Integração no portal — etapa 5
+
+A [evidência integrada](../plans/2026-11-01-web10-perfis-evidencias.md) confirma chamadas do Assistente no navegador: a API principal em fonte sintética respondeu 503 para os cinco perfis por indisponibilidade do serviço de resposta; uma API temporária em modo Gold, sem `GENAI_GOLD_DATABASE_URL`, leitor ou modelo, respondeu HTTP 200 `needs_clarification` para Atendimento e Perdas antes de abrir a fonte. Nenhuma resposta Admin com lote Gold autorizado foi produzida ou reconciliada; a etapa 5 não prova uma resposta quantitativa de negócio.
