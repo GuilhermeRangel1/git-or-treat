@@ -184,3 +184,17 @@ def test_unknown_ids_and_output_outside_work_are_configuration_errors(tmp_path, 
     assert runner.main(["--dry-run", "--ids", "XYZ-99"], environ={}) == 2
     assert runner.main(["--dry-run", "--output-dir", str(tmp_path)], environ={}) == 2
     assert "Configuração inválida" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("rule,params,period,expected", [
+    ("ULTIMA_COMPETENCIA_RECEITA", {"competencia": "2000-02"},
+     "2000-02-01 a 2000-02-29", True),
+    ("ULTIMO_TRIMESTRE_RECEITA", {"inicio": "2000-01", "fim": "2000-03"},
+     "2000-01-01 a 2000-03-31", True),
+    ("ULTIMO_TRIMESTRE_RECEITA", {"inicio": "2000-01", "fim": "2000-03"},
+     "março de 2000", False),
+    ("HISTORICO_ACUMULADO", {}, "histórico acumulado", True),
+    ("HISTORICO_ACUMULADO", {}, "março de 2000", False),
+])
+def test_resolved_period_must_match_public_context(rule, params, period, expected):
+    assert runner.period_matches({"periodo": {"regra": rule}}, period, params) is expected

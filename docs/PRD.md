@@ -2977,3 +2977,17 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Por orientação da pessoa usuária, novos desenvolvimentos, cenários e aceites GenAI usam Gold v2, seu dicionário, contrato físico e catálogo aprovados. Regra descoberta pelo AGENTS raiz e aplicada pela skill genai-gold; detalhes em [política de versões](agents/genai-gold.md#referência-obrigatória-gold-v2).
 - Gold v1 fica restrita à compatibilidade legada explícita. Versão de envelope HTTP v1 não é versão dos dados; fixtures sintéticas continuam úteis para CI e não certificam aceite real. Capacidades v2 insuficientes continuam bloqueadas, sem fallback.
 - Mudança documental de orientação e revisão, sem remoção de código ou alteração de estados funcionais IA. Sincronização no cartão transversal do quadro GenAI para todos os colaboradores.
+
+
+### 2026-11-01 — IA-01/IA-03/IA-06 — correção do relatório de cenários GENAI-10A
+
+- Estado oficial preservado; preparação do runner do PR #99, sem novo aceite Gold.
+- Arquivos: `ai-agent/scripts/run_gold_domain_scenarios.py`, testes focados do runner e
+  `docs/contracts/genai-domain-scenarios.md`. Cobertura exige todos os casos obrigatórios
+  da matriz e aprovação explícita dos controles numéricos por cenário; omissões e controles
+  sem aprovação ficam registrados. Período diferente da janela resolvida reprova o plano.
+- Verificações: 63 testes focados do runner passaram com dados sintéticos e transporte HTTP
+  controlado. Incluem execução parcial, aprovação ausente/presente e número correto no período
+  errado. Nenhuma consulta ao lote privado, chamada Gemini ou validação no portal nesta rodada.
+- Limites: PASS exploratório não encerra domínio; reprodução da auditoria, associação semântica
+  dos números e reconciliação integrada permanecem pendentes. Alterações locais sem commit.

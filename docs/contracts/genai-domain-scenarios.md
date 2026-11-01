@@ -219,3 +219,20 @@ O repositório guarda somente perguntas com marcadores, regras e SQL. Valores de
 - `ai-agent`: `python -m pytest -q tests/test_gold_domain_scenarios.py tests/test_gold_domain_runner.py tests/test_gold_domain_runner_integration.py` valida a matriz e o runner sem rede.
 - `tests/test_gold_domain_runner_postgres.py` exercita o adaptador PostgreSQL em banco descartável `*_test`.
 - Os SQL dos 4 controles existentes, dos 21 propostos e das 16 regras passaram por `EXPLAIN` em PostgreSQL 16 descartável com as migrações do Backend aplicadas e `gold_v2` vazio. Isso confere colunas, tipos e funções, sem executar contra o lote.
+
+
+### Cobertura e aprovação no relatório do runner
+
+`PASS` registra a conferência técnica exploratória do caso. O aceite do domínio exige todos
+os IDs obrigatórios da matriz em PASS e os controles numéricos desses casos com
+`estado_do_controle=aprovado` e `aprovado_por` preenchido. Uma execução com `--ids` ou
+`--domain` não elimina os casos omitidos: o resumo registra `obrigatorios_nao_executados`,
+`obrigatorios_fora_de_pass` e `controles_sem_aprovacao`, mantendo o domínio pendente.
+A aprovação histórica de C01–C15 não substitui a aprovação do uso no cenário.
+
+A comparação verifica a competência ou os limites inclusivos da janela resolvida contra
+`analysis_context.period`, incluindo o último dia real do mês. Histórico acumulado exige
+a indicação explícita de histórico acumulado. Número coincidente em outra janela produz
+divergência de plano. A referência de auditoria ainda é verificada por presença; sua
+reprodução operacional e a associação semântica de cada número permanecem parte da revisão
+integrada, conforme as limitações deste contrato.

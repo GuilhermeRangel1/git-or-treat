@@ -152,8 +152,9 @@ def test_series_case_requires_every_month_of_the_window():
     filters = {"geography.municipality": "Jaboatão dos Guararapes",
                "customer.consumption_class": "COMERCIAL"}
     full = answered("Janeiro R$ 10,00; fevereiro R$ 20,00; março R$ 30,50.",
-                    "billing.revenue", filters, "R$")
-    partial = answered("Janeiro R$ 10,00; março R$ 30,50.", "billing.revenue", filters, "R$")
+                    "billing.revenue", filters, "R$", period="2000-01-01 a 2000-03-31")
+    partial = answered("Janeiro R$ 10,00; março R$ 30,50.", "billing.revenue", filters, "R$",
+                       period="2000-01-01 a 2000-03-31")
     assert run("FAT-02", client(lambda payload: full), db).classe == "PASS"
     outcome = run("FAT-02", client(lambda payload: partial), db)
     assert outcome.classe == "FAIL" and "numero" in outcome.divergencias
@@ -250,12 +251,13 @@ def test_domain_is_covered_only_when_every_mandatory_case_passes():
     blocked = runner.Outcome("FAT-09", "faturamento", True, classe="BLOQUEADO")
     optional = runner.Outcome("AMB-05", "ambiguidade_limites", False, classe="FAIL")
     summary = runner.summarize(MATRIX, [passed, blocked, optional])
-    assert summary["dominios"]["faturamento"]["obrigatorios_fora_de_pass"] == ["FAT-09"]
+    pending = summary["dominios"]["faturamento"]["obrigatorios_fora_de_pass"]
+    assert pending == [f"FAT-{i:02d}" for i in range(2, 18)]
     assert summary["dominios"]["faturamento"]["coberto"] is False
     assert "faturamento" in summary["dominios_obrigatorios_pendentes"]
     # Caso opcional em falha continua sendo falha inesperada; não some do relatório.
     assert summary["falhas_inesperadas"] == ["AMB-05"]
-    assert runner.summarize(MATRIX, [passed])["dominios"]["faturamento"]["coberto"] is True
+    assert runner.summarize(MATRIX, [passed])["dominios"]["faturamento"]["coberto"] is False
 
 
 def test_main_runs_end_to_end_and_keeps_values_and_secrets_out_of_stdout(
@@ -285,7 +287,7 @@ def test_main_runs_end_to_end_and_keeps_values_and_secrets_out_of_stdout(
     output = capsys.readouterr().out
     assert "FAT-01 PASS estado=answered" in output
     assert "INT-01 BLOQUEADO estado=error:service_unavailable" in output
-    assert "SEG-06 NAO_EXECUTADO" in output and "faturamento: coberto" in output
+    assert "SEG-06 NAO_EXECUTADO" in output and "faturamento: pendente" in output
     for secret in (PASSWORD, "dsn-secreto", "1234.57", "1.234,57", "Recife", "AL-SINTETICO"):
         assert secret not in output
     runs = sorted((tmp_path / "genai10a").iterdir())
@@ -296,3 +298,22 @@ def test_main_runs_end_to_end_and_keeps_values_and_secrets_out_of_stdout(
         assert secret not in stored
     assert json.loads((runs[0] / "resumo.json").read_text(encoding="utf-8"))[
         "falhas_inesperadas"] == []
+
+
+def test_full_execution_requires_approval_before_certifying_domain():
+    matrix = copy.deepcopy(MATRIX)
+    matrix["casos"] = [matrix_case(matrix, "FAT-01")]
+    outcome = runner.Outcome("FAT-01", "faturamento", True, classe="PASS")
+    summary = runner.summarize(matrix, [outcome])["dominios"]["faturamento"]
+    assert not summary["coberto"]
+    assert summary["controles_sem_aprovacao"] == ["FAT-01"]
+    matrix["casos"][0]["controle"].update(estado_do_controle="aprovado",
+                                          aprovado_por="Revisor sintético")
+    assert runner.summarize(matrix, [outcome])["dominios"]["faturamento"]["coberto"]
+
+
+def test_matching_number_for_wrong_period_fails():
+    reply = copy.deepcopy(REVENUE_OK)
+    reply[1]["analysis_context"]["period"] = "abril de 2000"
+    outcome = run("FAT-01", client(lambda payload: reply), revenue_database())
+    assert outcome.classe == "FAIL" and "plano" in outcome.divergencias

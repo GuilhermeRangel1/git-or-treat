@@ -24,6 +24,7 @@ com ``--strict``, 3 quando algum domínio obrigatório continua pendente.
 """
 
 import argparse
+import calendar
 import json
 import os
 import re
@@ -339,6 +340,22 @@ def status_matches(expected: str, observed: str) -> bool:
     return observed in {item.strip() for item in expected.split("|")}
 
 
+def period_matches(case: dict, period: str, params: dict) -> bool:
+    """Confere a janela resolvida, sem aceitar apenas a presença de texto."""
+    if case["periodo"]["regra"] == "HISTORICO_ACUMULADO":
+        return normalize(period) == normalize("histórico acumulado")
+    start = params.get("inicio", params.get("competencia"))
+    end = params.get("fim", params.get("competencia"))
+    if not start or not end:
+        return False
+    year, month = map(int, end.split("-"))
+    last_day = calendar.monthrange(year, month)[1]
+    accepted = {f"{start}-01 a {end}-{last_day:02d}"}
+    if start == end:
+        accepted.add(f"{MONTH_NAMES[month - 1]} de {year}")
+    return normalize(period) in {normalize(value) for value in accepted}
+
+
 def numeric_divergences(case: dict, body: dict, expected: list[Decimal], tolerance: Decimal,
                         params: dict, dim_params: dict) -> tuple[list[str], list[Decimal]]:
     divergences = []
@@ -352,6 +369,8 @@ def numeric_divergences(case: dict, body: dict, expected: list[Decimal], toleran
         if normalize(filters.get(item["dimensao"], "")) != normalize(wanted):
             divergences.append("plano")
             break
+    if not period_matches(case, context.get("period") or "", params):
+        divergences.append("plano")
     evidence = body.get("evidence") or []
     if (not evidence or any(item.get("is_demo") for item in evidence)
             or context.get("unit") != case["unidade"] or not context.get("period")
@@ -439,14 +458,23 @@ def _known(matrix: dict, outcome: Outcome) -> Outcome:
 
 def summarize(matrix: dict, outcomes: list[Outcome]) -> dict:
     domains = {}
-    for domain in sorted({outcome.dominio for outcome in outcomes}):
+    for domain in sorted({case["dominio"] for case in matrix["casos"]}):
         items = [outcome for outcome in outcomes if outcome.dominio == domain]
-        mandatory = [outcome for outcome in items if outcome.obrigatorio]
+        required = [case for case in matrix["casos"]
+                    if case["dominio"] == domain and case["obrigatorio"]]
+        by_id = {outcome.id: outcome for outcome in items}
+        missing = [case["id"] for case in required if case["id"] not in by_id]
+        unapproved = [case["id"] for case in required if is_numeric(case)
+                      and (case["controle"]["estado_do_controle"] != "aprovado"
+                           or not case["controle"]["aprovado_por"].strip())]
+        pending = [case["id"] for case in required
+                   if case["id"] not in by_id or by_id[case["id"]].classe != "PASS"]
         domains[domain] = {
             "classes": dict(Counter(outcome.classe for outcome in items)),
-            "coberto": bool(mandatory) and all(outcome.classe == "PASS" for outcome in mandatory),
-            "obrigatorios_fora_de_pass": [outcome.id for outcome in mandatory
-                                          if outcome.classe != "PASS"],
+            "coberto": bool(required) and not pending and not unapproved,
+            "obrigatorios_fora_de_pass": pending,
+            "obrigatorios_nao_executados": missing,
+            "controles_sem_aprovacao": unapproved,
         }
     return {
         "dominios": domains,
