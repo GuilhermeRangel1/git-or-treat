@@ -12,6 +12,14 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+from pydantic import SecretStr
+from sqlalchemy import create_engine, event, select, text, update
+from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.orm import Session
+
 from app.api.v1.endpoints.auth import router as auth_router
 from app.core.config import settings
 from app.core.database import get_db
@@ -26,6 +34,7 @@ from app.models.auth import AuthSession, AuthUser
 from app.models.gold_load import BATCH
 from app.models.gold_v2_load import TABLES
 from app.schemas.ai import AIQuestionRequest
+from app.schemas.genai_audit import BackendAuditEvent
 from app.schemas.genai_internal import AccessScope, QuestionPlanResponse
 from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus, ReadWindow
 from app.schemas.gold_readiness import GoldReadinessReport
@@ -34,16 +43,9 @@ from app.services.genai_client import GenAIQuestionClient, GenAITimeout
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, _query, execute_gold_plan
 from app.services.genai_planning import plan_gold_question
+from app.services.genai_replay import execution_artifact, verify_audited_execution
 from app.services.gold_catalog import load_gold_catalog
 from app.services.gold_import import import_gold
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
-from pydantic import SecretStr
-from sqlalchemy import create_engine, event, select, text, update
-from sqlalchemy.engine import Engine, make_url
-from sqlalchemy.exc import DBAPIError
-from sqlalchemy.orm import Session
-
 from tests.support.audit_runtime import audit_runtime
 from tests.support.genai_transport import GENAI_TRANSPORT_EVENTS, dispatch_genai
 from tests.support.migrations import migrated_database
@@ -344,6 +346,28 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 assert reader.pool.checkedout() == 0
                 recovered = execute_gold_plan(reader, planned, resolve_scope=resolve)
                 assert recovered.evidence.records == lookup.evidence.records
+                # Controle independente: SQL fixo, sem compilador do plano/modelo.
+                with reader.connect() as control:
+                    independent = control.execute(text(
+                        "SELECT sum(receita_total_reais) FROM gold_v2.diagnostico_receita "
+                        "WHERE competencia = :month AND municipio = :city"
+                    ), {"month": "2001-01", "city": "Lumenia"}).scalar_one()
+                assert float(independent) == lookup.evidence.records[0]["value"] == 12.0
+                artifact = execution_artifact(planned, lookup=lookup)
+                reference = AuditStore(owner).record(BackendAuditEvent(
+                    correlation_id="9" * 32, stage="source", code="completed",
+                    outcome="success", duration_ms=0, caller_ref=scope.caller_ref,
+                    plan_id=plan.fingerprint(), batch_ref=planned.publication.batch_ref,
+                    artifact=artifact,
+                ), service="backend")
+                assert "Lumenia" not in artifact.model_dump_json()
+                assert verify_audited_execution(
+                    AuditStore(owner), reference, reader, planned, resolve_scope=resolve,
+                ) is True
+                with pytest.raises(GoldExecutionDenied):
+                    verify_audited_execution(AuditStore(owner), reference, reader, planned,
+                        resolve_scope=lambda: scope.model_copy(update={"allowed_metric_ids": frozenset()}))
+
 
                 scope_checks = 0
 
@@ -593,6 +617,13 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 assert final_event["stage"] == "response"
                 assert final_event["batch_ref"]
                 assert "Lumenia" not in str(persisted)
+                artifacts = [row["event"]["artifact"] for row in persisted
+                             if row["service"] == "backend" and row["event"].get("artifact")]
+                assert len(artifacts) == 2
+                assert artifacts[-1]["result_digest"]
+                assert "SELECT" in artifacts[-1]["query_template"]
+                assert artifacts[-1]["max_rows"] <= 100
+
                 assert [item["path"] for item in GENAI_TRANSPORT_EVENTS] == [
                     "/api/v1/internal/question-plans",
                     "/api/v1/internal/question-syntheses",

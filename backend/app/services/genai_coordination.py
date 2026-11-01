@@ -23,6 +23,7 @@ from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
 from app.services.genai_flow import should_synthesize
 from app.services.genai_planning import GoldPlanningResult, plan_gold_question
+from app.services.genai_replay import execution_artifact
 from app.services.gold_catalog import load_gold_catalog
 
 
@@ -99,7 +100,7 @@ async def answer_gold_question(
         "metric_id": planned.response.plan.metric_id,
         "source_id": planned.response.plan.source_id,
     }
-    await planned.deadline.run(35, lambda: audit("plan", "ready", "success", **metadata))
+    await planned.deadline.run(35, lambda: audit("plan", "ready", "success", artifact=execution_artifact(planned), **metadata))
     lookup = await planned.deadline.run(
         35, lambda: asyncio.to_thread(
             execute_gold_plan, engine, planned, resolve_scope=resolve_scope,
@@ -113,7 +114,7 @@ async def answer_gold_question(
         raise GenAIResponseInvalid
     row_count = len(lookup.evidence.records) if lookup.evidence else 0
     await planned.deadline.run(35, lambda: audit(
-        "source", "completed", "success", row_count=row_count, **metadata,
+        "source", "completed", "success", row_count=row_count, artifact=execution_artifact(planned, lookup=lookup), **metadata,
     ))
     current_scope = await planned.deadline.run(
         35, lambda: asyncio.to_thread(resolve_scope),

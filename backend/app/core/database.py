@@ -7,6 +7,7 @@ from app.db.base import Base
 # Configuração de engine e pool de conexões otimizado para PostgreSQL
 engine_kwargs = {
     "echo": settings.DB_ECHO,
+    "hide_parameters": True,
 }
 
 if settings.DATABASE_URL.startswith("sqlite"):
