@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Callable, ClassVar, Protocol
 
 from app.core.config import settings
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_analytics_db
 from app.synthetic import fixtures
@@ -133,14 +133,24 @@ class SyntheticAnalyticsRepository:
 _synthetic_repository = SyntheticAnalyticsRepository()
 
 
-def get_analytics_repository(db: Session | None = Depends(get_analytics_db), request: Request = None) -> AnalyticsRepository:
+def get_analytics_repository(db: Session | None = Depends(get_analytics_db), request: Request = None,
+                             expected_lote: str | None = Query(None, min_length=1, max_length=100),
+                             expected_fingerprint: str | None = Query(None, pattern=r"^[0-9a-f]{64}$")) -> AnalyticsRepository:
     """FastAPI dependency: synthetic is explicit; all other allowed modes fail closed."""
+    if request is not None and any(len(request.query_params.getlist(key)) > 1 for key in ("expected_lote", "expected_fingerprint")):
+        from app.services.analytics import AnalyticsAPIError
+        raise AnalyticsAPIError(422, "invalid_query", "A identidade esperada não pode ser repetida.")
     if settings.ANALYTICS_SOURCE == "gold":
         from app.repositories.gold import GoldAnalyticsRepository
         allow_v2 = request is not None and request.url.path in {
             f"{settings.API_V1_STR}/revenue", f"{settings.API_V1_STR}/analytics/options",
         } or (request is not None and (request.url.path == f"{settings.API_V1_STR}/inspections/queue" or request.url.path.startswith(f"{settings.API_V1_STR}/inspections/queue/") or request.url.path == f"{settings.API_V1_STR}/ucs" or request.url.path.startswith(f"{settings.API_V1_STR}/ucs/")) and request.method == "GET")
-        return GoldAnalyticsRepository(db, allow_v2=allow_v2)
+        repository = GoldAnalyticsRepository(db, allow_v2=allow_v2)
+        if request is not None and ((expected_lote is not None and expected_lote != repository.publication_lote) or
+                                    (expected_fingerprint is not None and expected_fingerprint != repository.publication_fingerprint)):
+            from app.services.analytics import AnalyticsAPIError
+            raise AnalyticsAPIError(409, "stale_batch", "A publicação Gold mudou; recarregue os dados.")
+        return repository
     if settings.ANALYTICS_SOURCE != "synthetic":
         raise AnalyticsSourceUnavailable()
     return _synthetic_repository

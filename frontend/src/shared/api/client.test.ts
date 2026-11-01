@@ -97,6 +97,54 @@ describe("fronteira HTTP", () => {
     );
   });
 
+  it("coordena Receita, UC e catálogo com a identidade Gold das outras jornadas", async () => {
+    const source = {
+      kind: "gold_csv",
+      version: "gold-csv-v2:lote-a:publicacao",
+      is_demo: false,
+      updated_at: "2026-10-31T00:00:00Z",
+      publication_lote: "lote-a",
+      publication_fingerprint: "a".repeat(64),
+    };
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ data: {}, metadata: { source } })),
+    );
+    await apiClient("/api/v1/revenue?group_by=municipio");
+    await apiClient("/api/v1/ucs?q=UC");
+    await apiClient("/api/v1/analytics/options");
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "expected_lote=lote-a",
+    );
+    expect(String(fetchMock.mock.calls[2][0])).toContain(
+      "expected_fingerprint=" + "a".repeat(64),
+    );
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {},
+          metadata: {
+            source: { ...source, publication_fingerprint: "b".repeat(64) },
+          },
+        }),
+      ),
+    );
+    await expect(apiClient("/api/v1/ucs?q=UC")).rejects.toMatchObject({
+      status: 409,
+    });
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {},
+          source: { ...source, publication_fingerprint: null },
+        }),
+      ),
+    );
+    await expect(apiClient("/api/v1/analytics/options")).rejects.toMatchObject({
+      kind: "invalid-response",
+    });
+  });
+
   it("recusa resposta em trânsito de uma geração anterior após atualização coordenada", async () => {
     let respond!: (value: Response) => void;
     fetchMock.mockImplementation(

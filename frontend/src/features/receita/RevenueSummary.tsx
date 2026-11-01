@@ -133,13 +133,13 @@ export default function RevenueSummary({
           value={price(final.observed_price_brl_per_kwh)}
           before={price(initial.observed_price_brl_per_kwh)}
           competence={competenceLabel(final.competencia)}
-          valueClassName="text-[32px]"
+          valueClassName="text-xl sm:text-2xl"
         />
         <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
           <h3 className="text-sm text-muted">Variação</h3>
           <p
             className={
-              "flex min-w-0 flex-wrap items-center justify-center gap-2 [overflow-wrap:anywhere] font-heading text-4xl leading-tight font-semibold tracking-tight " +
+              "flex min-w-0 flex-wrap items-center justify-center gap-2 [overflow-wrap:anywhere] font-heading text-xl sm:text-2xl leading-tight font-semibold tracking-tight " +
               signStyle
             }
           >

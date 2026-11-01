@@ -2,10 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/shared/api/client";
 import { decodeUCOverview, decodeUCSearch, decodeUCHistory } from "./contract";
 import type { UCHistorySection } from "./uc360-state";
+import { useGoldPublicationKey } from "@/shared/analytics/goldPublication";
 
 export function useUCSearch(q: string, page: number, enabled: boolean) {
+  const publication = useGoldPublicationKey();
   return useQuery({
-    queryKey: ["uc360", "search", q, page],
+    queryKey: ["uc360", "search", publication, q, page],
     enabled,
     queryFn: async ({ signal }) =>
       decodeUCSearch(
@@ -23,13 +25,14 @@ export function useUCOverview(
   end: string,
   enabled: boolean,
 ) {
+  const publication = useGoldPublicationKey();
   const params = new URLSearchParams();
   if (start && end) {
     params.set("start", start);
     params.set("end", end);
   }
   return useQuery({
-    queryKey: ["uc360", "overview", uc, start, end],
+    queryKey: ["uc360", "overview", publication, uc, start, end],
     enabled: enabled && Boolean(uc),
     queryFn: async ({ signal }) => {
       const result = decodeUCOverview(
@@ -59,13 +62,14 @@ export function useUCHistory(
   page: number,
   enabled: boolean,
 ) {
+  const publication = useGoldPublicationKey();
   const params = new URLSearchParams({ page: String(page), page_size: "20" });
   if (start && end) {
     params.set("start", start);
     params.set("end", end);
   }
   return useQuery({
-    queryKey: ["uc360", "history", uc, section, start, end, page],
+    queryKey: ["uc360", "history", publication, uc, section, start, end, page],
     enabled: enabled && Boolean(uc) && Boolean(section),
     queryFn: async ({ signal }) => {
       const result = decodeUCHistory(
@@ -94,8 +98,9 @@ export function useUCSeries(
   end: string,
   enabled: boolean,
 ) {
+  const publication = useGoldPublicationKey();
   return useQuery({
-    queryKey: ["uc360", "series", uc, start, end],
+    queryKey: ["uc360", "series", publication, uc, start, end],
     enabled: enabled && Boolean(uc) && Boolean(start) && Boolean(end),
     queryFn: async ({ signal }) => {
       let page = 1;

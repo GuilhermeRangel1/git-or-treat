@@ -142,6 +142,8 @@ Decoders validam o JSON e seu contexto antes de apresentar dados; filtros invál
 
 ## DEV-13.1 — contratos Gold no portal
 
+Na integração DEV-13.2, Receita, UC 360 e opções analíticas compartilham a identidade de publicação Gold v2 com as demais jornadas. Suas consultas incluem essa identidade nas chaves de cache; uma divergência provoca atualização coordenada, sem misturar lotes. Inspeções apresenta a limitação de energia recuperável individual uma vez na fila e mantém os detalhes por UC. Em Receita, os valores dos cartões se ajustam ao espaço disponível.
+
 Panorama, Inspeções (entrada de criação de Ordens), fundamentos de Ordens e Operação têm adaptadores de contrato Gold v2, preservando os consumidores sintéticos. Nulos e estados parciais são explícitos; a interface não calcula recuperação nem reconstrói ocorrências. Snapshots operacionais v2 são históricos, independentes da Gold atual; legado/v1 permanecem legíveis.
 
 O transporte protege leituras analíticas por lote/fingerprint. Um conflito oferece atualização coordenada das consultas Gold sem apagar o cache operacional de Ordens. Panorama descobre opções reais antes de apresentar recortes; Operação usa `/api/v1/operations/options` e não envia paginação de ocorrências para Gold. Fonte sintética só é selecionada conforme o contrato explícito, sem fallback em falhas de autenticação ou disponibilidade.

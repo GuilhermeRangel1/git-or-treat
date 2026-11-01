@@ -3083,6 +3083,13 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - A pessoa usuária aprovou expressamente as regras documentadas e esses controles para esta entrega local após conhecer os resultados. Aceite e impacto registrados no dicionário; origem atual permanece base aceita e tolerâncias existentes foram preservadas.
 - GENAI-02: 11/11 itens técnicos; conferência do lote local concluída. Atendimento mensal e DEC/FEC continuam sem cobertura certificada no recorte observado; não houve liberação automática de capacidades ou mudança na configuração runtime. Requisitos oficiais IA mantêm seus estados. Evidência em [consolidação](contracts/genai-consolidation.md).
 
+### 01/11/2026 — integração local DEV-13.1 / DEV-13.2
+
+- Ambiente local: cópia de segurança PostgreSQL criada e arquivo verificado por listagem; migrações aplicadas e autenticação por sessão configurada. A cópia não foi restaurada como teste. Credenciais e cópia permanecem fora do controle de versão.
+- Receita, UC 360 e opções analíticas Gold CSV v2 passam a publicar e conferir lote/fingerprint, com conflito 409 para publicação divergente e cache frontend vinculado à identidade. Testes HTTP locais autenticados percorreram Panorama, Receita, UC 360, Inspeções e opções de Operação com a mesma publicação, incluindo rejeição de fingerprint divergente.
+- Revisão visual local em Receita e Inspeções: ajuste de tamanho de valores e apresentação única da limitação de energia individual na fila, preservando o detalhe. Testes direcionados cobrem contrato e tratamento de conflito; não constituem homologação integral das telas ou da publicação.
+- Estados oficiais dos requisitos preservados. O serviço de IA foi reconstruído, mas a configuração local da integração Gold e auditoria não está completa; não se declara chat Gold operacional. A revisão visual e os testes não substituem homologação de todas as jornadas, perfis e dados.
+
 ### 01/11/2026 — IA-01 / IA-02 / IA-03 / IA-06 — fechamento técnico GENAI-04/06
 
 - GENAI-04: 20/20. Matriz pública com bairro/alimentador, classe/GD, contexto herdado/revogado, zero/nulo/lacuna e último ano com doze competências físicas. Comparações/ranking sem suporte esclarecem. Corrigido filtro de classe indevido originado do fragmento de um identificador de alimentador; menção separada e ambiguidade continuam protegidas.

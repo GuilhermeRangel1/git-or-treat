@@ -33,6 +33,8 @@ class GoldAnalyticsRepository:
             from app.repositories.analytics import AnalyticsSourceUnavailable
             raise AnalyticsSourceUnavailable()
         self.schema_version = batch["schema_version"]
+        self.publication_lote = batch["lote"] if self.schema_version == "gold-csv-v2" else None
+        self.publication_fingerprint = batch["fingerprint"] if self.schema_version == "gold-csv-v2" else None
         self.origin = batch["origem"] or {}
         self.tables = TABLES_V2 if self.schema_version == "gold-csv-v2" else TABLES
         self.source_version = f"{batch['lote']}:{batch['fingerprint']}" if self.schema_version == "gold-csv-v1" else f"{self.schema_version}:{batch['lote']}:{batch['publication_id']}"

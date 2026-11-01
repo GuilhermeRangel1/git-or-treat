@@ -4,6 +4,7 @@ import {
 } from "@/shared/analytics/goldContract";
 import {
   acceptGoldPublication,
+  acceptGoldIdentity,
   getGoldGeneration,
   markGoldPublicationStale,
   withGoldPublication,
@@ -66,7 +67,7 @@ export async function apiClient<T = unknown>(
   const authorizationGeneration = captureAuthorizationGeneration();
   const analytic =
     (!options.method || options.method === "GET") &&
-    /^\/api\/v1\/(panorama(?:\?|$)|operations\/|inspections\/queue(?:\/|\?|$))/.test(
+    /^\/api\/v1\/(panorama(?:\?|$)|operations\/|inspections\/queue(?:\/|\?|$)|revenue(?:\?|$)|ucs(?:\/|\?|$)|analytics\/options(?:\?|$))/.test(
       endpoint,
     );
   const requestGeneration = getGoldGeneration();
@@ -160,6 +161,49 @@ export async function apiClient<T = unknown>(
         409,
         { error: { code: "stale_batch" } },
       );
+    }
+  }
+  if (analytic && data && typeof data === "object") {
+    const envelope = data as Record<string, unknown>;
+    const meta = envelope.metadata;
+    const source =
+      meta && typeof meta === "object" && "source" in meta
+        ? (meta as Record<string, unknown>).source
+        : envelope.source;
+    if (source && typeof source === "object") {
+      const value = source as Record<string, unknown>;
+      if (
+        value.kind === "gold_csv" &&
+        typeof value.version === "string" &&
+        value.version.startsWith("gold-csv-v2:")
+      ) {
+        if (
+          typeof value.publication_lote !== "string" ||
+          !value.publication_lote.trim() ||
+          typeof value.publication_fingerprint !== "string" ||
+          !/^[a-f0-9]{64}$/.test(value.publication_fingerprint)
+        ) {
+          throw new ApiError(
+            "Identidade da publicação Gold inválida.",
+            200,
+            undefined,
+            "invalid-response",
+          );
+        }
+        if (
+          requestGeneration !== getGoldGeneration() ||
+          !acceptGoldIdentity({
+            lote: value.publication_lote,
+            fingerprint: value.publication_fingerprint,
+          })
+        ) {
+          throw new ApiError(
+            "A publicação Gold mudou. Atualize os dados da jornada.",
+            409,
+            { error: { code: "stale_batch" } },
+          );
+        }
+      }
     }
   }
   return data as T;

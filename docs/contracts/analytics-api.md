@@ -2,6 +2,8 @@
 
 > **Gold real — DEV-13.1:** Panorama, fila/Ordens e Operação têm [contrato Gold 2.0.0](analytics-gold-dev13-1.md), selecionado explicitamente pelo backend. Este documento conserva os contratos demonstrativos; trocar a fonte não homologa as telas nem adapta automaticamente Receita/UC/KPIs/insight.
 
+> **Integração DEV-13.2:** Receita, UC 360 e opções analíticas também leem a Gold configurada. Na Gold CSV v2, `source` inclui `publication_lote` e `publication_fingerprint`; os parâmetros opcionais `expected_lote` e `expected_fingerprint` fixam a publicação e retornam 409 se ela mudar. Valores repetidos são inválidos (422). As fontes demonstrativas preservam seu contrato anterior.
+
 > **Evoluções com fonte sintética:** Receita usa o [contrato DEV-03 1.1.0](revenue-dev03.md) e Atendimento acrescenta [overview e históricos DEV-04 1.1.0](uc360-dev04.md). Busca/detalhe legados e os demais endpoints preservam 1.0.0. As verificações demonstrativas não concluem a integração Gold.
 
 **Versão:** 1.0.0 nas jornadas DEV-01; 1.1.0 em Receita DEV-03 e nas duas novas operações de Atendimento DEV-04 · **Fonte sintética atual:** `dev03-v1` (substitui `dev01-v1` como lote de demonstração).

@@ -1,7 +1,7 @@
 from math import isfinite
 from typing import Generic, Literal, Optional, TypeVar
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer, model_validator
 
 
 AnalyticsStatus = Literal["available", "empty", "partial", "unavailable"]
@@ -26,6 +26,16 @@ class AnalyticsSource(BaseModel):
     version: str
     is_demo: bool
     updated_at: str
+    publication_lote: str | None = None
+    publication_fingerprint: str | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_source(self, handler: SerializerFunctionWrapHandler) -> dict:
+        source = handler(self)
+        for field in ("publication_lote", "publication_fingerprint"):
+            if source.get(field) is None:
+                source.pop(field, None)
+        return source
 
 
 class AnalyticsMetadata(BaseModel):

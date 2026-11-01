@@ -297,6 +297,12 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(screen.getByText("UC-GOLD / REVISAR")).toBeVisible();
   expect(screen.getAllByText("Posição oficial na fila: 7")).toHaveLength(2);
   expect(
+    screen.getByText(/Energia recuperável individual indisponível/),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("columnheader", { name: "Energia recuperável" }),
+  ).not.toBeInTheDocument();
+  expect(
     screen.getAllByText(/Contatos ao atendimento: indisponível/),
   ).toHaveLength(2);
   expect(
@@ -511,6 +517,8 @@ it("na Gold v2 desativa ordenação por energia e preserva a volta do detalhe", 
       kind: "gold_csv",
       is_demo: false,
       version: "gold-csv-v2:artificial:publicacao",
+      publication_lote: "artificial",
+      publication_fingerprint: "a".repeat(64),
     },
   };
   const queue = {

@@ -41,5 +41,7 @@ def get_options(repository=Depends(get_analytics_repository)) -> OptionsResponse
         options["bairros"] = [{"municipio": m, "bairro": b} for m, b in sorted({(row["municipio"], row["bairro"]) for row in units})]
         options["competencias"] = sorted({row["competencia"] for row in repository.invoices} | {row["competencia"] for row in PANORAMA_RECORDS})
     return {"data": options, "source": {"kind": repository.source_kind, "version": repository.source_version,
-            "is_demo": repository.source_is_demo, "updated_at": repository.source_updated_at},
+            "is_demo": repository.source_is_demo, "updated_at": repository.source_updated_at,
+            "publication_lote": getattr(repository, "publication_lote", None),
+            "publication_fingerprint": getattr(repository, "publication_fingerprint", None)},
             "limitations": repository.source_limitations}

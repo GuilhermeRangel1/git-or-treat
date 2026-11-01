@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "../api/client";
+import { useGoldPublicationKey } from "./goldPublication";
 
 export type SourceOptions = {
   competencias: string[];
@@ -70,8 +71,9 @@ export function decodeSourceOptions(value: unknown): OptionsEnvelope {
 }
 
 export function useSourceOptions() {
+  const publication = useGoldPublicationKey();
   return useQuery({
-    queryKey: ["analytics", "options"],
+    queryKey: ["analytics", "options", publication],
     queryFn: async ({ signal }) =>
       decodeSourceOptions(
         await apiClient<unknown>("/api/v1/analytics/options", { signal }),

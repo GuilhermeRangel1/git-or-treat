@@ -250,6 +250,8 @@ O artefato declara o limite datado de até 1.830 dias por métrica; a política 
 
 ### Cliente das operações internas — 31/10/2026
 
+Na integração DEV-13.2, as respostas analíticas Gold CSV v2 informam lote e fingerprint em `source`. Receita, UC 360 e opções aceitam `expected_lote` e `expected_fingerprint`, conferidos sob o bloqueio da publicação; divergências geram 409 e parâmetros repetidos geram 422. As fontes anteriores não recebem identidade inventada.
+
 `GenAIQuestionClient.plan(QuestionPlanRequest, correlation_id=...)` e `synthesize(QuestionSynthesisRequest, correlation_id=...)` usam as rotas internas contratuais, token e transporte existentes. Validam schema e correlação; o planejamento também confere o fingerprint pelo schema. Não há fallback para `/api/v1/questions`. A prova `test_database_metadata_drives_the_composed_genai_plan` liga o produtor do banco v2 ao cliente e às rotas GenAI reais ASGI em processo separado, incluindo síntese de ausência. A ponte de transporte é controlada e o banco é artificial. Esta entrega não ativa o coordenador no endpoint do portal, não autentica a pessoa usuária e não executa SQL de negócio.
 
 

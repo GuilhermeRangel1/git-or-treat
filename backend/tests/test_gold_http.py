@@ -222,6 +222,17 @@ def test_v2_publication_never_labels_old_v1_facts_as_current(gold_client):
     assert result.status_code == 200, result.text
     assert result.json()["data"]["total_billed_amount"] == 150
     assert result.json()["metadata"]["source"]["version"].startswith("gold-csv-v2:")
+    source = result.json()["metadata"]["source"]
+    lote, fingerprint = source["publication_lote"], source["publication_fingerprint"]
+    assert lote and len(fingerprint) == 64
+    options = client.get("/api/v1/analytics/options").json()["source"]
+    assert (options["publication_lote"], options["publication_fingerprint"]) == (lote, fingerprint)
+    for path in ("/api/v1/revenue", "/api/v1/ucs?q=X", "/api/v1/analytics/options"):
+        separator = "&" if "?" in path else "?"
+        assert client.get(path + separator + "expected_lote=" + lote + "&expected_fingerprint=" + fingerprint).status_code == 200
+        assert client.get(path + separator + "expected_lote=lote-antigo").status_code == 409
+        assert client.get(path + separator + "expected_fingerprint=" + "0" * 64).status_code == 409
+        assert client.get(path + separator + "expected_lote=" + lote + "&expected_lote=outro").status_code == 422
     feeder = client.get("/api/v1/revenue?competencia_inicio=2025-01&competencia_fim=2025-01&municipio=Cidade%20fict%C3%ADcia&alimentador=AL-X")
     assert feeder.status_code == 200, feeder.text
     assert feeder.json()["data"]["total_billed_amount"] == 100

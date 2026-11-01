@@ -151,13 +151,6 @@ function GoldItemCard({
         </div>
       </div>
       <div className="mt-4 grid gap-2">
-        <div>
-          <p className="text-xs text-muted">Energia recuperável</p>
-          <p className="mt-1 text-sm font-medium">Indisponível</p>
-          <p className="mt-1 text-xs text-muted">
-            {item.recovery_unavailable_reason}
-          </p>
-        </div>
         <EvidenceLink item={item} params={params} />
       </div>
     </article>
@@ -224,11 +217,14 @@ export default function InspectionQueue({
         <>
           {gold ? (
             <>
+              <p className="rounded-lg bg-surface p-4 text-sm text-muted">
+                Energia recuperável individual indisponível. Consulte o detalhe
+                para conhecer a limitação de cada UC.
+              </p>
               <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
                 <table className="w-full table-fixed text-left text-sm">
                   <caption className="sr-only">
-                    Categorias Gold, motivos, evidências, disponibilidade e
-                    acesso ao detalhe
+                    Categorias Gold, motivos, evidências e acesso ao detalhe
                   </caption>
                   <thead className="font-mono text-xs leading-[18px] text-muted">
                     <tr>
@@ -236,7 +232,6 @@ export default function InspectionQueue({
                         "Posição / UC / categoria Gold",
                         "Motivo",
                         "Evidências publicadas",
-                        "Energia recuperável",
                         "Ação",
                       ].map((label) => (
                         <th
@@ -262,10 +257,8 @@ export default function InspectionQueue({
                           <p className="mb-1 text-xs text-muted">
                             Posição oficial na fila: {item.queue_position}
                           </p>
-                          <br />
-                          {item.uc_id}
-                          <br />
-                          {item.category ?? "Sem categoria"}
+                          <p>{item.uc_id}</p>
+                          <p>{item.category ?? "Sem categoria"}</p>
                         </th>
                         <td className="px-3 py-3 leading-5">
                           {item.reason ?? "Não informado"}
@@ -273,12 +266,6 @@ export default function InspectionQueue({
                         <td className="px-3 py-3 text-sm leading-5 text-muted">
                           {goldEvidence(item).join(" · ") ||
                             "Sem evidências disponíveis"}
-                        </td>
-                        <td className="px-3 py-3">
-                          <p className="font-medium">Indisponível</p>
-                          <p className="mt-1 text-xs leading-4 text-muted">
-                            {item.recovery_unavailable_reason}
-                          </p>
                         </td>
                         <td className="px-3 py-3">
                           <EvidenceLink item={item} params={params} />

@@ -35,10 +35,12 @@ export function resetGoldPublication() {
   listeners.forEach((listener) => listener());
 }
 export function acceptGoldPublication(metadata: GoldMetadata) {
-  const next = {
+  return acceptGoldIdentity({
     lote: metadata.source.version,
     fingerprint: metadata.fingerprint,
-  };
+  });
+}
+export function acceptGoldIdentity(next: GoldPublicationIdentity) {
   if (
     publication &&
     (publication.lote !== next.lote ||
