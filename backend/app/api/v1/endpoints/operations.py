@@ -197,7 +197,7 @@ def get_operation_ranking(
         )
         items = [GoldRankedFeeder(**point.model_dump(), rank=index) for index, point in enumerate(ranked_points, 1)]
         excluded = [point for point in points if getattr(point, value_field) is None]
-        meta.status = "partial" if ranked_points else ("empty" if not points else "unavailable")
+        meta.status = "partial" if ranked_points else ("empty" if all(point.status == "empty" for point in points) else "unavailable")
         return GoldOperationRankingResponse(
             data=GoldOperationRankingData(items=items, excluded=excluded, metric=metric), metadata=meta,
         )
