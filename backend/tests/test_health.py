@@ -1,10 +1,18 @@
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+import pytest
 
 from app.core.database import get_db
 from app.main import app
+from tests.support.platform_auth import login_as_profile
+
+
+@pytest.fixture
+def commercial_session(client, monkeypatch):
+    return login_as_profile(client, monkeypatch, "commercial")
 
 
 def database_override(session):
@@ -61,7 +69,9 @@ def test_root_endpoint(client):
     assert response.json()["health"] == "/api/v1/health"
 
 
-def test_kpis_endpoint_is_unavailable_without_explicit_analytics_source(client, monkeypatch):
+def test_kpis_endpoint_is_unavailable_without_explicit_analytics_source(
+    client, monkeypatch, commercial_session
+):
     monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "unavailable")
     response = client.get("/api/v1/kpis")
 

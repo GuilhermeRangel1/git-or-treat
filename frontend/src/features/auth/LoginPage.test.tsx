@@ -15,7 +15,22 @@ const fetchMock = vi.fn<typeof fetch>();
 const anonymous = { enabled: true, user: null, expires_at: null };
 const account = {
   enabled: true,
-  user: { id: "user-1", username: "reader", permissions: ["orders:read"] },
+  user: {
+    id: "user-1",
+    username: "reader",
+    profile: "commercial",
+    permissions: ["panorama:read", "revenue:read", "ai:ask"],
+  },
+  expires_at: "2099-10-29T15:00:00Z",
+};
+const customerServiceAccount = {
+  enabled: true,
+  user: {
+    id: "user-cs",
+    username: "atendimento",
+    profile: "customer_service",
+    permissions: ["ucs:read", "ai:ask"],
+  },
   expires_at: "2099-10-29T15:00:00Z",
 };
 
@@ -28,6 +43,7 @@ function renderLogin() {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/panorama" element={<h1>Panorama autenticado</h1>} />
+              <Route path="/uc-360" element={<h1>Entrada de Atendimento</h1>} />
             </Routes>
           </MemoryRouter>
         </AuthProvider>
@@ -114,5 +130,21 @@ describe("página de entrada", () => {
     expect(screen.getByLabelText("Usuário")).toHaveValue("reader");
     expect(screen.getByLabelText("Senha")).toHaveValue("bad-password");
     expect(screen.queryByText("private auth internals")).toBeNull();
+  });
+
+  it("encaminha perfil de atendimento para UC 360 depois do login", async () => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json(anonymous))
+      .mockResolvedValueOnce(Response.json(customerServiceAccount));
+    renderLogin();
+    await userEvent.type(
+      await screen.findByLabelText("Usu\u00e1rio"),
+      "atendimento",
+    );
+    await userEvent.type(screen.getByLabelText("Senha"), "segredo");
+    await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(
+      await screen.findByRole("heading", { name: "Entrada de Atendimento" }),
+    ).toBeVisible();
   });
 });

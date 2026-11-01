@@ -13,6 +13,13 @@ from app.services.genai_client import (
     GenAIServiceUnavailable,
     GenAITimeout,
 )
+from tests.support.platform_auth import login_as_profile
+
+
+@pytest.fixture(autouse=True)
+def authenticated_commercial_session(client, monkeypatch):
+    """Public AI route tests use the real session contract and a permitted profile."""
+    return login_as_profile(client, monkeypatch, "commercial", username="ai-commercial")
 
 
 def _answered_response(correlation_id: str) -> dict[str, Any]:

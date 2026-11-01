@@ -24,6 +24,9 @@ from app.api.v1.endpoints.auth import router as auth_router
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.genai_gold_access import get_genai_gold_access_resolver
+from app.core.genai_gold_access import build_profile_access_scope
+from app.core.platform_access import PlatformProfile
+from app.core.platform_identity import PlatformIdentity
 from app.core.genai_gold_database import (
     GOLD_READER_ROLE,
     create_genai_gold_engine,
@@ -171,7 +174,8 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     db.add(AuthUser(
                         id=str(uuid4()), username=name,
                         password_hash=hash_password("synthetic-test-password"),
-                        permissions=["orders:read"] if name == "reader" else ["orders:write"],
+                        permissions=[],
+                        profile="admin",
                         is_active=True,
                     ))
                 db.commit()
@@ -245,7 +249,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 created_engines.append(reader)
                 if revoked["after_admission"]:
                     with owner.begin() as write:
-                        write.execute(update(AuthUser).values(permissions=[]))
+                        write.execute(update(AuthUser).values(profile=None))
                 scope = resolve()
                 scopes.append(scope)
                 plan = LogicalReadPlan.model_validate({
@@ -385,6 +389,11 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 with pytest.raises(GoldExecutionDenied):
                     verify_audited_execution(AuditStore(owner), reference, reader, planned,
                         resolve_scope=lambda: scope.model_copy(update={"allowed_metric_ids": frozenset()}))
+                with pytest.raises(GoldExecutionDenied):
+                    verify_audited_execution(AuditStore(owner), reference, reader, planned,
+                        resolve_scope=lambda: scope.model_copy(update={
+                            "caller_ref": "session:another-caller",
+                        }))
 
 
                 scope_checks = 0
@@ -479,6 +488,38 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "period": "2001-01",
                     "feeder": "AL-TESTE",
                 }]
+                commercial_scope = build_profile_access_scope(PlatformIdentity(
+                    actor="user:commercial",
+                    profile=PlatformProfile.COMMERCIAL,
+                    permissions=frozenset({"ai:ask"}),
+                    auth_mode="session",
+                ))
+                commercial_dec_planned = replace(
+                    dec_planned, access_scope=commercial_scope,
+                )
+                before_denied_sql = len(reader_events)
+                with pytest.raises(GoldExecutionDenied):
+                    execute_gold_plan(
+                        reader, commercial_dec_planned,
+                        resolve_scope=lambda: commercial_scope,
+                    )
+                assert len(reader_events) == before_denied_sql
+                operations_scope = build_profile_access_scope(PlatformIdentity(
+                    actor="user:operations",
+                    profile=PlatformProfile.OPERATIONS,
+                    permissions=frozenset({"ai:ask"}),
+                    auth_mode="session",
+                ))
+                operations_revenue_planned = replace(
+                    planned, access_scope=operations_scope,
+                )
+                before_denied_sql = len(reader_events)
+                with pytest.raises(GoldExecutionDenied):
+                    execute_gold_plan(
+                        reader, operations_revenue_planned,
+                        resolve_scope=lambda: operations_scope,
+                    )
+                assert len(reader_events) == before_denied_sql
                 fec_plan = LogicalReadPlan.model_validate({
                     **dec_plan.model_dump(mode="json"),
                     "metric_id": "network.equivalent_interruption_frequency",
@@ -790,14 +831,14 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     for first, second in zip(cache_scopes[0], cache_scopes[1], strict=True)
                 )
                 assert cache_scopes[0][0] != cache_scopes[0][1]
-                # Retirada de permissão depois de criar o engine não admite a leitura.
+                # Remoção do perfil depois de criar o engine nega a próxima leitura.
                 revoked["after_admission"] = True
                 reader_sql.clear()
                 assert client.get("/api/v1/probe").status_code == 403
                 assert reader_sql == []
                 revoked["after_admission"] = False
                 with owner.begin() as write:
-                    write.execute(update(AuthUser).values(permissions=["orders:read"]))
+                    write.execute(update(AuthUser).values(profile="operations"))
                 assert client.post("/api/v1/auth/logout", headers=origin).status_code == 204
                 assert client.get("/api/v1/probe").status_code == 401
 

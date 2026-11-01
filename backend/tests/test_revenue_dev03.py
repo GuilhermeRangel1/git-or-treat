@@ -1,5 +1,7 @@
 import pytest
 
+from tests.support.platform_auth import login_as_profile
+
 from app.repositories.analytics import RevenueCoverage, SyntheticAnalyticsRepository, get_analytics_repository
 from fastapi.testclient import TestClient
 
@@ -102,12 +104,22 @@ def _get_revenue_with_repository(client, repository, query=""):
             client.app.dependency_overrides[get_analytics_repository] = previous
 
 
+@pytest.fixture(autouse=True)
+def authenticated_commercial_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "commercial")
+
+
 def test_revenue_http_publishes_1_1_extremes_and_independent_decimal_control(client):
     repository = _controlled_revenue_repository()
     previous = client.app.dependency_overrides.get(get_analytics_repository)
     client.app.dependency_overrides[get_analytics_repository] = lambda: repository
     try:
-        with TestClient(client.app, raise_server_exceptions=True) as test_client:
+        with TestClient(
+            client.app,
+            raise_server_exceptions=True,
+            headers=client.headers,
+            cookies=client.cookies,
+        ) as test_client:
             response = test_client.get(
                 "/api/v1/revenue?competencia_inicio=2025-01&competencia_fim=2025-02"
             )
@@ -227,7 +239,12 @@ def test_same_competence_with_complete_coverage_does_not_mark_envelope_partial(c
     previous = client.app.dependency_overrides.get(get_analytics_repository)
     client.app.dependency_overrides[get_analytics_repository] = lambda: repository
     try:
-        with TestClient(client.app, raise_server_exceptions=True) as test_client:
+        with TestClient(
+            client.app,
+            raise_server_exceptions=True,
+            headers=client.headers,
+            cookies=client.cookies,
+        ) as test_client:
             response = test_client.get(
                 "/api/v1/revenue?competencia_inicio=2025-01&competencia_fim=2025-01"
             )
@@ -333,7 +350,12 @@ def test_revenue_null_financial_fact_keeps_observed_subtotal_and_blocks_comparis
     previous = client.app.dependency_overrides.get(get_analytics_repository)
     client.app.dependency_overrides[get_analytics_repository] = lambda: repository
     try:
-        with TestClient(client.app, raise_server_exceptions=True) as test_client:
+        with TestClient(
+            client.app,
+            raise_server_exceptions=True,
+            headers=client.headers,
+            cookies=client.cookies,
+        ) as test_client:
             response = test_client.get(
                 "/api/v1/revenue?competencia_inicio=2025-01&competencia_fim=2025-02"
             )
@@ -388,7 +410,12 @@ def test_revenue_municipality_breakdown_reconciles_to_independent_http_totals(cl
     previous = client.app.dependency_overrides.get(get_analytics_repository)
     client.app.dependency_overrides[get_analytics_repository] = lambda: repository
     try:
-        with TestClient(client.app, raise_server_exceptions=True) as test_client:
+        with TestClient(
+            client.app,
+            raise_server_exceptions=True,
+            headers=client.headers,
+            cookies=client.cookies,
+        ) as test_client:
             response = test_client.get(
                 "/api/v1/revenue?competencia_inicio=2025-01&competencia_fim=2025-02&group_by=municipio"
             )
