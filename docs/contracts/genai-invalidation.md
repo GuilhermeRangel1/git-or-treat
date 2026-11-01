@@ -1,6 +1,6 @@
 # GENAI-13 — Contrato de invalidação por lote, filtro e schema
 
-**Cartão:** GENAI-13. **Requisitos:** IA-03, IA-04, IA-05, IA-06. **Natureza:** preparação (contrato). Este documento não implementa nem conclui requisitos; fixa as regras que as fases de servidor e de tela devem provar. Base inspecionada: `develop` em `b804b58`.
+**Cartão:** GENAI-13. **Requisitos:** IA-03, IA-04, IA-05, IA-06. **Natureza:** contrato e integração executável no servidor (fase 2). Não conclui requisitos; as provas de tela dependem do GENAI-11 e do GENAI-12. Base inspecionada: `develop` em `b804b58`.
 
 Princípio: uma resposta, evidência, insight ou entrada de cache vale somente para a combinação de publicação, catálogo, schema, escopo, prompt e modelo sob a qual foi produzida. Mudança relevante invalida; incompatibilidade falha de forma explícita e recuperável; nenhuma falha aciona demonstração.
 
@@ -86,15 +86,20 @@ Regras:
 
 ## 6. Publicação esperada informada pelo consumidor
 
-O chat passa a aceitar, de forma **opcional e retrocompatível**, a publicação que a tela está exibindo, com o mesmo par já usado pela API analítica (`lote`, `fingerprint`). Semântica:
+O chat aceita, de forma **opcional e retrocompatível**, a publicação que a tela está exibindo, com o mesmo par já usado pela API analítica:
 
-- Ausente: comportamento atual (captura no servidor e detecção de troca durante a requisição).
-- Presente e igual à publicação atual: segue o fluxo normal; a captura do servidor continua sendo a referência.
+```json
+{"question": "...", "context": [], "expected_publication": {"lote": "<lote exibido>", "fingerprint": "<64 hex>"}}
+```
+
+- Ausente: comportamento anterior (captura no servidor e detecção de troca durante a requisição).
+- Presente e igual à publicação atual: o Backend converte o par no `batch_ref` atual e o planejamento exige capturar exatamente essa referência. Uma troca entre essa conferência e a captura é mudança em curso (409, `retryable=true`).
 - Presente e diferente: 409 `invalid_context`, `retryable=false`, antes do planejamento, do SQL e do modelo.
-- Malformada: 422 `invalid_request`.
+- Malformada ou com campo extra: 422 `invalid_request`.
 - Modo sintético: o campo é rejeitado (422), como já ocorre com `expected_lote` nas leituras analíticas.
+- Publicação ausente ou não v2: 503 `service_unavailable`, `retryable=false`.
 
-Esse valor não autoriza nada: apenas impede responder sobre um lote diferente do que a pessoa está vendo. O campo pertence ao envelope público `AIQuestionRequest`; a mudança é aditiva e precisa ser refletida no consumidor do portal pelo GENAI-11.
+Esse valor não autoriza nada: apenas impede responder sobre um lote diferente do que a pessoa está vendo. O campo fica no modelo público `AIQuestionPublicRequest` (`backend/app/schemas/ai_question_publication.py`), subclasse de `AIQuestionRequest`; ele é removido antes de qualquer envelope interno ou chamada à GenAI, que não muda. O consumidor do portal fica com o GENAI-11.
 
 ## 7. Resposta atrasada
 
@@ -112,51 +117,72 @@ Nenhuma falha Gold aciona o caminho demonstrativo: publicação ausente, troca d
 
 | Mudança | Comportamento exigido |
 | --- | --- |
-| Coluna renomeada ou removida no schema `gold_v2` | A consulta falha fechada (503 `service_unavailable`); sem resposta parcial, sem coluna substituta, sem demo. A carga v2 já rejeita schema divergente do contrato. |
-| Tipo de coluna alterado | O mesmo: falha fechada na execução ou na validação da evidência; não converter silenciosamente. |
+| Coluna renomeada ou removida no schema `gold_v2` | A consulta falha fechada (503 `service_unavailable`, `retryable=false`); sem resposta parcial, sem coluna substituta, sem demo. O executor converte os SQLSTATE `42703`, `42P01`, `42883` e `42804` em incompatibilidade de catálogo. A carga v2 já rejeita schema divergente do contrato. |
+| Tipo de coluna alterado | O mesmo: falha fechada na execução; não converter silenciosamente. |
 | Fórmula, agregação ou relação alterada no catálogo | Novo digest do catálogo físico; chaves de cache antigas deixam de corresponder; exemplos e resultados dependentes são invalidados. |
-| GenAI e Backend com catálogos físicos diferentes (implantação defasada) | O plano declara o catálogo sob o qual foi produzido; o Backend recusa executar plano de outro catálogo (503, `retryable=false`). |
+| GenAI e Backend com catálogos físicos diferentes (implantação defasada) | O plano declara `physical_catalog`; o Backend recusa executar plano de outro catálogo (503, `retryable=false`) e a GenAI recusa evidência de catálogo diferente do seu perfil. Métrica ausente no catálogo do Backend também é 503, não erro interno. |
 | Migração/rollback de schema incompatível | Publicação inexistente ou inválida → 503 `retryable=false`. Retorno a uma publicação anterior gera outro `publication_id` e, portanto, é troca de publicação (409). |
+| Rollback para publicação v1 | O planejamento recusa publicação diferente de `gold-csv-v2` (503, `retryable=false`): o executor lê somente `gold_v2` e não pode responder com dados v2 sob identidade v1. |
 | Catálogo antigo (v1) | Nunca serve de fallback do fluxo v2; referência v1 em fluxo v2 é rejeitada. |
+
+### Identidade do catálogo físico
+
+`physical_catalog` = `mapping_version` (`gold-catalog-v2`), `physical_schema` (`gold_v2`), `dictionary_version` (`gold-csv-v2`) e `digest`, SHA-256 do JSON canônico (`sort_keys`, separadores compactos, UTF-8) do catálogo. O Backend calcula o digest de `backend/app/catalogs/gold_v2.json`; a GenAI, de `GRID360_GOLD_MAPPING.model_dump(mode="json")`, que um teste existente exige ser idêntico ao arquivo. Nenhum serviço importa o outro.
+
+O campo é opcional em `QuestionPlanResponse` (somente em `planned`) e em `EvidenceProvenance`, nos dois serviços, e não é serializado quando ausente. Compatibilidade:
+
+- Plano sem `physical_catalog` (GenAI anterior): o Backend aceita. Evidência sem o campo (Backend anterior): a GenAI aceita. A conferência vale quando os dois lados declaram.
+- Ordem de implantação: GenAI primeiro (passa a aceitar e emitir o campo), depois Backend. Um Backend novo enviando evidência com o campo para uma GenAI anterior seria recusado por campo extra.
+- A composição implantável `create_gold_app` usa `GRID360_GOLD_RUNTIME_PROFILE`, que carrega a identidade; o perfil lógico `GRID360_GOLD_PROFILE` permanece sem ela.
 
 ## 10. Estado atual no código
 
-### Já existe
+### Implementado no servidor (fase 2)
 
-- Publicação capturada e revalidada em todas as fronteiras do chat Gold, com 409 `invalid_context` (`backend/app/services/genai_publication.py`, `genai_coordination.py`, `endpoints/ai.py`).
-- Snapshot `REPEATABLE READ READ ONLY` que descarta o resultado se a publicação mudar durante a consulta.
-- Escopo reresolvido após SQL, síntese e auditoria (403).
-- `EvidenceGuard` exigindo `expected_batch_ref` para fonte Gold e conferindo `quality` e `provenance.batch_ref`.
-- Pinagem `expected_lote`/`expected_fingerprint` nas leituras analíticas (409 `stale_batch`) e `loteVersao` no insight (409).
-- Cache de modelo autorizado antes do acerto, isolado por identidade, com namespace contendo provedores, modelos e digest do prompt, e chave contendo a evidência completa; desligado por padrão (`GENAI_MODEL_CACHE_TTL_SECONDS=0`). `cache_scope` do Backend com chamador, perfil, fonte, operações, métricas, dimensões, plano e `batch_ref`.
-- Composição externa recusando demonstração e evidência `is_demo`.
-- Consulta do insight no portal com chave `filters` + `loteVersao` e cancelamento por `AbortSignal`.
+- Publicação capturada e revalidada em todas as fronteiras do chat Gold, com 409 `invalid_context` `retryable=true` (`genai_publication.py`, `genai_coordination.py`, `endpoints/ai.py`), e snapshot `REPEATABLE READ READ ONLY` que descarta o resultado se a publicação mudar durante a consulta (existente).
+- Publicação esperada opcional no chat, com 409 `retryable=false` quando diverge (`ai_question_publication.py`, `genai_expected_publication.py`).
+- Recusa de publicação não v2 no planejamento.
+- Catálogo físico declarado no plano (`routes.py` da GenAI) e na evidência (executor), conferido pelo Backend (`genai_planning.py`) e pelo `EvidenceGuard`.
+- Métrica ausente no catálogo do Backend e deriva de schema convertidas em 503 `retryable=false` (`GoldCatalogIncompatible`).
+- Chave do cache de modelo v2 com filtros normalizados e catálogo físico da proveniência; namespace com provedores, modelos e digest do prompt (existente); `authorized_cache_scope` com filtros normalizados. `cache_scope` do Backend com escopo, plano com filtros normalizados, `batch_ref`, catálogo físico e versão de prontidão. O `plan_fingerprint` não muda.
+- Escopo reresolvido após SQL, síntese e auditoria (403), pinagem `expected_lote`/`expected_fingerprint` nas leituras analíticas e `loteVersao` no insight (existentes).
+- O cache de modelo continua desligado por padrão (`GENAI_MODEL_CACHE_TTL_SECONDS=0`).
 
 ### Falta
 
-| Lacuna | Fase |
+| Lacuna | Dono |
 | --- | --- |
-| Catálogo físico (`mapping_version` + digest), `physical_schema` e `dictionary_version` fora da chave de cache e do `cache_scope`; o plano não declara o catálogo físico sob o qual foi produzido | 2 |
-| Filtros não normalizados na chave (ordem de filtros e de valores de `in` muda a chave; gera falta de acerto, não acerto indevido) | 2 |
-| Chat sem publicação esperada informada pelo consumidor | 2 (servidor); consumidor no GENAI-11 |
-| Sem teste dedicado de schema renomeado/tipo alterado, rollback incompatível, catálogo defasado entre serviços e erro após cache válido no fluxo Gold | 2 |
-| Busca do catálogo no coordenador por `next(...)` sem tratamento: métrica ausente no catálogo do Backend escaparia como erro interno em vez de 503 | 2 |
-| Assistente sem descarte de resposta atrasada por revisão de recorte em `develop` (identidade/rota está na branch do GENAI-11) | 11 |
-| Chave do insight no portal sem `fingerprint`; insight Gold ainda desabilitado (fonte não demonstrativa) | 12 |
+| Assistente sem descarte de resposta atrasada por revisão de recorte em `develop` (identidade/rota está na branch do GENAI-11) e sem envio de `expected_publication` | GENAI-11 |
+| Chave do insight no portal sem `fingerprint`; insight Gold ainda desabilitado (fonte não demonstrativa); corrida de filtros e revogação na tela | GENAI-12 |
+| Tornar `physical_catalog` obrigatório depois que os dois serviços estiverem implantados | Decisão posterior, fora deste cartão |
 
 ## 11. Itens do cartão e provas
 
-Testes "existente" estão em `develop`. "Fase 2" serão arquivos novos de servidor. "Pendente" depende de outro cartão e não será marcado com skip ou xfail silencioso; permanece listado aqui até a prova.
+"Existente" está em `develop`. "Fase 2" são os arquivos novos `ai-agent/tests/test_gold_cache_invalidation.py`, `backend/tests/test_genai_invalidation.py` e `backend/tests/test_genai_invalidation_postgres.py` (este exige o PostgreSQL descartável `v_energy_test`). "Pendente" depende de outro cartão e não é marcado com skip ou xfail; permanece listado aqui até a prova.
 
 | Item | Prova | Situação |
 | --- | --- | --- |
-| I1 — vincular plano, evidência, contexto de tela e cache às versões de catálogo, lote e escopo | `backend/tests/test_genai_publication.py::test_changed_publication_blocks_each_boundary`; `ai-agent/tests/test_resilient_adapters.py::test_cache_separates_identities_with_identical_question_and_evidence`; `test_groq_adapter.py::test_cache_namespace_separates_provider_order_models_and_prompt`; novos `backend/tests/test_genai_invalidation.py` (catálogo físico no `cache_scope`) e `ai-agent/tests/test_gold_cache_invalidation.py` (catálogo/schema/prompt/modelo na chave) | Existente parcial + Fase 2 |
-| I2 — invalidar dependentes de schema ou fórmula; rejeitar incompatibilidade com mensagem recuperável | Novos `test_genai_invalidation.py` (schema renomeado, tipo alterado, plano de catálogo defasado → 503 sem demo) | Fase 2 |
-| I3 — erro/desatualização prevalece sobre cache no cartão e no painel de insight | Servidor: novo `test_gold_cache_invalidation.py` (erro após cache válido); tela: `PanoramaInsight.test.tsx` com 409 após cache | Fase 2 (servidor); tela pendente do GENAI-12 |
-| I4 — resposta atrasada não sobrescreve o recorte atual; mudanças rápidas e cancelamento | Tela do Assistente e do insight (revisão por pedido) | Pendente do GENAI-11 e do GENAI-12 |
-| I5 — detectar troca de lote durante a requisição; leitura consistente | `test_genai_publication.py::test_change_during_query_keeps_snapshot_but_rejects_result`; `test_gold_analytics_postgres.py::test_gold_dependency_holds_repeatable_read_only_snapshot_across_publication`; novo `test_genai_invalidation.py` (troca entre SQL e síntese → 409 sem resposta) | Existente + Fase 2 |
-| I6 — atualização de lote, catálogo antigo, recarga e rollback sem demo | `test_genai_publication.py::test_same_run_with_new_publication_is_still_a_change`, `::test_invalidated_publication_does_not_allow_retry`; `ai-agent/tests/test_external_source_composition.py::test_external_source_never_publishes_demo_evidence`; novos `test_genai_invalidation.py` (rollback, catálogo antigo, publicação esperada divergente) | Existente + Fase 2 |
-| R1 — chave com fonte, escopo, métrica, dimensões, filtros normalizados, janela, ordem, limite, unidade e versões; autorizar antes | `test_resilient_adapters.py::test_authorization_runs_before_cache_hit_and_separates_callers`; novo `test_gold_cache_invalidation.py` (cada componente altera a chave; filtros reordenados mantêm a chave) | Existente parcial + Fase 2 |
-| R2 — consistência do lote durante a leitura e antes de publicar | Mesmos testes de I5 e `test_genai_publication.py::test_change_before_query_does_not_enter_execution_block` | Existente + Fase 2 |
-| R3 — schema renomeado, tipo/fórmula/relação alterados, migração/rollback; TTL sozinho não resolve | Novos `test_genai_invalidation.py` e `test_gold_cache_invalidation.py` (mudança de catálogo invalida antes do TTL) | Fase 2 |
-| R4 — revisão/ID de pedido no recorte; ida e volta de filtros; revogação de escopo; erro após cache válido | Servidor: revogação de escopo → 403 (matriz pública existente) e erro após cache (Fase 2); tela: revisão por pedido, A → B → A e revogação no insight | Servidor existente + Fase 2; tela pendente do GENAI-11/12 |
+| I1 — vincular plano, evidência, contexto de tela e cache às versões de catálogo, lote e escopo | Existentes: `test_genai_publication.py::test_changed_publication_blocks_each_boundary`, `test_resilient_adapters.py::test_cache_separates_identities_with_identical_question_and_evidence`, `test_groq_adapter.py::test_cache_namespace_separates_provider_order_models_and_prompt`. Fase 2: `test_gold_cache_invalidation.py::test_official_runtime_declares_physical_catalog_only_on_ready_plans`, `::test_cache_key_changes_with_catalog_batch_and_readiness`, `::test_cache_key_separates_prompt_and_model_through_namespace`; `test_genai_invalidation.py::test_matching_publication_pins_planning_to_the_captured_batch`; `test_genai_invalidation_postgres.py::test_executor_declares_catalog_and_scopes_cache_by_catalog_not_filter_order` | Servidor provado; contexto de tela pendente do GENAI-11/12 |
+| I2 — invalidar dependentes de schema ou fórmula; rejeitar incompatibilidade com mensagem recuperável | `test_genai_invalidation_postgres.py::test_schema_drift_fails_closed_as_incompatible_and_recovers` (coluna renomeada, tipo alterado, tabela renomeada); `test_genai_invalidation.py::test_plan_from_another_physical_catalog_is_rejected_before_admission`, `::test_metric_missing_from_backend_catalog_is_incompatible_not_invalid`, `::test_metric_missing_in_coordinator_is_incompatible_before_sql`, `::test_route_maps_change_and_incompatibility_to_recoverable_errors`; `test_gold_cache_invalidation.py::test_formula_change_changes_catalog_digest`, `::test_evidence_from_other_physical_catalog_is_rejected_before_model` | Fase 2 |
+| I3 — erro/desatualização prevalece sobre cache no cartão e no painel de insight | Servidor: `test_gold_cache_invalidation.py::test_error_after_valid_cache_prevails_over_cached_answer`. Tela: `PanoramaInsight.test.tsx` com 409 após cache (caso T-05) | Servidor provado; tela pendente do GENAI-12 |
+| I4 — resposta atrasada não sobrescreve o recorte atual; mudanças rápidas e cancelamento | Casos T-01, T-02 e T-04 abaixo | Pendente do GENAI-11 e do GENAI-12 |
+| I5 — detectar troca de lote durante a requisição; leitura consistente | Existentes: `test_genai_publication.py::test_change_during_query_keeps_snapshot_but_rejects_result`, `test_gold_analytics_postgres.py::test_gold_dependency_holds_repeatable_read_only_snapshot_across_publication`. Fase 2: `test_genai_invalidation.py::test_batch_change_between_sql_and_synthesis_never_synthesizes`, `::test_publication_replaced_before_capture_is_a_retryable_change` | Fase 2 |
+| I6 — atualização de lote, catálogo antigo, recarga e rollback sem demo | Existentes: `test_genai_publication.py::test_same_run_with_new_publication_is_still_a_change`, `::test_invalidated_publication_does_not_allow_retry`, `test_external_source_composition.py::test_external_source_never_publishes_demo_evidence`. Fase 2: `test_genai_invalidation.py::test_rollback_to_v1_publication_is_rejected_before_planning`, `::test_missing_or_v1_publication_is_unavailable_without_fallback`, `::test_divergent_publication_is_a_non_retryable_conflict`, `::test_synthetic_mode_rejects_publication_and_forwards_the_unchanged_contract`; `test_gold_cache_invalidation.py::test_evidence_without_catalog_keeps_compatibility` | Fase 2 |
+| R1 — chave com fonte, escopo, métrica, dimensões, filtros normalizados, janela, ordem, limite, unidade e versões; autorizar antes | Existente: `test_resilient_adapters.py::test_authorization_runs_before_cache_hit_and_separates_callers`. Fase 2: `test_gold_cache_invalidation.py::test_cache_key_normalizes_filter_order_without_changing_plan_fingerprint`, `::test_authorized_scope_isolates_access_and_ignores_filter_order`; `test_genai_invalidation_postgres.py::test_executor_declares_catalog_and_scopes_cache_by_catalog_not_filter_order` | Fase 2 |
+| R2 — consistência do lote durante a leitura e antes de publicar | Mesmos testes de I5 e `test_genai_publication.py::test_change_before_query_does_not_enter_execution_block` | Fase 2 |
+| R3 — schema renomeado, tipo/fórmula/relação alterados, migração/rollback; TTL sozinho não resolve | Testes de I2 e I6; `test_gold_cache_invalidation.py::test_catalog_change_invalidates_cache_before_ttl_expires` | Fase 2 |
+| R4 — revisão/ID de pedido no recorte; ida e volta de filtros; revogação de escopo; erro após cache válido | Servidor: revogação → 403 (matriz pública existente) e `test_error_after_valid_cache_prevails_over_cached_answer`. Tela: casos T-04, T-05 e T-06 | Servidor provado; tela pendente do GENAI-11/12 |
+
+### Casos de tela pendentes (GENAI-11 e GENAI-12)
+
+Escritos aqui para a implementação nas telas; ainda não existem como teste marcado.
+
+| ID | Tela | Caso | Resultado esperado |
+| --- | --- | --- | --- |
+| T-01 | Assistente | Pergunta enviada com o recorte A; troca para B antes da resposta | Resposta de A é descartada; nada é exibido como resposta de B |
+| T-02 | Assistente | Troca de identidade ou de rota com pedido pendente | Pedido descartado e histórico local limpo (parte já existe na branch do GENAI-11) |
+| T-03 | Assistente | Envio de `expected_publication` com o lote exibido; servidor responde 409 `retryable=false` | Mensagem pede recarregar a tela; não oferece repetir o mesmo pedido |
+| T-04 | Insight | Filtros A → B → A rapidamente | Somente a resposta da revisão vigente é aplicada; resposta tardia é descartada |
+| T-05 | Insight | Cache válido e, em seguida, 409 para o mesmo recorte | O erro de desatualização prevalece sobre o insight em cache |
+| T-06 | Insight | Revogação de escopo com insight pendente ou em cache | Pendente descartado; cache daquela identidade não é exibido |
+| T-07 | Insight | Mudança de `fingerprint` com o mesmo `loteVersao` | Insight anterior invalidado (a chave da consulta precisa incluir o fingerprint) |

@@ -3,9 +3,17 @@
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_serializer,
+    model_validator,
+)
 
 from app.schemas.analysis import LogicalIdentifier
+from app.schemas.physical_catalog import PhysicalCatalogRef
 from app.schemas.read_plan import ReadFilter, ReadWindow
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
 
@@ -73,6 +81,16 @@ class EvidenceProvenance(BaseModel):
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
     batch_ref: GoldBatchRef | None = None
     quality: GoldEvidenceQuality | None = None
+    # Catálogo físico usado pelo executor; opcional para compatibilidade.
+    physical_catalog: PhysicalCatalogRef | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_physical_catalog(self, handler):
+        # Ausência não é serializada: consumidores anteriores recusam campos extras.
+        data = handler(self)
+        if self.physical_catalog is None and isinstance(data, dict):
+            data.pop("physical_catalog", None)
+        return data
 
 
 class EvidenceResult(BaseModel):
