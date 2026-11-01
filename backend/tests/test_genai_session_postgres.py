@@ -3,6 +3,7 @@
 import os
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
@@ -34,8 +35,9 @@ from app.schemas.genai_internal import AccessScope, QuestionPlanResponse
 from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus, ReadWindow
 from app.services.genai_client import GenAITimeout
 from app.services.genai_deadline import GenAIRequestDeadline
-from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
+from app.services.genai_executor import GoldExecutionDenied, _query, execute_gold_plan
 from app.services.genai_planning import plan_gold_question
+from app.services.gold_catalog import load_gold_catalog
 from app.services.gold_import import import_gold
 from tests.support.migrations import migrated_database
 from tests.test_gold_import import batch  # noqa: F401 - fixture compartilhada
@@ -74,6 +76,10 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "competencia": "2001-01", "municipio": "Cidade Teste", "classe_consumo": "TESTE",
                     "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "N",
                     "receita_total_reais": 12,
+                    "consumo_total_kwh": 30,
+                    "receita_base_comparavel_reais": 10,
+                    "consumo_base_comparavel_kwh": 4,
+                    "qtd_ucs_com_leitura": 2,
                     "qtd_ucs_distintas_faturadas_no_mes": 3,
                 })
                 write.execute(TABLES["diagnostico_receita"].insert(), {
@@ -102,6 +108,49 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "DEC": 1.5,
                     "FEC": 0.5,
                 })
+            # Prova do compilador, não autorização do papel leitor: dados
+            # artificiais isolados são consultados apenas pela conexão de teste.
+            catalog = load_gold_catalog()
+            with owner.begin() as compiler_db:
+                compiler_db.execute(TABLES["atendimentos_uc"].delete())
+                compiler_db.execute(TABLES["visao_360_uc"].delete())
+                compiler_db.execute(TABLES["atendimentos_uc"].insert(), [
+                    {"protocolo": "P1", "data_abertura": datetime.fromisoformat(
+                        "2001-01-31T22:00:00-03:00"), "nota_satisfacao": 0.0},
+                    {"protocolo": "P2", "data_abertura": datetime.fromisoformat(
+                        "2001-02-01T01:00:00+00:00"), "nota_satisfacao": 4.0},
+                    {"protocolo": "P3", "data_abertura": None, "nota_satisfacao": None},
+                ])
+                compiler_db.execute(TABLES["visao_360_uc"].insert(), [
+                    {"id_uc": "COMPILER1", "total_chamados_callcenter": 2},
+                    {"id_uc": "COMPILER2", "total_chamados_callcenter": 3},
+                ])
+                for metric_id, expected in (
+                    ("service.attendance", 2), ("service.satisfaction", 2.0),
+                    ("service.accumulated_attendance", 5),
+                    ("service.accumulated_satisfaction", 2.0),
+                ):
+                    metric = next(m for m in catalog.metrics if m.metric_id == metric_id)
+                    window = (
+                        {"kind": "catalog_phrase", "phrase": metric.accumulated_period_phrases[0]}
+                        if metric.accumulated_period_phrases else
+                        {"kind": "bounded", "start": "2001-02-01", "end": "2001-02-28",
+                         "granularity": "month"}
+                    )
+                    compiler_plan = LogicalReadPlan.model_validate({
+                        "catalog_version": "v1", "operation": "read",
+                        "profile_id": catalog.profile_id, "source_id": "gold.local",
+                        "domain_id": "service", "metric_id": metric_id,
+                        "unit": metric.unit, "window": window, "limit": 10,
+                    })
+                    statement = _query(compiler_plan, metric.sources[0], metric)
+                    rows = compiler_db.execute(statement).mappings().all()
+                    assert len(rows) == 1 and rows[0]["value"] == expected
+                    assert rows[0]["period"] == (
+                        window.get("phrase") or "2001-02"
+                    )
+                compiler_db.execute(TABLES["atendimentos_uc"].delete())
+                compiler_db.execute(TABLES["visao_360_uc"].delete())
             with Session(owner) as db:
                 for name in ("reader", "operator"):
                     db.add(AuthUser(
@@ -270,6 +319,22 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "unit": "R$ por UC faturada no mês",
                     "period": "2001-01",
                 }]
+                # Esperados literais independentes das expressões do compilador.
+                for metric_id, domain_id, unit, expected in (
+                    ("energy.consumption", "consumption", "kWh", 30.0),
+                    ("billing.effective_tariff", "revenue", "R$/kWh", 2.5),
+                    ("energy.average_consumption_per_uc", "consumption",
+                     "kWh por UC com leitura no mês", 15.0),
+                ):
+                    metric_plan = LogicalReadPlan.model_validate({
+                        **plan.model_dump(mode="json"),
+                        "metric_id": metric_id, "domain_id": domain_id, "unit": unit,
+                    })
+                    metric_planned = await plan_read(metric_plan, "2" * 32)
+                    metric_result = execute_gold_plan(reader, metric_planned, resolve_scope=resolve)
+                    assert metric_result.evidence.records == [{
+                        "value": expected, "unit": unit, "period": "2001-01",
+                    }]
                 dec_plan = LogicalReadPlan.model_validate({
                     "catalog_version": "v1",
                     "operation": "read",
@@ -300,6 +365,17 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "unit": "horas por UC",
                     "period": "2001-01",
                     "feeder": "AL-TESTE",
+                }]
+                fec_plan = LogicalReadPlan.model_validate({
+                    **dec_plan.model_dump(mode="json"),
+                    "metric_id": "network.equivalent_interruption_frequency",
+                    "unit": "interrupções por UC",
+                })
+                fec_planned = await plan_read(fec_plan, "3" * 32)
+                fec = execute_gold_plan(reader, fec_planned, resolve_scope=resolve)
+                assert fec.evidence.records == [{
+                    "value": 0.5, "unit": "interrupções por UC",
+                    "period": "2001-01", "feeder": "AL-TESTE",
                 }]
                 grouped_plan = LogicalReadPlan.model_validate({
                     **plan.model_dump(mode="json"),
@@ -336,6 +412,18 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 zero_planned = await plan_read(zero_plan, "d" * 32)
                 zero = execute_gold_plan(reader, zero_planned, resolve_scope=resolve)
                 assert zero.evidence is not None and zero.evidence.records[0]["value"] == 0.0
+                empty_plan = LogicalReadPlan.model_validate({
+                    **plan.model_dump(mode="json"),
+                    "filters": [{"dimension_id": "geography.municipality",
+                                 "operator": "eq", "values": ["Sem Dados Teste"]}],
+                })
+                empty_response = planned.response.model_copy(update={
+                    "plan": empty_plan, "plan_fingerprint": empty_plan.fingerprint(),
+                })
+                empty = execute_gold_plan(
+                    reader, replace(planned, response=empty_response), resolve_scope=resolve,
+                )
+                assert empty.status.value == "no_evidence" and empty.evidence is None
                 null_plan = LogicalReadPlan.model_validate({
                     **plan.model_dump(mode="json"),
                     "filters": [{
@@ -434,6 +522,34 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     with pytest.raises(DBAPIError) as error:
                         read.exec_driver_sql(statement)
                     assert error.value.orig.sqlstate == "42501"
+            # O teto do papel vale entre pools distintos, como em requisições
+            # concorrentes; saturação não pode deixar conexões emprestadas.
+            for existing_engine in created_engines:
+                existing_engine.dispose()
+            concurrent_engines = [create_genai_gold_engine(scopes[0]) for _ in range(9)]
+            created_engines.extend(concurrent_engines)
+            held_connections = []
+            try:
+                for concurrent_engine in concurrent_engines[:8]:
+                    held_connections.append(concurrent_engine.connect())
+                with pytest.raises(DBAPIError):
+                    concurrent_engines[8].connect()
+                assert concurrent_engines[8].pool.checkedout() == 0
+                with admin.connect() as inspect:
+                    assert inspect.scalar(text(
+                        "SELECT count(*) FROM pg_stat_activity WHERE usename = :role"
+                    ), {"role": GOLD_READER_ROLE}) == 8
+                held_connections.pop(0).close()
+                concurrent_engines[0].dispose()
+                with concurrent_engines[8].connect() as recovered_connection:
+                    assert recovered_connection.scalar(text("SELECT 1")) == 1
+            finally:
+                for held_connection in held_connections:
+                    held_connection.close()
+                for concurrent_engine in concurrent_engines:
+                    concurrent_engine.dispose()
+            assert all(item.pool.checkedout() == 0 for item in concurrent_engines)
+
             # Rotação real no banco descartável: a senha antiga não abre conexão
             # nova; o segredo atualizado volta a usar o mesmo papel restrito.
             new_password = uuid4().hex
