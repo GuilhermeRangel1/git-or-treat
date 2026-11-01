@@ -1,6 +1,6 @@
 """Operational user accounts and opaque browser sessions."""
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, JSON, String, func, true
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, JSON, String, func, true
 
 from app.db.base import Base
 
@@ -12,8 +12,16 @@ class AuthUser(Base):
     username = Column(String(128), nullable=False, unique=True)
     password_hash = Column(String(512), nullable=False)
     permissions = Column(JSON, nullable=False)
+    profile = Column(String(32), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, server_default=true())
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "profile IS NULL OR profile IN ('commercial', 'customer_service', 'losses', 'operations', 'admin')",
+            name="ck_auth_users_platform_profile",
+        ),
+    )
 
 
 class AuthSession(Base):
