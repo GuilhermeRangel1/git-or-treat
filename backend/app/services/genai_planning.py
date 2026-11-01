@@ -16,6 +16,7 @@ from app.repositories.gold_publication import GoldPublicationChanged
 from app.schemas.ai import AIQuestionError, AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_internal import (
     AccessScope,
+    DimensionValueCoverage,
     QuestionPlanRequest,
     QuestionPlanResponse,
 )
@@ -38,6 +39,7 @@ class GoldPlanningResult:
     source: CatalogSource | None = None
     access_scope: AccessScope | None = None
     deadline: GenAIRequestDeadline | None = None
+    dimension_value_coverage: tuple[DimensionValueCoverage, ...] = ()
 
 
 def _stop(status: QuestionPlanStatus, message: str, correlation_id: str):
@@ -151,7 +153,7 @@ async def plan_gold_question(
     deadline = GenAIRequestDeadline.start(35)
     if expected_batch_ref is not None:
         PublicationReference.parse(expected_batch_ref)
-    scope = resolve_scope()
+    scope = await deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
     publication = await deadline.run(
         35, lambda: asyncio.to_thread(GoldPublicationContext.capture, engine)
     )
@@ -169,7 +171,7 @@ async def plan_gold_question(
     )
     # Mesmo os esclarecimentos só podem ser publicados sobre a referência original.
     await deadline.run(35, lambda: asyncio.to_thread(publication.assert_current, engine))
-    current_scope = resolve_scope()
+    current_scope = await deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
     if current_scope != scope:
         return GoldPlanningResult(_stop(
             QuestionPlanStatus.REFUSED,
@@ -190,10 +192,13 @@ async def plan_gold_question(
             "Informe outro período ou recorte; ausência não equivale a zero.", correlation_id,
         ), publication, access_scope=scope)
     # A consulta de cobertura também pode consumir o prazo ou coincidir com uma revogação.
-    if resolve_scope() != scope:
+    current_scope = await deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
+    if current_scope != scope:
         return GoldPlanningResult(_stop(
             QuestionPlanStatus.REFUSED,
             "As permissões mudaram. Refaça a pergunta com o acesso atual.", correlation_id,
         ), publication, access_scope=scope)
     deadline.remaining_seconds(35)
-    return GoldPlanningResult(response, publication, source, scope, deadline)
+    return GoldPlanningResult(
+        response, publication, source, scope, deadline, payload.dimension_value_coverage,
+    )

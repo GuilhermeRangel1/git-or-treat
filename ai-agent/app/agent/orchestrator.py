@@ -289,6 +289,9 @@ class QuestionOrchestrator:
                 access_context,
                 expected_batch_ref=expected_batch_ref,
                 trace=trace,
+                dimension_value_coverage={
+                    item.dimension_id: item.values for item in request.dimension_value_coverage
+                },
             )
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)

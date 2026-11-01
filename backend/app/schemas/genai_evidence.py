@@ -1,12 +1,24 @@
 """Contrato interno de lookup v1; estados vazios não representam falha de execução."""
 
 from enum import StrEnum
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictStr, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictStr,
+    model_validator,
+)
 
 from app.schemas.ai import AIEvidenceReference
-from app.schemas.genai_plan import ContractVersion, LogicalIdentifier, ReadFilter, ReadWindow
+from app.schemas.genai_plan import (
+    ContractVersion,
+    LogicalIdentifier,
+    ReadFilter,
+    ReadWindow,
+)
 from app.schemas.gold_publication import PublicationReference
 
 
@@ -16,6 +28,25 @@ def _validate_batch_ref(value: str) -> str:
 
 
 GoldBatchRef = Annotated[StrictStr, AfterValidator(_validate_batch_ref)]
+
+
+class GoldEvidenceQuality(BaseModel):
+    """Resumo da prontidão aprovada para a capacidade usada nesta evidência."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    readiness_version: Literal["gold-readiness-v2"]
+    batch_ref: GoldBatchRef
+    lot_state: Literal["ready", "partial"]
+    available_capability_ids: tuple[LogicalIdentifier, ...] = Field(
+        min_length=1, max_length=64
+    )
+
+    @model_validator(mode="after")
+    def require_unique_capabilities(self) -> Self:
+        if len(self.available_capability_ids) != len(set(self.available_capability_ids)):
+            raise ValueError("capacidade repetida na qualidade da evidência")
+        return self
 
 
 class EvidenceProvenance(BaseModel):
@@ -31,6 +62,7 @@ class EvidenceProvenance(BaseModel):
     filters: tuple[ReadFilter, ...] = Field(default=(), max_length=20)
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
     batch_ref: GoldBatchRef | None = None
+    quality: GoldEvidenceQuality | None = None
 
 
 class EvidenceResult(BaseModel):

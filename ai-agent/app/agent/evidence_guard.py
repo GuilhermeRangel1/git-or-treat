@@ -93,6 +93,16 @@ class EvidenceGuard:
         if evidence.reference.is_demo and not plan.source_id.startswith("synthetic."):
             raise EvidenceContractInvalid("fonte externa devolveu evidência demonstrativa")
         provenance = evidence.provenance
+        quality = provenance.quality
+        if plan.source_id.startswith("gold."):
+            if (
+                quality is None
+                or quality.batch_ref != expected_batch_ref
+                or not quality.available_capability_ids
+            ):
+                raise EvidenceContractInvalid("qualidade da publicação incompatível")
+        elif quality is not None:
+            raise EvidenceContractInvalid("fonte sintética trouxe qualidade Gold")
         if provenance.batch_ref != expected_batch_ref:
             raise EvidenceContractInvalid("publicação incompatível com a esperada")
         if (

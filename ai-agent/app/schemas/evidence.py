@@ -1,7 +1,7 @@
 """Contratos de evidência compartilhados pelo núcleo e pelos adaptadores."""
 
 from enum import StrEnum
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
@@ -30,6 +30,25 @@ GoldBatchRef = Annotated[
 ]
 
 
+class GoldEvidenceQuality(BaseModel):
+    """Resumo da prontidão aprovada para a capacidade usada nesta evidência."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    readiness_version: Literal["gold-readiness-v2"]
+    batch_ref: GoldBatchRef
+    lot_state: Literal["ready", "partial"]
+    available_capability_ids: tuple[LogicalIdentifier, ...] = Field(
+        min_length=1, max_length=64
+    )
+
+    @model_validator(mode="after")
+    def require_unique_capabilities(self) -> Self:
+        if len(self.available_capability_ids) != len(set(self.available_capability_ids)):
+            raise ValueError("capacidade repetida na qualidade da evidência")
+        return self
+
+
 class EvidenceReference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -53,6 +72,7 @@ class EvidenceProvenance(BaseModel):
     filters: tuple[ReadFilter, ...] = Field(default=(), max_length=20)
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
     batch_ref: GoldBatchRef | None = None
+    quality: GoldEvidenceQuality | None = None
 
 
 class EvidenceResult(BaseModel):

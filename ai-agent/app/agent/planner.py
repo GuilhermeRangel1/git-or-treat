@@ -275,6 +275,7 @@ class QuestionAnalysisPlanner:
         *,
         expected_batch_ref: str | None = None,
         trace: EventTrace | None = None,
+        dimension_value_coverage: Mapping[str, tuple[str, ...]] | None = None,
     ) -> tuple[LogicalReadPlan, EvidenceLookupResult]:
         """Confere o resultado recebido de quem executou o plano; nunca chama a fonte.
 
@@ -282,7 +283,12 @@ class QuestionAnalysisPlanner:
         publicação esperada vem do chamador confiável, nunca do próprio lookup.
         """
 
-        approved = self._approve(plan, access_context, trace)
+        profile = self._profile_with_dimension_values(dimension_value_coverage)
+        validator = ReadPlanValidator(
+            profile, self._access_policy.source_id, self._access_policy,
+            max_rows=self._max_rows,
+        )
+        approved = self._approve(plan, access_context, trace, validator)
         try:
             if plan_fingerprint != approved.fingerprint():
                 raise EvidenceContractInvalid("fingerprint divergente do plano aprovado")
