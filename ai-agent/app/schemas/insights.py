@@ -4,7 +4,7 @@ import re
 from datetime import date
 from enum import StrEnum
 from math import isfinite
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import (
     BaseModel,
@@ -19,7 +19,8 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas.evidence import EvidenceReference
+from app.schemas.evidence import EvidenceReference, GoldBatchRef
+from app.schemas.internal import AccessScope
 from app.schemas.questions import QuestionStatus
 from app.schemas.responses import PublicResponseMetadata
 
@@ -143,6 +144,39 @@ class ScreenInsightRequest(BaseModel):
     screen: ScreenContext
 
 
+class GoldScreenContext(ScreenContext):
+    """Contexto restrito recebido exclusivamente do Backend autenticado."""
+
+    metric: Literal["Receita comparável"]
+    unit: Literal["R$"]
+
+    @model_validator(mode="after")
+    def require_synthetic_context(self) -> "GoldScreenContext":
+        if self.reference.is_demo or self.reference.source != "gold.local":
+            raise ValueError("insight Gold exige referência real gold.local")
+        if set(self.filters) != {"periodo", "comparacao", "municipio", "classe"}:
+            raise ValueError("filtros Gold fora do contrato do Panorama")
+        if len({item.label.casefold() for item in self.observations}) != len(self.observations):
+            raise ValueError("observações repetidas")
+        return self
+
+
+class GoldScreenInsightRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    screen: GoldScreenContext
+    batch_ref: GoldBatchRef
+    access_scope: AccessScope
+    remaining_timeout_ms: int = Field(strict=True, ge=1, le=35000)
+
+    @field_validator("batch_ref")
+    @classmethod
+    def require_gold_v2(cls, value):
+        if not value.startswith("gold-csv-v2:"):
+            raise ValueError("insight Gold exige publicação v2")
+        return value
+
+
 class InsightContextSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -159,7 +193,6 @@ class InsightObservation(BaseModel):
 
 
 class ScreenInsightResponse(PublicResponseMetadata):
-
     status: QuestionStatus
     context: InsightContextSummary
     observation: InsightObservation

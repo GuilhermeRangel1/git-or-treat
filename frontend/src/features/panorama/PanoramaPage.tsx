@@ -166,21 +166,14 @@ export default function PanoramaPage() {
             description="Não encontramos faturas ou medições para a combinação de filtros selecionada."
             onResetFilters={resetFilters}
           />
-          {data.origem?.kind === "gold" ? (
-            <p className="rounded-xl border border-[var(--line)] p-4 text-sm text-muted">
-              Insight indisponível para a fonte Gold até existir uma integração
-              de IA própria para este contrato.
-            </p>
-          ) : (
-            <div className="xl:max-w-[460px]">
-              <AIInsightCard
-                filters={filters}
-                data={data}
-                query={insight}
-                onRefreshIndicators={() => void refetch()}
-              />
-            </div>
-          )}
+          <div className="xl:max-w-[460px]">
+            <AIInsightCard
+              filters={filters}
+              data={data}
+              query={insight}
+              onRefreshIndicators={() => void refetch()}
+            />
+          </div>
         </>
       )}
 
@@ -234,7 +227,7 @@ export default function PanoramaPage() {
             />
           </section>
 
-          <div className="grid min-w-0 grid-cols-1 items-start gap-6">
+          <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]">
             <PanoramaSeriesChart
               data={data.serieMensal}
               selectedPeriod={filters.periodo}
@@ -242,18 +235,12 @@ export default function PanoramaPage() {
                 data.periodoIncompleto ? filters.periodo : undefined
               }
             />
-            {data.origem?.kind === "gold" ? (
-              <p className="rounded-lg bg-[var(--status-info-bg)] px-4 py-3 text-sm text-[var(--status-info-text)]">
-                Insights automáticos não estão disponíveis para esta fonte.
-              </p>
-            ) : (
-              <AIInsightCard
-                filters={filters}
-                data={data}
-                query={insight}
-                onRefreshIndicators={() => void refetch()}
-              />
-            )}
+            <AIInsightCard
+              filters={filters}
+              data={data}
+              query={insight}
+              onRefreshIndicators={() => void refetch()}
+            />
           </div>
 
           <footer className="space-y-6">

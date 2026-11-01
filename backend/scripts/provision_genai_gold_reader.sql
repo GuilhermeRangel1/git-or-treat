@@ -27,7 +27,7 @@ ALTER ROLE venergy_genai_reader SET search_path=pg_catalog;
 REVOKE ALL ON SCHEMA public, gold, gold_v2 FROM venergy_genai_reader;
 REVOKE ALL ON ALL TABLES IN SCHEMA public, gold, gold_v2 FROM venergy_genai_reader;
 GRANT USAGE ON SCHEMA gold, gold_v2 TO venergy_genai_reader;
-GRANT SELECT ON gold.publicacao_atual, gold.publicacao_linhagem TO venergy_genai_reader;
+GRANT SELECT ON gold.publicacao_atual, gold.publicacao_linhagem, gold.publicacao_contexto TO venergy_genai_reader;
 GRANT SELECT ("competencia", "municipio", "classe_consumo", "subgrupo_tarifario", "bandeira_tarifaria", "possui_gd", "receita_total_reais", "consumo_total_kwh", "receita_base_comparavel_reais", "consumo_base_comparavel_kwh", "qtd_ucs_distintas_faturadas_no_mes", "qtd_ucs_com_leitura") ON gold_v2.diagnostico_receita TO venergy_genai_reader;
 GRANT SELECT ("competencia", "municipio", "bairro", "classe_consumo", "receita_total_reais", "consumo_total_kwh", "receita_base_comparavel_reais", "consumo_base_comparavel_kwh", "qtd_ucs_distintas_faturadas_no_mes", "qtd_ucs_com_leitura") ON gold_v2.consumo_receita_bairro TO venergy_genai_reader;
 GRANT SELECT ("competencia", "municipio", "id_alimentador", "DEC", "FEC") ON gold_v2.indicadores_dec_fec TO venergy_genai_reader;
@@ -59,7 +59,7 @@ BEGIN
             OR has_any_column_privilege('venergy_genai_reader',obj.oid,'INSERT,UPDATE,REFERENCES') THEN
             RAISE EXCEPTION 'Permissão efetiva de escrita encontrada';
         END IF;
-        IF obj.nspname='gold' AND obj.relname IN ('publicacao_atual','publicacao_linhagem') THEN
+        IF obj.nspname='gold' AND obj.relname IN ('publicacao_atual','publicacao_linhagem','publicacao_contexto') THEN
             CONTINUE;
         END IF;
         IF EXISTS (

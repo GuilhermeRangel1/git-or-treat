@@ -1,7 +1,6 @@
 from typing import ClassVar, Protocol
 
 from sqlalchemy import func, select
-from sqlalchemy.engine import Connection
 
 from app.core.config import settings
 from app.repositories.analytics import AnalyticsSourceUnavailable
@@ -79,6 +78,23 @@ class GoldPanoramaRepository:
         ).where(*conditions)
         row = self.connection.execute(statement).mappings().one()
         return dict(row)
+
+    def revenue_groups(self, current, previous, dimension, municipio=None, classe=None):
+        """Agrega somente colunas financeiras concedidas; limita a decomposição."""
+        table = self.table
+        column = {"municipio": table.c.municipio, "classe": table.c.classe_consumo}[dimension]
+        conditions = [table.c.competencia.in_((current, previous))]
+        if municipio is not None:
+            conditions.append(table.c.municipio == municipio)
+        if classe is not None:
+            conditions.append(table.c.classe_consumo == classe)
+        return list(self.connection.execute(select(
+            column.label("segment"), table.c.competencia.label("period"),
+            func.sum(table.c.receita_base_comparavel_reais).label("revenue"),
+            func.count().label("rows"),
+            func.count(table.c.receita_base_comparavel_reais).label("values"),
+        ).where(*conditions).group_by(column, table.c.competencia)
+          .order_by(column, table.c.competencia).limit(1001)).mappings())
 
     def billed_uc_count(self, competencia: str, municipio: str | None = None, classe: str | None = None) -> int:
         monthly = TABLES["consumo_mensal_uc"]

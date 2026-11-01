@@ -35,11 +35,17 @@ def gold_engine() -> Engine:
         with engine.begin() as connection:
             connection.exec_driver_sql("CREATE SCHEMA gold_v2")
             BATCH.create(connection)
+            connection.exec_driver_sql("CREATE SCHEMA gold")
+            connection.exec_driver_sql("CREATE VIEW gold.publicacao_contexto AS "
+                "SELECT schema_version,lote,publication_id,fingerprint,importado_em "
+                "FROM public.gold_carga_atual WHERE id=1")
             TABLES["indicadores_dec_fec"].create(connection)
         yield engine
     finally:
         with engine.begin() as connection:
             TABLES["indicadores_dec_fec"].drop(connection, checkfirst=True)
+            connection.exec_driver_sql("DROP VIEW gold.publicacao_contexto")
+            connection.exec_driver_sql("DROP SCHEMA gold")
             BATCH.drop(connection, checkfirst=True)
             connection.exec_driver_sql("DROP SCHEMA gold_v2")
         engine.dispose()

@@ -70,6 +70,13 @@ function filterLabel(value: string, allLabel: string) {
 
 function formatValue(value: number | null, unit: string) {
   if (value == null) return "Indisponível";
+  if (unit === "R$" || unit === "BRL")
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
   return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value)} ${unit}`;
 }
 
@@ -107,7 +114,7 @@ function describeContribution(
   const dimension = contribution.dimension === "classe" ? "da classe" : "de";
   const movement = analysis.direcao === "queda" ? "queda" : "alta";
   const share = formatPercentage(contribution.participacaoPercentual);
-  return `A maior ${movement} veio ${dimension} ${contribution.segmento}: ${formatValue(Math.abs(contribution.variacaoAbsoluta), unit)}${share ? ` (${share} da ${analysis.direcao === "queda" ? "redução" : "alta"})` : ""}.`;
+  return `A maior ${movement} veio ${dimension} ${contribution.segmento}: ${formatValue(Math.abs(contribution.variacaoAbsoluta), unit)}${share ? ` (${share} das ${analysis.direcao === "queda" ? "reduções observadas" : "altas observadas"})` : ""}.`;
 }
 
 function describeOffset(
@@ -182,10 +189,14 @@ export default function AIInsightCard({
   const detailsDialogRef = useRef<HTMLDialogElement>(null);
   const detailsTriggerRef = useRef<HTMLButtonElement>(null);
   const restoreDetailsFocusRef = useRef(false);
-  const metric = data.metricas.energiaFaturada;
+  const isDemo = data.origem?.isDemo ?? true;
+  const metric = isDemo
+    ? data.metricas.energiaFaturada
+    : data.metricas.receitaFaturada;
   // A failed refetch can leave TanStack Query's previous response in `data`.
   // Never present that cached interpretation as current after an error.
-  const response = query.isError ? undefined : query.data;
+  const response =
+    query.isError || (!isDemo && query.isFetching) ? undefined : query.data;
   const insight = response?.insight;
   const analysis = response?.analysis;
   const pending =
@@ -205,9 +216,10 @@ export default function AIInsightCard({
       `A competência ${periodLabel(filters.periodo)} está em aberto; a comparação pode não estar disponível.`,
     );
   }
-  limitations.push(
-    "Os números são fictícios e servem apenas para demonstração; não representam dados operacionais reais.",
-  );
+  if (isDemo)
+    limitations.push(
+      "Os números são fictícios e servem apenas para demonstração; não representam dados operacionais reais.",
+    );
   const uniqueLimitations = [...new Set(limitations)];
 
   let stateMessage = "";
@@ -292,7 +304,8 @@ export default function AIInsightCard({
                 Insight do Panorama
               </p>
               <p className="text-xs text-muted">
-                Análise assistida por IA · dados demonstrativos
+                Análise assistida por IA ·{" "}
+                {isDemo ? "dados demonstrativos" : "dados Gold"}
               </p>
             </div>
           </div>
@@ -673,7 +686,10 @@ export default function AIInsightCard({
                     </div>
                     <div>
                       <p className="font-semibold">Fonte e lote</p>
-                      <p>Dados sintéticos · {data.loteVersao}</p>
+                      <p>
+                        {isDemo ? "Dados sintéticos" : "Dados Gold"} ·{" "}
+                        {data.loteVersao}
+                      </p>
                       <p>Atualizado em {data.dataAtualizacao}</p>
                       {insight?.evidence.map((item) => (
                         <p

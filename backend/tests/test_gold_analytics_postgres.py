@@ -49,17 +49,23 @@ def gold_engine() -> Engine:
             assert not tables, "Gold test database must have an empty public schema before setup."
         with engine.begin() as connection:
             connection.exec_driver_sql("CREATE SCHEMA gold_v2")
+            connection.exec_driver_sql("CREATE SCHEMA gold")
             BATCH.create(connection, checkfirst=True)
             TABLES["diagnostico_receita"].create(connection, checkfirst=True)
             TABLES["indicadores_dec_fec"].create(connection, checkfirst=True)
             TABLES["consumo_mensal_uc"].create(connection, checkfirst=True)
             TABLES["visao_360_uc"].create(connection, checkfirst=True)
+            connection.exec_driver_sql("CREATE VIEW gold.publicacao_contexto AS "
+                "SELECT schema_version,lote,publication_id,fingerprint,importado_em "
+                "FROM public.gold_carga_atual WHERE id=1")
         created = True
         yield engine
     finally:
         try:
             if created:
                 with engine.begin() as connection:
+                    connection.exec_driver_sql("DROP VIEW gold.publicacao_contexto")
+                    connection.exec_driver_sql("DROP SCHEMA gold")
                     for table in (TABLES["diagnostico_receita"], TABLES["indicadores_dec_fec"], TABLES["consumo_mensal_uc"], TABLES["visao_360_uc"], BATCH):
                         table.drop(connection, checkfirst=True)
                     connection.exec_driver_sql("DROP SCHEMA gold_v2")
@@ -349,3 +355,98 @@ def test_gold_panorama_http_uses_artificial_publication(gold_engine, published_a
         assert stale.status_code == 409
         unauthenticated = client.get("/api/v1/panorama")
         assert unauthenticated.status_code == 401
+
+
+def test_gold_insight_matches_visible_kpi_and_independent_sql(gold_engine, published_artificial_gold):
+    from sqlalchemy import select, func
+    from app.repositories.panorama import GoldPanoramaRepository
+    from app.schemas.ai_insight import PanoramaInsightRequest
+    from app.services.gold_panorama_insights import build_gold_panorama_insight
+    from app.services.panorama import build_gold_panorama
+    with gold_engine.connect() as connection:
+        repository = GoldPanoramaRepository(load_gold_context(connection))
+        request = PanoramaInsightRequest(filters={"periodo": "2025-02", "comparacao": "anterior",
+            "municipio": "Cidade Teste", "classe": "RESIDENCIAL"}, loteVersao="dev131-test")
+        prepared, metric, source, analysis = build_gold_panorama_insight(repository, request)
+        visible = build_gold_panorama(repository, "2025-02", "anterior", "Cidade Teste", "RESIDENCIAL")
+        table = TABLES["diagnostico_receita"]
+        independent = connection.scalar(select(func.sum(table.c.receita_base_comparavel_reais)).where(
+            table.c.competencia == "2025-02", table.c.municipio == "Cidade Teste",
+            table.c.classe_consumo == "RESIDENCIAL"))
+        assert prepared.screen.observations[0].value == float(independent) == 110
+        assert prepared.screen.observations[0].value == visible.metricas["receitaFaturada"].valorAtual
+        assert prepared.screen.observations[1].value == 80
+        assert prepared.screen.observations[2].value == 30
+        assert analysis.direcao == "alta" and analysis.variacaoPercentual == 37.5
+        assert not source.isDemo and metric.id == "rec_fat"
+        assert any("fechamento mensal" in item for item in prepared.screen.limitations)
+
+
+@pytest.mark.parametrize("value,expected", [(Decimal("0"), "answered"), (None, "no_evidence")])
+def test_gold_insight_preserves_zero_and_missing_values(gold_engine, published_artificial_gold, value, expected):
+    from sqlalchemy import update
+    from app.repositories.panorama import GoldPanoramaRepository
+    from app.schemas.ai_insight import AIInsightRequest, PanoramaInsightRequest
+    from app.services.gold_panorama_insights import build_gold_panorama_insight
+    from app.services.panorama_insights import StalePanoramaInsight
+    with gold_engine.begin() as connection:
+        table = TABLES["diagnostico_receita"]
+        connection.execute(update(table).where(table.c.competencia == "2025-02").values(
+            receita_base_comparavel_reais=value))
+        repository = GoldPanoramaRepository(load_gold_context(connection))
+        request = PanoramaInsightRequest(filters={"periodo": "2025-02", "comparacao": "nenhuma",
+            "municipio": "Cidade Teste", "classe": "RESIDENCIAL"}, loteVersao="dev131-test")
+        prepared, _, _, _ = build_gold_panorama_insight(repository, request)
+        if expected == "answered":
+            assert isinstance(prepared, AIInsightRequest)
+            assert prepared.screen.observations[0].value == 0
+        else:
+            assert prepared.status == "no_evidence" and prepared.observation.values == []
+        with pytest.raises(StalePanoramaInsight):
+            build_gold_panorama_insight(repository, request.model_copy(update={"loteVersao": "old"}))
+
+
+def test_gold_contribution_uses_gross_same_sign_denominator(gold_engine, published_artificial_gold):
+    from app.repositories.panorama import GoldPanoramaRepository
+    from app.schemas.ai_insight import PanoramaInsightRequest
+    from app.services.gold_panorama_insights import build_gold_panorama_insight
+    with gold_engine.begin() as connection:
+        for city, current, previous in (("Compensação Teste", 30, 50), ("Alta Teste", 20, 10)):
+            connection.execute(TABLES["diagnostico_receita"].insert(), [{
+                "competencia": period, "municipio": city, "classe_consumo": "RESIDENCIAL",
+                "subgrupo_tarifario": "B1", "bandeira_tarifaria": "VERDE", "possui_gd": "Não",
+                "receita_base_comparavel_reais": value,
+            } for period, value in (("2025-01", previous), ("2025-02", current))])
+        repository = GoldPanoramaRepository(load_gold_context(connection))
+        request = PanoramaInsightRequest(filters={"periodo": "2025-02", "comparacao": "anterior",
+            "municipio": "todos", "classe": "RESIDENCIAL"}, loteVersao="dev131-test")
+        prepared, _, _, analysis = build_gold_panorama_insight(repository, request)
+        assert [v.value for v in prepared.screen.observations[:3]] == [160, 140, 20]
+        assert analysis.principalContribuicao.segmento == "Cidade Teste"
+        assert analysis.principalContribuicao.variacaoAbsoluta == 30
+        assert analysis.principalContribuicao.participacaoPercentual == 75
+        assert analysis.compensacao.variacaoAbsoluta == -20
+        assert analysis.compensacao.participacaoPercentual == 100
+
+
+def test_gold_insight_partial_and_empty_slices_are_explicit(gold_engine, published_artificial_gold):
+    from app.repositories.panorama import GoldPanoramaRepository
+    from app.schemas.ai_insight import PanoramaInsightRequest
+    from app.services.gold_panorama_insights import build_gold_panorama_insight
+    with gold_engine.begin() as connection:
+        connection.execute(TABLES["diagnostico_receita"].insert(), {
+            "competencia": "2025-02", "municipio": "Cidade Teste", "classe_consumo": "RESIDENCIAL",
+            "subgrupo_tarifario": "B2", "bandeira_tarifaria": "VERDE", "possui_gd": "Não",
+            "receita_base_comparavel_reais": None})
+        repo = GoldPanoramaRepository(load_gold_context(connection))
+        request = PanoramaInsightRequest(filters={"periodo": "2025-02", "comparacao": "anterior",
+            "municipio": "Cidade Teste", "classe": "RESIDENCIAL"}, loteVersao="dev131-test")
+        prepared, _, _, analysis = build_gold_panorama_insight(repo, request)
+        assert prepared.screen.observations[0].value == 110
+        assert len(prepared.screen.observations) == 1
+        assert any("ausentes" in text for text in prepared.screen.limitations)
+        assert analysis.direcao == "indisponivel"
+        empty = request.model_copy(update={"filters":request.filters.model_copy(update={
+            "periodo":"2025-01", "municipio":"Outra Cidade", "classe":"COMERCIAL"})})
+        response, _, _, _ = build_gold_panorama_insight(repo, empty)
+        assert response.status == "no_evidence" and response.evidence == []

@@ -4,6 +4,10 @@
 
 O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite. As portas são publicadas somente em localhost por segurança; acesso de outro dispositivo exige ingresso configurado deliberadamente. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
 
+## GENAI-12 — insight do Panorama Gold v2
+
+O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do KPI. O Backend coordena sessão individual, prontidão, leitor restrito/snapshot, síntese interna e auditoria durável; a GenAI reutiliza o núcleo de insight. O portal distingue Gold de demonstração, preserva recorte/fundamento/limitações e prioriza falhas sobre cache antigo. Migração `genai12000001` publica somente metadados mínimos por view, sem acesso direto à tabela operacional de carga. Contrato, implantação e reprodução: [insight do Panorama](../contracts/panorama-insight-api.md); evidências e limites: [GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Os registros anteriores sobre ausência de insight externo são históricos; a rota pública GenAI demonstrativa permanece separada da entrada interna Gold.
+
 ## Arquitetura adotada
 
 A revisão DEV-02 de 25/10/2026 validou o checklist sintético do Panorama: filtros e histórico da URL, oito métricas auditáveis, série de receita e estados de carregamento/erro/vazio/parcial/base zero. Base anterior zero, comparação desativada e falta de registros no período comparativo são mensagens distintas. A formatação da atualização é compartilhada entre a página e o painel de estado. Ver [revisão final e controles numéricos](../plans/2026-10-25-dev02-panorama-review.md); WEB-01 e WEB-07 não são concluídos pela validação sintética.

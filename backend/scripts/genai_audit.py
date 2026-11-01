@@ -132,12 +132,30 @@ def _verify_reference(reference: str, plan_path: Path, audit_store: AuditStore) 
         reader.dispose()
 
 
+def _verify_insight_reference(reference: str, request_path: Path, audit_store: AuditStore) -> bool:
+    from app.core.genai_gold_database import create_genai_gold_engine
+    from app.schemas.ai_insight import PanoramaInsightRequest
+    from app.services.gold_panorama_coordination import verify_audited_panorama_insight
+    session_token = getpass.getpass("Sessão individual atual (cookie grid360_session): ")
+    scope = _resolve_session_scope(session_token)
+    request = PanoramaInsightRequest.model_validate_json(request_path.read_text(encoding="utf-8"))
+    reader = create_genai_gold_engine(scope)
+    try:
+        return verify_audited_panorama_insight(audit_store, reference, reader, operational_engine,
+            request, resolve_scope=lambda: _resolve_session_scope(session_token))
+    finally:
+        reader.dispose()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--reference", help="Consulta eventos sanitizados por referência.")
     action.add_argument("--verify-reference", help="Reproduz execução com sessão atual e plano privado.")
+    action.add_argument("--verify-insight-reference", help="Recalcula contexto do insight Gold autorizado.")
     action.add_argument("--purge", action="store_true")
+    parser.add_argument("--insight-request-file", type=Path,
+        help="JSON privado com filtros e lote originais, sem valores observados.")
     parser.add_argument(
         "--plan-file", type=Path,
         help="JSON privado com o LogicalReadPlan original; usado somente com --verify-reference.",
@@ -148,6 +166,8 @@ def main() -> int:
     if args.verify_reference is not None and args.plan_file is None:
         parser.error("--verify-reference exige --plan-file.")
 
+    if bool(args.verify_insight_reference) != bool(args.insight_request_file):
+        parser.error("--verify-insight-reference exige --insight-request-file e vice-versa.")
     audit_engine = None
     try:
         audit_engine = _create_audit_engine()
@@ -156,6 +176,11 @@ def main() -> int:
             result = {"removed": store.purge()}
         elif args.reference:
             result = store.read_reference(args.reference)
+        elif args.verify_insight_reference:
+            reproduced = _verify_insight_reference(args.verify_insight_reference, args.insight_request_file, store)
+            result = {"audit_reference": args.verify_insight_reference, "reproduced": reproduced}
+            if not reproduced:
+                raise ValueError("Contexto de insight divergente.")
         else:
             reproduced = _verify_reference(args.verify_reference, args.plan_file, store)
             result = {"audit_reference": args.verify_reference, "reproduced": reproduced}

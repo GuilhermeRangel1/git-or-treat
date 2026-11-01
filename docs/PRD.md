@@ -3000,6 +3000,15 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Gold v1 fica restrita à compatibilidade legada explícita. Versão de envelope HTTP v1 não é versão dos dados; fixtures sintéticas continuam úteis para CI e não certificam aceite real. Capacidades v2 insuficientes continuam bloqueadas, sem fallback.
 - Mudança documental de orientação e revisão, sem remoção de código ou alteração de estados funcionais IA. Sincronização no cartão transversal do quadro GenAI para todos os colaboradores.
 
+
+### 01/11/2026 — IA-03 / IA-04 / IA-05 — GENAI-12: insight do Panorama Gold v2
+
+- Estado oficial preservado: IA-03, IA-04 e IA-05 seguem em validação. GENAI-12 tem os dez critérios técnicos comprovados na entrega local da branch independente `feat/genai-insights-panorama`, base `b804b58`; alterações ainda sem commit/push.
+- Backend recompõe receita comparável pelo mesmo cálculo financeiro do KPI, com sessão individual, prontidão, leitor restrito, snapshot/publicação v2, prazo e auditoria durável. GenAI reutiliza o núcleo de insight por entrada interna autenticada; portal mantém dado observado, hipótese, contexto e fundamento separados e esconde sucesso antigo após erro/409.
+- Evidência Gold: jornada autenticada com Gemini no portal, dois recortes, consulta SQL independente de observações/comparação, referência pública reproduzida e contexto adulterado recusado. Desktop/mobile e claro/escuro, fundamento, Escape e foco conferidos. Conta temporária e sessões removidas; capturas privadas fora dos commits.
+- Verificações: 51 GenAI, 64 Backend (PostgreSQL descartável/migrações incluídos) e 36 frontend passaram; build, fronteiras, formatação, Ruff/compilação e diff-check passaram. Lint sem erros, com aviso preexistente do AuthProvider. Revisão por padrões e especificação corrigiu 409, comparação ausente, v1, timeout e ACL configurável de metadados.
+- Migração `genai12000001` publica metadados mínimos por view, sem conceder a tabela operacional de carga. Comparação descreve valores publicados, não fechamento mensal nem causalidade. [Contrato e reprodução](contracts/panorama-insight-api.md), [evidência e limites GENAI-12](plans/2026-11-01-genai12-panorama-gold.md). Sincronizar os dez itens técnicos no cartão, sem concluir automaticamente os requisitos oficiais.
+
 ### 01/11/2026 — IA-03 / IA-05 — início GENAI-11: apresentação da conversa
 
 - Branch `feat/genai-assistente-gold`, base develop `b804b58`: resposta quantitativa usa rótulo de negócio do perfil, com fallback legível para perfis legados sem rótulo; IDs internos continuam nos contratos, não na frase gerada. Números e fundamentação continuam derivados das observações aprovadas.
@@ -3159,7 +3168,22 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Verificações da combinação: 3.998 testes GenAI/3 skips; 887 Backend/105 skips; 33 testes do Assistente e build frontend passaram. Ruff do orquestrador e diff-check passaram. Revisão de especificação não encontrou bloqueio na resolução.
 - Não houve nova jornada visual nem chamada Gemini nesta integração. Publicação esperada enviada pelo Assistente continua pendência explícita de GENAI-13; requisitos oficiais não são concluídos por este merge.
 
+
+### 01/11/2026 — integração local Panorama, Assistente e contratos Gold
+
+- Rotas combinadas preservam publicação esperada/catálogo físico no chat e a síntese interna autenticada do insight Gold. A versão Playwright permanece fixada em1.64.1 e os scripts de motion e Panorama coexistem.
+- Verificações: GenAI 4.005 passaram/3 skips; Backend 897 passaram/110 skips; 69 testes de Panorama/Assistente, build e formatação passaram. Ruff das rotas resolvidas e diff-check passaram; revisão estática da resolução sem bloqueios.
+- PostgreSQL: tentativa inicial rejeitada por papel de teste privilegiado, sem relaxar as verificações. Reexecução em dois bancos novos descartáveis com papel NOSUPERUSER: 27 testes passaram, incluindo leituras analíticas e ciclo de migração. Bancos e papel temporários removidos ao final.
+- Não houve nova jornada visual ou chamada Gemini. As lacunas de preflight da tela previstas em GENAI-13 permanecem registradas; requisitos oficiais não são concluídos automaticamente por esta integração.
+
 ### 01/11/2026 — GENAI-10A — integração com a cobertura entregue
 
 - Branch do PR99 atualizada com a develop após o merge #102, preservando por merge os commits funcionais e os registros de progresso das duas entregas.
 - Matriz, runner e contrato do catálogo: 307 testes passaram na própria worktree atualizada. Classes observadas, pendências e escopo de aceite técnico mantidos; não houve nova chamada Gemini ou validação visual.
+
+
+### 01/11/2026 — IA-04 — insight ao lado do gráfico
+
+- A pedido da pessoa usuária e conforme a referência visual enviada, Panorama usa duas colunas em telas a partir de1280px: gráfico flexível e insight de280–320px à direita, com alturas alinhadas. Em telas menores permanece empilhado, gráfico antes do insight.
+- Arquivo: frontend/src/features/panorama/PanoramaPage.tsx, na branch do PR103. Tokens, conteúdo e controles do card preservados.
+- npm run build e npm run format:check passaram. Sem nova prova visual: navegador local segue indisponível; não declarar fidelidade visual validada nesta rodada.
