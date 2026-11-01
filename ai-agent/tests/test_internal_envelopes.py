@@ -380,3 +380,11 @@ def test_scope_without_permissions_can_reach_the_core_for_refusal() -> None:
     result = QuestionPlanRequest.model_validate(payload)
     assert result.access_scope.allowed_metric_ids == frozenset()
     assert result.temporal_coverage == ()
+
+
+@pytest.mark.parametrize("dimension", ["geography.unapproved", "customer.consumer_unit"])
+def test_synthesis_rejects_vocabulary_outside_scope_or_personal(dimension):
+    payload = _synthesis()
+    payload["dimension_value_coverage"] = [{"dimension_id": dimension, "values": ["X"]}]
+    with pytest.raises(ValidationError):
+        QuestionSynthesisRequest.model_validate(payload)

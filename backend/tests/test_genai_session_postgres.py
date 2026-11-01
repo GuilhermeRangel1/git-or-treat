@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
+import httpx
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -18,6 +19,7 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from app.api.v1.endpoints.ai import questions_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.core.config import settings
 from app.core.database import get_db
@@ -34,12 +36,14 @@ from app.models.gold_v2_load import TABLES
 from app.schemas.ai import AIQuestionRequest
 from app.schemas.genai_internal import AccessScope, QuestionPlanResponse
 from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus, ReadWindow
-from app.services.genai_client import GenAITimeout
+from app.schemas.gold_readiness import GoldReadinessReport
+from app.services.genai_client import GenAIQuestionClient, GenAITimeout
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, _query, execute_gold_plan
 from app.services.genai_planning import plan_gold_question
 from app.services.gold_catalog import load_gold_catalog
 from app.services.gold_import import import_gold
+from tests.support.genai_transport import dispatch_genai
 from tests.support.migrations import migrated_database
 from tests.test_gold_import import batch  # noqa: F401 - fixture compartilhada
 
@@ -187,6 +191,29 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
 
             api = FastAPI()
             api.include_router(auth_router, prefix="/api/v1/auth")
+            api.include_router(questions_router, prefix="/api/v1/ai")
+
+            @api.middleware("http")
+            async def correlation(request, call_next):
+                request.state.correlation_id = "4" * 32
+                return await call_next(request)
+
+            api.state.genai_question_client = GenAIQuestionClient(
+                http_client=httpx.AsyncClient(transport=httpx.MockTransport(dispatch_genai)),
+                base_url="http://genai",
+                service_token="test-coordination-service-token-0000000000",
+            )
+            monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+            async def controlled_readiness(planned):
+                # Contrato de integração: aprovação artificial explícita; não
+                # substitui a avaliação real dos controles da publicação.
+                return GoldReadinessReport(
+                    readiness_version="gold-readiness-v2",
+                    batch_ref=planned.publication.batch_ref, lot_state="partial",
+                    capabilities={"faturamento.receita": {"status": "available"}},
+                )
+            api.state.genai_gold_readiness_gate = controlled_readiness
+
             api.dependency_overrides[get_db] = operational_db
 
             class PlannedClient:
@@ -529,6 +556,48 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert result.json()["read_only"] is True
                     callers.append(result.json()["caller"])
                     cache_scopes.append(result.json()["cache_scopes"])
+                public = client.post("/api/v1/ai/questions", headers=origin, json={
+                    "question": "Qual a receita em Cidade Teste em janeiro de 2001?",
+                })
+                assert public.status_code == 200, public.text
+                assert public.json()["status"] == "answered", public.text
+                assert public.json()["correlation_id"] == "4" * 32
+                assert public.json()["evidence"]
+                api.state.genai_gold_readiness_gate = None
+                blocked = client.post("/api/v1/ai/questions", headers=origin, json={
+                    "question": "Qual a receita em Cidade Teste em janeiro de 2001?",
+                })
+                assert blocked.status_code == 503
+                del api.state.genai_gold_readiness_gate
+                default_readiness = client.post("/api/v1/ai/questions", headers=origin, json={
+                    "question": "Qual a receita em Cidade Teste em janeiro de 2001?",
+                })
+                assert default_readiness.status_code == 503
+                api.state.genai_gold_readiness_gate = controlled_readiness
+
+                missing_month = client.post("/api/v1/ai/questions", headers=origin, json={
+                    "question": "Qual a receita em Cidade Teste em março de 2001?",
+                })
+                assert missing_month.status_code == 200
+                assert missing_month.json()["status"] == "needs_clarification"
+                assert not missing_month.json()["evidence"]
+                original_client = api.state.genai_question_client
+                class OfflineClient:
+                    async def plan(self, *args, **kwargs):
+                        from app.services.genai_client import GenAIServiceUnavailable
+                        raise GenAIServiceUnavailable
+                    async def ask(self, *args, **kwargs):
+                        raise AssertionError("Gold indisponível não ativa demonstração")
+                api.state.genai_question_client = OfflineClient()
+                try:
+                    offline = client.post("/api/v1/ai/questions", headers=origin, json={
+                        "question": "Qual a receita em Cidade Teste em janeiro de 2001?",
+                    })
+                    assert offline.status_code == 503
+                    assert offline.json()["error"]["code"] == "service_unavailable"
+                finally:
+                    api.state.genai_question_client = original_client
+
                 assert callers[0] != callers[1]
                 assert all(
                     first != second
