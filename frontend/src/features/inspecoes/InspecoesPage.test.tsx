@@ -221,6 +221,13 @@ it("na Gold v2 desativa ordenação por energia e preserva a volta do detalhe", 
   const user = userEvent.setup();
   mount("/inspecoes?municipio=Recife&page=1");
   await firstEvidenceLink();
+  expect(
+    screen.getByText(
+      /A fonte não fornece estimativa individual de energia recuperável/,
+    ),
+  ).toBeVisible();
+  expect(screen.queryByText("Estimativa indisponível")).not.toBeInTheDocument();
+  expect(screen.getAllByText("Histórico confirmado").length).toBeGreaterThan(0);
   await user.click(screen.getByRole("button", { name: /Ajustar filtros/ }));
   expect(
     screen.getByRole("option", { name: /Energia estimada \(indisponível\)/ }),

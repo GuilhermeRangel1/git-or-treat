@@ -1417,7 +1417,11 @@ describe("Receita", () => {
     expect(within(breakdown).getByText("Base pequena")).toBeVisible();
     expect(within(breakdown).getByText(/Antes: 4/)).toBeVisible();
     expect(within(breakdown).getByText(/Final: 4 UCs/)).toBeVisible();
-    expect(screen.getByText("Indisponível")).toBeVisible();
+    expect(
+      within(
+        screen.getByRole("region", { name: "Resumo da receita" }),
+      ).getByText("Percentual indisponível"),
+    ).toBeVisible();
   });
 
   it("keeps an absolute delta but withholds price-volume effects when initial revenue is zero", async () => {

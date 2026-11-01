@@ -119,16 +119,6 @@ export default function UC360SearchPanel({
           Buscando unidades…
         </p>
       )}
-      {provenance?.source.kind === "gold_csv" && (
-        <DataProvenance
-          source={provenance.source}
-          period={provenance.period}
-          units={["UCs"]}
-          limitations={provenance.limitations}
-          periodLabel="Cobertura do consumo no lote"
-          periodNote="A busca consulta o cadastro atual; esta cobertura mensal não representa sua vigência histórica."
-        />
-      )}
       {results && !results.data.items.length && (
         <p className="text-sm text-muted" role="status">
           Nenhuma unidade corresponde a “{query}”.
@@ -177,6 +167,16 @@ export default function UC360SearchPanel({
             Próxima
           </button>
         </div>
+      )}
+      {provenance?.source.kind === "gold_csv" && (
+        <DataProvenance
+          source={provenance.source}
+          period={provenance.period}
+          units={["UCs"]}
+          limitations={provenance.limitations}
+          periodLabel="Cobertura do consumo no lote"
+          periodNote="A busca consulta o cadastro atual; esta cobertura mensal não representa sua vigência histórica."
+        />
       )}
     </section>
   );

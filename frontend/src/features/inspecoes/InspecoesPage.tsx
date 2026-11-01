@@ -201,16 +201,6 @@ export default function InspecoesPage() {
 
       {!invalid && active.data && metadata ? (
         <>
-          {metadata.source.kind === "gold_csv" && (
-            <DataProvenance
-              source={metadata.source}
-              period={metadata.period}
-              units={["UCs", "inspeções", "kWh (estimativa indisponível)"]}
-              limitations={metadata.limitations}
-              periodLabel="Cobertura do consumo no lote"
-              periodNote="São os extremos das competências de consumo observadas; não comprovam todos os meses. A fila não fornece competência própria nem janela dos históricos acumulados. Esse intervalo não é o período da suspeita."
-            />
-          )}
           {parsed?.detail && detail.data ? (
             <>
               <SuspicionDetail data={detail.data.data} metadata={metadata} />
@@ -250,7 +240,7 @@ export default function InspecoesPage() {
                   <p className="mt-1 text-sm leading-[22px]">
                     {metadata.source.is_demo
                       ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
-                      : "Categorias e histórico vêm dos CSVs e são descritos no dicionário Gold. Score e energia recuperável não foram fornecidos."}
+                      : "Categorias e histórico vêm da Gold. A fonte não fornece estimativa individual de energia recuperável."}
                   </p>
                 </div>
               </aside>
@@ -261,6 +251,17 @@ export default function InspecoesPage() {
               />
             </>
           ) : null}
+
+          {metadata.source.kind === "gold_csv" && (
+            <DataProvenance
+              source={metadata.source}
+              period={metadata.period}
+              units={["UCs", "inspeções", "kWh"]}
+              limitations={metadata.limitations}
+              periodLabel="Cobertura do consumo no lote"
+              periodNote="São os extremos das competências de consumo observadas; não comprovam todos os meses. A fila não fornece competência própria nem janela dos históricos acumulados. Esse intervalo não é o período da suspeita."
+            />
+          )}
 
           <footer className="flex flex-col items-stretch gap-2 text-xs text-muted sm:flex-row sm:items-center sm:gap-4">
             <p className="w-full sm:max-w-[600px]">

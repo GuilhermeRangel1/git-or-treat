@@ -457,6 +457,19 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-11-01 — WEB-02 / WEB-03 / WEB-04 / WEB-07 — hierarquia das jornadas Gold
+
+- Estados preservados. Receita apresenta o resumo antes da proveniência, preserva energia faturada indisponível com explicação e reúne uma vez as limitações comuns a todos os recortes; avisos específicos permanecem nas linhas. UC 360 prioriza resultados, período e comparação, informa ausência do titular e mantém a tabela duplicada acessível por expansão. Inspeções prioriza a fila e explica a ausência de estimativa individual uma vez; o detalhe conserva o campo indispensável. Proveniência completa permanece ao final das consultas.
+- Revisão no navegador com a publicação Gold local: Receita, busca/detalhe de uma UC e fila de Inspeções carregaram. Identificada e reduzida quebra de valores longos em cartões de Receita. Não houve auditoria responsiva integral nem homologação humana. Os critérios de aceite oficiais e dependências de autenticação permanecem abertos.
+- Verificações: 60 testes dirigidos das três jornadas passaram; build, lint, fronteiras (151 arquivos) e formatação passaram. Na primeira suíte completa, 302 testes passaram e uma expectativa de texto anterior falhou; após atualizar a expectativa para o cartão correto, a suíte dirigida passou. Trello não conectado.
+
+### 2026-11-01 — WEB-03 / WEB-04 — apresentação das ausências Gold v2
+
+- Estados preservados. O histórico de faturas mantém situação e valor nominal declarados, com a ressalva de que não comprovam pagamento ou saldo; colunas de pagamento confirmado e energia faturada não fornecidas pela Gold v2 deixam de ocupar a tabela. Na fila Gold v2, a estimativa individual ausente é explicada uma vez, sem repetir um campo vazio em cada UC. As demais fontes mantêm sua apresentação.
+- Regras candidatas já documentadas nos contratos [UC 360](contracts/uc360-gold-v2.md) e [Inspeções](contracts/inspection-gold-v2.md): seleção conservadora de possível medidor na referência Gold e comparação dos três últimos meses com os três anteriores, sem substituir lacunas nem inferir fraude. O aceite do time continua pendente.
+- Verificações: 16 testes frontend dirigidos passaram; build, lint, fronteiras e formatação passaram. Backend: 22 testes dirigidos passaram e um cenário PostgreSQL foi ignorado sem configuração; incluem recarga sintética válida, repetida e inválida com preservação de ordem e histórico. Três provas privadas de Receita, UC e Inspeções passaram no SQLite isolado com o lote local; duração total 8,64 s, não benchmark. Navegador abriu Inspeções com a Gold local; revisão visual responsiva integral e conferência de faturas/medidor no navegador e PostgreSQL permanecem pendentes. Trello não conectado.
+- Limites: não houve aceite de regras, validação sistemática de desempenho ou homologação humana; nenhuma alteração na Gold ou autenticação. WEB-03 e WEB-04 não foram concluídos.
+
 ### 2026-10-31 — WEB-04 — comparação proposta de consumo trimestral
 
 - A pessoa usuária autorizou uma regra candidata de três meses contra os três anteriores para discussão posterior com o time. O detalhe Gold v2 expõe os períodos e a soma observada em kWh; a última competência é a da publicação. Sem seis meses com leituras válidas, a comparação é indisponível; com base zero não se calcula percentual. A existência de leituras não certifica cobertura completa.

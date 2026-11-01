@@ -52,6 +52,14 @@ export default function RevenueBreakdown({
     currentPage * pageSize,
   );
   const reconciliation = breakdown.reconciliation;
+  const sharedLimitations =
+    breakdown.items.length > 1
+      ? [...new Set(breakdown.items[0].quality.limitations)].filter((note) =>
+          breakdown.items.every((item) =>
+            item.quality.limitations.includes(note),
+          ),
+        )
+      : [];
   const closesWithTotal =
     reconciliation.status === "available" &&
     reconciliation.non_comparable_group_count === 0 &&
@@ -74,6 +82,11 @@ export default function RevenueBreakdown({
         </p>
       ) : (
         <>
+          {sharedLimitations.length > 0 && (
+            <p className="mb-3 text-sm text-muted">
+              {sharedLimitations.join(" ")}
+            </p>
+          )}
           <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="w-full min-w-[880px] border-collapse text-left text-sm">
               <caption className="sr-only">
@@ -139,6 +152,9 @@ export default function RevenueBreakdown({
                         item.comparison.final.billed_uc_count === null
                       ? "Base desconhecida"
                       : "Base adequada";
+                  const rowLimitations = item.quality.limitations.filter(
+                    (note) => !sharedLimitations.includes(note),
+                  );
 
                   return (
                     <tr
@@ -169,11 +185,12 @@ export default function RevenueBreakdown({
                             {item.comparison.final.billed_uc_count ?? "—"} UCs
                           </span>
                         </span>
-                        {item.quality.limitations.length ? (
+                        {rowLimitations.length ? (
                           <span className="block text-xs font-normal text-muted">
-                            {item.quality.limitations.join(" ")}
+                            {rowLimitations.join(" ")}
                           </span>
-                        ) : !item.quality.percent_change_eligible ? (
+                        ) : !item.quality.percent_change_eligible &&
+                          item.quality.limitations.length === 0 ? (
                           <span className="block text-xs font-normal text-muted">
                             Percentual indisponível
                           </span>

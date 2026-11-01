@@ -37,9 +37,11 @@ function EvidenceLink({
 function ItemCard({
   item,
   params,
+  hideEstimate,
 }: {
   item: QueueItem;
   params: URLSearchParams;
+  hideEstimate: boolean;
 }) {
   return (
     <article
@@ -73,17 +75,19 @@ function ItemCard({
         </div>
       </div>
       <div className="mt-4 grid gap-2">
-        <div>
-          <p className="text-xs text-muted">Energia estimada</p>
-          <p className="mt-1 text-sm font-medium">
-            {energy(item.potential_recoverable_energy_kwh)}
-          </p>
-          <p className="mt-1 text-xs text-muted">
-            {item.potential_recoverable_energy_kwh === null
-              ? "Insumos comparáveis indisponíveis"
-              : "Projeção hipotética em kWh"}
-          </p>
-        </div>
+        {!hideEstimate && (
+          <div>
+            <p className="text-xs text-muted">Energia estimada</p>
+            <p className="mt-1 text-sm font-medium">
+              {energy(item.potential_recoverable_energy_kwh)}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              {item.potential_recoverable_energy_kwh === null
+                ? "Insumos comparáveis indisponíveis"
+                : "Projeção hipotética em kWh"}
+            </p>
+          </div>
+        )}
         <EvidenceLink item={item} params={params} />
       </div>
     </article>
@@ -100,6 +104,8 @@ export default function InspectionQueue({
   onChange: (next: URLSearchParams) => void;
 }) {
   const { items } = result.data;
+  const hideEstimate =
+    result.metadata.source.version.startsWith("gold-csv-v2:");
   const page = result.pagination;
   const field = params.get("order_by") ?? "priority";
   const direction = params.get("direction") ?? "desc";
@@ -144,14 +150,14 @@ export default function InspectionQueue({
           <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
             <table className="w-full table-fixed text-left text-sm">
               <caption className="sr-only">
-                Suspeitas com prioridade, motivo, indicadores usados, energia
-                estimada e acesso às evidências
+                Suspeitas com prioridade, motivo, indicadores usados e acesso às
+                evidências
               </caption>
               <colgroup>
                 <col className="w-[15%]" />
                 <col className="w-[25%]" />
                 <col className="w-[17%]" />
-                <col className="w-[19%]" />
+                {!hideEstimate && <col className="w-[19%]" />}
                 <col className="w-[24%]" />
               </colgroup>
               <thead className="font-mono text-xs leading-[18px] text-muted">
@@ -160,7 +166,7 @@ export default function InspectionQueue({
                     "UC / prioridade",
                     "Motivo da suspeita",
                     "Indicador usado",
-                    "Energia estimada",
+                    ...(!hideEstimate ? ["Energia estimada"] : []),
                     "Ação",
                   ].map((label) => (
                     <th
@@ -198,16 +204,18 @@ export default function InspectionQueue({
                         : item.indicators.join(" · ") ||
                           "Sem indicador informado"}
                     </td>
-                    <td className="px-3 py-3">
-                      <p className="font-medium">
-                        {energy(item.potential_recoverable_energy_kwh)}
-                      </p>
-                      <p className="mt-1 text-xs leading-4 text-muted">
-                        {item.potential_recoverable_energy_kwh === null
-                          ? "Insumos indisponíveis"
-                          : "Projeção hipotética"}
-                      </p>
-                    </td>
+                    {!hideEstimate && (
+                      <td className="px-3 py-3">
+                        <p className="font-medium">
+                          {energy(item.potential_recoverable_energy_kwh)}
+                        </p>
+                        <p className="mt-1 text-xs leading-4 text-muted">
+                          {item.potential_recoverable_energy_kwh === null
+                            ? "Insumos indisponíveis"
+                            : "Projeção hipotética"}
+                        </p>
+                      </td>
+                    )}
                     <td className="px-3 py-3">
                       <EvidenceLink item={item} params={params} />
                     </td>
@@ -218,7 +226,12 @@ export default function InspectionQueue({
           </div>
           <div className="space-y-3 md:hidden">
             {items.map((item) => (
-              <ItemCard key={item.uc_id} item={item} params={params} />
+              <ItemCard
+                key={item.uc_id}
+                item={item}
+                params={params}
+                hideEstimate={hideEstimate}
+              />
             ))}
           </div>
           <div className="flex flex-col gap-3">

@@ -225,11 +225,25 @@ export function HistoryPanel({
   onPageChange: (page: number) => void;
 }) {
   const columns = section
-    ? historyColumns[section].filter(
-        (key) =>
+    ? historyColumns[section].filter((key) => {
+        const goldV2 =
+          history?.metadata.source.version.startsWith("gold-csv-v2:");
+        if (
+          section === "invoices" &&
+          goldV2 &&
+          [
+            "paid_amount",
+            "billed_energy_kwh",
+            "payment_date",
+            "payment_status",
+          ].includes(key)
+        )
+          return false;
+        return (
           !["declared_status", "declared_open_amount"].includes(key) ||
-          history?.metadata.source.kind === "gold_csv",
-      )
+          history?.metadata.source.kind === "gold_csv"
+        );
+      })
     : [];
   return (
     <section className="grid min-w-0 gap-3 rounded-xl bg-surface p-4 sm:p-5">

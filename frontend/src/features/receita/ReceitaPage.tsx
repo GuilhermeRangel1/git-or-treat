@@ -445,15 +445,6 @@ export default function ReceitaPage() {
 
       {envelope ? (
         <>
-          {envelope.metadata.source.kind === "gold_csv" ? (
-            <DataProvenance
-              source={envelope.metadata.source}
-              period={envelope.metadata.period}
-              units={["R$", "kWh", "UCs"]}
-              limitations={envelope.metadata.limitations}
-              periodNote="Competências do consumo e faturamento agregados; o cadastro usado nos recortes é atual."
-            />
-          ) : null}
           <RevenueSummary envelope={envelope} />
           <div className="grid min-w-0 gap-4 min-[1850px]:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <RevenueDecomposition envelope={envelope} />
@@ -470,6 +461,15 @@ export default function ReceitaPage() {
             />
           </div>
           <RevenueSeries envelope={envelope} />
+          {envelope.metadata.source.kind === "gold_csv" ? (
+            <DataProvenance
+              source={envelope.metadata.source}
+              period={envelope.metadata.period}
+              units={["R$", "kWh", "UCs"]}
+              limitations={envelope.metadata.limitations}
+              periodNote="Competências do consumo e faturamento agregados; o cadastro usado nos recortes é atual."
+            />
+          ) : null}
         </>
       ) : null}
     </div>

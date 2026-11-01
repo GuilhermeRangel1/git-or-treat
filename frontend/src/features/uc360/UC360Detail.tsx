@@ -105,6 +105,13 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
             {sourceDate(metadata.source.updated_at)}
           </p>
         )}
+        {selected &&
+          metadata?.source.kind === "gold_csv" &&
+          !selected.profile.customer_name?.trim() && (
+            <p className="text-sm text-muted">
+              Titular indisponível nesta consulta.
+            </p>
+          )}
       </header>
       {!unit.filters.invalid && (
         <>
@@ -136,15 +143,6 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
           )}
           {selected && metadata && (
             <>
-              {metadata.source.kind === "gold_csv" && (
-                <DataProvenance
-                  source={metadata.source}
-                  period={metadata.period}
-                  units={["R$", "kWh"]}
-                  limitations={metadata.limitations}
-                  periodNote="O período se aplica ao histórico mensal e à comparação. Cadastro e indicadores acumulados não comprovam vigência nesse período."
-                />
-              )}
               <UC360PeriodForm
                 appliedStart={unit.filters.start}
                 appliedEnd={unit.filters.end}
@@ -153,7 +151,12 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
               />
               <UC360Comparison comparison={selected.comparison} />
               <UC360SupportMetrics data={selected} />
-              <UC360OverviewTable comparison={selected.comparison} />
+              <details className="rounded-xl bg-surface p-4 sm:p-5">
+                <summary className="cursor-pointer font-heading font-semibold">
+                  Ver comparação por competência
+                </summary>
+                <UC360OverviewTable comparison={selected.comparison} />
+              </details>
               <UC360Series
                 data={unit.series.data}
                 pending={unit.series.pending}
@@ -264,6 +267,15 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                 </p>
               )}
               <UC360Interpretation data={selected} />
+              {metadata.source.kind === "gold_csv" && (
+                <DataProvenance
+                  source={metadata.source}
+                  period={metadata.period}
+                  units={["R$", "kWh"]}
+                  limitations={metadata.limitations}
+                  periodNote="O período se aplica ao histórico mensal e à comparação. Cadastro e indicadores acumulados não comprovam vigência nesse período."
+                />
+              )}
             </>
           )}
         </>

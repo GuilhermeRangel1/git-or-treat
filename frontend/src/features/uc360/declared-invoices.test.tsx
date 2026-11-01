@@ -64,7 +64,7 @@ it("apresenta a informação declarada sem afirmá-la como pagamento ou saldo", 
   expect(
     screen.getByText(/não comprovam pagamento nem saldo contábil/),
   ).toBeVisible();
-  expect(screen.getAllByText("Situação desconhecida").length).toBeGreaterThan(
-    0,
-  );
+  expect(screen.queryByText("Situação desconhecida")).not.toBeInTheDocument();
+  expect(screen.queryByText("Valor pago")).not.toBeInTheDocument();
+  expect(screen.queryByText("Energia faturada")).not.toBeInTheDocument();
 });

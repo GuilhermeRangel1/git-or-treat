@@ -78,11 +78,15 @@ function MetricCard({
     <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
       <h3 className="text-sm text-muted">{label}</h3>
       <p
-        className={`min-w-0 [overflow-wrap:anywhere] font-heading ${valueClassName ?? "text-4xl"} leading-tight font-semibold tracking-tight text-content`}
+        className={`min-w-0 [overflow-wrap:anywhere] font-heading ${valueClassName ?? (value.length > 13 ? "text-2xl" : "text-3xl")} leading-tight font-semibold tracking-tight text-content`}
       >
         {value}
       </p>
-      <p className="text-xs text-muted">Antes: {before}</p>
+      {value !== "Indisponível" || before !== "Indisponível" ? (
+        <p className="text-xs text-muted">Antes: {before}</p>
+      ) : (
+        <p className="text-xs text-muted">A fonte não informa esta medida.</p>
+      )}
       <p className="text-xs text-muted">Mês: {competence}</p>
     </article>
   );
@@ -149,10 +153,13 @@ export default function RevenueSummary({
             {competenceLabel(final.competencia)}
           </p>
           <p className="text-xs text-muted">
-            {signedPercent(
-              data.comparison.billed_amount_change_percent,
-              data.quality.percent_change_eligible,
-            )}
+            {data.comparison.billed_amount_change_percent === null ||
+            !data.quality.percent_change_eligible
+              ? "Percentual indisponível"
+              : signedPercent(
+                  data.comparison.billed_amount_change_percent,
+                  data.quality.percent_change_eligible,
+                )}
           </p>
         </article>
       </div>
