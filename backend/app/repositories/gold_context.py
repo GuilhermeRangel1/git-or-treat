@@ -13,8 +13,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import engine, get_db
-from app.core.order_access import bearer, get_order_identity, require_orders_read
+from app.core.database import engine
+from app.core.platform_identity import PlatformIdentity, get_platform_identity, require_permission
 from app.models.gold_v2_load import BATCH, SCHEMA_VERSION
 from app.repositories.analytics import AnalyticsSourceUnavailable
 from app.services.analytics import AnalyticsAPIError
@@ -63,44 +63,79 @@ def load_gold_context(connection: Connection, expected_lote: str | None = None,
     )
 
 
+def get_gold_context_for(permission: str):
+    permission_dependency = require_permission(permission)
+
+    def dependency(
+        expected_lote: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+        expected_fingerprint: Annotated[str | None, Query(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")] = None,
+        _identity: PlatformIdentity = Depends(permission_dependency),
+    ) -> Iterator[GoldContext]:
+        """Authorize the feature before opening a Gold read snapshot."""
+        if settings.ANALYTICS_SOURCE != "gold":
+            raise AnalyticsSourceUnavailable()
+        try:
+            connection = engine.connect().execution_options(isolation_level="REPEATABLE READ")
+        except SQLAlchemyError:
+            raise AnalyticsSourceUnavailable() from None
+        try:
+            with connection.begin():
+                connection.exec_driver_sql("SET TRANSACTION READ ONLY")
+                context = load_gold_context(connection, expected_lote, expected_fingerprint)
+                yield context
+        except SQLAlchemyError:
+            raise AnalyticsSourceUnavailable() from None
+        finally:
+            connection.close()
+
+    return dependency
+
+
+def get_optional_gold_context_for(permission: str):
+    gold_dependency = get_gold_context_for(permission)
+    permission_dependency = require_permission(permission)
+
+    def dependency(
+        expected_lote: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+        expected_fingerprint: Annotated[str | None, Query(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")] = None,
+        _identity: PlatformIdentity = Depends(permission_dependency),
+    ) -> Iterator[GoldContext | None]:
+        """Resolve Gold only after authorization; otherwise preserve synthetic behavior."""
+        if settings.ANALYTICS_SOURCE != "gold":
+            if settings.ANALYTICS_SOURCE == "synthetic" and (expected_lote is not None or expected_fingerprint is not None):
+                raise AnalyticsAPIError(422, "invalid_query", "Expectativas de publicação só se aplicam à fonte Gold.", [{"field": "expected_lote", "message": "Remova expected_lote e expected_fingerprint no modo sintético."}])
+            yield None
+            return
+        yield from gold_dependency(expected_lote, expected_fingerprint, _identity)
+
+    return dependency
+
+
 def get_gold_context(
     request: Request,
-    expected_lote: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
-    expected_fingerprint: Annotated[str | None, Query(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")] = None,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
-    db: Session = Depends(get_db),
+    expected_lote: str | None = None,
+    expected_fingerprint: str | None = None,
+    credentials: HTTPAuthorizationCredentials | None = None,
+    db: Session | None = None,
 ) -> Iterator[GoldContext]:
-    """Open an authenticated Gold read snapshot and close it after the response."""
-    if settings.ANALYTICS_SOURCE != "gold":
-        raise AnalyticsSourceUnavailable()
-    identity = get_order_identity(request, credentials, db)
-    require_orders_read(identity)
-    try:
-        connection = engine.connect().execution_options(isolation_level="REPEATABLE READ")
-    except SQLAlchemyError:
-        raise AnalyticsSourceUnavailable() from None
-    try:
-        with connection.begin():
-            connection.exec_driver_sql("SET TRANSACTION READ ONLY")
-            context = load_gold_context(connection, expected_lote, expected_fingerprint)
-            yield context
-    except SQLAlchemyError:
-        raise AnalyticsSourceUnavailable() from None
-    finally:
-        connection.close()
+    """Compatibility adapter for callers using the original Panorama snapshot seam."""
+    identity = get_platform_identity(request, credentials, db)  # type: ignore[arg-type]
+    if "panorama:read" not in identity.permissions:
+        raise HTTPException(403, "Permissão insuficiente para este recurso.")
+    yield from get_gold_context_for("panorama:read")(
+        expected_lote, expected_fingerprint, identity
+    )
 
 
 def get_optional_gold_context(
     request: Request,
-    expected_lote: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
-    expected_fingerprint: Annotated[str | None, Query(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")] = None,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
-    db: Session = Depends(get_db),
+    expected_lote: str | None = None,
+    expected_fingerprint: str | None = None,
+    credentials: HTTPAuthorizationCredentials | None = None,
+    db: Session | None = None,
 ) -> Iterator[GoldContext | None]:
-    """Resolve Gold only in explicit Gold mode, preserving the synthetic path."""
-    if settings.ANALYTICS_SOURCE != "gold":
-        if settings.ANALYTICS_SOURCE == "synthetic" and (expected_lote is not None or expected_fingerprint is not None):
-            raise AnalyticsAPIError(422, "invalid_query", "Expectativas de publicação só se aplicam à fonte Gold.", [{"field": "expected_lote", "message": "Remova expected_lote e expected_fingerprint no modo sintético."}])
-        yield None
-        return
-    yield from get_gold_context(request, expected_lote, expected_fingerprint, credentials, db)
+    """Compatibility adapter; production routes use an explicit resource permission."""
+    identity = get_platform_identity(request, credentials, db)  # type: ignore[arg-type]
+    yield from get_optional_gold_context_for("panorama:read")(
+        expected_lote, expected_fingerprint, identity
+    )

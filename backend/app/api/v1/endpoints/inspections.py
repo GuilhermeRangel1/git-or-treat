@@ -8,7 +8,8 @@ from app.core.order_access import OrderIdentity, get_order_identity, require_ord
 from app.models.operational import OrderStatus
 from app.schemas.inspection_queue import QueueResponse, SuspicionResponse
 from app.schemas.inspection_queue import GoldInspectionQueueResponse, GoldSuspicionResponse
-from app.repositories.gold_context import GoldContext, get_optional_gold_context
+from app.core.platform_identity import require_permission
+from app.repositories.gold_context import GoldContext, get_optional_gold_context_for
 from app.repositories.gold_inspections import GoldInspectionRepository
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository_provider
 from app.api.v1.analytics_route import StrictAnalyticsRoute
@@ -19,7 +20,10 @@ from app.services import inspections as inspection_service
 from app.schemas.inspections import OrderCancelRequest, OrderResultRequest, OrderHistoryResponse
 
 router = APIRouter()
-analytics_router = APIRouter(route_class=StrictAnalyticsRoute)
+analytics_router = APIRouter(
+    route_class=StrictAnalyticsRoute,
+    dependencies=[Depends(require_permission("inspections:read"))],
+)
 
 
 def order_conflict_response(exc: inspection_service.OrderConflictError) -> JSONResponse:
@@ -45,7 +49,7 @@ def get_inspection_queue(
     alimentador: str | None = Query(None, max_length=100),
     expected_lote: str | None = Query(None, max_length=100),
     expected_fingerprint: str | None = Query(None, max_length=64, pattern=r"^[a-f0-9]{64}$"),
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("inspections:read")),
     repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ):
     """Read-only demonstration queue; estimates are provisional and not Gold metrics."""
@@ -69,7 +73,7 @@ def get_suspicion_detail(
     uc_id: str,
     expected_lote: str | None = Query(None, max_length=100),
     expected_fingerprint: str | None = Query(None, max_length=64, pattern=r"^[a-f0-9]{64}$"),
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("inspections:read")),
     repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ):
     if gold_context is not None:
@@ -90,7 +94,10 @@ def get_order_access(response: Response, identity: OrderIdentity = Depends(get_o
 
 @router.post("/queue/{uc_id}/orders", response_model=OrderResponse, status_code=201,
              responses={409: {"model": OrderConflictResponse}},
-             dependencies=[Depends(require_orders_write)], summary="Criar ordem pela suspeita selecionada")
+             dependencies=[
+                 Depends(require_permission("inspections:read")),
+                 Depends(require_orders_write),
+             ], summary="Criar ordem pela suspeita selecionada")
 def create_order_from_queue(
     payload: QueueOrderCreateRequest, response: Response,
     uc_id: str = Path(min_length=1, max_length=50),

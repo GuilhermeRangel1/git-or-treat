@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, Query
 
 from app.api.v1.analytics_route import AnalyticsRoute
+from app.core.platform_identity import require_permission
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
 from app.schemas.analytics import KPIResponse
 from app.services.analytics import AnalyticsAPIError, build_kpis, filters_model, metadata, validate_period
 
-router = APIRouter(route_class=AnalyticsRoute)
+router = APIRouter(route_class=AnalyticsRoute, dependencies=[Depends(require_permission("panorama:read"))])
 
 
 @router.get("", response_model=KPIResponse, summary="Listar indicadores agregados")
