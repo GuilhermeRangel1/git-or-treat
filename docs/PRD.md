@@ -2971,3 +2971,9 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - GENAI-06: 10/10. Backend reaplica teto temporal do perfil antes da conexão e no executor; plano adulterado não executa SQL. Confirmados limites efetivos de memória/temporários/tempo/conexões e cancelamento PostgreSQL 57014 com rollback e recuperação. Benchmark operacional e cancelamento imediato por desconexão HTTP não são presumidos nem acrescentados ao critério do cartão.
 - Verificações: GenAI completo 3.721 passaram/4 skips; Backend com PostgreSQL descartável e seleção de executor/plano/metadados/cliente/deadline 109 passaram; fronteira temporal ajustada 9 passaram; Ruff e diff-check passaram. Revisões independentes de padrões/especificação sem bloqueios após os ajustes. [Matriz, comandos, resultados e limites](contracts/genai-consolidation.md).
 - GENAI-02/04/06 concluídos no escopo técnico local. Requisitos oficiais IA preservam seus estados; cobertura e medidas não comprovadas continuam bloqueadas. Alterações desta continuação ainda sem commit/push.
+
+### 01/11/2026 — IA-01 a IA-06 — referência obrigatória Gold v2 no harness
+
+- Por orientação da pessoa usuária, novos desenvolvimentos, cenários e aceites GenAI usam Gold v2, seu dicionário, contrato físico e catálogo aprovados. Regra descoberta pelo AGENTS raiz e aplicada pela skill genai-gold; detalhes em [política de versões](agents/genai-gold.md#referência-obrigatória-gold-v2).
+- Gold v1 fica restrita à compatibilidade legada explícita. Versão de envelope HTTP v1 não é versão dos dados; fixtures sintéticas continuam úteis para CI e não certificam aceite real. Capacidades v2 insuficientes continuam bloqueadas, sem fallback.
+- Mudança documental de orientação e revisão, sem remoção de código ou alteração de estados funcionais IA. Sincronização no cartão transversal do quadro GenAI para todos os colaboradores.
