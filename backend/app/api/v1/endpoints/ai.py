@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
+from app.core.genai_gold_access import get_question_gold_scope
 from app.repositories.panorama import PanoramaRepository, get_panorama_repository
 from app.schemas.ai import (
     AIQueryRequest,
@@ -18,6 +19,7 @@ from app.schemas.ai_insight import (
     PanoramaInsightEnvelope,
     PanoramaInsightRequest,
 )
+from app.schemas.genai_internal import AccessScope
 from app.services.analytics import AnalyticsAPIError
 from app.services.genai_client import (
     GenAIInsightClient,
@@ -140,8 +142,15 @@ async def ask_genai_question(
     payload: AIQuestionRequest,
     request: Request,
     genai: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
+    gold_scope: Annotated[AccessScope | None, Depends(get_question_gold_scope)],
 ) -> AIQuestionResponse | JSONResponse:
     """Encaminha pergunta e contexto transitório sem acessar banco ou persistir sessão."""
+
+    if gold_scope is not None:
+        return _question_error(
+            request, status_code=503, code="service_unavailable", retryable=False,
+            message="A consulta Gold ainda aguarda integração do executor.",
+        )
 
     try:
         result = await genai.ask(

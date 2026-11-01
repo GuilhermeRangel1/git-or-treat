@@ -121,6 +121,12 @@ O importador v2 foi exercitado com o pacote real em SQLite temporário. A DEV-13
 
 ## Qualidade
 
+### GENAI-05 — acesso Gold pela sessão existente
+
+`app/core/genai_gold_access.py` deriva o `AccessScope` do cookie de sessão e da permissão de leitura existente; cada revalidação usa uma transação operacional nova. `app/core/genai_gold_database.py` fornece credencial/engine analítico separados, com login dedicado e sem fallback para a conexão operacional. Matriz de colunas, provisionador, limites e provas em [acesso Gold GenAI](../contracts/genai-gold-access.md).
+
+Em modo Gold, a rota de perguntas exige sessão e não encaminha ao serviço demonstrativo: responde 503 contratual até a coordenação GENAI-06/07. O modo sintético mantém o fluxo anterior. Preparação integrada de identidade/ACL não conclui executor, pergunta real, IA-05/IA-06 ou RBAC por domínio.
+
 DEV-06 liga a criação de ordens à fila DEV-05: valida versões, preserva UC/motivo e snapshot da suspeita, confirma commit e impede repetição concorrente por chave de idempotência e índice parcial de ordem ativa. Consulta por ID e busca paginada combinam filtros de estado, UC e prioridade; `has_result` opcional seleciona ordens com ou sem resultado antes da contagem e da paginação. A migração `a6d060000001` preserva ordens anteriores com campos novos nulos. Veja o [contrato DEV-06, comandos e evidências](../contracts/inspection-orders-dev06.md). WEB-05 fica `Em validação`: auditoria durável das alterações, homologação e reconciliação Gold continuam pendentes.
 
 Na revisão de integração com DEV-04/develop, a busca passou a projetar `OrderSummary` sem carregar JSON e a retornar páginas além do total antes de executar offset. O detalhe usa snapshot operacional v1 independente dos modelos analíticos, aceitando registros anteriores sem versão explícita. Reenvios que encontram uma gravação concorrente entre as consultas da chave e da suspeita ativa são reconciliados antes de emitir conflito.

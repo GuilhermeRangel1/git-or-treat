@@ -10,6 +10,8 @@ Este contrato documenta o login individual no backend FastAPI com cookie de sess
 
 Produção usa `session`. O modo de sessão não aceita credenciais de serviço em paralelo. Não existe cadastro público.
 
+A autorização GenAI Gold reutiliza a sessão e a contenção de leitura existente, com conexão analítica restrita separada da resolução operacional. Matriz, configuração e limites em [acesso Gold da GenAI](genai-gold-access.md). Isso não acrescenta perfis por área nem habilita o executor de perguntas Gold.
+
 ## Endpoints
 
 - `GET /api/v1/auth/session`: retorna HTTP 200 e `Cache-Control: no-store`, com `{enabled, user, expires_at}`. `user` é nulo para cookie ausente, inválido ou expirado. Em `session`, `enabled` é `true`; nos modos `service` e `demo`, é `false`.
