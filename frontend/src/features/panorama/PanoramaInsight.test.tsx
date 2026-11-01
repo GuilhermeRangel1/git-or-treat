@@ -223,7 +223,11 @@ describe("IA-04 contextual insight on Panorama", () => {
         name: "Indicadores principais do Panorama",
       }),
     ).toBeVisible();
-    expect(insight.parentElement).toHaveClass("grid-cols-1", "gap-6");
+    expect(insight.parentElement).toHaveClass(
+      "grid-cols-1",
+      "items-stretch",
+      "xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]",
+    );
     expect(insight.parentElement).not.toHaveClass(
       "xl:grid-cols-[minmax(0,1fr)_340px]",
     );
