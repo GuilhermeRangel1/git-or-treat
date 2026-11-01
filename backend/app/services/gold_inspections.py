@@ -46,6 +46,35 @@ def queue_response(repository, filters, page, page_size, order_by, direction):
                          pagination=pagination, metadata=meta)
 
 
+def _six_months(end):
+    year, month = map(int, end.split("-"))
+    last = year * 12 + month - 1
+    return [f"{value // 12:04d}-{value % 12 + 1:02d}" for value in range(last - 5, last + 1)]
+
+
+def consumption_comparison(repository, uc_id, end):
+    months = _six_months(end)
+    t = repository.tables["consumo_mensal_uc"]
+    rows = repository.rows(select(t).where(t.c.id_uc == uc_id, t.c.competencia.in_(months)))
+    by_month = {row["competencia"]: row for row in rows}
+    result = {"baseline_start": months[0], "baseline_end": months[2], "recent_start": months[3],
+              "recent_end": months[5], "baseline_kwh": None, "recent_kwh": None, "change_percent": None,
+              "unavailable_reason": None}
+    for month in months:
+        row = by_month.get(month)
+        value = row["consumo_kwh"] if row else None
+        if (not row or value is None or not math.isfinite(value) or value < 0 or
+                not row["qtd_leituras_observadas"] or row["qtd_leituras_validas"] != row["qtd_leituras_observadas"]):
+            result["unavailable_reason"] = "São necessárias leituras válidas nos seis meses; ausência ou leitura inválida não é zero."
+            return result
+    before = math.fsum(by_month[month]["consumo_kwh"] for month in months[:3])
+    recent = math.fsum(by_month[month]["consumo_kwh"] for month in months[3:])
+    result.update(baseline_kwh=before, recent_kwh=recent,
+                  change_percent=(recent - before) / before * 100 if before else None,
+                  unavailable_reason="Percentual indisponível porque o consumo anterior é zero." if not before else None)
+    return result
+
+
 def suspicion_response(repository, uc_id):
     row = repository.unit(uc_id)
     table = repository.tables["fila_inspecao"]
@@ -63,13 +92,14 @@ def suspicion_response(repository, uc_id):
                 and lower <= upper and reference in {"global", "0", "1"}):
             historical = {"mean_kwh_per_inspection": mean, "lower_kwh_per_inspection": lower,
                           "upper_kwh_per_inspection": upper, "reference": reference}
-    data = {**item(source), "rule_version": repository.schema_version, "limitations": list(LIMITATIONS),
-            "historical_recovery": historical,
-            "estimate_evidence": {"baseline_kwh": None, "observed_kwh": None, "horizon_months": None,
-                                  "reference": "Gold CSV; sem estimativa individual homologada.", "unavailable_reason": LIMITATIONS[2]}}
     months = repository.options()["competencias"]
     if not months:
         raise AnalyticsAPIError(503, "source_unavailable", "Gold sem competências de consumo observadas.")
+    comparison = consumption_comparison(repository, uc_id, months[-1]) if repository.schema_version == "gold-csv-v2" else None
+    data = {**item(source), "rule_version": repository.schema_version, "limitations": list(LIMITATIONS),
+            "historical_recovery": historical, "consumption_comparison": comparison,
+            "estimate_evidence": {"baseline_kwh": None, "observed_kwh": None, "horizon_months": None,
+                                  "reference": "Gold CSV; sem estimativa individual homologada.", "unavailable_reason": LIMITATIONS[2]}}
     meta = metadata(repository, "partial", months[0], months[-1], AnalyticsFilters())
     meta.contract_version = "1.1.0"
     meta.limitations.extend(LIMITATIONS)

@@ -24,11 +24,23 @@ class HistoricalRecoveryReference(BaseModel):
     reference: str
 
 
+class ConsumptionComparison(BaseModel):
+    baseline_start: str
+    baseline_end: str
+    recent_start: str
+    recent_end: str
+    baseline_kwh: float | None
+    recent_kwh: float | None
+    change_percent: float | None
+    unavailable_reason: str | None
+
+
 class SuspicionDetail(InspectionQueueItem):
     rule_version: str
     signals: list[SignalEvidence]
     estimate_evidence: EstimateEvidence
     historical_recovery: HistoricalRecoveryReference | None = None
+    consumption_comparison: ConsumptionComparison | None = None
     limitations: list[str]
 
 
