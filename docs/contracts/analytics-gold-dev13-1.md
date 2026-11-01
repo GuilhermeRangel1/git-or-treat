@@ -117,6 +117,8 @@ Consolidado: para cada indicador, somar seu numerador nos alimentadores elegíve
 
 Ranking usa valor observado e desempate pelo ID do alimentador. Unidades sem base/janela comparável ficam excluídas. O detalhe traz série e resumo agregado; `occurrences = null`, `occurrences_status = unavailable`. Não há IDs/UCs/durações de ocorrências individuais na exportação, portanto não há paginação fictícia desses eventos.
 
+Uma janela sem linhas observadas tem estado `empty` na continuidade, série, resumo e ranking, mesmo quando o alimentador existe no inventário da publicação. Observações sem denominador válido têm estado `unavailable`; zero observado com base válida mantém valor zero e estado `partial`, pois a fonte não certifica completude mensal.
+
 ## Capacidades fora desta fatia
 
 Receita, UC 360 e KPIs antigos não se tornam consumidores Gold pela troca de configuração. Permanecem indisponíveis no modo Gold enquanto seus adaptadores não forem implementados. Campos ausentes identificados no mapeamento continuam dependências para o aceite integral WEB-01 a WEB-07.

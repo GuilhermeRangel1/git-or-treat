@@ -130,6 +130,8 @@ export function parseOperationParams(
   const pageSize = parsePositiveInt(raw.page_size, DEFAULT_PAGE_SIZE, 100);
   if (page === null)
     errors.push("Página inválida; use inteiro entre 1 e 1.000.000.");
+  if (rankingPage === null)
+    errors.push("Página do ranking inválida; use inteiro entre 1 e 1.000.000.");
   if (pageSize === null)
     errors.push("Tamanho da página inválido; use inteiro entre 1 e 100.");
 
