@@ -194,7 +194,10 @@ def _query(plan: LogicalReadPlan, source, metric):
     if plan.window.kind is WindowKind.BOUNDED:
         order_by.append(period.asc())
     order_by.extend(column.asc() for column in dimensions.values())
-    statement = statement.order_by(*order_by).limit(min(plan.limit, MAX_EVIDENCE_ROWS) + 1)
+    # Um ranking explícito pede somente os primeiros grupos. Nos demais casos,
+    # a linha adicional detecta um resultado incompleto que não pode ser publicado.
+    extra_row = 0 if plan.order is not None and plan.group_by_dimension_ids else 1
+    statement = statement.order_by(*order_by).limit(min(plan.limit, MAX_EVIDENCE_ROWS) + extra_row)
     return statement
 
 

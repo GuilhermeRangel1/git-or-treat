@@ -219,7 +219,8 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     batch_ref=planned.publication.batch_ref, lot_state="partial",
                     capabilities={key: {"status": "available"} for key in (
                         "faturamento.receita", "faturamento.receita_bairro",
-                        "interrupcoes.dec_fec",
+                        "interrupcoes.dec_fec", "consumo.mensal_uc",
+                        "atendimento.mensal", "atendimento.uc_acumulado",
                     )},
                 )
             api.dependency_overrides[get_db] = operational_db
@@ -508,8 +509,15 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     999.0, 12.0, 0.0,
                 ]
                 assert grouped.evidence.records[0]["municipality"] == "Outra Cidade"
-                truncated_plan = LogicalReadPlan.model_validate({
+                ranked_plan = LogicalReadPlan.model_validate({
                     **grouped_plan.model_dump(mode="json"), "limit": 1,
+                })
+                ranked_planned = await plan_read(ranked_plan, "b" * 32)
+                ranked = execute_gold_plan(reader, ranked_planned, resolve_scope=resolve)
+                assert ranked.evidence is not None
+                assert [row["value"] for row in ranked.evidence.records] == [999.0]
+                truncated_plan = LogicalReadPlan.model_validate({
+                    **grouped_plan.model_dump(mode="json"), "limit": 1, "order": None,
                 })
                 truncated_planned = await plan_read(truncated_plan, "f" * 32)
                 truncated = execute_gold_plan(reader, truncated_planned, resolve_scope=resolve)
@@ -619,6 +627,59 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     runtime_app.state, "genai_gold_readiness_gate",
                     controlled_readiness, raising=False,
                 )
+                # GENAI-10B: expectativas literais independentes para FAT-10 e ATE-01/03/04.
+                with owner.begin() as domain_write:
+                    domain_write.execute(TABLES["atendimentos_uc"].insert(), [
+                        {"protocolo": "D1", "id_uc": "DOMAIN1", "data_abertura": datetime.fromisoformat(
+                            "2001-02-01T01:00:00+00:00"), "nota_satisfacao": 0.0},
+                        {"protocolo": "D2", "id_uc": "DOMAIN1", "data_abertura": datetime.fromisoformat(
+                            "2001-02-01T02:00:00+00:00"), "nota_satisfacao": 4.0},
+                        {"protocolo": "D3", "id_uc": "DOMAIN2", "data_abertura": None,
+                         "nota_satisfacao": None},
+                    ])
+                    domain_write.execute(TABLES["visao_360_uc"].insert(), [
+                        {"id_uc": "DOMAIN1", "total_chamados_callcenter": 2},
+                        {"id_uc": "DOMAIN2", "total_chamados_callcenter": 1},
+                    ])
+                domain_cases = [
+                    ("ATE-01", "Quantos chamados foram abertos em fevereiro de 2001?",
+                     "service.attendance", "2.0 protocolos"),
+                    ("ATE-03", "Quantos chamados de atendimento existem no histórico acumulado?",
+                     "service.accumulated_attendance", "3.0 protocolos"),
+                    ("ATE-04", "Qual é a satisfação média do atendimento no histórico acumulado?",
+                     "service.accumulated_satisfaction", "2.0 pontos"),
+                    ("FAT-10", "Qual classe mais contribuiu para a receita em Lumenia em janeiro de 2001?",
+                     "billing.revenue", "12.0 R$"),
+                ]
+                for case_id, question, metric_id, expected_text in domain_cases:
+                    if case_id == "FAT-10":
+                        with owner.begin() as domain_write:
+                            domain_write.execute(TABLES["diagnostico_receita"].insert(), {
+                                "competencia": "2001-01", "municipio": "Lumenia",
+                                "classe_consumo": "COMERCIAL", "subgrupo_tarifario": "T",
+                                "bandeira_tarifaria": "T", "possui_gd": "Não",
+                                "receita_total_reais": 4,
+                            })
+                    GENAI_TRANSPORT_EVENTS.clear()
+                    result = public_client.post("/api/v1/ai/questions", headers=origin,
+                                                json={"question": question})
+                    assert result.status_code == 200, case_id
+                    body = result.json()
+                    assert body["status"] == "answered", (case_id, body)
+                    assert body["analysis_context"]["metric"] == metric_id
+                    assert expected_text in body["answer"], case_id
+                    assert body["audit_reference"] and not body["evidence"][0]["is_demo"]
+                    assert [e["path"] for e in GENAI_TRANSPORT_EVENTS] == [
+                        "/api/v1/internal/question-plans", "/api/v1/internal/question-syntheses",
+                    ]
+                    assert GENAI_TRANSPORT_EVENTS[0]["response"]["plan"] == (
+                        GENAI_TRANSPORT_EVENTS[1]["request"]["plan"]
+                    )
+                with owner.begin() as domain_write:
+                    domain_write.execute(TABLES["diagnostico_receita"].delete().where(
+                        TABLES["diagnostico_receita"].c.municipio == "Lumenia",
+                        TABLES["diagnostico_receita"].c.classe_consumo == "COMERCIAL",
+                    ))
                 GENAI_TRANSPORT_EVENTS.clear()
                 reader_sql.clear()
                 public = public_client.post("/api/v1/ai/questions", headers=origin, json={

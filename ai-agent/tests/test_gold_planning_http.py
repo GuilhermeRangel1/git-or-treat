@@ -5,7 +5,7 @@ import pytest
 from app.api.application import create_api_application
 from app.config import Settings
 from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
-from app.schemas.internal import QuestionSynthesisRequest
+from app.schemas.internal import QuestionSynthesisRequest, TemporalCoverage
 from app.schemas.read_plan import LogicalReadPlan
 
 from .conftest import InProcessClient
@@ -135,3 +135,93 @@ def test_http_synthesis_preserves_zero_and_rejects_changed_publication():
         synthesis["expected_batch_ref"] = request.batch_ref.replace("12345678", "87654321")
         changed = client.post(SYNTHESIS_PATH, json=synthesis, headers=HEADERS)
         assert changed.json()["status"] == "recoverable_error"
+
+
+def test_fat10_revenue_contribution_groups_and_orders_classes():
+    core, request = _setup("Qual classe mais contribuiu para a receita em Olinda em março de 2025?")
+    with InProcessClient(_application(core)) as client:
+        response = client.post(PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS)
+    body = response.json()
+    assert body["status"] == "planned"
+    plan = body["plan"]
+    assert plan["metric_id"] == "billing.revenue"
+    assert plan["group_by_dimension_ids"] == ["customer.consumption_class"]
+    assert plan["limit"] == 1
+    assert plan["order"] == {"field_id": "billing.revenue", "direction": "desc"}
+    assert plan["window"]["start"] == "2025-03-01"
+    assert plan["window"]["end"] == "2025-03-31"
+    assert plan["filters"] == [{"dimension_id": "geography.municipality",
+                                "operator": "eq", "values": ["Olinda"]}]
+
+
+@pytest.mark.parametrize("question,metric", [
+    ("Quantos chamados de atendimento existem no histórico acumulado?",
+     "service.accumulated_attendance"),
+    ("Qual é a satisfação média do atendimento no histórico acumulado?",
+     "service.accumulated_satisfaction"),
+])
+def test_ate03_ate04_select_accumulated_metric_without_inventing_calendar(question, metric):
+    core, request = _setup(question)
+    request = request.model_copy(update={"temporal_coverage": (
+        *request.temporal_coverage, TemporalCoverage(metric_id=metric, kind="none"),
+    )})
+    with InProcessClient(_application(core)) as client:
+        body = client.post(PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS).json()
+    assert body["status"] == "planned"
+    assert body["plan"]["metric_id"] == metric
+    assert body["plan"]["window"]["phrase"] == "histórico acumulado"
+
+
+def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date():
+    core, request = _setup("Quantos chamados de atendimento existem no histórico acumulado?")
+    request = request.model_copy(update={"temporal_coverage": (
+        *request.temporal_coverage,
+        TemporalCoverage(metric_id="service.accumulated_attendance", kind="none"),
+    )})
+    with InProcessClient(_application(core)) as client:
+        planned = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS
+        ).json()
+        assert planned["status"] == "planned"
+        plan = LogicalReadPlan.model_validate(planned["plan"])
+        lookup = _lookup(plan, batch_ref=request.batch_ref, value=5)
+        lookup.evidence.records[0]["period"] = "histórico acumulado"
+        synthesis = QuestionSynthesisRequest(
+            question=request.question, access_scope=request.access_scope,
+            remaining_timeout_ms=35000, plan=plan, plan_fingerprint=plan.fingerprint(),
+            lookup=lookup, expected_batch_ref=request.batch_ref,
+        ).model_dump(mode="json")
+        response = client.post(SYNTHESIS_PATH, json=synthesis, headers=HEADERS).json()
+        assert response["status"] == "answered"
+        assert response["analysis_context"]["period"] == "histórico acumulado"
+        assert "5 protocolos" in response["answer"]
+        synthesis["lookup"]["evidence"]["records"][0]["period"] = "2025-03"
+        wrong = client.post(SYNTHESIS_PATH, json=synthesis, headers=HEADERS).json()
+        assert wrong["status"] == "recoverable_error"
+        assert not wrong["evidence"]
+
+
+def test_fat10_does_not_rank_months_as_if_they_were_period_contributions():
+    core, request = _setup(
+        "Qual classe mais contribuiu para a receita em Olinda no último trimestre?"
+    )
+    with InProcessClient(_application(core)) as client:
+        body = client.post(PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS).json()
+    assert body["status"] == "needs_clarification"
+    assert body["plan"] is None
+
+
+def test_fat10_followup_keeps_grouping_and_ranking_when_changing_municipality():
+    from app.schemas.questions import ConversationTurn
+    question = "Qual classe mais contribuiu para a receita em Olinda em março de 2025?"
+    core, request = _setup("E em Recife?")
+    request = request.model_copy(update={
+        "context": [ConversationTurn(role="user", content=question)],
+    })
+    with InProcessClient(_application(core)) as client:
+        body = client.post(PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS).json()
+    assert body["status"] == "planned"
+    assert body["plan"]["group_by_dimension_ids"] == ["customer.consumption_class"]
+    assert body["plan"]["order"] == {"field_id": "billing.revenue", "direction": "desc"}
+    assert body["plan"]["limit"] == 1
+    assert body["plan"]["filters"][0]["values"] == ["Recife"]

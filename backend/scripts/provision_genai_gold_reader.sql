@@ -32,6 +32,9 @@ GRANT SELECT ("competencia", "municipio", "classe_consumo", "subgrupo_tarifario"
 GRANT SELECT ("competencia", "municipio", "bairro", "classe_consumo", "receita_total_reais", "consumo_total_kwh", "receita_base_comparavel_reais", "consumo_base_comparavel_kwh", "qtd_ucs_distintas_faturadas_no_mes", "qtd_ucs_com_leitura") ON gold_v2.consumo_receita_bairro TO venergy_genai_reader;
 GRANT SELECT ("competencia", "municipio", "id_alimentador", "DEC", "FEC") ON gold_v2.indicadores_dec_fec TO venergy_genai_reader;
 GRANT SELECT ("competencia") ON gold_v2.consumo_mensal_uc TO venergy_genai_reader;
+-- Atendimento: somente colunas necessárias à agregação; sem conteúdo de chamados ou cadastro.
+GRANT SELECT ("protocolo", "data_abertura", "nota_satisfacao") ON gold_v2.atendimentos_uc TO venergy_genai_reader;
+GRANT SELECT ("total_chamados_callcenter") ON gold_v2.visao_360_uc TO venergy_genai_reader;
 DO $$
 DECLARE
     obj record;
@@ -84,7 +87,11 @@ BEGIN
                 ('indicadores_dec_fec', 'id_alimentador'),
                 ('indicadores_dec_fec', 'DEC'),
                 ('indicadores_dec_fec', 'FEC'),
-                ('consumo_mensal_uc', 'competencia')
+                ('consumo_mensal_uc', 'competencia'),
+                ('atendimentos_uc', 'protocolo'),
+                ('atendimentos_uc', 'data_abertura'),
+                ('atendimentos_uc', 'nota_satisfacao'),
+                ('visao_360_uc', 'total_chamados_callcenter')
             )
             SELECT 1 FROM pg_attribute a WHERE a.attrelid=obj.oid
                 AND a.attnum>0 AND NOT a.attisdropped

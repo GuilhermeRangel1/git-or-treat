@@ -2972,6 +2972,28 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Verificações: GenAI completo 3.721 passaram/4 skips; Backend com PostgreSQL descartável e seleção de executor/plano/metadados/cliente/deadline 109 passaram; fronteira temporal ajustada 9 passaram; Ruff e diff-check passaram. Revisões independentes de padrões/especificação sem bloqueios após os ajustes. [Matriz, comandos, resultados e limites](contracts/genai-consolidation.md).
 - GENAI-02/04/06 concluídos no escopo técnico local. Requisitos oficiais IA preservam seus estados; cobertura e medidas não comprovadas continuam bloqueadas. Alterações desta continuação ainda sem commit/push.
 
+### 2026-11-01 — IA-01/IA-02/IA-03/IA-06 — integração incremental GENAI-10B
+
+- Estados oficiais preservados: esta fatia não conclui os quatro domínios reais.
+- Branch independente `feat/genai-cobertura-dominios`: contribuição de receita por classe,
+  variantes acumuladas de atendimento, qualificação de dimensões, proteção de texto de
+  chamados e leitura mínima autorizada. Reutiliza composição, plano e executor oficiais.
+- Verificações: GenAI 3.970 aprovados/3 skips; Backend 855 aprovados/101 skips; ensaio
+  HTTP/PostgreSQL descartável 1 aprovado; após ajuste do observador, prontidão/acesso
+  61 aprovados/1 skip. Observação real sem modelo confirmou acumulado disponível e
+  atendimento mensal indisponível, sem inventar competência ou certificação.
+- Revisões independentes apontaram perda de ranking no acompanhamento e período
+  acumulado contraditório; correções e regressões incorporadas. Alterações ainda locais.
+- [Arquivos, comandos, autorização de leitura e limites](contracts/genai-domain-implementation.md).
+  Comparações, definições/cobertura insuficientes e aceite integrado restante continuam abertos.
+
+
+- Revalidação adicional desta fatia: 17 cenários numéricos reconciliados na Gold v2
+  pelo fluxo público com modelo controlado; aceite técnico local explicitamente dado
+  pela pessoa usuária, sem homologação de Dados. Corrigido truncamento indevido do
+  ranking top-1; dez testes de executor e HTTP/PostgreSQL aprovados. Os onze bloqueios,
+  sete casos sem amostra e duas regressões separadas mantêm o aceite integral pendente.
+
 ### 01/11/2026 — IA-01 a IA-06 — referência obrigatória Gold v2 no harness
 
 - Por orientação da pessoa usuária, novos desenvolvimentos, cenários e aceites GenAI usam Gold v2, seu dicionário, contrato físico e catálogo aprovados. Regra descoberta pelo AGENTS raiz e aplicada pela skill genai-gold; detalhes em [política de versões](agents/genai-gold.md#referência-obrigatória-gold-v2).

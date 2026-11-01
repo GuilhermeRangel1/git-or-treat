@@ -207,6 +207,8 @@ class MetricDefinition(BaseModel):
     # Teto explícito para janelas datadas; None representa histórico sem período de calendário.
     max_window_days: int | None = Field(default=None, ge=1)
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=30)
+    accumulated_metric_id: LogicalIdentifier | None = None
+    grouping_dimension_ids: tuple[LogicalIdentifier, ...] | None = None
     required_filter_dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=30)
     sensitivity: CatalogSensitivity
     evidence_fields: tuple[EvidenceFieldDefinition, ...] = Field(default=(), max_length=30)
@@ -231,6 +233,10 @@ class MetricDefinition(BaseModel):
             or not set(self.required_filter_dimension_ids) <= set(self.dimension_ids)
         ):
             raise ValueError("filtro obrigatório duplicado ou fora das dimensões da métrica")
+        if self.grouping_dimension_ids is not None and not set(
+            self.grouping_dimension_ids
+        ) <= set(self.dimension_ids):
+            raise ValueError("agrupamento fora das dimensões da métrica")
         if self.accumulated_period_phrases and self.max_window_days is not None:
             raise ValueError("histórico acumulado não admite limite de janela datada")
         if len({field.name for field in self.evidence_fields}) != len(self.evidence_fields):
@@ -363,6 +369,14 @@ class DomainProfile(BaseModel):
         for metric in self.metrics:
             if metric.domain_id not in domain_set:
                 raise ValueError("métrica referencia domínio inexistente")
+            if metric.accumulated_metric_id is not None:
+                target = next(
+                    (m for m in self.metrics if m.id == metric.accumulated_metric_id), None
+                )
+                if target is None or target.domain_id != metric.domain_id or not (
+                    target.accumulated_period_phrases
+                ):
+                    raise ValueError("variante acumulada inexistente ou incompatível")
             unknown_dimensions = set(metric.dimension_ids) - dimension_set
             if unknown_dimensions:
                 raise ValueError("métrica referencia dimensão inexistente")

@@ -55,7 +55,13 @@ def safe_reference_source(source_id: str, raw_reference: str) -> str:
     return f"{prefix}:{reference_digest}"
 
 
-def _observation_period(value: object, plan: LogicalReadPlan) -> str:
+def _observation_period(
+    value: object, plan: LogicalReadPlan, *, accumulated: bool = False
+) -> str:
+    if accumulated:
+        if plan.window.kind is not WindowKind.CATALOG_PHRASE or value != plan.window.phrase:
+            raise EvidenceContractInvalid("período acumulado incompatível com o plano")
+        return value
     period = _safe_period(value)
     if plan.window.kind is WindowKind.BOUNDED:
         expected_length = {"year": 4, "month": 7, "day": 10}.get(plan.window.granularity)
@@ -199,7 +205,10 @@ class EvidenceGuard:
             row_dimensions: dict[str, object] = {}
             for field in fields.values():
                 if field.role is EvidenceFieldRole.PERIOD:
-                    safe_row["period"] = _observation_period(row.get(field.name), plan)
+                    safe_row["period"] = _observation_period(
+                        row.get(field.name), plan,
+                        accumulated=bool(metric.accumulated_period_phrases),
+                    )
                 elif field.role is EvidenceFieldRole.DIMENSION:
                     dimension_id = field.dimension_id
                     if field.name not in row:

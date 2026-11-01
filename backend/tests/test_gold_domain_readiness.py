@@ -1,5 +1,7 @@
 """Prontidão por domínio pela operação pública do Backend, com banco controlado."""
 
+import pytest
+
 from app.services.gold_attendance_readiness import observe_domain_readiness
 from tests.test_gold_attendance_readiness import published  # noqa: F401
 
@@ -126,7 +128,6 @@ def test_continuity_uses_events_and_population_instead_of_summing_ratios(publish
     assert "EVENT_PRIVATE" not in str(facts)
 
 
-import pytest
 
 
 @pytest.mark.parametrize(
@@ -567,3 +568,13 @@ def test_consumer_reference_is_checked_before_genai_call(published, scope, case)
         GoldPublicationChanged if case == "stale" else GoldPublicationInvalid
     ):
         asyncio.run(run())
+
+
+def test_accumulated_domain_observation_does_not_fabricate_monthly_coverage(published):  # noqa: F811
+    facts = observe_domain_readiness(
+        published, requested_periods=(), approved_controls=frozenset({"C14"}),
+    )
+    assert facts["coverage"] == {}
+    assert facts["control_results"]["C14"]["status"] == "passed"
+    assert facts["control_results"]["C14"]["approved"] is True
+    assert facts["batch_ref"] == facts["expected_batch_ref"]

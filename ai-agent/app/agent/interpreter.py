@@ -304,6 +304,13 @@ class QuestionInterpreter:
             return self._clarify(self._profile.clarifications.missing_metric)
 
         selected_metric = self._select_metric(matched_metrics, base_intent)
+        if selected_metric is not None and selected_metric.accumulated_metric_id:
+            accumulated = next((item for item in self._profile.metrics
+                                if item.id == selected_metric.accumulated_metric_id), None)
+            if accumulated is not None and _find_phrases(
+                question, accumulated.accumulated_period_phrases
+            ):
+                selected_metric = accumulated
         domain = next(iter(matched_domains)) if matched_domains else base_intent.domain
 
         # O nome cadastrado da métrica não é um pedido adicional de agregação:
@@ -315,12 +322,27 @@ class QuestionInterpreter:
         breakdown = self._requested_breakdown(detail_question)
         breakdown = breakdown or self._requested_ranking_dimension(detail_question)
         breakdown_message = self._profile.clarifications.unsupported_breakdown
-        if breakdown is not None and breakdown_message is not None:
+        grouping_allowed = (
+            breakdown is not None and selected_metric is not None
+            and self._profile.supports_grouping
+            and selected_metric.grouping_dimension_ids is not None
+            and breakdown.id in selected_metric.grouping_dimension_ids
+        )
+        if breakdown is not None and breakdown_message is not None and not grouping_allowed:
             # Sem agrupamento no plano, responder o total seria um falso acerto.
             return self._clarify(
                 breakdown_message.replace("{dimension}", breakdown.label.lower())
             )
 
+        filter_question = detail_question
+        if grouping_allowed:
+            # O nome da dimensão no pedido de contribuição não é um valor de filtro.
+            aliases = "|".join(re.escape(alias) for alias in breakdown.aliases)
+            filter_question = re.sub(
+                rf"\bqual\s+(?:{aliases})\s+mais\s+contribuiu\b",
+                lambda match: " " * len(match.group()), filter_question,
+                flags=re.IGNORECASE,
+            )
         structured = self._profile.structured_dimension_filters
         dimension_filters: dict[str, str] = {}
         if structured:
@@ -335,7 +357,7 @@ class QuestionInterpreter:
                     and (start, end) != match[:2]
                     for start, end, _ in known_spans
                 )]
-                if self._has_unresolved_dimension_reference(detail_question, dimension, matches):
+                if self._has_unresolved_dimension_reference(filter_question, dimension, matches):
                     return self._clarify(
                         f"Há um valor não reconhecido de {dimension.label.lower()}. "
                         "Informe somente os valores autorizados que deseja consultar."
@@ -368,7 +390,7 @@ class QuestionInterpreter:
                     if len(candidates) != 1:
                         return self._clarify("O filtro informado é ambíguo neste catálogo.")
                     dimension_filters[dimension.id] = next(iter(candidates))
-                elif _find_phrases(detail_question, dimension.aliases):
+                elif _find_phrases(filter_question, dimension.aliases):
                     return self._clarify(
                         f"Informe um valor autorizado de {dimension.label.lower()}; "
                         "o filtro solicitado não foi reconhecido."
@@ -464,7 +486,19 @@ class QuestionInterpreter:
             filters["threshold_phrase"] = question[threshold.start() : threshold.end()]
 
         selected_dimension_ids = self._matched_dimension_ids(geography, class_phrase)
+        same_metric_context = (
+            base_intent is not None and selected_metric is not None
+            and base_intent.metric_id == selected_metric.id
+        )
+        inherited_groups = base_intent.group_by_dimension_ids if same_metric_context else []
+        inherited_order = base_intent.ranking_direction if same_metric_context else None
         intent_values = {
+            "group_by_dimension_ids": [breakdown.id] if grouping_allowed else inherited_groups,
+            "ranking_direction": (
+                "desc" if grouping_allowed and re.search(
+                    r"\b(?:mais|maior)\b", _normalize(detail_question)
+                ) else inherited_order
+            ),
             "domain": domain,
             "metric_id": selected_metric.id if selected_metric else None,
             "metric_phrase": selected_alias,
@@ -549,8 +583,8 @@ class QuestionInterpreter:
                 return True
         return False
 
-    @staticmethod
     def _dimension_value_matches(
+        self,
         question: str,
         dimensions: tuple[DimensionDefinition, ...],
     ) -> list[tuple[int, int, str]]:
@@ -560,7 +594,24 @@ class QuestionInterpreter:
             for value in dimension.values
             for alias in value.aliases
         )
-        return _find_phrases(question, phrases)
+        matches = _find_phrases(question, phrases)
+        selected = []
+        for match in matches:
+            prefix = _normalize(question[:match[0]])
+            qualified = {
+                dimension.id for dimension in self._profile.dimensions
+                if any(re.search(
+                    rf"\b{re.escape(_normalize(alias))}\s+(?:(?:de|do|da)\s+)?$", prefix
+                ) for alias in dimension.aliases)
+            }
+            if not qualified or any(
+                dimension.id in qualified and any(
+                    _normalize(match[2]) == _normalize(alias)
+                    for value in dimension.values for alias in value.aliases
+                ) for dimension in dimensions
+            ):
+                selected.append(match)
+        return selected
 
     def _requested_breakdown(self, question: str) -> DimensionDefinition | None:
         """Dimensão pedida em "por <alias>", exceto quando um valor dela vem logo depois."""

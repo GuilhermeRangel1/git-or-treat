@@ -244,6 +244,13 @@ def _metric(
         "granularities": granularities,
         "max_window_days": None if accumulated else GOLD_MAX_WINDOW_DAYS,
         "dimension_ids": dimension_ids,
+        "accumulated_metric_id": {
+            "service.attendance": "service.accumulated_attendance",
+            "service.satisfaction": "service.accumulated_satisfaction",
+        }.get(id_),
+        "grouping_dimension_ids": (
+            ("customer.consumption_class",) if id_ == "billing.revenue" else ()
+        ),
         "required_filter_dimension_ids": (
             ("network.feeder",) if id_.startswith("network.equivalent_interruption_") else ()
         ),
@@ -304,7 +311,8 @@ _METRICS = (
     _metric(
         "billing.effective_tariff",
         "revenue",
-        ("tarifa média efetiva", "tarifa efetiva", "preço médio por kWh"),
+        ("tarifa média efetiva", "tarifa efetiva", "preço médio por kWh",
+         "preço médio observado da energia"),
         "R$/kWh",
         ("currency",),
         _COMMERCIAL_WITH_UC,
@@ -319,7 +327,8 @@ _METRICS = (
     _metric(
         "energy.average_consumption_per_uc",
         "consumption",
-        ("consumo médio por UC", "consumo médio por unidade consumidora"),
+        ("consumo médio por UC", "consumo médio por unidade consumidora",
+         "consumo médio por unidade com leitura"),
         "kWh por UC com leitura no mês",
         ("energy",),
         _COMMERCIAL,
@@ -371,7 +380,7 @@ _METRICS = (
     _metric(
         "service.satisfaction",
         "service",
-        ("satisfação", "nota de satisfação"),
+        ("satisfação", "nota de satisfação", "satisfação média"),
         "pontos",
         ("score",),
         ("customer.consumer_unit",),
@@ -450,13 +459,14 @@ def _build_profile() -> DomainProfile:
         "últimos 3 meses",
         "mês passado",
         "este ano",
+        "neste ano",
         "histórico acumulado",
     )
     values["period_windows"] = ()
     values["default_period_phrase"] = None
     values["structured_dimension_filters"] = True
-    values["supports_grouping"] = False
-    values["supports_ordering"] = False
+    values["supports_grouping"] = True
+    values["supports_ordering"] = True
     values["default_period_context_phrases"] = ()
     values["comparison_period_phrases"] = ()
     values["non_location_phrases"] = ()

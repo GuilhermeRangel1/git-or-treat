@@ -94,6 +94,8 @@ class GoldTemporalWindowResolver:
         """`None` significa ausência de série mensal; tupla vazia, cobertura ainda não há."""
 
         normalized = _normalize(phrase)
+        if normalized == "neste ano":
+            normalized = "este ano"
         if normalized == _normalize("histórico acumulado"):
             return ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=phrase)
         if competencies is None or not competencies:

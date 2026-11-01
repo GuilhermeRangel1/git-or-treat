@@ -24,7 +24,9 @@ from app.schemas.domain_profile import (
 from app.schemas.read_plan import (
     LogicalReadPlan,
     ReadFilter,
+    ReadOrder,
     ReadWindow,
+    SortDirection,
     WindowKind,
 )
 
@@ -70,7 +72,7 @@ class ReadPlanBuilder:
 
         _validate_metric_period(metric, intent.period_phrase, self._profile)
         dimensions = {item.id: item for item in self._profile.dimensions}
-        selected_ids = set(intent.dimension_ids)
+        selected_ids = set(intent.dimension_ids) | set(intent.group_by_dimension_ids)
         filters: dict[str, ReadFilter] = {}
         for role, phrase in (
             (DimensionRole.GEOGRAPHY, intent.geography_phrase),
@@ -160,10 +162,13 @@ class ReadPlanBuilder:
             domain_id=intent.domain,
             metric_id=metric.id,
             dimension_ids=tuple(sorted(selected_ids)),
+            group_by_dimension_ids=tuple(intent.group_by_dimension_ids),
+            order=(ReadOrder(field_id=metric.id, direction=SortDirection(intent.ranking_direction))
+                   if intent.ranking_direction else None),
             unit=metric.unit,
             window=window,
             filters=tuple(filters[key] for key in sorted(filters)),
-            limit=self._default_limit,
+            limit=1 if intent.ranking_direction else self._default_limit,
         )
 
 
@@ -227,6 +232,19 @@ class ReadPlanValidator:
             or not set(plan.dimension_ids) <= set(metric.dimension_ids)
         ):
             raise PlanCapabilityUnavailable("Métrica, unidade ou dimensão indisponível.")
+        if metric.grouping_dimension_ids is not None:
+            if not set(plan.group_by_dimension_ids) <= set(metric.grouping_dimension_ids):
+                raise PlanCapabilityUnavailable("Este agrupamento não foi aprovado.")
+            if plan.group_by_dimension_ids and plan.order is not None and (
+                plan.window.start is None or plan.window.end is None
+                or (plan.window.start.year, plan.window.start.month)
+                != (plan.window.end.year, plan.window.end.month)
+            ):
+                raise PlanCapabilityUnavailable(
+                    "Escolha uma única competência para este agrupamento ordenado."
+                )
+            if plan.order is not None and not plan.group_by_dimension_ids:
+                raise PlanCapabilityUnavailable("Ordenação exige agrupamento aprovado.")
         _validate_metric_period(metric, plan.window.phrase, self._profile, plan.window.granularity)
         self._validate_window(plan, metric.granularities, metric.max_window_days)
 

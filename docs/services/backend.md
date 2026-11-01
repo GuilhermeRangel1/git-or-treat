@@ -234,3 +234,22 @@ O resultado contém o envelope contratual, a publicação capturada no servidor 
 A CLI é o chamador de runtime para esta etapa. Configure `GOLD_READINESS_DATABASE_URL` com o login PostgreSQL `venergy_gold_reader`, `AI_AGENT_BASE_URL` para a aplicação externa Gold e `AI_AGENT_SERVICE_API_TOKEN` no ambiente privado. Use `python scripts/plan_gold_question.py --request-file <pergunta.json> --scope-file <escopo-backend.json>`. O primeiro JSON segue `AIQuestionRequest`; o segundo segue `AccessScope`, deve ser administrado localmente pelo Backend e é relido nas reautorizações. Não aceite o segundo arquivo do portal. `GOLD_READINESS_EXPECTED_BATCH_REF` fixa opcionalmente a publicação esperada. A saída contém somente `status` e `plan_admitted`, sem pergunta, filtros, medidas ou identidade privada do lote.
 
 O executor de medidas e a coordenação do endpoint do portal permanecem em GENAI-06/07. A operação acima é integração executável do planejamento, não aceite quantitativo IA-01/IA-03/IA-06 nem autenticação individual do chat. Referência técnica: SQLAlchemy 2.0.52 observado localmente; transações/`execution_options` conferidos via Context7 em 31/10/2026 na [documentação Core 2](https://docs.sqlalchemy.org/en/20/core/connections.html).
+
+
+### GENAI-10B — leitura de atendimento e prontidão acumulada
+
+O escopo de sessão admite as quatro métricas de atendimento do catálogo Gold v2.
+O provisionamento quantitativo concede somente as três colunas de agregação de
+`atendimentos_uc` e o total acumulado da `visao_360_uc`, conforme autorização local
+explícita. Os limites, reautorização e isolamento operacional permanecem aplicados.
+
+A operação de prontidão de domínios admite consulta acumulada sem competências,
+publicando cobertura temporal vazia. A operação mensal original ainda exige um recorte.
+Controles C14/C15 não promovem automaticamente fechamento mensal ou DEC/FEC.
+[Evidência reproduzível, alcance e pendências](../contracts/genai-domain-implementation.md).
+
+
+No ranking explícito com agrupamento, o executor retorna exatamente o limite do plano.
+A linha extra para detectar truncamento é preservada nas consultas completas; não
+converte uma solicitação legítima de top-1 em erro por existir um segundo grupo.
+O teste integrado confere duas classes e mantém a recusa da consulta completa truncada.
