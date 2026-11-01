@@ -102,7 +102,66 @@ describe("cliente do chat", () => {
         context: [],
       }),
     ).rejects.toThrow(
-      "O serviço retornou uma resposta fora do contrato esperado.",
+      "Não foi possível apresentar a resposta. Tente uma nova pergunta em instantes.",
     );
   });
+});
+
+it.each([401, 403, 409, 422, 429])(
+  "trata HTTP %s sem expor o corpo técnico nem repetir automaticamente",
+  async (status) => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({ detail: "SELECT secret FROM internal" }, { status }),
+        ),
+    );
+    await expect(
+      askAIQuestion({
+        contract_version: "v1",
+        question: "Qual a receita?",
+        context: [],
+      }),
+    ).rejects.toMatchObject({ status, retryable: false });
+    await expect(
+      askAIQuestion({
+        contract_version: "v1",
+        question: "Qual a receita?",
+        context: [],
+      }),
+    ).rejects.not.toHaveProperty("message", expect.stringContaining("SELECT"));
+  },
+);
+
+it("interrompe uma consulta que não responde e permite repetição manual", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url, options: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            options.signal?.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            ),
+          ),
+      ),
+    );
+    const result = expect(
+      askAIQuestion({
+        contract_version: "v1",
+        question: "Qual a receita?",
+        context: [],
+      }),
+    ).rejects.toMatchObject({
+      retryable: true,
+      message: expect.stringContaining("demorou"),
+    });
+    await vi.advanceTimersByTimeAsync(40_000);
+    await result;
+  } finally {
+    vi.useRealTimers();
+  }
 });
