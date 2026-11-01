@@ -2810,3 +2810,19 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 
 - A releitura síncrona de sessão/permissões em `plan_gold_question` passa a executar em thread, aguardada pelo prazo original da requisição. As três revalidações permanecem antes da admissão e da entrega do plano, sem bloquear o event loop do Backend.
 - Verificação: `python -m pytest -q -p no:cacheprovider --tb=short tests/test_genai_planning_metadata.py tests/test_genai_deadline.py`: 23 passaram. O callback da prova existente confirma execução fora da thread do loop, inclusive na revogação. Evidência de integração de software; estados oficiais e aceite Gold preservados.
+
+### 31/10/2026 — IA-05 / IA-06 — GENAI-05: acesso negado e consolidação das provas locais
+
+- Na própria branch do PR #88, `feat/genai-acesso-gold-por-sessao`, reforçada a prova HTTP de sessão sem permissão tentando assumir a identidade autorizada por pergunta, query string e cabeçalhos. A pessoa autorizada continua no 503 contratual enquanto não houver coordenação; a pessoa sem permissão recebe 403 sem evidência e sem chamada GenAI.
+- Corrigida a fixture compartilhada `create_user`: lista vazia de permissões não recebe mais `orders:read` por default. Isso torna verificável o acesso negado, sem alterar a autorização de produção.
+- Matriz de pendências em [acesso Gold GenAI](contracts/genai-gold-access.md#fechamento-das-lacunas-locais-do-genai-05--31102026) separa provisionamento/grants/segredo implementados e comprovados em PostgreSQL descartável da instalação no ambiente autorizado. A revalidação na execução continua consumidor GENAI-06; não existe cache Gold para servir nesta branch.
+- PostgreSQL 16 descartável, sessão e papel restrito reais: `python -m pytest -q -p no:cacheprovider --tb=short tests/test_genai_session_access.py tests/test_genai_session_postgres.py tests/test_gold_reader.py tests/test_order_sessions.py tests/test_ai_chat.py`: **31 aprovados**, 1 aviso preexistente. Ruff do teste GenAI alterado, compileall dos dois testes e diff-check passaram. A primeira execução revelou a fixture que convertia permissões vazias em leitura; a execução final acima passou após a correção.
+- IA-05/IA-06 preservam seus estados. GENAI-05 permanece em validação pelas cláusulas de ambiente real e consumo integrado; não foi incluído código do executor nem alterado o PR DEV-13.1.
+
+### 01/11/2026 — DEV-13.1 / WEB-06 e WEB-07 — revisão do PR #86
+
+- Corrigida a classificação da janela Gold sem observações: continuidade, série, resumo e ranking retornam `empty`, mesmo com alimentador cadastrado. Base inválida continua `unavailable`; zero observado com base válida permanece zero e `partial`.
+- A URL de Operação informa o erro de `ranking_page` inválido e como corrigi-lo, mantendo as consultas bloqueadas. A correção de conversa na troca de identidade já está no commit `30c53c6` do PR #92 e não foi duplicada nesta branch.
+- Backend: `python -m pytest -q tests/test_gold_operation_states.py tests/test_operations_summary.py tests/test_operations_dev08.py`: 86 passaram, com aviso preexistente Starlette/httpx. Regressão de estados usa observações artificiais; não executa nova reconciliação do lote real.
+- Frontend: `npm test -- src/features/operacao/operations-state.test.ts src/features/operacao/OperacaoPage.test.tsx`: 33 passaram. Prettier e oxlint dos dois arquivos alterados, fronteiras e build passaram.
+- Os cinco checks GitHub do head anterior `b587f99` passaram, incluindo GenAI. Esta revisão permanece local, aguardando commit/push e a CI do novo head; não conclui requisitos nem autoriza merge por si só.
