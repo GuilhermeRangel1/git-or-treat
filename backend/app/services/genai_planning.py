@@ -12,7 +12,10 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 
 from app.models.gold_v2 import TABLES
-from app.repositories.gold_publication import GoldPublicationChanged
+from app.repositories.gold_publication import (
+    GoldPublicationChanged,
+    GoldPublicationInvalid,
+)
 from app.schemas.ai import AIQuestionError, AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_internal import (
     AccessScope,
@@ -27,8 +30,14 @@ from app.services.genai_client import GenAIQuestionClient, GenAIResponseInvalid
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_plan import validate_gold_genai_plan
 from app.services.genai_publication import GoldPublicationContext
-from app.services.gold_catalog import load_gold_catalog, select_catalog_source
+from app.services.gold_catalog import (
+    GoldCatalogIncompatible,
+    gold_physical_catalog,
+    load_gold_catalog,
+    select_catalog_source,
+)
 
+GOLD_V2_SCHEMA_VERSION = "gold-csv-v2"
 MAX_QUERY_MONTHS = 1200
 MAX_QUERY_WINDOW_DAYS = 366 * 5
 
@@ -68,14 +77,31 @@ def _admit_plan(plan: LogicalReadPlan, scope: AccessScope) -> CatalogSource:
             raise GenAIResponseInvalid
     catalog = load_gold_catalog()
     metric = next((m for m in catalog.metrics if m.metric_id == plan.metric_id), None)
+    if metric is None:
+        # Métrica conhecida pela GenAI e ausente aqui indica implantação defasada.
+        raise GoldCatalogIncompatible
     if (
-        metric is None
-        or plan.metric_id not in scope.allowed_metric_ids
+        plan.metric_id not in scope.allowed_metric_ids
         or "read" not in scope.allowed_operations
         or (scope.profile_id, scope.source_id) != (plan.profile_id, plan.source_id)
         or not set(plan.dimension_ids) <= scope.allowed_dimension_ids
         or plan.unit != metric.unit
     ):
+        raise GenAIResponseInvalid
+    if plan.comparison_periods is not None and (
+        plan.metric_id not in {"billing.revenue", "energy.consumption"}
+        or metric.aggregation != "sum"
+        or (plan.group_by_dimension_ids and (
+            plan.metric_id != "energy.consumption"
+            or plan.group_by_dimension_ids != ("geography.neighborhood",)
+            or plan.order is None or plan.order.direction != "asc"
+        ))
+        or (plan.order is not None and not plan.group_by_dimension_ids)
+    ):
+        raise GenAIResponseInvalid
+    if any(not any(item.dimension_id == key and item.operator.value == "eq"
+                   and item.values == (value,) for item in plan.filters)
+           for key, value in metric.fixed_filter_values.items()):
         raise GenAIResponseInvalid
     for item in plan.filters:
         if item.operator.value not in metric.dimension_operators.get(item.dimension_id, ()):
@@ -113,6 +139,14 @@ def _has_selected_coverage(
     plan: LogicalReadPlan, source: CatalogSource,
 ) -> bool:
     """A união de meses de outras fontes não prova cobertura da fonte escolhida."""
+    if plan.metric_id == "billing.price_volume":
+        from app.services.gold_price_volume import configured_windows
+        with publication.execution_snapshot(engine) as connection:
+            connection.exec_driver_sql("SET LOCAL statement_timeout = '5000ms'")
+            try:
+                return configured_windows(connection, plan) is not None
+            except ValueError:
+                return False
     if plan.window.kind != WindowKind.BOUNDED:
         return source.temporal_column is None
     if source.temporal_column is None:
@@ -133,6 +167,8 @@ def _has_selected_coverage(
             # Somente eq/in, já conferidos pelo catálogo. Valores são parâmetros SQL.
             query = query.where(table.c[source.dimension_columns[item.dimension_id]].in_(item.values))
         values = set(connection.execute(query.distinct().limit(1201)).scalars())
+        if plan.comparison_periods is not None:
+            return set(plan.comparison_periods) <= values
         cursor = plan.window.start.replace(day=1)
         while cursor <= plan.window.end:
             if cursor.strftime("%Y-%m") not in values:
@@ -171,6 +207,9 @@ async def plan_gold_question(
     publication = await deadline.run(
         35, lambda: asyncio.to_thread(GoldPublicationContext.capture, engine)
     )
+    if publication.reference.schema_version != GOLD_V2_SCHEMA_VERSION:
+        # Rollback para publicação v1 não vira fallback: o executor lê somente gold_v2.
+        raise GoldPublicationInvalid("A publicação Gold atual não é v2.")
     if expected_batch_ref is not None and publication.batch_ref != expected_batch_ref:
         raise GoldPublicationChanged("A publicação Gold mudou antes do planejamento.")
     fields = await deadline.run(
@@ -193,6 +232,12 @@ async def plan_gold_question(
         ), publication, access_scope=scope)
     if response.status != QuestionPlanStatus.PLANNED:
         return GoldPlanningResult(response, publication, access_scope=scope)
+    if (
+        response.physical_catalog is not None
+        and response.physical_catalog != gold_physical_catalog()
+    ):
+        # Plano de outro catálogo físico não executa; ausência mantém compatibilidade.
+        raise GoldCatalogIncompatible
     plan = validate_gold_genai_plan(
         response.plan.model_dump(mode="json"), response.plan_fingerprint
     )

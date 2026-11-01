@@ -71,6 +71,8 @@ def _describe_observation(
     labels: list[str] = []
     if "period" in observation:
         labels.append(str(observation["period"]))
+    if "label" in observation:
+        labels.append(str(observation["label"]))
     dimensions = observation.get("dimensions", {})
     if isinstance(dimensions, dict):
         for dimension_id, dimension_value in dimensions.items():
@@ -460,6 +462,8 @@ class QuestionOrchestrator:
             if read_plan.window.phrase is not None
             else f"{read_plan.window.start} a {read_plan.window.end}"
         )
+        if evidence.provenance and evidence.provenance.published_windows:
+            period = evidence.provenance.published_windows.describe()
         filters = {
             item.dimension_id: item.values[0] if len(item.values) == 1 else list(item.values)
             for item in read_plan.filters
@@ -528,26 +532,34 @@ class QuestionOrchestrator:
         labels = {item.id: item.label for item in profile.dimensions}
         answer = None
         if generated.status == "answered":
+            answer_observation_ids = (
+                tuple(observations)
+                if read_plan.comparison_periods or evidence.provenance.published_windows is not None
+                else generated.observation_ids
+            )
             values = ", ".join(
                 _describe_observation(
                     observations[item], labels, human_readable=not evidence.reference.is_demo
                 )
-                for item in generated.observation_ids
+                for item in answer_observation_ids
             )
             prefix = "Demonstração sintética: " if evidence.reference.is_demo else ""
             title = metric.label or "Resultado da consulta"
             if evidence.reference.is_demo:
                 answer = f"{prefix}{title} — {period}: {values}."
-            elif len(generated.observation_ids) == 1:
+            elif len(answer_observation_ids) == 1:
                 answer = f"Para {title.lower()}, o resultado foi de {values}."
             else:
                 lines = [
                     _describe_observation(observations[item], labels, human_readable=True)
-                    for item in generated.observation_ids
+                    for item in answer_observation_ids
                 ]
                 answer = f"Resultados de {title.lower()} no período solicitado:\n" + "\n".join(
                     f"• {line}" for line in lines
                 )
+            if read_plan.comparison_periods and "row_4" not in observations:
+                answer += " Variação percentual indisponível: a base inicial não é positiva."
+
 
         error = (
             map_failure(FailureCode.POLICY_REFUSAL).error if generated.status == "refused" else None

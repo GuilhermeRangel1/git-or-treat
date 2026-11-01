@@ -41,6 +41,7 @@ O cliente do portal mantém as mensagens na memória da página e envia no máxi
 | `contract_version` | Literal `v1`; opcional na requisição por compatibilidade, com default `v1`; `null` ou outra versão é rejeitada. |
 | `question` | Texto não vazio após trim, até 1.000 caracteres. |
 | `context` | Opcional, até três turnos em ordem; cada turno só aceita `role` (`user` ou `assistant`) e `content` não vazio de até 1.000 caracteres. |
+| `expected_publication` | Opcional, só na fonte Gold: `{lote, fingerprint}` da publicação exibida na tela (fingerprint com 64 hex minúsculos). Divergência da publicação atual retorna 409; no modo sintético retorna 422. Não autoriza nem seleciona dados e não é repassado à GenAI. Ver [invalidação](genai-invalidation.md#6-publicação-esperada-informada-pelo-consumidor). |
 | Campos adicionais | Rejeitados. |
 | Corpo HTTP | Limite global de 65.536 bytes no Backend. Os limites de campo reduzem o payload esperado do chat. |
 
@@ -84,9 +85,11 @@ Erros de protocolo usam o envelope seguro `status: "error"`, `contract_version`,
 | --- | --- | --- | --- |
 | 401/403 | `access_denied` | Não | Sessão ausente/inválida ou leitura Gold não autorizada. |
 | 409 | `invalid_context` | Sim | Publicação Gold alterada; nova pergunta deve capturar plano/lote atuais. |
+| 409 | `invalid_context` | Não | `expected_publication` difere da publicação atual; recarregar a tela antes de perguntar de novo. |
 | 422 | `invalid_request` | Não | Campo ausente/inválido, versão incompatível ou campo extra. |
 | 502 | `invalid_upstream_response` | Não | Status diferente de 200/503, JSON de sucesso inválido ou envelope/correlação incompatível. |
 | 503 | `service_unavailable` | Conforme a origem | URL ausente, serviço não alcançável ou HTTP 503 genérico da GenAI. Em HTTP 503 com envelope v1 válido e correlacionado, preservar `error.retryable` (inclusive falso). Configurar URL sem token impede a inicialização do Backend. |
+| 503 | `service_unavailable` | Não | Catálogo físico Gold incompatível entre os serviços, métrica fora do catálogo do Backend, schema `gold_v2` divergente ou publicação não v2. Ver [invalidação](genai-invalidation.md). |
 | 504 | `service_unavailable` | Sim | Chamada excedeu `AI_AGENT_TIMEOUT_SECONDS`. |
 
 O Backend não repete chamadas automaticamente. O campo `retryable` informa ao consumidor se uma nova tentativa pode ser útil; não garante que repetir produza resultado diferente.

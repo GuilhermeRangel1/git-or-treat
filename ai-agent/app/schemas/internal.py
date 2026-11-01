@@ -9,12 +9,20 @@ from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_serializer,
+    model_validator,
+)
 
 from app.schemas.access import AccessContext
 from app.schemas.analysis import LogicalIdentifier
 from app.schemas.domain_profile import CatalogOperation
 from app.schemas.evidence import EvidenceLookupResult, GoldBatchRef
+from app.schemas.physical_catalog import PhysicalCatalogRef
 from app.schemas.questions import QuestionRequest, QuestionResponse, QuestionStatus
 from app.schemas.read_plan import LogicalReadPlan
 from app.schemas.responses import CorrelationId
@@ -145,9 +153,21 @@ class QuestionPlanResponse(BaseModel):
     plan: LogicalReadPlan | None = None
     plan_fingerprint: str | None = Field(default=None, pattern=_FINGERPRINT_PATTERN)
     response: QuestionResponse | None = None
+    # Catálogo físico sob o qual o plano foi produzido; opcional para compatibilidade.
+    physical_catalog: PhysicalCatalogRef | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_physical_catalog(self, handler):
+        # Ausência não é serializada: consumidores anteriores recusam campos extras.
+        data = handler(self)
+        if self.physical_catalog is None and isinstance(data, dict):
+            data.pop("physical_catalog", None)
+        return data
 
     @model_validator(mode="after")
     def validate_content_for_status(self) -> Self:
+        if self.physical_catalog is not None and self.status is not QuestionPlanStatus.PLANNED:
+            raise ValueError("catálogo físico só acompanha plano pronto")
         if self.status is QuestionPlanStatus.PLANNED:
             if self.plan is None or self.plan_fingerprint is None or self.response is not None:
                 raise ValueError("plano pronto exige plano e fingerprint, sem resposta")

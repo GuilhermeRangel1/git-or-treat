@@ -491,3 +491,18 @@ def test_business_synonyms_do_not_change_the_measure_population(question):
     result = asyncio.run(core.question.plan(request, "f" * 32))
     assert result.status.value == "needs_clarification", result.model_dump_json()
     assert result.plan is None
+
+
+def test_explicit_municipality_qualifier_disambiguates_shared_neighborhood_name():
+    from app.schemas.internal import DimensionValueCoverage
+    core, request = _setup("Receita no município de Recife em março de 2025?")
+    request = request.model_copy(update={"dimension_value_coverage": (
+        *[v for v in request.dimension_value_coverage
+          if v.dimension_id != "geography.neighborhood"],
+        DimensionValueCoverage(dimension_id="geography.neighborhood", values=["Recife"]),
+    )})
+    result = asyncio.run(core.question.plan(request, "f" * 32))
+    assert result.status.value == "planned"
+    assert {f.dimension_id: f.values for f in result.plan.filters} == {
+        "geography.municipality": ("Recife",),
+    }
