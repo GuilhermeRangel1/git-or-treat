@@ -8,6 +8,8 @@ from enum import StrEnum
 from time import monotonic
 from typing import Protocol
 
+from app.generation.prompts import PROMPT_VERSION
+
 logger = logging.getLogger(__name__)
 _HEX32 = re.compile(r"[a-f0-9]{32}\Z")
 _HEX64 = re.compile(r"[a-f0-9]{64}\Z")
@@ -63,10 +65,13 @@ class CoreEvent:
     catalog_version: str | None = None
     plan_id: str | None = None
     evidence_ref: str | None = None
+    prompt_version: str = PROMPT_VERSION
 
     def __post_init__(self) -> None:
         if self.flow not in {"question", "insight"}:
             raise ValueError("fluxo de evento inválido")
+        if self.prompt_version != PROMPT_VERSION:
+            raise ValueError("versão de prompt inválida")
         if not isinstance(self.stage, EventStage) or not isinstance(self.code, EventCode):
             raise ValueError("estágio ou código de evento inválido")
         if not isinstance(self.outcome, EventOutcome):

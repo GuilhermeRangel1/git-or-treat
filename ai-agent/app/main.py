@@ -42,6 +42,15 @@ def create_app(
     """Compõe a demonstração ou uma fonte externa explicitamente autorizada."""
 
     active_settings = settings or get_settings()
+    if active_settings.audit_url is not None or active_settings.audit_write_token is not None:
+        if (event_sink is not None or active_settings.audit_url is None
+            or active_settings.audit_write_token is None):
+            raise ValueError("Configuração de auditoria incompleta ou ambígua.")
+        from app.audit import BackendEventSink
+        event_sink = BackendEventSink(
+            active_settings.audit_url, active_settings.audit_write_token.get_secret_value(),
+        )
+        require_durable_audit = True
     if active_settings.demo_source == "sqlite":
         if (
             source_mode != "demo"

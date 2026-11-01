@@ -29,6 +29,7 @@ from app.schemas.ai import AIQuestionRequest
 from app.schemas.genai_internal import AccessScope, QuestionPlanResponse
 from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus, ReadWindow
 from app.schemas.gold_readiness import GoldReadinessReport
+from app.services.genai_audit import AuditStore
 from app.services.genai_client import GenAIQuestionClient, GenAITimeout
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, _query, execute_gold_plan
@@ -43,6 +44,7 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from tests.support.audit_runtime import audit_runtime
 from tests.support.genai_transport import GENAI_TRANSPORT_EVENTS, dispatch_genai
 from tests.support.migrations import migrated_database
 from tests.test_gold_import import batch  # noqa: F401 - fixture compartilhada
@@ -538,7 +540,9 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 }
 
             origin = {"Origin": "http://localhost:5173"}
-            with TestClient(api) as client, TestClient(runtime_app) as public_client:
+            with (TestClient(api) as client, TestClient(runtime_app) as public_client,
+                  audit_runtime(owner_url.render_as_string(hide_password=False)) as audit_url):
+                monkeypatch.setenv("GENAI_TEST_AUDIT_URL", audit_url)
                 assert client.get("/api/v1/probe").status_code == 401
                 callers = []
                 cache_scopes = []
@@ -580,6 +584,15 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 assert len(correlation_id) == 32
                 assert public.headers["X-Correlation-ID"] == correlation_id
                 assert public.json()["evidence"]
+                persisted = AuditStore(owner).read(correlation_id)
+                assert {row["service"] for row in persisted} == {"backend", "genai"}
+                assert public.json()["audit_reference"] in {row["id"] for row in persisted}
+                final_event = next(row["event"] for row in persisted
+                                   if row["id"] == public.json()["audit_reference"])
+                assert final_event["row_count"] == 1
+                assert final_event["stage"] == "response"
+                assert final_event["batch_ref"]
+                assert "Lumenia" not in str(persisted)
                 assert [item["path"] for item in GENAI_TRANSPORT_EVENTS] == [
                     "/api/v1/internal/question-plans",
                     "/api/v1/internal/question-syntheses",
@@ -626,6 +639,17 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "gold_v2.diagnostico_receita" in statement.lower()
                     for statement in reader_sql
                 )
+
+                monkeypatch.setenv("GENAI_TEST_AUDIT_TOKEN", "invalid-test-token-000000000000000000")
+                reader_sql.clear()
+                audit_failed = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                    "question": "Qual a receita em Lumenia em janeiro de 2001?",
+                })
+                assert audit_failed.status_code == 200
+                assert audit_failed.json()["status"] == "recoverable_error"
+                assert not audit_failed.json()["evidence"]
+                assert not any("receita_total_reais" in sql.lower() for sql in reader_sql)
+                monkeypatch.delenv("GENAI_TEST_AUDIT_TOKEN")
 
                 async def mismatched_batch(planned):
                     prefix, run_id, _publication_id = planned.publication.batch_ref.split(":")
@@ -725,6 +749,9 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 "SELECT * FROM gold_v2.atendimentos_uc",
                 "SELECT * FROM public.auth_users",
                 "SELECT * FROM public.auth_sessions",
+                "SELECT * FROM public.genai_audit_events",
+                "INSERT INTO public.genai_audit_events DEFAULT VALUES",
+                "DELETE FROM public.genai_audit_events",
                 "SELECT * FROM public.operational_inspection_orders",
                 "SELECT * FROM public.gold_carga_atual",
                 "SELECT public.genai_private_probe()",

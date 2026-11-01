@@ -2,19 +2,24 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from time import monotonic
 
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
+from app.schemas.genai_audit import BackendAuditEvent
 from app.schemas.genai_evidence import GoldEvidenceQuality
 from app.schemas.genai_internal import AccessScope, QuestionSynthesisRequest
 from app.schemas.genai_plan import QuestionPlanStatus
 from app.schemas.gold_readiness import GoldReadinessReport
+from app.services.genai_audit import AuditStore
 from app.services.genai_client import (
     GenAIQuestionClient,
     GenAIResponseInvalid,
     GenAIServiceUnavailable,
 )
+from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
 from app.services.genai_flow import should_synthesize
 from app.services.genai_planning import GoldPlanningResult, plan_gold_question
@@ -29,20 +34,43 @@ async def answer_gold_question(
     resolve_scope: Callable[[], AccessScope],
     correlation_id: str,
     readiness_gate: Callable[[GoldPlanningResult], Awaitable[GoldReadinessReport]] | None = None,
+    audit_store: AuditStore | None = None,
 ) -> AIQuestionResponse:
     """Mantém plano, identidade, publicação e prazo entre as duas operações HTTP.
 
     A execução síncrona usa timeout no servidor PostgreSQL; cancelar a coroutine
     não constitui prova de cancelamento do trabalho na thread.
     """
+    if audit_store is None:
+        raise GenAIServiceUnavailable(retryable=False)
+    started = monotonic()
+    deadline = GenAIRequestDeadline.start(35)
+
+    async def audit(stage, code, outcome, **metadata):
+        event = BackendAuditEvent(
+            correlation_id=correlation_id, stage=stage, code=code, outcome=outcome,
+            duration_ms=max(0, int((monotonic() - started) * 1000)), **metadata,
+        )
+        try:
+            return await asyncio.to_thread(audit_store.record, event, service="backend")
+        except (SQLAlchemyError, ValueError):
+            raise GenAIServiceUnavailable(retryable=False) from None
+
+    await deadline.run(35, lambda: audit("request", "started", "started"))
     planned = await plan_gold_question(
         engine, client, request, resolve_scope=resolve_scope,
         correlation_id=correlation_id,
+        deadline=deadline,
     )
     if planned.response.status is not QuestionPlanStatus.PLANNED:
         if planned.response.response is None:
             raise GenAIResponseInvalid
-        return planned.response.response
+        response = planned.response.response
+        outcome = "error" if response.status == "recoverable_error" else (
+            "refused" if response.status == "refused" else "success"
+        )
+        reference = await deadline.run(35, lambda: audit("response", "completed", outcome))
+        return planned.response.response.model_copy(update={"audit_reference": reference})
     if planned.deadline is None or planned.access_scope is None or planned.source is None:
         raise GenAIResponseInvalid
     if readiness_gate is None:
@@ -63,6 +91,15 @@ async def answer_gold_question(
         lot_state=report.lot_state,
         available_capability_ids=tuple(sorted(required)),
     )
+    metadata = {
+        "plan_id": planned.response.plan_fingerprint,
+        "catalog_version": planned.response.plan.catalog_version,
+        "batch_ref": planned.publication.batch_ref,
+        "caller_ref": planned.access_scope.caller_ref,
+        "metric_id": planned.response.plan.metric_id,
+        "source_id": planned.response.plan.source_id,
+    }
+    await planned.deadline.run(35, lambda: audit("plan", "ready", "success", **metadata))
     lookup = await planned.deadline.run(
         35, lambda: asyncio.to_thread(
             execute_gold_plan, engine, planned, resolve_scope=resolve_scope,
@@ -74,6 +111,10 @@ async def answer_gold_question(
         policy="completed_lookup",
     ):
         raise GenAIResponseInvalid
+    row_count = len(lookup.evidence.records) if lookup.evidence else 0
+    await planned.deadline.run(35, lambda: audit(
+        "source", "completed", "success", row_count=row_count, **metadata,
+    ))
     current_scope = await planned.deadline.run(
         35, lambda: asyncio.to_thread(resolve_scope),
     )
@@ -102,7 +143,22 @@ async def answer_gold_question(
         35, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
     planned.deadline.remaining_seconds(35)
-    return result
+    outcome = "error" if result.status == "recoverable_error" else (
+        "refused" if result.status == "refused" else "success"
+    )
+    reference = await planned.deadline.run(35, lambda: audit(
+        "response", "completed", outcome, row_count=row_count, **metadata,
+    ))
+    # A confirmação durável também consome tempo; não publicar com escopo/lote
+    # revogados enquanto a transação de auditoria era confirmada.
+    current_scope = await planned.deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
+    if current_scope != planned.access_scope:
+        raise GoldExecutionDenied
+    await planned.deadline.run(
+        35, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
+    )
+    planned.deadline.remaining_seconds(35)
+    return result.model_copy(update={"audit_reference": reference})
 
 
 def build_readiness_gate(engine: Engine, client: GenAIQuestionClient, approved_controls):

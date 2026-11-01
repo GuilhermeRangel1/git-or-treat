@@ -144,13 +144,14 @@ async def plan_gold_question(
     engine: Engine, client: GenAIQuestionClient, request: AIQuestionRequest, *,
     resolve_scope: Callable[[], AccessScope], correlation_id: str,
     expected_batch_ref: str | None = None,
+    deadline: GenAIRequestDeadline | None = None,
 ) -> GoldPlanningResult:
     """Liga produtor e cliente em runtime, com prazo único e reautorização atual.
 
     O resolvedor é dependência confiável do Backend, nunca parte do corpo do portal.
     GENAI-06/07 consomem o plano admitido; o chamador não deve executar resposta recusada.
     """
-    deadline = GenAIRequestDeadline.start(35)
+    deadline = deadline or GenAIRequestDeadline.start(35)
     if expected_batch_ref is not None:
         PublicationReference.parse(expected_batch_ref)
     scope = resolve_scope()

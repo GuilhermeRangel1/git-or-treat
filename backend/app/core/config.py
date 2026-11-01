@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     AI_AGENT_BASE_URL: AnyHttpUrl | None = None
     AI_AGENT_SERVICE_API_TOKEN: SecretStr | None = None
     AI_AGENT_TIMEOUT_SECONDS: float = Field(default=35.0, ge=0.1, le=120.0)
+    GENAI_AUDIT_WRITE_TOKEN: SecretStr | None = None
+
+    @field_validator("GENAI_AUDIT_WRITE_TOKEN")
+    @classmethod
+    def validate_audit_token(cls, value):
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError("Credencial de auditoria deve ter ao menos 32 caracteres.")
+        return value
 
     # Explicitly opt in to the in-memory demonstration analytics source.
     ANALYTICS_SOURCE: str = "unavailable"
