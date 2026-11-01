@@ -160,6 +160,16 @@ class GenAIQuestionClient:
             raise GenAIResponseInvalid
         return result
 
+    async def evaluate_readiness(self, engine, **kwargs):
+        """Reusa o observador Backend e a operação interna de prontidão."""
+        from app.services.gold_readiness import evaluate_domain_readiness
+        if self._base_url is None or self._service_token is None:
+            raise GenAIServiceUnavailable
+        return await evaluate_domain_readiness(
+            engine, http_client=self._http_client, base_url=self._base_url,
+            service_token=self._service_token, **kwargs,
+        )
+
     async def synthesize(
         self, payload: QuestionSynthesisRequest, *, correlation_id: str
     ) -> AIQuestionResponse:

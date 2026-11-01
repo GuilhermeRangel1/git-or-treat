@@ -1,5 +1,5 @@
-from typing import List, Literal, Union
 from pathlib import Path
+from typing import Literal
 
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE: int = 1800
     DB_ECHO: bool = False
     GENAI_GOLD_DATABASE_URL: SecretStr | None = None
+    GENAI_GOLD_APPROVED_CONTROLS: list[str] = []
 
     # Data directory (Mocks now, Gold exported CSVs later)
     GOLD_DATA_DIR: Path = Path(__file__).resolve().parent.parent.parent / "data" / "gold"

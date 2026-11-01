@@ -4,17 +4,21 @@ import re
 from collections.abc import Callable, Iterator
 from typing import Annotated
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.database import get_db
 from app.core.genai_gold_access import (
     GOLD_DIMENSIONS,
     GOLD_METRICS,
     get_genai_gold_access_resolver,
 )
+from app.core.order_access import bearer
 from app.schemas.genai_internal import AccessScope
 
 GOLD_READER_ROLE = "venergy_genai_reader"
@@ -71,3 +75,42 @@ def get_genai_gold_engine(
         yield engine
     finally:
         engine.dispose()
+
+
+def get_question_gold_resources(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Iterator[tuple[Engine, Callable[[], AccessScope]] | None]:
+    """Seleciona a fonte explicitamente e encerra o pool ao concluir a chamada."""
+    if settings.ANALYTICS_SOURCE != "gold":
+        yield None
+        return
+    resolve = get_genai_gold_access_resolver(request, credentials, db)
+    try:
+        engine = create_genai_gold_engine(resolve())
+    except (ValueError, TypeError, SQLAlchemyError):
+        raise HTTPException(503, "Leitura Gold indisponível.") from None
+    try:
+        yield engine, resolve
+    finally:
+        engine.dispose()
+
+
+def get_question_gold_readiness_gate(
+    request: Request, db: Annotated[Session, Depends(get_db)],
+):
+    """Composição operacional; o leitor quantitativo mantém seu login separado."""
+    if settings.ANALYTICS_SOURCE != "gold":
+        return None
+    supplied = getattr(request.app.state, "genai_gold_readiness_gate", None)
+    if hasattr(request.app.state, "genai_gold_readiness_gate"):
+        return supplied
+    from app.services.genai_coordination import build_readiness_gate
+    engine = db.get_bind()
+    if not isinstance(engine, Engine):
+        raise HTTPException(503, "Prontidão Gold indisponível.")
+    return build_readiness_gate(
+        engine, request.app.state.genai_question_client,
+        settings.GENAI_GOLD_APPROVED_CONTROLS,
+    )

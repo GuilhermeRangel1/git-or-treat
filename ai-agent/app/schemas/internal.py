@@ -167,6 +167,7 @@ class QuestionPlanResponse(BaseModel):
 class QuestionSynthesisRequest(QuestionRequest):
     """Plano devolvido em ``planned`` e o resultado da execução no Backend."""
 
+    dimension_value_coverage: tuple[DimensionValueCoverage, ...] = Field(default=(), max_length=20)
     access_scope: AccessScope
     remaining_timeout_ms: int = Field(strict=True, gt=0, le=35000)
     plan: LogicalReadPlan
@@ -176,6 +177,11 @@ class QuestionSynthesisRequest(QuestionRequest):
 
     @model_validator(mode="after")
     def validate_fingerprint(self) -> Self:
+        ids = [item.dimension_id for item in self.dimension_value_coverage]
+        if (len(ids) != len(set(ids))
+            or not set(ids) <= self.access_scope.allowed_dimension_ids
+            or "customer.consumer_unit" in ids):
+            raise ValueError("vocabulário de síntese fora do escopo")
         if self.plan.source_id.startswith("gold."):
             if self.expected_batch_ref is None:
                 raise ValueError("síntese Gold exige publicação esperada")

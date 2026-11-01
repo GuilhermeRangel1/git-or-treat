@@ -16,6 +16,7 @@ from app.repositories.gold_publication import GoldPublicationChanged
 from app.schemas.ai import AIQuestionError, AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_internal import (
     AccessScope,
+    DimensionValueCoverage,
     QuestionPlanRequest,
     QuestionPlanResponse,
 )
@@ -38,6 +39,7 @@ class GoldPlanningResult:
     source: CatalogSource | None = None
     access_scope: AccessScope | None = None
     deadline: GenAIRequestDeadline | None = None
+    dimension_value_coverage: tuple[DimensionValueCoverage, ...] = ()
 
 
 def _stop(status: QuestionPlanStatus, message: str, correlation_id: str):
@@ -196,4 +198,6 @@ async def plan_gold_question(
             "As permissões mudaram. Refaça a pergunta com o acesso atual.", correlation_id,
         ), publication, access_scope=scope)
     deadline.remaining_seconds(35)
-    return GoldPlanningResult(response, publication, source, scope, deadline)
+    return GoldPlanningResult(
+        response, publication, source, scope, deadline, payload.dimension_value_coverage,
+    )
