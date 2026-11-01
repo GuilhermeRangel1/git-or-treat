@@ -93,3 +93,42 @@ it("recusa score nulo sem categoria textual", () => {
     }),
   ).toThrow();
 });
+
+it("mostra os dois trimestres como comparação proposta, sem alterar a prioridade", () => {
+  const result = decodeDetail({
+    data: {
+      ...item,
+      rule_version: "gold-csv-v2",
+      limitations: [],
+      estimate_evidence: {
+        baseline_kwh: null,
+        observed_kwh: null,
+        horizon_months: null,
+        reference: "Sem estimativa",
+        unavailable_reason: "Não fornecida",
+      },
+      consumption_comparison: {
+        baseline_start: "2024-08",
+        baseline_end: "2024-10",
+        recent_start: "2024-11",
+        recent_end: "2025-01",
+        baseline_kwh: 300,
+        recent_kwh: 150,
+        change_percent: -50,
+        unavailable_reason: null,
+      },
+    },
+    metadata,
+  });
+  render(<SuspicionDetail data={result.data} metadata={result.metadata} />);
+  expect(screen.getByText("Comparação proposta de consumo")).toBeVisible();
+  expect(screen.getByText(/-50%/)).toBeVisible();
+  expect(
+    screen.getByText(/não define a prioridade nem comprova irregularidade/),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("status", {
+      name: "Prioridade categórica: ALTA - HISTORICO IRREGULAR",
+    }),
+  ).toBeVisible();
+});
