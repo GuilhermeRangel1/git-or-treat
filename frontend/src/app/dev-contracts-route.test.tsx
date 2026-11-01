@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
-import AppProviders from "@/app/providers";
+import AppProviders from "@/shared/test/TestProviders";
 import { AppRoutes } from "@/app/router";
 import type { KpisEnvelope } from "@/features/dev-contracts/contract";
 
@@ -610,7 +610,10 @@ it("não registra a rota de diagnóstico em produção", async () => {
   vi.stubEnv("DEV", false);
   vi.resetModules();
   const [{ AppRoutes: ProductionAppRoutes }, { default: ProductionProviders }] =
-    await Promise.all([import("./router"), import("./providers")]);
+    await Promise.all([
+      import("./router"),
+      import("@/shared/test/TestProviders"),
+    ]);
   const fetchSpy = vi.fn().mockRejectedValue(new Error("API indisponível"));
   vi.stubGlobal("fetch", fetchSpy);
   render(

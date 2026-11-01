@@ -133,7 +133,7 @@ class DimensionDefinition(BaseModel):
     value_type: FilterValueType
     operators: tuple[FilterOperator, ...] = Field(min_length=1)
     sensitivity: CatalogSensitivity
-    values: tuple[DimensionValue, ...] = Field(default=(), max_length=500)
+    values: tuple[DimensionValue, ...] = Field(default=(), max_length=2000)
 
     @model_validator(mode="after")
     def validate_dimension_aliases(self) -> Self:
@@ -191,6 +191,7 @@ class UnitKind(StrEnum):
     COUNT = "count"
     TIME = "time"
     PERCENTAGE = "percentage"
+    SCORE = "score"
 
 
 class MetricDefinition(BaseModel):
@@ -198,10 +199,15 @@ class MetricDefinition(BaseModel):
 
     id: LogicalIdentifier
     domain_id: LogicalIdentifier
+    label: CatalogText | None = None
+    definition: CatalogText | None = None
     aliases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=40)
     unit: CatalogText
     granularities: tuple[CatalogGranularity, ...] = Field(min_length=1)
+    # Teto explícito para janelas datadas; None representa histórico sem período de calendário.
+    max_window_days: int | None = Field(default=None, ge=1)
     dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=30)
+    required_filter_dimension_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=30)
     sensitivity: CatalogSensitivity
     evidence_fields: tuple[EvidenceFieldDefinition, ...] = Field(default=(), max_length=30)
     limitation_texts: tuple[
@@ -210,6 +216,8 @@ class MetricDefinition(BaseModel):
     ] = Field(default=(), max_length=20)
     # Vazio: a métrica não restringe unidade, como nos perfis anteriores.
     accepted_unit_kinds: tuple[UnitKind, ...] = Field(default=(), max_length=10)
+    # Quando preenchido, o indicador aceita só estas frases, sem janela datada.
+    accumulated_period_phrases: tuple[CatalogPhrase, ...] = Field(default=(), max_length=5)
 
     @model_validator(mode="after")
     def validate_metric_aliases(self) -> Self:
@@ -218,6 +226,13 @@ class MetricDefinition(BaseModel):
             raise ValueError("alias de métrica duplicado")
         if len(self.dimension_ids) != len(set(self.dimension_ids)):
             raise ValueError("dimensão permitida duplicada na métrica")
+        if (
+            len(set(self.required_filter_dimension_ids)) != len(self.required_filter_dimension_ids)
+            or not set(self.required_filter_dimension_ids) <= set(self.dimension_ids)
+        ):
+            raise ValueError("filtro obrigatório duplicado ou fora das dimensões da métrica")
+        if self.accumulated_period_phrases and self.max_window_days is not None:
+            raise ValueError("histórico acumulado não admite limite de janela datada")
         if len({field.name for field in self.evidence_fields}) != len(self.evidence_fields):
             raise ValueError("campo de evidência duplicado na métrica")
         if sum(field.role is EvidenceFieldRole.MEASURE for field in self.evidence_fields) > 1:
@@ -284,10 +299,16 @@ class ClarificationMessages(BaseModel):
     # "{unit}" são trocados pelo rótulo da dimensão e pela unidade citada.
     unsupported_breakdown: CatalogText | None = None
     unit_mismatch: CatalogText | None = None
+    # Usada por fontes com cobertura mensal por lote; a próxima janela pode substituir a atual.
+    temporal_coverage_unavailable: CatalogText | None = None
 
 
 class DomainProfile(BaseModel):
     """Perfil imutável fornecido à interpretação e à composição da fonte."""
+
+    structured_dimension_filters: bool = False
+    supports_grouping: bool = True
+    supports_ordering: bool = True
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 

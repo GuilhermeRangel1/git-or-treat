@@ -62,14 +62,17 @@ logger = logging.getLogger(__name__)
 _Outcome = TypeVar("_Outcome", QuestionResponse, QuestionResponse | PlannedQuestion)
 
 
-def _describe_observation(observation: dict[str, object]) -> str:
+def _describe_observation(
+    observation: dict[str, object], dimension_labels: dict[str, str] | None = None,
+) -> str:
     labels: list[str] = []
     if "period" in observation:
         labels.append(str(observation["period"]))
     dimensions = observation.get("dimensions", {})
     if isinstance(dimensions, dict):
         for dimension_id, dimension_value in dimensions.items():
-            labels.append(f"{dimension_id}={dimension_value}")
+            label = (dimension_labels or {}).get(dimension_id, dimension_id)
+            labels.append(f"{label}={dimension_value}")
     value_with_unit = f"{observation['value']} {observation['unit']}"
     return f"{', '.join(labels)}: {value_with_unit}" if labels else value_with_unit
 
@@ -148,7 +151,7 @@ class QuestionOrchestrator:
         trace = self._trace(correlation_id)
 
         async def plan_only(_budget: RequestBudget) -> QuestionResponse | PlannedQuestion:
-            return self._plan_step(request, access_context, trace)
+            return await asyncio.to_thread(self._plan_step, request, access_context, trace)
 
         outcome = await self._run(
             trace, plan_only, timeout_seconds=request.remaining_timeout_ms / 1000
@@ -203,21 +206,23 @@ class QuestionOrchestrator:
         timeout_seconds: float | None = None,
     ) -> _Outcome | QuestionResponse:
         try:
-            trace.emit(EventStage.REQUEST, EventCode.STARTED, EventOutcome.STARTED)
+            await trace.emit_async(EventStage.REQUEST, EventCode.STARTED, EventOutcome.STARTED)
             response = await self._execution.run(action, timeout_seconds=timeout_seconds)
         except AuditUnavailable:
             return self._recoverable_error(FailureCode.AUDIT_UNAVAILABLE)
         except asyncio.CancelledError:
             with suppress(AuditUnavailable):
-                trace.emit(EventStage.RESPONSE, EventCode.CANCELLED, EventOutcome.CANCELLED)
+                await trace.emit_async(
+                    EventStage.RESPONSE, EventCode.CANCELLED, EventOutcome.CANCELLED,
+                )
             raise
         except ExecutionLimitExceeded:
             response = self._recoverable_error(FailureCode.EXECUTION_LIMIT)
         try:
             if isinstance(response, PlannedQuestion):
-                trace.emit(EventStage.RESPONSE, EventCode.READY, EventOutcome.SUCCESS)
+                await trace.emit_async(EventStage.RESPONSE, EventCode.READY, EventOutcome.SUCCESS)
                 return response
-            trace.emit(
+            await trace.emit_async(
                 EventStage.RESPONSE,
                 EventCode.COMPLETED
                 if response.status is QuestionStatus.ANSWERED
@@ -249,7 +254,7 @@ class QuestionOrchestrator:
         budget: RequestBudget,
         trace: EventTrace,
     ) -> QuestionResponse:
-        planned = self._plan_step(request, access_context, trace)
+        planned = await asyncio.to_thread(self._plan_step, request, access_context, trace)
         if isinstance(planned, QuestionResponse):
             return planned
         assert planned.read_plan is not None
@@ -278,17 +283,21 @@ class QuestionOrchestrator:
         budget: RequestBudget,
         trace: EventTrace,
     ) -> QuestionResponse:
-        refusal = self._safety_refusal(request, trace)
+        refusal = await asyncio.to_thread(self._safety_refusal, request, trace)
         if refusal is not None:
             return refusal
         try:
-            read_plan, lookup = self._analysis_planner.accept_lookup(
+            read_plan, lookup = await asyncio.to_thread(
+                self._analysis_planner.accept_lookup,
                 request.plan,
                 request.plan_fingerprint,
                 request.lookup,
                 access_context,
                 expected_batch_ref=expected_batch_ref,
                 trace=trace,
+                dimension_value_coverage={
+                    item.dimension_id: item.values for item in request.dimension_value_coverage
+                },
             )
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)
@@ -314,7 +323,30 @@ class QuestionOrchestrator:
 
         try:
             planned = self._analysis_planner.plan(
-                request.question, request.context, access_context, trace
+                request.question,
+                request.context,
+                access_context,
+                trace,
+                temporal_coverage=(
+                    {
+                        item.metric_id: (item.kind, item.competencies)
+                        for item in request.temporal_coverage
+                    }
+                    if isinstance(request, QuestionPlanRequest)
+                    and request.access_scope.source_id.startswith("gold.")
+                    and request.access_scope.profile_id == "v-energy-grid-360-gold"
+                    else None
+                ),
+                dimension_value_coverage=(
+                    {
+                        item.dimension_id: item.values
+                        for item in request.dimension_value_coverage
+                    }
+                    if isinstance(request, QuestionPlanRequest)
+                    and request.access_scope.source_id.startswith("gold.")
+                    and request.access_scope.profile_id == "v-energy-grid-360-gold"
+                    else None
+                ),
             )
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)
@@ -450,10 +482,13 @@ class QuestionOrchestrator:
                 model_tier=tier,
             )
 
+        profile = self._analysis_planner.profile
+        metric = next(item for item in profile.metrics if item.id == read_plan.metric_id)
+        labels = {item.id: item.label for item in profile.dimensions}
         answer = None
         if generated.status == "answered":
             values = ", ".join(
-                _describe_observation(observations[item])
+                _describe_observation(observations[item], labels)
                 for item in generated.observation_ids
             )
             prefix = "Demonstração sintética: " if evidence.reference.is_demo else ""
@@ -479,6 +514,11 @@ class QuestionOrchestrator:
             model_tier=tier,
             analysis_context=AppliedQueryContext(
                 metric=read_plan.metric_id,
+                metric_label=metric.label,
+                metric_definition=metric.definition,
+                filter_labels={
+                    item.dimension_id: labels[item.dimension_id] for item in read_plan.filters
+                },
                 unit=read_plan.unit,
                 period=period,
                 filters={
@@ -506,7 +546,7 @@ class QuestionOrchestrator:
 
         try:
             trace.model_calls += 1
-            trace.emit(EventStage.MODEL, start_code, EventOutcome.STARTED)
+            await trace.emit_async(EventStage.MODEL, start_code, EventOutcome.STARTED)
             generated_result = await budget.model(
                 lambda: adapter.generate(
                     request.question,
@@ -520,28 +560,28 @@ class QuestionOrchestrator:
                 else generated_result
             )
             if generated.status == "refused":
-                trace.emit(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
+                await trace.emit_async(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
             else:
-                trace.emit(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
+                await trace.emit_async(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
         except ModelProviderUnavailable:
-            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             return self._recoverable_error(FailureCode.MODEL_UNAVAILABLE)
         except ModelProviderRejected:
-            trace.emit(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
+            await trace.emit_async(EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED)
             return self._recoverable_error(FailureCode.MODEL_REJECTED)
         except ModelProviderInvalidResponse:
-            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
             return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
         except ExecutionLimitExceeded:
             raise
         except AuditUnavailable:
             raise
         except (ValidationError, TypeError, ValueError):
-            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
             logger.warning("O adaptador de modelo retornou uma resposta inválida.")
             return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
         except Exception:
-            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             logger.warning("Falha ao gerar resposta pelo adaptador de modelo.")
             return self._recoverable_error(FailureCode.UNEXPECTED)
         return generated

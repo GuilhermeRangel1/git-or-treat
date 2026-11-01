@@ -64,7 +64,7 @@ No Docker Compose, o portal chama essa rota e o serviço GenAI fica acessível a
 
 ## Contratos analíticos de desenvolvimento
 
-`ANALYTICS_SOURCE` aceita `unavailable` (padrão, HTTP 503), `synthetic` (demonstração) e `gold` (integração CSV provisória de Receita, UC e fila). Para experimentar os contratos sem conectar ao PostgreSQL, configure a opção `synthetic` no ambiente antes de iniciar a API. Um valor desconhecido impede a inicialização. `/api/v1/kpis`, `/revenue`, `/ucs`, `/ucs/{uc_id}`, `/inspections/queue` e `/operations/continuity` usam a interface `get_analytics_repository`; filas de inspeção continuam separadas das ordens operacionais persistidas.
+`ANALYTICS_SOURCE` aceita `unavailable` (padrão do código; retorna HTTP 503 nas rotas analíticas), `synthetic` ou `gold`. Para experimentar os contratos sem conectar ao PostgreSQL, configure `synthetic`. `gold` habilita os leitores v2 de Panorama, fila/Ordens e Operação após migração e publicação compatíveis; exige autenticação de leitura e não tem fallback. Um valor desconhecido impede a inicialização. Filas de inspeção continuam separadas das ordens operacionais persistidas.
 
 A fixture sintética `dev03-v1` cobre explicitamente janeiro e fevereiro de 2025 para faturamento e energia faturada; `/api/v1/revenue` publica o contrato 1.1.0 e inclui oito UCs distintas faturadas em cada extremo, com Recife e Olinda, mais de um bairro e as classes Comercial e Residencial nos dois meses. No período, os controles são BRL 1.727 faturados, BRL 1.710 pagos com valor conhecido, 1.585 kWh faturados e 407 kWh medidos com valor conhecido. Receita por competência e recorte usa apenas fatos de fatura; leituras e pagamento permanecem grandezas separadas. A cobertura das leituras medidas é parcial e não substitui cobertura financeira. O perfil de UC traz referência e nome fictícios; vencimento, pagamento e situação permanecem campos sintéticos. A decomposição preço-volume e as taxas de continuidade são demonstrativas, versionadas e não homologadas pela Gold. A fixture mantém leitura zero válida, leitura ausente, UC sem fatura, medidor retirado, alimentador sem denominador e o AL-02 distribuído entre Olinda e Paulista; limitações e nulidade aparecem na resposta.
 
@@ -77,15 +77,29 @@ uvicorn app.main:app --reload --port 8000
 
 ## Acesso às ordens e limites de entrada
 
-DEV-06: [contrato de criação pela fila e consulta paginada](../docs/contracts/inspection-orders-dev06.md). Aplicar `alembic upgrade head` antes de iniciar sobre banco existente. O portal básico usa `POST /inspections/queue/{uc_id}/orders` com `Idempotency-Key` e versões do detalhe; consulta por `/inspections/orders/search` e `/inspections/orders/{id}`, com filtros de estado, UC, prioridade e presença de resultado (`has_result`). O prefixo completo é `/api/v1`. O proxy Vite não injeta credenciais; a tela básica funciona sem login no modo demo sintético local (`APP_ENV=development`, `ANALYTICS_SOURCE=synthetic`, `ORDERS_AUTH_MODE=demo`). Login fica para uma etapa futura. Veja o [guia de entrega para o frontend](../docs/contracts/inspection-auth-handoff.md).
+DEV-06: [contrato de criação pela fila e consulta paginada](../docs/contracts/inspection-orders-dev06.md). Aplicar `alembic upgrade head` antes de iniciar sobre banco existente. O portal usa `POST /inspections/queue/{uc_id}/orders` com `Idempotency-Key` e versões do detalhe; consulta por `/inspections/orders/search` e `/inspections/orders/{id}`, com filtros de estado, UC, prioridade e presença de resultado (`has_result`). O prefixo completo é `/api/v1`. O proxy Vite não injeta credenciais. Para o portal autenticado use `ORDERS_AUTH_MODE=session`; a demo sintética (`APP_ENV=development`, `ANALYTICS_SOURCE=synthetic`, `ORDERS_AUTH_MODE=demo`) continua disponível apenas para dados sintéticos. Veja o [contrato local](../docs/contracts/local-auth.md) e o [guia de entrega para o frontend](../docs/contracts/inspection-auth-handoff.md).
 
 A revisão `a6d060000002` garante uma ordem ativa por UC, incluindo criações manuais e fontes/versões diferentes. Se houver duplicidades ativas antigas, o upgrade interrompe para reconciliação manual e não cancela registros. Reenvios confirmados da fila funcionam mesmo com a fonte analítica indisponível; conflitos mantêm a mensagem em `detail` e incluem código e ID em `error` para integração.
 
-Na demo local sintética, as rotas operacionais dispensam login com `ORDERS_AUTH_MODE=demo`; esse modo concede leitura/escrita ao operador local e não identifica uma pessoa. Nos modos service/oidc, exigem autenticação. Em produção, configurar `APP_ENV=production`, `ORDERS_AUTH_MODE=oidc`, `OIDC_ISSUER`, `OIDC_AUDIENCE` e `OIDC_JWKS_URL`: assinatura RS256, subject individual, validade e scopes de leitura/escrita são verificados. `GET /api/v1/inspections/access` retorna a identidade opaca e permissões para a UI. O processo recusa produção com token compartilhado e OIDC configurado em paralelo com credenciais de serviço.
+No modo `ORDERS_AUTH_MODE=session`, o Backend autentica usuários individuais e mantém sessões revogáveis no banco operacional; produção exige esse modo. O portal consulta `GET /api/v1/auth/session`, autentica com `POST /api/v1/auth/login` e encerra a sessão com `POST /api/v1/auth/logout`. Permissões retornadas no envelope da sessão governam as ordens. O contrato de cookie, segurança de origem e provisão está em [`local-auth.md`](../docs/contracts/local-auth.md).
 
-Em desenvolvimento por CLI/Swagger, `ORDERS_AUTH_MODE=service` mantém `ORDERS_READ_TOKEN` e/ou `ORDERS_WRITE_TOKEN`, aleatórios/distintos com pelo menos 32 caracteres. Leitor consulta; escritor consulta/cria/altera. O esquema Bearer `OrdersServiceToken` do Swagger mantém o nome por compatibilidade e também aceita o JWT individual no modo OIDC. Nunca colocar credenciais de serviço em `VITE_*`, URLs, commits ou frontend. Sem configuração/autorização, as ordens permanecem fechadas. Configurar o provedor real e HTTPS do ingresso antes da implantação compartilhada.
+Em desenvolvimento por CLI/Swagger, `ORDERS_AUTH_MODE=service` mantém `ORDERS_READ_TOKEN` e/ou `ORDERS_WRITE_TOKEN`, aleatórios/distintos com pelo menos 32 caracteres. Leitor consulta; escritor consulta/cria/altera. Nunca colocar credenciais de serviço em `VITE_*`, URLs, commits ou frontend. Sem configuração/autorização, as ordens permanecem fechadas. As contas da sessão do portal não substituem credenciais de serviço na CLI.
 
-Para criar cada valor, execute localmente `python -c "import secrets; print(secrets.token_urlsafe(32))"` e armazene apenas em configuração privada. A alteração requer reiniciar/recriar o backend. Em produção, use HTTPS e rotacione as credenciais.
+Para uso de serviço em CLI/Swagger durante desenvolvimento, crie cada valor com `python -c "import secrets; print(secrets.token_urlsafe(32))"` e armazene apenas em configuração privada. A alteração requer reiniciar/recriar o backend. Não use essas credenciais compartilhadas no portal ou em produção.
+
+### Portal Gold local com autenticação por sessão
+
+O portal usa `ORDERS_AUTH_MODE=session`; produção também exige esse modo. Para esta execução local existente, use na raiz do repositório:
+
+```powershell
+.\scripts\start-gold-local.ps1 -DatabaseContainer git-or-treat-db-dev131
+```
+
+Em outra máquina, informe o nome do container PostgreSQL local correspondente ou use `-DatabaseUrl`. Sem container explícito, a resolução segue `-DatabaseUrl`, `DATABASE_URL` do processo e, por fim, `backend/.env`. Não suponha que o endereço Docker de `backend/.env` corresponda ao bind publicado no host.
+
+Com `-DatabaseContainer`, o launcher lê a configuração existente do container via `docker inspect` apenas em memória, exige imagem oficial PostgreSQL em execução e único binding `127.0.0.1`, testa a porta local e verifica que o Alembic está em todas as revisões atuais. Nenhuma senha ou DSN é impresso ou salvo. O launcher não inicia containers, não aplica migrações e não atualiza dados. Aplique as migrações explicitamente ao banco exato que será usado; se o precheck indicar revisão pendente, pare e atualize o alvo aprovado antes de tentar novamente. Após o precheck, o launcher provisiona usuários e inicia API e Vite.
+
+As senhas aleatórias iniciais de `reader` e `operator` ficam em `work/local-auth/credentials.txt`, fora do Git e montadas no Compose quando usado. Preserve o arquivo; contas já existentes não têm senha ou permissão redefinida. Tokens `ORDERS_READ_TOKEN`/`ORDERS_WRITE_TOKEN` herdados do ambiente são removidos durante a execução e restaurados ao sair; valores não vazios no `backend/.env` fazem o launcher falhar fechado. Consulte o [contrato de autenticação local](../docs/contracts/local-auth.md) para permissões e limites. Não use o login local com dados reais em ambiente público.
 
 Entradas operacionais têm limites de tamanho; IDs de ordem são positivos até 2^63−1. JSON usa UTF-8, corpo até 64 KiB e até 32 níveis. Rejeições são 400/413/422. PENDENTE pode iniciar/cancelar; EM_ANDAMENTO pode concluir/cancelar; ordens encerradas não reabrem e conclusão exige resultado. Veja [ADR-0007](../docs/decisions/0007-contencao-seguranca-ordens-e-entradas.md) para detalhes e limites.
 
@@ -153,7 +167,7 @@ A revisão `goldv2000001` cria o schema físico separado `gold_v2`, com as quinz
 python scripts/load_gold.py --directory data/export_csv/<run_id>/<export_id> --schema-version gold-csv-v2
 ```
 
-O importador valida o manifesto e cada schema, cabeçalho, tipo, chave, marcador de nulo, contagem e hash; confere os agregados financeiros entre as três projeções; publica em uma transação e mantém a publicação anterior em caso de erro. `\N` é nulo e string vazia permanece vazia. A repetição idêntica é idempotente. Ele carrega apenas as quinze tabelas analíticas; não carrega o pacote restrito `gold-cadastro-v1` nem fornece nome de titular à GenAI. A v2 ainda não está conectada às consultas da API, chat ou insights.
+O importador valida o manifesto e cada schema, cabeçalho, tipo, chave, marcador de nulo, contagem e hash; confere os agregados financeiros entre as três projeções; publica em uma transação e mantém a publicação anterior em caso de erro. `\N` é nulo e string vazia permanece vazia. A repetição idêntica é idempotente. Ele carrega apenas as quinze tabelas analíticas; não carrega o pacote restrito `gold-cadastro-v1` nem fornece nome de titular à GenAI. As consultas Gold v2 exigem a configuração e a autorização descritas nos contratos dos consumidores.
 
 Para repetir a verificação de volume com o pacote real, configure `GOLD_CSV_V2_DIR` com o caminho local da exportação e execute `python -m pytest tests/test_gold_import_v2_real.py -q`. O teste usa SQLite temporário e remove o banco ao final. Não coloque os CSVs no repositório nem use um banco compartilhado/produção para essa prova.
 
@@ -163,17 +177,24 @@ O Compose complementar `docker-compose.gold-v2.yml` acrescenta um serviço de ca
 
 Prepare `.env.db` e `backend/.env` conforme as instruções acima. Em `backend/.env`, `DATABASE_URL` deve usar o host `db` e credenciais compatíveis com `.env.db` (nunca `localhost` dentro do container). Crie `.env.gold-v2` a partir de `.env.gold-v2.example` e aponte `GOLD_CSV_V2_HOST_DIR` para a pasta local exata que contém `manifest.json` e as quinze pastas CSV. A pasta entra no container como somente leitura; os dados não são copiados para a imagem nem versionados.
 
-Na raiz do repositório, suba a stack no modo Gold v2:
+Na raiz do repositório, suba a stack no modo Gold v2. O Compose usa `synthetic` por padrão; defina `ANALYTICS_SOURCE=gold` no ambiente do processo para ativar os leitores v2:
 
 ```powershell
+$env:ANALYTICS_SOURCE = "gold"
 docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml up --build
 ```
 
-O comando mantém o PostgreSQL no volume `pgdata16`. A repetição da mesma exportação é idempotente e retorna `unchanged`; uma migração ou carga com falha impede o início do backend. Para acompanhar o resultado do serviço de carga, use `docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml logs gold-loader`. A carga continua somente analítica: não importa `gold-cadastro-v1` e não conecta as consultas da API às tabelas v2.
+O comando mantém o PostgreSQL no volume `pgdata16`. A repetição da mesma exportação é idempotente e retorna `unchanged`; uma migração ou carga com falha impede o início do backend. Para acompanhar o resultado do serviço de carga, use `docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml logs gold-loader`. A carga continua somente analítica: não importa `gold-cadastro-v1`; com `ANALYTICS_SOURCE=gold`, os leitores da API consultam as quinze tabelas v2.
 
 Para verificar sem dataset real, `venv/Scripts/python.exe scripts/generate_gold_sample.py --directory ../work/dev12-lote-01` cria sete CSVs inteiramente artificiais em um diretório novo. O controle independente é duas UCs mensais, 30 kWh e R$ 25,50. O [runbook DEV-12](../docs/contracts/gold-load-dev12.md) inclui banco isolado, execução/repetição, inspeção da auditoria e recuperação de cargas inválidas/interrompidas.
 
 Os testes de carga usam `TEST_GOLD_POSTGRES_URL`, separada da `TEST_POSTGRES_URL` de migrações. Ambas devem apontar para bancos descartáveis vazios `*_test`, com usuário sem superusuário. A CI fornece as duas URLs ao runner e ao contêiner. Sem configuração, variantes PostgreSQL são ignoradas.
+
+## API Gold — DEV-13.1
+
+Depois de aplicar migrações e carregar a Gold, o perfil `ANALYTICS_SOURCE=gold` permite consultar Panorama, fila/criação de Ordens e Operação. Use `ORDERS_AUTH_MODE=session` para o portal; `ORDERS_AUTH_MODE=service` permanece disponível em desenvolvimento por CLI com tokens privados. O modo `demo` permanece exclusivo de dados sintéticos. Consulte o [contrato de consumo](../docs/contracts/analytics-gold-dev13-1.md) para identidade por lote/fingerprint, campos indisponíveis e exemplos artificiais. A troca é explícita; esta entrega não altera `.env` nem adapta os decoders das telas.
+
+Para os testes de integração novos, configure também `TEST_GOLD_ANALYTICS_POSTGRES_URL` e `TEST_GOLD_ORDERS_POSTGRES_URL`, cada uma apontando para banco PostgreSQL descartável exclusivo, inicialmente vazio, nome terminado em `_test` e usuário sem superusuário. Não apontar essas variáveis para a Gold real. O bootstrap da CI cria quatro bancos separados e propaga as quatro URLs ao runner e ao contêiner. Execute a suíte sequencialmente; processos diferentes não devem compartilhar um desses bancos ao mesmo tempo. Ausência das variáveis ignora os testes PostgreSQL correspondentes.
 
 ## Contrato de alterações das ordens — DEV-07
 

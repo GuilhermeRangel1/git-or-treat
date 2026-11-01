@@ -10,8 +10,183 @@ import {
   rankingFixture,
   summaryFixture,
 } from "./fixtures.test-support";
+import {
+  decodeGoldOperationSummary,
+  decodeGoldOperationRanking,
+  decodeGoldOperationDetail,
+} from "./gold-contract";
+
+const goldMetadata = {
+  contract_version: "2.0.0",
+  status: "partial",
+  period: { start: "2025-01", end: "2025-02", granularity: "month" },
+  filters: { municipio: null, bairro: null, classe: null, alimentador: null },
+  source: {
+    kind: "gold",
+    version: "batch-1",
+    is_demo: false,
+    updated_at: "2026-10-29T00:00:00Z",
+  },
+  limitations: [],
+  temporal_scope: "monthly",
+  schema_version: "gold-csv-v2",
+  fingerprint: "a".repeat(64),
+};
+const goldDefinition = {
+  reference: "docs/dicionario_gold.md",
+  dec_formula: "duração/base",
+  fec_formula: "frequência/base",
+  dec_unit: "h/UC",
+  fec_unit: "int./UC",
+  event_grain: "UC-interrupção",
+  population: "cadastro atual",
+  completeness: "completude não comprovada",
+};
+const goldPoint = {
+  feeder_id: "F-1",
+  municipality: "Recife",
+  period: goldMetadata.period,
+  observed_period: goldMetadata.period,
+  observed_competencies: ["2025-01", "2025-02"],
+  missing_competencies: [],
+  duration_hours_sum: 8,
+  interruption_count: null,
+  denominator_uc_count: 4,
+  dec_hours_per_uc: 2,
+  fec_interruptions_per_uc: null,
+  status: "partial",
+  dec_status: "partial",
+  fec_status: "unavailable",
+  limitations: ["FEC ausente"],
+};
 
 describe("contratos de Operação", () => {
+  it("decodifica Gold v2 com bases e estados DEC/FEC independentes e detalhe agregado", () => {
+    const summary = decodeGoldOperationSummary(
+      {
+        metadata: goldMetadata,
+        data: {
+          period: goldMetadata.period,
+          observed_period: goldMetadata.period,
+          duration_hours_sum: 8,
+          interruption_count: null,
+          denominator_uc_count: null,
+          dec_hours_per_uc: 2,
+          fec_interruptions_per_uc: null,
+          dec_denominator_uc_count: 4,
+          fec_denominator_uc_count: null,
+          dec_included_feeder_ids: ["F-1"],
+          fec_included_feeder_ids: [],
+          dec_excluded_feeder_ids: [],
+          fec_excluded_feeder_ids: ["F-1"],
+          included_feeder_ids: null,
+          excluded_feeder_ids: null,
+          dec_status: "partial",
+          fec_status: "unavailable",
+          status: "partial",
+          limitations: ["Bases diferentes"],
+        },
+        definition: goldDefinition,
+      },
+      { start: "2025-01", end: "2025-02", feederId: null, municipality: null },
+    );
+    expect(summary.data.summary.dec_denominator_uc_count).toBe(4);
+    expect(summary.data.summary.fec_status).toBe("unavailable");
+    expect(summary.data.summary.denominator_uc_count).toBeNull();
+
+    const ranking = decodeGoldOperationRanking(
+      {
+        metadata: goldMetadata,
+        data: {
+          items: [{ ...goldPoint, municipality: null, rank: 1 }],
+          excluded: [],
+          metric: "dec",
+          order: "DEC descendente",
+          definition: goldDefinition,
+        },
+      },
+      "dec",
+      { start: "2025-01", end: "2025-02", feederId: null, municipality: null },
+    );
+    expect(ranking.data.items[0].fec_interruptions_per_uc).toBeNull();
+    expect(ranking.data.items[0].municipality).toBeNull();
+    expect(ranking.data.items[0].feeder_id).toBe("F-1");
+    const detail = decodeGoldOperationDetail(
+      {
+        metadata: {
+          ...goldMetadata,
+          filters: { ...goldMetadata.filters, alimentador: "F-1" },
+        },
+        data: {
+          summary: goldPoint,
+          series: [
+            {
+              ...goldPoint,
+              period: {
+                start: "2025-01",
+                end: "2025-01",
+                granularity: "month",
+              },
+            },
+          ],
+          occurrences: null,
+          occurrences_status: "unavailable",
+          definition: goldDefinition,
+        },
+      },
+      { feederId: "F-1", start: "2025-01", end: "2025-02", municipality: null },
+    );
+    expect(detail.data.occurrences).toBeNull();
+    expect(detail.data.summary.fec_status).toBe("unavailable");
+  });
+  it("preserva zero conhecido e recusa schema físico anterior ao v2", () => {
+    const response = {
+      metadata: goldMetadata,
+      data: {
+        items: [
+          {
+            ...goldPoint,
+            duration_hours_sum: 0,
+            interruption_count: 0,
+            dec_hours_per_uc: 0,
+            fec_interruptions_per_uc: 0,
+            status: "available",
+            dec_status: "available",
+            fec_status: "available",
+            rank: 1,
+          },
+        ],
+        excluded: [],
+        metric: "dec",
+        order: "DEC descendente",
+        definition: goldDefinition,
+      },
+    };
+    const decoded = decodeGoldOperationRanking(response, "dec", {
+      start: "2025-01",
+      end: "2025-02",
+      feederId: null,
+      municipality: null,
+    });
+    expect(decoded.data.items[0].dec_hours_per_uc).toBe(0);
+    expect(decoded.data.items[0].fec_interruptions_per_uc).toBe(0);
+
+    expect(() =>
+      decodeGoldOperationRanking(
+        {
+          ...response,
+          metadata: { ...goldMetadata, schema_version: "gold-csv-v1" },
+        },
+        "dec",
+        {
+          start: "2025-01",
+          end: "2025-02",
+          feederId: null,
+          municipality: null,
+        },
+      ),
+    ).toThrow(/Metadados Gold inválidos/);
+  });
   it("decodifica summary parcial canônico, preservando valores e exclusões", () => {
     expect(decodeOperationSummary(summaryFixture)).toEqual(summaryFixture);
   });

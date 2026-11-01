@@ -51,6 +51,8 @@ export default function InspectionFilters({
   neighborhoods: { municipio: string; bairro: string }[];
   onChange: (next: URLSearchParams) => void;
 }) {
+  const gold = metadata?.contract_version === "2.0.0";
+  const legacyGold = metadata?.source.kind === "gold_csv";
   const searchKey = params.toString();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => new URLSearchParams(params));
@@ -87,13 +89,11 @@ export default function InspectionFilters({
       >
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-4">
           <div>
-            <p className="text-xs text-muted">
-              {metadata?.source.kind === "gold_csv"
-                ? "Cobertura do consumo"
-                : "Competência"}
-            </p>
+            <p className="text-xs text-muted">Competência</p>
             <p className="mt-1 font-medium">
-              {periodLabel(metadata?.period.start, metadata?.period.end)}
+              {gold
+                ? "Snapshot cadastral · sem competência"
+                : periodLabel(metadata?.period?.start, metadata?.period?.end)}
             </p>
           </div>
           <div>
@@ -179,10 +179,9 @@ export default function InspectionFilters({
                     neighborhoods.length
                       ? neighborhoods
                           .filter(
-                            (entry) =>
-                              entry.municipio === draft.get("municipio"),
+                            (item) => item.municipio === draft.get("municipio"),
                           )
-                          .map((entry) => entry.bairro)
+                          .map((item) => item.bairro)
                       : (options[key] ?? [])),
                     ...(draft.get(key) ? [draft.get(key)!] : []),
                   ]),
@@ -199,18 +198,31 @@ export default function InspectionFilters({
             <select
               name="order_by"
               className={inspectionControl}
-              value={draft.get("order_by") ?? "priority"}
+              value={
+                draft.get("order_by") ?? (gold ? "queue_position" : "priority")
+              }
               onChange={(event) => updateDraft("order_by", event.target.value)}
             >
-              <option value="priority">Prioridade</option>
-              <option
-                value="potential_recoverable_energy_kwh"
-                disabled={metadata?.source.kind === "gold_csv"}
-              >
-                Energia estimada
-                {metadata?.source.kind === "gold_csv" ? " (indisponível)" : ""}
-              </option>
-              <option value="uc_id">Número da UC</option>
+              {gold ? (
+                <>
+                  <option value="queue_position">
+                    Posição oficial da fila
+                  </option>
+                  <option value="uc_id">Número da UC</option>
+                  <option value="category">Categoria Gold</option>
+                </>
+              ) : (
+                <>
+                  <option value="priority">Prioridade demonstrativa</option>
+                  <option
+                    value="potential_recoverable_energy_kwh"
+                    disabled={legacyGold}
+                  >
+                    Energia estimada{legacyGold ? " (indisponível)" : ""}
+                  </option>
+                  <option value="uc_id">Número da UC</option>
+                </>
+              )}
             </select>
           </label>
           <label className="space-y-2 text-sm">
@@ -218,7 +230,7 @@ export default function InspectionFilters({
             <select
               name="direction"
               className={inspectionControl}
-              value={draft.get("direction") ?? "desc"}
+              value={draft.get("direction") ?? (gold ? "asc" : "desc")}
               onChange={(event) => updateDraft("direction", event.target.value)}
             >
               <option value="desc">Decrescente</option>

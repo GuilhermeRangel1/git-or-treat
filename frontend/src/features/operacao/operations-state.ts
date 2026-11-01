@@ -3,8 +3,10 @@ export type OperationUrlQuery = {
   start: string;
   end: string;
   feederId: string | null;
+  municipality: string | null;
   detailFeederId: string | null;
   metric: OperationMetric;
+  rankingPage: number;
   page: number;
   pageSize: number;
 };
@@ -16,6 +18,7 @@ export type OperationFiltersInput = {
   start: string;
   end: string;
   feederId?: string | null;
+  municipality?: string | null;
 };
 
 const DEFAULT_START = "2025-01";
@@ -29,8 +32,10 @@ const PARAMS = [
   "competencia_inicio",
   "competencia_fim",
   "alimentador",
+  "municipio",
   "feeder_id",
   "metric",
+  "ranking_page",
   "page",
   "page_size",
 ];
@@ -111,6 +116,7 @@ export function parseOperationParams(
   }
 
   const feederId = feeder(raw.alimentador, "O filtro de alimentador", errors);
+  const municipality = feeder(raw.municipio, "O filtro de município", errors);
   const detailFeederId = feeder(
     raw.feeder_id,
     "O alimentador do detalhe",
@@ -120,9 +126,12 @@ export function parseOperationParams(
   if (metric !== "dec" && metric !== "fec")
     errors.push("Métrica inválida. Use dec ou fec.");
   const page = parsePositiveInt(raw.page, 1, MAX_PAGE);
+  const rankingPage = parsePositiveInt(raw.ranking_page, 1, MAX_PAGE);
   const pageSize = parsePositiveInt(raw.page_size, DEFAULT_PAGE_SIZE, 100);
   if (page === null)
     errors.push("Página inválida; use inteiro entre 1 e 1.000.000.");
+  if (rankingPage === null)
+    errors.push("Página do ranking inválida; use inteiro entre 1 e 1.000.000.");
   if (pageSize === null)
     errors.push("Tamanho da página inválido; use inteiro entre 1 e 100.");
 
@@ -130,11 +139,22 @@ export function parseOperationParams(
     errors.length > 0 ||
     (metric !== "dec" && metric !== "fec") ||
     page === null ||
+    rankingPage === null ||
     pageSize === null
   )
     return { query: null, errors };
   return {
-    query: { start, end, feederId, detailFeederId, metric, page, pageSize },
+    query: {
+      start,
+      end,
+      feederId,
+      municipality,
+      detailFeederId,
+      metric,
+      rankingPage,
+      page,
+      pageSize,
+    },
     errors,
   };
 }
@@ -151,8 +171,12 @@ export function applyOperationFilters(
   if (filters.feederId?.trim())
     next.set("alimentador", filters.feederId.trim());
   else next.delete("alimentador");
+  if (filters.municipality?.trim())
+    next.set("municipio", filters.municipality.trim());
+  else next.delete("municipio");
   next.delete("feeder_id");
   next.delete("page");
+  next.delete("ranking_page");
   return next;
 }
 
@@ -164,6 +188,7 @@ export function changeOperationMetric(
   next.set("metric", metric);
   next.delete("feeder_id");
   next.delete("page");
+  next.delete("ranking_page");
   return next;
 }
 
@@ -196,5 +221,16 @@ export function paginateOperationDetail(
   const next = new URLSearchParams(current);
   if (page <= 1) next.delete("page");
   else next.set("page", String(page));
+  return next;
+}
+
+/** Pagina somente a lista Gold já ordenada globalmente pela API. */
+export function paginateOperationRanking(
+  current: URLSearchParams,
+  page: number,
+): URLSearchParams {
+  const next = new URLSearchParams(current);
+  if (page <= 1) next.delete("ranking_page");
+  else next.set("ranking_page", String(page));
   return next;
 }

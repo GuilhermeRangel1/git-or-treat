@@ -1,10 +1,11 @@
 import { useRef, useState, type FormEvent } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { ChevronDown, RotateCcw, SlidersHorizontal } from "lucide-react";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
 import { orderStatuses } from "@/shared/api/orders";
 import {
   orderPriorityLabel,
+  orderPriorities,
   orderStatusLabel,
   type OrdersQuery,
 } from "./ordens-query";
@@ -16,7 +17,7 @@ type OrderFiltersProps = {
 };
 
 const controlClass =
-  "min-h-11 w-full rounded-lg border border-control bg-canvas px-3 text-sm text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+  "min-h-11 w-full appearance-none rounded-lg border border-control bg-canvas px-3 pr-10 text-sm text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 export default function OrderFilters({
   params,
@@ -40,6 +41,7 @@ export default function OrderFilters({
   }
 
   function apply(next: URLSearchParams) {
+    next.delete("order_id");
     next.set("page", "1");
     onChange(next);
     setOpen(false);
@@ -68,7 +70,7 @@ export default function OrderFilters({
     const next = new URLSearchParams(params);
     if (ucId) next.set("uc_id", ucId);
     else next.delete("uc_id");
-    for (const key of ["status", "has_result"]) {
+    for (const key of ["status", "has_result", "priority"]) {
       const value = draft.get(key);
       if (value) next.set(key, value);
       else next.delete(key);
@@ -83,7 +85,7 @@ export default function OrderFilters({
   }
 
   const summary = [
-    { label: "UC", value: filters.ucId ?? "Todas as UCs" },
+    { label: "UC exata", value: filters.ucId ?? "Todas as UCs" },
     {
       label: "Estado",
       value: filters.status
@@ -94,21 +96,24 @@ export default function OrderFilters({
       label: "Resultado",
       value:
         filters.hasResult === null
-          ? "Todos"
+          ? "Todos os resultados"
           : filters.hasResult
             ? "Com resultado"
             : "Sem resultado",
     },
-    filters.priority
-      ? { label: "Prioridade", value: orderPriorityLabel(filters.priority) }
-      : null,
+    {
+      label: "Prioridade",
+      value: filters.priority
+        ? orderPriorityLabel(filters.priority)
+        : "Todas as prioridades",
+    },
   ].filter((item): item is { label: string; value: string } => item !== null);
 
   return (
     <>
       <section
         aria-label="Filtros aplicados"
-        className="flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"
+        className="mt-2 flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"
       >
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-4">
           {summary.map((item) => (
@@ -151,7 +156,7 @@ export default function OrderFilters({
           className="grid gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-2"
           onSubmit={submit}
         >
-          <label className="space-y-2 text-sm">
+          <label className="grid gap-1.5 text-sm font-medium text-content">
             UC exata
             <input
               ref={ucInputRef}
@@ -170,59 +175,98 @@ export default function OrderFilters({
               </span>
             ) : null}
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="grid gap-1.5 text-sm font-medium text-content">
             Estado
-            <select
-              className={controlClass}
-              value={draft.get("status") ?? ""}
-              onChange={(event) => updateDraft("status", event.target.value)}
-            >
-              <option value="">Todos os estados</option>
-              {orderStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {orderStatusLabel(status)}
-                </option>
-              ))}
-            </select>
+            <span className="relative">
+              <select
+                className={controlClass}
+                value={draft.get("status") ?? ""}
+                onChange={(event) => updateDraft("status", event.target.value)}
+              >
+                <option value="">Todos os estados</option>
+                {orderStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {orderStatusLabel(status)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+              />
+            </span>
           </label>
-          <label className="space-y-2 text-sm sm:col-span-2">
+          <label className="grid gap-1.5 text-sm font-medium text-content">
             Resultado
-            <select
-              className={controlClass}
-              value={draft.get("has_result") ?? ""}
-              onChange={(event) =>
-                updateDraft("has_result", event.target.value)
-              }
-            >
-              <option value="">Todos</option>
-              <option value="true">Com resultado</option>
-              <option value="false">Sem resultado</option>
-            </select>
+            <span className="relative">
+              <select
+                className={controlClass}
+                value={draft.get("has_result") ?? ""}
+                onChange={(event) =>
+                  updateDraft("has_result", event.target.value)
+                }
+              >
+                <option value="">Todos os resultados</option>
+                <option value="true">Com resultado</option>
+                <option value="false">Sem resultado</option>
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+              />
+            </span>
           </label>
-          <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
-            <Button type="submit" variant="accent" size="wide">
-              Aplicar filtros
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                const next = new URLSearchParams(params);
-                for (const key of ["uc_id", "status", "has_result"])
-                  next.delete(key);
-                setDraft(new URLSearchParams(next));
-                apply(next);
-              }}
-            >
-              Limpar filtros
-            </Button>
+          <label className="grid gap-1.5 text-sm font-medium text-content">
+            Prioridade
+            <span className="relative">
+              <select
+                className={controlClass}
+                value={draft.get("priority") ?? ""}
+                onChange={(event) =>
+                  updateDraft("priority", event.target.value)
+                }
+              >
+                <option value="">Todas as prioridades</option>
+                {orderPriorities.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {orderPriorityLabel(priority)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+              />
+            </span>
+          </label>
+          <div className="flex flex-col-reverse justify-between gap-3 border-t border-divider pt-4 sm:col-span-2 sm:flex-row sm:items-center">
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setOpen(false)}
+              size="sm"
+              onClick={() => {
+                const next = new URLSearchParams(params);
+                for (const key of ["uc_id", "status", "has_result", "priority"])
+                  next.delete(key);
+                setUcError(null);
+                setDraft(new URLSearchParams(next));
+              }}
+              leftIcon={<RotateCcw className="size-3.5" aria-hidden="true" />}
             >
-              Cancelar
+              Limpar filtros
             </Button>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary">
+                Aplicar filtros
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

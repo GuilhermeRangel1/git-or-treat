@@ -2,6 +2,7 @@
 
 import json
 import re
+from calendar import monthrange
 from datetime import date
 from hashlib import sha256
 from math import isfinite
@@ -23,7 +24,7 @@ from app.schemas.evidence import (
     EvidenceResult,
     GoldBatchRef,
 )
-from app.schemas.read_plan import LogicalReadPlan
+from app.schemas.read_plan import LogicalReadPlan, WindowKind
 
 _PERIOD = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$")
 _BATCH_REF = TypeAdapter(GoldBatchRef)
@@ -52,6 +53,24 @@ def safe_reference_source(source_id: str, raw_reference: str) -> str:
         prefix = f"source:{sha256(source_id.encode('utf-8')).hexdigest()[:16]}"
     reference_digest = sha256(raw_reference.encode("utf-8")).hexdigest()
     return f"{prefix}:{reference_digest}"
+
+
+def _observation_period(value: object, plan: LogicalReadPlan) -> str:
+    period = _safe_period(value)
+    if plan.window.kind is WindowKind.BOUNDED:
+        expected_length = {"year": 4, "month": 7, "day": 10}.get(plan.window.granularity)
+        if len(period) != expected_length:
+            raise EvidenceContractInvalid("período de observação com granularidade incompatível")
+        if len(period) == 4:
+            start, end = date(int(period), 1, 1), date(int(period), 12, 31)
+        elif len(period) == 7:
+            start = date.fromisoformat(period + "-01")
+            end = start.replace(day=monthrange(start.year, start.month)[1])
+        else:
+            start = end = date.fromisoformat(period)
+        if start < plan.window.start or end > plan.window.end:
+            raise EvidenceContractInvalid("período de observação fora da janela aprovada")
+    return period
 
 
 class EvidenceGuard:
@@ -93,6 +112,16 @@ class EvidenceGuard:
         if evidence.reference.is_demo and not plan.source_id.startswith("synthetic."):
             raise EvidenceContractInvalid("fonte externa devolveu evidência demonstrativa")
         provenance = evidence.provenance
+        quality = provenance.quality
+        if plan.source_id.startswith("gold."):
+            if (
+                quality is None
+                or quality.batch_ref != expected_batch_ref
+                or not quality.available_capability_ids
+            ):
+                raise EvidenceContractInvalid("qualidade da publicação incompatível")
+        elif quality is not None:
+            raise EvidenceContractInvalid("fonte sintética trouxe qualidade Gold")
         if provenance.batch_ref != expected_batch_ref:
             raise EvidenceContractInvalid("publicação incompatível com a esperada")
         if (
@@ -170,7 +199,7 @@ class EvidenceGuard:
             row_dimensions: dict[str, object] = {}
             for field in fields.values():
                 if field.role is EvidenceFieldRole.PERIOD:
-                    safe_row["period"] = _safe_period(row.get(field.name))
+                    safe_row["period"] = _observation_period(row.get(field.name), plan)
                 elif field.role is EvidenceFieldRole.DIMENSION:
                     dimension_id = field.dimension_id
                     if field.name not in row:
@@ -183,8 +212,21 @@ class EvidenceGuard:
                     if dimension is None or dimension.value_type is not field.value_type:
                         raise EvidenceContractInvalid("dimensão de observação incompatível")
                     raw_dimension = row.get(field.name)
+                    applied_filter = next(
+                        (item for item in plan.filters if item.dimension_id == dimension_id),
+                        None,
+                    )
                     if field.value_type is FilterValueType.STRING:
                         approved = {item.value for item in dimension.values}
+                        if (
+                            self._profile.structured_dimension_filters
+                            and applied_filter is not None
+                            and applied_filter.operator in (FilterOperator.EQ, FilterOperator.IN)
+                        ):
+                            # O Backend autenticado devolve a grafia da publicação.
+                            # Só aceita valores exatos do filtro já reautorizado,
+                            # sem confiar em novos valores trazidos pelo registro.
+                            approved.update(applied_filter.values)
                         if type(raw_dimension) is not str or raw_dimension not in approved:
                             raise EvidenceContractInvalid("valor de dimensão não aprovado")
                     elif field.value_type is FilterValueType.INTEGER:
@@ -198,10 +240,6 @@ class EvidenceGuard:
                             raise EvidenceContractInvalid("valor de dimensão inválido")
                     elif field.value_type is FilterValueType.DATE:
                         raw_dimension = _safe_period(raw_dimension)
-                    applied_filter = next(
-                        (item for item in plan.filters if item.dimension_id == dimension_id),
-                        None,
-                    )
                     if applied_filter is not None:
                         if applied_filter.operator in (FilterOperator.EQ, FilterOperator.IN):
                             if raw_dimension not in applied_filter.values:

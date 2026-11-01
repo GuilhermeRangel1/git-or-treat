@@ -40,6 +40,77 @@ function renderPage() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Assistente Grid 360", () => {
+  it("mostra os rótulos do catálogo preservando os identificadores do recorte", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          ...answered,
+          analysis_context: {
+            ...answered.analysis_context,
+            metric: "billing.revenue",
+            metric_label: "Receita faturada",
+            metric_definition:
+              "Faturamento observado; não representa valor pago.",
+            filters: { "geography.municipality": "Exemplo" },
+            filter_labels: { "geography.municipality": "Município" },
+          },
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "Qual a receita?",
+    );
+    await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+    const context = await screen.findByLabelText("Recorte analisado");
+    expect(within(context).getByText(": Receita faturada")).toBeVisible();
+    expect(within(context).getByText("Município")).toBeVisible();
+    expect(context).toHaveAttribute(
+      "title",
+      "Faturamento observado; não representa valor pago.",
+    );
+    expect(context).not.toHaveTextContent("billing.revenue");
+    expect(context).not.toHaveTextContent("geography.municipality");
+  });
+  it("mostra a referência de conferência da evidência real sem aviso sintético", async () => {
+    const reference = "abcdef0123456789abcdef0123456789";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          ...answered,
+          audit_reference: reference,
+          answer: "A receita no recorte informado está fundamentada na Gold.",
+          evidence: [
+            {
+              source: "gold.local",
+              description: "Agregado autorizado.",
+              is_demo: false,
+            },
+          ],
+          limitations: [],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "Qual a receita no período?",
+    );
+    await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+    expect(
+      await screen.findByText(`Referência para conferência: ${reference}`),
+    ).toBeVisible();
+    expect(screen.getByText("gold.local")).toBeVisible();
+    expect(
+      screen.queryByText("Demonstração sintética"),
+    ).not.toBeInTheDocument();
+  });
+
   it("mostra carregamento e bloqueia outro envio até a resposta", async () => {
     let resolveResponse: (response: Response) => void = () => undefined;
     const pendingResponse = new Promise<Response>((resolve) => {

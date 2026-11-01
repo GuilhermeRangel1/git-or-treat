@@ -2,6 +2,11 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { onlineManager } from "@tanstack/react-query";
 import { afterEach, beforeEach, vi } from "vitest";
+import {
+  clearReauthenticationRequired,
+  setSessionConfigured,
+  setUnauthorizedHandler,
+} from "@/shared/auth/authorization";
 
 // Jornadas sintéticas isolam o catálogo, preservando seus mocks de negócio.
 // sourceOptions.test.tsx remove este mock e exercita Fetch, decoder e Query reais.
@@ -24,6 +29,9 @@ vi.mock("@/shared/analytics/sourceOptions", async (importOriginal) => {
 onlineManager.setOnline(true);
 
 beforeEach(() => {
+  setSessionConfigured(false);
+  clearReauthenticationRequired();
+  setUnauthorizedHandler(null);
   if (typeof window !== "undefined") {
     window.matchMedia =
       window.matchMedia ||

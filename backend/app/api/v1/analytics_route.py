@@ -16,6 +16,7 @@ class AnalyticsRoute(APIRoute):
     def __init__(self, *args, **kwargs):
         kwargs["responses"] = {
             422: {"model": AnalyticsErrorResponse, "description": "Entrada analítica inválida"},
+            409: {"model": AnalyticsErrorResponse, "description": "Publicação Gold desatualizada"},
             503: {"model": AnalyticsErrorResponse, "description": "Fonte analítica indisponível"},
             **(kwargs.get("responses") or {}),
         }

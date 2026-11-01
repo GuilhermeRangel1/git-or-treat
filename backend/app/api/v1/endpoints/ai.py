@@ -1,10 +1,20 @@
+from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
+from app.core.database import get_db
+from app.core.genai_gold_database import (
+    get_question_gold_readiness_gate,
+    get_question_gold_resources,
+)
+from app.repositories.gold_publication import GoldPublicationChanged, GoldPublicationUnavailable
 from app.repositories.panorama import PanoramaRepository, get_panorama_repository
 from app.schemas.ai import (
     AIQueryRequest,
@@ -18,7 +28,9 @@ from app.schemas.ai_insight import (
     PanoramaInsightEnvelope,
     PanoramaInsightRequest,
 )
+from app.schemas.genai_internal import AccessScope
 from app.services.analytics import AnalyticsAPIError
+from app.services.genai_audit import AuditStore
 from app.services.genai_client import (
     GenAIInsightClient,
     GenAIQuestionClient,
@@ -26,6 +38,8 @@ from app.services.genai_client import (
     GenAIServiceUnavailable,
     GenAITimeout,
 )
+from app.services.genai_coordination import answer_gold_question
+from app.services.genai_executor import GoldExecutionDenied
 from app.services.panorama_insights import (
     StalePanoramaInsight,
     UnsupportedPanoramaInsight,
@@ -39,6 +53,14 @@ class AIQuestionRoute(APIRoute):
 
     def __init__(self, *args, **kwargs):
         kwargs["responses"] = {
+            401: {
+                "model": AIQuestionErrorResponse,
+                "description": "Sessão individual ausente ou inválida.",
+            },
+            403: {
+                "model": AIQuestionErrorResponse,
+                "description": "Consulta não autorizada pelo acesso atual.",
+            },
             422: {
                 "model": AIQuestionErrorResponse,
                 "description": "Solicitação fora do contrato v1.",
@@ -76,6 +98,21 @@ class AIQuestionRoute(APIRoute):
                     code="invalid_request",
                     retryable=False,
                     message="A solicitação não segue o contrato v1.",
+                )
+
+            except HTTPException as exc:
+                if exc.status_code in {401, 403}:
+                    return _question_error(
+                        request, status_code=exc.status_code,
+                        code="access_denied", retryable=False,
+                        message="A consulta não está autorizada com o acesso atual.",
+                    )
+                if exc.status_code != 503:
+                    raise
+                return _question_error(
+                    request, status_code=503, code="service_unavailable",
+                    retryable=False,
+                    message="O serviço de resposta está temporariamente indisponível.",
                 )
 
         return ai_question_handler
@@ -140,13 +177,46 @@ async def ask_genai_question(
     payload: AIQuestionRequest,
     request: Request,
     genai: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
+    gold_resources: Annotated[
+        tuple[Engine, Callable[[], AccessScope]] | None, Depends(get_question_gold_resources)
+    ],
+    readiness_gate: Annotated[Callable | None, Depends(get_question_gold_readiness_gate)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> AIQuestionResponse | JSONResponse:
     """Encaminha pergunta e contexto transitório sem acessar banco ou persistir sessão."""
 
     try:
-        result = await genai.ask(
-            payload,
-            correlation_id=request.state.correlation_id,
+        if gold_resources is not None:
+            engine, resolve_scope = gold_resources
+            result = await answer_gold_question(
+                engine, genai, payload, resolve_scope=resolve_scope,
+                correlation_id=request.state.correlation_id,
+                readiness_gate=readiness_gate,
+                audit_store=AuditStore(db.get_bind()),
+            )
+        else:
+            result = await genai.ask(
+                payload, correlation_id=request.state.correlation_id,
+            )
+    except GoldExecutionDenied:
+        return _question_error(
+            request, status_code=403, code="access_denied", retryable=False,
+            message="A consulta não está autorizada com o acesso atual.",
+        )
+    except GoldPublicationChanged:
+        return _question_error(
+            request, status_code=409, code="invalid_context", retryable=True,
+            message="A publicação Gold mudou. Refaça a pergunta.",
+        )
+    except GoldPublicationUnavailable:
+        return _question_error(
+            request, status_code=503, code="service_unavailable", retryable=False,
+            message="A publicação Gold não está disponível para esta consulta.",
+        )
+    except SQLAlchemyError:
+        return _question_error(
+            request, status_code=503, code="service_unavailable", retryable=True,
+            message="A consulta Gold está temporariamente indisponível.",
         )
     except GenAIServiceUnavailable as exc:
         return _question_error(

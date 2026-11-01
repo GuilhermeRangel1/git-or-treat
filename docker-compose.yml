@@ -39,7 +39,7 @@
     environment:
       ANALYTICS_SOURCE: ${ANALYTICS_SOURCE:-synthetic}
       APP_ENV: development
-      ORDERS_AUTH_MODE: ${ORDERS_AUTH_MODE:-demo}
+      ORDERS_AUTH_MODE: ${ORDERS_AUTH_MODE:-session}
     depends_on:
       db:
         condition: service_healthy
@@ -50,6 +50,7 @@
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app:rw
+      - ./work/local-auth:/work/local-auth:rw
 
   frontend:
     build:

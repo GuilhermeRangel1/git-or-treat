@@ -11,6 +11,11 @@ from app.schemas.ai import (
     AIQuestionResponse,
 )
 from app.schemas.ai_insight import AIInsightRequest, AIInsightResponse
+from app.schemas.genai_internal import (
+    QuestionPlanRequest,
+    QuestionPlanResponse,
+    QuestionSynthesisRequest,
+)
 
 
 class GenAIServiceUnavailable(Exception):
@@ -131,6 +136,56 @@ class GenAIQuestionClient:
         except (ValueError, ValidationError) as exc:
             raise GenAIResponseInvalid from exc
 
+        if result.correlation_id != correlation_id:
+            raise GenAIResponseInvalid
+        return result
+
+    async def plan(
+        self, payload: QuestionPlanRequest, *, correlation_id: str
+    ) -> QuestionPlanResponse:
+        """Planeja com metadados confiáveis; não usa a rota demonstrativa como fallback."""
+        response_payload = await _post_genai_json(
+            http_client=self._http_client,
+            base_url=self._base_url,
+            service_token=self._service_token,
+            path="/api/v1/internal/question-plans",
+            payload=payload,
+            correlation_id=correlation_id,
+        )
+        try:
+            result = QuestionPlanResponse.model_validate(response_payload)
+        except ValueError as exc:
+            raise GenAIResponseInvalid from exc
+        if result.correlation_id != correlation_id:
+            raise GenAIResponseInvalid
+        return result
+
+    async def evaluate_readiness(self, engine, **kwargs):
+        """Reusa o observador Backend e a operação interna de prontidão."""
+        from app.services.gold_readiness import evaluate_domain_readiness
+        if self._base_url is None or self._service_token is None:
+            raise GenAIServiceUnavailable
+        return await evaluate_domain_readiness(
+            engine, http_client=self._http_client, base_url=self._base_url,
+            service_token=self._service_token, **kwargs,
+        )
+
+    async def synthesize(
+        self, payload: QuestionSynthesisRequest, *, correlation_id: str
+    ) -> AIQuestionResponse:
+        """Entrega lookup concluído ao mesmo núcleo; falha não ativa outra fonte."""
+        response_payload = await _post_genai_json(
+            http_client=self._http_client,
+            base_url=self._base_url,
+            service_token=self._service_token,
+            path="/api/v1/internal/question-syntheses",
+            payload=payload,
+            correlation_id=correlation_id,
+        )
+        try:
+            result = AIQuestionResponse.model_validate(response_payload)
+        except ValueError as exc:
+            raise GenAIResponseInvalid from exc
         if result.correlation_id != correlation_id:
             raise GenAIResponseInvalid
         return result

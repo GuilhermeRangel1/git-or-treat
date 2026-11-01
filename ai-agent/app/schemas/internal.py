@@ -1,14 +1,15 @@
 """Envelopes internos Backend ↔ GenAI de planejar e sintetizar (GENAI-01, proposta).
 
-Seguem docs/contracts/genai-query-execution.md. Só a borda interna os recebe; ainda não há rota.
+Seguem docs/contracts/genai-query-execution.md. Só a borda interna autenticada os recebe.
 O escopo vem do Backend sem correlação: ela chega pelo cabeçalho X-Correlation-ID.
 """
 
+import unicodedata
 from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.schemas.access import AccessContext
 from app.schemas.analysis import LogicalIdentifier
@@ -20,6 +21,11 @@ from app.schemas.responses import CorrelationId
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
 
 _FINGERPRINT_PATTERN = r"^[a-f0-9]{64}$"
+
+
+def _normalize_dimension_value(value: str) -> str:
+    decomposed = unicodedata.normalize("NFD", value.casefold())
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
 class AccessScope(BaseModel):
@@ -62,6 +68,27 @@ class TemporalCoverage(BaseModel):
         return self
 
 
+class DimensionValueCoverage(BaseModel):
+    """Valores de dimensão da mesma publicação, resolvidos e autorizados pelo Backend."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dimension_id: LogicalIdentifier
+    values: tuple[
+        Annotated[
+            str,
+            StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=120),
+        ],
+        ...,
+    ] = Field(max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_values(self) -> Self:
+        if len({_normalize_dimension_value(value) for value in self.values}) != len(self.values):
+            raise ValueError("valores de dimensão devem ser únicos")
+        return self
+
+
 class QuestionPlanRequest(QuestionRequest):
     """Pergunta e até três turnos de contexto, com o escopo enviado pelo Backend."""
 
@@ -69,6 +96,9 @@ class QuestionPlanRequest(QuestionRequest):
     remaining_timeout_ms: int = Field(strict=True, gt=0, le=35000)
     batch_ref: GoldBatchRef | None = None
     temporal_coverage: tuple[TemporalCoverage, ...] = Field(default=(), max_length=100)
+    dimension_value_coverage: tuple[DimensionValueCoverage, ...] = Field(
+        default=(), max_length=20
+    )
 
     @model_validator(mode="after")
     def validate_publication(self) -> Self:
@@ -77,13 +107,23 @@ class QuestionPlanRequest(QuestionRequest):
                 self.access_scope.allowed_metric_ids and not self.temporal_coverage
             ):
                 raise ValueError("planejamento Gold exige publicação e cobertura explícitas")
-        elif self.batch_ref is not None or self.temporal_coverage:
+        elif self.batch_ref is not None or self.temporal_coverage or self.dimension_value_coverage:
             raise ValueError("metadados Gold exigem fonte Gold")
         metrics = [item.metric_id for item in self.temporal_coverage]
         if len(set(metrics)) != len(metrics):
             raise ValueError("cobertura repetida para a mesma métrica")
         if not set(metrics) <= self.access_scope.allowed_metric_ids:
             raise ValueError("cobertura fora do escopo permitido")
+        dimensions = [item.dimension_id for item in self.dimension_value_coverage]
+        if len(set(dimensions)) != len(dimensions):
+            raise ValueError("cobertura repetida para a mesma dimensão")
+        if not set(dimensions) <= self.access_scope.allowed_dimension_ids:
+            raise ValueError("valores de dimensão fora do escopo permitido")
+        if any(
+            item.dimension_id == "customer.consumer_unit"
+            for item in self.dimension_value_coverage
+        ):
+            raise ValueError("valores identificadores de UC não entram no vocabulário")
         return self
 
 
@@ -127,6 +167,7 @@ class QuestionPlanResponse(BaseModel):
 class QuestionSynthesisRequest(QuestionRequest):
     """Plano devolvido em ``planned`` e o resultado da execução no Backend."""
 
+    dimension_value_coverage: tuple[DimensionValueCoverage, ...] = Field(default=(), max_length=20)
     access_scope: AccessScope
     remaining_timeout_ms: int = Field(strict=True, gt=0, le=35000)
     plan: LogicalReadPlan
@@ -136,6 +177,11 @@ class QuestionSynthesisRequest(QuestionRequest):
 
     @model_validator(mode="after")
     def validate_fingerprint(self) -> Self:
+        ids = [item.dimension_id for item in self.dimension_value_coverage]
+        if (len(ids) != len(set(ids))
+            or not set(ids) <= self.access_scope.allowed_dimension_ids
+            or "customer.consumer_unit" in ids):
+            raise ValueError("vocabulário de síntese fora do escopo")
         if self.plan.source_id.startswith("gold."):
             if self.expected_batch_ref is None:
                 raise ValueError("síntese Gold exige publicação esperada")

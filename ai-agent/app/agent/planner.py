@@ -1,5 +1,7 @@
 """Liga a interpretação a uma fonte de evidências sem gerar texto natural."""
 
+import asyncio
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Self
 
@@ -8,12 +10,13 @@ from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 from app.agent.access import ReadAccessPolicy
 from app.agent.evidence_guard import EvidenceGuard
 from app.agent.execution import ExecutionLimitExceeded, RequestBudget
-from app.agent.interpreter import QuestionInterpreter
+from app.agent.interpreter import QuestionInterpreter, _normalize
 from app.agent.read_plan import (
     PlanCapabilityUnavailable,
     ReadPlanBuilder,
     ReadPlanValidator,
 )
+from app.agent.temporal import explicit_monthly_phrases
 from app.ports.events import (
     AuditUnavailable,
     EventCode,
@@ -29,6 +32,7 @@ from app.ports.evidence import (
     EvidenceToolUnavailable,
 )
 from app.schemas.access import AccessContext
+from app.schemas.domain_profile import DimensionValue, DomainProfile
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.questions import ConversationTurn
@@ -103,6 +107,10 @@ class PlannedQuestion(BaseModel):
 class QuestionAnalysisPlanner:
     """Prepara a interpretação e consulta a fonte só após resolver ambiguidades."""
 
+    @property
+    def profile(self) -> DomainProfile:
+        return self._access_policy.profile
+
     def __init__(
         self,
         interpreter: QuestionInterpreter,
@@ -114,6 +122,8 @@ class QuestionAnalysisPlanner:
     ) -> None:
         self._interpreter = interpreter
         self._evidence_source = evidence_source
+        self._access_policy = access_policy
+        self._max_rows = max_rows
         self._plan_builder = ReadPlanBuilder(
             access_policy.profile, access_policy.source_id, default_limit=max_rows
         )
@@ -132,7 +142,7 @@ class QuestionAnalysisPlanner:
         budget: RequestBudget | None = None,
         trace: EventTrace | None = None,
     ) -> AnalysisPlan:
-        planned = self.plan(question, context, access_context, trace)
+        planned = await asyncio.to_thread(self.plan, question, context, access_context, trace)
         if planned.read_plan is None:
             return AnalysisPlan(
                 status=AnalysisPlanStatus.NEEDS_CLARIFICATION,
@@ -153,10 +163,42 @@ class QuestionAnalysisPlanner:
         context: list[ConversationTurn] | None = None,
         access_context: AccessContext | None = None,
         trace: EventTrace | None = None,
+        temporal_coverage: Mapping[str, tuple[str, tuple[str, ...]]] | None = None,
+        dimension_value_coverage: Mapping[str, tuple[str, ...]] | None = None,
     ) -> PlannedQuestion:
         """Interpreta, monta e aprova o plano; nunca chama a fonte nem o modelo."""
 
-        interpretation = self._interpreter.interpret(question, context)
+        profile = self._profile_with_dimension_values(dimension_value_coverage)
+        if profile.structured_dimension_filters:
+            phrases = tuple(dict.fromkeys(
+                phrase for text in (question, *(turn.content for turn in context or []))
+                for phrase in explicit_monthly_phrases(text)
+            ))
+            if phrases:
+                data = profile.model_dump(mode="python")
+                data["period_phrases"] = tuple(dict.fromkeys((*profile.period_phrases, *phrases)))
+                profile = DomainProfile.model_validate(data)
+        interpreter = (
+            self._interpreter
+            if profile is self._access_policy.profile
+            else QuestionInterpreter(profile)
+        )
+        plan_builder = (
+            self._plan_builder
+            if profile is self._access_policy.profile
+            else ReadPlanBuilder(
+                profile, self._access_policy.source_id, default_limit=self._max_rows
+            )
+        )
+        plan_validator = (
+            self._plan_validator
+            if profile is self._access_policy.profile
+            else ReadPlanValidator(
+                profile, self._access_policy.source_id, self._access_policy,
+                max_rows=self._max_rows,
+            )
+        )
+        interpretation = interpreter.interpret(question, context)
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
             if trace is not None:
                 trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
@@ -164,8 +206,8 @@ class QuestionAnalysisPlanner:
 
         assert interpretation.intent is not None
         try:
-            proposed = self._plan_builder.build(interpretation.intent)
-            approved = self._approve(proposed, access_context, trace)
+            proposed = plan_builder.build(interpretation.intent, temporal_coverage)
+            approved = self._approve(proposed, access_context, trace, plan_validator)
         except PlanCapabilityUnavailable as exc:
             if trace is not None:
                 trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
@@ -178,6 +220,45 @@ class QuestionAnalysisPlanner:
             )
         return PlannedQuestion(interpretation=interpretation, read_plan=approved)
 
+    def _profile_with_dimension_values(
+        self, coverage: Mapping[str, tuple[str, ...]] | None
+    ) -> DomainProfile:
+        if not coverage:
+            return self._access_policy.profile
+
+        dimensions = []
+        for dimension in self._access_policy.profile.dimensions:
+            additions = coverage.get(dimension.id, ())
+            if not additions:
+                dimensions.append(dimension)
+                continue
+            known = {
+                _normalize(alias)
+                for value in dimension.values
+                for alias in (value.value, *value.aliases)
+            }
+            values = list(dimension.values)
+            for raw in additions:
+                normalized = _normalize(raw)
+                if normalized in known:
+                    # O perfil oferece sinônimos; a publicação fornece o valor
+                    # canônico que será usado no filtro parametrizado do Backend.
+                    for index, value in enumerate(values):
+                        if normalized in {
+                            _normalize(alias) for alias in (value.value, *value.aliases)
+                        }:
+                            values[index] = DimensionValue(
+                                value=raw, aliases=value.aliases
+                            )
+                            break
+                    continue
+                values.append(DimensionValue(value=raw, aliases=(raw,)))
+                known.add(normalized)
+            dimensions.append(dimension.model_copy(update={"values": tuple(values)}))
+        profile_data = self._access_policy.profile.model_dump(mode="python")
+        profile_data["dimensions"] = tuple(dimensions)
+        return DomainProfile.model_validate(profile_data)
+
     async def execute_plan(
         self,
         proposed: LogicalReadPlan | dict[str, object],
@@ -187,7 +268,7 @@ class QuestionAnalysisPlanner:
     ) -> tuple[LogicalReadPlan, EvidenceLookupResult]:
         """Ponto único de validação, inclusive para planos propostos futuramente por LLM."""
 
-        approved = self._approve(proposed, access_context, trace)
+        approved = await asyncio.to_thread(self._approve, proposed, access_context, trace)
         return approved, await self.retrieve(approved, access_context, budget, trace)
 
     def accept_lookup(
@@ -199,6 +280,7 @@ class QuestionAnalysisPlanner:
         *,
         expected_batch_ref: str | None = None,
         trace: EventTrace | None = None,
+        dimension_value_coverage: Mapping[str, tuple[str, ...]] | None = None,
     ) -> tuple[LogicalReadPlan, EvidenceLookupResult]:
         """Confere o resultado recebido de quem executou o plano; nunca chama a fonte.
 
@@ -206,7 +288,12 @@ class QuestionAnalysisPlanner:
         publicação esperada vem do chamador confiável, nunca do próprio lookup.
         """
 
-        approved = self._approve(plan, access_context, trace)
+        profile = self._profile_with_dimension_values(dimension_value_coverage)
+        validator = ReadPlanValidator(
+            profile, self._access_policy.source_id, self._access_policy,
+            max_rows=self._max_rows,
+        )
+        approved = self._approve(plan, access_context, trace, validator)
         try:
             if plan_fingerprint != approved.fingerprint():
                 raise EvidenceContractInvalid("fingerprint divergente do plano aprovado")
@@ -227,11 +314,12 @@ class QuestionAnalysisPlanner:
         proposed: LogicalReadPlan | dict[str, object],
         access_context: AccessContext | None,
         trace: EventTrace | None,
+        validator: ReadPlanValidator | None = None,
     ) -> LogicalReadPlan:
         try:
             if access_context is None:
                 raise EvidenceAccessDenied("Contexto de acesso ausente.")
-            approved = self._plan_validator.approve(proposed, access_context)
+            approved = (validator or self._plan_validator).approve(proposed, access_context)
         except EvidenceAccessDenied:
             if trace is not None:
                 trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
@@ -280,7 +368,7 @@ class QuestionAnalysisPlanner:
 
         if trace is not None:
             trace.source_calls += 1
-            trace.emit(EventStage.SOURCE, EventCode.STARTED, EventOutcome.STARTED)
+            await trace.emit_async(EventStage.SOURCE, EventCode.STARTED, EventOutcome.STARTED)
         try:
             evidence_result = (
                 await budget.source(
@@ -291,31 +379,31 @@ class QuestionAnalysisPlanner:
             )
             evidence_result = self._check_lookup(approved, evidence_result, None)
             if trace is not None:
-                trace.emit(EventStage.SOURCE, EventCode.COMPLETED, EventOutcome.SUCCESS)
-            self._emit_evidence(evidence_result, trace)
+                await trace.emit_async(EventStage.SOURCE, EventCode.COMPLETED, EventOutcome.SUCCESS)
+            await asyncio.to_thread(self._emit_evidence, evidence_result, trace)
         except AuditUnavailable:
             raise
         except EvidenceToolUnavailable:
             if trace is not None:
-                trace.emit(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+                await trace.emit_async(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             raise
         except EvidenceAccessDenied:
             if trace is not None:
-                trace.emit(EventStage.SOURCE, EventCode.DENIED, EventOutcome.REFUSED)
+                await trace.emit_async(EventStage.SOURCE, EventCode.DENIED, EventOutcome.REFUSED)
             raise
         except EvidenceContractInvalid:
             if trace is not None:
-                trace.emit(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
+                await trace.emit_async(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
             raise
         except ExecutionLimitExceeded:
             raise
         except (TypeError, ValidationError) as exc:
             if trace is not None:
-                trace.emit(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
+                await trace.emit_async(EventStage.EVIDENCE, EventCode.INVALID, EventOutcome.ERROR)
             raise EvidenceContractInvalid("Evidence source returned an invalid result.") from exc
         except Exception as exc:
             if trace is not None:
-                trace.emit(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+                await trace.emit_async(EventStage.SOURCE, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             raise EvidenceToolUnavailable("Evidence source failed.") from exc
         return evidence_result
 

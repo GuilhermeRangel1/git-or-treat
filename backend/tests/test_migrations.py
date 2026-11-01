@@ -3,6 +3,8 @@ from decimal import Decimal
 
 import pytest
 from alembic import command
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import Column, MetaData, String, create_engine, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
@@ -20,6 +22,12 @@ from tests.support.migrations import (
 def run_migration_cycle(connection):
     with migrated_database(connection):
         pass
+
+
+def test_alembic_revision_graph_has_a_single_head():
+    config = Config(str(BACKEND_ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    assert len(ScriptDirectory.from_config(config).get_heads()) == 1
 
 
 def test_alembic_upgrade_and_downgrade_use_the_explicit_disposable_sqlite_database(

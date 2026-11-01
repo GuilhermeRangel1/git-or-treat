@@ -1,8 +1,10 @@
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from uuid import uuid4
 
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -15,6 +17,8 @@ from app.middleware.request_limits import RequestLimitsMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.repositories.analytics import AnalyticsSourceUnavailable
 from app.services.analytics import AnalyticsAPIError
+from app.services.genai_audit import AuditStore
+from app.services.genai_audit_retention import maintain_audit_retention
 from app.services.genai_client import GenAIInsightClient, GenAIQuestionClient
 
 
@@ -51,7 +55,16 @@ async def lifespan(app: FastAPI):
             ),
             service_token=token,
         )
-        yield
+        retention = None
+        if settings.GENAI_AUDIT_WRITE_TOKEN is not None or settings.ANALYTICS_SOURCE == "gold":
+            retention = asyncio.create_task(maintain_audit_retention(AuditStore(engine)))
+        try:
+            yield
+        finally:
+            if retention is not None:
+                retention.cancel()
+                with suppress(asyncio.CancelledError):
+                    await retention
 
 
 app = FastAPI(
@@ -88,6 +101,30 @@ async def analytics_unavailable_handler(
             }
         },
     )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    if request.url.path == f"{settings.API_V1_STR}/internal/genai-audit-events":
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "Evento de auditoria inválido."},
+        )
+    if request.url.path == f"{settings.API_V1_STR}/auth/login":
+        # Pydantic's default error payload includes rejected input values. The
+        # login payload contains a password, so expose locations/messages only.
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": [
+                    {"loc": error.get("loc", []), "msg": error.get("msg", "Entrada inválida."), "type": error.get("type", "value_error")}
+                    for error in exc.errors()
+                ]
+            },
+        )
+    from fastapi.exception_handlers import request_validation_exception_handler
+
+    return await request_validation_exception_handler(request, exc)
 
 
 # Configuração de CORS para permitir requisições do frontend Vite/React

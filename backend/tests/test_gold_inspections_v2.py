@@ -62,6 +62,18 @@ def publish_fixture():
 
 
 def test_v2_queue_uses_published_position_and_queue_filter_universe(gold_client):
+    from typing import Annotated
+
+    from fastapi import Depends
+    from sqlalchemy.orm import Session
+
+    from app.repositories.analytics import get_analytics_repository_provider
+    from app.repositories.gold import GoldAnalyticsRepository
+
+    def legacy_provider(db: Annotated[Session, Depends(get_analytics_db)]):
+        return lambda: GoldAnalyticsRepository(db, allow_v2=True)
+
+    app.dependency_overrides[get_analytics_repository_provider] = legacy_provider
     client, _ = gold_client
     publish_fixture()
     response = client.get("/api/v1/inspections/queue?page_size=1")
@@ -93,21 +105,21 @@ def test_v2_queue_uses_published_position_and_queue_filter_universe(gold_client)
     try:
         order = client.post("/api/v1/inspections/queue/UC-B/orders", headers={"Idempotency-Key": "artificial-key-v2-123"},
                             json={"source_version": body["metadata"]["source"]["version"], "rule_version": "gold-csv-v2"})
-        assert order.status_code == 503
+        assert order.status_code == 422
     finally:
         app.dependency_overrides.pop(require_orders_write, None)
         app.dependency_overrides.pop(get_db, None)
 
 
-def test_gold_order_creation_is_blocked_server_side_without_homologation(gold_client):
+def test_gold_order_creation_rejects_missing_publication_fingerprint(gold_client):
     client, _ = gold_client
     app.dependency_overrides[require_orders_write] = lambda: "test-writer"
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = client.post("/api/v1/inspections/queue/FAKE-A/orders", headers={"Idempotency-Key": "artificial-key-123456"},
                                json={"source_version": "test", "rule_version": "gold-csv-v1"})
-        assert response.status_code == 503
-        assert response.json()["error"]["code"] == "rule_unavailable"
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "invalid_query"
     finally:
         app.dependency_overrides.pop(require_orders_write, None)
         app.dependency_overrides.pop(get_db, None)

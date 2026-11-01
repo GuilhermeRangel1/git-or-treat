@@ -7,12 +7,16 @@
 # (`data-engineering/notebook/`: notebooks `.ipynb`; YAML em `data-engineering/configuracao/databricks/`).
 # Os caminhos são os do Workspace de origem (`pipeline_v2`); ajuste-os para o seu Workspace.
 #
-# Encadeamento: Landing_to_Bronze -> Bronze_perfilamento -> Bronze_to_Silver -> Silver_to_gold -> Exportacao_Gold.
+# Encadeamento: Landing_to_Bronze -> Bronze_perfilamento -> Bronze_to_Silver -> Cobertura_Declaracao -> Silver_to_gold -> Exportacao_Gold.
+# Cobertura_Declaracao confere Bronze, Silver e totais do lote ativo e entrega à Gold, por task values, a declaração de
+# cobertura e as janelas de preço x volume. Como a declaração é amarrada ao run da Silver, ela precisa ser gerada
+# depois de cada Silver nova; se uma conferência não fechar, a tarefa falha e a Gold não roda.
 # A ordem não é decorativa: o perfilador lê as tabelas que a ingestão acabou de
 # gravar, a Silver lê o lote ativo da Bronze e exige o perfil, e a Gold lê apenas
 # as vistas publicadas da Silver (`silver_publicada.*`).
-# Exportacao_Gold (DE-06) lê as sete tabelas Gold e grava um CSV por tabela, cada uma em
-# diretório próprio, no Volume `workspace.gold.gold_export_volume`, com sobrescrita. Antes de
+# Exportacao_Gold (DE-06) lê as quinze tabelas analíticas da Gold e o cadastro restrito e grava um CSV por tabela, cada uma em
+# diretório próprio, em uma pasta exclusiva por tentativa no Volume `workspace.gold.gold_export_volume` (o cadastro vai para
+# o Volume restrito `workspace.gold_cadastro.cadastro_export_volume`), sem sobrescrever exportações anteriores. Antes de
 # gravar, exige que a última execução CONCLUIDO de `gold.controle_gold` seja de ambiente
 # `prod`; ao final, grava o `manifest.json` com a linhagem (Gold, Silver e lote Bronze).
 # Não recebe parâmetros e não carrega o banco local (essa carga é uma etapa separada).
@@ -21,8 +25,14 @@
 #   Landing_to_Bronze   -> Landing_to_Bronze.ipynb
 #   Bronze_perfilamento -> Bronze_perfilamento.ipynb
 #   Bronze_to_Silver    -> Bronze_to_Silver.ipynb
+#   Cobertura_Declaracao -> Cobertura_Declaracao.ipynb
 #   Silver_to_gold      -> Silver_to_gold.ipynb   (no Workspace, `Silver_to_Gold`)
 #   Exportacao_Gold     -> Exportacao_Gold_SQLite.ipynb
+#
+# Cadastro restrito: a Gold exige `CADASTRO_RESTRITO_VALIDADO: sim`, declaração do operador de que os schemas
+# `gold_cadastro` e `gold_cadastro_preparo`, o Volume `gold_cadastro.cadastro_export_volume` e as permissões
+# estão provisionados. Sem isso a tarefa para antes de gravar. A declaração de cobertura (JSON com contagens) NUNCA
+# é escrita neste arquivo: ela vem do task value da tarefa Cobertura_Declaracao.
 #
 # Ambiente da Gold: o notebook `Silver_to_gold` exige o parâmetro `AMBIENTE` (dev, test ou
 # prod), sem valor padrão. A tarefa passa `AMBIENTE: prod`. Em `prod`, a Gold só conclui
@@ -82,14 +92,31 @@ resources:
             source: WORKSPACE
           min_retry_interval_millis: 900000
           disable_auto_optimization: true
-        - task_key: Silver_to_gold
+        - task_key: Cobertura_Declaracao
           depends_on:
             - task_key: Bronze_to_Silver
+          run_if: ALL_SUCCESS
+          notebook_task:
+            notebook_path: /Workspace/Users/jtc@cesar.school/pipeline_v2/Cobertura_Declaracao
+            source: WORKSPACE
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: true
+        - task_key: Silver_to_gold
+          depends_on:
+            - task_key: Cobertura_Declaracao
           run_if: ALL_SUCCESS
           notebook_task:
             notebook_path: /Workspace/Users/jtc@cesar.school/pipeline_v2/Silver_to_Gold
             base_parameters:
               AMBIENTE: prod
+              CADASTRO_RESTRITO_VALIDADO: "sim"
+              COBERTURA_INICIO: "{{tasks.Cobertura_Declaracao.values.cobertura_inicio}}"
+              COBERTURA_FIM: "{{tasks.Cobertura_Declaracao.values.cobertura_fim}}"
+              COBERTURA_DECLARACOES_JSON: "{{tasks.Cobertura_Declaracao.values.declaracao_json}}"
+              PRECO_VOLUME_INICIO_P0: "{{tasks.Cobertura_Declaracao.values.pv_inicio_p0}}"
+              PRECO_VOLUME_FIM_P0: "{{tasks.Cobertura_Declaracao.values.pv_fim_p0}}"
+              PRECO_VOLUME_INICIO_P1: "{{tasks.Cobertura_Declaracao.values.pv_inicio_p1}}"
+              PRECO_VOLUME_FIM_P1: "{{tasks.Cobertura_Declaracao.values.pv_fim_p1}}"
             source: WORKSPACE
           min_retry_interval_millis: 900000
           disable_auto_optimization: true

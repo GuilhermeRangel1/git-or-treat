@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Serviço GenAI do V-Energy Grid 360"
 requires-python = ">=3.11,<4.0"
 dependencies = [
+    "httpx>=0.27,<1.0",
     "fastapi>=0.115,<1.0",
     "pydantic-settings>=2.7,<3.0",
     "python-dotenv>=1.0,<2.0",
@@ -20,6 +21,7 @@ gemini = ["google-genai>=2.30,<3.0"]
 postgres = ["psycopg[binary]>=3.2,<4.0"]
 groq = ["httpx>=0.27,<1.0"]
 dev = [
+    "sqlalchemy>=2.0,<3.0",
     "httpx>=0.27,<1.0",
     "pytest>=8.3,<9.0",
     "ruff>=0.7,<1.0",

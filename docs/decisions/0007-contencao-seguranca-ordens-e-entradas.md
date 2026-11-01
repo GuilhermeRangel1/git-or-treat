@@ -2,7 +2,7 @@
 
 **Data:** 21/10/2026. **Estado:** política conservadora implementada no pedido de correção; revisão do time pendente. **IDs:** WEB-01, WEB-05, WEB-10 e WEB-11. Não conclui os critérios funcionais ou o sistema de perfis.
 
-**Atualização em 23/10/2026:** a [ADR-0012](0012-autenticacao-individual-das-ordens.md) complementa esta política: produção exige identidade individual OIDC, e credenciais compartilhadas ficam restritas a desenvolvimento por CLI/Swagger. O texto abaixo registra a contenção original e seus limites naquela data.
+**Atualização em 29/10/2026:** identidade individual e modos de acesso estão definidos na [ADR-0020](0020-autenticacao-backend-por-sessao.md). Credenciais compartilhadas permanecem restritas a desenvolvimento por CLI/Swagger; a demo continua limitada a dados sintéticos. O texto abaixo registra a contenção original e seus limites naquela data.
 
 ## Contexto e alternativas
 

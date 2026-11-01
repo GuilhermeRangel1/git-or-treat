@@ -7,13 +7,20 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, or_
+from sqlalchemy import text
 
+from app.core.config import settings
+from app.repositories.gold_context import load_gold_context
+from app.repositories.gold_inspections import GoldInspectionRepository
 from app.models.operational import InspectionOrder, OrderStatus, OperationalOrderHistory, OrderAction
 from app.schemas.inspections import OrderCreateRequest, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage, OrderCancelRequest, OrderResultRequest
-from app.schemas.order_snapshot import OrderSnapshotV1
+from app.schemas.order_snapshot import OrderSnapshotV1, OrderSnapshotV2
 from app.schemas.inspections import OrderSummary
 from app.repositories.analytics import AnalyticsRepository
-from app.services.inspection_analytics import build_suspicion_response
+from app.services.inspection_analytics import (
+    GOLD_INSPECTION_RULE_VERSION, build_gold_suspicion_response, build_suspicion_response,
+)
+from app.services.analytics import AnalyticsAPIError
 
 class OrderConflictError(Exception):
     def __init__(self, message: str, code: str = "order_conflict", order_id: int | None = None):
@@ -101,22 +108,61 @@ def create_from_queue(
     db: Session, repository_provider: Callable[[], AnalyticsRepository], uc_id: str,
     payload: QueueOrderCreateRequest, key: str, *, actor: str = "orders-writer",
 ) -> tuple[InspectionOrder, bool]:
-    fingerprint = _fingerprint({"uc_id": uc_id, **payload.model_dump()})
+    request_values = payload.model_dump()
+    if request_values["source_fingerprint"] is None:
+        # Preserve request hashes written before the optional Gold fingerprint existed.
+        request_values.pop("source_fingerprint")
+    fingerprint = _fingerprint({"uc_id": uc_id, **request_values})
     existing = _replay(db, key, fingerprint)
     if existing:
         return existing, False
-    repository = repository_provider()
-    if not repository.source_is_demo:
-        from app.services.analytics import AnalyticsAPIError
-        raise AnalyticsAPIError(503, "rule_unavailable", "Criação de ordens pela Gold aguarda homologação e identidade autorizada.")
-    snapshot = build_suspicion_response(repository, uc_id)
-    if (snapshot.metadata.source.version != payload.source_version
-            or snapshot.data.rule_version != payload.rule_version):
-        raise OrderConflictError("A suspeita mudou. Atualize a fila antes de criar a ordem.", "stale_suspicion")
-    reference = _fingerprint({
-        "uc_id": uc_id, "source": snapshot.metadata.source.model_dump(exclude={"updated_at"}),
-        "rule_version": snapshot.data.rule_version,
-    })
+    if settings.ANALYTICS_SOURCE == "gold":
+        if payload.source_fingerprint is None:
+            db.rollback()
+            raise AnalyticsAPIError(422, "invalid_query", "Fingerprint da publicação obrigatório.", [{"field": "source_fingerprint", "message": "Envie o fingerprint recebido no detalhe da fila Gold."}])
+        # The shared lock is held by this same transaction through order+event commit.
+        # The loader's exclusive counterpart prevents a publication swap mid-create.
+        db.execute(text("SELECT pg_advisory_xact_lock_shared(73460127)"))
+        try:
+            context = load_gold_context(
+                db.connection(), expected_lote=payload.source_version,
+                expected_fingerprint=payload.source_fingerprint,
+            )
+            snapshot = build_gold_suspicion_response(GoldInspectionRepository(context), uc_id)
+        except AnalyticsAPIError as exc:
+            db.rollback()
+            if exc.status_code in {404, 409}:
+                raise OrderConflictError(
+                    "A suspeita ou o lote mudou. Atualize a fila antes de criar a ordem.",
+                    "stale_suspicion",
+                ) from None
+            raise
+        if payload.rule_version != GOLD_INSPECTION_RULE_VERSION:
+            db.rollback()
+            raise OrderConflictError("A regra da suspeita mudou. Atualize a fila antes de criar a ordem.", "stale_suspicion")
+        if snapshot.data.category is None:
+            db.rollback()
+            raise OrderConflictError("A publicação não contém categoria para esta unidade.", "stale_suspicion")
+        snapshot_data = OrderSnapshotV2(
+            data=snapshot.data.model_dump(mode="json"),
+            metadata=snapshot.metadata.model_dump(mode="json"),
+        ).model_dump(mode="json")
+        reference = _fingerprint({
+            "uc_id": uc_id, "lote": context.lote, "fingerprint": context.fingerprint,
+            "rule_version": payload.rule_version,
+        })
+        reason = snapshot.data.reason
+    else:
+        snapshot = build_suspicion_response(repository_provider(), uc_id)
+        if (snapshot.metadata.source.version != payload.source_version
+                or snapshot.data.rule_version != payload.rule_version):
+            raise OrderConflictError("A suspeita mudou. Atualize a fila antes de criar a ordem.", "stale_suspicion")
+        snapshot_data = OrderSnapshotV1.model_validate(snapshot.model_dump(mode="json")).model_dump(mode="json")
+        reference = _fingerprint({
+            "uc_id": uc_id, "source": snapshot.metadata.source.model_dump(exclude={"updated_at"}),
+            "rule_version": snapshot.data.rule_version,
+        })
+        reason = snapshot.data.reason
     active = _active_order(db, uc_id)
     if active:
         # A competing request may commit after the first key lookup but before
@@ -126,10 +172,10 @@ def create_from_queue(
             return existing, False
         raise _active_conflict(active)
     order = InspectionOrder(
-        uc_id=snapshot.data.uc_id, reason=snapshot.data.reason,
+        uc_id=uc_id, reason=reason,
         priority=payload.priority, notes=payload.notes, status=OrderStatus.PENDING,
         suspicion_reference=reference,
-        suspicion_snapshot=OrderSnapshotV1.model_validate(snapshot.model_dump(mode="json")).model_dump(mode="json"),
+        suspicion_snapshot=snapshot_data,
         idempotency_key=key, request_fingerprint=fingerprint,
     )
     db.add(order)

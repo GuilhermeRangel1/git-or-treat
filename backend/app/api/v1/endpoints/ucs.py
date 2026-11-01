@@ -1,6 +1,7 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
+from app.core.analytics_access import require_gold_analytics_read
 
 from app.api.v1.analytics_route import AnalyticsRoute
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
@@ -20,7 +21,7 @@ from app.services.uc_analytics import (
     build_uc_search,
 )
 
-router = APIRouter(route_class=AnalyticsRoute)
+router = APIRouter(route_class=AnalyticsRoute, dependencies=[Depends(require_gold_analytics_read)])
 AnalyticsRepositoryDep = Annotated[
     AnalyticsRepository, Depends(get_analytics_repository)
 ]

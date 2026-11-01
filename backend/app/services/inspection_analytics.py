@@ -1,6 +1,13 @@
 from app.repositories.analytics import AnalyticsRepository
-from app.schemas.analytics import AnalyticsFilters, AnalyticsStatus
-from app.schemas.inspection_queue import QueueResponse, SuspicionResponse
+from app.repositories.gold_inspections import GoldInspectionRepository
+from app.services.gold_inspections import comparison_from_rows
+from app.schemas.analytics import AnalyticsFilters, AnalyticsSource, AnalyticsStatus
+from app.schemas.gold import GoldMetadata
+from app.schemas.inspection_queue import (
+    GoldInspectionEvidence, GoldInspectionItem, GoldInspectionQueueResponse,
+    GoldInspectionSummary, GoldInspectionVariation, GoldSuspicionDetail,
+    GoldSuspicionResponse, QueueResponse, SuspicionResponse,
+)
 from app.services.analytics import (
     DEFAULT_END,
     DEFAULT_START,
@@ -146,3 +153,127 @@ def build_suspicion_response(
     )
     result_metadata.limitations.extend(LIMITATIONS)
     return SuspicionResponse(data=item, metadata=result_metadata)
+
+
+GOLD_INSPECTION_RULE_VERSION = "gold-fila-inspecao-v1"
+GOLD_INSPECTION_LIMITATIONS = [
+    "A fila é um snapshot cadastral sem competência mensal de triagem.",
+    "A categoria reproduz a classificação Gold e não representa uma ordem de despacho nem uma probabilidade.",
+    "REVISAR permanece uma categoria própria; a API não a converte em outra prioridade.",
+    "A extração não publica energia recuperável; nenhum valor é estimado.",
+    "Variação compara as janelas fixas jul/2022–jun/2023 e jul/2025–jun/2026 e não estima recuperação.",
+]
+GOLD_RECOVERY_UNAVAILABLE_REASONS = {
+    "ESTIMATIVA_UC_INDISPONIVEL": "A Gold publica apenas referência histórica por inspeção; não estima recuperação para esta UC.",
+    "BASE_INSUFICIENTE": "A base histórica é insuficiente para validar a referência de recuperação.",
+    "CANDIDATO_REPROVADO_NA_VALIDACAO_TEMPORAL": "A referência de recuperação não passou na validação temporal.",
+}
+
+
+def _gold_recovery_unavailable_reason(status: str | None) -> str:
+    if status in GOLD_RECOVERY_UNAVAILABLE_REASONS:
+        return GOLD_RECOVERY_UNAVAILABLE_REASONS[status]
+    if status is not None:
+        return f"Estimativa individual indisponível (estado Gold: {status})."
+    return "A Gold não informou um estado nem um valor de estimativa individual."
+
+
+def _gold_metadata(repository: GoldInspectionRepository, state: AnalyticsStatus, filters: AnalyticsFilters) -> GoldMetadata:
+    context = repository.context
+    imported = context.imported_at
+    updated_at = imported.isoformat() if imported is not None else ""
+    return GoldMetadata(
+        status=state, period=None, filters=filters,
+        source=AnalyticsSource(kind="gold", version=context.lote, is_demo=False, updated_at=updated_at),
+        limitations=list(GOLD_INSPECTION_LIMITATIONS), temporal_scope="snapshot",
+        schema_version=context.schema_version, fingerprint=context.fingerprint,
+    )
+
+
+def _gold_item(row: dict) -> GoldInspectionItem:
+    variation = None
+    if row.get("variation_uc_id") is not None:
+        variation = GoldInspectionVariation(
+            p1_months_observed=row["meses_com_leitura_p1"],
+            p1_average_kwh_per_month=row["consumo_medio_inicial"],
+            p2_months_observed=row["meses_com_leitura_p2"],
+            p2_average_kwh_per_month=row["consumo_medio_final"],
+            variation_kwh=row["variacao_kwh"], variation_pct=row["variacao_pct"],
+            drop_over_30_pct=row["queda_consumo_superior_30_pct"],
+        )
+    return GoldInspectionItem(
+        uc_id=row["id_uc"], municipality=row["municipio"], neighborhood=row["bairro"],
+        class_name=row["classe"], feeder_id=row["alimentador"],
+        category=row["prioridade_inspecao"], reason=row["motivo_prioridade"],
+        queue_position=row["posicao_fila_inspecao"],
+        recovery_unavailable_reason=_gold_recovery_unavailable_reason(row["estado_estimativa_recuperacao"]),
+        evidence=GoldInspectionEvidence(
+            inspections_performed=row["total_inspecoes_realizadas"],
+            confirmed_irregular_inspections=row["total_inspecoes_irregulares"],
+            historical_average_kwh_per_reading=row["media_consumo_historico"],
+            distributed_generation_present=row["possui_geracao_solar"],
+            cadastral_status=row["status"], call_center_contacts=row["total_chamados_callcenter"],
+            interruptions=row["total_interrupcoes_sofridas"],
+            priority_order=row["ordem_prioridade_inspecao"],
+            historical_recovery_mean_kwh_per_inspection=row["media_historica_recuperacao_kwh_por_inspecao"],
+            historical_recovery_interval_lower_kwh=row["intervalo_historico_recuperacao_inferior_kwh"],
+            historical_recovery_interval_upper_kwh=row["intervalo_historico_recuperacao_superior_kwh"],
+            historical_recovery_reference=row["referencia_media_historica_recuperacao"],
+            historical_recovery_status=row["estado_media_historica_recuperacao"],
+            estimated_recoverable_energy_kwh=row["energia_estimada_recuperavel_kwh"],
+            recovery_interval_lower_kwh=row["intervalo_recuperacao_inferior_kwh"],
+            recovery_interval_upper_kwh=row["intervalo_recuperacao_superior_kwh"],
+            recovery_estimate_status=row["estado_estimativa_recuperacao"],
+            recovery_estimate_method=row["metodo_estimativa_recuperacao"],
+        ), variation=variation,
+    )
+
+
+def _validate_gold_filters(repository: GoldInspectionRepository, filters: AnalyticsFilters, options: dict[str, list[str]]) -> None:
+    for key, value in filters.model_dump(exclude_none=True).items():
+        if value not in options[key]:
+            raise AnalyticsAPIError(422, "invalid_query", "Filtro desconhecido.", [{"field": key, "message": "O valor não existe na publicação Gold atual."}])
+    if filters.municipio and filters.bairro:
+        if not repository.bairro_belongs_to_municipio(filters.bairro, filters.municipio):
+            raise AnalyticsAPIError(422, "invalid_query", "Combinação geográfica contraditória.", [{"field": "bairro", "message": "O bairro não pertence ao município informado."}])
+
+
+def build_gold_queue_response(
+    repository: GoldInspectionRepository, filters: AnalyticsFilters, page: int, page_size: int,
+    order_by: str, direction: str,
+) -> GoldInspectionQueueResponse:
+    options = repository.filter_options()
+    _validate_gold_filters(repository, filters, options)
+    total = repository.count(filters)
+    category_counts = repository.category_counts(filters)
+    rows = repository.list_page(filters, page, page_size, order_by, direction)
+    items = [_gold_item(row) for row in rows]
+    state: AnalyticsStatus = "empty" if total == 0 else "available"
+    return GoldInspectionQueueResponse(
+        data={
+            "items": items, "filter_options": options, "neighborhoods": repository.neighborhoods(),
+            "summary": {
+                "total_units": total,
+                "categories": {key: count for key, count in category_counts.items() if key is not None},
+                "uncategorized_units": category_counts.get(None, 0),
+                "estimated_units": 0, "unavailable_estimate_units": total,
+            },
+        },
+        pagination={"page": page, "page_size": page_size, "total": total,
+                    "total_pages": (total + page_size - 1) // page_size},
+        metadata=_gold_metadata(repository, state, filters),
+    )
+
+
+def build_gold_suspicion_response(repository: GoldInspectionRepository, uc_id: str) -> GoldSuspicionResponse:
+    row = repository.detail(uc_id)
+    if row is None:
+        raise AnalyticsAPIError(404, "not_found", "Suspeita não encontrada na publicação Gold atual.")
+    item = _gold_item(row)
+    end, rows = repository.consumption_rows(uc_id)
+    return GoldSuspicionResponse(
+        data=GoldSuspicionDetail(**item.model_dump(), rule_version=GOLD_INSPECTION_RULE_VERSION,
+                                 consumption_comparison=comparison_from_rows(rows, end) if end else None,
+                                 limitations=list(GOLD_INSPECTION_LIMITATIONS)),
+        metadata=_gold_metadata(repository, "available", AnalyticsFilters()),
+    )

@@ -303,3 +303,12 @@ def test_gemini_classifies_provider_status_for_fallback(status, expected, demo_e
     with pytest.raises(expected) as error:
         asyncio.run(adapter.generate("Pergunta sintética", [], demo_evidence))
     assert "private" not in str(error.value)
+
+
+@pytest.mark.parametrize("reason", ["MAX_TOKENS", "SAFETY", "OTHER"])
+def test_incomplete_completion_rejects_even_valid_json(reason, demo_evidence):
+    response = FakeResponse(GeneratedAnswer(status="answered", answer="texto").model_dump_json())
+    response.candidates = [SimpleNamespace(finish_reason=reason)]
+    adapter = GeminiModelAdapter(model_name="test", client=FakeClient(FakeModelEndpoint(response)))
+    with pytest.raises(ModelProviderInvalidResponse):
+        asyncio.run(adapter.generate("pergunta", [], demo_evidence))

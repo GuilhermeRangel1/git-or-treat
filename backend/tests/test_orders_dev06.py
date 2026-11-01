@@ -56,6 +56,39 @@ def test_queue_creation_replay_conflicts_and_new_intention_after_closure(orders)
     assert orders.get(f"{ROOT}/orders/{oid}").json()["suspicion_snapshot"] == body["suspicion_snapshot"]
 
 
+def test_legacy_replay_hash_without_gold_fingerprint_does_not_resolve_source(orders, monkeypatch):
+    from app.models.operational import InspectionOrder, OrderStatus
+    from app.services.inspections import _fingerprint
+    from tests.support.database import TestingSessionLocal
+
+    payload = request(orders)
+    detail = orders.get(f"{ROOT}/queue/UC-1004").json()
+    key = "legacy-order-replay-0001"
+    previous_hash_input = {
+        "uc_id": "UC-1004", **payload, "priority": "MEDIA", "notes": None,
+    }
+    order = InspectionOrder(
+        uc_id="UC-1004", reason=detail["data"]["reason"], priority="MEDIA",
+        status=OrderStatus.PENDING, idempotency_key=key,
+        request_fingerprint=_fingerprint(previous_hash_input),
+        suspicion_reference="legacy-reference", suspicion_snapshot=detail,
+    )
+    with TestingSessionLocal() as db:
+        db.add(order)
+        db.commit()
+        order_id = order.id
+
+    monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "unavailable")
+    replay = orders.post(
+        f"{ROOT}/queue/UC-1004/orders", json=payload,
+        headers={"Idempotency-Key": key},
+    )
+    assert replay.status_code == 200
+    assert replay.json()["id"] == order_id
+    with TestingSessionLocal() as db:
+        assert db.query(InspectionOrder).count() == 1
+
+
 def test_server_rejects_forgery_stale_source_and_invalid_requests(orders):
     payload = request(orders)
     for change, code in [({"source_version": "stale"}, 409), ({"rule_version": "stale"}, 409),
@@ -369,7 +402,8 @@ def test_real_api_process_restart_preserves_created_order(tmp_path):
     import httpx
 
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{(tmp_path / 'process.db').as_posix()}",
-           "ANALYTICS_SOURCE": "synthetic", "ORDERS_WRITE_TOKEN": "restart-local-" + "r" * 32}
+           "ANALYTICS_SOURCE": "synthetic", "APP_ENV": "development",
+           "ORDERS_AUTH_MODE": "service", "ORDERS_WRITE_TOKEN": "restart-local-" + "r" * 32}
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]

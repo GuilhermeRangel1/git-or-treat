@@ -3,6 +3,7 @@
 import re
 import unicodedata
 
+from app.agent.temporal import has_incomplete_calendar_period
 from app.schemas.analysis import AnalysisIntent
 from app.schemas.domain_profile import (
     DimensionDefinition,
@@ -33,12 +34,22 @@ def _normalize(value: str) -> str:
 
 
 def _find_phrases(text: str, phrases: tuple[str, ...]) -> list[tuple[int, int, str]]:
-    normalized = _normalize(text)
+    normalized_chars: list[str] = []
+    original_positions: list[int] = []
+    for original_index, original_char in enumerate(text):
+        decomposed = unicodedata.normalize("NFD", original_char.casefold())
+        for normalized_char in decomposed:
+            if not unicodedata.combining(normalized_char):
+                normalized_chars.append(normalized_char)
+                original_positions.append(original_index)
+    normalized = "".join(normalized_chars)
     found: list[tuple[int, int, str]] = []
     for phrase in phrases:
         pattern = re.compile(rf"(?<!\w){re.escape(_normalize(phrase))}(?!\w)")
         for match in pattern.finditer(normalized):
-            found.append((match.start(), match.end(), text[match.start() : match.end()]))
+            start = original_positions[match.start()]
+            end = original_positions[match.end() - 1] + 1
+            found.append((start, end, text[start:end]))
     ordered = sorted(found, key=lambda item: (item[0], -(item[1] - item[0])))
     non_overlapping: list[tuple[int, int, str]] = []
     for item in ordered:
@@ -122,6 +133,48 @@ class QuestionInterpreter:
         current_question_has_metric = bool(
             _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
         )
+        if (
+            self._profile.structured_dimension_filters and not current_question_has_metric
+            and len(turns) >= 2 and turns[-1].role == "assistant"
+        ):
+            dimensions = {dimension.id: dimension for dimension in self._profile.dimensions}
+            messages = {
+                "Informe o filtro obrigatório: "
+                + ", ".join(dimensions[key].label.lower()
+                            for key in sorted(metric.required_filter_dimension_ids)) + "."
+                for metric in self._profile.metrics if metric.required_filter_dimension_ids
+            }
+            if turns[-1].content in messages:
+                previous_intent = self._previous_intent(turns)
+                if previous_intent is not None:
+                    return self._interpret(question, previous_intent)
+        if (
+            self._profile.structured_dimension_filters
+            and current_question_has_metric
+            and len(turns) >= 2
+            and turns[-2].role == "user"
+            and turns[-1].role == "assistant"
+        ):
+            pending = next(
+                (rule for rule in self._profile.ambiguities
+                 if rule.clarification == turns[-1].content), None
+            )
+            if pending is not None:
+                original = turns[-2].content
+                for start, end, _ in reversed(_find_phrases(original, pending.phrases)):
+                    original = original[:start] + " " * (end - start) + original[end:]
+                return self._interpret(f"{original} {question}", None)
+        if (
+            self._pending_period_coverage_answer(turns)
+            and not current_question_has_metric
+        ):
+            previous_intent = self._previous_intent(turns)
+            periods = _find_phrases(question, self._profile.period_phrases)
+            coverage_message = self._profile.clarifications.temporal_coverage_unavailable
+            if previous_intent is not None and periods:
+                return self._interpret(question, previous_intent)
+            if coverage_message is not None:
+                return self._clarify(coverage_message)
         if pending_period_question is not None and not current_question_has_metric:
             combined_question = f"{pending_period_question} {question}"
             return self._interpret(combined_question, None)
@@ -143,6 +196,19 @@ class QuestionInterpreter:
         ):
             return previous_user.content
         return None
+
+    def _pending_period_coverage_answer(self, context: list[ConversationTurn]) -> bool:
+        if len(context) < 2:
+            return False
+
+        previous_assistant = context[-1]
+        message = self._profile.clarifications.temporal_coverage_unavailable
+        return (
+            message is not None
+            and context[-2].role == "user"
+            and previous_assistant.role == "assistant"
+            and previous_assistant.content == message
+        )
 
     def _is_follow_up(self, question: str, previous_intent: AnalysisIntent) -> bool:
         normalized = _normalize(question).strip()
@@ -178,6 +244,16 @@ class QuestionInterpreter:
         )
 
     def _previous_intent(self, context: list[ConversationTurn]) -> AnalysisIntent | None:
+        if self._profile.structured_dimension_filters:
+            # Reinterpreta a última fala com o trecho anterior que ainda cabe no
+            # contrato. O prefixo diminui a cada chamada; histórico não vira estado
+            # confiável e a política atual continuará aprovando o plano resultante.
+            for index in range(len(context) - 1, -1, -1):
+                if context[index].role != "user":
+                    continue
+                previous = self.interpret(context[index].content, context[:index])
+                return previous.intent if previous.status is InterpretationStatus.READY else None
+            return None
         for turn in reversed(context):
             if turn.role != "user":
                 continue
@@ -192,6 +268,20 @@ class QuestionInterpreter:
         question: str,
         base_intent: AnalysisIntent | None,
     ) -> IntentInterpretation:
+        if self._profile.structured_dimension_filters and has_incomplete_calendar_period(question):
+            return self._clarify(
+                "Informe o mês e o ano de ambos os extremos do intervalo; "
+                "não vou reduzir a consulta ao único mês reconhecido."
+            )
+        if self._profile.structured_dimension_filters and re.search(
+            r"\b(?:[0-9]{1,2}\s+de\s+[a-zç]+\s+(?:de\s+)?[0-9]{4}"
+            r"|[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}/[0-9]{1,2}/[0-9]{4})\b",
+            _normalize(question),
+        ):
+            return self._clarify(
+                "Este planejamento aceita competências mensais; "
+                "informe o mês e o ano completos, sem selecionar dias."
+            )
         ambiguity = next(
             (rule for rule in self._profile.ambiguities if _find_phrases(question, rule.phrases)),
             None,
@@ -216,7 +306,14 @@ class QuestionInterpreter:
         selected_metric = self._select_metric(matched_metrics, base_intent)
         domain = next(iter(matched_domains)) if matched_domains else base_intent.domain
 
-        breakdown = self._requested_breakdown(question)
+        # O nome cadastrado da métrica não é um pedido adicional de agregação:
+        # "consumo médio por UC" não solicita uma abertura por UC nem média do total.
+        # Qualificadores fora do nome continuam sujeitos às regras do perfil.
+        detail_question = question
+        for start, end, _ in reversed(metric_hits):
+            detail_question = detail_question[:start] + " " * (end - start) + detail_question[end:]
+        breakdown = self._requested_breakdown(detail_question)
+        breakdown = breakdown or self._requested_ranking_dimension(detail_question)
         breakdown_message = self._profile.clarifications.unsupported_breakdown
         if breakdown is not None and breakdown_message is not None:
             # Sem agrupamento no plano, responder o total seria um falso acerto.
@@ -224,6 +321,58 @@ class QuestionInterpreter:
                 breakdown_message.replace("{dimension}", breakdown.label.lower())
             )
 
+        structured = self._profile.structured_dimension_filters
+        dimension_filters: dict[str, str] = {}
+        if structured:
+            matched_surfaces: dict[str, str] = {}
+            known_spans = self._dimension_value_matches(question, self._profile.dimensions)
+            for dimension in self._profile.dimensions:
+                matches = self._dimension_value_matches(question, (dimension,))
+                # Um valor completo (AL-TESTE) absorve um fragmento conhecido
+                # de outra dimensão (classe TESTE), sem apagar menção separada.
+                matches = [match for match in matches if not any(
+                    start <= match[0] and match[1] <= end
+                    and (start, end) != match[:2]
+                    for start, end, _ in known_spans
+                )]
+                if self._has_unresolved_dimension_reference(detail_question, dimension, matches):
+                    return self._clarify(
+                        f"Há um valor não reconhecido de {dimension.label.lower()}. "
+                        "Informe somente os valores autorizados que deseja consultar."
+                    )
+                if self._has_unresolved_multiple_values(question, matches):
+                    return self._clarify(
+                        f"Informe um único valor de {dimension.label.lower()} "
+                        "ou uma correção explícita."
+                    )
+                if matches:
+                    prefix = _normalize(question[:matches[-1][0]])
+                    if re.search(
+                        r"\b(?:exceto|sem|menos|nao)\s+"
+                        r"(?:(?:a|o|classe|municipio|bairro)\s+)*$", prefix
+                    ):
+                        return self._clarify(
+                            "Este recorte pede exclusão; informe o valor que deseja incluir."
+                        )
+                    surface = _normalize(matches[-1][2])
+                    if surface in matched_surfaces:
+                        return self._clarify(
+                            "O mesmo nome corresponde a mais de uma dimensão; "
+                            "especifique outro recorte sem ambiguidade."
+                        )
+                    matched_surfaces[surface] = dimension.id
+                    candidates = {
+                        value.value for value in dimension.values
+                        if surface in {_normalize(alias) for alias in value.aliases}
+                    }
+                    if len(candidates) != 1:
+                        return self._clarify("O filtro informado é ambíguo neste catálogo.")
+                    dimension_filters[dimension.id] = next(iter(candidates))
+                elif _find_phrases(detail_question, dimension.aliases):
+                    return self._clarify(
+                        f"Informe um valor autorizado de {dimension.label.lower()}; "
+                        "o filtro solicitado não foi reconhecido."
+                    )
         geography = self._dimension_value_matches(question, self._geography_dimensions)
         if self._has_unrecognized_location_phrase(question, geography):
             return self._clarify(self._profile.clarifications.unknown_geography)
@@ -231,13 +380,13 @@ class QuestionInterpreter:
         unit_message = self._profile.clarifications.unit_mismatch
         if unit_surface is not None and unit_message is not None:
             return self._clarify(unit_message.replace("{unit}", unit_surface))
-        detail_clarification = self._unsupported_detail(question)
+        detail_clarification = self._unsupported_detail(detail_question)
         if detail_clarification is not None:
             return self._clarify(detail_clarification)
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
-        if self._has_unresolved_multiple_values(question, geography):
+        if not structured and self._has_unresolved_multiple_values(question, geography):
             return self._clarify(self._profile.clarifications.multiple_geographies)
-        if self._has_unresolved_multiple_values(question, class_phrase):
+        if not structured and self._has_unresolved_multiple_values(question, class_phrase):
             return self._clarify(self._profile.clarifications.multiple_classes)
 
         selected_alias = next(
@@ -298,6 +447,7 @@ class QuestionInterpreter:
             period_phrase = base_intent.period_phrase
 
         filters: dict[str, str] = dict(base_intent.filters) if base_intent else {}
+        filters.update(dimension_filters)
         directions = [
             direction
             for direction in _find_phrases(question, self._profile.direction_terms)
@@ -333,6 +483,12 @@ class QuestionInterpreter:
             or (base_intent.dimension_ids if base_intent else []),
             "filters": filters,
         }
+        if structured:
+            intent_values["geography_phrase"] = None
+            intent_values["class_phrase"] = None
+            intent_values["dimension_ids"] = sorted(
+                set(base_intent.dimension_ids if base_intent else ()) | set(dimension_filters)
+            )
         intent = AnalysisIntent(
             **{name: value for name, value in intent_values.items() if value is not None}
         )
@@ -375,6 +531,25 @@ class QuestionInterpreter:
         return ids
 
     @staticmethod
+    def _has_unresolved_dimension_reference(
+        question: str,
+        dimension: DimensionDefinition,
+        values: list[tuple[int, int, str]],
+    ) -> bool:
+        for start, end, _ in _find_phrases(question, dimension.aliases):
+            if any(value_start <= start and end <= value_end
+                   for value_start, value_end, _ in values):
+                continue
+            if not any(
+                value_start >= end
+                and re.fullmatch(r"\s*(?:(?:de|da|do)\s+)?[:=]?\s*",
+                                 _normalize(question[end:value_start]))
+                for value_start, _, _ in values
+            ):
+                return True
+        return False
+
+    @staticmethod
     def _dimension_value_matches(
         question: str,
         dimensions: tuple[DimensionDefinition, ...],
@@ -406,6 +581,26 @@ class QuestionInterpreter:
                     for value in values
                 ):
                     continue
+                return dimension
+        return None
+
+    def _requested_ranking_dimension(self, question: str) -> DimensionDefinition | None:
+        """Detecta perguntas de maior/menor por dimensão que exigiriam agrupamento e ordem."""
+
+        normalized = _normalize(question)
+        ranking = r"(?:mais|menos|maior|menor|cresceu|caiu|perdeu|reduziu|aumentou)"
+        for dimension in self._profile.dimensions:
+            aliases = sorted(
+                {_normalize(item.rstrip("s")) for item in dimension.aliases},
+                key=len,
+                reverse=True,
+            )
+            alternatives = "|".join(re.escape(alias) for alias in aliases)
+            pattern = (
+                rf"\b(?:qual|quais)\s+(?:(?:foi|foram|e)\s+)?"
+                rf"(?:o|a|os|as)?\s*(?:{alternatives})\b[^?]*\b{ranking}\b"
+            )
+            if re.search(pattern, normalized):
                 return dimension
         return None
 
@@ -471,6 +666,9 @@ class QuestionInterpreter:
     ) -> bool:
         protected = [
             *recognized,
+            *self._dimension_value_matches(
+                question, self._profile.dimensions
+            ),
             *self._dimension_value_matches(question, self._classification_dimensions),
             *_find_phrases(question, self._profile.non_location_phrases),
             *_find_phrases(

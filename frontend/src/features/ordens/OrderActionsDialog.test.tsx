@@ -57,7 +57,12 @@ const history = [
   },
 ];
 
-function renderDialog(initial = order, onSaved = vi.fn(), onClose = vi.fn()) {
+function renderDialog(
+  initial = order,
+  onSaved = vi.fn(),
+  onClose = vi.fn(),
+  canEdit = true,
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -67,6 +72,7 @@ function renderDialog(initial = order, onSaved = vi.fn(), onClose = vi.fn()) {
       <OrderActionsDialog
         key={initial.id}
         order={initial}
+        canEdit={canEdit}
         open
         onClose={onClose}
         triggerRef={triggerRef}
@@ -85,6 +91,7 @@ function renderDialog(initial = order, onSaved = vi.fn(), onClose = vi.fn()) {
           <OrderActionsDialog
             key={initial.id}
             order={initial}
+            canEdit={canEdit}
             open={open}
             onClose={onClose}
             triggerRef={triggerRef}
@@ -98,6 +105,7 @@ function renderDialog(initial = order, onSaved = vi.fn(), onClose = vi.fn()) {
           <OrderActionsDialog
             key={next.id}
             order={next}
+            canEdit={canEdit}
             open={open}
             onClose={onClose}
             triggerRef={triggerRef}
@@ -133,6 +141,22 @@ beforeEach(() => {
 });
 
 describe("OrderActionsDialog", () => {
+  it("mostra detalhes e oculta acoes de escrita sem orders:write", async () => {
+    api.getOrderDetail.mockResolvedValue(order);
+    api.getOrderHistory.mockResolvedValue(history);
+    renderDialog(order, vi.fn(), vi.fn(), false);
+
+    expect(
+      await screen.findByText(/acesso somente para consulta/i),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Iniciar ordem" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /cancelar ordem/i }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Histórico da ordem" }),
+    ).toBeVisible();
+  });
   it("inicia uma ordem pendente usando a versão atual do servidor", async () => {
     const user = userEvent.setup();
     renderDialog();

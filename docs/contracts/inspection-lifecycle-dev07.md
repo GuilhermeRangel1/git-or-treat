@@ -1,6 +1,6 @@
 # DEV-07 — ciclo operacional das ordens (WEB-05)
 
-Entrega inicial de backend em 24/10/2026. Base incorporada: backend da DEV-06, commit `85a72a0`, que já inclui DEV-05. O frontend foi integrado em 25/10/2026, conforme a seção de integração abaixo. Fonte analítica exclusivamente sintética; nenhuma validação Gold é afirmada.
+Entrega inicial de backend em 24/10/2026. Base incorporada: backend da DEV-06, commit `85a72a0`, que já inclui DEV-05. O frontend foi integrado em 25/10/2026, conforme a seção de integração abaixo. Na entrega inicial, a fonte analítica era sintética. A integração posterior de Ordens com Gold v2 e a evidência de pacote real estão descritas no contrato [analytics-gold-dev13-1.md](analytics-gold-dev13-1.md) e no Registro de progresso do PRD; isso não representa aceite integral de WEB-05, WEB-07 ou DEV-13.1.
 
 ## Estados e validação
 
@@ -28,7 +28,7 @@ Toda mudança real incrementa version e registra evento na mesma transação; fa
 
 Não há nova chave de idempotência nas mutações. Repetição sem mudança de conteúdo com a versão atual não grava; reenvio com versão já ultrapassada responde 409, sem repetir efeito. Corrigir um resultado antes do encerramento é uma nova alteração auditada. Ordens encerradas não permitem corrigir conteúdo.
 
-`actor` vem do controle de acesso, nunca do corpo. No modo demo identifica a demonstração; no modo service identifica a credencial compartilhada; identidade individual exige OIDC configurado. Novos eventos têm ator/versão; eventos antigos permanecem com esses campos nulos.
+`actor` vem do controle de acesso, nunca do corpo. No modo demo identifica a demonstração; no modo service identifica a credencial compartilhada; no modo session identifica `user:<id>` autenticado pelo backend. Novos eventos têm ator/versão; eventos antigos permanecem com esses campos nulos.
 
 ## Migrações e execução
 

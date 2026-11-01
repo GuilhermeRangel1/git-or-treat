@@ -49,10 +49,10 @@ it("aceita fila Gold com categoria textual e score e estimativa ausentes", () =>
     pagination: { page: 1, page_size: 10, total: 1, total_pages: 1 },
     metadata,
   });
-  expect(result.data.items[0].priority).toBeNull();
-  expect(result.data.items[0].priority_label).toBe(
-    "ALTA - HISTORICO IRREGULAR",
-  );
+  const first = result.data.items[0];
+  if (!("priority" in first)) throw new Error("Esperada fila legada");
+  expect(first.priority).toBeNull();
+  expect(first.priority_label).toBe("ALTA - HISTORICO IRREGULAR");
   expect(result.data.items[0].potential_recoverable_energy_kwh).toBeNull();
 });
 

@@ -110,6 +110,10 @@ class AIEvidenceReference(BaseModel):
 class AIAnalysisContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    metric_label: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+    metric_definition: Annotated[str, StringConstraints(min_length=1, max_length=500)] | None = None
+    filter_labels: dict[AIIdentifier, Annotated[str, StringConstraints(min_length=1, max_length=200)]] = Field(default_factory=dict, max_length=20)
+
     metric: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
     unit: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
     period: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
@@ -120,6 +124,8 @@ class AIAnalysisContext(BaseModel):
 
     @model_validator(mode="after")
     def require_applied_context(self) -> Self:
+        if not self.filter_labels.keys() <= self.filters.keys():
+            raise ValueError("rótulos exigem filtros aplicados correspondentes")
         if self.metric is None and self.unit is None and self.period is None and not self.filters:
             raise ValueError("recorte aplicado vazio deve ser omitido")
         return self

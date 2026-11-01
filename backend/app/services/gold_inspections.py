@@ -56,6 +56,11 @@ def consumption_comparison(repository, uc_id, end):
     months = _six_months(end)
     t = repository.tables["consumo_mensal_uc"]
     rows = repository.rows(select(t).where(t.c.id_uc == uc_id, t.c.competencia.in_(months)))
+    return comparison_from_rows(rows, end)
+
+
+def comparison_from_rows(rows, end):
+    months = _six_months(end)
     by_month = {row["competencia"]: row for row in rows}
     result = {"baseline_start": months[0], "baseline_end": months[2], "recent_start": months[3],
               "recent_end": months[5], "baseline_kwh": None, "recent_kwh": None, "change_percent": None,

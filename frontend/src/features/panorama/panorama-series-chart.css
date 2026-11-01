@@ -79,6 +79,102 @@
   column-gap: clamp(2px, 1.2vw, 16px);
 }
 
+.panorama-series-chart__line-wrap {
+  position: relative;
+  min-width: 0;
+  height: 236px;
+}
+
+.panorama-series-chart__line {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.panorama-series-chart__gridline {
+  stroke: var(--line-subtle);
+  stroke-width: 1;
+}
+
+.panorama-series-chart__path {
+  fill: none;
+  stroke: var(--panorama-chart-bar);
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.panorama-series-chart__point {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--bg-surface);
+  border-radius: 50%;
+  background: var(--panorama-chart-bar);
+  padding: 0;
+  cursor: pointer;
+}
+
+.panorama-series-chart__point.is-selected {
+  border-color: var(--text-primary);
+  width: 12px;
+  height: 12px;
+}
+
+.panorama-series-chart__point:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
+}
+
+.panorama-series-chart__x-axis {
+  display: grid;
+  grid-column: 2;
+  min-width: 0;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.panorama-series-chart__x-axis > span:first-child:not(:last-child),
+.panorama-series-chart__x-axis > span:last-child:not(:first-child) {
+  position: relative;
+}
+
+.panorama-series-chart__x-axis
+  > span:first-child:not(:last-child)
+  > .panorama-series-chart__tick--mobile,
+.panorama-series-chart__x-axis
+  > span:first-child:not(:last-child)
+  > .panorama-series-chart__tick--desktop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: nowrap;
+}
+
+.panorama-series-chart__x-axis
+  > span:last-child:not(:first-child)
+  > .panorama-series-chart__tick--mobile,
+.panorama-series-chart__x-axis
+  > span:last-child:not(:first-child)
+  > .panorama-series-chart__tick--desktop {
+  position: absolute;
+  top: 0;
+  right: 0;
+  white-space: nowrap;
+}
+
+.panorama-series-chart__tick--mobile {
+  display: none;
+}
+
+.panorama-series-chart__tick--desktop {
+  display: inline;
+}
+
 .panorama-series-chart__gridlines {
   position: absolute;
   inset: 0;
@@ -241,6 +337,14 @@
 
   .panorama-series-chart__axis {
     font-size: 10px;
+  }
+
+  .panorama-series-chart__tick--mobile {
+    display: inline;
+  }
+
+  .panorama-series-chart__tick--desktop {
+    display: none;
   }
 
   .panorama-series-chart__bars {

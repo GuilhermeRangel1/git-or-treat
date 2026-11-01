@@ -90,3 +90,9 @@ O chat não persiste histórico e sua limpeza remove o conteúdo da memória da 
 ## Integração provisória Gold v1 — 27/10/2026
 
 Receita, UC 360 e fila de inspeção têm composição executável com `ANALYTICS_SOURCE=gold`, consultas SQL parametrizadas, agregação/paginação no banco e catálogo de filtros real. O portal preserva rotas e valida envelopes; apresenta lote, importação local, limitações e ausências. `priority_label` preserva a categoria textual; score e estimativa são nulos. Histórico mensal da UC distingue agregado financeiro de fatura individual. Modo sintético permanece explícito e não solicita banco. Panorama/Operação e GenAI não foram homologados para essa fonte; os requisitos continuam abertos. Veja [contrato e execução local](../contracts/gold-csv-v1.md#consumo-provisório-pela-api-e-pelo-portal).
+
+### Preparação Gold — DEV-13.1, 29/10/2026
+
+Os consumidores de Panorama, fila/Ordens e Operação agora distinguem contratos demonstrativos e Gold v2. `shared/analytics/goldContract.ts` valida metadados comuns; `goldPublication.ts` mantém identidade/geração da publicação analítica. O transporte aplica guardas apenas nas leituras analíticas, e `app/GoldPublicationNotice.tsx` coordena a atualização dos grupos de consultas após conflito, preservando ordens operacionais. Cada feature continua responsável por seus DTOs e apresentação; `shared` não importa features ou app.
+
+Essa preparação não ativa acesso Gold anônimo. A autenticação por sessão e a jornada principal do portal foram exercitadas no navegador contra API real; WEB-10 permanece pendente porque perfis/restrições de telas por cargo ainda não cobrem todo o escopo. O plano completo, os gates anteriores aos ajustes cosméticos e as verificações repetidas depois deles estão nas [evidências Gold](../plans/2026-10-29-dev13-1-gold-frontend-evidencias.md) e no [plano de autenticação e login](../plans/2026-10-29-backend-auth-login-grid360-plano.md).

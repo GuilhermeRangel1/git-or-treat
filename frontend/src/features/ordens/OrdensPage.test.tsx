@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import type { Order } from "@/shared/api/orders";
 import TestProviders from "@/shared/test/TestProviders";
+import { DemoSessionProvider } from "@/shared/test/TestProviders";
 import OrdensPage from "./OrdensPage";
 
 vi.mock("./OrderActionsDialog", () => ({
@@ -95,7 +96,9 @@ function renderPage(entry = "/ordens", client?: QueryClient) {
   );
   if (client) {
     return render(
-      <QueryClientProvider client={client}>{page}</QueryClientProvider>,
+      <QueryClientProvider client={client}>
+        <DemoSessionProvider>{page}</DemoSessionProvider>
+      </QueryClientProvider>,
     );
   }
   return render(<TestProviders>{page}</TestProviders>);
@@ -124,10 +127,6 @@ it("apresenta a ordem retornada pela API e abre ações para a UC selecionada", 
   expect(
     within(screen.getByRole("table")).getByText("OS-000041"),
   ).toBeInTheDocument();
-  expect(screen.getByText(/Ambiente demonstrativo/)).toHaveTextContent(
-    "23/10/2026, 22:30 (Recife)",
-  );
-  expect(screen.queryByText(/16\/10\/2026/)).not.toBeInTheDocument();
   expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
     "Todas as UCs",
   );
@@ -135,13 +134,57 @@ it("apresenta a ordem retornada pela API e abre ações para a UC selecionada", 
     "Todos os estados",
   );
   expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
-    "ResultadoTodos",
+    "ResultadoTodos os resultados",
   );
+  expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+    "PrioridadeTodas as prioridades",
+  );
+  expect(screen.queryByText(/Ambiente demonstrativo/)).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/Evidências da fila são sintéticas/),
+  ).not.toBeInTheDocument();
 
   await user.click(rowAction);
   expect(screen.getByRole("dialog", { name: "Ações 41" })).toHaveTextContent(
     "UC-1041",
   );
+});
+
+it("associa a consulta dos fundamentos à ordem da linha selecionada", async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await screen.findAllByRole("button", {
+    name: "Ações da ordem OS-000041 da UC UC-1041",
+  });
+  await user.click(
+    screen.getAllByRole("button", {
+      name: "Ver fundamentos da ordem OS-000041 da UC UC-1041",
+    })[0],
+  );
+  expect(
+    screen.getByRole("dialog", { name: "Fundamentos 41" }),
+  ).toHaveTextContent("Consumo incompatível com o histórico.");
+});
+
+it("alinha ações e fundamentos em colunas próprias da tabela", async () => {
+  renderPage();
+  await firstOrderAction();
+  const table = screen.getByRole("table");
+  expect(
+    within(table)
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent),
+  ).toEqual([
+    "Ordem",
+    "Unidade consumidora",
+    "Estado",
+    "Resultado",
+    "Ações",
+    "Fundamentos",
+  ]);
+  expect(
+    within(table).getAllByRole("row")[1].querySelectorAll("td"),
+  ).toHaveLength(5);
 });
 
 it("abre exatamente a OS indicada por order_id no link de acompanhamento", async () => {
@@ -289,6 +332,7 @@ it("aplica filtros atomicamente, reinicia a página e preserva prioridade e page
   await user.type(screen.getByLabelText("UC exata"), "UC-1041");
   await user.selectOptions(screen.getByLabelText("Estado"), "EM_ANDAMENTO");
   await user.selectOptions(screen.getByLabelText("Resultado"), "false");
+  await user.selectOptions(screen.getByLabelText("Prioridade"), "BAIXA");
   await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
@@ -298,7 +342,7 @@ it("aplica filtros atomicamente, reinicia a página e preserva prioridade e page
   expect(locationSearch.get("uc_id")).toBe("UC-1041");
   expect(locationSearch.get("status")).toBe("EM_ANDAMENTO");
   expect(locationSearch.get("has_result")).toBe("false");
-  expect(locationSearch.get("priority")).toBe("ALTA");
+  expect(locationSearch.get("priority")).toBe("BAIXA");
   expect(locationSearch.get("page_size")).toBe("5");
   expect(locationSearch.get("page")).toBe("1");
 
@@ -306,11 +350,62 @@ it("aplica filtros atomicamente, reinicia a página e preserva prioridade e page
   expect(request.searchParams.get("has_result")).toBe("false");
   expect(request.searchParams.get("page")).toBe("1");
   expect(request.searchParams.get("page_size")).toBe("5");
-  expect(request.searchParams.get("priority")).toBe("ALTA");
+  expect(request.searchParams.get("priority")).toBe("BAIXA");
+  expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
+    "PrioridadeBaixa",
+  );
+  expect(screen.queryByText(/Recorte aplicado/)).not.toBeInTheDocument();
+});
+
+it("limpa o rascunho sem consultar até aplicar e remove order_id transitório", async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation((url: string) =>
+        Promise.resolve(
+          url.includes("/orders/41")
+            ? new Response(
+                JSON.stringify({ ...order(), suspicion_snapshot: null }),
+                { status: 200 },
+              )
+            : response([order()]),
+        ),
+      ),
+  );
+  const requests = vi.mocked(fetch);
+  renderPage(
+    "/ordens?uc_id=UC-1041&priority=ALTA&page=3&page_size=5&order_id=41",
+  );
+
+  await user.click(
+    await screen.findByRole("button", { name: "Ajustar filtros" }),
+  );
+  expect(screen.getByLabelText("Prioridade")).toHaveValue("ALTA");
   expect(screen.getByLabelText("Filtros aplicados")).toHaveTextContent(
     "PrioridadeAlta",
   );
-  expect(screen.queryByText(/Recorte aplicado/)).not.toBeInTheDocument();
+  const beforeClear = requests.mock.calls.length;
+  await user.click(screen.getByRole("button", { name: "Limpar filtros" }));
+  expect(screen.getByLabelText("UC exata")).toHaveValue("");
+  expect(screen.getByLabelText("Prioridade")).toHaveValue("");
+  expect(screen.getByTestId("current-search")).toHaveTextContent("order_id=41");
+  expect(requests).toHaveBeenCalledTimes(beforeClear);
+  await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+  await waitFor(() =>
+    expect(screen.getByTestId("current-search")).not.toHaveTextContent(
+      "order_id",
+    ),
+  );
+  const locationSearch = new URLSearchParams(
+    screen.getByTestId("current-search").textContent,
+  );
+  expect(locationSearch.get("uc_id")).toBeNull();
+  expect(locationSearch.get("priority")).toBeNull();
+  expect(locationSearch.get("page")).toBe("1");
+  expect(locationSearch.get("page_size")).toBe("5");
+  expect(locationSearch.get("order_id")).toBeNull();
 });
 
 it("descarta o rascunho ao cancelar ou fechar com Escape", async () => {

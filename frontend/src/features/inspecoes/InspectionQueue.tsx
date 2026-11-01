@@ -6,7 +6,7 @@ import {
   Search,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { QueueEnvelope, QueueItem } from "./contract";
+import type { GoldInspectionItem, QueueEnvelope, QueueItem } from "./contract";
 import { energy, formatNumber } from "./format";
 import { inspectionAction, inspectionPrimary } from "./inspection-ui";
 
@@ -20,7 +20,7 @@ function EvidenceLink({
   item,
   params,
 }: {
-  item: QueueItem;
+  item: Pick<QueueItem, "uc_id">;
   params: URLSearchParams;
 }) {
   return (
@@ -46,7 +46,7 @@ function ItemCard({
   return (
     <article
       aria-label={`Suspeita ${item.uc_id}`}
-      className="min-w-0 rounded-lg border border-border bg-surface p-4 [overflow-wrap:anywhere]"
+      className="rounded-lg border border-border bg-surface p-4"
     >
       <p className="text-xs text-muted">UC / prioridade</p>
       <h3 className="mt-1 font-heading text-lg leading-[26px] font-semibold">
@@ -70,7 +70,7 @@ function ItemCard({
           <p className="mt-1 leading-5">
             {item.signals.length
               ? item.signals.map((signal) => signal.label).join(" · ")
-              : item.indicators.join(" · ") || "Sem indicador informado"}
+              : "Sem indicador informado"}
           </p>
         </div>
       </div>
@@ -94,6 +94,76 @@ function ItemCard({
   );
 }
 
+function goldEvidence(item: GoldInspectionItem) {
+  const evidence = item.evidence;
+  const text = (value: string | null) => value ?? "indisponível";
+  return [
+    evidence.inspections_performed === null
+      ? "Inspeções realizadas: indisponível"
+      : `Inspeções realizadas: ${formatNumber(evidence.inspections_performed)}`,
+    evidence.confirmed_irregular_inspections === null
+      ? "Irregularidades confirmadas: indisponível"
+      : `Irregularidades confirmadas: ${formatNumber(evidence.confirmed_irregular_inspections)}`,
+    evidence.historical_average_kwh_per_reading === null
+      ? "Média histórica: indisponível"
+      : `Média histórica: ${formatNumber(evidence.historical_average_kwh_per_reading)} kWh/leitura`,
+    `Geração distribuída: ${text(evidence.distributed_generation_present)}`,
+    `Situação cadastral: ${text(evidence.cadastral_status)}`,
+    evidence.call_center_contacts === null
+      ? "Contatos ao atendimento: indisponível"
+      : `Contatos ao atendimento: ${formatNumber(evidence.call_center_contacts)}`,
+    evidence.interruptions === null
+      ? "Interrupções: indisponível"
+      : `Interrupções: ${formatNumber(evidence.interruptions)}`,
+  ];
+}
+
+function GoldItemCard({
+  item,
+  params,
+}: {
+  item: GoldInspectionItem;
+  params: URLSearchParams;
+}) {
+  const evidence = goldEvidence(item);
+  return (
+    <article
+      aria-label={`UC ${item.uc_id}`}
+      className="rounded-lg border border-border bg-surface p-4"
+    >
+      <p className="text-xs text-muted">UC / categoria Gold</p>
+      <p className="mt-1 text-xs text-muted">
+        Posição oficial na fila: {item.queue_position}
+      </p>
+      <h3 className="mt-1 font-heading text-lg leading-[26px] font-semibold">
+        {item.uc_id} / {item.category ?? "Sem categoria"}
+      </h3>
+      <div className="mt-4 grid gap-3 text-sm">
+        <div>
+          <p className="text-xs text-muted">Motivo registrado</p>
+          <p className="mt-1 leading-5">{item.reason ?? "Não informado"}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">Evidências publicadas</p>
+          <p className="mt-1 leading-5">
+            {evidence.join(" · ") || "Sem evidências disponíveis"}
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2">
+        <div>
+          <p className="text-xs text-muted">Energia recuperável</p>
+          <p className="mt-1 text-sm font-medium">Indisponível</p>
+          <p className="mt-1 text-xs text-muted">
+            {item.recovery_unavailable_reason}
+          </p>
+        </div>
+        <EvidenceLink item={item} params={params} />
+      </div>
+    </article>
+  );
+}
+
 export default function InspectionQueue({
   result,
   params,
@@ -104,12 +174,13 @@ export default function InspectionQueue({
   onChange: (next: URLSearchParams) => void;
 }) {
   const { items } = result.data;
-  const hideEstimate =
-    result.metadata.source.version.startsWith("gold-csv-v2:");
   const page = result.pagination;
-  const field = params.get("order_by") ?? "priority";
-  const direction = params.get("direction") ?? "desc";
-  const sortDescription = `${field === "priority" ? "Prioridade" : field === "uc_id" ? "Número da UC" : "Energia estimada"} ${direction === "desc" ? "decrescente" : "crescente"}`;
+  const gold = result.metadata.contract_version === "2.0.0";
+  const legacyGold = result.metadata.source.kind === "gold_csv";
+  const field =
+    params.get("order_by") ?? (gold ? "queue_position" : "priority");
+  const direction = params.get("direction") ?? (gold ? "asc" : "desc");
+  const sortDescription = `${gold ? (field === "category" ? "Categoria Gold" : field === "uc_id" ? "Número da UC" : "Posição oficial da fila") : field === "priority" ? "Prioridade demonstrativa" : field === "uc_id" ? "Número da UC" : "Energia estimada"} ${direction === "desc" ? "decrescente" : "crescente"}`;
 
   function goTo(number: number) {
     const next = new URLSearchParams(params);
@@ -122,7 +193,9 @@ export default function InspectionQueue({
       aria-label="Fila de inspeção"
       className="min-w-0 space-y-5 md:space-y-6"
     >
-      <h2 className="sr-only">Fila priorizada</h2>
+      <h2 className="sr-only">
+        {gold ? "Fila de triagem Gold" : "Fila priorizada"}
+      </h2>
       {items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-2 py-10 text-center">
           <Search size={28} className="text-muted" aria-hidden="true" />
@@ -133,7 +206,9 @@ export default function InspectionQueue({
           </h3>
           <p className="max-w-md text-sm text-muted">
             {page.total === 0
-              ? "Nenhuma suspeita neste recorte. Isso não comprova ausência de perdas."
+              ? gold
+                ? "Nenhuma UC neste recorte da publicação atual. Isso não comprova ausência de perdas."
+                : "Nenhuma suspeita neste recorte. Isso não comprova ausência de perdas."
               : "Esta página não contém UCs. Volte à primeira página."}
           </p>
           <button
@@ -147,93 +222,178 @@ export default function InspectionQueue({
         </div>
       ) : (
         <>
-          <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
-            <table className="w-full table-fixed text-left text-sm">
-              <caption className="sr-only">
-                Suspeitas com prioridade, motivo, indicadores usados e acesso às
-                evidências
-              </caption>
-              <colgroup>
-                <col className="w-[15%]" />
-                <col className="w-[25%]" />
-                <col className="w-[17%]" />
-                {!hideEstimate && <col className="w-[19%]" />}
-                <col className="w-[24%]" />
-              </colgroup>
-              <thead className="font-mono text-xs leading-[18px] text-muted">
-                <tr>
-                  {[
-                    "UC / prioridade",
-                    "Motivo da suspeita",
-                    "Indicador usado",
-                    ...(!hideEstimate ? ["Energia estimada"] : []),
-                    "Ação",
-                  ].map((label) => (
-                    <th
-                      scope="col"
-                      className="px-3 pb-3 text-left font-normal"
-                      key={label}
-                    >
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr
-                    key={item.uc_id}
-                    className="border-t border-border/60 align-middle transition-colors hover:bg-surface-hover"
-                  >
-                    <th
-                      scope="row"
-                      className="break-words px-3 py-3 text-left font-normal"
-                    >
-                      <p className="font-sans leading-[22px]">
-                        {item.uc_id} /{" "}
-                        {item.priority_label ??
-                          formatNumber(item.priority ?? 0)}
-                      </p>
-                    </th>
-                    <td className="px-3 py-3 leading-5 [overflow-wrap:anywhere]">
-                      {item.reason}
-                    </td>
-                    <td className="px-3 py-3 text-sm leading-5 text-muted [overflow-wrap:anywhere]">
-                      {item.signals.length
-                        ? item.signals.map((signal) => signal.label).join(" · ")
-                        : item.indicators.join(" · ") ||
-                          "Sem indicador informado"}
-                    </td>
-                    {!hideEstimate && (
-                      <td className="px-3 py-3">
-                        <p className="font-medium">
-                          {energy(item.potential_recoverable_energy_kwh)}
-                        </p>
-                        <p className="mt-1 text-xs leading-4 text-muted">
-                          {item.potential_recoverable_energy_kwh === null
-                            ? "Insumos indisponíveis"
-                            : "Projeção hipotética"}
-                        </p>
-                      </td>
-                    )}
-                    <td className="px-3 py-3">
-                      <EvidenceLink item={item} params={params} />
-                    </td>
-                  </tr>
+          {gold ? (
+            <>
+              <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
+                <table className="w-full table-fixed text-left text-sm">
+                  <caption className="sr-only">
+                    Categorias Gold, motivos, evidências, disponibilidade e
+                    acesso ao detalhe
+                  </caption>
+                  <thead className="font-mono text-xs leading-[18px] text-muted">
+                    <tr>
+                      {[
+                        "Posição / UC / categoria Gold",
+                        "Motivo",
+                        "Evidências publicadas",
+                        "Energia recuperável",
+                        "Ação",
+                      ].map((label) => (
+                        <th
+                          scope="col"
+                          className="px-3 pb-3 text-left font-normal"
+                          key={label}
+                        >
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(items as GoldInspectionItem[]).map((item) => (
+                      <tr
+                        key={item.uc_id}
+                        className="border-t border-border/60 align-middle transition-colors hover:bg-surface-hover"
+                      >
+                        <th
+                          scope="row"
+                          className="break-words px-3 py-3 text-left font-normal"
+                        >
+                          <p className="mb-1 text-xs text-muted">
+                            Posição oficial na fila: {item.queue_position}
+                          </p>
+                          <br />
+                          {item.uc_id}
+                          <br />
+                          {item.category ?? "Sem categoria"}
+                        </th>
+                        <td className="px-3 py-3 leading-5">
+                          {item.reason ?? "Não informado"}
+                        </td>
+                        <td className="px-3 py-3 text-sm leading-5 text-muted">
+                          {goldEvidence(item).join(" · ") ||
+                            "Sem evidências disponíveis"}
+                        </td>
+                        <td className="px-3 py-3">
+                          <p className="font-medium">Indisponível</p>
+                          <p className="mt-1 text-xs leading-4 text-muted">
+                            {item.recovery_unavailable_reason}
+                          </p>
+                        </td>
+                        <td className="px-3 py-3">
+                          <EvidenceLink item={item} params={params} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="space-y-3 md:hidden">
+                {(items as GoldInspectionItem[]).map((item) => (
+                  <GoldItemCard key={item.uc_id} item={item} params={params} />
                 ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="space-y-3 md:hidden">
-            {items.map((item) => (
-              <ItemCard
-                key={item.uc_id}
-                item={item}
-                params={params}
-                hideEstimate={hideEstimate}
-              />
-            ))}
-          </div>
+              </div>
+              <p className="text-xs leading-5 text-muted">
+                Ordenação por{" "}
+                {field === "category"
+                  ? "texto da categoria"
+                  : field === "queue_position"
+                    ? "posição oficial da fila"
+                    : "UC"}{" "}
+                {direction === "desc" ? "decrescente" : "crescente"}. Ela não
+                define prioridade de despacho.
+              </p>
+            </>
+          ) : (
+            <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
+              <table className="w-full table-fixed text-left text-sm">
+                <caption className="sr-only">
+                  Suspeitas com prioridade, motivo, indicadores usados, energia
+                  estimada e acesso às evidências
+                </caption>
+                <colgroup>
+                  <col className="w-[15%]" />
+                  <col className="w-[25%]" />
+                  <col className="w-[17%]" />
+                  {!legacyGold && <col className="w-[19%]" />}
+                  <col className="w-[24%]" />
+                </colgroup>
+                <thead className="font-mono text-xs leading-[18px] text-muted">
+                  <tr>
+                    {[
+                      "UC / prioridade",
+                      "Motivo da suspeita",
+                      "Indicador usado",
+                      ...(!legacyGold ? ["Energia estimada"] : []),
+                      "Ação",
+                    ].map((label) => (
+                      <th
+                        scope="col"
+                        className="px-3 pb-3 text-left font-normal"
+                        key={label}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(items as QueueItem[]).map((item) => (
+                    <tr
+                      key={item.uc_id}
+                      className="border-t border-border/60 align-middle transition-colors hover:bg-surface-hover"
+                    >
+                      <th
+                        scope="row"
+                        className="break-words px-3 py-3 text-left font-normal"
+                      >
+                        <p className="font-sans leading-[22px]">
+                          {item.uc_id} /{" "}
+                          {item.priority_label ??
+                            formatNumber(item.priority ?? 0)}
+                        </p>
+                      </th>
+                      <td className="px-3 py-3 leading-5">{item.reason}</td>
+                      <td className="px-3 py-3 text-sm leading-5 text-muted">
+                        {item.signals.length
+                          ? item.signals
+                              .map((signal) => signal.label)
+                              .join(" · ")
+                          : "Sem indicador informado"}
+                      </td>
+                      {!legacyGold && (
+                        <td className="px-3 py-3">
+                          <p className="font-medium">
+                            {energy(item.potential_recoverable_energy_kwh)}
+                          </p>
+                          <p className="mt-1 text-xs leading-4 text-muted">
+                            {item.potential_recoverable_energy_kwh === null
+                              ? "Insumos indisponíveis"
+                              : "Projeção hipotética"}
+                          </p>
+                        </td>
+                      )}
+                      <td className="px-3 py-3">
+                        <EvidenceLink item={item} params={params} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!gold ? (
+            <div className="space-y-3 md:hidden">
+              {(items as QueueItem[]).map((item) => (
+                <ItemCard
+                  key={item.uc_id}
+                  item={item}
+                  params={params}
+                  hideEstimate={legacyGold}
+                />
+              ))}
+            </div>
+          ) : null}
           <div className="flex flex-col gap-3">
             <Link
               className={`${inspectionPrimary} w-full sm:w-fit`}
@@ -244,13 +404,10 @@ export default function InspectionQueue({
               <ArrowUpRight size={16} aria-hidden="true" />
             </Link>
             <p className="text-xs leading-5 text-muted">
-              Ordenação: {sortDescription}.{" "}
-              {result.metadata.source.version.startsWith("gold-csv-v2:") &&
-              field === "priority"
-                ? "A posição segue a ordem de triagem publicada na Gold."
-                : result.metadata.source.kind === "gold_csv"
-                  ? "O desempate usa o número da UC."
-                  : "Empates seguem energia disponível e número da UC; indisponibilidade permanece explícita."}
+              Ordenação: {sortDescription}.
+              {gold
+                ? " Categoria textual não equivale a prioridade de despacho."
+                : " Empates seguem energia disponível e número da UC; indisponibilidade permanece explícita."}
             </p>
           </div>
         </>

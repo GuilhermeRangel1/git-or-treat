@@ -7,6 +7,8 @@ import {
   Routes,
 } from "react-router-dom";
 import AppLayout from "@/layouts/AppLayout";
+import RequireSession from "@/shared/auth/RequireSession";
+import LoginPage from "@/features/auth/LoginPage";
 import { routes, UC360Page } from "./routes";
 
 const DevContractsPage = import.meta.env.DEV
@@ -20,7 +22,14 @@ const DevContractsPage = import.meta.env.DEV
 export function AppRoutes() {
   return (
     <Routes>
-      <Route element={<AppLayout navigation={routes} />}>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        element={
+          <RequireSession>
+            <AppLayout navigation={routes} />
+          </RequireSession>
+        }
+      >
         <Route
           element={
             <Suspense fallback={<p role="status">Carregando página…</p>}>
@@ -40,9 +49,11 @@ export function AppRoutes() {
         <Route
           path="/dev/contratos"
           element={
-            <Suspense fallback={<p role="status">Carregando diagnóstico…</p>}>
-              <DevContractsPage />
-            </Suspense>
+            <RequireSession>
+              <Suspense fallback={<p role="status">Carregando diagnóstico…</p>}>
+                <DevContractsPage />
+              </Suspense>
+            </RequireSession>
           }
         />
       ) : null}

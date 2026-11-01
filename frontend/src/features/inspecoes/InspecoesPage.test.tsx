@@ -4,7 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import InspecoesPage from "./InspecoesPage";
+import { DemoSessionProvider } from "@/shared/test/TestProviders";
 import { decodeDetail, decodeQueue } from "./contract";
+import {
+  isGoldPublicationStale,
+  resetGoldPublication,
+} from "@/shared/analytics/goldPublication";
 
 const item = {
   uc_id: "UC-1004",
@@ -99,10 +104,12 @@ function mount(
 ) {
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[url]}>
-        <InspecoesPage />
-        <Location />
-      </MemoryRouter>
+      <DemoSessionProvider>
+        <MemoryRouter initialEntries={[url]}>
+          <InspecoesPage />
+          <Location />
+        </MemoryRouter>
+      </DemoSessionProvider>
     </QueryClientProvider>,
   );
 }
@@ -116,6 +123,342 @@ async function firstEvidenceLink() {
 }
 beforeEach(() => {
   vi.restoreAllMocks();
+  resetGoldPublication();
+});
+
+const goldMetadata = {
+  contract_version: "2.0.0",
+  status: "available",
+  period: null,
+  filters: { municipio: null, bairro: null, classe: null, alimentador: null },
+  source: {
+    kind: "gold",
+    version: "gold-batch",
+    is_demo: false,
+    updated_at: "2026-10-29T12:00:00Z",
+  },
+  limitations: ["A fila é um snapshot cadastral."],
+  temporal_scope: "snapshot",
+  schema_version: "gold-csv-v2",
+  fingerprint: "a".repeat(64),
+};
+const goldItem = {
+  queue_position: 7,
+  uc_id: "UC-GOLD",
+  municipality: "Recife",
+  neighborhood: null,
+  class_name: "Residencial",
+  feeder_id: null,
+  category: "REVISAR",
+  reason: "REVISAR",
+  potential_recoverable_energy_kwh: null,
+  recovery_unavailable_reason:
+    "A Gold publicada não contém uma estimativa de energia recuperável.",
+  evidence: {
+    inspections_performed: 0,
+    confirmed_irregular_inspections: null,
+    historical_average_kwh_per_reading: null,
+    distributed_generation_present: null,
+    cadastral_status: "ATIVA",
+    call_center_contacts: null,
+    interruptions: null,
+    historical_recovery_mean_kwh_per_inspection: 20,
+    historical_recovery_interval_lower_kwh: 5,
+    historical_recovery_interval_upper_kwh: 40,
+    historical_recovery_reference: "global",
+    historical_recovery_status: "DISPONIVEL_REFERENCIA_HISTORICA",
+  },
+  variation: {
+    p1_start: "2022-07",
+    p1_end: "2023-06",
+    p1_months_observed: 0,
+    p1_average_kwh_per_month: null,
+    p2_start: "2025-07",
+    p2_end: "2026-06",
+    p2_months_observed: 12,
+    p2_average_kwh_per_month: 0,
+    variation_kwh: null,
+    variation_pct: null,
+    drop_over_30_pct: null,
+  },
+};
+const goldQueue = {
+  data: {
+    items: [goldItem],
+    filter_options: {
+      municipio: ["Recife"],
+      bairro: [],
+      classe: ["Residencial"],
+      alimentador: [],
+    },
+    summary: {
+      total_units: 1,
+      categories: { REVISAR: 1 },
+      uncategorized_units: 0,
+      estimated_units: 0,
+      unavailable_estimate_units: 1,
+    },
+  },
+  pagination: { page: 1, page_size: 10, total: 1, total_pages: 1 },
+  metadata: goldMetadata,
+};
+const goldDetail = {
+  data: {
+    ...goldItem,
+    rule_version: "gold-fila-inspecao-v1",
+    limitations: ["A categoria não é prioridade operacional."],
+    consumption_comparison: {
+      baseline_start: "2024-08",
+      baseline_end: "2024-10",
+      recent_start: "2024-11",
+      recent_end: "2025-01",
+      baseline_kwh: 300,
+      recent_kwh: 150,
+      change_percent: -50,
+      unavailable_reason: null,
+    },
+  },
+  metadata: goldMetadata,
+};
+
+it("restringe bairros ao município na fila Gold atual", async () => {
+  const queue = {
+    ...goldQueue,
+    data: {
+      ...goldQueue.data,
+      filter_options: {
+        ...goldQueue.data.filter_options,
+        municipio: ["Recife", "Olinda"],
+        bairro: ["Centro", "Bairro Novo"],
+      },
+      neighborhoods: [
+        { municipio: "Recife", bairro: "Centro" },
+        { municipio: "Olinda", bairro: "Bairro Novo" },
+      ],
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementation(async () => respond(queue)),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes");
+  await screen.findByRole("columnheader", {
+    name: "Posição / UC / categoria Gold",
+  });
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+  expect(
+    screen.getByRole("option", { name: "Bairro Novo" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("option", { name: "Centro" }),
+  ).not.toBeInTheDocument();
+});
+
+it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmados", async () => {
+  const createdOrder = {
+    id: 58,
+    uc_id: "UC-GOLD",
+    reason: "REVISAR",
+    priority: "MEDIA",
+    status: "PENDENTE",
+    notes: null,
+    result: null,
+    created_at: "2026-10-29T12:00:00Z",
+    updated_at: "2026-10-29T12:00:00Z",
+    suspicion_reference: "sha256:gold",
+    version: 1,
+    cancellation_reason: null,
+  };
+  const fetch = vi
+    .fn()
+    .mockImplementation((url: string, options?: RequestInit) => {
+      if (options?.method === "POST")
+        return Promise.resolve(respond(createdOrder, 201));
+      return Promise.resolve(
+        url.includes("/queue/UC-GOLD")
+          ? respond(goldDetail)
+          : respond(goldQueue),
+      );
+    });
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  mount("/inspecoes", client);
+
+  expect(
+    await screen.findByRole("columnheader", {
+      name: "Posição / UC / categoria Gold",
+    }),
+  ).toBeVisible();
+  expect(screen.getByText("UC-GOLD / REVISAR")).toBeVisible();
+  expect(screen.getAllByText("Posição oficial na fila: 7")).toHaveLength(2);
+  expect(
+    screen.getAllByText(/Contatos ao atendimento: indisponível/),
+  ).toHaveLength(2);
+  expect(
+    screen.queryByText(/Diferença observada não é estimativa/),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("Prioridade demonstrativa"),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  expect(screen.getByLabelText("Ordenar por")).toHaveValue("queue_position");
+  expect(screen.getByLabelText("Direção")).toHaveValue("asc");
+  expect(
+    screen.getByRole("option", { name: "Posição oficial da fila" }),
+  ).toBeInTheDocument();
+  await user.keyboard("{Escape}");
+  await user.click(
+    screen.getAllByRole("link", { name: "Ver evidência de UC-GOLD" })[0],
+  );
+  expect(
+    await screen.findByText("Energia recuperável indisponível"),
+  ).toBeVisible();
+  expect(screen.getByText(/snapshot sem competência mensal/)).toBeVisible();
+  expect(
+    screen.getByRole("region", { name: "Referência histórica de recuperação" }),
+  ).toHaveTextContent("não é estimativa para esta UC");
+  expect(
+    screen.getByRole("region", { name: "Comparação proposta de consumo" }),
+  ).toHaveTextContent("-50%");
+  await user.click(
+    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+  );
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Ordem 58 confirmada pelo servidor",
+  );
+  const post = fetch.mock.calls.find(
+    ([, options]) => options?.method === "POST",
+  );
+  const analyticGets = fetch.mock.calls.filter(
+    ([url, options]) =>
+      options?.method !== "POST" && String(url).includes("/queue/UC-GOLD"),
+  );
+  expect(analyticGets.length).toBeGreaterThan(0);
+  for (const [url] of analyticGets) {
+    const request = new URL(String(url), window.location.origin);
+    expect(request.searchParams.has("expected_lote")).toBe(true);
+    expect(request.searchParams.has("expected_fingerprint")).toBe(true);
+  }
+  expect(JSON.parse(post?.[1]?.body as string)).toMatchObject({
+    source_version: "gold-batch",
+    source_fingerprint: "a".repeat(64),
+    rule_version: "gold-fila-inspecao-v1",
+  });
+});
+
+it("exige nova confirmação após troca de fingerprint e não repete a intenção obsoleta", async () => {
+  const nextMetadata = {
+    ...goldMetadata,
+    source: { ...goldMetadata.source, version: "gold-batch-2" },
+    fingerprint: "b".repeat(64),
+  };
+  let detailReads = 0;
+  let writes = 0;
+  const keys: string[] = [];
+  const fetch = vi
+    .fn()
+    .mockImplementation((url: string, options?: RequestInit) => {
+      if (options?.method === "POST") {
+        writes += 1;
+        const headers = new Headers(options.headers);
+        keys.push(headers.get("Idempotency-Key") ?? "");
+        return Promise.resolve(
+          writes === 1
+            ? respond(
+                {
+                  detail: "A publicação mudou.",
+                  error: { code: "stale_suspicion" },
+                },
+                409,
+              )
+            : respond(
+                {
+                  id: 59,
+                  uc_id: "UC-GOLD",
+                  reason: "REVISAR",
+                  priority: "MEDIA",
+                  status: "PENDENTE",
+                  notes: null,
+                  result: null,
+                  created_at: "2026-10-29T12:00:00Z",
+                  updated_at: "2026-10-29T12:00:00Z",
+                  suspicion_reference: "sha256:gold",
+                  version: 1,
+                  cancellation_reason: null,
+                },
+                201,
+              ),
+        );
+      }
+      if (url.includes("/queue/UC-GOLD")) {
+        detailReads += 1;
+        return Promise.resolve(
+          respond({
+            ...goldDetail,
+            metadata: detailReads === 1 ? goldMetadata : nextMetadata,
+          }),
+        );
+      }
+      return Promise.resolve(respond({ ...goldQueue, metadata: goldMetadata }));
+    });
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  const staleClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  mount("/inspecoes", staleClient);
+  await user.click(
+    (
+      await screen.findAllByRole("link", { name: "Ver evidência de UC-GOLD" })
+    )[0],
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Criar ordem de inspeção" }),
+  );
+  await screen.findByText(/A suspeita mudou desde a consulta/);
+  await user.click(
+    screen.getByRole("button", { name: "Atualizar dados da suspeita" }),
+  );
+  await waitFor(() => expect(isGoldPublicationStale()).toBe(true));
+  const analyticQueries = {
+    predicate: (query: { queryKey: readonly unknown[] }) =>
+      ["inspection-queue", "inspection-suspicion"].includes(
+        String(query.queryKey[0]),
+      ),
+  };
+  await staleClient.cancelQueries(analyticQueries);
+  resetGoldPublication();
+  await staleClient.resetQueries(analyticQueries);
+  await waitFor(() => expect(detailReads).toBeGreaterThan(2));
+  expect(writes).toBe(1);
+  expect(
+    await screen.findByRole("button", {
+      name: "Confirmar com evidência atual",
+    }),
+  ).toBeEnabled();
+  expect(writes).toBe(1);
+  await user.click(
+    screen.getByRole("button", { name: "Confirmar com evidência atual" }),
+  );
+  await screen.findByText(/Ordem 59 confirmada pelo servidor/);
+  expect(writes).toBe(2);
+  expect(keys[0]).not.toBe(keys[1]);
+  const postBodies = fetch.mock.calls
+    .filter(([, options]) => options?.method === "POST")
+    .map(([, options]) => JSON.parse(String(options?.body)));
+  expect(postBodies[0]).toMatchObject({
+    source_version: "gold-batch",
+    source_fingerprint: "a".repeat(64),
+  });
+  expect(postBodies[1]).toMatchObject({
+    source_version: "gold-batch-2",
+    source_fingerprint: "b".repeat(64),
+  });
 });
 
 it("mostra origem e unidades sem atribuir à fila o período do consumo", async () => {
@@ -412,7 +755,9 @@ it("após conflito obsoleto, atualiza o detalhe e cria nova intenção com dados
   );
   await waitFor(() => expect(detailReads).toBe(2));
   await user.click(
-    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+    await screen.findByRole("button", {
+      name: "Confirmar com evidência atual",
+    }),
   );
   await screen.findByText(/Ordem 42 confirmada pelo servidor/);
 

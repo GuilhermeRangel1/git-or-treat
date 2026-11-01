@@ -1,10 +1,10 @@
-import type { DetailEnvelope } from "./contract";
+import type { SyntheticDetailEnvelope } from "./contract";
 import { energy } from "./format";
 
 export default function ConsumptionComparison({
   evidence,
 }: {
-  evidence: DetailEnvelope["data"]["estimate_evidence"];
+  evidence: SyntheticDetailEnvelope["data"]["estimate_evidence"];
 }) {
   const scale = Math.max(
     evidence.baseline_kwh ?? 0,

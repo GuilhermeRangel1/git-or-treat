@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.api.v1.analytics_route import StrictAnalyticsRoute
+from app.core.analytics_access import require_gold_analytics_read
 from app.repositories.analytics import get_analytics_repository
 from app.repositories.gold import GoldAnalyticsRepository
 from app.schemas.analytics import AnalyticsSource
 
-router = APIRouter(route_class=StrictAnalyticsRoute)
+router = APIRouter(route_class=StrictAnalyticsRoute, dependencies=[Depends(require_gold_analytics_read)])
 
 
 class Neighborhood(BaseModel):

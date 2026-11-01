@@ -3,12 +3,13 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query, Request
 
 from app.api.v1.analytics_route import AnalyticsRoute, repeated_query_parameters
+from app.core.analytics_access import require_gold_analytics_read
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
 from app.schemas.analytics import RevenueResponse
 from app.services.analytics import AnalyticsAPIError, filters_model, metadata, validate_period
 from app.services.revenue_analytics import build_revenue, revenue_metadata_status
 
-router = APIRouter(route_class=AnalyticsRoute)
+router = APIRouter(route_class=AnalyticsRoute, dependencies=[Depends(require_gold_analytics_read)])
 
 
 @router.get("", response_model=RevenueResponse, summary="Série de receita e decomposição demonstrativa preço-volume")

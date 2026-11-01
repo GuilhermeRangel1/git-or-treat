@@ -22,6 +22,7 @@ from app.schemas.evidence import (
     EvidenceProvenance,
     EvidenceReference,
     EvidenceResult,
+    GoldEvidenceQuality,
 )
 from app.schemas.internal import (
     AccessScope,
@@ -97,6 +98,16 @@ def _lookup(plan: LogicalReadPlan, *, batch_ref: str | None = BATCH, value: int 
                 filters=plan.filters,
                 dimension_ids=plan.dimension_ids,
                 batch_ref=batch_ref,
+                quality=(
+                    GoldEvidenceQuality(
+                        readiness_version="gold-readiness-v2",
+                        batch_ref=batch_ref,
+                        lot_state="partial",
+                        available_capability_ids=("test.capability",),
+                    )
+                    if plan.source_id.startswith("gold.") and batch_ref is not None
+                    else None
+                ),
             ),
         ),
     )
@@ -423,8 +434,21 @@ def test_lookup_without_evidence_gets_the_fixed_message_without_the_model(
         {"metric_id": "weather.temperature"},
         {"unit": "mm"},
         {"plan_fingerprint": "f" * 64},
+        {"source_id": "gold.other"},
+        {"quality": None},
+        {
+            "quality": GoldEvidenceQuality(
+                readiness_version="gold-readiness-v2",
+                batch_ref=OTHER_BATCH,
+                lot_state="partial",
+                available_capability_ids=("test.capability",),
+            )
+        },
     ],
-    ids=["metric", "unit", "fingerprint"],
+    ids=[
+        "metric", "unit", "fingerprint", "wrong_source", "quality_missing",
+        "quality_wrong_batch",
+    ],
 )
 def test_evidence_outside_the_plan_is_rejected_by_the_guard(change: dict) -> None:
     model = SpyModel()

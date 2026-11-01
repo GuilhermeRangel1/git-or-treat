@@ -74,9 +74,11 @@ class RecordingSource:
         self.inner = inner
         self.mode = mode
         self.calls = 0
+        self.started = asyncio.Event()
 
     async def retrieve(self, plan, access_context):
         self.calls += 1
+        self.started.set()
         if self.mode == "denied":
             from app.ports.evidence import EvidenceAccessDenied
 
@@ -359,7 +361,7 @@ def test_source_timeout_and_cancellation_propagate_without_model_call(subject) -
                 QuestionRequest(question=subject.question), _context(subject, "e" * 32)
             )
         )
-        await asyncio.sleep(0)
+        await asyncio.wait_for(waiting.started.wait(), 2)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task

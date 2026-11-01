@@ -15,6 +15,8 @@ Evolua o núcleo e os consumidores já existentes. Esta skill é orientação do
 
 ## Durante a mudança
 
+Aplique a [referência obrigatória Gold v2](../../../docs/agents/genai-gold.md#referência-obrigatória-gold-v2): identifique o contrato físico, catálogo e publicação v2 usados pelo consumidor. Distingua a versão de dados das versões dos envelopes HTTP. Evidência v1 ou sintética não encerra aceite Gold v2.
+
 - Estenda os pontos de composição, contratos, perfil, plano, portas e controles existentes descritos no guia. Uma substituição arquitetural exige justificativa e decisão registrada, não apenas um novo caminho paralelo.
 - Confira o dicionário e o lote disponíveis na branch de trabalho. Uma proposta de schema ou uma fixture de teste não aprova o esquema real.
 - Preserve a distinção entre evidência demonstrativa e real, os limites de acesso e a separação entre número observado e hipótese.

@@ -22,6 +22,9 @@ export type AIQuestionError = {
 
 export type AIAnalysisContext = {
   metric?: string | null;
+  metric_label?: string | null;
+  metric_definition?: string | null;
+  filter_labels?: Record<string, string>;
   unit?: string | null;
   period?: string | null;
   filters: Record<string, string | number | boolean>;
@@ -187,13 +190,37 @@ export function decodeAIQuestionResponse(value: unknown): AIQuestionResponse {
       }
       filters[key] = filter as string | number | boolean;
     }
-    for (const field of ["metric", "unit", "period"] as const) {
+    for (const field of ["metric", "metric_label", "unit", "period"] as const) {
       if (context[field] != null && !isText(context[field], 200)) {
         throw new Error("Resposta inválida do serviço.");
       }
     }
+    if (
+      context.metric_definition != null &&
+      !isText(context.metric_definition, 500)
+    ) {
+      throw new Error("Resposta inválida do serviço.");
+    }
+    const filterLabels: Record<string, string> = {};
+    if (context.filter_labels != null) {
+      if (
+        !isRecord(context.filter_labels) ||
+        Object.keys(context.filter_labels).length > 20
+      ) {
+        throw new Error("Resposta inválida do serviço.");
+      }
+      for (const [key, label] of Object.entries(context.filter_labels)) {
+        if (!Object.hasOwn(filters, key) || !isText(label, 200)) {
+          throw new Error("Resposta inválida do serviço.");
+        }
+        filterLabels[key] = label;
+      }
+    }
     analysisContext = {
       metric: context.metric as string | null | undefined,
+      metric_label: context.metric_label as string | null | undefined,
+      metric_definition: context.metric_definition as string | null | undefined,
+      filter_labels: filterLabels,
       unit: context.unit as string | null | undefined,
       period: context.period as string | null | undefined,
       filters,

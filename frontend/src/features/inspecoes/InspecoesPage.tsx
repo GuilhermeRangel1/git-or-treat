@@ -3,7 +3,6 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
 import Modal from "@/shared/ui/Modal";
-import DataProvenance from "@/shared/analytics/DataProvenance";
 import { queueQuery } from "./queue-query";
 import { useInspectionQueue, useSuspicion } from "./useInspectionQueue";
 import SuspicionDetail from "./SuspicionDetail";
@@ -13,16 +12,21 @@ import InspectionFilters from "./InspectionFilters";
 import InspectionQueue from "./InspectionQueue";
 import { inspectionAction } from "./inspection-ui";
 import type { Metadata } from "./contract";
+import { useOrderAccess, useSession } from "@/shared/auth/useSession";
+import DataProvenance from "@/shared/analytics/DataProvenance";
 
 function DemonstrationLine({ metadata }: { metadata: Metadata }) {
+  const gold = metadata.contract_version === "2.0.0";
   return (
     <p className="text-xs leading-[18px] text-muted">
-      {metadata.source.is_demo
-        ? "Demonstração · dados sintéticos"
-        : "Fonte analítica"}
-      {metadata.source.is_demo
-        ? " · atualização ilustrativa: "
-        : " · importação local: "}
+      {gold
+        ? `Gold · publicação ${metadata.source.version}`
+        : metadata.source.is_demo
+          ? "Demonstração · dados sintéticos"
+          : "Fonte analítica"}
+      {gold
+        ? " · snapshot cadastral · atualizado em: "
+        : " · atualização ilustrativa: "}
       {new Intl.DateTimeFormat("pt-BR", {
         day: "2-digit",
         month: "2-digit",
@@ -63,6 +67,8 @@ function FoundationDialog({
 }
 
 export default function InspecoesPage() {
+  const session = useSession();
+  const access = useOrderAccess();
   const [params, setParams] = useSearchParams();
   const [foundationsOpen, setFoundationsOpen] = useState(false);
   const foundationsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -92,6 +98,7 @@ export default function InspecoesPage() {
     errorPayload.error.code === "estimate_sort_unavailable"
   );
   const metadata = active.data?.metadata;
+  const goldDetail = detail.data && "category" in detail.data.data;
   const back = new URLSearchParams(params);
   back.delete("uc");
 
@@ -109,7 +116,9 @@ export default function InspecoesPage() {
         </h1>
         <p className="text-sm leading-[22px] text-muted">
           {parsed?.detail
-            ? `${parsed.detail} · Prioridade ${detail.data ? (detail.data.data.priority_label ?? detail.data.data.priority?.toLocaleString("pt-BR", { maximumFractionDigits: 2 })) : "consultando"}.`
+            ? goldDetail
+              ? `${parsed.detail} · Categoria ${detail.data && "category" in detail.data.data ? (detail.data.data.category ?? "não classificada") : "consultando"} na triagem Gold.`
+              : `${parsed.detail} · Prioridade ${detail.data && "priority" in detail.data.data ? (detail.data.data.priority_label ?? detail.data.data.priority?.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) ?? "indisponível") : "consultando"}.`
             : "Uma fila explicável para orientar a investigação de perdas. Suspeita não é fraude comprovada."}
         </p>
       </header>
@@ -136,7 +145,11 @@ export default function InspecoesPage() {
           params={params}
           request={parsed?.request ?? ""}
           options={queue.data?.data.filter_options ?? {}}
-          neighborhoods={queue.data?.data.neighborhoods ?? []}
+          neighborhoods={
+            queue.data && "neighborhoods" in queue.data.data
+              ? queue.data.data.neighborhoods
+              : []
+          }
           metadata={metadata}
           onChange={setParams}
         />
@@ -161,29 +174,29 @@ export default function InspecoesPage() {
               ? "Não foi possível atualizar as evidências. Exibindo a última consulta válida; ela pode estar desatualizada."
               : active.error instanceof ApiError && active.error.status === 404
                 ? "Suspeita não encontrada para esta UC."
-                : estimateSortUnavailable
-                  ? "Ordenação por energia estimada indisponível para esta fonte. Escolha prioridade para consultar a fila."
-                  : "Não foi possível consultar as evidências. Tente novamente."}
+                : "Não foi possível consultar as evidências. Tente novamente."}
           </p>
-          {estimateSortUnavailable ? (
-            <button
-              className={`${inspectionAction} mt-3`}
-              onClick={() => {
-                const next = new URLSearchParams(params);
-                next.delete("order_by");
-                next.set("page", "1");
-                setParams(next);
-              }}
-            >
-              Ordenar por prioridade
-            </button>
-          ) : null}
           <button
             className={`${inspectionAction} mt-3`}
             onClick={() => void active.refetch()}
           >
             Tentar novamente
           </button>
+          {estimateSortUnavailable && (
+            <button
+              type="button"
+              className={`${inspectionAction} mt-3`}
+              onClick={() => {
+                const next = new URLSearchParams(params);
+                next.delete("order_by");
+                next.delete("direction");
+                next.set("page", "1");
+                setParams(next);
+              }}
+            >
+              Ordenar por prioridade
+            </button>
+          )}
         </div>
       ) : null}
       {!invalid && active.isFetching && !active.isPending ? (
@@ -204,22 +217,6 @@ export default function InspecoesPage() {
           {parsed?.detail && detail.data ? (
             <>
               <SuspicionDetail data={detail.data.data} metadata={metadata} />
-              {metadata.source.is_demo ? (
-                <CreateOrder
-                  key={`${detail.data.data.uc_id}:${detail.data.metadata.source.version}:${detail.data.data.rule_version}`}
-                  uc={detail.data.data.uc_id}
-                  sourceVersion={detail.data.metadata.source.version}
-                  ruleVersion={detail.data.data.rule_version}
-                  disabled={detail.isFetching || detail.isError}
-                  onRefresh={() => void detail.refetch()}
-                />
-              ) : (
-                <p className="text-sm text-muted">
-                  A consulta está disponível. A criação de ordens pela Gold
-                  ainda depende da validação da regra, da integração da
-                  prioridade e da autorização de quem cria a ordem.
-                </p>
-              )}
               <Link className={inspectionAction} to={`?${back}`}>
                 <ArrowLeft size={16} aria-hidden="true" />
                 Voltar à fila
@@ -227,23 +224,25 @@ export default function InspecoesPage() {
             </>
           ) : queue.data ? (
             <>
-              <aside
-                className="flex flex-col items-start justify-center gap-1 rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
-                aria-label="Prioridade demonstrativa"
-              >
-                <div>
-                  <p className="text-sm font-semibold">
-                    {metadata.source.is_demo
-                      ? "Prioridade demonstrativa"
-                      : "Prioridade publicada na Gold"}
-                  </p>
-                  <p className="mt-1 text-sm leading-[22px]">
-                    {metadata.source.is_demo
-                      ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
-                      : "Categorias e histórico vêm da Gold. A fonte não fornece estimativa individual de energia recuperável."}
-                  </p>
-                </div>
-              </aside>
+              {queue.data.metadata.contract_version !== "2.0.0" ? (
+                <aside
+                  className="flex flex-col items-start justify-center gap-1 rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
+                  aria-label="Prioridade demonstrativa"
+                >
+                  <div>
+                    <p className="text-sm font-semibold">
+                      {metadata.source.is_demo
+                        ? "Prioridade demonstrativa"
+                        : "Prioridade publicada na Gold"}
+                    </p>
+                    <p className="mt-1 text-sm leading-[22px]">
+                      {metadata.source.is_demo
+                        ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
+                        : "Categorias e histórico vêm da Gold. A fonte não fornece estimativa individual de energia recuperável."}
+                    </p>
+                  </div>
+                </aside>
+              ) : null}
               <InspectionQueue
                 result={queue.data}
                 params={params}
@@ -252,26 +251,28 @@ export default function InspecoesPage() {
             </>
           ) : null}
 
-          {metadata.source.kind === "gold_csv" && (
+          {metadata.source.kind === "gold_csv" && metadata.period && (
             <DataProvenance
               source={metadata.source}
               period={metadata.period}
               units={["UCs", "inspeções", "kWh"]}
               limitations={metadata.limitations}
               periodLabel="Cobertura do consumo no lote"
-              periodNote="São os extremos das competências de consumo observadas; não comprovam todos os meses. A fila não fornece competência própria nem janela dos históricos acumulados. Esse intervalo não é o período da suspeita."
+              periodNote="A fila não informa janela temporal própria; a cobertura observada não comprova todos os meses."
             />
           )}
 
           <footer className="flex flex-col items-stretch gap-2 text-xs text-muted sm:flex-row sm:items-center sm:gap-4">
             <p className="w-full sm:max-w-[600px]">
               Fonte:{" "}
-              {metadata.source.is_demo
-                ? "cenário sintético"
-                : metadata.source.kind}
-              {metadata.source.is_demo
-                ? ". Nenhuma consulta à Gold."
-                : ". Gold CSV; consulte cobertura e limitações desta publicação."}
+              {metadata.contract_version === "2.0.0"
+                ? `Gold · ${metadata.source.version} · fingerprint ${"fingerprint" in metadata ? metadata.fingerprint : "não disponível"}`
+                : metadata.source.is_demo
+                  ? "cenário sintético"
+                  : metadata.source.kind}
+              {metadata.contract_version === "2.0.0"
+                ? ". Consulta limitada a esta publicação."
+                : ". Nenhuma consulta à Gold."}
             </p>
             <button
               ref={foundationsTriggerRef}
@@ -294,6 +295,45 @@ export default function InspecoesPage() {
             triggerRef={foundationsTriggerRef}
           />
         </>
+      ) : null}
+      {!invalid &&
+      parsed?.detail &&
+      session.configured &&
+      !access.data?.canWrite &&
+      !access.lastConfirmedAccess?.access.canWrite ? (
+        <p className="rounded-xl border border-border bg-surface p-5 text-sm text-muted">
+          {access.isPending
+            ? "Verificando permissão para criar ordens…"
+            : "Sua conta tem acesso somente para consulta de ordens."}
+        </p>
+      ) : null}
+      {!invalid &&
+      parsed?.detail &&
+      (!session.configured ||
+        access.data?.canWrite ||
+        access.lastConfirmedAccess?.access.canWrite) ? (
+        <CreateOrder
+          key={parsed.detail}
+          uc={parsed.detail}
+          sourceVersion={detail.data?.metadata.source.version}
+          sourceFingerprint={
+            detail.data && "fingerprint" in detail.data.metadata
+              ? detail.data.metadata.fingerprint
+              : undefined
+          }
+          requireSourceFingerprint={
+            detail.data?.metadata.contract_version === "2.0.0"
+          }
+          ruleVersion={detail.data?.data.rule_version}
+          disabled={
+            !detail.data ||
+            detail.isFetching ||
+            detail.isError ||
+            (session.configured &&
+              (access.isFetching || session.needsReauthentication))
+          }
+          onRefresh={() => void detail.refetch()}
+        />
       ) : null}
     </div>
   );

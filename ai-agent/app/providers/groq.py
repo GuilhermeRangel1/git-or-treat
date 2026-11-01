@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import httpx
 from pydantic import SecretStr, ValidationError
 
-from app.generation.prompts import SYSTEM_INSTRUCTION
+from app.generation.prompts import SYSTEM_INSTRUCTION, generation_contents
 from app.providers.protocols import (
     GeneratedAnswer,
     ModelProviderInvalidResponse,
@@ -56,14 +56,7 @@ class GroqModelAdapter:
         context: list[ConversationTurn],
         evidence: EvidenceResult,
     ) -> GeneratedAnswer:
-        contents = json.dumps(
-            {
-                "question": question,
-                "context": [turn.model_dump(mode="json") for turn in context],
-                "evidence": evidence.model_dump(mode="json"),
-            },
-            ensure_ascii=False,
-        )
+        contents = generation_contents(question, context, evidence)
         payload = {
             "model": self._model_name,
             "temperature": 0,
@@ -92,7 +85,10 @@ class GroqModelAdapter:
             raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
 
         try:
-            response_text = response.json()["choices"][0]["message"]["content"]
+            choice = response.json()["choices"][0]
+            if choice.get("finish_reason") not in (None, "stop"):
+                raise ValueError("geracao incompleta")
+            response_text = choice["message"]["content"]
             if not isinstance(response_text, str) or not response_text.strip():
                 raise ValueError("resposta vazia")
             return GeneratedAnswer.model_validate_json(response_text)

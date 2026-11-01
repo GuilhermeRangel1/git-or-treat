@@ -1,19 +1,25 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import analytics_options
+
 from app.api.v1.endpoints import (
+    ai,
+    analytics_options,
+    auth,
+    genai_audit,
     health,
+    inspections,
     kpis,
+    operations,
     panorama,
     revenue,
     ucs,
-    inspections,
-    operations,
-    ai,
 )
 
 api_router = APIRouter()
 api_router.include_router(analytics_options.router, prefix="/analytics", tags=["Catálogo analítico"])
 
+api_router.include_router(genai_audit.router, prefix="/internal", tags=["Interno"])
+
+api_router.include_router(auth.router, prefix="/auth", tags=["Autenticação"])
 api_router.include_router(health.router, tags=["Health"])
 api_router.include_router(kpis.router, prefix="/kpis", tags=["Indicadores"])
 api_router.include_router(panorama.router, prefix="/panorama", tags=["Panorama"])

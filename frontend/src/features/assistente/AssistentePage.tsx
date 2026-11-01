@@ -124,17 +124,21 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   const context = response.analysis_context;
   if (!context) return null;
   const details = [
-    context.metric && ["Métrica", context.metric],
+    context.metric && ["Métrica", context.metric_label ?? context.metric],
     context.unit && ["Unidade", context.unit],
     context.period && ["Período", context.period],
     ...Object.entries(context.filters).map(([key, value]) => [
-      key,
+      context.filter_labels?.[key] ?? key,
       formatFilterValue(value),
     ]),
   ].filter((detail): detail is [string, string] => Boolean(detail));
   if (details.length === 0) return null;
   return (
-    <dl className="mt-3 flex flex-wrap gap-2" aria-label="Recorte analisado">
+    <dl
+      className="mt-3 flex flex-wrap gap-2"
+      aria-label="Recorte analisado"
+      title={context.metric_definition ?? undefined}
+    >
       {details.map(([label, value]) => (
         <div
           key={label}
@@ -188,6 +192,11 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
         </section>
       )}
       <AnalysisContext response={response} />
+      {response.audit_reference && (
+        <p className="break-all text-xs text-muted">
+          Referência para conferência: {response.audit_reference}
+        </p>
+      )}
       {response.limitations.length > 0 && (
         <ul
           aria-label="Limitações"
@@ -453,9 +462,8 @@ export default function AssistentePage() {
                 O que você quer investigar?
               </h1>
               <p className="mx-auto max-w-[560px] text-sm leading-[22px] text-muted">
-                Explore consumo, receita e continuidade. As respostas desta
-                versão usam cenários artificiais e explicam o período, o recorte
-                e o fundamento.
+                Explore consumo, receita e continuidade. Cada resposta informa a
+                fonte, o período, o recorte e o fundamento disponível.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -477,7 +485,8 @@ export default function AssistentePage() {
             </div>
             <p className="flex items-start justify-center gap-2 text-center text-xs leading-5 text-muted">
               <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-              Os cenários são fictícios. A conversa fica apenas nesta tela e não
+              Os exemplos acima são demonstrativos. A fonte e as limitações
+              aparecem em cada resposta. A conversa fica apenas nesta tela e não
               é salva.
             </p>
           </div>
