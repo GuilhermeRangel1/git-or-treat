@@ -31,7 +31,7 @@ def create_user(username="reader", password="correct horse battery staple", perm
             id=str(uuid4()),
             username=username,
             password_hash=hash_password(password),
-            permissions=permissions or ["orders:read"],
+            permissions=["orders:read"] if permissions is None else permissions,
             is_active=active,
         )
         db.add(user)

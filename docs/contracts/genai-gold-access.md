@@ -67,3 +67,15 @@ A dependência analítica está pronta para a futura coordenação, que deve pas
 - Continuação após `57e1b96`: regressão reproduziu parâmetros de URL aceitos indevidamente; a fábrica agora bloqueia a sobreposição de credencial/destino e mantém TLS permitido. Prova PostgreSQL estendida confirma negação de uma função `SECURITY DEFINER` que lê usuários, reprova o provisionamento ao conceder EXECUTE dessa função a `PUBLIC` e verifica rotação de senha com rejeição do segredo antigo. Nenhum cenário usa registros ou credenciais reais.
 
 O PRD e o Trello mantêm os estados oficiais; configuração e uso com a fonte real, executor e evidência quantitativa continuam pendentes. Entrega versionada na branch `feat/genai-acesso-gold-por-sessao`; identidade e conexão no commit `8ef3c92`, com provisionamento, prova PostgreSQL e documentação na mesma sequência. Publicação acompanhada no cartão GENAI-05.
+
+## Fechamento das lacunas locais do GENAI-05 — 31/10/2026
+
+| Item do cartão | Implementação e prova disponíveis nesta branch | Pendência delimitada |
+| --- | --- | --- |
+| Credencial restrita e separação de carga/leitura | Provisionador SQL reproduzível, segredo exclusivo Backend, engine dedicado e migração/leitura com identidades distintas; prova PostgreSQL com papel real restrito | Instalar/rotacionar o segredo e conferir o provisionamento no ambiente Gold de destino; nenhuma credencial real foi criada por esta entrega |
+| Fontes e colunas aprovadas | Grants da matriz acima e testes de negação no PostgreSQL, incluindo UC, medidas individuais, tabelas operacionais, escrita e criação, mesmo contornando a aplicação | Validar a mesma configuração no ambiente autorizado; o teste descartável não representa a instalação real |
+| Escopo por consulta, duas identidades e contexto adulterado | Resolvedor relê autorização; teste HTTP alterna pessoa autorizada e pessoa sem permissões, mantendo tentativa de impersonação em pergunta, query string e cabeçalhos; sessão negada recebe 403 sem evidência e sem chamada GenAI | O consumidor deve chamar o callback na execução (GENAI-06). Não há cache Gold nesta branch; qualquer implementação futura deve revalidar antes de servir cache |
+
+A fixture compartilhada de autenticação passou a distinguir `permissions=None` (permissão padrão de teste) de `permissions=[]` (sem permissões). Antes, uma lista vazia criava acidentalmente uma pessoa leitora, impedindo provar esse caso com fidelidade.
+
+Verificação reproduzível em `backend/`, PostgreSQL 16 descartável configurado pelo script `scripts/prepare_test_postgres.sql`, com `TEST_POSTGRES_URL` e `TEST_GOLD_READER_ADMIN_URL` apontando exclusivamente para esses bancos: `python -m pytest -q -p no:cacheprovider --tb=short tests/test_genai_session_access.py tests/test_genai_session_postgres.py tests/test_gold_reader.py tests/test_order_sessions.py tests/test_ai_chat.py`: **31 aprovados**, um aviso preexistente Starlette/httpx. Imagem recebeu as dependências declaradas `pwdlib[argon2]` e `sqlglot>=30.23,<31`. Ruff de `test_genai_session_access.py`, compilação dos dois arquivos de teste alterados e diff-check passaram. Nenhum executor GENAI-06 foi incluído nesta branch.
