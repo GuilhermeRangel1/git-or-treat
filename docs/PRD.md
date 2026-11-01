@@ -2977,3 +2977,31 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Por orientação da pessoa usuária, novos desenvolvimentos, cenários e aceites GenAI usam Gold v2, seu dicionário, contrato físico e catálogo aprovados. Regra descoberta pelo AGENTS raiz e aplicada pela skill genai-gold; detalhes em [política de versões](agents/genai-gold.md#referência-obrigatória-gold-v2).
 - Gold v1 fica restrita à compatibilidade legada explícita. Versão de envelope HTTP v1 não é versão dos dados; fixtures sintéticas continuam úteis para CI e não certificam aceite real. Capacidades v2 insuficientes continuam bloqueadas, sem fallback.
 - Mudança documental de orientação e revisão, sem remoção de código ou alteração de estados funcionais IA. Sincronização no cartão transversal do quadro GenAI para todos os colaboradores.
+
+### 01/11/2026 — IA-03 / IA-05 — início GENAI-11: apresentação da conversa
+
+- Branch `feat/genai-assistente-gold`, base develop `b804b58`: resposta quantitativa usa rótulo de negócio do perfil, com fallback legível para perfis legados sem rótulo; IDs internos continuam nos contratos, não na frase gerada. Números e fundamentação continuam derivados das observações aprovadas.
+- Assistente preserva tokens/layout existentes, destaca a resposta e recolhe a referência auditável em “Como chegamos à resposta”. Origem é apresentada em linguagem de produto; IDs de fonte e chaves de filtro sem rótulo não são renderizados. Aviso de demonstração continua disponível nos fundamentos; limitações continuam visíveis.
+- Verificações: GenAI HTTP/contrato 64 passaram; interface/sessão 14 passaram; build, fronteiras e formatação passaram; lint sem erros, com aviso preexistente no AuthProvider. Testes usam dados controlados; sem nova jornada visual ou aceite Gold real nesta fatia.
+- GENAI-11 em andamento: revisão visual nos dois temas/mobile, jornada real, casos de erro/concorrência e demais critérios ainda precisam ser conferidos. IA-03/IA-05 mantêm seus estados oficiais. Alterações locais sem commit/push.
+
+
+### 01/11/2026 — IA-03 / IA-05 — GENAI-11: resposta legível e robustez do Assistente
+
+- Evolução da fatia anterior: moeda e meses legíveis, séries por observação, lote e definição nos fundamentos, aviso demonstrativo sempre visível e filtros sem rótulo com indicação neutra. Campo opcional `analysis_context.batch_reference` alinhado nos três consumidores e no contrato público.
+- Rascunho preservado em falhas, trava de envio, prazo no cliente, retorno de foco, composição de texto por teclado e movimento reduzido. HTTP 409 descarta respostas, contextos e retentativas anteriores; recusas/erros não autorizam contexto. Conteúdo é renderizado como texto seguro.
+- Verificações: 64 GenAI, 97 Backend e 31 frontend passaram; Ruff, build, formatação e fronteiras passaram. Lint sem erros, com aviso preexistente do AuthProvider. Pergunta real com Gemini e Gold v2 em Docker reconciliada por SQL independente; contas temporárias removidas.
+- GENAI-11: 7/10 critérios técnicos comprovados. Pendentes revisão visual/mobile/acessibilidade e matriz completa de ciclo de vida. Nova tentativa de navegador confirmou uso local desativado no Work; Firefox também não suporta a política de URLs da automação. IA-03/IA-05 mantêm os estados oficiais. [Evidência e limites](plans/2026-11-01-genai11-assistente-gold.md). Alterações sem commit/push.
+
+
+### 01/11/2026 — IA-03 / IA-05 — GENAI-11: jornada visual e isolamento de respostas
+
+- Navegador integrado acessível na nova tentativa. Jornada autenticada com Gemini e Gold v2 conferida em desktop/mobile (390 × 844), nos dois temas: resposta, fundamentos/lote/auditoria, recusa e esclarecimento. Teclado, retorno de foco, rolagem e ausência de transbordamento horizontal observados. Conta temporária desconectada e removida; viewport restaurado.
+- Contraste de recusa no escuro corrigido com token semântico existente; aviso demonstrativo também usa cor própria para texto. Testes da tela comprovam descarte de resposta atrasada após troca de identidade e rota, dupla submissão e contexto limpo na nova conversa.
+- Frontend: 33 testes, build, formatação e fronteiras passaram; lint sem erros, com aviso preexistente AuthProvider. Demais verificações e reconciliação real constam na [evidência GENAI-11](plans/2026-11-01-genai11-assistente-gold.md).
+- GENAI-11 em 9/10: último item de acessibilidade permanece aberto somente pelo exercício de movimento reduzido ativo no navegador. A preferência estava desligada nesta sessão; regra implementada sem declarar aceite dessa prova. IA-03/IA-05 mantêm os estados oficiais; alterações sem commit/push.
+
+
+### 01/11/2026 — IA-03 / IA-05 — commits GENAI-11
+
+- Geração e contratos registrados em `4d0b985`; interface, robustez e testes em `e835d8e`, na branch `feat/genai-assistente-gold`. Evidência documental acompanha a mesma entrega. GENAI-11 mantém 9/10; movimento reduzido ativo continua pendente. Nenhuma credencial ou resultado privado integra os commits.
