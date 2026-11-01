@@ -2952,3 +2952,22 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - GENAI-04: cinco pedidos sem suporte pela matriz PostgreSQL pública esclarecem/recusam sem síntese ou número: pagamento, UC fora do escopo, janela relativa incompleta, recorte diário e ranking. Prova integrada existente: 1 passou em 79,08 s. A matriz integral do cartão continua pendente.
 - Após os rótulos opcionais: regressão completa GenAI 3.719 passaram/4 skips; seleção Backend de sessão, PostgreSQL, auditoria, chat, cliente e envelopes: 130 passaram. Primeiras duas falhas de expectativa do contrato demonstrativo foram corrigidas e não contam como aceite. Evidências detalhadas, tentativas anteriores e limites em [consolidação](contracts/genai-consolidation.md).
 - Estados oficiais IA e DE preservados. GENAI-02 ainda depende de regras dimensionais/controles aprovados por domínio; GENAI-04 exige matriz integral; GENAI-06 mantém cláusula de custo/cancelamento/concorrência.
+
+### 01/11/2026 — IA-01 / IA-02 / IA-06 — ampliação da matriz pública GENAI-04
+
+- Reaproveitado o endpoint e o teste PostgreSQL existentes para conferir faturamento com grafia/correção de município, classe residencial, GD e zero, com valores e planos esperados independentes. Múltiplas cidades, unidade incompatível, município desconhecido e GD contraditória esclarecem; nulo esclarece após execução. Histórico não autoriza a consulta após revogação da sessão.
+- Fixture alinhada ao dicionário v2 para classe e GD; sem alterar dados reais, grants ou prontidão de produção. Tentativas falhas e limites registrados em [consolidação](contracts/genai-consolidation.md).
+- Verificações: `python -m pytest -q -p no:cacheprovider --tb=short tests/test_genai_session_postgres.py`, PostgreSQL 16 descartável: 1 passou em 124,11 s; Ruff E4/E7/E9/F e diff-check passaram. GENAI-04: 15/20, item de grafia/ambiguidade/zero/período parcial/suporte comprovado pela interface pública. Estados oficiais IA preservados; matriz integral permanece pendente.
+
+### 01/11/2026 — IA-01 / IA-03 / IA-06 — aceite local do lote GENAI-02
+
+- `observe_domain_readiness` reexecutado em leitura na publicação PostgreSQL do portal: C01/C02/C03/C04/C10/C11/C12/C13/C14/C15 passaram. Saída sanitizada contém somente estados e informação de cobertura; não foi enviado dado a modelo ou serviço externo.
+- A pessoa usuária aprovou expressamente as regras documentadas e esses controles para esta entrega local após conhecer os resultados. Aceite e impacto registrados no dicionário; origem atual permanece base aceita e tolerâncias existentes foram preservadas.
+- GENAI-02: 11/11 itens técnicos; conferência do lote local concluída. Atendimento mensal e DEC/FEC continuam sem cobertura certificada no recorte observado; não houve liberação automática de capacidades ou mudança na configuração runtime. Requisitos oficiais IA mantêm seus estados. Evidência em [consolidação](contracts/genai-consolidation.md).
+
+### 01/11/2026 — IA-01 / IA-02 / IA-03 / IA-06 — fechamento técnico GENAI-04/06
+
+- GENAI-04: 20/20. Matriz pública com bairro/alimentador, classe/GD, contexto herdado/revogado, zero/nulo/lacuna e último ano com doze competências físicas. Comparações/ranking sem suporte esclarecem. Corrigido filtro de classe indevido originado do fragmento de um identificador de alimentador; menção separada e ambiguidade continuam protegidas.
+- GENAI-06: 10/10. Backend reaplica teto temporal do perfil antes da conexão e no executor; plano adulterado não executa SQL. Confirmados limites efetivos de memória/temporários/tempo/conexões e cancelamento PostgreSQL 57014 com rollback e recuperação. Benchmark operacional e cancelamento imediato por desconexão HTTP não são presumidos nem acrescentados ao critério do cartão.
+- Verificações: GenAI completo 3.721 passaram/4 skips; Backend com PostgreSQL descartável e seleção de executor/plano/metadados/cliente/deadline 109 passaram; fronteira temporal ajustada 9 passaram; Ruff e diff-check passaram. Revisões independentes de padrões/especificação sem bloqueios após os ajustes. [Matriz, comandos, resultados e limites](contracts/genai-consolidation.md).
+- GENAI-02/04/06 concluídos no escopo técnico local. Requisitos oficiais IA preservam seus estados; cobertura e medidas não comprovadas continuam bloqueadas. Alterações desta continuação ainda sem commit/push.

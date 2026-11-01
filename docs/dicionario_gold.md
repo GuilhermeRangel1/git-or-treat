@@ -1,5 +1,13 @@
 # Dicionário de dados — camada Gold
 
+## Aceite local das regras e controles — 01/11/2026
+
+A pessoa usuária aprovou expressamente, nesta entrega local, as regras documentadas neste dicionário e os controles C01/C02/C03/C04/C10/C11/C12/C13/C14/C15 após nova execução somente leitura no PostgreSQL Gold carregado. Todos passaram; a origem atual permanece a base aceita, sem nova certificação Silver. A aprovação não altera fórmulas, tolerâncias existentes ou permissões e não é atribuída a outros integrantes.
+
+O impacto continua sendo: chaves/grãos e cardinalidades preservados pelo contrato v2; dimensões do cadastro atual, sem histórico SCD presumido; sentinelas e estornos preservam incerteza e não comprovam recebimento; energia medida não vira energia faturada; estimativa individual não homologada permanece indisponível. Os controles e os casos independentes de zero/nulo/ausência/período parcial estão relacionados em [prontidão Gold](gold-readiness.md), com execução e limites em [consolidação](contracts/genai-consolidation.md).
+
+Na competência inspecionada, a cobertura de receita, bairro e consumo dispõe de períodos fechados; atendimento mensal e DEC/FEC não dispõem dessa certificação. A aprovação dos controles não promove essas coberturas nem libera medidas candidatas: capacidades sem evidência suficiente continuam bloqueadas. Este aceite conclui a conferência técnica do lote GENAI-02 no ambiente local, sem declarar aceite integral dos requisitos oficiais IA.
+
 **Escopo:** contrato conceitual e regras implementadas nas quinze projeções analíticas/históricas, no cadastro de titular restrito e na tabela de controle `controle_gold`. O documento descreve código e evidências disponíveis; não substitui a validação física do Delta, aceite do portal/IA ou homologação regulatória.
 
 **Fontes:** `data-engineering/notebook/Silver_to_gold.ipynb`, notebook de exportação, contrato Silver em `docs/services/data-engineering.md`, PR #36 e manifestos/CSV locais disponíveis.
