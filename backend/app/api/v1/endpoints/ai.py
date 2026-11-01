@@ -14,7 +14,7 @@ from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
     get_question_gold_resources,
 )
-from app.repositories.gold_publication import GoldPublicationChanged
+from app.repositories.gold_publication import GoldPublicationChanged, GoldPublicationUnavailable
 from app.repositories.panorama import PanoramaRepository, get_panorama_repository
 from app.schemas.ai import (
     AIQueryRequest,
@@ -53,6 +53,14 @@ class AIQuestionRoute(APIRoute):
 
     def __init__(self, *args, **kwargs):
         kwargs["responses"] = {
+            401: {
+                "model": AIQuestionErrorResponse,
+                "description": "Sessão individual ausente ou inválida.",
+            },
+            403: {
+                "model": AIQuestionErrorResponse,
+                "description": "Consulta não autorizada pelo acesso atual.",
+            },
             422: {
                 "model": AIQuestionErrorResponse,
                 "description": "Solicitação fora do contrato v1.",
@@ -93,6 +101,12 @@ class AIQuestionRoute(APIRoute):
                 )
 
             except HTTPException as exc:
+                if exc.status_code in {401, 403}:
+                    return _question_error(
+                        request, status_code=exc.status_code,
+                        code="access_denied", retryable=False,
+                        message="A consulta não está autorizada com o acesso atual.",
+                    )
                 if exc.status_code != 503:
                     raise
                 return _question_error(
@@ -193,6 +207,11 @@ async def ask_genai_question(
         return _question_error(
             request, status_code=409, code="invalid_context", retryable=True,
             message="A publicação Gold mudou. Refaça a pergunta.",
+        )
+    except GoldPublicationUnavailable:
+        return _question_error(
+            request, status_code=503, code="service_unavailable", retryable=False,
+            message="A publicação Gold não está disponível para esta consulta.",
         )
     except SQLAlchemyError:
         return _question_error(

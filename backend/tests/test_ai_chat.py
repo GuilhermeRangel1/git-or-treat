@@ -266,3 +266,85 @@ def test_genai_client_classifies_timeout_network_and_invalid_responses(
 
     with pytest.raises(expected_error):
         asyncio.run(run())
+
+@pytest.mark.parametrize('status', [401, 403])
+def test_gold_authorization_dependency_uses_safe_chat_contract(client, status):
+    from fastapi import HTTPException
+
+    from app.core.genai_gold_database import get_question_gold_resources
+
+    def denied():
+        raise HTTPException(status, 'private identity and scope detail')
+
+    previous = app.dependency_overrides.get(get_question_gold_resources)
+    app.dependency_overrides[get_question_gold_resources] = denied
+    try:
+        response = client.post('/api/v1/ai/questions', json={'question': 'Qual a receita?'})
+    finally:
+        if previous is None:
+            app.dependency_overrides.pop(get_question_gold_resources, None)
+        else:
+            app.dependency_overrides[get_question_gold_resources] = previous
+    assert response.status_code == status
+    body = response.json()
+    assert body['error'] == {'code': 'access_denied', 'retryable': False}
+    assert body['correlation_id'] == response.headers['x-correlation-id']
+    assert 'private' not in response.text
+    assert 'answer' not in body
+
+def test_gold_audit_failure_blocks_public_question_before_planning(client, monkeypatch):
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.core.genai_gold_database import get_question_gold_resources
+    from app.services.genai_audit import AuditStore
+    from tests.support.database import test_engine
+
+    gateway = FakeQuestionGateway()
+    monkeypatch.setattr(app.state, 'genai_question_client', gateway, raising=False)
+
+    def unavailable(self, *args, **kwargs):
+        raise SQLAlchemyError('private audit storage detail')
+
+    monkeypatch.setattr(AuditStore, 'record', unavailable)
+    previous = app.dependency_overrides.get(get_question_gold_resources)
+    app.dependency_overrides[get_question_gold_resources] = lambda: (test_engine, lambda: None)
+    try:
+        response = client.post('/api/v1/ai/questions', json={'question': 'Qual a receita?'})
+    finally:
+        if previous is None:
+            app.dependency_overrides.pop(get_question_gold_resources, None)
+        else:
+            app.dependency_overrides[get_question_gold_resources] = previous
+    assert response.status_code == 503
+    body = response.json()
+    assert body['error'] == {'code': 'service_unavailable', 'retryable': False}
+    assert body['correlation_id'] == response.headers['x-correlation-id']
+    assert 'private' not in response.text
+    assert 'answer' not in body
+
+@pytest.mark.parametrize('failure_name', ['GoldPublicationUnavailable', 'GoldPublicationInvalid'])
+def test_gold_unavailable_publication_returns_safe_chat_error(client, monkeypatch, failure_name):
+    from app.api.v1.endpoints import ai
+    from app.core.genai_gold_database import get_question_gold_resources
+    from app.repositories import gold_publication
+    from tests.support.database import test_engine
+
+    async def unavailable(*args, **kwargs):
+        raise getattr(gold_publication, failure_name)('private publication detail')
+
+    monkeypatch.setattr(ai, 'answer_gold_question', unavailable)
+    previous = app.dependency_overrides.get(get_question_gold_resources)
+    app.dependency_overrides[get_question_gold_resources] = lambda: (test_engine, lambda: None)
+    try:
+        response = client.post('/api/v1/ai/questions', json={'question': 'Qual a receita?'})
+    finally:
+        if previous is None:
+            app.dependency_overrides.pop(get_question_gold_resources, None)
+        else:
+            app.dependency_overrides[get_question_gold_resources] = previous
+    assert response.status_code == 503
+    body = response.json()
+    assert body['error'] == {'code': 'service_unavailable', 'retryable': False}
+    assert body['correlation_id'] == response.headers['x-correlation-id']
+    assert 'answer' not in body
+    assert 'private' not in response.text
