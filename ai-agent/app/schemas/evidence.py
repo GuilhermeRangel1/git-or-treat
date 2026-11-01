@@ -15,6 +15,7 @@ from pydantic import (
 )
 
 from app.schemas.analysis import LogicalIdentifier
+from app.schemas.physical_catalog import PhysicalCatalogRef
 from app.schemas.read_plan import ReadFilter, ReadWindow
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
 
@@ -110,12 +111,15 @@ class EvidenceProvenance(BaseModel):
     batch_ref: GoldBatchRef | None = None
     quality: GoldEvidenceQuality | None = None
     published_windows: PublishedWindows | None = None
+    physical_catalog: PhysicalCatalogRef | None = None
 
     @model_serializer(mode="wrap")
-    def omit_absent_windows(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
+    def omit_absent_metadata(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
         payload = handler(self)
         if self.published_windows is None:
             payload.pop("published_windows", None)
+        if self.physical_catalog is None:
+            payload.pop("physical_catalog", None)
         return payload
 
 

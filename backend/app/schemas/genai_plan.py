@@ -187,3 +187,23 @@ class LogicalReadPlan(BaseModel):
         }:
             raise ValueError("ordenação exige métrica ou dimensão declarada")
         return self
+
+
+def normalized_filters(filters: tuple[ReadFilter, ...]) -> list[dict[str, object]]:
+    """Forma canônica para chaves de cache; espelha a GenAI e não altera o fingerprint.
+
+    A ordem dos filtros e dos valores de ``in`` não muda o recorte consultado.
+    """
+
+    def value_key(value: object) -> tuple[str, str]:
+        return (type(value).__name__, json.dumps(value))
+
+    normalized = []
+    for item in sorted(filters, key=lambda current: current.dimension_id):
+        values = list(item.values)
+        if item.operator is FilterOperator.IN:
+            values = sorted(values, key=value_key)
+        normalized.append(
+            {"dimension_id": item.dimension_id, "operator": item.operator.value, "values": values}
+        )
+    return normalized

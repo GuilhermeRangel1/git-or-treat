@@ -4,17 +4,19 @@ from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
-from pydantic import SerializerFunctionWrapHandler, model_serializer
 from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
+    SerializerFunctionWrapHandler,
     StrictStr,
+    model_serializer,
     model_validator,
 )
 
 from app.schemas.ai import AIEvidenceReference
+from app.schemas.genai_physical_catalog import PhysicalCatalogRef
 from app.schemas.genai_plan import (
     ContractVersion,
     LogicalIdentifier,
@@ -93,12 +95,15 @@ class EvidenceProvenance(BaseModel):
     batch_ref: GoldBatchRef | None = None
     quality: GoldEvidenceQuality | None = None
     published_windows: PublishedWindows | None = None
+    physical_catalog: PhysicalCatalogRef | None = None
 
     @model_serializer(mode="wrap")
-    def omit_absent_windows(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
+    def omit_absent_metadata(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
         payload = handler(self)
         if self.published_windows is None:
             payload.pop("published_windows", None)
+        if self.physical_catalog is None:
+            payload.pop("physical_catalog", None)
         return payload
 
 

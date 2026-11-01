@@ -181,3 +181,11 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 ## Encerramento técnico local autorizado — 01/11/2026
 
 O escopo dos cartões 10A/10B foi explicitamente revisado pela pessoa usuária para encerrar a entrega técnica com pendências transferidas: 10/10 no escopo local revisado. Os critérios originais não são declarados integralmente satisfeitos. Decisão e mapa de transferência em `docs/contracts/genai-domain-local-acceptance.md`, mantido pela branch 10A; pendências em https://trello.com/c/4XzZJTsu . Estados dos requisitos IA e classes dos 57 cenários preservados. Nova tentativa de navegador bloqueada; jornada visual pendente, sem novo aceite visual.
+
+
+### 01/11/2026 — integração local da cobertura Gold com invalidação de servidor
+
+- Combinação do código do PR #97 com o PR #102 na própria branch 10B. Schemas de evidência preservam simultaneamente janelas publicadas e catálogo físico; executor mantém linhagem preço/volume e erro seguro de schema incompatível. Nenhum commit funcional foi copiado por cherry-pick.
+- Verificações observadas: GenAI 3.998 passaram/3 skips; Backend 887 passaram/105 skips; PostgreSQL descartável da invalidação 4 passaram. Ruff dos três arquivos resolvidos e git diff --check passaram.
+- Prova curta Gold local com runtime atual e modelo controlado: FAT-09, FAT-11, CON-07 e CON-08 passaram sem divergências; relatório privado 20261101T203108_250684Z, contas temporárias removidas. Não foi repetida a matriz completa nem feita chamada Gemini adicional.
+- Requisitos oficiais e limitações de cobertura preservados. Integração remota da 10B depende do merge #97 e do CI na base final.

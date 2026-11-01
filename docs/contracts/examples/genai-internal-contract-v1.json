@@ -949,6 +949,123 @@
         "remaining_timeout_ms": 35000,
         "dimension_value_coverage": []
       }
+    },
+    {
+      "id": "planned-physical-catalog-gold-v2",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "response": null,
+        "physical_catalog": {
+          "mapping_version": "gold-catalog-v2",
+          "physical_schema": "gold_v2",
+          "dictionary_version": "gold-csv-v2",
+          "digest": "7ce3467c0a86d7fc39c553ad95d25ea783832a7575e8ff7d3a9fc2721f05bc59"
+        }
+      }
+    },
+    {
+      "id": "lookup-available-physical-catalog-gold-v2",
+      "kind": "lookup",
+      "payload": {
+        "contract_version": "v1",
+        "status": "available",
+        "evidence": {
+          "contract_version": "v1",
+          "reference": {
+            "source": "gold_local:9b1e",
+            "description": "Energia faturada por município e competência.",
+            "is_demo": false
+          },
+          "records": [
+            {
+              "valor": 1234567.8,
+              "unidade": "kWh",
+              "competencia": "2025-03",
+              "municipio": "Recife"
+            }
+          ],
+          "provenance": {
+            "source_id": "gold.local",
+            "reference_source": "gold_local:9b1e",
+            "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+            "catalog_version": "v1",
+            "metric_id": "energia_faturada",
+            "unit": "kWh",
+            "window": {
+              "kind": "bounded",
+              "phrase": null,
+              "start": "2025-03-01",
+              "end": "2025-03-31",
+              "granularity": "month"
+            },
+            "filters": [
+              {
+                "dimension_id": "municipio",
+                "operator": "eq",
+                "values": [
+                  "Recife"
+                ]
+              }
+            ],
+            "dimension_ids": [
+              "municipio"
+            ],
+            "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+            "quality": {
+              "readiness_version": "gold-readiness-v2",
+              "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+              "lot_state": "partial",
+              "available_capability_ids": [
+                "faturamento.receita"
+              ]
+            },
+            "physical_catalog": {
+              "mapping_version": "gold-catalog-v2",
+              "physical_schema": "gold_v2",
+              "dictionary_version": "gold-csv-v2",
+              "digest": "7ce3467c0a86d7fc39c553ad95d25ea783832a7575e8ff7d3a9fc2721f05bc59"
+            }
+          }
+        },
+        "message": null,
+        "limitations": []
+      }
     }
   ],
   "invalid": [
@@ -3540,6 +3657,252 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+      }
+    },
+    {
+      "id": "physical-catalog-without-plan",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "0123456789abcdef0123456789abcdef",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Mensagem de teste.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "physical_catalog": {
+          "mapping_version": "gold-catalog-v2",
+          "physical_schema": "gold_v2",
+          "dictionary_version": "gold-csv-v2",
+          "digest": "7ce3467c0a86d7fc39c553ad95d25ea783832a7575e8ff7d3a9fc2721f05bc59"
+        }
+      }
+    },
+    {
+      "id": "physical-catalog-mapping-v1",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "response": null,
+        "physical_catalog": {
+          "mapping_version": "gold-catalog-v1",
+          "physical_schema": "gold_v2",
+          "dictionary_version": "gold-csv-v2",
+          "digest": "7ce3467c0a86d7fc39c553ad95d25ea783832a7575e8ff7d3a9fc2721f05bc59"
+        }
+      }
+    },
+    {
+      "id": "physical-catalog-schema-v1",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "response": null,
+        "physical_catalog": {
+          "mapping_version": "gold-catalog-v2",
+          "physical_schema": "gold",
+          "dictionary_version": "gold-csv-v2",
+          "digest": "7ce3467c0a86d7fc39c553ad95d25ea783832a7575e8ff7d3a9fc2721f05bc59"
+        }
+      }
+    },
+    {
+      "id": "physical-catalog-extra-field",
+      "kind": "plan_response",
+      "payload": {
+        "contract_version": "v1",
+        "correlation_id": "0123456789abcdef0123456789abcdef",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "faturamento",
+          "metric_id": "energia_faturada",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+        "response": null,
+        "physical_catalog": {
+          "mapping_version": "gold-catalog-v2",
+          "physical_schema": "gold_v2",
+          "dictionary_version": "gold-csv-v2",
+          "digest": "7ce3467c0a86d7fc39c553ad95d25ea783832a7575e8ff7d3a9fc2721f05bc59",
+          "formula": "privada"
+        }
+      }
+    },
+    {
+      "id": "physical-catalog-invalid-digest",
+      "kind": "lookup",
+      "payload": {
+        "contract_version": "v1",
+        "status": "available",
+        "evidence": {
+          "contract_version": "v1",
+          "reference": {
+            "source": "gold_local:9b1e",
+            "description": "Energia faturada por município e competência.",
+            "is_demo": false
+          },
+          "records": [
+            {
+              "valor": 1234567.8,
+              "unidade": "kWh",
+              "competencia": "2025-03",
+              "municipio": "Recife"
+            }
+          ],
+          "provenance": {
+            "source_id": "gold.local",
+            "reference_source": "gold_local:9b1e",
+            "plan_fingerprint": "63967671b98e3f386d60ef6449fef98ae4de3fe17514fbf89cb7dd450fa87e6a",
+            "catalog_version": "v1",
+            "metric_id": "energia_faturada",
+            "unit": "kWh",
+            "window": {
+              "kind": "bounded",
+              "phrase": null,
+              "start": "2025-03-01",
+              "end": "2025-03-31",
+              "granularity": "month"
+            },
+            "filters": [
+              {
+                "dimension_id": "municipio",
+                "operator": "eq",
+                "values": [
+                  "Recife"
+                ]
+              }
+            ],
+            "dimension_ids": [
+              "municipio"
+            ],
+            "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+            "quality": {
+              "readiness_version": "gold-readiness-v2",
+              "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+              "lot_state": "partial",
+              "available_capability_ids": [
+                "faturamento.receita"
+              ]
+            },
+            "physical_catalog": {
+              "mapping_version": "gold-catalog-v2",
+              "physical_schema": "gold_v2",
+              "dictionary_version": "gold-csv-v2",
+              "digest": "nao-hex"
+            }
+          }
+        },
+        "message": null,
+        "limitations": []
       }
     }
   ]

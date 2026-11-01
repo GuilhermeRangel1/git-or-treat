@@ -10,6 +10,7 @@ from math import isfinite
 
 from sqlalchemy import case, exists, func, literal, or_, select, text, union_all
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import DBAPIError
 
 from app.models.gold_v2 import TABLES
 from app.schemas.genai_evidence import (
@@ -20,15 +21,26 @@ from app.schemas.genai_evidence import (
     GoldEvidenceQuality,
 )
 from app.schemas.genai_internal import AccessScope
-from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus, WindowKind
+from app.schemas.genai_plan import (
+    LogicalReadPlan,
+    QuestionPlanStatus,
+    WindowKind,
+    normalized_filters,
+)
 from app.services.genai_client import GenAIResponseInvalid
 from app.services.genai_plan import validate_gold_genai_plan
 from app.services.genai_planning import GoldPlanningResult, _admit_plan
-from app.services.gold_catalog import load_gold_catalog
+from app.services.gold_catalog import (
+    GoldCatalogIncompatible,
+    gold_physical_catalog,
+    load_gold_catalog,
+)
 
 MAX_EVIDENCE_ROWS = 100
 MAX_EVIDENCE_BYTES = 16_384
 SQL_STATEMENT_TIMEOUT = "5000ms"
+# undefined_column, undefined_table, undefined_function, datatype_mismatch
+_SCHEMA_DRIFT_SQLSTATES = frozenset({"42703", "42P01", "42883", "42804"})
 
 _DIMENSION_FIELDS = {
     "geography.municipality": "municipality",
@@ -313,7 +325,8 @@ def execute_gold_plan(
         raise GoldExecutionDenied
     try:
         source = _admit_plan(plan, current_scope)
-    except (GenAIResponseInvalid, ValueError):
+    except (GenAIResponseInvalid, GoldCatalogIncompatible, ValueError):
+        # Após a admissão no planejamento, métrica fora do catálogo é adulteração.
         raise GoldExecutionDenied from None
     catalog = load_gold_catalog()
     metric = next((item for item in catalog.metrics if item.metric_id == plan.metric_id), None)
@@ -332,7 +345,13 @@ def execute_gold_plan(
         )
         if resolve_scope() != current_scope:
             raise GoldExecutionDenied
-        rows = connection.execute(statement).mappings().all()
+        try:
+            rows = connection.execute(statement).mappings().all()
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) in _SCHEMA_DRIFT_SQLSTATES:
+                # Coluna/tabela renomeada ou tipo alterado: incompatível, não transitório.
+                raise GoldCatalogIncompatible from None
+            raise
         if metric.aggregation == "published_decomposition":
             from app.repositories.gold_publication import publication_lineage
             origin = publication_lineage(connection, planned.publication.batch_ref)
@@ -393,6 +412,7 @@ def execute_gold_plan(
         batch_ref=planned.publication.batch_ref,
         quality=quality,
         published_windows=published,
+        physical_catalog=gold_physical_catalog(),
     )
     cache_payload = json.dumps(
         {
@@ -402,8 +422,14 @@ def execute_gold_plan(
             "operations": sorted(current_scope.allowed_operations),
             "metrics": sorted(current_scope.allowed_metric_ids),
             "dimensions": sorted(current_scope.allowed_dimension_ids),
-            "plan": plan.fingerprint(),
+            # Filtros normalizados só na chave; o fingerprint do plano não muda.
+            "plan": {
+                **plan.model_dump(mode="json"),
+                "filters": normalized_filters(plan.filters),
+            },
             "batch": planned.publication.batch_ref,
+            "catalog": gold_physical_catalog().model_dump(mode="json"),
+            "readiness": quality.readiness_version if quality is not None else None,
         },
         sort_keys=True,
         separators=(",", ":"),
