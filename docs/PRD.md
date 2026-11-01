@@ -2832,3 +2832,9 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Serviço de reprodução reutiliza o executor e exige planejamento original autorizado, escopo atual, fingerprint, lote e template compatíveis. A prova PostgreSQL confirma valor 12 com SQL fixo independente e reexecução autorizada; recusa escopo revogado. Consumidor administrativo operacional de reprodução ainda pendente.
 - Seleção Backend sessão PostgreSQL/auditoria/executor/chat: 23 aprovados, um aviso preexistente. Comandos e limites em docs/contracts/genai-audit.md; Ruff dirigido passou.
 - GENAI-08 passa a 7/10, sem alterar estados oficiais IA. Restam aceite do controle independente/consumidor administrativo, critério integral de trilha reproduzível e privacidade em todas as superfícies. Continuação local sem commit/push.
+
+### 01/11/2026 — IA-05 / IA-06 — auditoria durável sem bloquear o loop GenAI
+
+- Eventos assíncronos aguardam a confirmação do sink em thread; etapas síncronas do planejador que emitem eventos usam a mesma fronteira de execução. Não há disparo desacompanhado da confirmação de auditoria.
+- Provas de auditoria lenta conferem que o loop segue disponível e fonte/modelo não avançam antes da confirmação; falha em cada estágio mantém recusa. O teste de cancelamento agora aguarda o início real da fonte antes de cancelar.
+- Verificações: suíte GenAI completa, 3.713 passaram/4 skips; seleção auditoria/núcleo reutilizável, 45 passaram; Ruff dos arquivos alterados passou. Limites de cancelamento de I/O em thread documentados no contrato. Estados oficiais preservados.

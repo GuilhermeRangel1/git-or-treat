@@ -80,3 +80,9 @@ O script existente `backend/scripts/genai_audit.py` agora aceita `--verify-refer
 Prova dirigida no lote Gold v2 local: sessão temporária com permissão `orders:read` → plano determinístico → executor Gold → evento sanitizado gravado pelo papel operacional → `genai_audit.py --verify-reference` → reprodução aprovada. `SUM(receita_total_reais)` em SQL independente conferiu com o resultado; sessão inválida foi recusada sem saída de evento. A conta/sessão temporária foi removida depois da prova; nenhuma tabela Gold foi alterada. O comando `python -m pytest -q -p no:cacheprovider tests/test_genai_audit.py` passou: **3 aprovados**, um aviso preexistente Starlette/httpx. A verificação operacional do papel confirmou `SELECT`/`DELETE` apenas na tabela de auditoria, sem `INSERT`, leitura de usuários ou `CREATE/TEMP`.
 
 GENAI-08 avança a **8/10**: a trilha agora pode ser consultada e reproduzida por operador autorizado com uma identidade atual, plano privado e controle real independente. Permanecem abertos: vínculo dessa amostra com a resposta pública HTTP do fluxo completo e privacidade integral comprovada em API, contexto, histórico, logs, traces e relatórios. O smoke usou plano determinístico, sem provedor real; não conclui IA-03/IA-06 nem GENAI-08 integralmente.
+
+### Confirmação durável sem bloquear o processamento assíncrono
+
+A fronteira `EventTrace.emit_async` aguarda o sink síncrono em thread. Planejamento, consulta, síntese e insights aguardam a confirmação antes de avançar; falha mantém a resposta Gold bloqueada. Cancelar a espera não interrompe I/O já iniciado na thread; o adaptador HTTP mantém seu timeout de 2 segundos.
+
+Verificação da revisão: suíte GenAI completa com **3.713 aprovados e 4 ignorados**, incluindo auditoria lenta sem bloquear o loop, confirmação antes do próximo estágio, indisponibilidade e cancelamento após início efetivo da fonte. Ruff dos arquivos alterados passou.

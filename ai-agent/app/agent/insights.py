@@ -77,7 +77,7 @@ class ScreenInsightOrchestrator:
             require_durable=self._require_durable_audit,
         )
         try:
-            trace.emit(EventStage.REQUEST, EventCode.STARTED, EventOutcome.STARTED)
+            await trace.emit_async(EventStage.REQUEST, EventCode.STARTED, EventOutcome.STARTED)
             response = await self._execution.run(
                 lambda budget: self._generate_with_budget(screen, access_context, budget, trace)
             )
@@ -85,7 +85,9 @@ class ScreenInsightOrchestrator:
             return self._audit_failure(screen)
         except asyncio.CancelledError:
             with suppress(AuditUnavailable):
-                trace.emit(EventStage.RESPONSE, EventCode.CANCELLED, EventOutcome.CANCELLED)
+                await trace.emit_async(
+                    EventStage.RESPONSE, EventCode.CANCELLED, EventOutcome.CANCELLED,
+                )
             raise
         except ExecutionLimitExceeded:
             failure = map_failure(FailureCode.EXECUTION_LIMIT)
@@ -97,7 +99,7 @@ class ScreenInsightOrchestrator:
                 expose_context=access_context is not None,
             )
         try:
-            trace.emit(
+            await trace.emit_async(
                 EventStage.RESPONSE,
                 EventCode.COMPLETED
                 if response.status is QuestionStatus.ANSWERED
@@ -139,7 +141,7 @@ class ScreenInsightOrchestrator:
         try:
             self._access_policy.authorize_insight(access_context)
         except EvidenceAccessDenied:
-            trace.emit(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
+            await trace.emit_async(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
             failure = map_failure(FailureCode.ACCESS_DENIED)
             return self._response(
                 screen,
@@ -148,10 +150,10 @@ class ScreenInsightOrchestrator:
                 error=failure.error,
                 expose_context=False,
             )
-        trace.emit(EventStage.POLICY, EventCode.ALLOWED, EventOutcome.SUCCESS)
+        await trace.emit_async(EventStage.POLICY, EventCode.ALLOWED, EventOutcome.SUCCESS)
         trace.evidence_ref = safe_reference_id(screen.reference.source)
         trace.row_count = len(screen.observations)
-        trace.emit(EventStage.EVIDENCE, EventCode.AVAILABLE, EventOutcome.SUCCESS)
+        await trace.emit_async(EventStage.EVIDENCE, EventCode.AVAILABLE, EventOutcome.SUCCESS)
         context_id = token_hex(32)
         records: list[dict[str, object]] = [
             {
@@ -178,7 +180,7 @@ class ScreenInsightOrchestrator:
         )
         try:
             trace.model_calls += 1
-            trace.emit(EventStage.MODEL, EventCode.STARTED, EventOutcome.STARTED)
+            await trace.emit_async(EventStage.MODEL, EventCode.STARTED, EventOutcome.STARTED)
             generated_result = await budget.model(
                 lambda: self._model_adapter.generate(INSIGHT_TASK, [], evidence)
             )
@@ -187,9 +189,9 @@ class ScreenInsightOrchestrator:
                 if isinstance(generated_result, GeneratedAnswer)
                 else generated_result
             )
-            trace.emit(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
+            await trace.emit_async(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
         except ModelProviderUnavailable:
-            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             failure = map_failure(FailureCode.MODEL_UNAVAILABLE)
             return self._response(
                 screen,
@@ -198,7 +200,7 @@ class ScreenInsightOrchestrator:
                 error=failure.error,
             )
         except (ModelProviderRejected, ModelProviderInvalidResponse) as exc:
-            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
             code = (
                 FailureCode.MODEL_REJECTED
                 if isinstance(exc, ModelProviderRejected)
@@ -216,7 +218,7 @@ class ScreenInsightOrchestrator:
         except AuditUnavailable:
             raise
         except (ValidationError, TypeError, ValueError):
-            trace.emit(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
             failure = map_failure(FailureCode.INVALID_MODEL_OUTPUT)
             return self._response(
                 screen,
@@ -225,7 +227,7 @@ class ScreenInsightOrchestrator:
                 error=failure.error,
             )
         except Exception:
-            trace.emit(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+            await trace.emit_async(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             failure = map_failure(FailureCode.UNEXPECTED)
             return self._response(
                 screen,
