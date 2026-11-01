@@ -435,7 +435,7 @@ def gold_operation_points(
         else:
             row = {"feeder_id": feeder, "municipality": inventory.get(feeder, ""), "observed_rows": 0}
         points.append(_gold_point(row, start, end))
-    status = "empty" if not points else ("partial" if any(p.status == "partial" for p in points) else "unavailable")
+    status = "empty" if all(p.status == "empty" for p in points) else ("partial" if any(p.status == "partial" for p in points) else "unavailable")
     limitations = [message for point in points for message in point.limitations]
     if not periods:
         limitations.append("A Gold não apresenta competências de continuidade.")
@@ -468,7 +468,7 @@ def gold_operation_series(repository: GoldOperationsRepository, start: str, end:
                 row = {**row, "observed_start": month, "observed_end": month, "observed_competencies": [month]}
             items.append(_gold_point(row, month, month))
     meta = _gold_metadata(
-        repository, "partial" if candidates else "empty", start, end, municipio,
+        repository, "empty" if all(p.status == "empty" for p in items) else ("partial" if any(p.status == "partial" for p in items) else "unavailable"), start, end, municipio,
         alimentador,
         ["Competências observadas não declaram cobertura ou fechamento mensal.",
          "Ocorrências individuais não estão disponíveis na Gold."],
@@ -497,9 +497,10 @@ def build_gold_operation_summary(repository: GoldOperationsRepository, start: st
     denominator = dec_denominator if same_population else None
     if not same_population:
         meta.limitations.append("DEC e FEC usam populações elegíveis diferentes; base comum indisponível.")
-    dec_status = "partial" if dec_eligible else ("empty" if not points else "unavailable")
-    fec_status = "partial" if fec_eligible else ("empty" if not points else "unavailable")
-    status = "empty" if not points else ("partial" if dec_eligible or fec_eligible else "unavailable")
+    empty = all(point.status == "empty" for point in points)
+    dec_status = "partial" if dec_eligible else ("empty" if empty else "unavailable")
+    fec_status = "partial" if fec_eligible else ("empty" if empty else "unavailable")
+    status = "empty" if empty else ("partial" if dec_eligible or fec_eligible else "unavailable")
     observed_points = {point.feeder_id: point for point in (*dec_eligible, *fec_eligible)}.values()
     limitations = list(dict.fromkeys([message for point in points for message in point.limitations]))
     if not same_population:
