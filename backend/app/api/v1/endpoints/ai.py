@@ -40,6 +40,8 @@ from app.services.genai_client import (
 )
 from app.services.genai_coordination import answer_gold_question
 from app.services.genai_executor import GoldExecutionDenied
+from app.services.gold_panorama_coordination import generate_gold_panorama_insight
+from app.core.config import settings
 from app.services.panorama_insights import (
     StalePanoramaInsight,
     UnsupportedPanoramaInsight,
@@ -246,6 +248,12 @@ async def ask_genai_question(
     return result
 
 
+def get_panorama_insight_repository() -> PanoramaRepository | None:
+    if settings.ANALYTICS_SOURCE == "gold":
+        return None
+    return get_panorama_repository()
+
+
 @insights_router.post(
     "/insights",
     response_model=PanoramaInsightEnvelope,
@@ -254,15 +262,43 @@ async def ask_genai_question(
 async def generate_panorama_insight(
     payload: PanoramaInsightRequest,
     request: Request,
-    repository: Annotated[PanoramaRepository, Depends(get_panorama_repository)],
+    repository: Annotated[PanoramaRepository | None, Depends(get_panorama_insight_repository)],
     genai: Annotated[GenAIInsightClient, Depends(get_genai_insight_client)],
+    gold_resources: Annotated[
+        tuple[Engine, Callable[[], AccessScope]] | None, Depends(get_question_gold_resources)
+    ],
+    readiness_client: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> PanoramaInsightEnvelope | JSONResponse:
     """Monta os números no servidor e os envia pelo contrato de insight v1."""
 
     try:
+        if gold_resources is not None:
+            engine, resolve_scope = gold_resources
+            return await generate_gold_panorama_insight(
+                engine, db.get_bind(), genai, readiness_client, payload,
+                resolve_scope=resolve_scope, correlation_id=request.state.correlation_id,
+                audit_store=AuditStore(db.get_bind()),
+                approved_controls=settings.GENAI_GOLD_APPROVED_CONTROLS,
+            )
         insight_request, metric, source, analysis = build_panorama_insight(
             repository, payload
         )
+    except GoldExecutionDenied:
+        return _question_error(request, status_code=403, code="access_denied", retryable=False,
+            message="A interpretação não está autorizada com o acesso atual.")
+    except GoldPublicationChanged:
+        return _question_error(request, status_code=409, code="invalid_context", retryable=False,
+            message="O lote mudou. Atualize o Panorama antes de gerar o insight.")
+    except (GoldPublicationUnavailable, SQLAlchemyError, GenAIServiceUnavailable):
+        return _question_error(request, status_code=503, code="service_unavailable", retryable=False,
+            message="A interpretação Gold está temporariamente indisponível.")
+    except GenAITimeout:
+        return _question_error(request, status_code=504, code="service_unavailable", retryable=True,
+            message="A interpretação excedeu o tempo limite.")
+    except GenAIResponseInvalid:
+        return _question_error(request, status_code=502, code="invalid_upstream_response", retryable=False,
+            message="A interpretação não corresponde ao recorte solicitado.")
     except StalePanoramaInsight:
         return _question_error(
             request,
