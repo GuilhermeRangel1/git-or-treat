@@ -4,7 +4,26 @@ from app.core.database import get_analytics_db
 from app.main import app
 from app.models.gold_load import BATCH
 from app.models.gold_v2_load import TABLES
+from app.services.gold_uc import meter_at_reference
 from tests.test_gold_http import gold_client  # noqa: F401
+
+
+def test_meter_reference_requires_one_unambiguous_candidate():
+    reference = datetime(2025, 3, 1, tzinfo=timezone.utc)
+    def meter(identifier, installed, removed=None, **flags):
+        return {"id_medidor": identifier, "data_instalacao": installed, "data_retirada": removed,
+                "ingestao_data": reference, "flag_instalacao_sentinela": False, "flag_instalacao_futura": False,
+                "flag_retirada_sentinela": False, "flag_retirada_futura": False, **flags}
+    old = meter("M-OLD", date(2024, 1, 1), date(2025, 1, 1))
+    current = meter("M-CURRENT", date(2025, 1, 1))
+    result = meter_at_reference([old, current])
+    assert result["item"]["meter_id"] == "M-CURRENT" and result["status"] == "partial"
+    assert "2025-03-01" in result["limitations"][0]
+    assert meter_at_reference([current, meter("M-OTHER", date(2024, 1, 1))])["item"] is None
+    assert meter_at_reference([current, meter("M-UNKNOWN", None)])["item"] is None
+    assert meter_at_reference([meter("M-FLAG", date(2024, 1, 1), flag_retirada_sentinela=True)])["item"] is None
+    assert meter_at_reference([meter("M-SAME-DAY", date(2024, 1, 1), date(2025, 3, 1))])["item"] is None
+    assert meter_at_reference([old])["status"] == "unavailable"
 
 
 def publish_fixture():
@@ -23,10 +42,11 @@ def publish_fixture():
             {"id_uc": "FAKE-B", "competencia": "2025-01", "consumo_kwh": 999., "receita_reais": 999., "qtd_leituras_observadas": 1, "qtd_leituras_validas": 1},
         ])
         db.execute(TABLES["faturas_uc"].insert(), [
-            {"id_fatura": "F-1", "id_uc": "FAKE-A", "mes_referencia": "2025-01", "valor_total": 20., "data_vencimento": date(2025, 2, 10)},
-            {"id_fatura": "F-2", "id_uc": "FAKE-B", "mes_referencia": "2025-01", "valor_total": 999., "data_vencimento": date(2025, 2, 10)},
+            {"id_fatura": "F-1", "id_uc": "FAKE-A", "mes_referencia": "2025-01", "valor_total": 20., "data_vencimento": date(2025, 2, 10), "status": "EM ABERTO", "valor_fatura_declarada_em_aberto_reais": 20.},
+            {"id_fatura": "F-2", "id_uc": "FAKE-B", "mes_referencia": "2025-01", "valor_total": 999., "data_vencimento": date(2025, 2, 10), "status": None, "valor_fatura_declarada_em_aberto_reais": None},
         ])
         db.execute(TABLES["medidor_uc"].insert().values(id_medidor="M-1", id_uc="FAKE-A", data_instalacao=None))
+        db.execute(TABLES["medidor_uc"].insert().values(id_medidor="M-2", id_uc="FAKE-B", data_instalacao=date(2024, 1, 1), ingestao_data=datetime(2025, 3, 1, tzinfo=timezone.utc)))
         db.execute(TABLES["gd_uc"].insert().values(id_uc="FAKE-A", potencia_kwp=3.5, modalidade="AUTOCONSUMO"))
         db.execute(TABLES["atendimentos_uc"].insert().values(protocolo="C-1", id_uc="FAKE-A", data_abertura=datetime(2025, 1, 3, tzinfo=timezone.utc), assunto="Atendimento"))
         db.execute(TABLES["ocorrencias_uc"].insert().values(id_ocorrencia="E-1", id_uc="FAKE-A", data_abertura=datetime(2025, 2, 3, tzinfo=timezone.utc), duracao_min=None))
@@ -47,6 +67,9 @@ def test_uc_v2_search_overview_and_histories_keep_uc_scope_and_absence(gold_clie
     assert data["comparison"]["final"]["measured_energy_kwh"]["status"] == "partial"
     assert data["comparison"]["billed_amount"]["percent_change"] is None
     assert data["current_meter"]["item"] is None
+    other_overview = client.get("/api/v1/ucs/FAKE-B/overview?start=2025-01&end=2025-02").json()["data"]
+    assert other_overview["current_meter"]["item"]["meter_id"] == "M-2"
+    assert other_overview["current_meter"]["status"] == "partial"
     assert data["open_invoices"]["count"] is None
     assert data["profile"]["customer_name"] is None
     assert data["gold_generation"]["capacity_kwp"] == 3.5
@@ -66,6 +89,9 @@ def test_uc_v2_search_overview_and_histories_keep_uc_scope_and_absence(gold_clie
         assert response.json()["metadata"]["status"] == "partial"
     invoice = client.get("/api/v1/ucs/FAKE-A/history/invoices?start=2025-01&end=2025-02").json()["data"]["items"][0]
     assert invoice["invoice_id"] == "F-1" and invoice["paid_amount"] is None and invoice["payment_status"] == "unknown"
+    assert invoice["declared_status"] == "EM ABERTO" and invoice["declared_open_amount"] == 20
+    other = client.get("/api/v1/ucs/FAKE-B/history/invoices?start=2025-01&end=2025-02").json()["data"]["items"][0]
+    assert other["declared_status"] is None and other["declared_open_amount"] is None
     event = client.get("/api/v1/ucs/FAKE-A/history/interruptions?start=2025-01&end=2025-02").json()["data"]["items"][0]
     assert event["duration_hours"] is None
     assert client.get("/api/v1/ucs/FAKE-A/history/invoices?order_by=payment_date").status_code == 422

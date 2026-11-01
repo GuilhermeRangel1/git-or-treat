@@ -39,6 +39,20 @@ def test_private_uc_sources_match_public_api(monkeypatch):
         row = db.execute(select(monthly).where(monthly.c.id_uc == identifier, monthly.c.competencia == month)).mappings().one()
         assert data["profile"]["uc_id"] == identifier
         gd = TABLES["gd_uc"]
+        invoices = TABLES["faturas_uc"]
+        declared = db.execute(select(invoices.c.id_uc, invoices.c.mes_referencia, invoices.c.id_fatura,
+                                     invoices.c.status, invoices.c.valor_fatura_declarada_em_aberto_reais)
+                              .where(invoices.c.valor_fatura_declarada_em_aberto_reais.is_not(None)).limit(1)).first()
+        if declared:
+            response = client.get("/api/v1/ucs/" + quote(declared.id_uc, safe="") + "/history/invoices",
+                                  params={"start": declared.mes_referencia, "end": declared.mes_referencia, "page_size": 100})
+            assert response.status_code == 200
+            candidates = response.json()["data"]["items"]
+            match = next((item for item in candidates if item["invoice_id"] == declared.id_fatura), None)
+            assert match is not None
+            assert match["declared_status"] == declared.status
+            assert match["declared_open_amount"] == float(declared.valor_fatura_declarada_em_aberto_reais)
+            assert match["payment_status"] == "unknown" and match["paid_amount"] is None
         source_gd = db.execute(select(gd.c.potencia_kwp).where(gd.c.id_uc == identifier)).first()
         assert (data["gold_generation"]["capacity_kwp"] if data["gold_generation"] else None) == (source_gd[0] if source_gd else None)
         gd_sample = db.execute(select(gd.c.id_uc, gd.c.potencia_kwp).where(gd.c.potencia_kwp.is_not(None)).limit(1)).first()
