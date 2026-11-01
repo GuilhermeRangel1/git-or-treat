@@ -29,6 +29,9 @@ from app.services.genai_plan import validate_gold_genai_plan
 from app.services.genai_publication import GoldPublicationContext
 from app.services.gold_catalog import load_gold_catalog, select_catalog_source
 
+MAX_QUERY_MONTHS = 1200
+MAX_QUERY_WINDOW_DAYS = 366 * 5
+
 
 @dataclass(frozen=True)
 class GoldPlanningResult:
@@ -55,6 +58,14 @@ def _stop(status: QuestionPlanStatus, message: str, correlation_id: str):
 
 
 def _admit_plan(plan: LogicalReadPlan, scope: AccessScope) -> CatalogSource:
+    # Mesmo teto do resolvedor temporal, revalidado também pelo executor.
+    if plan.window.kind is WindowKind.BOUNDED:
+        start, end = plan.window.start, plan.window.end
+        if (
+            (end.year - start.year) * 12 + end.month - start.month >= MAX_QUERY_MONTHS
+            or (end - start).days > MAX_QUERY_WINDOW_DAYS
+        ):
+            raise GenAIResponseInvalid
     catalog = load_gold_catalog()
     metric = next((m for m in catalog.metrics if m.metric_id == plan.metric_id), None)
     if (
@@ -126,6 +137,8 @@ def _has_selected_coverage(
         while cursor <= plan.window.end:
             if cursor.strftime("%Y-%m") not in values:
                 return False
+            if (cursor.year, cursor.month) == (plan.window.end.year, plan.window.end.month):
+                break
             cursor = date(cursor.year + (cursor.month == 12), cursor.month % 12 + 1, 1)
         return True
 

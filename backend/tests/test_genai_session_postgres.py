@@ -83,8 +83,8 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
             with owner.begin() as write:
                 write.execute(BATCH.update().values(schema_version="gold-csv-v2"))
                 write.execute(TABLES["diagnostico_receita"].insert(), {
-                    "competencia": "2001-01", "municipio": "Lumenia", "classe_consumo": "FICTICIA",
-                    "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "N",
+                    "competencia": "2001-01", "municipio": "Lumenia", "classe_consumo": "RESIDENCIAL",
+                    "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "Não",
                     "receita_total_reais": 12,
                     "consumo_total_kwh": 30,
                     "receita_base_comparavel_reais": 10,
@@ -93,20 +93,20 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "qtd_ucs_distintas_faturadas_no_mes": 3,
                 })
                 write.execute(TABLES["diagnostico_receita"].insert(), {
-                    "competencia": "2001-01", "municipio": "Outra Cidade", "classe_consumo": "FICTICIA",
-                    "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "N",
+                    "competencia": "2001-01", "municipio": "Outra Cidade", "classe_consumo": "RESIDENCIAL",
+                    "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "Não",
                     "receita_total_reais": 999,
                     "qtd_ucs_distintas_faturadas_no_mes": 1,
                 })
                 write.execute(TABLES["diagnostico_receita"].insert(), {
-                    "competencia": "2001-01", "municipio": "Zero Lumenia", "classe_consumo": "FICTICIA",
-                    "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "N",
+                    "competencia": "2001-01", "municipio": "Zero Lumenia", "classe_consumo": "RESIDENCIAL",
+                    "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "Não",
                     "receita_total_reais": 0,
                     "qtd_ucs_distintas_faturadas_no_mes": 1,
                 })
                 write.execute(TABLES["diagnostico_receita"].insert(), {
                     "competencia": "2001-01", "municipio": "Nulo Lumenia", "classe_consumo": "TESTE",
-                    "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "N",
+                    "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "Não",
                     "receita_total_reais": None,
                     "qtd_ucs_distintas_faturadas_no_mes": 1,
                 })
@@ -117,6 +117,11 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "total_ucs_alimentador": 2,
                     "DEC": 1.5,
                     "FEC": 0.5,
+                })
+                write.execute(TABLES["consumo_receita_bairro"].insert(), {
+                    "competencia": "2001-01", "municipio": "Lumenia",
+                    "bairro": "Bairro Ficticio", "classe_consumo": "RESIDENCIAL",
+                    "receita_total_reais": 7,
                 })
             # Prova do compilador, não autorização do papel leitor: dados
             # artificiais isolados são consultados apenas pela conexão de teste.
@@ -212,7 +217,10 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 return GoldReadinessReport(
                     readiness_version="gold-readiness-v2",
                     batch_ref=planned.publication.batch_ref, lot_state="partial",
-                    capabilities={"faturamento.receita": {"status": "available"}},
+                    capabilities={key: {"status": "available"} for key in (
+                        "faturamento.receita", "faturamento.receita_bairro",
+                        "interrupcoes.dec_fec",
+                    )},
                 )
             api.dependency_overrides[get_db] = operational_db
             monkeypatch.setitem(runtime_app.dependency_overrides, get_db, operational_db)
@@ -283,6 +291,14 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     {"metric_id": "billing.reserved"},
                     {"limit": 101},
                     {"unit": "unidade adulterada"},
+                    {"window": ReadWindow.model_validate({
+                        "kind": "bounded", "start": "1995-01-01", "end": "2001-01-31",
+                        "granularity": "month",
+                    })},
+                    {"window": ReadWindow.model_validate({
+                        "kind": "bounded", "start": "1900-01-01", "end": "2000-01-31",
+                        "granularity": "month",
+                    })},
                     {"window": ReadWindow.model_validate({
                         "kind": "catalog_phrase", "phrase": "último ano",
                     })},
@@ -537,6 +553,10 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert read.scalar(text("SELECT current_user")) == GOLD_READER_ROLE
                     assert read.scalar(text("SELECT SUM(receita_total_reais) FROM gold_v2.diagnostico_receita")) == 1011
                     assert read.scalar(text("SHOW statement_timeout")) == "5s"
+                    assert read.scalar(text("SHOW lock_timeout")) == "2s"
+                    assert read.scalar(text("SHOW idle_in_transaction_session_timeout")) == "5s"
+                    assert read.scalar(text("SHOW work_mem")) == "4MB"
+                    assert read.scalar(text("SHOW temp_file_limit")) == "16MB"
                 assert any(
                     "municipio" in statement.lower()
                     and "Lumenia" not in statement

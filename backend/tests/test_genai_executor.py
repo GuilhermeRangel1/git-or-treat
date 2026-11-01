@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date, timedelta
 
 import pytest
 
@@ -14,6 +15,30 @@ from app.services.genai_executor import (
     _exceeds_evidence_byte_limit,
     _rounded_number,
 )
+from app.schemas.genai_internal import AccessScope
+from app.schemas.genai_plan import LogicalReadPlan
+from app.services.genai_client import GenAIResponseInvalid
+from app.services.genai_planning import _admit_plan
+
+
+@pytest.mark.parametrize('days,allowed', [(1830, True), (1831, False)])
+def test_backend_reapplies_the_gold_profile_window_boundary(days, allowed):
+    plan = LogicalReadPlan.model_validate({
+        'catalog_version': 'v1', 'operation': 'read',
+        'profile_id': 'v-energy-grid-360-gold', 'source_id': 'gold.local',
+        'domain_id': 'revenue', 'metric_id': 'billing.revenue', 'unit': 'R$',
+        'window': {'kind': 'bounded', 'start': date(2000, 1, 1),
+                   'end': date(2000, 1, 1) + timedelta(days=days), 'granularity': 'month'},
+        'limit': 100,
+    })
+    scope = AccessScope(caller_ref='test.window', profile_id=plan.profile_id,
+                        source_id=plan.source_id, allowed_operations={'read'},
+                        allowed_metric_ids={'billing.revenue'}, allowed_dimension_ids=set())
+    if allowed:
+        assert _admit_plan(plan, scope).table == 'diagnostico_receita'
+    else:
+        with pytest.raises(GenAIResponseInvalid):
+            _admit_plan(plan, scope)
 
 
 def _result(extra_bytes: int = 0) -> EvidenceLookupResult:
