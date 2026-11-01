@@ -2,6 +2,7 @@
 
 import os
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -299,11 +300,57 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                             with pytest.raises(DBAPIError) as cancelled:
                                 execute_gold_plan(reader, planned, resolve_scope=resolve)
                             assert cancelled.value.orig.sqlstate == "57014"
+                            # Duas execuções reais concorrentes em pools distintos:
+                            # ambas devem cancelar no servidor e devolver conexões.
+                            parallel_reader = create_genai_gold_engine(scope)
+                            created_engines.append(parallel_reader)
+                            with ThreadPoolExecutor(max_workers=2) as workers:
+                                futures = [workers.submit(
+                                    execute_gold_plan, target, planned,
+                                    resolve_scope=lambda: scope,
+                                ) for target in (reader, parallel_reader)]
+                                for future in futures:
+                                    with pytest.raises(DBAPIError) as parallel_cancelled:
+                                        future.result(timeout=5)
+                                    assert parallel_cancelled.value.orig.sqlstate == "57014"
+                            assert parallel_reader.pool.checkedout() == 0
+
                     finally:
                         blocker.rollback()
                 assert reader.pool.checkedout() == 0
                 recovered = execute_gold_plan(reader, planned, resolve_scope=resolve)
                 assert recovered.evidence.records == lookup.evidence.records
+
+                scope_checks = 0
+
+                def revoked_after_query():
+                    nonlocal scope_checks
+                    scope_checks += 1
+                    return scope if scope_checks < 3 else scope.model_copy(update={
+                        "allowed_metric_ids": frozenset(),
+                    })
+
+                with pytest.raises(GoldExecutionDenied):
+                    execute_gold_plan(reader, planned, resolve_scope=revoked_after_query)
+                assert scope_checks == 3 and reader.pool.checkedout() == 0
+                # A verificação pós-materialização recusou a evidência; uma
+                # execução autorizada posterior continua saudável.
+                assert execute_gold_plan(reader, planned, resolve_scope=resolve).evidence.records == (
+                    lookup.evidence.records
+                )
+                reader_events.clear()
+                short_budget = replace(
+                    planned, deadline=GenAIRequestDeadline(0.5, lambda: 0.45),
+                )
+                execute_gold_plan(reader, short_budget, resolve_scope=resolve)
+                configured_timeouts = [
+                    parameters["timeout"] for statement, parameters in reader_events
+                    if "set_config('statement_timeout'" in statement
+                    and isinstance(parameters, dict) and "timeout" in parameters
+                ]
+                assert configured_timeouts
+                assert any(0 < int(value.removesuffix("ms")) <= 50
+                           for value in configured_timeouts)
 
                 ticket_plan = LogicalReadPlan.model_validate({
                     **plan.model_dump(mode="json"),
