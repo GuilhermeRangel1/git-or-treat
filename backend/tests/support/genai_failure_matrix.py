@@ -53,6 +53,19 @@ def assert_first_question_failures(client, owner, monkeypatch, headers):
     assert response.status_code == 200 and body['status'] == 'needs_clarification'
     assert body['error'] is None
 
+    # Pedidos sem suporte não podem perder o qualificador e consultar um total maior.
+    for question in (
+        'Qual a receita paga em Lumenia em janeiro de 2001?',
+        'Qual a receita da UC UC-999 em janeiro de 2001?',
+        'Qual a receita em Lumenia nos últimos 12 meses?',
+        'Qual a receita em Lumenia entre 15 e 20 de janeiro de 2001?',
+        'Quais os três bairros com maior receita em janeiro de 2001?',
+    ):
+        response, body = ask(question)
+        assert response.status_code == 200
+        assert body['status'] in {'needs_clarification', 'refused'}, question
+        assert len(GENAI_TRANSPORT_EVENTS) <= 1  # Sem síntese nem modelo.
+
     # Falha DBAPI apenas no SQL quantitativo do leitor, após planejamento/prontidão.
     triggered = []
 
@@ -119,3 +132,14 @@ def assert_first_question_failures(client, owner, monkeypatch, headers):
     assert '12.0 R$' in recovered.json()['answer']
     assert recovered.json()['audit_reference']
     assert all(not item['is_demo'] for item in recovered.json()['evidence'])
+
+    # A mesma síntese Gold remove aliases/estruturas derivadas antes do provedor.
+    with monkeypatch.context() as patch:
+        patch.setenv('GENAI_TEST_PRIVACY_PROBE', '1')
+        privacy = client.post('/api/v1/ai/questions', headers=headers,
+                              json={'question': QUESTION})
+    assert privacy.status_code == 200 and privacy.json()['status'] == 'answered'
+    retained = AuditStore(owner).read(privacy.json()['correlation_id'])
+    surfaces = privacy.text + str(retained) + str(GENAI_TRANSPORT_EVENTS)
+    assert 'private-nested-probe' not in surfaces
+    assert 'private-alias-probe' not in surfaces
