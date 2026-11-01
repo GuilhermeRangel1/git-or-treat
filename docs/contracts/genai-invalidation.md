@@ -186,3 +186,11 @@ Escritos aqui para a implementação nas telas; ainda não existem como teste ma
 | T-05 | Insight | Cache válido e, em seguida, 409 para o mesmo recorte | O erro de desatualização prevalece sobre o insight em cache |
 | T-06 | Insight | Revogação de escopo com insight pendente ou em cache | Pendente descartado; cache daquela identidade não é exibido |
 | T-07 | Insight | Mudança de `fingerprint` com o mesmo `loteVersao` | Insight anterior invalidado (a chave da consulta precisa incluir o fingerprint) |
+
+## Continuação integrada de 01/11/2026
+
+As tabelas anteriores descrevem o histórico dos PRs #95/#97 e as lacunas existentes naquela base. GENAI-11/12 já foram integrados à develop; a continuação `feat/genai-invalidacao-contexto` completa o fingerprint esperado do insight e a invalidação por revisão no portal. O Assistente envia a publicação analítica conhecida; sem essa publicação, usa a captura do servidor e invalida respostas anteriores quando o batch_reference muda. Erro de uma requisição antiga não invalida a publicação nova.
+
+O insight Gold já está habilitado, sua chave inclui fingerprint e a geração local; desatualização conhecida não é exibida como carregamento nem como sucesso antigo. O resolvedor de publicação esperada usa `gold.publicacao_contexto` no PostgreSQL. O campo fingerprint do insight é opcional para compatibilidade do cliente anterior, validado quando presente e emitido pelo servidor Gold atual.
+
+Mapa atualizado I1–I6/R1–R4, casos de tela, comandos, fonte real versus controlada e limites: [evidência integrada](../plans/2026-11-01-genai13-invalidacao-integrada.md). Os registros de pendência das seções 10/11 são históricos e devem ser lidos junto desta continuação. Não tornam `physical_catalog` obrigatório nem encerram requisitos oficiais automaticamente.
