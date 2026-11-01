@@ -174,6 +174,7 @@ def build_gold_panorama_insight(
             id=metric.id, definicao=metric.definicao, formula=metric.formula
         ),
         PanoramaInsightSource(
+            fingerprint=repository.context.fingerprint,
             kind=repository.source_kind,
             loteVersao=repository.context.lote,
             dataAtualizacao=repository.source_updated_at,
