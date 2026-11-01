@@ -458,9 +458,8 @@ export default function AssistentePage() {
                 O que você quer investigar?
               </h1>
               <p className="mx-auto max-w-[560px] text-sm leading-[22px] text-muted">
-                Explore consumo, receita e continuidade. As respostas desta
-                versão usam cenários artificiais e explicam o período, o recorte
-                e o fundamento.
+                Explore consumo, receita e continuidade. Cada resposta informa a
+                fonte, o período, o recorte e o fundamento disponível.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -482,7 +481,8 @@ export default function AssistentePage() {
             </div>
             <p className="flex items-start justify-center gap-2 text-center text-xs leading-5 text-muted">
               <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-              Os cenários são fictícios. A conversa fica apenas nesta tela e não
+              Os exemplos acima são demonstrativos. A fonte e as limitações
+              aparecem em cada resposta. A conversa fica apenas nesta tela e não
               é salva.
             </p>
           </div>

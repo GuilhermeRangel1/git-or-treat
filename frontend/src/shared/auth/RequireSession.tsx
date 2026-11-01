@@ -78,7 +78,11 @@ export default function RequireSession({ children }: { children: ReactNode }) {
           </Button>
         </div>
       ) : null}
-      <div hidden={needsReauthentication} inert={needsReauthentication}>
+      <div
+        key={configured ? (user?.id ?? "anonymous") : "demo"}
+        hidden={needsReauthentication}
+        inert={needsReauthentication}
+      >
         {children}
       </div>
     </>
