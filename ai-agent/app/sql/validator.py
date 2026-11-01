@@ -238,6 +238,9 @@ def _check_forbidden_nodes(root: exp.Expression) -> None:
         if isinstance(node, exp.Join) and (node.method or "").upper() == "NATURAL":
             # As colunas de junção dependeriam do esquema físico, não do dicionário.
             raise SqlRejected("forbidden_construct", "NATURAL JOIN não é permitido")
+        if isinstance(node, exp.Join):
+            # O dicionário atual não modela relações nem prova cardinalidade/grão.
+            raise SqlRejected("join_not_approved", "JOIN sem relação aprovada não é permitido")
         if isinstance(node, exp.Subquery) and not isinstance(node.this, exp.Query):
             raise SqlRejected("forbidden_construct", "subconsulta precisa ser SELECT")
 

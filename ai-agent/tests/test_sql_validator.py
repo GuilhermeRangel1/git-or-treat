@@ -26,8 +26,6 @@ VALID_QUERIES = [
     "SELECT bairro FROM gold_indicadores WHERE receita_total > "
     "(SELECT AVG(receita_total) FROM gold_indicadores) LIMIT 5",
     "SELECT COUNT(*) FROM gold_indicadores LIMIT 1",
-    "SELECT g.municipio, COUNT(c.uc_id) AS ucs FROM gold_indicadores AS g "
-    "JOIN cadastro_teste AS c ON c.municipio = g.municipio GROUP BY g.municipio LIMIT 5",
     "SELECT classe, ROUND(CAST(SUM(receita_total) AS DECIMAL), 2) FROM gold_indicadores "
     "GROUP BY classe HAVING COUNT(*) > 1 LIMIT 5",
     "SELECT municipio FROM gold_indicadores UNION SELECT municipio FROM cadastro_teste LIMIT 5",
@@ -93,13 +91,9 @@ def test_columns_are_qualified_in_executed_sql(dialect: str) -> None:
 
 
 @pytest.mark.parametrize(("join_count", "expected_code"), [(4, None), (5, "too_many_tables")])
-def test_table_reference_limit_counts_repeated_self_joins(join_count, expected_code) -> None:
-    aliases = [chr(ord("a") + index) for index in range(join_count + 1)]
-    sql = (
-        f"SELECT {aliases[0]}.municipio FROM gold_indicadores AS {aliases[0]} "
-        + " ".join(
-            f"JOIN gold_indicadores AS {alias} ON 1 = 1" for alias in aliases[1:]
-        )
+def test_table_reference_limit_counts_repeated_union_sources(join_count, expected_code) -> None:
+    sql = " UNION ALL ".join(
+        "SELECT municipio FROM gold_indicadores" for _ in range(join_count + 1)
     )
 
     if expected_code is None:
@@ -301,7 +295,7 @@ ATTACKS = {
     "unknown_table": ("SELECT segredo FROM interna_nao_listada LIMIT 1", {"unknown_table"}),
     "comma_join_unknown_table": (
         "SELECT g.bairro FROM gold_indicadores AS g, interna_nao_listada AS i LIMIT 1",
-        {"unknown_table"},
+        {"join_not_approved"},
     ),
     "subquery_unknown_table": (
         "SELECT bairro FROM gold_indicadores WHERE bairro IN "
@@ -313,7 +307,7 @@ ATTACKS = {
     "lateral": (
         "SELECT g.bairro, l.n FROM gold_indicadores AS g, "
         "LATERAL (SELECT COUNT(*) AS n FROM cadastro_teste) AS l LIMIT 1",
-        {"forbidden_construct"},
+        {"join_not_approved"},
     ),
     "generate_series_table": (
         "SELECT g FROM generate_series(1, 1000000000) AS g LIMIT 1",
@@ -436,6 +430,11 @@ ATTACKS = {
         "SELECT s FROM (SELECT uc_id FROM cadastro_teste) AS s LIMIT 1",
         {"ambiguous_identifier"},
     ),
+    "unapproved_join": (
+        "SELECT g.municipio FROM gold_indicadores AS g "
+        "JOIN cadastro_teste AS c ON c.municipio = g.municipio LIMIT 5",
+        {"join_not_approved"},
+    ),
     "natural_join": (
         "SELECT g.bairro FROM gold_indicadores AS g NATURAL JOIN cadastro_teste AS c LIMIT 1",
         {"forbidden_construct"},
@@ -443,7 +442,7 @@ ATTACKS = {
     "using_unlisted_column": (
         "SELECT g.bairro FROM gold_indicadores AS g JOIN cadastro_teste AS c USING (segredo) "
         "LIMIT 1",
-        {"unknown_column"},
+        {"join_not_approved"},
     ),
     "window_function_not_listed": (
         "SELECT ROW_NUMBER() OVER (ORDER BY bairro) FROM gold_indicadores LIMIT 1",

@@ -56,7 +56,7 @@ O carregador usa só `version`, `status`, `[limits]`, `[policy]` e `tables.<nome
 | `nullable_columns` | Colunas que o Backend cria como anuláveis: todas as que estão fora da chave. O carregador ignora; os testes conferem que só apontam para colunas existentes. |
 | `known_values` | Só domínios fechados pelas regras da Gold: `Sim`/`Não` nas colunas de GD e as cinco categorias de `prioridade_inspecao`. Classe, subgrupo e bandeira são exemplos da origem, não domínio fechado, e não são listados. |
 | `[concepts]` | Único lugar do mapeamento conceito → coluna por tabela, para nomes diferentes entre tabelas: geração distribuída é `possui_gd` ou `possui_geracao_solar`; classe é `classe_consumo` ou `classe`; subgrupo é `subgrupo_tarifario` ou `subgrupo`; alimentador é `id_alimentador` ou `alimentador`. Não há alias nas colunas. |
-| `relationships` | Cruzamentos autorizados. Vazio, porque o dicionário de dados não declara nenhum. |
+| `relationships` | O dicionário está vazio e ainda não tem contrato de cardinalidade. O validador recusa qualquer `JOIN` até relações explícitas serem implementadas e verificadas. |
 
 **Coerência com as fontes.** `tests/test_sql_gold_dictionary.py` lê `docs/dicionario_gold.md` e exige que as colunas de cada uma das sete seções sejam exatamente as do snapshot e do dicionário, com o tipo conceitual compatível. Também lê `backend/app/models/gold_v1.py` sem importá-lo (análise sintática) e compara tipos e chaves com o snapshot. Uma mudança em qualquer fonte sem atualizar o TOML quebra esses testes.
 
@@ -70,7 +70,7 @@ python scripts/check_gold_dictionary.py <diretório do lote> [--sample-rows 50]
 
 Rodar só no ambiente autorizado para o lote; o resultado não substitui a reconciliação.
 
-**Cruzamentos.** O validador **não lê** `relationships`: aceita `JOIN` entre quaisquer tabelas do dicionário cujas colunas existam, por exemplo `diagnostico_receita` com `visao_360_uc` por `municipio`, embora não tenham chave em comum (o grão de uma é competência × segmentação e o da outra é UC). Esse limite está fixado por um teste `xfail(strict=True)` em `tests/test_sql_gold_dictionary.py`. Hoje a proteção vem do leitor de planos, que gera SQL de uma única tabela; SQL textual livre continuaria aceitando o cruzamento.
+**Cruzamentos.** O validador recusa `JOIN` antes da execução (`join_not_approved`), inclusive entre tabelas permitidas, porque `relationships` não é contrato carregado nem comprova chave, cardinalidade ou preservação do grão. O regressivo de `diagnostico_receita` com `visao_360_uc` agora é obrigatório e passa. Para habilitar uma relação futuramente, implemente o contrato e a prova de cardinalidade primeiro; até lá, SQL textual também falha fechado.
 
 **Banco de teste.** `tests/gold_mock.py` cria um SQLite em arquivo temporário com as 7 tabelas, nomes, tipos e chaves do snapshot `tests/fixtures/gold_dictionary_v1_snapshot.json` (inclusive `"DEC"`/`"FEC"` em maiúsculas) e poucas linhas **sintéticas** e determinísticas: UCs `UC100000`..`UC100005`, competências `2026-08` e `2026-09`, municípios e bairros `FICTICIO`, GD `Sim`/`Não` e alimentadores `ALIM-FIC-01`..`03`. A prioridade segue a ordem de regras do notebook. As três tabelas financeiras saem do mesmo consumo mensal por UC e reconciliam por competência. Como na Gold, `indicadores_dec_fec` só tem linha para alimentador/mês com ocorrência.
 
@@ -91,7 +91,7 @@ O planejador que escolhe a tabela pelos metadados existe só no teste. Quando du
 2. Atualize `tests/fixtures/gold_dictionary_v1_snapshot.json` com colunas, tipos, chave e o novo commit de origem.
 3. Acrescente ou ajuste `[tables.<nome>]` com `description`, `grain`, `key`, `period_column`, `dimensions`, `excluded_columns`, `nullable_columns`, `[tables.<nome>.columns]` e `[tables.<nome>.metrics]`; se houver coluna de GD, classe, subgrupo ou alimentador, inclua-a em `[concepts]`. Atualize `version`.
 4. Acrescente as linhas sintéticas da tabela em `GOLD_ROWS` de `tests/gold_mock.py`; o DDL sai do snapshot.
-5. Se uma pergunta precisar cruzar a nova tabela com outra, declare o par em `relationships` e lembre que o validador ainda não impõe essa lista (seção “Cruzamentos”).
+5. Não habilite cruzamentos por `relationships` até o parser, a autorização e a prova de cardinalidade desse contrato existirem; o validador recusa `JOIN` enquanto isso.
 
 ### Pontos abertos com o Backend
 

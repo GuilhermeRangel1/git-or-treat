@@ -36,6 +36,8 @@ class GoldPlanningResult:
     response: QuestionPlanResponse
     publication: GoldPublicationContext
     source: CatalogSource | None = None
+    access_scope: AccessScope | None = None
+    deadline: GenAIRequestDeadline | None = None
 
 
 def _stop(status: QuestionPlanStatus, message: str, correlation_id: str):
@@ -60,21 +62,36 @@ def _admit_plan(plan: LogicalReadPlan, scope: AccessScope) -> CatalogSource:
         or (scope.profile_id, scope.source_id) != (plan.profile_id, plan.source_id)
         or not set(plan.dimension_ids) <= scope.allowed_dimension_ids
         or plan.unit != metric.unit
-        or plan.group_by_dimension_ids
-        or plan.order is not None
     ):
         raise GenAIResponseInvalid
     for item in plan.filters:
         if item.operator.value not in metric.dimension_operators.get(item.dimension_id, ()):
             raise GenAIResponseInvalid
     # A seleção é compatibilidade de planejamento, nunca liberação de prontidão.
+    filter_ids = {item.dimension_id for item in plan.filters}
+    group_ids = set(plan.group_by_dimension_ids)
     source = select_catalog_source(
-        catalog, plan.metric_id, {item.dimension_id for item in plan.filters},
+        catalog, plan.metric_id, filter_ids | group_ids,
         {s.capability_id for m in catalog.metrics for s in m.sources},
         plan.window.model_dump(mode="json"),
     )
-    if source is None or not set(plan.dimension_ids) <= source.dimension_columns.keys():
+    if (
+        source is None
+        or not set(plan.dimension_ids) <= source.dimension_columns.keys()
+        or not group_ids <= set(plan.dimension_ids)
+        or not group_ids <= source.dimension_columns.keys()
+    ):
         raise GenAIResponseInvalid
+    if plan.order is not None:
+        ordered_field = plan.order.field_id
+        if ordered_field != plan.metric_id and ordered_field not in group_ids:
+            raise GenAIResponseInvalid
+        if (
+            metric.aggregation == "key_grain_read"
+            and ordered_field != plan.metric_id
+            and ordered_field not in plan.dimension_ids
+        ):
+            raise GenAIResponseInvalid
     return source
 
 
@@ -157,9 +174,9 @@ async def plan_gold_question(
         return GoldPlanningResult(_stop(
             QuestionPlanStatus.REFUSED,
             "As permissões mudaram. Refaça a pergunta com o acesso atual.", correlation_id,
-        ), publication)
+        ), publication, access_scope=scope)
     if response.status != QuestionPlanStatus.PLANNED:
-        return GoldPlanningResult(response, publication)
+        return GoldPlanningResult(response, publication, access_scope=scope)
     plan = validate_gold_genai_plan(
         response.plan.model_dump(mode="json"), response.plan_fingerprint
     )
@@ -171,12 +188,12 @@ async def plan_gold_question(
             QuestionPlanStatus.NEEDS_CLARIFICATION,
             "Não há cobertura de todas as competências na fonte e no recorte solicitados. "
             "Informe outro período ou recorte; ausência não equivale a zero.", correlation_id,
-        ), publication)
+        ), publication, access_scope=scope)
     # A consulta de cobertura também pode consumir o prazo ou coincidir com uma revogação.
     if resolve_scope() != scope:
         return GoldPlanningResult(_stop(
             QuestionPlanStatus.REFUSED,
             "As permissões mudaram. Refaça a pergunta com o acesso atual.", correlation_id,
-        ), publication)
+        ), publication, access_scope=scope)
     deadline.remaining_seconds(35)
-    return GoldPlanningResult(response, publication, source)
+    return GoldPlanningResult(response, publication, source, scope, deadline)
