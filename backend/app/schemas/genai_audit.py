@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.genai_evidence import GoldBatchRef
-from app.schemas.genai_plan import LogicalIdentifier
+from app.schemas.genai_plan import LogicalIdentifier, LogicalReadPlan
 
 Hex32 = Annotated[str, Field(strict=True, pattern=r"^[a-f0-9]{32}$")]
 Hex64 = Annotated[str, Field(strict=True, pattern=r"^[a-f0-9]{64}$")]
@@ -32,7 +32,21 @@ class GenAIAuditEvent(BaseModel):
     catalog_version: Literal["v1"] | None = None
     plan_id: Hex64 | None = None
     evidence_ref: Hex64 | None = None
-    prompt_version: Literal["genai-grounding-v1"] = "genai-grounding-v1"
+    prompt_version: Literal["genai-grounding-v1", "genai-grounding-v2"] = "genai-grounding-v2"
+
+
+class AuditExecutionArtifact(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    artifact_version: Literal["gold-execution-v1"] = "gold-execution-v1"
+    compiler_version: Literal["gold-v2-compiler-v1"] = "gold-v2-compiler-v1"
+    catalog_digest: Hex64
+    redacted_plan: LogicalReadPlan
+    query_template: str = Field(min_length=1, max_length=16384)
+    max_rows: Count
+    max_bytes: Count
+    statement_timeout_ms: Count
+    result_digest: Hex64 | None = None
 
 
 class BackendAuditEvent(GenAIAuditEvent):
@@ -42,3 +56,5 @@ class BackendAuditEvent(GenAIAuditEvent):
     caller_ref: LogicalIdentifier | None = None
     metric_id: LogicalIdentifier | None = None
     source_id: LogicalIdentifier | None = None
+
+    artifact: AuditExecutionArtifact | None = None
