@@ -133,6 +133,8 @@ export type UCInvoiceItem = Record<string, unknown> & {
   due_date: string | null;
   payment_date: string | null;
   payment_status: "paid" | "partial" | "unpaid" | "unknown";
+  declared_status?: string | null;
+  declared_open_amount?: number | null;
   currency_unit: "BRL";
 };
 export type UCMeterHistoryItem = Record<string, unknown> & {
@@ -536,6 +538,10 @@ export function decodeUCHistory(
         nullableNumber("billed_amount");
         nullableNumber("paid_amount");
         nullableNumber("billed_energy_kwh");
+        if ("declared_open_amount" in item)
+          nullableNumber("declared_open_amount");
+        if ("declared_status" in item && item.declared_status !== null)
+          text("declared_status");
         if (
           !["paid", "partial", "unpaid", "unknown"].includes(
             text("payment_status"),

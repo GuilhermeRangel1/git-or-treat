@@ -31,6 +31,8 @@ const historyLabels: Record<string, string> = {
   due_date: "Vencimento",
   payment_date: "Data do pagamento",
   payment_status: "Situação do pagamento",
+  declared_status: "Situação declarada na fatura",
+  declared_open_amount: "Valor nominal declarado em aberto",
   currency_unit: "Moeda",
   installed_at: "Instalado em",
   removed_at: "Retirado em",
@@ -57,6 +59,8 @@ const historyColumns: Record<UCHistorySection, string[]> = {
     "due_date",
     "payment_date",
     "payment_status",
+    "declared_status",
+    "declared_open_amount",
   ],
   meters: ["meter_id", "installed_at", "removed_at"],
   distributed_generation: ["capacity_kw", "status"],
@@ -82,7 +86,7 @@ function historyValue(key: string, value: unknown) {
     ].includes(key)
   )
     return formatUCDate(String(value));
-  if (key === "billed_amount" || key === "paid_amount")
+  if (["billed_amount", "paid_amount", "declared_open_amount"].includes(key))
     return money.format(Number(value));
   if (["measured_energy_kwh", "billed_energy_kwh"].includes(key))
     return `${decimal.format(Number(value))} kWh`;
@@ -153,6 +157,8 @@ function coverageMessage(status: UCStatus) {
 
 function currentMeterMessage(meter: UCMeter | null, status?: UCStatus) {
   if (meter) {
+    if (status === "partial")
+      return `Possível medidor na referência da Gold: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. A indicação depende das datas disponíveis; consulte as limitações e o histórico.`;
     return `Vigente no snapshot: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. Consulte o histórico para vínculos anteriores e retiradas.`;
   }
   switch (status) {
@@ -218,6 +224,13 @@ export function HistoryPanel({
   onSelectSection: (section: UCHistorySection) => void;
   onPageChange: (page: number) => void;
 }) {
+  const columns = section
+    ? historyColumns[section].filter(
+        (key) =>
+          !["declared_status", "declared_open_amount"].includes(key) ||
+          history?.metadata.source.kind === "gold_csv",
+      )
+    : [];
   return (
     <section className="grid min-w-0 gap-3 rounded-xl bg-surface p-4 sm:p-5">
       <h3 className="font-heading text-lg font-semibold">
@@ -273,7 +286,7 @@ export function HistoryPanel({
                   </caption>
                   <thead className="bg-canvas text-muted">
                     <tr>
-                      {historyColumns[section].map((key) => (
+                      {columns.map((key) => (
                         <th
                           className="whitespace-nowrap px-3 py-2 font-semibold"
                           key={key}
@@ -290,7 +303,7 @@ export function HistoryPanel({
                         className="border-t border-control"
                         key={historyRowKey(section, row, index)}
                       >
-                        {historyColumns[section].map((key) => (
+                        {columns.map((key) => (
                           <td
                             className="max-w-64 px-3 py-2 [overflow-wrap:anywhere] text-content"
                             key={key}
@@ -313,7 +326,7 @@ export function HistoryPanel({
                     className="rounded-lg border border-control p-3"
                   >
                     <dl className="grid grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] gap-x-3 gap-y-2 text-sm">
-                      {historyColumns[section].map((key) => (
+                      {columns.map((key) => (
                         <div className="contents" key={key}>
                           <dt className="text-muted">
                             {historyLabels[key] ?? key}

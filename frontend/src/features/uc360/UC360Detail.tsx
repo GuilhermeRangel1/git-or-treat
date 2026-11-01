@@ -100,7 +100,7 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
               : "Dados da fonte"}{" "}
             ·{" "}
             {metadata.source.kind === "gold_csv"
-              ? `Gold CSV provisória · lote ${metadata.source.version.split(":")[0]} · importação local`
+              ? "Gold CSV · importação local"
               : "atualização"}{" "}
             {sourceDate(metadata.source.updated_at)}
           </p>
@@ -170,7 +170,12 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                 <ul className="grid gap-1 text-sm text-content">
                   <li>
                     {selected.current_meter.item ? (
-                      <>Medidor: {selected.current_meter.item.meter_id}</>
+                      <>
+                        {selected.current_meter.status === "partial"
+                          ? "Possível medidor"
+                          : "Medidor"}
+                        : {selected.current_meter.item.meter_id}
+                      </>
                     ) : selected.current_meter.status === "empty" ? (
                       "Nenhum medidor vigente no snapshot; consulte o histórico de medidores"
                     ) : (
