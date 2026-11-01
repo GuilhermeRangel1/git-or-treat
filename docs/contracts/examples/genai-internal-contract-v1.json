@@ -304,7 +304,15 @@
             "dimension_ids": [
               "municipio"
             ],
-            "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+            "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+            "quality": {
+              "readiness_version": "gold-readiness-v2",
+              "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+              "lot_state": "partial",
+              "available_capability_ids": [
+                "faturamento.receita"
+              ]
+            }
           }
         },
         "message": null,
@@ -411,7 +419,15 @@
               "dimension_ids": [
                 "municipio"
               ],
-              "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+              "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+              "quality": {
+                "readiness_version": "gold-readiness-v2",
+                "batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+                "lot_state": "partial",
+                "available_capability_ids": [
+                  "faturamento.receita"
+                ]
+              }
             }
           },
           "message": null,
@@ -664,7 +680,15 @@
             "dimension_ids": [
               "municipio"
             ],
-            "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+            "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+            "quality": {
+              "readiness_version": "gold-readiness-v2",
+              "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+              "lot_state": "partial",
+              "available_capability_ids": [
+                "faturamento.receita"
+              ]
+            }
           }
         },
         "message": null,
@@ -771,7 +795,15 @@
               "dimension_ids": [
                 "municipio"
               ],
-              "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+              "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+              "quality": {
+                "readiness_version": "gold-readiness-v2",
+                "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+                "lot_state": "partial",
+                "available_capability_ids": [
+                  "faturamento.receita"
+                ]
+              }
             }
           },
           "message": null,

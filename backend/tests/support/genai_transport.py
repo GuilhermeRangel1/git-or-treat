@@ -38,13 +38,18 @@ async def send():
 print(json.dumps(asyncio.run(send())))
 """
 
+GENAI_TRANSPORT_EVENTS: list[dict[str, object]] = []
+
 
 def dispatch_genai(request: httpx.Request) -> httpx.Response:
+    request_payload = json.loads(request.content)
     completed = subprocess.run(
         [sys.executable, "-c", _CODE],
-        input=json.dumps({"path": request.url.path,
-                          "payload": json.loads(request.content),
-                          "headers": dict(request.headers)}),
+        input=json.dumps({"path": request.url.path, "payload": request_payload,
+                          "headers": {
+                              "authorization": request.headers.get("authorization", ""),
+                              "x-correlation-id": request.headers.get("x-correlation-id", ""),
+                          }}),
         capture_output=True, text=True, encoding="utf-8", check=False, timeout=30,
         cwd=Path(__file__).resolve().parents[3] / "ai-agent",
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
@@ -52,4 +57,10 @@ def dispatch_genai(request: httpx.Request) -> httpx.Response:
     assert completed.returncode == 0, completed.stderr
     result = json.loads(completed.stdout)
     assert result["status"] == 200, result
+    GENAI_TRANSPORT_EVENTS.append({
+        "path": request.url.path,
+        "correlation_id": request.headers.get("x-correlation-id"),
+        "request": request_payload,
+        "response": result["body"],
+    })
     return httpx.Response(result["status"], json=result["body"], headers=result["headers"])

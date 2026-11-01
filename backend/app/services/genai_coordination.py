@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 from sqlalchemy.engine import Engine
 
 from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
+from app.schemas.genai_evidence import GoldEvidenceQuality
 from app.schemas.genai_internal import AccessScope, QuestionSynthesisRequest
 from app.schemas.genai_plan import QuestionPlanStatus
 from app.schemas.gold_readiness import GoldReadinessReport
@@ -42,7 +43,7 @@ async def answer_gold_question(
         if planned.response.response is None:
             raise GenAIResponseInvalid
         return planned.response.response
-    if planned.deadline is None or planned.access_scope is None:
+    if planned.deadline is None or planned.access_scope is None or planned.source is None:
         raise GenAIResponseInvalid
     if readiness_gate is None:
         raise GenAIServiceUnavailable(retryable=False)
@@ -56,9 +57,16 @@ async def answer_gold_question(
         or any(key not in report.capabilities or report.capabilities[key].status != "available"
                for key in required)):
         raise GenAIServiceUnavailable(retryable=False)
+    quality = GoldEvidenceQuality(
+        readiness_version=report.readiness_version,
+        batch_ref=report.batch_ref,
+        lot_state=report.lot_state,
+        available_capability_ids=tuple(sorted(required)),
+    )
     lookup = await planned.deadline.run(
         35, lambda: asyncio.to_thread(
             execute_gold_plan, engine, planned, resolve_scope=resolve_scope,
+            quality=quality,
         ),
     )
     if not should_synthesize(

@@ -132,11 +132,12 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
   - `reference` (`EvidenceReference`): `source` igual ao `source_id` do plano ou no formato `<source_id com pontos trocados por _>:<referência opaca>`, `description` e `is_demo: false` para a Gold;
   - `records`: até `plan.limit` linhas agregadas, com os nomes lógicos de campo declarados em `evidence_fields` da métrica no catálogo (papéis medida, unidade, período e dimensão). Nenhum campo de sensibilidade pessoal;
   - `provenance` (`EvidenceProvenance`): `source_id`, `reference_source`, `plan_fingerprint`, `catalog_version`, `metric_id`, `unit`, `window`, `filters` (com `operator`) e `dimension_ids` efetivamente aplicados;
-  - `batch_ref` em `provenance` (implementado no schema): identificador do lote efetivamente carregado e validado no banco local, não apenas da última execução no Databricks. Ver "Lote da Gold (`batch_ref`)" abaixo.
+  - `batch_ref` em `provenance`: identificador do lote efetivamente carregado e validado no banco local, não apenas da última execução no Databricks. Ver "Lote da Gold (`batch_ref`)" abaixo;
+  - `quality` em `provenance` para Gold: snapshot tipado da prontidão aprovada pelo Backend (`readiness_version`, `batch_ref`, estado do lote e capacidades necessárias à consulta). O lote do snapshot precisa coincidir com a evidência; fonte sintética não pode apresentar qualidade Gold.
 - `message`: obrigatório em `no_evidence` e `needs_clarification`. É texto livre da fonte e não chega ao portal: `EvidenceGuard` o substitui por mensagem fixa.
 - `limitations`: só textos aprovados em `limitation_texts` da métrica no catálogo.
 
-**Por que a proveniência é obrigatória.** `EvidenceGuard.validate` recusa a evidência se `provenance` não coincidir com o plano em fonte, fingerprint, versão do catálogo, métrica, unidade, janela, filtros e dimensões. Depois disso, cada linha vira uma observação com `observation_id`, `value`, `unit`, `period` e `dimensions`. O grounding (`has_unsupported_claims`, em `app/agent/grounding.py`) compara cada afirmação do modelo com essa observação: métrica, unidade, período, filtros, operadores de filtro e dimensões precisam coincidir, e o valor precisa bater após o arredondamento declarado. Sem unidade, período, dimensões, filtros e operadores na evidência, a resposta é recusada como não fundamentada. O lote (`batch_ref`) é necessário para que a analista reproduza a amostra (IA-03).
+**Por que a proveniência é obrigatória.** `EvidenceGuard.validate` recusa a evidência se `provenance` não coincidir com o plano em fonte, fingerprint, versão do catálogo, métrica, unidade, janela, filtros e dimensões; para Gold, também exige qualidade ligada ao mesmo lote esperado. Depois disso, cada linha vira uma observação com `observation_id`, `value`, `unit`, `period` e `dimensions`. O grounding (`has_unsupported_claims`, em `app/agent/grounding.py`) compara cada afirmação do modelo com essa observação: métrica, unidade, período, filtros, operadores de filtro e dimensões precisam coincidir, e o valor precisa bater após o arredondamento declarado. Sem unidade, período, dimensões, filtros e operadores na evidência, a resposta é recusada como não fundamentada. O lote (`batch_ref`) é necessário para que a analista reproduza a amostra (IA-03).
 
 ### Lote da Gold (`batch_ref`)
 
@@ -172,6 +173,7 @@ O `lookup` usa os schemas de `app/schemas/evidence.py`:
 | Plano rejeitado pelo Backend por escopo | Backend | HTTP 200, `refused`, `access_denied`, `retryable: false`. A GenAI não é chamada para sintetizar. |
 | Plano rejeitado pelo Backend por contrato ou versão de catálogo | Backend | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
 | Evidência incompatível com o plano | GenAI (`EvidenceContractInvalid`) | HTTP 200, `recoverable_error`, `invalid_upstream_response`, `retryable: false`. |
+| Prontidão ausente, lote divergente ou capacidade necessária não aprovada | Backend (antes do SQL quantitativo) | 503 genérico, sem consulta métrica, síntese ou fallback demonstrativo. |
 | Banco indisponível por falha transitória (conexão recusada ou perdida, timeout de conexão) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. |
 | Credencial ou papel do banco inválidos (erro de configuração) | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: false`. Mensagem pública genérica, sem detalhe de credencial, papel ou permissão; repetir não ajuda até o Backend corrigir a configuração. |
 | Timeout da consulta no banco | Backend | HTTP 200, `recoverable_error`, `service_unavailable`, `retryable: true`. A consulta é cancelada; a GenAI não é chamada para sintetizar. |
@@ -330,7 +332,13 @@ A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "63967671
       "window": {"kind": "bounded", "phrase": null, "start": "2025-03-01", "end": "2025-03-31", "granularity": "month"},
       "filters": [{"dimension_id": "municipio", "operator": "eq", "values": ["Recife"]}],
       "dimension_ids": ["municipio"],
-      "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f"
+      "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+      "quality": {
+        "readiness_version": "gold-readiness-v2",
+        "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "lot_state": "partial",
+        "available_capability_ids": ["faturamento.receita"]
+      }
     }
   },
   "message": null,
@@ -338,7 +346,7 @@ A requisição de sintetizar traz o mesmo plano e `"plan_fingerprint": "63967671
 }
 ```
 
-`valor`, `unidade`, `competencia` e `municipio` são nomes lógicos de `evidence_fields` no catálogo, não colunas do banco. O exemplo completo é aceito por `EvidenceProvenance`. O guard compara seu `batch_ref` com a publicação esperada fornecida separadamente pelo chamador; uma publicação diferente, mesmo com formato válido, é recusada. A ligação dessa publicação às futuras etapas HTTP não é demonstrada por estes testes de contrato. A resposta ao portal é um `QuestionResponse` com `status: "answered"`, `evidence` com a referência e `analysis_context` com métrica, unidade, período e filtros.
+`valor`, `unidade`, `competencia` e `municipio` são nomes lógicos de `evidence_fields` no catálogo, não colunas do banco. O exemplo completo é aceito por `EvidenceProvenance`. O guard compara `batch_ref` e `quality.batch_ref` com a publicação esperada fornecida separadamente pelo chamador; uma publicação diferente, mesmo com formato válido, é recusada. A prova da coordenação pública e dos limites da aprovação artificial está em [GENAI-07](genai-gold-coordination.md). Ela não constitui aceite com lote Gold real. A resposta ao portal é um `QuestionResponse` com `status: "answered"`, `evidence` com a referência e `analysis_context` com métrica, unidade, período e filtros.
 
 ### Válido — esclarecimento (planejar)
 

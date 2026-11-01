@@ -17,6 +17,7 @@ from app.schemas.genai_evidence import (
     EvidenceLookupStatus,
     EvidenceProvenance,
     EvidenceResult,
+    GoldEvidenceQuality,
 )
 from app.schemas.genai_internal import AccessScope
 from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus, WindowKind
@@ -231,6 +232,7 @@ def execute_gold_plan(
     planned: GoldPlanningResult,
     *,
     resolve_scope: Callable[[], AccessScope],
+    quality: GoldEvidenceQuality | None = None,
 ) -> EvidenceLookupResult:
     """Revalida identidade, plano e lote; compila somente operações aprovadas.
 
@@ -244,6 +246,7 @@ def execute_gold_plan(
         or response.plan_fingerprint is None
         or planned.access_scope is None
         or planned.deadline is None
+        or (quality is not None and quality.batch_ref != planned.publication.batch_ref)
     ):
         raise GoldExecutionDenied
 
@@ -320,6 +323,7 @@ def execute_gold_plan(
         filters=plan.filters,
         dimension_ids=plan.dimension_ids,
         batch_ref=planned.publication.batch_ref,
+        quality=quality,
     )
     cache_payload = json.dumps(
         {

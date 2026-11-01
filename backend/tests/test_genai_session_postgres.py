@@ -1,5 +1,6 @@
 """Sessão real → dependências FastAPI → papel restrito no PostgreSQL descartável."""
 
+import asyncio
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -11,15 +12,6 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
-from pydantic import SecretStr
-from sqlalchemy import create_engine, event, select, text, update
-from sqlalchemy.engine import Engine, make_url
-from sqlalchemy.exc import DBAPIError
-from sqlalchemy.orm import Session
-
-from app.api.v1.endpoints.ai import questions_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.core.config import settings
 from app.core.database import get_db
@@ -43,7 +35,15 @@ from app.services.genai_executor import GoldExecutionDenied, _query, execute_gol
 from app.services.genai_planning import plan_gold_question
 from app.services.gold_catalog import load_gold_catalog
 from app.services.gold_import import import_gold
-from tests.support.genai_transport import dispatch_genai
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+from pydantic import SecretStr
+from sqlalchemy import create_engine, event, select, text, update
+from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.orm import Session
+
+from tests.support.genai_transport import GENAI_TRANSPORT_EVENTS, dispatch_genai
 from tests.support.migrations import migrated_database
 from tests.test_gold_import import batch  # noqa: F401 - fixture compartilhada
 
@@ -78,7 +78,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
             with owner.begin() as write:
                 write.execute(BATCH.update().values(schema_version="gold-csv-v2"))
                 write.execute(TABLES["diagnostico_receita"].insert(), {
-                    "competencia": "2001-01", "municipio": "Cidade Teste", "classe_consumo": "TESTE",
+                    "competencia": "2001-01", "municipio": "Lumenia", "classe_consumo": "FICTICIA",
                     "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "N",
                     "receita_total_reais": 12,
                     "consumo_total_kwh": 30,
@@ -88,19 +88,19 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "qtd_ucs_distintas_faturadas_no_mes": 3,
                 })
                 write.execute(TABLES["diagnostico_receita"].insert(), {
-                    "competencia": "2001-01", "municipio": "Outra Cidade", "classe_consumo": "TESTE",
+                    "competencia": "2001-01", "municipio": "Outra Cidade", "classe_consumo": "FICTICIA",
                     "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "N",
                     "receita_total_reais": 999,
                     "qtd_ucs_distintas_faturadas_no_mes": 1,
                 })
                 write.execute(TABLES["diagnostico_receita"].insert(), {
-                    "competencia": "2001-01", "municipio": "Zero Teste", "classe_consumo": "TESTE",
+                    "competencia": "2001-01", "municipio": "Zero Lumenia", "classe_consumo": "FICTICIA",
                     "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "N",
                     "receita_total_reais": 0,
                     "qtd_ucs_distintas_faturadas_no_mes": 1,
                 })
                 write.execute(TABLES["diagnostico_receita"].insert(), {
-                    "competencia": "2001-01", "municipio": "Nulo Teste", "classe_consumo": "TESTE",
+                    "competencia": "2001-01", "municipio": "Nulo Lumenia", "classe_consumo": "TESTE",
                     "subgrupo_tarifario": "T", "bandeira_tarifaria": "T", "possui_gd": "N",
                     "receita_total_reais": None,
                     "qtd_ucs_distintas_faturadas_no_mes": 1,
@@ -189,20 +189,16 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 with Session(owner) as db:
                     yield db
 
+            from app.main import app as runtime_app
+
             api = FastAPI()
             api.include_router(auth_router, prefix="/api/v1/auth")
-            api.include_router(questions_router, prefix="/api/v1/ai")
 
             @api.middleware("http")
             async def correlation(request, call_next):
                 request.state.correlation_id = "4" * 32
                 return await call_next(request)
 
-            api.state.genai_question_client = GenAIQuestionClient(
-                http_client=httpx.AsyncClient(transport=httpx.MockTransport(dispatch_genai)),
-                base_url="http://genai",
-                service_token="test-coordination-service-token-0000000000",
-            )
             monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
             async def controlled_readiness(planned):
                 # Contrato de integração: aprovação artificial explícita; não
@@ -212,9 +208,8 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     batch_ref=planned.publication.batch_ref, lot_state="partial",
                     capabilities={"faturamento.receita": {"status": "available"}},
                 )
-            api.state.genai_gold_readiness_gate = controlled_readiness
-
             api.dependency_overrides[get_db] = operational_db
+            monkeypatch.setitem(runtime_app.dependency_overrides, get_db, operational_db)
 
             class PlannedClient:
                 def __init__(self, next_plan):
@@ -250,7 +245,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "filters": [{
                         "dimension_id": "geography.municipality",
                         "operator": "eq",
-                        "values": ["Cidade Teste"],
+                        "values": ["Lumenia"],
                     }],
                     "unit": "R$",
                     "window": {
@@ -264,7 +259,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 planned = await plan_gold_question(
                     reader,
                     PlannedClient(plan),
-                    AIQuestionRequest(question="Receita em Cidade Teste em janeiro de 2001"),
+                    AIQuestionRequest(question="Receita em Lumenia em janeiro de 2001"),
                     resolve_scope=resolve,
                     correlation_id="a" * 32,
                 )
@@ -456,7 +451,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "filters": [{
                         "dimension_id": "geography.municipality",
                         "operator": "in",
-                        "values": ["Cidade Teste", "Outra Cidade", "Zero Teste"],
+                        "values": ["Lumenia", "Outra Cidade", "Zero Lumenia"],
                     }],
                     "group_by_dimension_ids": ["geography.municipality"],
                     "order": {"field_id": "billing.revenue", "direction": "desc"},
@@ -480,7 +475,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "filters": [{
                         "dimension_id": "geography.municipality",
                         "operator": "eq",
-                        "values": ["Zero Teste"],
+                        "values": ["Zero Lumenia"],
                     }],
                 })
                 zero_planned = await plan_read(zero_plan, "d" * 32)
@@ -489,7 +484,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 empty_plan = LogicalReadPlan.model_validate({
                     **plan.model_dump(mode="json"),
                     "filters": [{"dimension_id": "geography.municipality",
-                                 "operator": "eq", "values": ["Sem Dados Teste"]}],
+                                 "operator": "eq", "values": ["Sem Dados Lumenia"]}],
                 })
                 empty_response = planned.response.model_copy(update={
                     "plan": empty_plan, "plan_fingerprint": empty_plan.fingerprint(),
@@ -503,7 +498,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "filters": [{
                         "dimension_id": "geography.municipality",
                         "operator": "eq",
-                        "values": ["Nulo Teste"],
+                        "values": ["Nulo Lumenia"],
                     }],
                 })
                 null_planned = await plan_read(null_plan, "e" * 32)
@@ -516,8 +511,8 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert read.scalar(text("SHOW statement_timeout")) == "5s"
                 assert any(
                     "municipio" in statement.lower()
-                    and "Cidade Teste" not in statement
-                    and "Cidade Teste" in str(parameters)
+                    and "Lumenia" not in statement
+                    and "Lumenia" in str(parameters)
                     for statement, parameters in reader_events
                 )
                 executor_queries = [
@@ -543,7 +538,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 }
 
             origin = {"Origin": "http://localhost:5173"}
-            with TestClient(api) as client:
+            with TestClient(api) as client, TestClient(runtime_app) as public_client:
                 assert client.get("/api/v1/probe").status_code == 401
                 callers = []
                 cache_scopes = []
@@ -556,47 +551,153 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert result.json()["read_only"] is True
                     callers.append(result.json()["caller"])
                     cache_scopes.append(result.json()["cache_scopes"])
-                public = client.post("/api/v1/ai/questions", headers=origin, json={
-                    "question": "Qual a receita em Cidade Teste em janeiro de 2001?",
+                assert public_client.post("/api/v1/auth/login", headers=origin, json={
+                    "username": "reader", "password": "synthetic-test-password",
+                }).status_code == 200
+                runtime_http_client = httpx.AsyncClient(
+                    transport=httpx.MockTransport(dispatch_genai)
+                )
+                runtime_genai_client = GenAIQuestionClient(
+                    http_client=runtime_http_client,
+                    base_url="http://genai",
+                    service_token="test-coordination-service-token-0000000000",
+                )
+                monkeypatch.setattr(
+                    runtime_app.state, "genai_question_client", runtime_genai_client
+                )
+                monkeypatch.setattr(
+                    runtime_app.state, "genai_gold_readiness_gate",
+                    controlled_readiness, raising=False,
+                )
+                GENAI_TRANSPORT_EVENTS.clear()
+                reader_sql.clear()
+                public = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                    "question": "Qual a receita em Lumenia em janeiro de 2001?",
                 })
                 assert public.status_code == 200, public.text
                 assert public.json()["status"] == "answered", public.text
-                assert public.json()["correlation_id"] == "4" * 32
+                correlation_id = public.json()["correlation_id"]
+                assert len(correlation_id) == 32
+                assert public.headers["X-Correlation-ID"] == correlation_id
                 assert public.json()["evidence"]
-                api.state.genai_gold_readiness_gate = None
-                blocked = client.post("/api/v1/ai/questions", headers=origin, json={
-                    "question": "Qual a receita em Cidade Teste em janeiro de 2001?",
+                assert [item["path"] for item in GENAI_TRANSPORT_EVENTS] == [
+                    "/api/v1/internal/question-plans",
+                    "/api/v1/internal/question-syntheses",
+                ]
+                plan_event, synthesis_event = GENAI_TRANSPORT_EVENTS
+                plan_request = plan_event["request"]
+                plan_response = plan_event["response"]
+                synthesis_request = synthesis_event["request"]
+                assert all(
+                    item["correlation_id"] == correlation_id
+                    for item in GENAI_TRANSPORT_EVENTS
+                )
+                assert plan_response["correlation_id"] == correlation_id
+                assert plan_request["access_scope"] == synthesis_request["access_scope"]
+                assert plan_response["plan"]["profile_id"] == "v-energy-grid-360-gold"
+                assert plan_response["plan"]["source_id"] == "gold.local"
+                assert plan_response["plan"]["catalog_version"] == "v1"
+                assert synthesis_request["plan"] == plan_response["plan"]
+                assert synthesis_request["plan_fingerprint"] == plan_response["plan_fingerprint"]
+                assert synthesis_request["expected_batch_ref"] == plan_request["batch_ref"]
+                provenance = synthesis_request["lookup"]["evidence"]["provenance"]
+                records = synthesis_request["lookup"]["evidence"]["records"]
+                assert records[0]["value"] == 12.0
+                assert records[0]["period"] == "2001-01"
+                assert records[0]["unit"] == "R$"
+                assert provenance["plan_fingerprint"] == plan_response["plan_fingerprint"]
+                assert provenance["catalog_version"] == "v1"
+                assert provenance["batch_ref"] == plan_request["batch_ref"]
+                assert provenance["source_id"] == "gold.local"
+                assert provenance["unit"] == "R$"
+                assert provenance["filters"] == plan_response["plan"]["filters"]
+                assert provenance["filters"][0]["values"] == ["Lumenia"]
+                assert provenance["quality"] == {
+                    "readiness_version": "gold-readiness-v2",
+                    "batch_ref": plan_request["batch_ref"],
+                    "lot_state": "partial",
+                    "available_capability_ids": ["faturamento.receita"],
+                }
+                catalog = load_gold_catalog()
+                assert (catalog.mapping_version, catalog.dictionary_version, catalog.physical_schema) == (
+                    "gold-catalog-v2", "gold-csv-v2", "gold_v2",
+                )
+                assert any(
+                    "gold_v2.diagnostico_receita" in statement.lower()
+                    for statement in reader_sql
+                )
+
+                async def mismatched_batch(planned):
+                    prefix, run_id, _publication_id = planned.publication.batch_ref.split(":")
+                    return GoldReadinessReport(
+                        readiness_version="gold-readiness-v2",
+                        batch_ref=f"{prefix}:{run_id}:{uuid4()}",
+                        lot_state="partial",
+                        capabilities={"faturamento.receita": {"status": "available"}},
+                    )
+
+                async def missing_capability(planned):
+                    return GoldReadinessReport(
+                        readiness_version="gold-readiness-v2",
+                        batch_ref=planned.publication.batch_ref,
+                        lot_state="partial",
+                        capabilities={},
+                    )
+
+                for rejected_gate in (mismatched_batch, missing_capability):
+                    runtime_app.state.genai_gold_readiness_gate = rejected_gate
+                    GENAI_TRANSPORT_EVENTS.clear()
+                    reader_sql.clear()
+                    rejected = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                        "question": "Qual a receita em Lumenia em janeiro de 2001?",
+                    })
+                    assert rejected.status_code == 503
+                    assert not any(
+                        "receita_total_reais" in statement.lower()
+                        for statement in reader_sql
+                    )
+                    assert [item["path"] for item in GENAI_TRANSPORT_EVENTS] == [
+                        "/api/v1/internal/question-plans",
+                    ]
+                runtime_app.state.genai_gold_readiness_gate = None
+                blocked = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                    "question": "Qual a receita em Lumenia em janeiro de 2001?",
                 })
                 assert blocked.status_code == 503
-                del api.state.genai_gold_readiness_gate
-                default_readiness = client.post("/api/v1/ai/questions", headers=origin, json={
-                    "question": "Qual a receita em Cidade Teste em janeiro de 2001?",
+                del runtime_app.state.genai_gold_readiness_gate
+                default_readiness = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                    "question": "Qual a receita em Lumenia em janeiro de 2001?",
                 })
                 assert default_readiness.status_code == 503
-                api.state.genai_gold_readiness_gate = controlled_readiness
+                runtime_app.state.genai_gold_readiness_gate = controlled_readiness
 
-                missing_month = client.post("/api/v1/ai/questions", headers=origin, json={
-                    "question": "Qual a receita em Cidade Teste em março de 2001?",
+                missing_month = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                    "question": "Qual a receita em Lumenia em março de 2001?",
                 })
                 assert missing_month.status_code == 200
                 assert missing_month.json()["status"] == "needs_clarification"
                 assert not missing_month.json()["evidence"]
-                original_client = api.state.genai_question_client
+                original_client = runtime_app.state.genai_question_client
                 class OfflineClient:
                     async def plan(self, *args, **kwargs):
                         from app.services.genai_client import GenAIServiceUnavailable
                         raise GenAIServiceUnavailable
                     async def ask(self, *args, **kwargs):
                         raise AssertionError("Gold indisponível não ativa demonstração")
-                api.state.genai_question_client = OfflineClient()
+                runtime_app.state.genai_question_client = OfflineClient()
                 try:
-                    offline = client.post("/api/v1/ai/questions", headers=origin, json={
-                        "question": "Qual a receita em Cidade Teste em janeiro de 2001?",
+                    offline = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                        "question": "Qual a receita em Lumenia em janeiro de 2001?",
                     })
                     assert offline.status_code == 503
                     assert offline.json()["error"]["code"] == "service_unavailable"
                 finally:
-                    api.state.genai_question_client = original_client
+                    runtime_app.state.genai_question_client = original_client
+                assert public_client.post(
+                    "/api/v1/auth/logout", headers=origin
+                ).status_code == 204
+                asyncio.run(runtime_http_client.aclose())
+                GENAI_TRANSPORT_EVENTS.clear()
 
                 assert callers[0] != callers[1]
                 assert all(
