@@ -46,7 +46,7 @@ export default function DataProvenance({
           <dd className="mt-1 break-words">{units.join(" · ")}</dd>
         </div>
         <div className="min-w-0 sm:col-span-2">
-          <dt className="text-xs text-muted">Lote e versão da fonte</dt>
+          <dt className="text-xs text-muted">Identificação da publicação</dt>
           <dd className="mt-1 break-all">{source.version}</dd>
         </div>
         <div className="min-w-0 sm:col-span-2">
@@ -63,6 +63,12 @@ export default function DataProvenance({
           </dd>
         </div>
       </dl>
+      {source.kind === "gold_csv" && (
+        <p className="text-muted">
+          A data de importação indica quando os dados foram carregados neste
+          ambiente; não indica necessariamente quando foram coletados.
+        </p>
+      )}
       {periodNote && <p className="break-words text-muted">{periodNote}</p>}
       <div className="min-w-0">
         <h3 className="font-medium">Limitações dos dados</h3>

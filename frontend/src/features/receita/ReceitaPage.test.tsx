@@ -301,6 +301,8 @@ it("expõe período, unidades, lote e limitações na Receita Gold", async () =>
   expect(within(panel).getByText("01/2025 a 02/2025")).toBeVisible();
   expect(within(panel).getByText("R$ · kWh · UCs")).toBeVisible();
   expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
+  expect(screen.getByText(/Fonte: Gold CSV · importação local/)).toBeVisible();
+  expect(screen.queryByText(/Gold CSV provisória/)).not.toBeInTheDocument();
   expect(
     within(panel).getByText("Receita paga não fornecida nesta exportação."),
   ).toBeVisible();

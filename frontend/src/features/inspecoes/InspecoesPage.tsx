@@ -225,8 +225,9 @@ export default function InspecoesPage() {
                 />
               ) : (
                 <p className="text-sm text-muted">
-                  Criação de ordens pela fila Gold aguarda homologação. Consulta
-                  disponível.
+                  A consulta está disponível. A criação de ordens pela Gold
+                  ainda depende da validação da regra, da integração da
+                  prioridade e da autorização de quem cria a ordem.
                 </p>
               )}
               <Link className={inspectionAction} to={`?${back}`}>

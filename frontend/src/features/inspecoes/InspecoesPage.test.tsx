@@ -140,6 +140,12 @@ it("mostra origem e unidades sem atribuir à fila o período do consumo", async 
   expect(within(panel).getByText("Cobertura do consumo no lote")).toBeVisible();
   expect(within(panel).getByText("01/2025 a 02/2025")).toBeVisible();
   expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
+  expect(within(panel).getByText("Identificação da publicação")).toBeVisible();
+  expect(
+    within(panel).getByText(
+      /não indica necessariamente quando foram coletados/,
+    ),
+  ).toBeVisible();
   expect(within(panel).getByText(/UCs · inspeções · kWh/)).toBeVisible();
   expect(
     within(panel).getByText("A fila não informa janela temporal própria."),

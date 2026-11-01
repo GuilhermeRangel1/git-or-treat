@@ -149,8 +149,7 @@ export default function ReceitaPage() {
       <div className="flex min-h-[18px] min-w-0 flex-wrap items-center justify-between gap-2 text-xs">
         {envelope?.metadata.source.kind === "gold_csv" ? (
           <p className="text-muted">
-            Gold CSV provisória · lote{" "}
-            {envelope.metadata.source.version.split(":")[0]} · importação local{" "}
+            Fonte: Gold CSV · importação local{" "}
             {new Date(envelope.metadata.source.updated_at).toLocaleDateString(
               "pt-BR",
               { timeZone: "UTC" },
