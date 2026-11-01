@@ -242,3 +242,11 @@ Exemplo de payload exclusivamente demonstrativo:
   }
 }
 ```
+
+### EntryPoint Gold v2 para coordenação pelo Backend
+
+Inicie a composição externa existente com `uvicorn app.gold_runtime:create_gold_app --factory --host 0.0.0.0 --port 8001`. Configure `GENAI_SERVICE_API_TOKEN`, `GENAI_AUDIT_URL` (rota interna `/api/v1/internal/genai-audit-events` do Backend) e `GENAI_AUDIT_WRITE_TOKEN`. Demonstração deve estar desligada e roteamento demonstrativo desabilitado. O provedor usa as configurações existentes do serviço.
+
+Esse entrypoint usa o perfil Gold v2 e as operações internas de planejamento/síntese. O Backend autentica a pessoa, confere a prontidão e executa a consulta com seu leitor restrito. A rota pública da GenAI não recebe autorização apenas pelo token técnico, e a fonte local recusa execução direta. A criação da aplicação falha sem destino de auditoria durável. Não configure credenciais PostgreSQL na GenAI.
+
+Iniciar processos comprova composição, não reconciliação: o aceite exige uma pergunta pelo portal, controle independente no lote autorizado e referência de auditoria reproduzível. Configurar controles como aprovados exige aceite explícito de suas regras.
