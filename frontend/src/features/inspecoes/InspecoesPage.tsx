@@ -12,14 +12,20 @@ import InspectionFilters from "./InspectionFilters";
 import InspectionQueue from "./InspectionQueue";
 import { inspectionAction } from "./inspection-ui";
 import type { Metadata } from "./contract";
+import { useOrderAccess, useSession } from "@/shared/auth/useSession";
 
 function DemonstrationLine({ metadata }: { metadata: Metadata }) {
+  const gold = metadata.contract_version === "2.0.0";
   return (
     <p className="text-xs leading-[18px] text-muted">
-      {metadata.source.is_demo
-        ? "Demonstração · dados sintéticos"
-        : "Fonte analítica"}
-      {" · atualização ilustrativa: "}
+      {gold
+        ? `Gold · publicação ${metadata.source.version}`
+        : metadata.source.is_demo
+          ? "Demonstração · dados sintéticos"
+          : "Fonte analítica"}
+      {gold
+        ? " · snapshot cadastral · atualizado em: "
+        : " · atualização ilustrativa: "}
       {new Intl.DateTimeFormat("pt-BR", {
         day: "2-digit",
         month: "2-digit",
@@ -60,6 +66,8 @@ function FoundationDialog({
 }
 
 export default function InspecoesPage() {
+  const session = useSession();
+  const access = useOrderAccess();
   const [params, setParams] = useSearchParams();
   const [foundationsOpen, setFoundationsOpen] = useState(false);
   const foundationsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -78,6 +86,7 @@ export default function InspecoesPage() {
   const detail = useSuspicion(parsed?.detail ?? null, parsed !== null);
   const active = parsed?.detail ? detail : queue;
   const metadata = active.data?.metadata;
+  const goldDetail = detail.data && "category" in detail.data.data;
   const back = new URLSearchParams(params);
   back.delete("uc");
 
@@ -95,7 +104,9 @@ export default function InspecoesPage() {
         </h1>
         <p className="text-sm leading-[22px] text-muted">
           {parsed?.detail
-            ? `${parsed.detail} · Prioridade ${detail.data ? detail.data.data.priority.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "consultando"} neste cenário demonstrativo.`
+            ? goldDetail
+              ? `${parsed.detail} · Categoria ${detail.data && "category" in detail.data.data ? (detail.data.data.category ?? "não classificada") : "consultando"} na triagem Gold.`
+              : `${parsed.detail} · Prioridade ${detail.data && "priority" in detail.data.data ? detail.data.data.priority.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "consultando"} neste cenário demonstrativo.`
             : "Uma fila explicável para orientar a investigação de perdas. Suspeita não é fraude comprovada."}
         </p>
       </header>
@@ -174,14 +185,6 @@ export default function InspecoesPage() {
           {parsed?.detail && detail.data ? (
             <>
               <SuspicionDetail data={detail.data.data} metadata={metadata} />
-              <CreateOrder
-                key={`${detail.data.data.uc_id}:${detail.data.metadata.source.version}:${detail.data.data.rule_version}`}
-                uc={detail.data.data.uc_id}
-                sourceVersion={detail.data.metadata.source.version}
-                ruleVersion={detail.data.data.rule_version}
-                disabled={detail.isFetching || detail.isError}
-                onRefresh={() => void detail.refetch()}
-              />
               <Link className={inspectionAction} to={`?${back}`}>
                 <ArrowLeft size={16} aria-hidden="true" />
                 Voltar à fila
@@ -189,21 +192,23 @@ export default function InspecoesPage() {
             </>
           ) : queue.data ? (
             <>
-              <aside
-                className="flex flex-col items-start justify-center gap-1 rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
-                aria-label="Prioridade demonstrativa"
-              >
-                <div>
-                  <p className="text-sm font-semibold">
-                    Prioridade demonstrativa
-                  </p>
-                  <p className="mt-1 text-sm leading-[22px]">
-                    Motivos e estimativas são sintéticos. Critério final de
-                    priorização e energia recuperável dependem de validação com
-                    as fontes.
-                  </p>
-                </div>
-              </aside>
+              {queue.data.metadata.contract_version !== "2.0.0" ? (
+                <aside
+                  className="flex flex-col items-start justify-center gap-1 rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
+                  aria-label="Prioridade demonstrativa"
+                >
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Prioridade demonstrativa
+                    </p>
+                    <p className="mt-1 text-sm leading-[22px]">
+                      Motivos e estimativas são sintéticos. Critério final de
+                      priorização e energia recuperável dependem de validação
+                      com as fontes.
+                    </p>
+                  </div>
+                </aside>
+              ) : null}
               <InspectionQueue
                 result={queue.data}
                 params={params}
@@ -215,10 +220,14 @@ export default function InspecoesPage() {
           <footer className="flex flex-col items-stretch gap-2 text-xs text-muted sm:flex-row sm:items-center sm:gap-4">
             <p className="w-full sm:max-w-[600px]">
               Fonte:{" "}
-              {metadata.source.is_demo
-                ? "cenário sintético"
-                : metadata.source.kind}
-              . Nenhuma consulta à Gold.
+              {metadata.contract_version === "2.0.0"
+                ? `Gold · ${metadata.source.version} · fingerprint ${"fingerprint" in metadata ? metadata.fingerprint : "não disponível"}`
+                : metadata.source.is_demo
+                  ? "cenário sintético"
+                  : metadata.source.kind}
+              {metadata.contract_version === "2.0.0"
+                ? ". Consulta limitada a esta publicação."
+                : ". Nenhuma consulta à Gold."}
             </p>
             <button
               ref={foundationsTriggerRef}
@@ -241,6 +250,45 @@ export default function InspecoesPage() {
             triggerRef={foundationsTriggerRef}
           />
         </>
+      ) : null}
+      {!invalid &&
+      parsed?.detail &&
+      session.configured &&
+      !access.data?.canWrite &&
+      !access.lastConfirmedAccess?.access.canWrite ? (
+        <p className="rounded-xl border border-border bg-surface p-5 text-sm text-muted">
+          {access.isPending
+            ? "Verificando permissão para criar ordens…"
+            : "Sua conta tem acesso somente para consulta de ordens."}
+        </p>
+      ) : null}
+      {!invalid &&
+      parsed?.detail &&
+      (!session.configured ||
+        access.data?.canWrite ||
+        access.lastConfirmedAccess?.access.canWrite) ? (
+        <CreateOrder
+          key={parsed.detail}
+          uc={parsed.detail}
+          sourceVersion={detail.data?.metadata.source.version}
+          sourceFingerprint={
+            detail.data && "fingerprint" in detail.data.metadata
+              ? detail.data.metadata.fingerprint
+              : undefined
+          }
+          requireSourceFingerprint={
+            detail.data?.metadata.contract_version === "2.0.0"
+          }
+          ruleVersion={detail.data?.data.rule_version}
+          disabled={
+            !detail.data ||
+            detail.isFetching ||
+            detail.isError ||
+            (session.configured &&
+              (access.isFetching || session.needsReauthentication))
+          }
+          onRefresh={() => void detail.refetch()}
+        />
       ) : null}
     </div>
   );

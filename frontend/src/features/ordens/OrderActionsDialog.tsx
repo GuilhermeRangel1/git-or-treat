@@ -25,6 +25,7 @@ type OrderActionsDialogProps = {
   onClose: () => void;
   triggerRef: RefObject<HTMLElement | null>;
   onSaved: (order: Order, message: string) => void;
+  canEdit?: boolean;
 };
 
 type MutationVariables =
@@ -38,6 +39,7 @@ export default function OrderActionsDialog({
   onClose,
   triggerRef,
   onSaved,
+  canEdit = true,
 }: OrderActionsDialogProps) {
   const queryClient = useQueryClient();
   const orderId = order?.id;
@@ -165,6 +167,7 @@ export default function OrderActionsDialog({
 
   const finalOrder = current ? isOrderFinal(current.status) : true;
   const locked =
+    !canEdit ||
     !current ||
     detail.isFetching ||
     detail.isError ||
@@ -329,6 +332,12 @@ export default function OrderActionsDialog({
               {mutation.isError ? (
                 <MutationError error={mutation.error} />
               ) : null}
+              {!canEdit ? (
+                <p role="status" className="text-sm text-muted">
+                  Acesso somente para consulta. Sua conta nÃ£o pode alterar
+                  ordens.
+                </p>
+              ) : null}
               {mutation.isPending ? (
                 <p role="status" className="text-sm text-muted">
                   Enviando para confirmação do servidor. Fechar esta janela não
@@ -348,7 +357,7 @@ export default function OrderActionsDialog({
                 </div>
               ) : null}
 
-              {isPending ? (
+              {canEdit && isPending ? (
                 <Button
                   variant="neutral"
                   className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
@@ -381,6 +390,7 @@ export default function OrderActionsDialog({
                   value={resultValue}
                   maxLength={4000}
                   disabled={
+                    !canEdit ||
                     !isRunning ||
                     detail.isFetching ||
                     mutation.isPending ||
@@ -413,7 +423,7 @@ export default function OrderActionsDialog({
                   </p>
                 )}
               </div>
-              {isRunning ? (
+              {canEdit && isRunning ? (
                 <Button
                   variant="secondary"
                   className="min-h-11 w-fit min-w-[220px] max-[639px]:w-full"
@@ -427,7 +437,7 @@ export default function OrderActionsDialog({
                 </Button>
               ) : null}
 
-              {!finalOrder ? (
+              {canEdit && !finalOrder ? (
                 <Button
                   variant="danger"
                   className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
@@ -440,11 +450,11 @@ export default function OrderActionsDialog({
                 >
                   Cancelar ordem…
                 </Button>
-              ) : (
+              ) : finalOrder ? (
                 <p role="status" className="text-sm text-muted">
                   Esta ordem está encerrada e disponível somente para consulta.
                 </p>
-              )}
+              ) : null}
               <OrderHistory orderId={current.id} />
             </>
           ) : null}

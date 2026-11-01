@@ -159,7 +159,7 @@ describe("IA-04 contextual insight on Panorama", () => {
         const url = new URL(String(input), "http://localhost:5173");
         if (url.pathname === "/api/v1/panorama") {
           const filters: PanoramaFilters = {
-            periodo: url.searchParams.get("competencia")!,
+            periodo: url.searchParams.get("competencia") ?? "2024-04",
             comparacao: url.searchParams.get(
               "comparacao",
             ) as PanoramaFilters["comparacao"],
@@ -223,11 +223,8 @@ describe("IA-04 contextual insight on Panorama", () => {
         name: "Indicadores principais do Panorama",
       }),
     ).toBeVisible();
-    expect(insight.parentElement).toHaveClass(
-      "items-start",
-      "xl:items-stretch",
-    );
-    expect(insight.parentElement).toHaveClass(
+    expect(insight.parentElement).toHaveClass("grid-cols-1", "gap-6");
+    expect(insight.parentElement).not.toHaveClass(
       "xl:grid-cols-[minmax(0,1fr)_340px]",
     );
 
@@ -310,7 +307,7 @@ describe("IA-04 contextual insight on Panorama", () => {
         const url = new URL(String(input), "http://localhost:5173");
         if (url.pathname === "/api/v1/panorama") {
           const filters: PanoramaFilters = {
-            periodo: url.searchParams.get("competencia")!,
+            periodo: url.searchParams.get("competencia") ?? "2024-04",
             comparacao: url.searchParams.get(
               "comparacao",
             ) as PanoramaFilters["comparacao"],
@@ -398,7 +395,7 @@ describe("IA-04 contextual insight on Panorama", () => {
         const url = new URL(String(input), "http://localhost:5173");
         if (url.pathname === "/api/v1/panorama")
           return panoramaResponse({
-            periodo: url.searchParams.get("competencia")!,
+            periodo: url.searchParams.get("competencia") ?? "2024-04",
             comparacao: url.searchParams.get(
               "comparacao",
             ) as PanoramaFilters["comparacao"],
@@ -441,7 +438,7 @@ describe("IA-04 contextual insight on Panorama", () => {
         const url = new URL(String(input), "http://localhost:5173");
         if (url.pathname === "/api/v1/panorama") {
           const filters: PanoramaFilters = {
-            periodo: url.searchParams.get("competencia")!,
+            periodo: url.searchParams.get("competencia") ?? "2024-04",
             comparacao: url.searchParams.get(
               "comparacao",
             ) as PanoramaFilters["comparacao"],

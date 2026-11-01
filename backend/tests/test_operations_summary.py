@@ -1,7 +1,7 @@
 import pytest
 
 from app.main import app
-from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository
+from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository_provider
 
 
 @pytest.fixture(autouse=True)
@@ -90,7 +90,7 @@ def test_summary_uses_summed_denominators_for_distinct_weights(client, monkeypat
         {"event_id": "EV-X3", "uc_id": "UC-X3", "feeder_id": "AL-02",
          "competencia": "2025-02", "duration_hours": 0},
     ]
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
 
     summary = client.get("/api/v1/operations/summary").json()["data"]["summary"]
     assert summary["duration_hours_sum"] == 6
@@ -119,7 +119,7 @@ def test_summary_rounds_only_after_aggregating_unrounded_feeder_numerators(clien
         {"event_id": "EV-R2", "uc_id": "UC-R2", "feeder_id": "AL-02",
          "competencia": "2025-01", "duration_hours": 0.0012},
     ]
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
 
     body = client.get("/api/v1/operations/summary").json()
     summary = body["data"]["summary"]
@@ -144,7 +144,7 @@ def test_summary_does_not_claim_coverage_for_partial_external_or_unknown_windows
     repository = SyntheticAnalyticsRepository()
     if coverage == "unknown":
         repository.continuity_coverage = None
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
     response = client.get(
         "/api/v1/operations/summary",
         params={"competencia_inicio": start, "competencia_fim": end},
@@ -180,7 +180,7 @@ def test_summary_excludes_invalid_denominators_without_fabricating_numerators(
 ):
     repository = SyntheticAnalyticsRepository()
     repository.feeders[0]["denominator_uc_count"] = denominator
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
     summary = client.get(
         "/api/v1/operations/summary?alimentador=AL-01",
     ).json()["data"]["summary"]
@@ -196,7 +196,7 @@ def test_summary_excludes_invalid_denominators_without_fabricating_numerators(
 def test_summary_empty_source_differs_from_source_without_eligible_feeders(client, monkeypatch):
     repository = SyntheticAnalyticsRepository()
     repository.feeders = []
-    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository, lambda: repository)
+    monkeypatch.setitem(app.dependency_overrides, get_analytics_repository_provider, lambda: lambda: repository)
 
     body = client.get("/api/v1/operations/summary").json()
     summary = body["data"]["summary"]
@@ -231,6 +231,8 @@ def test_summary_source_unavailable_fails_closed_and_is_documented(client, monke
     assert "data" not in response.json()
     assert response.headers["Cache-Control"] == "no-store"
     operation = client.get("/openapi.json").json()["paths"]["/api/v1/operations/summary"]["get"]
-    assert operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("OperationSummaryResponse")
+    schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    refs = {schema.get("$ref", "")} | {variant.get("$ref", "") for variant in schema.get("anyOf", [])}
+    assert any(reference.endswith(("OperationSummaryResponse", "GoldOperationSummaryResponse")) for reference in refs)
     assert operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"] == "#/components/schemas/AnalyticsErrorResponse"
     assert operation["responses"]["503"]["content"]["application/json"]["schema"]["$ref"] == "#/components/schemas/AnalyticsErrorResponse"

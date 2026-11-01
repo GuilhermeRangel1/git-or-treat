@@ -3,7 +3,7 @@ from copy import deepcopy
 import pytest
 
 from app.main import app
-from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository
+from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository_provider
 
 
 @pytest.fixture(autouse=True)
@@ -79,7 +79,7 @@ def test_equal_priority_ties_by_energy_then_uc_and_zero_is_known(client):
     third["uc_id"] = "UC-1003"
     third["estimate_evidence"]["observed_kwh"] = 100
     repository.suspicions = [original, third, second]
-    app.dependency_overrides[get_analytics_repository] = lambda: repository
+    app.dependency_overrides[get_analytics_repository_provider] = lambda: lambda: repository
     body = client.get("/api/v1/inspections/queue?page_size=1").json()
     assert body["data"]["items"][0]["uc_id"] == "UC-1001"
     assert client.get("/api/v1/inspections/queue?page_size=1&page=2").json()["data"]["items"][0]["uc_id"] == "UC-1004"
@@ -95,7 +95,7 @@ def test_unavailable_source_does_not_fallback_to_demo(client, monkeypatch):
 def test_synthetic_rule_is_not_applied_to_real_source(client):
     repository = SyntheticAnalyticsRepository()
     repository.source_is_demo = False
-    app.dependency_overrides[get_analytics_repository] = lambda: repository
+    app.dependency_overrides[get_analytics_repository_provider] = lambda: lambda: repository
     response = client.get("/api/v1/inspections/queue")
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "rule_unavailable"

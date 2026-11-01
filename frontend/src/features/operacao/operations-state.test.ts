@@ -4,6 +4,7 @@ import {
   changeOperationMetric,
   openOperationDetail,
   paginateOperationDetail,
+  paginateOperationRanking,
   parseOperationParams,
   returnToOperationRanking,
 } from "./operations-state";
@@ -35,9 +36,12 @@ describe("estado de URL da Operação", () => {
     ],
     ["periodo=2025-01&periodo=2025-02", /duplicado/i],
     ["page=1000001", /página/i],
+    ["ranking_page=0", /página do ranking/i],
+    ["ranking_page=abc", /página do ranking/i],
+    ["ranking_page=1000001", /página do ranking/i],
     ["page=0&page_size=101", /página|tamanho/i],
     ["metric=energy", /métrica/i],
-    ["municipio=Recife", /suportado/i],
+    ["bairro=Centro", /suportado/i],
     ["feeder_id=" + "A".repeat(101), /alimentador/i],
   ])("não gera consulta para URL inválida: %s", (search, message) => {
     const parsed = parseOperationParams(new URLSearchParams(search));
@@ -80,5 +84,28 @@ describe("estado de URL da Operação", () => {
     expect(returned.get("competencia_inicio")).toBe("2025-02");
     expect(returned.get("competencia_fim")).toBe("2025-03");
     expect(returned.get("metric")).toBe("dec");
+  });
+
+  it("mantém a página do ranking separada da paginação legada do detalhe", () => {
+    const original = new URLSearchParams(
+      "competencia_inicio=2025-01&competencia_fim=2025-02&ranking_page=3&page=7&page_size=40",
+    );
+    expect(parseOperationParams(original).query).toMatchObject({
+      rankingPage: 3,
+      page: 7,
+      pageSize: 40,
+    });
+    const detail = openOperationDetail(original, "AL-40");
+    expect(detail.get("ranking_page")).toBe("3");
+    expect(detail.get("page")).toBeNull();
+    const detailPage = paginateOperationDetail(detail, 2);
+    expect(detailPage.get("page")).toBe("2");
+    expect(detailPage.get("ranking_page")).toBe("3");
+    const returned = returnToOperationRanking(detailPage);
+    expect(returned.get("ranking_page")).toBe("3");
+    expect(returned.get("page")).toBeNull();
+    expect(
+      paginateOperationRanking(returned, 1).get("ranking_page"),
+    ).toBeNull();
   });
 });

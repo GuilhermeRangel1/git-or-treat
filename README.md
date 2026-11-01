@@ -38,8 +38,12 @@ O `docker-compose.yml` sobe portal, API e PostgreSQL. Os arquivos de ambiente s�
 ```bash
 cp .env.db.example .env.db
 cp backend/.env.example backend/.env
+docker compose up -d db
+docker compose run --rm backend sh -c 'alembic upgrade head && python scripts/bootstrap_local_auth.py'
 docker compose up -d --build
 ```
+
+O modo padrão do Compose é autenticação individual por sessão. Aplique migrações explicitamente antes da provisão: o comando acima altera o banco configurado. As senhas aleatórias iniciais de `reader` e `operator` ficam em `work/local-auth/credentials.txt` (ignorado pelo Git); preserve esse arquivo e não o publique. Provisione somente o banco operacional local escolhido.
 
 | Serviço | URL | Observação |
 | --- | --- | --- |
@@ -47,7 +51,7 @@ docker compose up -d --build
 | API FastAPI | http://localhost:8000/api/v1 | OpenAPI em http://localhost:8000/docs |
 | PostgreSQL | localhost:5432 | Banco `v_energy`, usuário `v_energy_app` |
 
-O Compose é um ambiente de desenvolvimento e seleciona explicitamente `ANALYTICS_SOURCE=synthetic` para demonstrar os indicadores. A API executada fora dele continua com padrão `unavailable`. Para testar indisponibilidade no Compose, defina `ANALYTICS_SOURCE=unavailable` no ambiente do comando e recrie o backend. Os números exibidos são fictícios, sem reconciliação Gold.
+O Compose é um ambiente de desenvolvimento e seleciona explicitamente `ANALYTICS_SOURCE=synthetic` para demonstrar os indicadores; autenticação do portal usa `ORDERS_AUTH_MODE=session`. A API executada fora dele continua com padrão `unavailable`. Para testar indisponibilidade no Compose, defina `ANALYTICS_SOURCE=unavailable` no ambiente do comando e recrie o backend. Os números exibidos são fictícios, sem reconciliação Gold. O contrato de sessão, limites e provisão está em [autenticação local](docs/contracts/local-auth.md).
 
 O navegador usa a mesma origem do portal (`VITE_API_URL=/`); o Vite encaminha `/api` para `http://backend:8000` dentro do Docker. Assim o cliente não depende do próprio `localhost` para chegar à API. Para abrir no celular da mesma rede, use o endereço da máquina na porta 5173, conforme a conectividade local permitir. O frontend usa polling no volume Docker para refletir alterações feitas no Windows.
 

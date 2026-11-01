@@ -41,7 +41,9 @@ export default function PanoramaStatus({
           <dl className="grid gap-3 sm:grid-cols-2">
             <div>
               <dt className="text-xs text-muted">Fonte</dt>
-              <dd className="mt-1 font-medium">Dados sintéticos</dd>
+              <dd className="mt-1 font-medium">
+                {data.origem?.kind === "gold" ? "Gold" : "Dados sintéticos"}
+              </dd>
             </div>
             <div>
               <dt className="text-xs text-muted">Atualizado em</dt>
@@ -55,10 +57,29 @@ export default function PanoramaStatus({
                 {data.loteVersao}
               </dd>
             </div>
+            {data.origem?.fingerprint && (
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-muted">Fingerprint</dt>
+                <dd className="mt-1 break-all font-mono text-xs">
+                  {data.origem.fingerprint}
+                </dd>
+              </div>
+            )}
+            {data.origem?.temporalScope && (
+              <div>
+                <dt className="text-xs text-muted">Escopo temporal</dt>
+                <dd className="mt-1 font-medium">
+                  {data.origem.temporalScope === "monthly"
+                    ? "Mensal"
+                    : "Snapshot"}
+                </dd>
+              </div>
+            )}
           </dl>
           <p className="rounded-lg bg-canvas p-3 text-xs text-muted">
-            Esta data e a versão identificam o último conjunto carregado para o
-            recorte atual.
+            {data.origem?.kind === "gold"
+              ? "A atualização identifica a importação local da publicação; não representa processamento Gold nem fechamento mensal."
+              : "Esta data e a versão identificam o último conjunto carregado para o recorte atual."}
           </p>
           <Button
             variant="secondary"

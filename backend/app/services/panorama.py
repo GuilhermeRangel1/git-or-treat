@@ -1,8 +1,10 @@
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP, localcontext
 from typing import Any
 
 from app.repositories.panorama import PanoramaRepository
-from app.schemas.panorama import PanoramaData, PanoramaMetric, PanoramaSeriesPoint
+from app.repositories.panorama import GoldPanoramaRepository
+from app.schemas.panorama import PanoramaData, PanoramaFilterOptions, PanoramaMetric, PanoramaSeriesPoint
 from app.services.analytics import AnalyticsAPIError
 
 DEFAULT_PERIOD = "2024-04"
@@ -303,4 +305,260 @@ def build_panorama(
         loteVersao=repository.source_version,
         metricas=metricas,
         serieMensal=serie_mensal,
+    )
+
+
+def _gold_metric(
+    id_: str,
+    nome: str,
+    subtitulo: str,
+    categoria: str,
+    tipo_grandeza: str,
+    current: float | Decimal | int | None,
+    previous: float | Decimal | int | None,
+    unit: str,
+    definition: str,
+    formula: str,
+    status: str,
+    limitations: list[str],
+    bom_sentido: str = "positivo",
+    comparison_status: str = "available",
+    comparison_limitations: list[str] | None = None,
+    value_precision: int | None = None,
+) -> PanoramaMetric:
+    current_decimal = Decimal(str(current)) if current is not None else None
+    previous_decimal = Decimal(str(previous)) if previous is not None else None
+    base_zero = previous == 0 if previous is not None else False
+    can_compare = comparison_status in {"available", "partial"}
+    change = percent = None
+    if can_compare and current_decimal is not None and previous_decimal is not None:
+        with localcontext() as context:
+            # Numeric(38, 2) has at most 38 significant digits; 100 leaves room for the quotient and percentage.
+            context.prec = 100
+            raw_change = current_decimal - previous_decimal
+            change = float(raw_change.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            if previous_decimal != 0:
+                raw_percent = raw_change / previous_decimal * Decimal("100")
+                percent = float(raw_percent.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+    def output_value(value: Decimal | None) -> float | None:
+        if value is None:
+            return None
+        if value_precision is not None:
+            quantum = Decimal(1).scaleb(-value_precision)
+            with localcontext() as context:
+                context.prec = 100
+                value = value.quantize(quantum, rounding=ROUND_HALF_UP)
+        return float(value)
+
+    return PanoramaMetric(
+        id=id_, nome=nome, subtitulo=subtitulo, categoria=categoria,
+        tipoGrandeza=tipo_grandeza, valorAtual=output_value(current_decimal), valorAnterior=output_value(previous_decimal),
+        variacaoAbsoluta=change, variacaoPercentual=percent, unidade=unit,
+        definicao=definition, formula=formula, baseZero=base_zero,
+        bomSentido=bom_sentido, status=status, limitacoes=limitations,
+        statusComparacao=comparison_status,
+        limitacoesComparacao=comparison_limitations or [],
+    )
+
+
+def build_gold_panorama(
+    repository: GoldPanoramaRepository,
+    competencia: str | None,
+    comparacao: str,
+    municipio: str,
+    classe: str,
+) -> PanoramaData:
+    periods, municipalities, classes = repository.options()
+    if not periods:
+        raise AnalyticsAPIError(503, "source_unavailable", "A fonte Gold não contém competências publicadas.")
+    period = validate_period(competencia or periods[-1])
+    compare = validate_comparison(comparacao)
+    municipality = validate_filter(municipio, "municipio", set(municipalities), ALL_MUNICIPIOS)
+    consumption_class = validate_filter(classe, "classe", set(classes), ALL_CLASSES)
+    selected_municipality = None if municipality == ALL_MUNICIPIOS else municipality
+    selected_class = None if consumption_class == ALL_CLASSES else consumption_class
+
+    reference = comparison_period(period, compare)
+    actual = repository.aggregate(period, selected_municipality, selected_class)
+    prior = (
+        repository.aggregate(reference, selected_municipality, selected_class)
+        if reference and reference in periods else None
+    )
+
+    billed_count = repository.billed_uc_count(period, selected_municipality, selected_class)
+    prior_billed_count = repository.billed_uc_count(reference, selected_municipality, selected_class) if prior is not None else None
+    registered_count = repository.registered_uc_count(selected_municipality, selected_class)
+
+    def number(row, field):
+        value = row[field] if row is not None else None
+        return value
+
+    def measure_status(row, values_field):
+        if row is None or row["row_count"] == 0:
+            return "empty"
+        if row[values_field] == 0:
+            return "unavailable"
+        if row[values_field] < row["row_count"]:
+            return "partial"
+        return "available"
+
+    revenue = number(actual, "revenue")
+    energy = number(actual, "energy")
+    prior_revenue = number(prior, "revenue")
+    prior_energy = number(prior, "energy")
+    with localcontext() as context:
+        # Preserve precision above Numeric(38, 2) input capacity without changing the process-wide context.
+        context.prec = 100
+        price = revenue / Decimal(str(energy)) if revenue is not None and energy not in (None, 0) else None
+        prior_price = prior_revenue / Decimal(str(prior_energy)) if prior_revenue is not None and prior_energy not in (None, 0) else None
+    observed = actual["row_count"] > 0
+    metric_limit = ["Não há linha Gold para a competência e os filtros selecionados."] if not observed else []
+    unavailable = ["A tabela Gold não contém esta grandeza."]
+    revenue_status = measure_status(actual, "revenue_values")
+    energy_status = measure_status(actual, "energy_values")
+    base_limit = ["Valores ausentes em alguma dimensão; o total soma somente o que foi observado."]
+    current_continuity = prior_continuity = None
+    continuity_limitations = ["A continuidade não é segregada por classe na fonte Gold."]
+    if consumption_class == ALL_CLASSES:
+        from app.repositories.gold_operations import GoldOperationsRepository
+        from app.services.operations import build_gold_operation_summary
+
+        operations = GoldOperationsRepository(repository.context)
+        _, feeder_municipalities = operations.options()
+        continuity_municipalities = set(feeder_municipalities.values())
+        if selected_municipality is None or selected_municipality in continuity_municipalities:
+            current_continuity = build_gold_operation_summary(operations, period, period, selected_municipality).data
+            if reference and reference in periods:
+                prior_continuity = build_gold_operation_summary(operations, reference, reference, selected_municipality).data
+            continuity_limitations = list(current_continuity.limitations)
+        else:
+            continuity_limitations = [
+                "O município tem dados financeiros, mas não há município/alimentador correspondente em indicadores_dec_fec."
+            ]
+    prior_revenue_status = measure_status(prior, "revenue_values") if prior is not None else "empty"
+    prior_energy_status = measure_status(prior, "energy_values") if prior is not None else "empty"
+
+    def comparison_state(current_complete: bool, previous_complete: bool) -> str:
+        if not reference or prior is None:
+            return "empty"
+        return "partial" if current_complete and previous_complete else "unavailable"
+
+    def comparison_limitations(state: str) -> list[str]:
+        if state == "partial":
+            return ["Ambas as competências têm valores observados, mas a Gold não declara fechamento mensal; variações descrevem somente os valores publicados."]
+        if reference and prior is None:
+            return ["A competência de comparação não foi observada na fonte Gold."]
+        if reference:
+            return ["Uma das competências tem valores ausentes ou indisponíveis; variação não calculada."]
+        return ["Nenhuma competência de comparação foi solicitada."]
+
+    revenue_comparison = comparison_state(revenue_status == "available", prior_revenue_status == "available")
+    energy_comparison = comparison_state(energy_status == "available", prior_energy_status == "available")
+    price_comparison = comparison_state(
+        price is not None and revenue_status == energy_status == "available",
+        prior_price is not None and prior_revenue_status == prior_energy_status == "available",
+    )
+    dec_comparison = comparison_state(
+        current_continuity is not None and current_continuity.dec_hours_per_uc is not None,
+        prior_continuity is not None and prior_continuity.dec_hours_per_uc is not None,
+    )
+    fec_comparison = comparison_state(
+        current_continuity is not None and current_continuity.fec_interruptions_per_uc is not None,
+        prior_continuity is not None and prior_continuity.fec_interruptions_per_uc is not None,
+    )
+    metrics = {
+        "receitaFaturada": _gold_metric(
+            "rec_fat", "Receita comparável", "Faturamento com todas as leituras observadas válidas",
+            "financeiro", "faturado", revenue, prior_revenue if revenue_comparison == "partial" else None, "R$",
+            "Faturamento de UC/mês com fatura e todas as leituras observadas válidas.",
+            "Σ(receita_base_comparavel_reais)", revenue_status,
+            metric_limit if revenue_status == "empty" else (base_limit if revenue_status == "partial" else ([] if revenue_status == "available" else unavailable)),
+            comparison_status=revenue_comparison, comparison_limitations=comparison_limitations(revenue_comparison),
+        ),
+        "receitaPaga": _gold_metric(
+            "rec_pag", "Receita Paga", "Indisponível na exportação Gold", "financeiro", "pago",
+            None, None, "R$", "A Gold não contém pagamentos.", "indisponível",
+            "unavailable", unavailable, comparison_status="unavailable",
+        ),
+        "energiaConsumida": _gold_metric(
+            "ene_con", "Consumo Medido", "Consumo dos mesmos pares UC/mês da receita comparável", "fisico", "consumido",
+            energy, prior_energy if energy_comparison == "partial" else None, "kWh", "Consumo medido dos mesmos pares UC/mês usados na receita comparável.",
+            "Σ(consumo_base_comparavel_kwh)", energy_status,
+            metric_limit if energy_status == "empty" else (base_limit if energy_status == "partial" else ([] if energy_status == "available" else unavailable)),
+            comparison_status=energy_comparison, comparison_limitations=comparison_limitations(energy_comparison),
+        ),
+        "energiaFaturada": _gold_metric(
+            "ene_fat", "Energia Faturada", "Indisponível na exportação Gold", "fisico", "faturado",
+            None, None, "kWh", "A Gold não contém energia faturada separada do consumo medido.",
+            "indisponível", "unavailable", unavailable, comparison_status="unavailable",
+        ),
+        "precoMedioEfetivo": _gold_metric(
+            "prc_med", "Preço Observado", "Razão entre receita e consumo da base comparável",
+            "financeiro", "faturado", price, prior_price if price_comparison == "partial" else None, "R$/kWh",
+            "Razão entre receita e consumo medidos na mesma base comparável; não é tarifa homologada.",
+            "Σ(receita_base_comparavel_reais) / Σ(consumo_base_comparavel_kwh)",
+            "available" if price is not None and revenue_status == energy_status == "available" else ("partial" if price is not None else ("empty" if not observed else "unavailable")),
+            metric_limit if not observed else (base_limit if price is not None and (revenue_status != "available" or energy_status != "available") else ([] if price is not None else ["Consumo ausente ou zero; preço não calculado."])),
+            comparison_status=price_comparison, comparison_limitations=comparison_limitations(price_comparison),
+            value_precision=2,
+        ),
+        "ucsAtivas": _gold_metric(
+            "ucs_atv", "UCs cadastradas no lote", "Cadastro atual; todos os status", "operacional", "operacao",
+            registered_count, None, "UCs", "UCs distintas no cadastro atual da publicação; não representa população ativa histórica.",
+            "COUNT(DISTINCT visao_360_uc.id_uc)", "available",
+            ["Fotografia cadastral do lote, independente da competência selecionada; inclui todos os status."],
+            comparison_status="unavailable", comparison_limitations=["O cadastro não comprova vigência histórica mensal."],
+        ),
+        "ucsFaturadasNoMes": _gold_metric(
+            "ucs_fat", "UCs Faturadas no Mês", "UCs distintas com fatura observada na competência",
+            "operacional", "operacao", billed_count, prior_billed_count, "UCs",
+            "Contagem distinta de UCs com tem_fatura=true, inclusive quando não há leitura; filtros pelo cadastro atual.",
+            "COUNT(DISTINCT consumo_mensal_uc.id_uc) WHERE tem_fatura=true",
+            "available" if observed else "empty", ["Cadastro atual; presença de fatura não certifica fechamento mensal."],
+            comparison_status="partial" if prior is not None else "empty",
+            comparison_limitations=["Comparação observada; sem declaração de fechamento mensal."],
+        ),
+        "continuidadeDec": _gold_metric(
+            "cont_dec", "DEC", "Consulta disponível em Operação", "operacional", "operacao",
+            current_continuity.dec_hours_per_uc if current_continuity else None,
+            prior_continuity.dec_hours_per_uc if dec_comparison == "partial" else None,
+            "horas/UC", "Soma das durações observadas dividida uma vez pelo denominador cadastral constante por alimentador.",
+            "Σ(duracao_total_interrupcoes_horas) / denominador cadastral",
+            "partial" if current_continuity and current_continuity.dec_hours_per_uc is not None else "unavailable",
+            continuity_limitations, "negativo", dec_comparison, comparison_limitations(dec_comparison),
+        ),
+        "continuidadeFec": _gold_metric(
+            "cont_fec", "FEC", "Consulta disponível em Operação", "operacional", "operacao",
+            current_continuity.fec_interruptions_per_uc if current_continuity else None,
+            prior_continuity.fec_interruptions_per_uc if fec_comparison == "partial" else None,
+            "interrupções/UC", "Soma das frequências observadas dividida uma vez pelo denominador cadastral constante por alimentador.",
+            "Σ(frequencia_total_interrupcoes) / denominador cadastral",
+            "partial" if current_continuity and current_continuity.fec_interruptions_per_uc is not None else "unavailable",
+            continuity_limitations, "negativo", fec_comparison, comparison_limitations(fec_comparison),
+        ),
+    }
+
+    series_rows = {row["competencia"]: row for row in repository.series(period, selected_municipality, selected_class)}
+    series = []
+    for month in (value for value in periods if value <= period):
+        row = series_rows.get(month)
+        has_data = row is not None and row["row_count"] > 0
+        rev = number(row, "revenue") if has_data else None
+        ene = number(row, "energy") if has_data else None
+        series.append(PanoramaSeriesPoint(
+            competencia=month, label=period_label(month), receitaFaturada=float(rev) if rev is not None else None,
+            receitaPaga=None, energiaConsumidaKwh=float(ene) if ene is not None else None, energiaFaturadaKwh=None,
+            ucsAtivas=None, decHoras=None, fecVezes=None,
+            status="partial" if has_data else "empty",
+        ))
+    return PanoramaData(
+        filtros={"periodo": period, "comparacao": compare, "municipio": municipality, "classe": consumption_class},
+        periodoIncompleto=False,
+        totalRegistros=actual["row_count"],
+        dataAtualizacao=repository.source_updated_at,
+        loteVersao=repository.context.lote,
+        metricas=metrics,
+        serieMensal=series,
+        opcoesFiltros=PanoramaFilterOptions(competencias=periods, municipios=municipalities, classes=classes),
     )

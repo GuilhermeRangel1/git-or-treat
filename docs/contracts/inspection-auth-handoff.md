@@ -1,79 +1,17 @@
-# Entrega do backend de ordens para o frontend
+# Acesso às ordens — contrato para o portal
 
-23/10/2026. DEV-06 / WEB-05, com autenticação das ordens preparada para identidade individual. Decisão: [ADR-0012](../decisions/0012-autenticacao-individual-das-ordens.md). Contrato funcional: [criação, consulta e idempotência](inspection-orders-dev06.md).
+O acesso autenticado usa sessões mantidas pelo Backend e cookie HttpOnly; não há credenciais de serviço injetadas pelo proxy. Rotas, envelope, permissões, proteção de origem, cookie, revogação e provisão estão no [contrato de autenticação local](local-auth.md). Decisão arquitetural: [ADR-0020](../decisions/0020-autenticacao-backend-por-sessao.md).
 
-## Estado da entrega
+## Ordens e permissões
 
-**Login não é obrigatório na DEV-06.** No Compose local, o modo `demo` permite criar e consultar ordens sem Bearer. Fora do Compose, configure `APP_ENV=development`, `ANALYTICS_SOURCE=synthetic` e `ORDERS_AUTH_MODE=demo` no backend e mantenha API/frontend em localhost. Reinicie a API após alterar essas variáveis. Não é necessário integrar login para continuar o frontend.
+- `reader` recebe `orders:read`: consulta fila, ordens e histórico; não pode criar nem alterar ordens.
+- `operator` recebe `orders:read` e `orders:write`: consulta e executa as ações operacionais permitidas pelo contrato DEV-06/DEV-07.
+- A identidade/ator é resolvida pelo servidor a partir do usuário autenticado, nunca do corpo enviado pelo portal.
+- `ORDERS_AUTH_MODE=service` continua disponível para CLI/Swagger com credenciais privadas. O portal não recebe nem armazena essas credenciais.
+- `ORDERS_AUTH_MODE=demo` é limitado a desenvolvimento com fonte sintética e não identifica uma pessoa.
 
-O modo demo só aceita fonte sintética e desenvolvimento; produção recusa essa configuração. O ator `local-demo` identifica a execução demonstrativa, não uma pessoa. Requisições de navegador com origem não permitida ou `Sec-Fetch-Site: cross-site` são recusadas. A contenção de rede depende das portas locais; esse modo não deve ser publicado na rede ou usado com dados reais. O proxy continua sem injetar credenciais. A decisão de escopo está na atualização da ADR-0012.
+## Execução e aceite
 
-As seções OIDC abaixo documentam a preparação opcional para uma etapa futura, sem exigir sua integração nesta entrega.
+Após aplicar explicitamente as migrações ao banco operacional local, execute `python scripts/bootstrap_local_auth.py` dentro de `backend/` para provisionar contas artificiais. As senhas iniciais são aleatórias e ficam apenas em `work/local-auth/credentials.txt`, ignorado pelo Git. Contas existentes não têm senha ou permissão redefinidas.
 
-Não há cadastro de usuário/senha ou endpoint de login inventado na API. Login, emissão e renovação de tokens pertencem ao provedor OIDC escolhido pela equipe. A configuração real desse provedor e o ingresso HTTPS são tarefas de implantação. Os testes usam chaves RSA efêmeras e identidades artificiais; não afirmam integração com uma conta real de SSO.
-
-## Configuração do backend
-
-Configurar no ambiente privado do processo, usando os valores reais do provedor:
-
-```dotenv
-APP_ENV=production
-ORDERS_AUTH_MODE=oidc
-OIDC_ISSUER=https://identity.example.invalid/tenant
-OIDC_AUDIENCE=grid360-api
-OIDC_JWKS_URL=https://identity.example.invalid/tenant/jwks
-```
-
-Os endereços acima são exemplos, não serviços utilizáveis. Remover `ORDERS_READ_TOKEN` e `ORDERS_WRITE_TOKEN` no modo OIDC. O processo recusa produção com autenticação de serviço, OIDC sem configuração completa, URLs sem HTTPS ou credenciais compartilhadas em paralelo. A audiência deve identificar esta API, não o client ID do frontend. Configurar os hosts e origens reais do ingresso sem wildcard. Não fornecer segredo do cliente ao navegador.
-
-Contrato aceito do token de acesso:
-
-- Assinatura RS256, RSA com pelo menos 2048 bits e `kid` da chave publicada no JWKS configurado no servidor. URLs `jku`/`x5u` do token não são usadas.
-- `iss` e `aud` correspondentes à configuração; `sub` individual, não vazio; `iat` e `exp` inteiros em segundos, com duração positiva de até 3600 segundos. Validade/`nbf` verificados, tolerância de relógio de 15 segundos.
-- Claim `scope` como string com permissões separadas por espaço: `orders:read` e/ou `orders:write`. Escrita inclui leitura. Perfis do provedor precisam ser mapeados a esses scopes; a API não interpreta nomes arbitrários de cargos ou claims `roles`/`scp`.
-- JWKS em cache por até 300 segundos, timeout de busca de 3 segundos. `kid` desconhecido é recusado sem forçar refresh por requisição; publicar chaves novas com antecedência e manter sobreposição na rotação. Token acima de 8192 caracteres é recusado.
-
-Não usar ID token como substituto do token de acesso desta API. Revogar usuário no provedor não invalida retroativamente um JWT já emitido antes de seu vencimento; política de sessões/revogação imediata depende do provedor/ingresso. Esta API não implementa introspecção ou lista de revogação local.
-
-Para desenvolvimento por CLI/Swagger, `APP_ENV=development` e `ORDERS_AUTH_MODE=service` preservam as credenciais de serviço de leitura/escrita existentes, com ao menos 32 caracteres e valores distintos. **Não enviá-las ao frontend.** Sem credencial válida, as ordens continuam fechadas.
-
-## Integração futura no frontend com OIDC
-
-1. Integrar o cliente oficial do provedor OIDC, com fluxo de login apropriado à aplicação (por exemplo, Authorization Code com PKCE). Um BFF pode manter a sessão no servidor e encaminhar o token individual; ele não faz parte desta entrega.
-2. Enviar `Authorization: Bearer <access_token>` no transporte das rotas de ordens. O proxy Vite encaminha o header recebido e não o substitui. `ORDERS_DEV_PROXY_TOKEN` deixou de ter efeito; removê-lo da configuração antiga.
-3. Consultar `GET /api/v1/inspections/access` para obter a identidade opaca e permissões. Resposta autenticada, sem cache:
-
-```json
-{
-  "actor": "oidc:<identificador-opaco>",
-  "auth_mode": "oidc",
-  "permissions": ["orders:read", "orders:write"]
-}
-```
-
-O ator é derivado pelo servidor de emissor + subject, sem expor nome/email. Não enviá-lo em payload ou header para escolher o operador. Não é um login, um segredo nem uma autorização por si só. Um token válido sem scopes de ordens recebe a lista vazia nesta rota e 403 ao tentar operar ordens.
-
-4. Exibir ações conforme permissões; a API continua aplicando o controle independentemente de botões ocultos. Ao trocar usuário/logout, limpar credenciais e caches remotos do usuário anterior; incluir a identidade nas chaves de consulta. Não gravar credenciais de serviço, tokens ou perfis em fixtures, logs ou bundle.
-5. Na criação, gerar uma chave de idempotência por intenção, preservar corpo/chave em reenvios e mostrar sucesso apenas após 200/201. Se precisar renovar o token após 401, não trocar a chave nem o conteúdo da intenção. 409 inclui dados estruturados para abrir a ordem existente.
-
-Nos modos autenticados, manter estado de acesso negado quando faltar credencial. Na demo local, usar as respostas reais do servidor, sem login e sem simular sucesso. A implementação visual fica com a pessoa responsável pelo frontend.
-
-## Rotas e erros
-
-Nos modos autenticados, leitura exige `orders:read` ou `orders:write` e criação/atualização exigem `orders:write`. Na demo, essas permissões são locais e dispensam Bearer. Todas as rotas têm prefixo `/api/v1/inspections`. `/access` retorna `auth_mode=demo` e ator `local-demo` nessa configuração; não consulta a fonte analítica.
-
-- 401: Bearer ausente/inválido/expirado, assinatura, emissor, audiência ou chave não aceitos. Autenticar/renovar no provedor.
-- 403: identidade válida sem permissão para a ação. Não repetir como erro transitório.
-- 409: conflito operacional, com `detail` e `error: {code, message, order_id}`.
-- 422: entrada inválida. Corrigir campos preservando o formulário.
-- 503: identidade ou fonte necessárias indisponíveis. Manter estado de falha; nunca fazer fallback para dados/credenciais locais.
-
-A autenticação individual protege as ordens. Os endpoints analíticos demonstrativos seguem a política da ADR-0007; liberação de Gold real e perfis de outras áreas continuam requisitos separados. Não há regra de propriedade individual por ordem aprovada no domínio: operadores com scope de leitura/escrita atuam no conjunto operacional, com identidade individual.
-
-## Execução e verificação
-
-Aplicar `alembic upgrade head` em banco existente para a DEV-06; esta alteração de autenticação não acrescenta migração. Instalar `backend/requirements.txt` com `PyJWT[crypto]==2.15.1`. Nunca copiar arquivos `.env` privados para o frontend.
-
-Compose publica PostgreSQL/API/frontend somente em `127.0.0.1`. O Vite usa localhost por padrão; o bind `0.0.0.0` dentro do contêiner continua necessário e não muda a publicação local. Compartilhar o portal em rede/produção exige ingresso HTTPS e configuração deliberada; não abrir portas para contornar autenticação.
-
-Verificações desta entrega: suíte backend com PostgreSQL descartável, testes OIDC com assinaturas reais, teste HTTP `npm run test:proxy`, frontend e gates. O teste do proxy também está no CI. Não foi configurado um provedor real nem criado um fluxo visual de login nesta entrega.
+Em 30/10/2026, login por sessão, cookie, permissões reader/operator, reload, logout, replay e credencial inválida foram exercitados no navegador contra API real; também houve revisão visual nas resoluções registradas no [plano](../plans/2026-10-29-backend-auth-login-grid360-plano.md). A suíte completa passou antes dos últimos ajustes cosméticos, e build/formatação passaram depois deles. WEB-10 continua pendente porque perfis e restrições de telas/ações por cargo em todo o escopo ainda não estão implementados; WEB-11 também permanece pendente.

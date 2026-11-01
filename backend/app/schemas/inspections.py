@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, StringConstraints, Field, model_vali
 
 from app.models.operational import OrderStatus, OrderAction
 from app.schemas.analytics import Pagination
-from app.schemas.order_snapshot import OrderSnapshotV1
+from app.schemas.order_snapshot import OrderSnapshotV1, OrderSnapshotV2
 
 UCIdentifier = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 OrderReason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
@@ -16,6 +16,7 @@ class QueueOrderCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source_version: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    source_fingerprint: Annotated[str | None, StringConstraints(pattern=r"^[a-fA-F0-9]{64}$")] = None
     rule_version: Annotated[str, StringConstraints(min_length=1, max_length=100)]
     priority: Literal["BAIXA", "MEDIA", "ALTA"] = "MEDIA"
     notes: OrderText | None = None
@@ -69,7 +70,7 @@ class OrderSummary(BaseModel):
 
 
 class OrderResponse(OrderSummary):
-    suspicion_snapshot: OrderSnapshotV1 | None = None
+    suspicion_snapshot: OrderSnapshotV1 | OrderSnapshotV2 | None = None
 
 
 class OrderPage(BaseModel):
@@ -94,7 +95,7 @@ class OrderConflictResponse(BaseModel):
 
 class OrderAccessResponse(BaseModel):
     actor: str
-    auth_mode: Literal["demo", "service", "oidc"]
+    auth_mode: Literal["demo", "service", "session"]
     permissions: list[Literal["orders:read", "orders:write"]]
 
 

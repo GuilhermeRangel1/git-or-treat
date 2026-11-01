@@ -7,4 +7,4 @@ pydantic-settings
 httpx
 python-dotenv
 pytest
-PyJWT[crypto]==2.15.1
+pwdlib[argon2]

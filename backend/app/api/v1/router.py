@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
+    auth,
     health,
     kpis,
     panorama,
@@ -12,6 +13,7 @@ from app.api.v1.endpoints import (
 
 api_router = APIRouter()
 
+api_router.include_router(auth.router, prefix="/auth", tags=["Autenticação"])
 api_router.include_router(health.router, tags=["Health"])
 api_router.include_router(kpis.router, prefix="/kpis", tags=["Indicadores"])
 api_router.include_router(panorama.router, prefix="/panorama", tags=["Panorama"])

@@ -49,6 +49,7 @@ export default function InspectionFilters({
   metadata?: Metadata;
   onChange: (next: URLSearchParams) => void;
 }) {
+  const gold = metadata?.contract_version === "2.0.0";
   const searchKey = params.toString();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => new URLSearchParams(params));
@@ -87,7 +88,9 @@ export default function InspectionFilters({
           <div>
             <p className="text-xs text-muted">Competência</p>
             <p className="mt-1 font-medium">
-              {periodLabel(metadata?.period.start, metadata?.period.end)}
+              {gold
+                ? "Snapshot cadastral · sem competência"
+                : periodLabel(metadata?.period?.start, metadata?.period?.end)}
             </p>
           </div>
           <div>
@@ -184,14 +187,28 @@ export default function InspectionFilters({
             <select
               name="order_by"
               className={inspectionControl}
-              value={draft.get("order_by") ?? "priority"}
+              value={
+                draft.get("order_by") ?? (gold ? "queue_position" : "priority")
+              }
               onChange={(event) => updateDraft("order_by", event.target.value)}
             >
-              <option value="priority">Prioridade</option>
-              <option value="potential_recoverable_energy_kwh">
-                Energia estimada
-              </option>
-              <option value="uc_id">Número da UC</option>
+              {gold ? (
+                <>
+                  <option value="queue_position">
+                    Posição oficial da fila
+                  </option>
+                  <option value="uc_id">Número da UC</option>
+                  <option value="category">Categoria Gold</option>
+                </>
+              ) : (
+                <>
+                  <option value="priority">Prioridade demonstrativa</option>
+                  <option value="potential_recoverable_energy_kwh">
+                    Energia estimada
+                  </option>
+                  <option value="uc_id">Número da UC</option>
+                </>
+              )}
             </select>
           </label>
           <label className="space-y-2 text-sm">
@@ -199,7 +216,7 @@ export default function InspectionFilters({
             <select
               name="direction"
               className={inspectionControl}
-              value={draft.get("direction") ?? "desc"}
+              value={draft.get("direction") ?? (gold ? "asc" : "desc")}
               onChange={(event) => updateDraft("direction", event.target.value)}
             >
               <option value="desc">Decrescente</option>

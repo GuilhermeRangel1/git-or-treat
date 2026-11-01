@@ -27,3 +27,23 @@ class OrderSnapshotV1(BaseModel):
     snapshot_schema_version: Literal["1"] = "1"
     data: SuspicionEvidenceV1
     metadata: dict[str, JsonValue]
+
+
+class SuspicionEvidenceV2(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    __pydantic_extra__: dict[str, JsonValue]
+
+    uc_id: str
+    reason: str
+    rule_version: str
+    category: str
+    potential_recoverable_energy_kwh: None = None
+    evidence: dict[str, JsonValue]
+    variation: dict[str, JsonValue] | None
+    limitations: list[str]
+
+
+class OrderSnapshotV2(BaseModel):
+    snapshot_schema_version: Literal["2"] = "2"
+    data: SuspicionEvidenceV2
+    metadata: dict[str, JsonValue]

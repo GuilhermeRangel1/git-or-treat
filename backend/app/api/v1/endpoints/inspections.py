@@ -7,16 +7,19 @@ from app.core.database import get_db
 from app.core.order_access import OrderIdentity, get_order_identity, require_orders_read, require_orders_write
 from app.models.operational import OrderStatus
 from app.schemas.inspection_queue import QueueResponse, SuspicionResponse
-from app.repositories.analytics import AnalyticsRepository, get_analytics_repository, get_analytics_repository_provider
-from app.api.v1.analytics_route import AnalyticsRoute
-from app.services.analytics import filters_model
-from app.services.inspection_analytics import build_queue_response, build_suspicion_response
+from app.schemas.inspection_queue import GoldInspectionQueueResponse, GoldSuspicionResponse
+from app.repositories.gold_context import GoldContext, get_optional_gold_context
+from app.repositories.gold_inspections import GoldInspectionRepository
+from app.repositories.analytics import AnalyticsRepository, get_analytics_repository_provider
+from app.api.v1.analytics_route import StrictAnalyticsRoute
+from app.services.analytics import AnalyticsAPIError, filters_model
+from app.services.inspection_analytics import build_gold_queue_response, build_gold_suspicion_response, build_queue_response, build_suspicion_response
 from app.schemas.inspections import OrderCreateRequest, OrderResponse, OrderUpdateRequest, QueueOrderCreateRequest, OrderPage, OrderConflictResponse, OrderAccessResponse
 from app.services import inspections as inspection_service
 from app.schemas.inspections import OrderCancelRequest, OrderResultRequest, OrderHistoryResponse
 
 router = APIRouter()
-analytics_router = APIRouter(route_class=AnalyticsRoute)
+analytics_router = APIRouter(route_class=StrictAnalyticsRoute)
 
 
 def order_conflict_response(exc: inspection_service.OrderConflictError) -> JSONResponse:
@@ -26,25 +29,52 @@ def order_conflict_response(exc: inspection_service.OrderConflictError) -> JSONR
     return JSONResponse(status_code=409, content=body.model_dump())
 
 
-@analytics_router.get("/queue", response_model=QueueResponse, summary="Fila sintética de UCs com suspeita")
+@analytics_router.get(
+    "/queue", response_model=QueueResponse | GoldInspectionQueueResponse,
+    summary="Fila de inspeção",
+    description="Gold: snapshot cadastral sem competência. A ordenação padrão usa posicao_fila_inspecao ascendente, com desempate por UC; aceita queue_position, uc_id ou category e direção explícita. `priority` e recuperação não são métricas Gold.",
+)
 def get_inspection_queue(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    order_by: Literal["priority", "uc_id", "potential_recoverable_energy_kwh"] = "priority",
-    direction: Literal["asc", "desc"] = "desc",
+    order_by: Literal["priority", "uc_id", "potential_recoverable_energy_kwh", "category", "queue_position"] | None = None,
+    direction: Literal["asc", "desc"] | None = None,
     municipio: str | None = Query(None, max_length=100),
     bairro: str | None = Query(None, max_length=100),
     classe: str | None = Query(None, max_length=100),
     alimentador: str | None = Query(None, max_length=100),
-    repository: AnalyticsRepository = Depends(get_analytics_repository),
+    expected_lote: str | None = Query(None, max_length=100),
+    expected_fingerprint: str | None = Query(None, max_length=64, pattern=r"^[a-f0-9]{64}$"),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ):
     """Read-only demonstration queue; estimates are provisional and not Gold metrics."""
     filters = filters_model(municipio, bairro, classe, alimentador)
-    return build_queue_response(repository, filters, page, page_size, order_by, direction)
+    if gold_context is not None:
+        if order_by not in {None, "uc_id", "category", "queue_position"}:
+            raise AnalyticsAPIError(422, "invalid_query", "Ordenação indisponível para a fila Gold.", [{"field": "order_by", "message": "Use queue_position, uc_id ou category; a categoria não é um score."}])
+        return build_gold_queue_response(
+            GoldInspectionRepository(gold_context), filters, page, page_size,
+            "queue_position" if order_by is None else order_by,
+            direction or ("asc" if order_by in {None, "queue_position"} else "desc"),
+        )
+    if order_by == "queue_position":
+        raise AnalyticsAPIError(422, "invalid_query", "Ordenação queue_position só está disponível no modo Gold.", [{"field": "order_by", "message": "Use uma ordenação disponível para a fonte sintética."}])
+    repository = repository_provider()
+    return build_queue_response(repository, filters, page, page_size, order_by or "priority", direction or "desc")
 
 
-@analytics_router.get("/queue/{uc_id}", response_model=SuspicionResponse, summary="Evidências sintéticas da suspeita")
-def get_suspicion_detail(uc_id: str, repository: AnalyticsRepository = Depends(get_analytics_repository)):
+@analytics_router.get("/queue/{uc_id}", response_model=SuspicionResponse | GoldSuspicionResponse, summary="Evidências da suspeita")
+def get_suspicion_detail(
+    uc_id: str,
+    expected_lote: str | None = Query(None, max_length=100),
+    expected_fingerprint: str | None = Query(None, max_length=64, pattern=r"^[a-f0-9]{64}$"),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
+):
+    if gold_context is not None:
+        return build_gold_suspicion_response(GoldInspectionRepository(gold_context), uc_id)
+    repository = repository_provider()
     return build_suspicion_response(repository, uc_id)
 
 

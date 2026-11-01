@@ -1,5 +1,7 @@
 # DEV-01 — Contratos de consumo analítico
 
+> **Gold real — DEV-13.1:** Panorama, fila/Ordens e Operação têm [contrato Gold 2.0.0](analytics-gold-dev13-1.md), selecionado explicitamente pelo backend. Este documento conserva os contratos demonstrativos; trocar a fonte não homologa as telas nem adapta automaticamente Receita/UC/KPIs/insight.
+
 > **Evoluções com fonte sintética:** Receita usa o [contrato DEV-03 1.1.0](revenue-dev03.md) e Atendimento acrescenta [overview e históricos DEV-04 1.1.0](uc360-dev04.md). Busca/detalhe legados e os demais endpoints preservam 1.0.0. As verificações demonstrativas não concluem a integração Gold.
 
 **Versão:** 1.0.0 nas jornadas DEV-01; 1.1.0 em Receita DEV-03 e nas duas novas operações de Atendimento DEV-04 · **Fonte sintética atual:** `dev03-v1` (substitui `dev01-v1` como lote de demonstração).

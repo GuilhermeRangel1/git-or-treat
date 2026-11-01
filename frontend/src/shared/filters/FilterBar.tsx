@@ -5,7 +5,11 @@ import {
   COMPETENCIAS_DISPONIVEIS,
   MUNICIPIOS_DISPONIVEIS,
 } from "../analytics/syntheticData";
-import type { ComparisonType, PanoramaFilters } from "../analytics/types";
+import type {
+  ComparisonType,
+  PanoramaFilters,
+  PanoramaFilterOptions,
+} from "../analytics/types";
 import { DEFAULT_FILTERS } from "./usePanoramaFilters";
 import Button from "../ui/Button";
 import Modal from "../ui/Modal";
@@ -15,6 +19,7 @@ interface FilterBarProps {
   onApply: (filters: PanoramaFilters) => void;
   hasActiveFilters: boolean;
   errors?: Partial<Record<keyof PanoramaFilters, string>>;
+  availableOptions?: PanoramaFilterOptions;
 }
 
 const COMPARACAO_OPTIONS = [
@@ -119,6 +124,7 @@ export default function FilterBar({
   onApply,
   hasActiveFilters,
   errors = {},
+  availableOptions,
 }: FilterBarProps) {
   const [open, setOpen] = useState(Object.keys(errors).length > 0);
   const [draft, setDraft] = useState(filters);
@@ -138,16 +144,27 @@ export default function FilterBar({
         : comparisonLabel(filters),
     },
     {
-      label: "Território",
-      value:
-        MUNICIPIOS_DISPONIVEIS.find((item) => item.value === filters.municipio)
-          ?.label || "Município inválido",
+      label: "Município",
+      value: availableOptions
+        ? filters.municipio === "todos"
+          ? "Todos os municípios"
+          : availableOptions.municipios.includes(filters.municipio)
+            ? filters.municipio
+            : "Município inválido"
+        : MUNICIPIOS_DISPONIVEIS.find(
+            (item) => item.value === filters.municipio,
+          )?.label || "Município inválido",
     },
     {
-      label: "Classe",
-      value:
-        CLASSES_DISPONIVEIS.find((item) => item.value === filters.classe)
-          ?.label || "Classe inválida",
+      label: "Classe de consumo",
+      value: availableOptions
+        ? filters.classe === "todas"
+          ? "Todas as classes"
+          : availableOptions.classes.includes(filters.classe)
+            ? filters.classe
+            : "Classe inválida"
+        : CLASSES_DISPONIVEIS.find((item) => item.value === filters.classe)
+            ?.label || "Classe inválida",
     },
   ];
   const change = <K extends keyof PanoramaFilters>(
@@ -165,6 +182,27 @@ export default function FilterBar({
     (Object.keys(DEFAULT_FILTERS) as (keyof PanoramaFilters)[]).some(
       (key) => draft[key] !== DEFAULT_FILTERS[key],
     );
+  const periodOptions = availableOptions
+    ? availableOptions.competencias.map((value) => ({
+        value,
+        label: periodLabel(value),
+      }))
+    : COMPETENCIAS_DISPONIVEIS;
+  const municipalityOptions = availableOptions
+    ? [
+        { value: "todos", label: "Todos" },
+        ...availableOptions.municipios.map((value) => ({
+          value,
+          label: value,
+        })),
+      ]
+    : MUNICIPIOS_DISPONIVEIS;
+  const classOptions = availableOptions
+    ? [
+        { value: "todas", label: "Todas" },
+        ...availableOptions.classes.map((value) => ({ value, label: value })),
+      ]
+    : CLASSES_DISPONIVEIS;
 
   return (
     <section
@@ -215,14 +253,12 @@ export default function FilterBar({
           }}
         >
           <FilterSelect
-            label="Período"
-            aria-label="Período (Competência)"
+            label="Competência"
+            aria-label="Competência"
             value={draft.periodo}
             error={draftErrors.periodo}
             options={[
-              ...(!COMPETENCIAS_DISPONIVEIS.some(
-                (c) => c.value === draft.periodo,
-              )
+              ...(!periodOptions.some((c) => c.value === draft.periodo)
                 ? [
                     {
                       value: draft.periodo,
@@ -230,7 +266,7 @@ export default function FilterBar({
                     },
                   ]
                 : []),
-              ...COMPETENCIAS_DISPONIVEIS.map((c) => ({
+              ...periodOptions.map((c) => ({
                 value: c.value,
                 label: c.label,
               })),
@@ -238,7 +274,7 @@ export default function FilterBar({
             onChange={(value) => change("periodo", value)}
           />
           <FilterSelect
-            label="Comparação"
+            label="Comparar com"
             value={draft.comparacao}
             error={draftErrors.comparacao}
             options={[
@@ -256,26 +292,24 @@ export default function FilterBar({
             value={draft.municipio}
             error={draftErrors.municipio}
             options={[
-              ...(!MUNICIPIOS_DISPONIVEIS.some(
+              ...(!municipalityOptions.some(
                 (item) => item.value === draft.municipio,
               )
                 ? [{ value: draft.municipio, label: "Município inválido" }]
                 : []),
-              ...MUNICIPIOS_DISPONIVEIS,
+              ...municipalityOptions,
             ]}
             onChange={(value) => change("municipio", value)}
           />
           <FilterSelect
-            label="Classe de Consumo"
+            label="Classe de consumo"
             value={draft.classe}
             error={draftErrors.classe}
             options={[
-              ...(!CLASSES_DISPONIVEIS.some(
-                (item) => item.value === draft.classe,
-              )
+              ...(!classOptions.some((item) => item.value === draft.classe)
                 ? [{ value: draft.classe, label: "Classe inválida" }]
                 : []),
-              ...CLASSES_DISPONIVEIS,
+              ...classOptions,
             ]}
             onChange={(value) => change("classe", value)}
           />

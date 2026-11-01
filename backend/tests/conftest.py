@@ -36,7 +36,7 @@ def clean_test_db():
 @pytest.fixture
 def client(clean_test_db, monkeypatch):
     # O ambiente local pode usar demo; os testes de acesso selecionam seu modo.
-    # Fixtures demo/OIDC substituem estes valores explicitamente após client.
+    # Fixtures de demo ou sessão escolhem seus modos explicitamente após client.
     monkeypatch.setattr(settings, "APP_ENV", "development")
     monkeypatch.setattr(settings, "ORDERS_AUTH_MODE", "service")
     with client_with_overrides(app, {get_db: override_get_db}) as test_client:

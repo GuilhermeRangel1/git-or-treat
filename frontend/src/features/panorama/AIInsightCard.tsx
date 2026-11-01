@@ -68,7 +68,8 @@ function filterLabel(value: string, allLabel: string) {
   return value;
 }
 
-function formatValue(value: number, unit: string) {
+function formatValue(value: number | null, unit: string) {
+  if (value == null) return "Indisponível";
   return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value)} ${unit}`;
 }
 
