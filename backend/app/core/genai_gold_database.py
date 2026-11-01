@@ -81,14 +81,20 @@ def get_question_gold_resources(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
     db: Annotated[Session, Depends(get_db)],
-) -> Iterator[tuple[Engine, Callable[[], AccessScope]] | None]:
+) -> Iterator[tuple[Engine | None, Callable[[], AccessScope]] | None]:
     """Seleciona a fonte explicitamente e encerra o pool ao concluir a chamada."""
     if settings.ANALYTICS_SOURCE != "gold":
         yield None
         return
     resolve = get_genai_gold_access_resolver(request, credentials, db)
+    # Perfis sem métricas podem usar o chat, mas não precisam abrir sequer o
+    # engine do leitor Gold. O callback será revalidado pelo planejamento.
+    initial_scope = resolve()
+    if not initial_scope.allowed_metric_ids:
+        yield None, resolve
+        return
     try:
-        engine = create_genai_gold_engine(resolve())
+        engine = create_genai_gold_engine(initial_scope)
     except (ValueError, TypeError, SQLAlchemyError):
         raise HTTPException(503, "Leitura Gold indisponível.") from None
     try:
