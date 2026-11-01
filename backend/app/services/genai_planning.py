@@ -37,6 +37,7 @@ class GoldPlanningResult:
     publication: GoldPublicationContext
     source: CatalogSource | None = None
     access_scope: AccessScope | None = None
+    deadline: GenAIRequestDeadline | None = None
 
 
 def _stop(status: QuestionPlanStatus, message: str, correlation_id: str):
@@ -195,4 +196,4 @@ async def plan_gold_question(
             "As permissões mudaram. Refaça a pergunta com o acesso atual.", correlation_id,
         ), publication, access_scope=scope)
     deadline.remaining_seconds(35)
-    return GoldPlanningResult(response, publication, source, scope)
+    return GoldPlanningResult(response, publication, source, scope, deadline)

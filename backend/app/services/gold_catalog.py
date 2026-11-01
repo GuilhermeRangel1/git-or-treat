@@ -180,7 +180,6 @@ def select_catalog_source(
         and window.granularity not in metric.granularities
     ):
         raise ValueError("Granularidade indisponível para a métrica.")
-    all_accumulated = {p for m in catalog.metrics for p in m.accumulated_period_phrases}
     if metric.accumulated_period_phrases:
         if (
             window.kind != WindowKind.CATALOG_PHRASE
@@ -188,7 +187,7 @@ def select_catalog_source(
             or window.phrase not in metric.accumulated_period_phrases
         ):
             raise ValueError("Histórico acumulado não admite recorte por datas.")
-    elif window.phrase in all_accumulated:
+    elif window.kind != WindowKind.BOUNDED:
         raise ValueError("Métrica mensal exige período de calendário.")
     if (
         window.kind == WindowKind.BOUNDED

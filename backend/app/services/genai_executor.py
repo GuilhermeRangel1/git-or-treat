@@ -93,7 +93,9 @@ def _query(plan: LogicalReadPlan, source, metric):
             )
             filters.extend((period_column >= start, period_column < end))
     else:
-        if plan.window.phrase is None:
+        if (
+            plan.window.phrase not in metric.accumulated_period_phrases
+        ):
             raise GoldExecutionDenied
         # Uma expressão acumulada é mapeada pelo catálogo e não ganha um filtro
         # temporal físico que a fonte não oferece.
@@ -241,6 +243,7 @@ def execute_gold_plan(
         or response.plan is None
         or response.plan_fingerprint is None
         or planned.access_scope is None
+        or planned.deadline is None
     ):
         raise GoldExecutionDenied
 
@@ -251,6 +254,7 @@ def execute_gold_plan(
     except GenAIResponseInvalid:
         raise GoldExecutionDenied from None
 
+    planned.deadline.remaining_seconds(35)
     current_scope = resolve_scope()
     if current_scope != planned.access_scope:
         raise GoldExecutionDenied
@@ -267,12 +271,16 @@ def execute_gold_plan(
     with planned.publication.execution_snapshot(engine) as connection:
         connection.execute(
             text("SELECT set_config('statement_timeout', :timeout, true)"),
-            {"timeout": SQL_STATEMENT_TIMEOUT},
+            {"timeout": str(min(
+                int(SQL_STATEMENT_TIMEOUT.removesuffix("ms")),
+                planned.deadline.sql_timeout_ms(5),
+            )) + "ms"},
         )
         if resolve_scope() != current_scope:
             raise GoldExecutionDenied
         rows = connection.execute(statement).mappings().all()
 
+    planned.deadline.remaining_seconds(35)
     if resolve_scope() != current_scope:
         raise GoldExecutionDenied
     if len(rows) > min(plan.limit, MAX_EVIDENCE_ROWS):

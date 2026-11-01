@@ -31,7 +31,9 @@ from app.models.gold_load import BATCH
 from app.models.gold_v2_load import TABLES
 from app.schemas.ai import AIQuestionRequest
 from app.schemas.genai_internal import AccessScope, QuestionPlanResponse
-from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus
+from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus, ReadWindow
+from app.services.genai_client import GenAITimeout
+from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
 from app.services.genai_planning import plan_gold_question
 from app.services.gold_import import import_gold
@@ -203,6 +205,9 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     {"metric_id": "billing.reserved"},
                     {"limit": 101},
                     {"unit": "unidade adulterada"},
+                    {"window": ReadWindow.model_validate({
+                        "kind": "catalog_phrase", "phrase": "último ano",
+                    })},
                 ):
                     tampered_plan = plan.model_copy(update=changes)
                     tampered_response = planned.response.model_copy(update={
@@ -217,6 +222,14 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                         )
                     assert len(reader_events) == before_sql
 
+                before_expired = len(reader_events)
+                with pytest.raises(GenAITimeout):
+                    execute_gold_plan(
+                        reader,
+                        replace(planned, deadline=GenAIRequestDeadline(0, lambda: 1)),
+                        resolve_scope=resolve,
+                    )
+                assert len(reader_events) == before_expired
                 lookup = execute_gold_plan(reader, planned, resolve_scope=resolve)
                 assert lookup.status.value == "available"
                 assert lookup.evidence is not None
