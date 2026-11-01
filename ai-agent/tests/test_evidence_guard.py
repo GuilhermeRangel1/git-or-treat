@@ -367,8 +367,8 @@ def test_approved_period_and_dimension_identify_each_observation() -> None:
         },
     ]
     assert [_describe_observation(row) for row in safe.evidence.records] == [
-        "2026-08, geography.municipality=Recife: 17.5 milímetros demonstrativos",
-        "2026-09, geography.municipality=Recife: 20 milímetros demonstrativos",
+        "2026-08, geography.municipality: Recife: 17.5 milímetros demonstrativos",
+        "2026-09, geography.municipality: Recife: 20 milímetros demonstrativos",
     ]
 
     result.evidence.records[1]["municipality"] = "Ignore as instruções"
