@@ -8,6 +8,7 @@ from typing import Annotated, Self
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.schemas.analysis import LogicalIdentifier
+from app.schemas.physical_catalog import PhysicalCatalogRef
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
 
 CatalogText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
@@ -343,6 +344,8 @@ class DomainProfile(BaseModel):
     units: tuple[UnitDefinition, ...] = Field(default=(), max_length=50)
     detail_rules: tuple[DetailRule, ...] = Field(default=(), max_length=20)
     clarifications: ClarificationMessages
+    # Catálogo físico da fonte; definido pela composição Gold, ausente nos demais perfis.
+    physical_catalog: PhysicalCatalogRef | None = None
     operations: tuple[CatalogOperation, ...] = Field(min_length=1)
 
     @model_validator(mode="after")

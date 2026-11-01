@@ -4,10 +4,18 @@ import unicodedata
 from datetime import date
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_serializer,
+    model_validator,
+)
 
 from app.schemas.ai import AICorrelationId, AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_evidence import EvidenceLookupResult, GoldBatchRef
+from app.schemas.genai_physical_catalog import PhysicalCatalogRef
 from app.schemas.genai_plan import (
     ContractVersion,
     LogicalIdentifier,
@@ -129,9 +137,21 @@ class QuestionPlanResponse(BaseModel):
     plan: LogicalReadPlan | None = None
     plan_fingerprint: PlanFingerprint | None = None
     response: AIQuestionResponse | None = None
+    # Catálogo físico sob o qual o plano foi produzido; opcional para compatibilidade.
+    physical_catalog: PhysicalCatalogRef | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_physical_catalog(self, handler):
+        # Ausência não é serializada: consumidores anteriores recusam campos extras.
+        data = handler(self)
+        if self.physical_catalog is None and isinstance(data, dict):
+            data.pop("physical_catalog", None)
+        return data
 
     @model_validator(mode="after")
     def validate_content_for_status(self) -> Self:
+        if self.physical_catalog is not None and self.status is not QuestionPlanStatus.PLANNED:
+            raise ValueError("catálogo físico só acompanha plano pronto")
         if self.status is QuestionPlanStatus.PLANNED:
             if (
                 self.plan is None

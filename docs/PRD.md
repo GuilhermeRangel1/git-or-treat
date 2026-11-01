@@ -2977,3 +2977,12 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Por orientação da pessoa usuária, novos desenvolvimentos, cenários e aceites GenAI usam Gold v2, seu dicionário, contrato físico e catálogo aprovados. Regra descoberta pelo AGENTS raiz e aplicada pela skill genai-gold; detalhes em [política de versões](agents/genai-gold.md#referência-obrigatória-gold-v2).
 - Gold v1 fica restrita à compatibilidade legada explícita. Versão de envelope HTTP v1 não é versão dos dados; fixtures sintéticas continuam úteis para CI e não certificam aceite real. Capacidades v2 insuficientes continuam bloqueadas, sem fallback.
 - Mudança documental de orientação e revisão, sem remoção de código ou alteração de estados funcionais IA. Sincronização no cartão transversal do quadro GenAI para todos os colaboradores.
+
+
+### 01/11/2026 — GENAI-13 — invalidação de servidor (PR #97)
+
+- Estado: entrega parcial de servidor para IA-03/04/05/06; estados oficiais preservados. Contrato em `docs/contracts/genai-invalidation.md` (PR #95).
+- Pergunta pública aceita publicação esperada opcional, rejeita divergência antes de planejar e mantém captura de publicação no servidor. Plano/evidência conferem catálogo físico; chaves de cache incluem identidade do catálogo e filtros normalizados. Schema incompatível e publicação inválida falham sem fallback demonstrativo.
+- Arquivos: `backend/app/schemas/ai_question_publication.py`, `backend/app/services/genai_expected_publication.py`, coordenação/planejamento/executor, schemas de catálogo físico dos dois serviços e `ai-agent/app/providers/caching.py`.
+- Evidência observada: CI de qualidade do repositório, execução 41318865890 do commit 5ea20fe, concluída com sucesso. Revisões estáticas de padrões e especificação: registro obrigatório do PRD corrigido; nenhum bloqueio funcional identificado. Não houve nova execução local dos testes nesta revisão.
+- Limites: invalidação no Assistente e Panorama, envio da publicação esperada pela tela e descarte de resposta atrasada ainda dependem da integração GENAI-11/12. O catálogo físico opcional mantém compatibilidade declarada. Esta entrega não conclui o cartão GENAI-13 nem a validação visual.

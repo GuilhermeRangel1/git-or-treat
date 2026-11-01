@@ -1,10 +1,16 @@
 """Carrega e confere metadados locais para o futuro executor, sem SQL ou imports GenAI."""
 
+import json
+from functools import lru_cache
 from pathlib import Path
 
 from sqlalchemy import BigInteger, DateTime, Float, Numeric, Text
 
 from app.models.gold_v2 import TABLES
+from app.schemas.genai_physical_catalog import (
+    PhysicalCatalogRef,
+    physical_catalog_digest,
+)
 from app.schemas.genai_plan import ReadWindow, WindowKind
 from app.schemas.gold_catalog import GoldCatalog
 
@@ -24,15 +30,28 @@ _NULL_RULES = {
     "average_non_null": "average_ignores_null_all_null_is_absent",
 }
 _TYPES = {"bigint": BigInteger, "double": Float, "decimal": Numeric, "string": Text}
+_CATALOG_PATH = Path(__file__).parents[1] / "catalogs" / "gold_v2.json"
+
+
+class GoldCatalogIncompatible(Exception):
+    """Plano ou métrica fora do catálogo físico deste Backend; nunca executa."""
+
+
+@lru_cache(maxsize=1)
+def gold_physical_catalog() -> PhysicalCatalogRef:
+    """Identidade do catálogo aprovado; a GenAI calcula o mesmo digest do seu mapeamento."""
+    payload = json.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
+    return PhysicalCatalogRef(
+        mapping_version=payload["mapping_version"],
+        physical_schema=payload["physical_schema"],
+        dictionary_version=payload["dictionary_version"],
+        digest=physical_catalog_digest(payload),
+    )
 
 
 def load_gold_catalog(payload: dict | None = None) -> GoldCatalog:
     """Falha antes de disponibilizar um catálogo incompatível com os modelos instalados."""
-    approved = GoldCatalog.model_validate_json(
-        (Path(__file__).parents[1] / "catalogs" / "gold_v2.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    approved = GoldCatalog.model_validate_json(_CATALOG_PATH.read_text(encoding="utf-8"))
     catalog = approved if payload is None else GoldCatalog.model_validate(payload)
     if len({m.metric_id for m in catalog.metrics}) != len(catalog.metrics):
         raise ValueError("Métrica duplicada no catálogo.")

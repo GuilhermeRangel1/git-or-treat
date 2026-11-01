@@ -124,6 +124,13 @@ class EvidenceGuard:
             raise EvidenceContractInvalid("fonte sintética trouxe qualidade Gold")
         if provenance.batch_ref != expected_batch_ref:
             raise EvidenceContractInvalid("publicação incompatível com a esperada")
+        expected_catalog = self._profile.physical_catalog
+        if (
+            provenance.physical_catalog is not None
+            and expected_catalog is not None
+            and provenance.physical_catalog != expected_catalog
+        ):
+            raise EvidenceContractInvalid("catálogo físico incompatível com o perfil")
         if (
             provenance.source_id != plan.source_id
             or provenance.reference_source != evidence.reference.source

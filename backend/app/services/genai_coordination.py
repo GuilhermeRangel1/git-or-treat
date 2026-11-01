@@ -24,7 +24,7 @@ from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
 from app.services.genai_flow import should_synthesize
 from app.services.genai_planning import GoldPlanningResult, plan_gold_question
 from app.services.genai_replay import execution_artifact
-from app.services.gold_catalog import load_gold_catalog
+from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
 
 
 async def answer_gold_question(
@@ -36,6 +36,7 @@ async def answer_gold_question(
     correlation_id: str,
     readiness_gate: Callable[[GoldPlanningResult], Awaitable[GoldReadinessReport]] | None = None,
     audit_store: AuditStore | None = None,
+    expected_batch_ref: str | None = None,
 ) -> AIQuestionResponse:
     """Mantém plano, identidade, publicação e prazo entre as duas operações HTTP.
 
@@ -58,9 +59,10 @@ async def answer_gold_question(
             raise GenAIServiceUnavailable(retryable=False) from None
 
     await deadline.run(35, lambda: audit("request", "started", "started"))
+    # Publicação já conferida contra a tela; troca até a captura é mudança em curso.
     planned = await plan_gold_question(
         engine, client, request, resolve_scope=resolve_scope,
-        correlation_id=correlation_id,
+        correlation_id=correlation_id, expected_batch_ref=expected_batch_ref,
         deadline=deadline,
     )
     if planned.response.status is not QuestionPlanStatus.PLANNED:
@@ -78,8 +80,10 @@ async def answer_gold_question(
         raise GenAIServiceUnavailable(retryable=False)
     report = await planned.deadline.run(35, lambda: readiness_gate(planned))
     report = GoldReadinessReport.model_validate(report.model_dump(mode="json"))
-    metric = next(m for m in load_gold_catalog().metrics
-                  if m.metric_id == planned.response.plan.metric_id)
+    metric = next((m for m in load_gold_catalog().metrics
+                   if m.metric_id == planned.response.plan.metric_id), None)
+    if metric is None:
+        raise GoldCatalogIncompatible
     required = {*metric.required_capability_ids, planned.source.capability_id}
     if (report.batch_ref != planned.publication.batch_ref
         or report.lot_state not in {"ready", "partial"}
