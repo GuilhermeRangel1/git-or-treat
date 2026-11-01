@@ -104,7 +104,15 @@ it("expõe período, unidade, lote e ausências no detalhe UC sem fabricar dados
         paid_amount: change,
       },
       open_invoices: { count: null, status: "unavailable", limitations: [] },
-      current_meter: { item: null, status: "unavailable", limitations: [] },
+      current_meter: {
+        item: {
+          meter_id: "M-FAKE",
+          installed_at: "2025-01-01",
+          removed_at: null,
+        },
+        status: "partial",
+        limitations: ["Indicação baseada nas datas disponíveis."],
+      },
       distributed_generation: {
         items: [],
         status: "unavailable",
@@ -166,6 +174,9 @@ it("expõe período, unidade, lote e ausências no detalhe UC sem fabricar dados
   expect(within(panel).getByText("07/2022 a 06/2026")).toBeVisible();
   expect(within(panel).getByText("R$ · kWh")).toBeVisible();
   expect(screen.getAllByText(/3,5 kWp/).length).toBeGreaterThan(0);
+  expect(screen.getByText(/Possível medidor: M-FAKE/)).toBeVisible();
   expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
   expect(within(panel).getByText(metadata.limitations[0])).toBeVisible();
+  expect(screen.getByText(/Gold CSV · importação local/)).toBeVisible();
+  expect(screen.queryByText(/Gold CSV provisória/)).not.toBeInTheDocument();
 });
