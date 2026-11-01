@@ -1,4 +1,5 @@
 import type { RevenueEnvelope } from "./contract";
+import { signedValueTone } from "@/shared/ui/signedValue";
 
 const money = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -47,8 +48,8 @@ export default function RevenueDecomposition({
           </p>
         ) : null}
         <p className="mt-2 text-sm text-muted">
-          Esta análise usa as janelas publicadas na Gold, independentes dos
-          meses selecionados na série.
+          Esta análise usa períodos definidos para a comparação, independentes
+          dos meses selecionados na série.
         </p>
         {window.status === "partial" ? (
           <p role="status" className="mt-3 text-sm text-muted">
@@ -66,14 +67,18 @@ export default function RevenueDecomposition({
             {labels.map(([label, key]) => (
               <div key={key} className="flex flex-wrap justify-between gap-2">
                 <dt>{label}</dt>
-                <dd className="font-semibold [overflow-wrap:anywhere]">
+                <dd
+                  className={`font-semibold [overflow-wrap:anywhere] ${signedValueTone(window.components[key] ?? null)}`}
+                >
                   {signedAmount(window.components[key] ?? null)}
                 </dd>
               </div>
             ))}
             <div className="flex flex-wrap justify-between gap-2 border-t border-border pt-3">
               <dt>Variação total nas janelas</dt>
-              <dd className="font-semibold [overflow-wrap:anywhere]">
+              <dd
+                className={`font-semibold [overflow-wrap:anywhere] ${signedValueTone(window.total_change_brl)}`}
+              >
                 {signedAmount(window.total_change_brl)}
               </dd>
             </div>
@@ -116,7 +121,7 @@ export default function RevenueDecomposition({
               : "Preço × volume"}
           </h2>
           <p className="mt-4 text-xs leading-[18px] text-muted">
-            Ilustração da variação entre extremos; depende de uma série Gold
+            Ilustração da variação entre extremos; depende de uma série de dados
             comparável.
           </p>
         </div>
@@ -132,13 +137,7 @@ export default function RevenueDecomposition({
             <dd
               className={
                 "flex items-center gap-2 text-right text-base font-semibold " +
-                (value === null
-                  ? "text-muted"
-                  : value < 0
-                    ? "text-danger"
-                    : value > 0
-                      ? "text-success"
-                      : "text-content")
+                signedValueTone(value)
               }
             >
               <span aria-hidden="true">

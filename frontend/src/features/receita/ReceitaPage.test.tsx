@@ -308,7 +308,7 @@ it("mostra as janelas Gold separadas da comparação mensal e sinaliza base inco
   vi.unstubAllGlobals();
 });
 
-it("expõe período, unidades, lote e limitações na Receita Gold", async () => {
+it("mantém o período e omite identificadores técnicos na Receita", async () => {
   const gold = structuredClone(response);
   gold.metadata.source = {
     ...gold.metadata.source,
@@ -325,17 +325,18 @@ it("expõe período, unidades, lote e limitações na Receita Gold", async () =>
       .mockResolvedValue(new Response(JSON.stringify(gold), { status: 200 })),
   );
   mountPage("/receita?competencia_inicio=2025-01&competencia_fim=2025-02");
-  const panel = await screen.findByRole("region", {
-    name: "Período, unidades e fonte dos dados",
-  });
-  expect(within(panel).getByText("01/2025 a 02/2025")).toBeVisible();
-  expect(within(panel).getByText("R$ · kWh · UCs")).toBeVisible();
-  expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
-  expect(screen.getByText(/Fonte: Gold CSV · importação local/)).toBeVisible();
-  expect(screen.queryByText(/Gold CSV provisória/)).not.toBeInTheDocument();
   expect(
-    within(panel).getByText("Receita paga não fornecida nesta exportação."),
+    await screen.findByRole("region", { name: "Filtros aplicados" }),
   ).toBeVisible();
+  expect(screen.queryByText("GOLD-ARTIFICIAL:hash")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/Fonte: Gold CSV · importação local/),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", {
+      name: "Período, unidades e fonte dos dados",
+    }),
+  ).not.toBeInTheDocument();
 });
 
 function LocationProbe() {
@@ -422,9 +423,9 @@ describe("Receita", () => {
     ).toBeVisible();
     expect(within(summary).queryByText(/Mês: 2025-/)).not.toBeInTheDocument();
     expect(within(summary).getAllByText("R$ 76.500,00")[0]).toBeVisible();
-    expect(within(summary).getAllByText(/Antes: R\$ 80\.000,00/i)).toHaveLength(
-      1,
-    );
+    expect(
+      within(summary).getByText("R$ 80.000,00").closest("p"),
+    ).toHaveTextContent(/Antes: R\$\s*80\.000,00/i);
     expect(within(summary).getByText("R$ 0,8500/kWh")).toBeVisible();
     expect(
       screen.getByRole("heading", {
@@ -639,8 +640,10 @@ describe("Receita", () => {
       within(breakdown).getByText("1 grupo sem comparação."),
     ).toBeVisible();
     expect(
-      within(breakdown).getByText("Diferença não atribuída: −R$ 1.500,00."),
-    ).toBeVisible();
+      within(breakdown)
+        .getByText("−R$ 1.500,00", { selector: "span" })
+        .closest("p"),
+    ).toHaveTextContent("Diferença não atribuída: −R$ 1.500,00.");
     expect(
       within(breakdown).queryByText("Os recortes fecham com o total."),
     ).not.toBeInTheDocument();

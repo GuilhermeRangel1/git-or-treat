@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RevenueEnvelope } from "./contract";
 import type { RevenueGroupBy } from "./revenue-filters";
+import { signedValueTone } from "@/shared/ui/signedValue";
 
 const money = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -196,13 +197,19 @@ export default function RevenueBreakdown({
                           </span>
                         ) : null}
                       </th>
-                      <td className="px-3 py-2">
+                      <td
+                        className={`px-3 py-2 ${signedValueTone(item.comparison.initial.billed_amount, false)}`}
+                      >
                         {knownMoney(item.comparison.initial.billed_amount)}
                       </td>
-                      <td className="px-3 py-2">
+                      <td
+                        className={`px-3 py-2 ${signedValueTone(item.comparison.final.billed_amount, false)}`}
+                      >
                         {knownMoney(item.comparison.final.billed_amount)}
                       </td>
-                      <td className="px-3 py-2">
+                      <td
+                        className={`px-3 py-2 ${signedValueTone(item.comparison.billed_amount_change_brl)}`}
+                      >
                         {signedMoney(item.comparison.billed_amount_change_brl)}
                       </td>
                       <td className="px-3 py-2 text-right">
@@ -233,13 +240,19 @@ export default function RevenueBreakdown({
                       Variação apenas dos grupos comparáveis
                     </span>
                   </th>
-                  <td className="px-3 py-3">
+                  <td
+                    className={`px-3 py-3 ${signedValueTone(reconciliation.initial_known_sum_brl, false)}`}
+                  >
                     {knownMoney(reconciliation.initial_known_sum_brl)}
                   </td>
-                  <td className="px-3 py-3">
+                  <td
+                    className={`px-3 py-3 ${signedValueTone(reconciliation.final_known_sum_brl, false)}`}
+                  >
                     {knownMoney(reconciliation.final_known_sum_brl)}
                   </td>
-                  <td className="px-3 py-3">
+                  <td
+                    className={`px-3 py-3 ${signedValueTone(reconciliation.comparable_change_sum_brl)}`}
+                  >
                     {signedMoney(reconciliation.comparable_change_sum_brl)}
                   </td>
                   <td aria-hidden="true" />
@@ -297,7 +310,14 @@ export default function RevenueBreakdown({
                   </p>
                   <p>
                     Diferença não atribuída:{" "}
-                    {signedMoney(reconciliation.unattributed_change_brl)}.
+                    <span
+                      className={signedValueTone(
+                        reconciliation.unattributed_change_brl,
+                      )}
+                    >
+                      {signedMoney(reconciliation.unattributed_change_brl)}
+                    </span>
+                    .
                   </p>
                 </>
               ) : null}
@@ -305,7 +325,12 @@ export default function RevenueBreakdown({
               reconciliation.residual_brl !== 0 ? (
                 <p>
                   Diferença para o total:{" "}
-                  {signedMoney(reconciliation.residual_brl)}.
+                  <span
+                    className={signedValueTone(reconciliation.residual_brl)}
+                  >
+                    {signedMoney(reconciliation.residual_brl)}
+                  </span>
+                  .
                 </p>
               ) : null}
               {reconciliation.limitations.length > 0 ? (

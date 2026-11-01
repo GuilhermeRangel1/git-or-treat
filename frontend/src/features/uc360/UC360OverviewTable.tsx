@@ -1,4 +1,5 @@
 import type { UCMeasure, UCOverview } from "./contract";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import { formatUCCompetence, statusLabel } from "./uc360-format";
 
 type Comparison = UCOverview["data"]["comparison"];
@@ -63,7 +64,9 @@ function MobileSnapshot({
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
         <div className="grid min-w-0 gap-1">
           <dt className="text-xs text-muted">Consumo medido</dt>
-          <dd className="break-words text-sm font-medium text-content">
+          <dd
+            className={`break-words text-sm font-medium ${signedValueTone(snapshot.measured_energy_kwh.value, false)}`}
+          >
             {measureValue(snapshot.measured_energy_kwh, "energy")}
           </dd>
           <dd className="text-xs text-muted">
@@ -72,7 +75,9 @@ function MobileSnapshot({
         </div>
         <div className="grid min-w-0 gap-1">
           <dt className="text-xs text-muted">Valor faturado</dt>
-          <dd className="break-words text-sm font-medium text-content">
+          <dd
+            className={`break-words text-sm font-medium ${signedValueTone(snapshot.billed_amount.value, false)}`}
+          >
             {measureValue(snapshot.billed_amount, "money")}
           </dd>
           <dd className="text-xs text-muted">
@@ -82,7 +87,9 @@ function MobileSnapshot({
         {showPaid && (
           <div className="grid min-w-0 gap-1">
             <dt className="text-xs text-muted">Valor pago</dt>
-            <dd className="break-words text-sm font-medium text-content">
+            <dd
+              className={`break-words text-sm font-medium ${signedValueTone(snapshot.paid_amount.value, false)}`}
+            >
               {measureValue(snapshot.paid_amount, "money")}
             </dd>
             <dd className="text-xs text-muted">
@@ -148,14 +155,20 @@ export default function UC360OverviewTable({
                 >
                   {formatUCCompetence(snapshot.competencia)}
                 </th>
-                <td className="pr-2 text-sm text-content">
+                <td
+                  className={`pr-2 text-sm ${signedValueTone(snapshot.measured_energy_kwh.value, false)}`}
+                >
                   {measureValue(snapshot.measured_energy_kwh, "energy")}
                 </td>
-                <td className="pr-2 text-sm text-content">
+                <td
+                  className={`pr-2 text-sm ${signedValueTone(snapshot.billed_amount.value, false)}`}
+                >
                   {measureValue(snapshot.billed_amount, "money")}
                 </td>
                 {showPaid && (
-                  <td className="pr-2 text-sm text-content">
+                  <td
+                    className={`pr-2 text-sm ${signedValueTone(snapshot.paid_amount.value, false)}`}
+                  >
                     {measureValue(snapshot.paid_amount, "money")}
                   </td>
                 )}

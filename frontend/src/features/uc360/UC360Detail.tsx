@@ -1,5 +1,4 @@
 import { Search } from "lucide-react";
-import DataProvenance from "@/shared/analytics/DataProvenance";
 import type { RefObject } from "react";
 import type { UCHistory, UCOverview } from "./contract";
 import { ErrorMessage, EvidenceDialog, HistoryPanel } from "./UC360History";
@@ -60,18 +59,6 @@ type Props = {
   };
 };
 
-function sourceDate(value: string) {
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp)
-    ? new Intl.DateTimeFormat("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        timeZone: "UTC",
-      }).format(timestamp)
-    : value;
-}
-
 export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
   const selected = unit.overview.data?.data;
   const metadata = unit.overview.data?.metadata;
@@ -93,16 +80,9 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
         ) : (
           <p className="text-sm text-muted">UC {unit.id}</p>
         )}
-        {metadata && (
+        {metadata?.source.is_demo && (
           <p className="mt-4 text-xs text-muted">
-            {metadata.source.is_demo
-              ? "Demonstração · dados sintéticos"
-              : "Dados da fonte"}{" "}
-            ·{" "}
-            {metadata.source.kind === "gold_csv"
-              ? "Gold CSV · importação local"
-              : "atualização"}{" "}
-            {sourceDate(metadata.source.updated_at)}
+            Demonstração · dados sintéticos
           </p>
         )}
         {selected &&
@@ -273,15 +253,6 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                 </p>
               )}
               <UC360Interpretation data={selected} />
-              {metadata.source.kind === "gold_csv" && (
-                <DataProvenance
-                  source={metadata.source}
-                  period={metadata.period}
-                  units={["R$", "kWh"]}
-                  limitations={metadata.limitations}
-                  periodNote="O período se aplica ao histórico mensal e à comparação. Cadastro e indicadores acumulados não comprovam vigência nesse período."
-                />
-              )}
             </>
           )}
         </>

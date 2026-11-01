@@ -1,4 +1,5 @@
 import type { UCOverview } from "./contract";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import {
   formatUCAmount,
   formatUCCompetence,
@@ -44,19 +45,62 @@ export default function UC360Interpretation({
         <ul className="mt-2 grid gap-2 text-sm text-content">
           <li>
             Consumo medido:{" "}
-            {formatUCAmount(
-              comparison.initial.measured_energy_kwh.value,
-              "kWh",
-            )}{" "}
+            <span
+              className={signedValueTone(
+                comparison.initial.measured_energy_kwh.value,
+                false,
+              )}
+            >
+              {formatUCAmount(
+                comparison.initial.measured_energy_kwh.value,
+                "kWh",
+              )}
+            </span>{" "}
             em {formatUCCompetence(comparison.initial.competencia)} →{" "}
-            {formatUCAmount(comparison.final.measured_energy_kwh.value, "kWh")}{" "}
+            <span
+              className={signedValueTone(
+                comparison.final.measured_energy_kwh.value,
+                false,
+              )}
+            >
+              {formatUCAmount(
+                comparison.final.measured_energy_kwh.value,
+                "kWh",
+              )}
+            </span>{" "}
             em {formatUCCompetence(comparison.final.competencia)}.
           </li>
           <li>
             {comparison.initial.billed_amount.status === "empty" &&
-            comparison.final.billed_amount.status === "empty"
-              ? "Sem faturas nos meses comparados."
-              : `Valor faturado: ${formatUCAmount(comparison.initial.billed_amount.value, "BRL")} → ${formatUCAmount(comparison.final.billed_amount.value, "BRL")} (${formatUCCompetence(comparison.initial.competencia)} a ${formatUCCompetence(comparison.final.competencia)}).`}
+            comparison.final.billed_amount.status === "empty" ? (
+              "Sem faturas nos meses comparados."
+            ) : (
+              <>
+                Valor faturado:{" "}
+                <span
+                  className={signedValueTone(
+                    comparison.initial.billed_amount.value,
+                    false,
+                  )}
+                >
+                  {formatUCAmount(
+                    comparison.initial.billed_amount.value,
+                    "BRL",
+                  )}
+                </span>{" "}
+                →{" "}
+                <span
+                  className={signedValueTone(
+                    comparison.final.billed_amount.value,
+                    false,
+                  )}
+                >
+                  {formatUCAmount(comparison.final.billed_amount.value, "BRL")}
+                </span>{" "}
+                ({formatUCCompetence(comparison.initial.competencia)} a{" "}
+                {formatUCCompetence(comparison.final.competencia)}).
+              </>
+            )}
           </li>
           <li>
             Estado da medição:{" "}

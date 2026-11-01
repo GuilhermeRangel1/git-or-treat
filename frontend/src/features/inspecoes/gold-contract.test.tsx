@@ -123,6 +123,7 @@ it("mostra os dois trimestres como comparação proposta, sem alterar a priorida
   render(<SuspicionDetail data={result.data} metadata={result.metadata} />);
   expect(screen.getByText("Comparação proposta de consumo")).toBeVisible();
   expect(screen.getByText(/-50%/)).toBeVisible();
+  expect(screen.getByText(/-50%/)).toHaveClass("text-danger");
   expect(
     screen.getByText(/não define a prioridade nem comprova irregularidade/),
   ).toBeVisible();

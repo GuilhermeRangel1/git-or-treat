@@ -1,4 +1,5 @@
 import type { UCChange, UCMeasure, UCOverview, UCStatus } from "./contract";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import {
   formatUCCompetence,
   formatUCAmount,
@@ -7,13 +8,6 @@ import {
 } from "./uc360-format";
 
 const decimal = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
-
-function changeTone(value: number | null) {
-  if (value === null || value === 0) return "text-muted";
-  return value > 0
-    ? "text-[var(--status-success)]"
-    : "text-[var(--accent-goiaba)]";
-}
 
 function Metric({
   title,
@@ -48,15 +42,22 @@ function Metric({
   return (
     <article className="grid min-w-0 content-start gap-2 rounded-xl border border-control/60 bg-surface px-3 py-4 text-left sm:px-4 sm:py-5">
       <h3 className="text-sm text-muted">{title}</h3>
-      <p className="[overflow-wrap:anywhere] font-heading text-2xl font-semibold text-content sm:text-3xl">
+      <p
+        className={`[overflow-wrap:anywhere] font-heading text-2xl font-semibold sm:text-3xl ${signedValueTone(current.value, false)}`}
+      >
         {formatUCAmount(current.value, unit)}
       </p>
       <p className="break-words text-sm font-semibold text-muted">
-        <span className={changeTone(change.delta)}>{delta}</span> ·{" "}
-        <span className={changeTone(change.percent_change)}>{percent}</span>
+        <span className={signedValueTone(change.delta)}>{delta}</span> ·{" "}
+        <span className={signedValueTone(change.percent_change)}>
+          {percent}
+        </span>
       </p>
       <p className="text-xs text-muted">
-        Período anterior: {formatUCAmount(before.value, unit)}
+        Período anterior:{" "}
+        <span className={signedValueTone(before.value, false)}>
+          {formatUCAmount(before.value, unit)}
+        </span>
       </p>
       <p className="text-xs text-muted">
         {period} · atual: {statusLabel(current.status)} · anterior:{" "}

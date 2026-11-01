@@ -1,6 +1,7 @@
 import { ListChecks, Zap } from "lucide-react";
 import type { DetailEnvelope, Metadata } from "./contract";
 import { energy, formatNumber } from "./format";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import ConsumptionComparison from "./ConsumptionComparison";
 
 function monthLabel(value: string) {
@@ -202,7 +203,12 @@ export default function InspectionFoundations({
                   </div>
                   <div>
                     <dt className="text-muted">Diferença observada</dt>
-                    <dd>
+                    <dd
+                      className={signedValueTone(
+                        goldDetail.variation.variation_kwh,
+                        false,
+                      )}
+                    >
                       {goldDetail.variation.variation_kwh === null
                         ? "Indisponível"
                         : `${formatNumber(goldDetail.variation.variation_kwh)} kWh/mês`}
@@ -210,7 +216,12 @@ export default function InspectionFoundations({
                   </div>
                   <div>
                     <dt className="text-muted">Variação percentual</dt>
-                    <dd>
+                    <dd
+                      className={signedValueTone(
+                        goldDetail.variation.variation_pct,
+                        false,
+                      )}
+                    >
                       {goldDetail.variation.variation_pct === null
                         ? "Indisponível"
                         : `${formatNumber(goldDetail.variation.variation_pct)}%`}
@@ -329,7 +340,10 @@ export default function InspectionFoundations({
                   className="flex flex-wrap justify-between gap-2 rounded-lg bg-canvas p-3 text-sm"
                 >
                   <span>{signal.label}</span>
-                  <strong>+{formatNumber(signal.weight)}</strong>
+                  <strong className={signedValueTone(signal.weight)}>
+                    {signal.weight > 0 ? "+" : ""}
+                    {formatNumber(signal.weight)}
+                  </strong>
                 </li>
               ))}
             </ul>

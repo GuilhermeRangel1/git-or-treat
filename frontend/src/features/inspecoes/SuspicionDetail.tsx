@@ -1,5 +1,6 @@
 import type { DetailEnvelope, Metadata } from "./contract";
 import { energy } from "./format";
+import { signedValueTone } from "@/shared/ui/signedValue";
 
 const months = [
   "janeiro",
@@ -33,7 +34,7 @@ export default function SuspicionDetail({
     const metric = (label: string, value: number | null, unit = "") => (
       <div key={label}>
         <dt className="text-xs text-muted">{label}</dt>
-        <dd className="mt-1 font-medium">
+        <dd className={`mt-1 font-medium ${signedValueTone(value, false)}`}>
           {value === null ? "Indisponível" : `${formatGold(value)}${unit}`}
         </dd>
       </div>
@@ -51,11 +52,11 @@ export default function SuspicionDetail({
             id="suspicion-title"
             className="font-heading text-lg leading-[26px] font-semibold lg:text-xl lg:leading-7"
           >
-            O que consta na triagem Gold
+            O que consta na triagem
           </h2>
           <p className="mt-4 text-xs leading-[18px] text-muted">
-            Publicação {metadata.source.version} · snapshot sem competência
-            mensal
+            Os dados da fila são uma fotografia cadastral, sem competência
+            mensal.
           </p>
           <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
             <div>
@@ -199,9 +200,13 @@ export default function SuspicionDetail({
                   <p className="mt-1">
                     {energy(data.consumption_comparison.baseline_kwh)} →{" "}
                     {energy(data.consumption_comparison.recent_kwh)}
-                    {data.consumption_comparison.change_percent !== null
-                      ? ` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`
-                      : ""}
+                    {data.consumption_comparison.change_percent !== null && (
+                      <span
+                        className={signedValueTone(
+                          data.consumption_comparison.change_percent,
+                        )}
+                      >{` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`}</span>
+                    )}
                   </p>
                 )}
               {data.consumption_comparison.unavailable_reason && (
@@ -279,7 +284,12 @@ export default function SuspicionDetail({
             aria-label="Estimativa de recuperação indisponível"
           >
             <h3 className="font-medium">Energia recuperável indisponível</h3>
-            <p className="mt-1">{data.recovery_unavailable_reason}</p>
+            <p className="mt-1">
+              {data.recovery_unavailable_reason.replace(
+                /\bGold\b/g,
+                "fonte de dados",
+              )}
+            </p>
             <p className="mt-1">
               Variação de consumo não é estimativa de energia recuperável.
             </p>
@@ -349,7 +359,7 @@ export default function SuspicionDetail({
             </span>
             <p className="mt-1 text-xs leading-[18px] text-muted">
               {data.priority === null
-                ? "Categoria publicada pela Gold; regra provisória aguardando homologação."
+                ? "Categoria publicada; regra provisória aguardando homologação."
                 : "Pontuação de priorização da fila; não é probabilidade de irregularidade."}
             </p>
           </div>
@@ -362,7 +372,7 @@ export default function SuspicionDetail({
             <p className="text-xs leading-[18px] text-muted">
               {metadata.source.is_demo
                 ? "Estimativa demonstrativa, sem confirmação de recuperação."
-                : "Estimativa não fornecida na Gold desta versão."}
+                : "Estimativa não fornecida nesta consulta."}
             </p>
           </div>
 
@@ -396,9 +406,13 @@ export default function SuspicionDetail({
                   <p className="mt-1">
                     {energy(data.consumption_comparison.baseline_kwh)} →{" "}
                     {energy(data.consumption_comparison.recent_kwh)}
-                    {data.consumption_comparison.change_percent !== null
-                      ? ` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`
-                      : ""}
+                    {data.consumption_comparison.change_percent !== null && (
+                      <span
+                        className={signedValueTone(
+                          data.consumption_comparison.change_percent,
+                        )}
+                      >{` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`}</span>
+                    )}
                   </p>
                 )}
               {data.consumption_comparison.unavailable_reason && (

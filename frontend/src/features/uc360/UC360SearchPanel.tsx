@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Search } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
-import DataProvenance from "@/shared/analytics/DataProvenance";
 import type { UCSearchResponse } from "./contract";
 
 const inputClass =
@@ -32,7 +31,6 @@ export default function UC360SearchPanel({
 }: Props) {
   const [draft, setDraft] = useState({ applied: query, value: query });
   const [validation, setValidation] = useState("");
-  const provenance = results?.metadata.provenance;
   const value = draft.applied === query ? draft.value : query;
   const errorMessage =
     error instanceof ApiError && error.status === 422
@@ -167,16 +165,6 @@ export default function UC360SearchPanel({
             Próxima
           </button>
         </div>
-      )}
-      {provenance?.source.kind === "gold_csv" && (
-        <DataProvenance
-          source={provenance.source}
-          period={provenance.period}
-          units={["UCs"]}
-          limitations={provenance.limitations}
-          periodLabel="Cobertura do consumo no lote"
-          periodNote="A busca consulta o cadastro atual; esta cobertura mensal não representa sua vigência histórica."
-        />
       )}
     </section>
   );

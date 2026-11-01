@@ -92,7 +92,7 @@ export default function InspectionFilters({
             <p className="text-xs text-muted">Competência</p>
             <p className="mt-1 font-medium">
               {gold
-                ? "Snapshot cadastral · sem competência"
+                ? "Cadastro atual · sem competência"
                 : periodLabel(metadata?.period?.start, metadata?.period?.end)}
             </p>
           </div>
@@ -209,7 +209,7 @@ export default function InspectionFilters({
                     Posição oficial da fila
                   </option>
                   <option value="uc_id">Número da UC</option>
-                  <option value="category">Categoria Gold</option>
+                  <option value="category">Categoria</option>
                 </>
               ) : (
                 <>

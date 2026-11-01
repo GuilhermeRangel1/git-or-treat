@@ -1,11 +1,12 @@
 import { createRef } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { UCOverview } from "./contract";
 import { decodeUCSearch } from "./contract";
 import UC360Detail from "./UC360Detail";
 import UC360SearchPanel from "./UC360SearchPanel";
 import { UC360Comparison, UC360SupportMetrics } from "./UC360Metrics";
+import { humanizeLimitation } from "./uc360-format";
 
 const period = {
   start: "2022-07",
@@ -42,6 +43,14 @@ const point = {
   billed_amount: measure,
   paid_amount: measure,
 };
+
+it("explica uma ausência sem mencionar o formato técnico da fonte", () => {
+  expect(
+    humanizeLimitation(
+      "Detalhe não fornecido nos CSVs Gold desta versão; ausência não equivale a zero.",
+    ),
+  ).toBe("Detalhe não informado nesta consulta; ausência não equivale a zero.");
+});
 
 it("distingue cadastro de GD ausente de geração comprovadamente inexistente", () => {
   const data = {
@@ -99,13 +108,15 @@ it("preserva e valida a proveniência recebida na busca de UC", () => {
       onRetry={vi.fn()}
     />,
   );
-  const panel = screen.getByRole("region", {
-    name: "Período, unidades e fonte dos dados",
-  });
-  expect(within(panel).getByText("07/2022 a 06/2026")).toBeVisible();
-  expect(within(panel).getByText("UCs")).toBeVisible();
-  expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
-  expect(within(panel).getByText(metadata.limitations[0])).toBeVisible();
+  expect(results.metadata.provenance?.source.version).toBe(
+    "GOLD-ARTIFICIAL:hash",
+  );
+  expect(screen.queryByText("GOLD-ARTIFICIAL:hash")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", {
+      name: "Período, unidades e fonte dos dados",
+    }),
+  ).not.toBeInTheDocument();
   expect(() =>
     decodeUCSearch({
       ...response,
@@ -117,7 +128,7 @@ it("preserva e valida a proveniência recebida na busca de UC", () => {
   ).toThrow();
 });
 
-it("expõe período, unidade, lote e ausências no detalhe UC sem fabricar dados", () => {
+it("mantém informações úteis da UC sem expor identificadores técnicos", () => {
   const overview: UCOverview = {
     metadata,
     data: {
@@ -205,15 +216,11 @@ it("expõe período, unidade, lote e ausências no detalhe UC sem fabricar dados
       }}
     />,
   );
-  const panel = screen.getByRole("region", {
-    name: "Período, unidades e fonte dos dados",
-  });
-  expect(within(panel).getByText("07/2022 a 06/2026")).toBeVisible();
-  expect(within(panel).getByText("R$ · kWh")).toBeVisible();
   expect(screen.getAllByText(/3,5 kWp/).length).toBeGreaterThan(0);
   expect(screen.getByText(/Possível medidor: M-FAKE/)).toBeVisible();
-  expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
-  expect(within(panel).getByText(metadata.limitations[0])).toBeVisible();
-  expect(screen.getByText(/Gold CSV · importação local/)).toBeVisible();
+  expect(screen.queryByText("GOLD-ARTIFICIAL:hash")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/Gold CSV · importação local/),
+  ).not.toBeInTheDocument();
   expect(screen.queryByText(/Gold CSV provisória/)).not.toBeInTheDocument();
 });

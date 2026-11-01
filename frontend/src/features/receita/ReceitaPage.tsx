@@ -4,7 +4,6 @@ import { ApiError } from "@/shared/api/client";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
 import { useSourceOptions } from "@/shared/analytics/sourceOptions";
-import DataProvenance from "@/shared/analytics/DataProvenance";
 import RevenueFiltersForm from "./RevenueFiltersForm";
 import RevenueBreakdown from "./RevenueBreakdown";
 import RevenueDecomposition from "./RevenueDecomposition";
@@ -147,15 +146,6 @@ export default function ReceitaPage() {
   return (
     <div className="mt-6 grid min-w-0 w-full gap-4">
       <div className="flex min-h-[18px] min-w-0 flex-wrap items-center justify-between gap-2 text-xs">
-        {envelope?.metadata.source.kind === "gold_csv" ? (
-          <p className="text-muted">
-            Fonte: Gold CSV · importação local{" "}
-            {new Date(envelope.metadata.source.updated_at).toLocaleDateString(
-              "pt-BR",
-              { timeZone: "UTC" },
-            )}
-          </p>
-        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {envelope?.metadata.source.is_demo ? (
             <span className="text-muted">
@@ -461,15 +451,6 @@ export default function ReceitaPage() {
             />
           </div>
           <RevenueSeries envelope={envelope} />
-          {envelope.metadata.source.kind === "gold_csv" ? (
-            <DataProvenance
-              source={envelope.metadata.source}
-              period={envelope.metadata.period}
-              units={["R$", "kWh", "UCs"]}
-              limitations={envelope.metadata.limitations}
-              periodNote="Competências do consumo e faturamento agregados; o cadastro usado nos recortes é atual."
-            />
-          ) : null}
         </>
       ) : null}
     </div>

@@ -1,4 +1,5 @@
 import type { RevenueEnvelope } from "./contract";
+import { signedValueTone } from "@/shared/ui/signedValue";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -78,12 +79,23 @@ function MetricCard({
     <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
       <h3 className="text-sm text-muted">{label}</h3>
       <p
-        className={`min-w-0 [overflow-wrap:anywhere] font-heading ${valueClassName ?? (value.length > 13 ? "text-2xl" : "text-3xl")} leading-tight font-semibold tracking-tight text-content`}
+        className={`min-w-0 [overflow-wrap:anywhere] font-heading ${valueClassName ?? (value.length > 13 ? "text-2xl" : "text-3xl")} leading-tight font-semibold tracking-tight ${value.startsWith("-") || value.startsWith("−") ? "text-danger" : "text-content"}`}
       >
         {value}
       </p>
       {value !== "Indisponível" || before !== "Indisponível" ? (
-        <p className="text-xs text-muted">Antes: {before}</p>
+        <p className="text-xs text-muted">
+          Antes:{" "}
+          <span
+            className={
+              before.startsWith("-") || before.startsWith("−")
+                ? "text-danger"
+                : "text-content"
+            }
+          >
+            {before}
+          </span>
+        </p>
       ) : (
         <p className="text-xs text-muted">A fonte não informa esta medida.</p>
       )}
@@ -101,14 +113,7 @@ export default function RevenueSummary({
   const initial = data.comparison.initial;
   const final = data.comparison.final;
   const change = data.comparison.billed_amount_change_brl;
-  const signStyle =
-    change === null
-      ? "text-muted"
-      : change < 0
-        ? "text-danger"
-        : change > 0
-          ? "text-success"
-          : "text-content";
+  const signStyle = signedValueTone(change);
 
   return (
     <section aria-labelledby="revenue-summary-title" className="min-w-0">
@@ -152,7 +157,9 @@ export default function RevenueSummary({
             Período: {competenceLabel(initial.competencia)} →{" "}
             {competenceLabel(final.competencia)}
           </p>
-          <p className="text-xs text-muted">
+          <p
+            className={`text-xs ${signedValueTone(data.quality.percent_change_eligible ? data.comparison.billed_amount_change_percent : null)}`}
+          >
             {data.comparison.billed_amount_change_percent === null ||
             !data.quality.percent_change_eligible
               ? "Percentual indisponível"

@@ -13,20 +13,12 @@ import InspectionQueue from "./InspectionQueue";
 import { inspectionAction } from "./inspection-ui";
 import type { Metadata } from "./contract";
 import { useOrderAccess, useSession } from "@/shared/auth/useSession";
-import DataProvenance from "@/shared/analytics/DataProvenance";
 
 function DemonstrationLine({ metadata }: { metadata: Metadata }) {
-  const gold = metadata.contract_version === "2.0.0";
+  if (!metadata.source.is_demo) return null;
   return (
     <p className="text-xs leading-[18px] text-muted">
-      {gold
-        ? `Gold · publicação ${metadata.source.version}`
-        : metadata.source.is_demo
-          ? "Demonstração · dados sintéticos"
-          : "Fonte analítica"}
-      {gold
-        ? " · snapshot cadastral · atualizado em: "
-        : " · atualização ilustrativa: "}
+      Demonstração · dados sintéticos · atualização ilustrativa:{" "}
       {new Intl.DateTimeFormat("pt-BR", {
         day: "2-digit",
         month: "2-digit",
@@ -117,7 +109,7 @@ export default function InspecoesPage() {
         <p className="text-sm leading-[22px] text-muted">
           {parsed?.detail
             ? goldDetail
-              ? `${parsed.detail} · Categoria ${detail.data && "category" in detail.data.data ? (detail.data.data.category ?? "não classificada") : "consultando"} na triagem Gold.`
+              ? `${parsed.detail} · Categoria ${detail.data && "category" in detail.data.data ? (detail.data.data.category ?? "não classificada") : "consultando"} na triagem.`
               : `${parsed.detail} · Prioridade ${detail.data && "priority" in detail.data.data ? (detail.data.data.priority_label ?? detail.data.data.priority?.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) ?? "indisponível") : "consultando"}.`
             : "Uma fila explicável para orientar a investigação de perdas. Suspeita não é fraude comprovada."}
         </p>
@@ -233,12 +225,12 @@ export default function InspecoesPage() {
                     <p className="text-sm font-semibold">
                       {metadata.source.is_demo
                         ? "Prioridade demonstrativa"
-                        : "Prioridade publicada na Gold"}
+                        : "Prioridade publicada"}
                     </p>
                     <p className="mt-1 text-sm leading-[22px]">
                       {metadata.source.is_demo
                         ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
-                        : "Categorias e histórico vêm da Gold. A fonte não fornece estimativa individual de energia recuperável."}
+                        : "A fila não informa uma janela temporal própria. A fonte não fornece estimativa individual de energia recuperável."}
                     </p>
                   </div>
                 </aside>
@@ -251,29 +243,7 @@ export default function InspecoesPage() {
             </>
           ) : null}
 
-          {metadata.source.kind === "gold_csv" && metadata.period && (
-            <DataProvenance
-              source={metadata.source}
-              period={metadata.period}
-              units={["UCs", "inspeções", "kWh"]}
-              limitations={metadata.limitations}
-              periodLabel="Cobertura do consumo no lote"
-              periodNote="A fila não informa janela temporal própria; a cobertura observada não comprova todos os meses."
-            />
-          )}
-
           <footer className="flex flex-col items-stretch gap-2 text-xs text-muted sm:flex-row sm:items-center sm:gap-4">
-            <p className="w-full sm:max-w-[600px]">
-              Fonte:{" "}
-              {metadata.contract_version === "2.0.0"
-                ? `Gold · ${metadata.source.version} · fingerprint ${"fingerprint" in metadata ? metadata.fingerprint : "não disponível"}`
-                : metadata.source.is_demo
-                  ? "cenário sintético"
-                  : metadata.source.kind}
-              {metadata.contract_version === "2.0.0"
-                ? ". Consulta limitada a esta publicação."
-                : ". Nenhuma consulta à Gold."}
-            </p>
             <button
               ref={foundationsTriggerRef}
               type="button"

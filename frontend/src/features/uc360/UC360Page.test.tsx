@@ -505,7 +505,7 @@ describe("UC 360 search flow", () => {
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Medidores" }));
     expect((await screen.findAllByText("MED-004")).length).toBeGreaterThan(0);
-    expect(screen.getByText(/1 registro · fonte dev04-v1/)).toBeTruthy();
+    expect(screen.getByText(/Disponível · 1 registro/)).toBeTruthy();
     expect(
       fetchMock.mock.calls.some(([url]) =>
         String(url).includes("/history/meters"),

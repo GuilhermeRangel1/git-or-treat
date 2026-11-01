@@ -457,6 +457,16 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 01/11/2026 — WEB-02 / WEB-03 / WEB-04 — cores para valores com sinal
+
+- Nas jornadas de Receita, UC 360 e Inspeções, valores apresentados com sinal positivo usam verde e negativos usam vermelho; valores sem sinal usam a cor normal do tema e indisponibilidade mantém identificação própria. A cor acompanha os tokens claro/escuro e não substitui o sinal ou a unidade.
+- A apresentação foi conferida com testes de componentes para valores positivos, negativos, zero e ausência, além das jornadas afetadas. Os requisitos e a interpretação dos indicadores mantêm seus estados anteriores.
+
+### 01/11/2026 — WEB-02 / WEB-03 / WEB-04 — simplificação da apresentação
+
+- A pedido da pessoa usuária, Receita, busca e detalhe UC e Inspeções deixam de exibir nas telas principais o bloco técnico de lote/importação e os identificadores longos. Em Inspeções, “Ver fundamentos” mantém a consulta técnica sob demanda. Os metadados de publicação, as validações e a prevenção de mistura entre lotes permanecem nos contratos e no transporte.
+- Períodos, unidades, informações de cobertura e avisos essenciais à interpretação permanecem junto aos dados. O navegador autenticado carregou Receita, uma UC e a fila de Inspeções com a fonte local; testes de frontend exercitam as jornadas com respostas controladas. Estados dos requisitos preservados.
+
 ### 01/11/2026 — WEB-04 — cenário individual de investigação por consumo
 
 - A pessoa usuária aprovou a regra proposta de comparar a soma dos três meses recentes com os mesmos meses do ano anterior e apresentar `max(0, anterior − recente)` em kWh como potencial para investigação. Exige seis competências com leitura observada e válida; zero, ausência e dados inválidos continuam distintos. Instalação ou retirada válida de medidor na janela impede o cálculo, e GD cadastrada recebe alerta. O histórico pode ser incompleto e a comparação não identifica todas as alterações de atividade, ocupação ou medidor.

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import type { RevenueEnvelope } from "./contract";
 import "./revenue-series.css";
 
@@ -450,25 +451,33 @@ export default function RevenueSeries({
                 >
                   {monthLabel(row.competencia)}
                 </th>
-                <td className="px-3 py-3">
+                <td
+                  className={`px-3 py-3 ${signedValueTone(row.billed_amount, false)}`}
+                >
                   {row.billed_amount === null
                     ? "Sem dado"
                     : money.format(row.billed_amount)}
                 </td>
                 {showPaid && (
-                  <td className="px-3 py-3">
+                  <td
+                    className={`px-3 py-3 ${signedValueTone(row.paid_amount, false)}`}
+                  >
                     {row.paid_amount === null
                       ? "Sem dado"
                       : money.format(row.paid_amount)}
                   </td>
                 )}
-                <td className="px-3 py-3">
+                <td
+                  className={`px-3 py-3 ${signedValueTone(row.measured_energy_kwh, false)}`}
+                >
                   {row.measured_energy_kwh === null
                     ? "Sem dado"
                     : `${decimal.format(row.measured_energy_kwh)} kWh`}
                 </td>
                 {showBilledEnergy && (
-                  <td className="px-3 py-3">
+                  <td
+                    className={`px-3 py-3 ${signedValueTone(row.billed_energy_kwh, false)}`}
+                  >
                     {row.billed_energy_kwh === null
                       ? "Sem dado"
                       : `${decimal.format(row.billed_energy_kwh)} kWh`}

@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { AlertCircle, ArrowUpRight, X } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 import type { UCHistory, UCHistoryItem, UCMeter, UCStatus } from "./contract";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import type { UCHistorySection } from "./uc360-state";
 import {
   formatUCCompetence,
@@ -176,7 +177,7 @@ function coverageMessage(status: UCStatus) {
 function currentMeterMessage(meter: UCMeter | null, status?: UCStatus) {
   if (meter) {
     if (status === "partial")
-      return `Possível medidor na referência da Gold: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. A indicação depende das datas disponíveis; consulte as limitações e o histórico.`;
+      return `Possível medidor na data de referência: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. A indicação depende das datas disponíveis; consulte as limitações e o histórico.`;
     return `Vigente no snapshot: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. Consulte o histórico para vínculos anteriores e retiradas.`;
   }
   switch (status) {
@@ -298,17 +299,23 @@ export function HistoryPanel({
         <>
           <p className="min-w-0 break-all text-sm text-muted">
             {statusLabel(history.metadata.status)} · {history.pagination.total}{" "}
-            {history.pagination.total === 1 ? "registro" : "registros"} · fonte{" "}
-            {history.metadata.source.version}
+            {history.pagination.total === 1 ? "registro" : "registros"}
           </p>
-          {history.metadata.limitations.length > 0 && (
+          {history.metadata.limitations.some(
+            (note) => !/atualização indica a importação local/i.test(note),
+          ) && (
             <ul
               className="grid gap-1 text-sm text-muted"
               aria-label="Limitações da fonte"
             >
-              {history.metadata.limitations.map((limitation) => (
-                <li key={limitation}>{humanizeLimitation(limitation)}</li>
-              ))}
+              {history.metadata.limitations
+                .filter(
+                  (note) =>
+                    !/atualização indica a importação local/i.test(note),
+                )
+                .map((limitation) => (
+                  <li key={limitation}>{humanizeLimitation(limitation)}</li>
+                ))}
             </ul>
           )}
           {history.data.items.length > 0 && section ? (
@@ -340,7 +347,7 @@ export function HistoryPanel({
                       >
                         {columns.map((key) => (
                           <td
-                            className="max-w-64 px-3 py-2 [overflow-wrap:anywhere] text-content"
+                            className={`max-w-64 px-3 py-2 [overflow-wrap:anywhere] ${typeof row[key] === "number" ? signedValueTone(row[key] as number, false) : "text-content"}`}
                             key={key}
                           >
                             {historyValue(key, row[key])}
@@ -366,7 +373,9 @@ export function HistoryPanel({
                           <dt className="text-muted">
                             {historyLabels[key] ?? key}
                           </dt>
-                          <dd className="[overflow-wrap:anywhere] text-content">
+                          <dd
+                            className={`[overflow-wrap:anywhere] ${typeof row[key] === "number" ? signedValueTone(row[key] as number, false) : "text-content"}`}
+                          >
                             {historyValue(key, row[key])}
                           </dd>
                         </div>

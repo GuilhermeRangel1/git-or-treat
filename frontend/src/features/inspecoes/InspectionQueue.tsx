@@ -131,7 +131,7 @@ function GoldItemCard({
       aria-label={`UC ${item.uc_id}`}
       className="rounded-lg border border-border bg-surface p-4"
     >
-      <p className="text-xs text-muted">UC / categoria Gold</p>
+      <p className="text-xs text-muted">UC / categoria</p>
       <p className="mt-1 text-xs text-muted">
         Posição oficial na fila: {item.queue_position}
       </p>
@@ -173,7 +173,7 @@ export default function InspectionQueue({
   const field =
     params.get("order_by") ?? (gold ? "queue_position" : "priority");
   const direction = params.get("direction") ?? (gold ? "asc" : "desc");
-  const sortDescription = `${gold ? (field === "category" ? "Categoria Gold" : field === "uc_id" ? "Número da UC" : "Posição oficial da fila") : field === "priority" ? "Prioridade demonstrativa" : field === "uc_id" ? "Número da UC" : "Energia estimada"} ${direction === "desc" ? "decrescente" : "crescente"}`;
+  const sortDescription = `${gold ? (field === "category" ? "Categoria" : field === "uc_id" ? "Número da UC" : "Posição oficial da fila") : field === "priority" ? "Prioridade demonstrativa" : field === "uc_id" ? "Número da UC" : "Energia estimada"} ${direction === "desc" ? "decrescente" : "crescente"}`;
 
   function goTo(number: number) {
     const next = new URLSearchParams(params);
@@ -187,7 +187,7 @@ export default function InspectionQueue({
       className="min-w-0 space-y-5 md:space-y-6"
     >
       <h2 className="sr-only">
-        {gold ? "Fila de triagem Gold" : "Fila priorizada"}
+        {gold ? "Fila de triagem" : "Fila priorizada"}
       </h2>
       {items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-2 py-10 text-center">
@@ -224,12 +224,12 @@ export default function InspectionQueue({
               <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
                 <table className="w-full table-fixed text-left text-sm">
                   <caption className="sr-only">
-                    Categorias Gold, motivos, evidências e acesso ao detalhe
+                    Categorias, motivos, evidências e acesso ao detalhe
                   </caption>
                   <thead className="font-mono text-xs leading-[18px] text-muted">
                     <tr>
                       {[
-                        "Posição / UC / categoria Gold",
+                        "Posição / UC / categoria",
                         "Motivo",
                         "Evidências publicadas",
                         "Ação",

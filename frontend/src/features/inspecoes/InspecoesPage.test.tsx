@@ -254,7 +254,7 @@ it("restringe bairros ao município na fila Gold atual", async () => {
   const user = userEvent.setup();
   mount("/inspecoes");
   await screen.findByRole("columnheader", {
-    name: "Posição / UC / categoria Gold",
+    name: "Posição / UC / categoria",
   });
   await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
   await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
@@ -301,7 +301,7 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
 
   expect(
     await screen.findByRole("columnheader", {
-      name: "Posição / UC / categoria Gold",
+      name: "Posição / UC / categoria",
     }),
   ).toBeVisible();
   expect(screen.getByText("UC-GOLD / REVISAR")).toBeVisible();
@@ -334,7 +334,9 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(
     await screen.findByText("Energia recuperável indisponível"),
   ).toBeVisible();
-  expect(screen.getByText(/snapshot sem competência mensal/)).toBeVisible();
+  expect(
+    screen.getByText(/fotografia cadastral, sem competência mensal/),
+  ).toBeVisible();
   expect(
     screen.getByRole("region", {
       name: "Potencial estimado para investigação",
@@ -488,7 +490,7 @@ it("exige nova confirmação após troca de fingerprint e não repete a intenç�
   });
 });
 
-it("mostra origem e unidades sem atribuir à fila o período do consumo", async () => {
+it("explica a janela da fila sem expor identificadores técnicos", async () => {
   const gold = envelope([
     { ...item, priority: 0.92, potential_recoverable_energy_kwh: null },
   ]);
@@ -504,22 +506,15 @@ it("mostra origem e unidades sem atribuir à fila o período do consumo", async 
   };
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(gold)));
   mount();
-  const panel = await screen.findByRole("region", {
-    name: "Período, unidades e fonte dos dados",
-  });
-  expect(within(panel).getByText("Cobertura do consumo no lote")).toBeVisible();
-  expect(within(panel).getByText("01/2025 a 02/2025")).toBeVisible();
-  expect(within(panel).getByText("GOLD-ARTIFICIAL:hash")).toBeVisible();
-  expect(within(panel).getByText("Identificação da publicação")).toBeVisible();
   expect(
-    within(panel).getByText(
-      /não indica necessariamente quando foram coletados/,
-    ),
+    await screen.findByText(/A fila não informa uma janela temporal própria/),
   ).toBeVisible();
-  expect(within(panel).getByText(/UCs · inspeções · kWh/)).toBeVisible();
+  expect(screen.queryByText("GOLD-ARTIFICIAL:hash")).not.toBeInTheDocument();
   expect(
-    within(panel).getByText("A fila não informa janela temporal própria."),
-  ).toBeVisible();
+    screen.queryByRole("region", {
+      name: "Período, unidades e fonte dos dados",
+    }),
+  ).not.toBeInTheDocument();
 });
 
 it("na Gold v2 desativa ordenação por energia e preserva a volta do detalhe", async () => {
