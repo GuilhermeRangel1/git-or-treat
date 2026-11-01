@@ -118,7 +118,7 @@ export default function UC360OverviewTable({
   return (
     <section
       aria-label="Resumo por competência"
-      className="min-h-[188px] rounded-xl bg-transparent p-0 md:bg-surface md:p-4"
+      className="mt-3 rounded-xl bg-transparent"
     >
       <div className="hidden md:block">
         <table className="w-full table-fixed border-collapse text-left">
@@ -126,7 +126,7 @@ export default function UC360OverviewTable({
             Comparação de consumo medido e valores por competência
           </caption>
           <thead>
-            <tr className="h-8 font-mono text-xs tracking-wide text-muted">
+            <tr className="h-8 text-xs text-muted">
               <th className="pb-2 font-medium" scope="col">
                 Competência
               </th>

@@ -13,6 +13,27 @@ function signedAmount(value: number | null) {
   );
 }
 
+function EffectBar({
+  value,
+  maximum,
+}: {
+  value: number | null;
+  maximum: number;
+}) {
+  if (value === null || maximum === 0) return null;
+  return (
+    <div
+      className="mt-2 h-1.5 overflow-hidden rounded-full bg-canvas"
+      aria-hidden="true"
+    >
+      <div
+        className={`h-full rounded-full ${value < 0 ? "bg-danger" : value > 0 ? "bg-success" : "bg-content"}`}
+        style={{ width: `${(Math.abs(value) / maximum) * 100}%` }}
+      />
+    </div>
+  );
+}
+
 export default function RevenueDecomposition({
   envelope,
 }: {
@@ -30,6 +51,10 @@ export default function RevenueDecomposition({
       ["Sem leitura, fora da base", "sem_leitura"],
       ["Outras parcelas fora da base", "outros"],
     ];
+    const maximum = Math.max(
+      0,
+      ...labels.map(([, key]) => Math.abs(window.components[key] ?? 0)),
+    );
     return (
       <section
         aria-labelledby="revenue-window-title"
@@ -65,13 +90,19 @@ export default function RevenueDecomposition({
         ) : (
           <dl className="mt-4 grid gap-3">
             {labels.map(([label, key]) => (
-              <div key={key} className="flex flex-wrap justify-between gap-2">
-                <dt>{label}</dt>
-                <dd
-                  className={`font-semibold [overflow-wrap:anywhere] ${signedValueTone(window.components[key] ?? null)}`}
-                >
-                  {signedAmount(window.components[key] ?? null)}
-                </dd>
+              <div key={key}>
+                <div className="flex flex-wrap justify-between gap-2">
+                  <dt>{label}</dt>
+                  <dd
+                    className={`font-semibold [overflow-wrap:anywhere] ${signedValueTone(window.components[key] ?? null)}`}
+                  >
+                    {signedAmount(window.components[key] ?? null)}
+                  </dd>
+                </div>
+                <EffectBar
+                  value={window.components[key] ?? null}
+                  maximum={maximum}
+                />
               </div>
             ))}
             <div className="flex flex-wrap justify-between gap-2 border-t border-border pt-3">
@@ -104,6 +135,12 @@ export default function RevenueDecomposition({
         ] as const)
       : []),
   ] as const;
+  const maximum = Math.max(
+    0,
+    ...entries
+      .filter(([label]) => label !== "Variação total")
+      .map(([, value]) => Math.abs(value ?? 0)),
+  );
 
   return (
     <section
@@ -121,30 +158,38 @@ export default function RevenueDecomposition({
               : "Preço × volume"}
           </h2>
           <p className="mt-4 text-xs leading-[18px] text-muted">
-            Ilustração da variação entre extremos; depende de uma série de dados
-            comparável.
+            Contribuição de preço e volume para a variação entre os meses
+            selecionados.
           </p>
         </div>
       </div>
 
       <dl className="mt-4 grid gap-4">
         {entries.map(([label, value]) => (
-          <div
-            key={label}
-            className="flex min-h-10 items-start justify-between gap-4"
-          >
-            <dt className="text-sm text-content">{label}</dt>
-            <dd
-              className={
-                "flex items-center gap-2 text-right text-base font-semibold " +
-                signedValueTone(value)
-              }
-            >
-              <span aria-hidden="true">
-                {value === null ? "" : value > 0 ? "▲" : value < 0 ? "▼" : "▶"}
-              </span>
-              {signedAmount(value)}
-            </dd>
+          <div key={label}>
+            <div className="flex min-h-10 items-start justify-between gap-4">
+              <dt className="text-sm text-content">{label}</dt>
+              <dd
+                className={
+                  "flex items-center gap-2 text-right text-base font-semibold " +
+                  signedValueTone(value)
+                }
+              >
+                <span aria-hidden="true">
+                  {value === null
+                    ? ""
+                    : value > 0
+                      ? "▲"
+                      : value < 0
+                        ? "▼"
+                        : "▶"}
+                </span>
+                {signedAmount(value)}
+              </dd>
+            </div>
+            {label !== "Variação total" && (
+              <EffectBar value={value} maximum={maximum} />
+            )}
           </div>
         ))}
       </dl>

@@ -79,8 +79,11 @@ describe("UC 360 search flow", () => {
     expect(await screen.findByRole("button", { name: /UC-1001/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /UC-1001/ }));
     expect(await screen.findByText("UC UC-1001")).toBeTruthy();
-    expect(screen.queryByLabelText("Número da UC")).toBeNull();
-    expect(screen.getByTestId("location").textContent).toBe("/uc-360/UC-1001");
+    expect(screen.getByLabelText("Número da UC")).toHaveValue("1001");
+    expect(screen.getByRole("button", { name: /UC-1001/ })).toBeTruthy();
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/uc-360/UC-1001?q=1001",
+    );
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/UC-1001/overview"),
@@ -113,7 +116,7 @@ describe("UC 360 search flow", () => {
       "/uc-360/UC-1001?q=one&q=two",
     );
     expect(screen.getByRole("alert").textContent).toContain("duplicado");
-    expect(screen.queryByLabelText("Número da UC")).toBeNull();
+    expect(screen.getByLabelText("Número da UC")).toBeTruthy();
     expect(screen.queryByText(/Nenhuma UC selecionada/)).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetchMock).not.toHaveBeenCalled();

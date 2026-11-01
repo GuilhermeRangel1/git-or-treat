@@ -54,18 +54,17 @@ function Metric({
         </span>
       </p>
       <p className="text-xs text-muted">
-        Período anterior:{" "}
+        Mês inicial:{" "}
         <span className={signedValueTone(before.value, false)}>
           {formatUCAmount(before.value, unit)}
         </span>
       </p>
-      <p className="text-xs text-muted">
-        {period} · atual: {statusLabel(current.status)} · anterior:{" "}
-        {statusLabel(before.status)}
-      </p>
-      <p className="text-xs text-muted">
-        Comparação: {statusLabel(change.status)}
-      </p>
+      <p className="text-xs text-muted">{period}</p>
+      {change.status !== "available" && (
+        <p className="text-xs text-muted">
+          Comparação: {statusLabel(change.status)}
+        </p>
+      )}
       {limitations.length > 0 && (
         <p className="text-xs text-muted">
           {limitations.map(humanizeLimitation).join(" ")}
@@ -94,7 +93,7 @@ function SummaryMetric({
       : "text-[28px] leading-8 lg:text-4xl lg:leading-10"
     : "text-xl sm:text-2xl";
   return (
-    <article className="grid min-w-0 min-h-36 content-center gap-2 rounded-xl bg-surface p-3 text-left md:text-center sm:min-h-48 sm:p-5">
+    <article className="grid min-w-0 content-start gap-2 rounded-xl bg-surface p-3 text-left sm:p-4">
       <h3 className="text-sm font-medium text-muted">{title}</h3>
       <p
         className={`[overflow-wrap:anywhere] font-heading font-semibold text-content ${valueSize}`}

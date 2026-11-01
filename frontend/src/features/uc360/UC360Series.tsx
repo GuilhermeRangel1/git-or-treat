@@ -7,17 +7,29 @@ const monthIndex = (month: string) =>
 
 export default function UC360Series({
   data,
+  previous,
   pending,
   error,
   onRetry,
 }: {
   data?: { items: Point[] };
+  previous?: {
+    data?: { items: Point[] };
+    pending: boolean;
+    error: Error | null;
+  };
   pending: boolean;
   error: Error | null;
   onRetry: () => void;
 }) {
   const rows = [...(data?.items ?? [])].sort((a, b) =>
     a.competencia.localeCompare(b.competencia),
+  );
+  const previousValues = new Map(
+    previous?.data?.items.map((item) => [
+      item.competencia,
+      item.measured_energy_kwh,
+    ]),
   );
   const values = rows.flatMap((row) =>
     row.measured_energy_kwh === null ? [] : [row.measured_energy_kwh],
@@ -162,6 +174,68 @@ export default function UC360Series({
           </svg>
         </div>
       )}
+      <div className="mt-5 border-t border-border pt-4">
+        <h3 className="font-heading font-semibold">
+          Comparação com o mesmo mês do ano anterior
+        </h3>
+        <p className="mt-1 text-sm text-muted">
+          Consumo medido em kWh. Meses ausentes permanecem sem dado.
+        </p>
+        {previous?.pending ? (
+          <p role="status" className="mt-3 text-sm text-muted">
+            Carregando ano anterior…
+          </p>
+        ) : previous?.error ? (
+          <p role="alert" className="mt-3 text-sm text-muted">
+            Não foi possível carregar o ano anterior.{" "}
+            <button type="button" className="underline" onClick={onRetry}>
+              Tentar novamente
+            </button>
+          </p>
+        ) : rows.length > 0 && previous?.data ? (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[360px] text-left text-sm">
+              <thead className="text-xs text-muted">
+                <tr>
+                  <th className="pb-2">Competência</th>
+                  <th className="pb-2">Consumo no mês</th>
+                  <th className="pb-2">Mesmo mês do ano anterior</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const priorMonth = `${String(Number(row.competencia.slice(0, 4)) - 1).padStart(4, "0")}${row.competencia.slice(4)}`;
+                  const prior = previousValues.get(priorMonth);
+                  return (
+                    <tr
+                      key={row.competencia}
+                      className="border-t border-border"
+                    >
+                      <th scope="row" className="py-2 font-medium">
+                        {formatUCCompetence(row.competencia)}
+                      </th>
+                      <td className="py-2">
+                        {row.measured_energy_kwh == null
+                          ? "Sem dado"
+                          : `${decimal.format(row.measured_energy_kwh)} kWh`}
+                      </td>
+                      <td className="py-2">
+                        {prior == null
+                          ? "Sem dado"
+                          : `${decimal.format(prior)} kWh`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : !pending && !error ? (
+          <p className="mt-3 text-sm text-muted">
+            Sem competências para comparar neste período.
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }

@@ -226,7 +226,13 @@ export default function InspectionQueue({
                   <caption className="sr-only">
                     Categorias, motivos, evidências e acesso ao detalhe
                   </caption>
-                  <thead className="font-mono text-xs leading-[18px] text-muted">
+                  <colgroup>
+                    <col className="w-[21%]" />
+                    <col className="w-[25%]" />
+                    <col className="w-[38%]" />
+                    <col className="w-[16%]" />
+                  </colgroup>
+                  <thead className="text-xs leading-[18px] text-muted">
                     <tr>
                       {[
                         "Posição / UC / categoria",
@@ -305,7 +311,7 @@ export default function InspectionQueue({
                   {!legacyGold && <col className="w-[19%]" />}
                   <col className="w-[24%]" />
                 </colgroup>
-                <thead className="font-mono text-xs leading-[18px] text-muted">
+                <thead className="text-xs leading-[18px] text-muted">
                   <tr>
                     {[
                       "UC / prioridade",

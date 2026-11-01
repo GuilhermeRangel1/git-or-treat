@@ -111,13 +111,6 @@ export default function RevenueFiltersForm({
           setDraft({ ...draft, competencia_inicio })
         }
       />
-      {options?.competencias.length ? (
-        <p className="text-sm text-muted sm:col-span-2">
-          Competências observadas: {options.competencias[0]} a{" "}
-          {options.competencias[options.competencias.length - 1]}. Ausência de
-          competência no recorte não equivale a zero.
-        </p>
-      ) : null}
       <MonthYearField
         label="Mês final"
         monthLabel="Mês do fim"
@@ -125,6 +118,18 @@ export default function RevenueFiltersForm({
         value={draft.competencia_fim}
         onChange={(competencia_fim) => setDraft({ ...draft, competencia_fim })}
       />
+      <p className="text-sm text-muted sm:col-span-2">
+        A comparação usa os meses inicial e final; a série apresenta os meses
+        entre eles.
+        {options?.competencias.length ? (
+          <>
+            {" "}
+            Competências observadas: {options.competencias[0]} a{" "}
+            {options.competencias[options.competencias.length - 1]}. A ausência
+            de um mês não equivale a zero.
+          </>
+        ) : null}
+      </p>
       <label className="grid gap-1.5 text-sm font-medium">
         Município
         <select

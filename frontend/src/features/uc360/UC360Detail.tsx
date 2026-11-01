@@ -36,6 +36,16 @@ type Props = {
       pending: boolean;
       error: Error | null;
     };
+    previousSeries?: {
+      data?: {
+        items: Array<{
+          competencia: string;
+          measured_energy_kwh: number | null;
+        }>;
+      };
+      pending: boolean;
+      error: Error | null;
+    };
     filters: {
       start: string;
       end: string;
@@ -129,20 +139,26 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                 period={selected.period}
                 onApply={actions.onPeriodApply}
               />
-              <UC360Comparison comparison={selected.comparison} />
-              <UC360SupportMetrics data={selected} />
-              <details className="rounded-xl bg-surface p-4 sm:p-5">
-                <summary className="cursor-pointer font-heading font-semibold">
-                  Ver comparação por competência
-                </summary>
+              <section className="rounded-xl bg-surface p-4 sm:p-5">
+                <h2 className="font-heading text-lg font-semibold">
+                  Resumo por competência
+                </h2>
                 <UC360OverviewTable comparison={selected.comparison} />
-              </details>
+              </section>
+              <UC360SupportMetrics data={selected} />
               <UC360Series
                 data={unit.series.data}
+                previous={unit.previousSeries}
                 pending={unit.series.pending}
                 error={unit.series.error}
                 onRetry={actions.onSeriesRetry}
               />
+              <details className="rounded-xl bg-surface p-4 sm:p-5">
+                <summary className="cursor-pointer font-heading font-semibold">
+                  Ver indicadores comparativos
+                </summary>
+                <UC360Comparison comparison={selected.comparison} />
+              </details>
               <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
                 <h2 className="font-heading text-lg font-semibold">
                   Contexto da unidade

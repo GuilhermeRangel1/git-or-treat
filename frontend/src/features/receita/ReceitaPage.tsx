@@ -223,7 +223,7 @@ export default function ReceitaPage() {
             return (
               <>
                 <div>
-                  <p className="text-xs text-muted">Período</p>
+                  <p className="text-xs text-muted">Mês final</p>
                   <p className="mt-1 text-sm font-medium text-content">
                     {competenceLabel(
                       envelope?.metadata.period.end ??
@@ -232,7 +232,7 @@ export default function ReceitaPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted">Comparar com</p>
+                  <p className="text-xs text-muted">Mês inicial</p>
                   <p className="mt-1 text-sm font-medium text-content">
                     {competenceLabel(
                       envelope?.metadata.period.start ??
@@ -241,8 +241,8 @@ export default function ReceitaPage() {
                   </p>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-muted">Território</p>
-                  <p className="mt-1 truncate text-sm font-medium text-content">
+                  <p className="text-xs text-muted">Município / bairro</p>
+                  <p className="mt-1 break-words text-sm font-medium text-content">
                     {territory}
                   </p>
                 </div>
