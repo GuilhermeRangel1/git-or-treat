@@ -2,7 +2,20 @@
 
 Este guia orienta a execução dos cartões do quadro [GenAI — Gold real](https://trello.com/b/Vlnppr77/genai-gold-real) sobre o código existente. O [PRD](../PRD.md), os guias de [GenAI](../services/ai-agent.md) e [Backend](../services/backend.md), o [dicionário Gold](../dicionario_gold.md) e as decisões aprovadas continuam canônicos. O quadro de adaptação não altera o aceite obrigatório IA-01 a IA-06; IA-07 e IA-08 continuam diferenciais. Testes de regressão permanecem necessários à qualidade das mudanças.
 
-## Estado e decisões de partida
+## Referência obrigatória Gold v2
+
+Para novos desenvolvimentos, revisões, cenários e aceites de GenAI, chat e insights, use a Gold v2 vigente. Esta orientação foi aprovada pela pessoa usuária em 01/11/2026 e se aplica a todos os colaboradores e agentes.
+
+- Consulte `docs/dicionario_gold.md`, `docs/contracts/gold-csv-v2.md`, `backend/app/catalogs/gold_v2.json` e `ai-agent/app/profiles/grid360_gold.py`; derive colunas, grão, unidades, fórmulas e capacidades dessas referências e da publicação autorizada.
+- Confirme `schema_version=gold-csv-v2`, mapeamento `gold-catalog-v2`, schema analítico `gold_v2`, perfil `v-energy-grid-360-gold` e fonte `gold.local` no caminho efetivamente usado. Views de publicação podem permanecer no schema `gold`; isso não as torna dados v1.
+- As versões dos envelopes HTTP são independentes da versão física dos dados: `contract_version=v1`, `catalog_version=v1` no plano e caminhos `/api/v1` não significam Gold v1. Preserve contratos válidos e revise seus consumidores antes de alterá-los.
+- Gold v1 fica somente nos caminhos explícitos de compatibilidade, migrações históricas e regressões legadas. Novas métricas, fontes, telas e cenários Gold devem ser implementados sobre v2. Uma manutenção legada deve declarar o motivo e provar que não vira fallback do fluxo v2.
+- Preserve fixtures sintéticas para CI e testes de segurança; elas devem usar o contrato v2 quando representam a integração Gold atual. Aceite Gold exige também a publicação v2 autorizada e reconciliação independente.
+- Uma capacidade ausente ou sem cobertura suficiente na v2 mantém o bloqueio/esclarecimento. Não preencher a lacuna com fonte v1, dados sintéticos ou equivalência presumida.
+
+Antes de concluir um PR, registre versão física, catálogo, consumidor e evidência v2. Trechos históricos deste guia descrevem a etapa em que foram escritos; o estado integrado vigente está em `docs/contracts/genai-consolidation.md` e nos guias dos serviços. Remover compatibilidade v1 é uma mudança separada, com inventário de consumidores e migração; esta política não manda apagar migrações ou testes existentes.
+
+## Estado e decisões de partida — fotografia histórica
 
 Referência de código inspecionada em 24/10/2026: `develop` em `3d1242162ab00d394fa7d15749cbd55f8f818026`. Essa fotografia não fixa versões futuras nem substitui o estado documental atual da branch.
 
