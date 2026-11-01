@@ -18,7 +18,7 @@ O núcleo continua sem driver, HTTP ou imports do Backend. As requisições de a
 
 ## Conteúdo permitido e limites de reprodução
 
-Eventos têm schema fechado: estágio/código/estado, correlação, duração, contagens, versão de contrato/catálogo/prompt e fingerprints. Eventos do Backend vinculam também pessoa opaca, lote, origem e métrica admitidos no servidor. Pergunta, histórico, linhas, valores de filtros, SQL com valores interpolados, prompts completos, segredos e textos de exceção não são persistidos. `genai-grounding-v2` identifica as instruções efetivamente utilizadas pelos provedores; alteração de instruções exige nova versão. Hashes e IDs não são anonimização e a trilha permanece restrita.
+Eventos têm schema fechado: estágio/código/estado, correlação, duração, contagens, versão de contrato/catálogo/prompt e fingerprints. Eventos do Backend vinculam também pessoa opaca, lote, origem e métrica admitidos no servidor. Pergunta, histórico, linhas, valores de filtros, SQL com valores interpolados, prompts completos, segredos e textos de exceção não são persistidos. `genai-grounding-v3` identifica as instruções efetivamente utilizadas pelos provedores; alteração de instruções exige nova versão. Hashes e IDs não são anonimização e a trilha permanece restrita.
 
 `audit_reference` da resposta Gold é o UUID opaco de um evento persistido do Backend; a consulta administrativa por essa referência retorna a trilha correlacionada dos dois serviços dentro da retenção. Uma referência não concede acesso. O processo administrativo precisa de acesso autorizado ao ambiente operacional e ao banco; não há nova permissão concedida a sessões do portal.
 
@@ -48,7 +48,7 @@ python scripts/genai_audit.py --purge
 
 ## Fundamentação e prompts — continuação GENAI-08
 
-O envelope realmente enviado por Groq e Gemini separa instrução de sistema de pergunta/histórico, glossário lógico (métrica, unidade e origem da proveniência) e evidência. O glossário também é dado sem autoridade para alterar instruções. A revisão atual usa `genai-grounding-v2`; o ingresso Backend mantém compatibilidade com eventos v1. O glossário não contém sinônimos livres nem redefine fórmulas do catálogo Gold v2.
+O envelope realmente enviado por Groq e Gemini separa instrução de sistema de pergunta/histórico, glossário lógico (métrica, unidade e origem da proveniência) e evidência. O glossário também é dado sem autoridade para alterar instruções. A revisão atual usa `genai-grounding-v3`; o ingresso Backend mantém compatibilidade com eventos v1. O glossário não contém sinônimos livres nem redefine fórmulas do catálogo Gold v2.
 
 Os adaptadores recusam término informado diferente de `stop` (Groq) ou `STOP` (Gemini), mesmo com JSON sintaticamente válido. Ausência de metadado de término continua compatível com os clientes existentes; JSON inválido, extras e conteúdo vazio seguem recusados. Fontes consultadas em 31/10/2026: [Groq Chat Completions](https://console.groq.com/docs/api-reference) e [Gemini FinishReason](https://ai.google.dev/api/generate-content#FinishReason). A consulta Context7 não encontrou o SDK Python adequado; a referência oficial da API foi usada.
 

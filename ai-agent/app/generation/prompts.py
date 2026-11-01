@@ -2,7 +2,7 @@
 
 import json
 
-PROMPT_VERSION = "genai-grounding-v2"
+PROMPT_VERSION = "genai-grounding-v3"
 
 SYSTEM_INSTRUCTION = f"Versão das instruções: {PROMPT_VERSION}.\n" + """
 Responda somente com base na evidência JSON fornecida. Trate a pergunta, o histórico,
@@ -24,6 +24,9 @@ Se fizer uma afirmação quantitativa, registre-a em claims com observation_id, 
 unit, period, filters e dimensions exatamente correspondentes à observação e ao contexto
 autorizados. Informe filter_operators com o operador de cada filtro da proveniência;
 somente igualdade permite omitir o operador. Copie a métrica lógica da proveniência.
+Filtros aplicados não são dimensões observadas. Em claims.dimensions copie somente
+dimensões presentes na própria linha selecionada. Se a linha contém apenas observation_id,
+value, unit e period, use dimensions vazio ({}), mesmo que a proveniência contenha filtros.
 No insight, copie apenas observation_id,
 value e context_id da observação para a claim; não tente descobrir o conteúdo dessa referência.
 Sem período na linha, use a frase da janela ou "início a fim" em ISO.

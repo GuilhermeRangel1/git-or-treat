@@ -69,6 +69,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
     revoked = {"after_admission": False}
     reader_sql = []
     reader_events = []
+    probe_created = False
 
     def observe_sql(conn, _cursor, statement, _parameters, _context, _many):
         if conn.engine.url.username == GOLD_READER_ROLE:
@@ -180,6 +181,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     "LANGUAGE SQL SECURITY DEFINER AS "
                     "'SELECT count(*)::integer FROM public.auth_users'"
                 )
+                probe_created = True
                 administrator.exec_driver_sql("REVOKE EXECUTE ON FUNCTION public.genai_private_probe() FROM PUBLIC")
                 administrator.exec_driver_sql(sql)
                 administrator.exec_driver_sql(sql)
@@ -678,6 +680,9 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 })
                 assert audit_failed.status_code == 200
                 assert audit_failed.json()["status"] == "recoverable_error"
+                assert audit_failed.json()["error"] == {
+                    "code": "service_unavailable", "retryable": True,
+                }
                 assert not audit_failed.json()["evidence"]
                 assert not any("receita_total_reais" in sql.lower() for sql in reader_sql)
                 monkeypatch.delenv("GENAI_TEST_AUDIT_TOKEN")
@@ -725,6 +730,11 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 })
                 assert default_readiness.status_code == 503
                 runtime_app.state.genai_gold_readiness_gate = controlled_readiness
+
+                from tests.support.genai_failure_matrix import (
+                    assert_first_question_failures,
+                )
+                assert_first_question_failures(public_client, owner, monkeypatch, origin)
 
                 missing_month = public_client.post("/api/v1/ai/questions", headers=origin, json={
                     "question": "Qual a receita em Lumenia em março de 2001?",
@@ -872,5 +882,8 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
         event.remove(Engine, "before_cursor_execute", observe_sql)
         for engine in created_engines:
             engine.dispose()
+        if probe_created:
+            with admin.connect().execution_options(isolation_level="AUTOCOMMIT") as cleanup:
+                cleanup.exec_driver_sql("DROP FUNCTION IF EXISTS public.genai_private_probe()")
         owner.dispose()
         admin.dispose()

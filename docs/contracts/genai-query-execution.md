@@ -1,5 +1,23 @@
 # Contrato interno de planejamento e síntese entre Backend e GenAI
 
+**Versão vigente:** envelopes internos v1, catálogo lógico v1 e mapeamento Gold v2.
+
+## Estado vigente — GENAI-09, 01/11/2026
+
+O Backend autentica por sessão individual e coordena planejar → prontidão → SQL parametrizado com leitor restrito → sintetizar. As rotas internas question-plans/question-syntheses estão ligadas ao núcleo existente; não há callback público circular nem fallback Gold para demonstração. O schema físico é Gold CSV v2 e o perfil é v-energy-grid-360-gold, fonte gold.local. Versão lógica v1 não significa uso da Gold v1.
+
+Plano, identidade, escopo, catálogo e lote são revalidados entre etapas. Referência pública audit_reference é preenchida após auditoria durável confirmada; o replay administrativo da primeira resposta real foi comprovado. Prazo total de 35 s e SQL de até 5 s consomem o mesmo orçamento.
+
+Erros vigentes no Backend: publicação ausente/inválida → 503 service_unavailable/retryable false; publicação alterada → 409 invalid_context/retryable true; acesso negado → 401/403 access_denied sem retry. Fonte SQL temporariamente indisponível → 503 com retry; falha da confirmação obrigatória de auditoria → 503 sem retry. Mensagens fixas e correlação preservadas. A GenAI pode devolver recoverable_error no envelope v1, conforme o contrato público.
+
+Referências normativas desta implementação: [coordenação](genai-gold-coordination.md), [catálogo](../gold-catalog.md), [chat público](genai-chat-api.md), [auditoria](genai-audit.md) e [evidência da primeira pergunta](genai-first-question.md). Os schemas dos dois serviços são a definição executável dos campos. Identidade/permissão e fórmulas não vêm do navegador ou modelo.
+
+Compatibilidade de implantação: publicar primeiro o Backend que aceita eventos genai-grounding-v1/v2/v3, depois a GenAI com prompt v3. Durante a atualização o contrato público permanece v1. Rollback da GenAI pode usar prompt v2, ainda aceito pelo Backend; reverter o Backend para um ingresso que não aceite v3 enquanto a GenAI v3 estiver ativa bloqueia auditoria e respostas. Nunca desabilitar auditoria para contornar incompatibilidade.
+
+## Histórico de especificação e preparação
+
+As seções a seguir preservam as fotografias anteriores dos GENAI-01/04/07. Expressões como “proposto”, “futuro” e referência pública nula registram o estado da época; não descrevem o runtime vigente acima. Hipóteses não aprovadas nesse histórico não autorizam novas capacidades. A política temporal vigente é a ADR-0018 aprovada, referenciada no PRD.
+
 **Versão:** v1, proposta.
 
 **Estado:** proposta para revisão de Backend, Engenharia de Dados e GenAI, ligada à [ADR-0002](../decisions/0002-genai-gold-query-owner.md). A identidade de publicação e sua validação no Backend estão implementadas como preparação; as operações completas de planejamento/síntese continuam propostas. Os símbolos citados com nome de código existem hoje em `ai-agent/` ou `backend/`; tudo marcado como **proposto** ainda não existe.

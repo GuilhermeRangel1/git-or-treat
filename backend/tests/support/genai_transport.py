@@ -13,12 +13,14 @@ import asyncio, json, sys, os, httpx
 from app.config import Settings
 from app.main import create_app
 from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
-from app.providers.protocols import GeneratedAnswer
+from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
 class NoSource:
     async def retrieve(self, *args, **kwargs):
         raise AssertionError('Backend must execute Gold')
 class Model:
     async def generate(self, question, context, evidence):
+        if os.environ.get('GENAI_TEST_MODEL_FAILURE') == 'unavailable':
+            raise ModelProviderUnavailable('private provider detail')
         return GeneratedAnswer(status='answered', answer='Resultado observado no recorte solicitado.',
                                observation_ids=('row_1',))
 class Audit:
