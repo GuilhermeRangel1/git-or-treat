@@ -2883,3 +2883,24 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Configuração de implantação exercitada com app.main:app, fábrica Gold v2, processos Backend/GenAI separados, Gemini e PostgreSQL autorizado. Conectividade do provedor, cálculo reconciliado/replay e experiência de portal têm evidências distintas no contrato genai-first-question.md.
 - Registradas versões efetivamente executadas dos ambientes e parâmetros não secretos. A instrumentação privada não altera a resposta do provedor; limites da imagem e do navegador permanecem explícitos.
 - Critério de configuração real Backend/GenAI/banco comprovado: GENAI-09 passa a 6/10. Navegação visual indisponível nas configurações de controle do Work; recorte vazio legítimo não encontrado nas combinações consultadas. Não equivalem a aceite. Continuação local sem commit/push.
+
+### 01/11/2026 — GENAI-09: cenários da primeira pergunta no runtime oficial
+
+- Regressão de create_gold_app agora percorre planejamento e síntese HTTP em resposta fundamentada, ausência, modelo indisponível e auditoria indisponível. Falhas sem answer/evidência, sem texto privado; ausência e auditoria bloqueiam modelo.
+- Modelo e sink controlados; não declara nova reconciliação Gold nem queda real. Testes runtime + planejamento HTTP: 11 passaram; Ruff e diff-check passaram. Comandos/fronteiras no contrato genai-first-question.md.
+- Critério de cenário integrado avançou, mas revisão dos consumidores/liberação de catálogo continua pendente. GENAI-09 preservado em 6/10. Alterações locais sem commit/push.
+
+### 01/11/2026 — GENAI-09: vazio legítimo e matriz de falhas integrada
+
+- Vazio no lote privado Gold v2 comprovado por SQL independente: município/bairro existentes sem linhas no cruzamento. Login/endpoint reais retornaram 200/needs_clarification, sem número/evidência e com referência durável. Nenhum dado Gold alterado; conta temporária removida ao final.
+- Suporte de teste amplia a prova HTTP/PostgreSQL existente com ambiguidade, vazio, acesso revogado, falha DBAPI no SQL quantitativo, provedor indisponível, ingresso de auditoria rejeitado, falha da confirmação final após síntese e recuperação. Modelo/prontidão controlados no fixture; banco/executor/coordenação/contratos/auditoria reais. Não declara queda física da infraestrutura nem teste de falha com Gemini real.
+- Execução final: test_genai_session_postgres.py passou (1 teste integrado, 27,40 s); chat/auditoria 20 passaram; aviso preexistente Starlette/httpx. Ruff, compileall e diff-check passaram. Asserção inicial de representação decimal corrigida; teardown passou a limpar função auxiliar mesmo após falha. Comandos/matriz/limites no contrato genai-first-question.md.
+- Concluídos os dois critérios compostos de variantes/falhas: GENAI-09 passa a 8/10. Portal visual e revisão dos consumidores continuam abertos. Estados oficiais IA preservados. Alterações locais sem commit/push.
+
+### 01/11/2026 — GENAI-09: jornada visual, isolamento e revisão concluídos
+
+- GENAI-09 concluído tecnicamente em 10/10. Login individual no navegador, navegação até Assistente e pergunta Gold real retornaram answered na tela com número, unidade, mês, filtro, origem e referência. Valor visual reconciliado por SUM independente; referência exata da tela reproduzida pelo consumidor administrativo, com trilha dos dois serviços. Captura e amostras privadas fora do Git.
+- Revisão de padrões e especificação dos contratos GENAI-01/03/07/08 e consumidor concluída sem bloqueios após correções. RequireSession agora remonta conteúdo por identidade confirmada; regressão AuthProvider+Assistente comprova descarte de mensagens/contexto entre A e B. Texto inicial deixa a origem vinculada à resposta; documentos de chat/execução/guias conciliados com o runtime Gold e rollout Backend v3 antes de GenAI v3.
+- Verificações: frontend 26 testes passaram; tipos/build/fronteiras passaram; lint sem erros e com aviso preexistente. Matriz PostgreSQL após limpeza pela PK exata: 1 integração passou em 28,52 s, aviso Starlette/httpx preexistente. Ruff/compileall/diff-check passaram; links locais em 132 documentos sem falhas. Evidência e relatórios separados Standards/Spec em docs/contracts/genai-first-question.md.
+- Conta temporária autorizada removida e sessões revogadas após a jornada; aba já indisponível no momento do logout. Nenhuma alteração de privilégio adicional ou dado Gold. Fonte, credenciais e arquivos privados preservados fora dos commits.
+- Conclusão limitada à primeira fatia; IA-01/03/05/06 permanecem nos estados oficiais atuais. Não declara cobertura de todos os domínios ou merge da pilha de PRs. Continuação local sem novo commit/push.
