@@ -450,11 +450,7 @@ describe("Receita", () => {
     expect(within(breakdown).getByText("Base adequada")).toBeVisible();
     expect(within(breakdown).getByText(/Antes: 10/)).toBeVisible();
     expect(within(breakdown).getByText(/Final: 10 UCs/)).toBeVisible();
-    expect(
-      screen.getByText("Cobertura parcial", {
-        selector: 'span[role="status"]',
-      }),
-    ).toBeVisible();
+    expect(screen.queryByText("Cobertura parcial")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Ver acumulados e extremos"),
     ).not.toBeInTheDocument();
@@ -473,9 +469,11 @@ describe("Receita", () => {
     ).not.toBeInTheDocument();
 
     const series = screen.getByRole("region", { name: /Série mensal/i });
-    expect(within(series).getByRole("table")).toBeVisible();
     expect(
-      within(series).getByText(/Escala vertical inclui R\$ 0,00/),
+      within(series).getByText(/Receita faturada por mês \(BRL\)\./),
+    ).toBeVisible();
+    expect(
+      within(series).getByRole("button", { name: /Ver tabela da série/ }),
     ).toBeVisible();
     expect(within(series).getAllByText("Jan/2025")).toHaveLength(2);
     expect(within(series).getAllByText("Fev/2025")).toHaveLength(2);
@@ -496,6 +494,12 @@ describe("Receita", () => {
       "aria-describedby",
       "revenue-series-tooltip",
     );
+    await user.click(
+      within(series).getByRole("button", { name: /Ver tabela da série/ }),
+    );
+    const seriesDialog = screen.getByRole("dialog");
+    expect(within(seriesDialog).getByRole("table")).toBeVisible();
+    expect(within(seriesDialog).getByText("Jan/2025")).toBeVisible();
   });
 
   it("shows the initial and final amounts and reconciles the visible groups", async () => {
@@ -1578,7 +1582,8 @@ describe("Receita", () => {
     );
     mountPage();
 
-    expect(await screen.findByText("Cobertura parcial")).toBeVisible();
+    await screen.findAllByText("Indisponível");
+    expect(screen.queryByText("Cobertura parcial")).not.toBeInTheDocument();
     expect(screen.getAllByText("Indisponível").length).toBeGreaterThan(0);
     expect(
       screen.queryByText("Ver método, cobertura e limitações"),

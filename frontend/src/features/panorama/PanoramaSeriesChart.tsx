@@ -221,10 +221,7 @@ export default function PanoramaSeriesChart({
       <h2 id={titleId} className="panorama-series-chart__title">
         Receita por competência
       </h2>
-      <p className="mt-1 text-sm text-muted">
-        Receita faturada por mês (BRL). Lacunas permanecem sem valor e não são
-        ligadas no gráfico. Escala vertical inclui R$ 0,00.
-      </p>
+      <p className="mt-1 text-sm text-muted">Receita faturada por mês (BRL).</p>
 
       <div
         className="mt-4 flex flex-wrap items-center gap-2"
@@ -441,7 +438,6 @@ export default function PanoramaSeriesChart({
                     fontSize="13"
                     fontWeight="600"
                   >
-                    Faturamento ·{" "}
                     {formatCurrency(activePoint.value).length > 13
                       ? axisCurrency.format(activePoint.value)
                       : formatCurrency(activePoint.value)}

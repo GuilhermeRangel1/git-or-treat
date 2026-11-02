@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { ChevronDown, RotateCcw } from "lucide-react";
 import Button from "@/shared/ui/Button";
 import MonthYearField from "@/shared/ui/MonthYearField";
 import type { SourceOptions } from "@/shared/analytics/sourceOptions";
@@ -7,14 +8,72 @@ import type { RevenueBaseFilters } from "./revenue-filters";
 
 type RevenueFiltersFormProps = {
   initialFilters: RevenueBaseFilters;
+  defaultFilters: RevenueBaseFilters;
   searchKey: string;
   envelope?: RevenueEnvelope;
   options?: SourceOptions;
   onApply: (filters: RevenueBaseFilters) => void;
+  onCancel: () => void;
 };
 
 const textInputClass =
   "min-h-11 w-full rounded-lg border border-control bg-canvas px-3 text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+const selectControlClass =
+  "min-h-11 w-full appearance-none rounded-lg border border-control bg-canvas px-3 pr-10 text-sm text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-1.5 text-sm font-medium text-content">
+      {label}
+      <span className="relative">
+        <select
+          className={selectControlClass}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {options.map((competencia) => (
+            <option key={competencia} value={competencia}>
+              {competenceLabel(competencia)}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          aria-hidden="true"
+          className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+        />
+      </span>
+    </label>
+  );
+}
+
+function competenceLabel(value: string) {
+  const month = Number(value.slice(5, 7));
+  const names = [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez",
+  ];
+  return `${names[month - 1] ?? value.slice(5, 7)}/${value.slice(0, 4)}`;
+}
 
 function monthValid(value: string) {
   return /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(value);
@@ -22,10 +81,12 @@ function monthValid(value: string) {
 
 export default function RevenueFiltersForm({
   initialFilters,
+  defaultFilters,
   searchKey,
   envelope,
   options,
   onApply,
+  onCancel,
 }: RevenueFiltersFormProps) {
   const [draft, setDraft] = useState(initialFilters);
   const [errors, setErrors] = useState<string[]>([]);
@@ -95,6 +156,11 @@ export default function RevenueFiltersForm({
     }
   }
 
+  function resetDraft() {
+    setDraft(defaultFilters);
+    setErrors([]);
+  }
+
   return (
     <form
       className="grid gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-2"
@@ -102,34 +168,56 @@ export default function RevenueFiltersForm({
       noValidate
       aria-label="Filtros de receita"
     >
-      <MonthYearField
-        label="Mês inicial"
-        monthLabel="Mês de início"
-        yearLabel="Ano de início"
-        value={draft.competencia_inicio}
-        onChange={(competencia_inicio) =>
-          setDraft({ ...draft, competencia_inicio })
-        }
-      />
-      <MonthYearField
-        label="Mês final"
-        monthLabel="Mês do fim"
-        yearLabel="Ano do fim"
-        value={draft.competencia_fim}
-        onChange={(competencia_fim) => setDraft({ ...draft, competencia_fim })}
-      />
-      <p className="text-sm text-muted sm:col-span-2">
-        A comparação usa os meses inicial e final; a série apresenta os meses
-        entre eles.
-        {options?.competencias.length ? (
-          <>
-            {" "}
-            Competências observadas: {options.competencias[0]} a{" "}
-            {options.competencias[options.competencias.length - 1]}. A ausência
-            de um mês não equivale a zero.
-          </>
-        ) : null}
-      </p>
+      {options?.competencias.length ? (
+        <SelectField
+          label="Mês inicial"
+          value={draft.competencia_inicio}
+          options={[
+            ...(!options.competencias.includes(draft.competencia_inicio)
+              ? [draft.competencia_inicio]
+              : []),
+            ...options.competencias,
+          ]}
+          onChange={(competencia_inicio) =>
+            setDraft({ ...draft, competencia_inicio })
+          }
+        />
+      ) : (
+        <MonthYearField
+          label="Mês inicial"
+          monthLabel="Mês de início"
+          yearLabel="Ano de início"
+          value={draft.competencia_inicio}
+          onChange={(competencia_inicio) =>
+            setDraft({ ...draft, competencia_inicio })
+          }
+        />
+      )}
+      {options?.competencias.length ? (
+        <SelectField
+          label="Mês final"
+          value={draft.competencia_fim}
+          options={[
+            ...(!options.competencias.includes(draft.competencia_fim)
+              ? [draft.competencia_fim]
+              : []),
+            ...options.competencias,
+          ]}
+          onChange={(competencia_fim) =>
+            setDraft({ ...draft, competencia_fim })
+          }
+        />
+      ) : (
+        <MonthYearField
+          label="Mês final"
+          monthLabel="Mês do fim"
+          yearLabel="Ano do fim"
+          value={draft.competencia_fim}
+          onChange={(competencia_fim) =>
+            setDraft({ ...draft, competencia_fim })
+          }
+        />
+      )}
       <label className="grid gap-1.5 text-sm font-medium">
         Município
         <select
@@ -152,13 +240,18 @@ export default function RevenueFiltersForm({
       <label className="grid gap-1.5 text-sm font-medium">
         Bairro
         <select
-          className={textInputClass}
+          className={`${textInputClass} disabled:cursor-not-allowed disabled:opacity-50`}
           value={draft.bairro}
+          disabled={!draft.municipio}
           onChange={(event) =>
             setDraft({ ...draft, bairro: event.target.value })
           }
         >
-          <option value="">Todos os bairros</option>
+          <option value="">
+            {draft.municipio
+              ? "Todos os bairros"
+              : "Selecione um município primeiro"}
+          </option>
           {neighborhoodOptions.sort().map((bairro) => (
             <option key={bairro} value={bairro}>
               {bairro === "__grid360_missing__" ? "Não informado" : bairro}
@@ -183,37 +276,30 @@ export default function RevenueFiltersForm({
           ))}
         </select>
       </label>
-      <div className="flex items-end sm:col-span-2">
-        <label className="grid gap-1.5 text-sm font-medium">
-          Alimentador
-          <select
-            className={textInputClass}
-            value={draft.alimentador}
-            onChange={(event) =>
-              setDraft({ ...draft, alimentador: event.target.value })
-            }
-          >
-            <option value="">Todos os alimentadores</option>
-            {Array.from(
-              new Set([
-                ...(options?.alimentador ?? []),
-                ...(draft.alimentador ? [draft.alimentador] : []),
-              ]),
-            )
-              .sort()
-              .map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-          </select>
-        </label>
-      </div>
-      <div className="flex items-end sm:col-span-2">
-        <Button type="submit" variant="accent" size="wide">
-          Aplicar filtros
-        </Button>
-      </div>
+      <label className="grid gap-1.5 text-sm font-medium">
+        Alimentador
+        <select
+          className={textInputClass}
+          value={draft.alimentador}
+          onChange={(event) =>
+            setDraft({ ...draft, alimentador: event.target.value })
+          }
+        >
+          <option value="">Todos os alimentadores</option>
+          {Array.from(
+            new Set([
+              ...(options?.alimentador ?? []),
+              ...(draft.alimentador ? [draft.alimentador] : []),
+            ]),
+          )
+            .sort()
+            .map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+        </select>
+      </label>
       {errors.length > 0 ? (
         <div
           role="alert"
@@ -227,12 +313,25 @@ export default function RevenueFiltersForm({
           </ul>
         </div>
       ) : null}
-      {!draft.municipio ? (
-        <p className="text-sm text-muted sm:col-span-2">
-          Sem município selecionado, bairros com o mesmo nome em municípios
-          diferentes serão agrupados.
-        </p>
-      ) : null}
+      <div className="flex flex-col-reverse justify-between gap-3 border-t border-divider pt-4 sm:col-span-2 sm:flex-row sm:items-center">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={resetDraft}
+          leftIcon={<RotateCcw className="size-3.5" aria-hidden="true" />}
+        >
+          Limpar filtros
+        </Button>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="primary">
+            Aplicar filtros
+          </Button>
+        </div>
+      </div>
     </form>
   );
 }
