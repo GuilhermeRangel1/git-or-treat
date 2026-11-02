@@ -32,7 +32,10 @@ import type {
   AIQuestionResponse,
 } from "./contract";
 
-type RetryRequest = Pick<AIQuestionRequest, "question" | "context"> & {
+type RetryRequest = Pick<
+  AIQuestionRequest,
+  "question" | "context" | "continuation_token" | "conversation_id"
+> & {
   userMessageId: number;
   assistantMessageId: number;
 };
@@ -378,6 +381,9 @@ export default function AssistentePage() {
   const publicationRevision = useGoldPublicationRevision();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [conversationId, setConversationId] = useState(() =>
+    crypto.randomUUID(),
+  );
   const nextMessageId = useRef(0);
   const sendingRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -422,6 +428,16 @@ export default function AssistentePage() {
     const retryRequest = retryAttempt ?? {
       question,
       context,
+      conversation_id: conversationId,
+      continuation_token:
+        [...messages]
+          .reverse()
+          .find(
+            (message) =>
+              message.contextEligible &&
+              message.response != null &&
+              ["answered", "no_evidence"].includes(message.response.status),
+          )?.response?.continuation_token ?? undefined,
       userMessageId,
       assistantMessageId,
     };
@@ -442,6 +458,8 @@ export default function AssistentePage() {
         contract_version: "v1",
         question,
         context: context.slice(-3),
+        conversation_id: retryRequest.conversation_id,
+        continuation_token: retryRequest.continuation_token,
       });
       if (addUserMessage && response.status !== "recoverable_error") {
         setDraft("");
@@ -514,7 +532,9 @@ export default function AssistentePage() {
                 contextEligible: false,
                 retryRequest: undefined,
                 outdated:
-                  message.role === "assistant" && Boolean(message.response),
+                  safeError.code !== "invalid_continuation" &&
+                  message.role === "assistant" &&
+                  Boolean(message.response),
               }))
             : current,
           userMessageId,
@@ -547,6 +567,7 @@ export default function AssistentePage() {
   function startNewConversation() {
     if (mutation.isPending) return;
     setMessages([]);
+    setConversationId(crypto.randomUUID());
     setDraft("");
     if (composerRef.current) composerRef.current.style.height = "";
     mutation.reset();

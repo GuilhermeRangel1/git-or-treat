@@ -8,6 +8,8 @@ export type AIQuestionRequest = {
   expected_publication?: { lote: string; fingerprint: string };
   question: string;
   context: AIConversationTurn[];
+  conversation_id?: string;
+  continuation_token?: string;
 };
 
 export type AIEvidenceReference = {
@@ -49,6 +51,7 @@ export type AIQuestionResponse = {
   evidence: AIEvidenceReference[];
   limitations: string[];
   analysis_context?: AIAnalysisContext | null;
+  continuation_token?: string | null;
 };
 
 export type AIQuestionErrorResponse = {
@@ -249,6 +252,10 @@ export function decodeAIQuestionResponse(value: unknown): AIQuestionResponse {
     throw new Error("Resposta inválida do serviço.");
   }
   const modelTier = value.model_tier;
+  const continuationToken = value.continuation_token;
+  if (continuationToken != null && !isText(continuationToken, 16000)) {
+    throw new Error("Resposta inválida do serviço.");
+  }
   if (modelTier != null && modelTier !== "light" && modelTier !== "strong") {
     throw new Error("Resposta inválida do serviço.");
   }
@@ -265,6 +272,7 @@ export function decodeAIQuestionResponse(value: unknown): AIQuestionResponse {
     evidence,
     limitations: rawLimitations as string[],
     analysis_context: analysisContext,
+    continuation_token: continuationToken as string | null | undefined,
   };
 }
 

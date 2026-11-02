@@ -53,6 +53,66 @@ afterEach(() => {
   resetGoldPublication();
 });
 
+it("mantém a referência válida em continuações e erros e renova a conversa", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      jsonResponse({ ...answered, continuation_token: "valid-first" }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({ ...answered, continuation_token: "valid-second" }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({
+        ...answered,
+        status: "refused",
+        answer: null,
+        message: "Não autorizado.",
+        error: { code: "access_denied", retryable: false },
+        continuation_token: null,
+      }),
+    )
+    .mockResolvedValueOnce(jsonResponse(answered))
+    .mockResolvedValue(
+      jsonResponse({ ...answered, continuation_token: "valid-third" }),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  for (const question of [
+    "Qual a receita em Recife?",
+    "E Olinda?",
+    "Pedido recusado",
+    "Só residencial",
+    "Só comercial",
+  ]) {
+    await user.type(input, question);
+    await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+    await waitFor(() => expect(input).toHaveValue(""));
+  }
+  const payloads = fetchMock.mock.calls.map(([, options]) =>
+    JSON.parse(options.body),
+  );
+  expect(payloads.map((payload) => payload.continuation_token)).toEqual([
+    undefined,
+    "valid-first",
+    "valid-second",
+    "valid-second",
+    undefined,
+  ]);
+  expect(new Set(payloads.map((payload) => payload.conversation_id)).size).toBe(
+    1,
+  );
+  await user.click(screen.getByRole("button", { name: /Nova conversa/ }));
+  await user.type(input, "Outra consulta");
+  await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6));
+  const last = JSON.parse(fetchMock.mock.calls[5][1].body);
+  expect(last.continuation_token).toBeUndefined();
+  expect(last.conversation_id).not.toBe(payloads[0].conversation_id);
+});
+
 describe("Assistente Grid 360", () => {
   it("mostra os rótulos do catálogo preservando os identificadores do recorte", async () => {
     vi.stubGlobal(
@@ -252,6 +312,7 @@ describe("Assistente Grid 360", () => {
       contract_version: "v1",
       question: "Como variou o consumo?",
       context: [],
+      conversation_id: expect.any(String),
     });
     expect(String(fetchMock.mock.calls[0][0])).toBe("/api/v1/ai/questions");
   });
