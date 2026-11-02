@@ -4,7 +4,73 @@
 **Estado do requisito:** Em validação
 **Escopo comprovado:** banco PostgreSQL descartável, API FastAPI real e portal Vite no navegador, com contas artificiais e chamadas HTTP sem interceptação.
 
-## Ambiente e isolamento
+## Atualização vigente — 02/11/2026 — Gold v2 e provedor real
+
+WEB-10 permanece **Em validação**. Esta rodada acrescenta evidência à validação de 01/11; as afirmações antigas de ausência de lote/provedor descrevem aquele ambiente, não o atual. Base revisada: `feat/web10-perfis` em `92f80b4`, com a correção de autorização descrita abaixo; alterações encaminhadas ao [PR #101](https://github.com/GuilhermeRangel1/git-or-treat/pull/101), sem merge.
+
+### Ambiente privado
+
+- Snapshot privado da publicação Gold v2 autorizada, restaurado em `v_energy_web10_validation_20261102`, no PostgreSQL 16 local existente. A identidade da publicação foi preservada; o banco original e seus serviços não foram migrados nem substituídos. As migrações da branch foram aplicadas somente na cópia, até `20261102_cadastro`.
+- Composição `web10-validation`: Backend em `127.0.0.1:8012`, portal em `http://localhost:5181` e GenAI externa Gold na rede privada. O override local não inicia outro DB/loader. Configurações e chave estão apenas em arquivos ignorados, com tokens de serviço/auditoria distintos e correspondentes entre os serviços. O leitor é `venergy_genai_reader`; a GenAI não recebe DSN de banco.
+- `GENAI_AUDIT_DATABASE_URL` é configuração do CLI administrativo de retenção, não do ingresso de eventos da API. Não foi criada credencial administrativa adicional para a prova: a escrita/leitura de confirmação da trilha pela aplicação passou no runtime.
+- O Gemini aceitou a chave. O modelo principal configurado apresentou 503 `UNAVAILABLE` e, no diagnóstico neutro posterior, 429 `RESOURCE_EXHAUSTED`. A lista de modelos da conta incluía `gemini-3.5-flash-lite`, que passou no teste neutro. O modelo foi alterado apenas no `.env` local dessa composição; a rodada final de Receita usou o Flash-Lite real, sem mock.
+
+### Jornadas e autorização
+
+Chromium real fez login dos cinco perfis pela interface, sem interceptar sessão ou API. Rotas iniciais: Admin/Comercial → Panorama; Operação → Operação; Atendimento → UC 360; Perdas → Inspeções. Menus observados corresponderam à matriz; todos abriram o Assistente. Navegação cruzada Comercial → UC 360 e Operação → Receita mostrou acesso negado.
+
+Matriz HTTP final: 35 combinações, com login real e expectativas explícitas para cada status:
+
+| Perfil | Panorama | Receita | Opções Operação | UCs | Fila | Ordens | Filtros compartilhados |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Admin | 200 | 200 | 200 | 200 | 200 | 200 | 200 |
+| Comercial | 200 | 200 | 403 | 403 | 403 | 403 | 200 |
+| Operação | 403 | 403 | 200 | 403 | 403 | 403 | 403 |
+| Atendimento | 403 | 403 | 403 | 200 | 403 | 403 | 200 |
+| Perdas | 403 | 403 | 403 | 403 | 200 | 200 | 200 |
+
+Os endpoints foram `/panorama`, `/revenue`, `/operations/options`, `/ucs?limit=1`, `/inspections/queue`, `/inspections/orders` e `/analytics/options`. Logout retornou 204 para os cinco perfis e a chamada protegida seguinte retornou 401. Atendimento/Perdas receberam `needs_clarification` com lista de limitações antes da consulta ao modelo. Perguntas cruzadas Comercial → DEC e Operação → Receita não retornaram números; a prova de negação antes de SQL continua coberta também pela regressão versionada anterior.
+
+A rodada encontrou e corrigiu um defeito: Receita ainda exigia `orders:read` através de um guard legado, bloqueando Comercial na Gold. Receita agora usa sua permissão `revenue:read`. As opções compartilhadas usam identidade de plataforma e uma das permissões dos consumidores reais (`revenue:read`, `ucs:read`, `inspections:read`) em ambas as fontes, antes de abrir o repositório. Operação conserva seu catálogo específico. A matriz acima foi repetida após a correção; nenhum grant de banco foi ampliado.
+
+### Respostas Admin, controle independente e auditoria
+
+- Receita: pergunta enviada pelo campo do portal, “Qual foi a receita faturada em Recife em junho de 2026?”. HTTP 200 `answered`, indicador `billing.revenue`, unidade `R$`, período `2026-06-01 a 2026-06-30` e filtro municipal correto. O valor da resposta coincide exatamente, a centavos, com o SQL independente abaixo. A referência `batch_reference` é igual à publicação capturada na conexão de conferência. Correlação `736c1a4a325648ba9e472b13d7898803`; referência de auditoria persistida `5ffeafad533d4175858c57a222d6ef2a`, com estágio de modelo concluído. Não se copiam linhas de origem nem cadastro pessoal para este relatório.
+- DEC e FEC: perguntas mensais do alimentador `ALM-JAB-015` em junho/2026 enviadas pelo portal. Ambas retornaram HTTP 503, `service_unavailable`, `retryable=false`, com explicação de cobertura insuficiente. Correlações `3e74529434b949ddb3f9ba0efe82f3c6` (DEC) e `8d7bfd3224a345f094b57813cf999545` (FEC); trilhas persistidas foram conferidas por essas correlações, sem estágio de modelo. O envelope de erro não expõe `audit_reference`; não se inventa essa referência.
+- O SQL independente encontra linhas de DEC/FEC e confere as razões contra numerador/denominador, mas isso não certifica o mês nem transforma o bloqueio em resposta reconciliada. Todos os recortes de ocorrências dessa publicação continuam `NAO_CERTIFICADA`. Permanece pendente a resposta de Continuidade com cobertura autorizada; não se alterou o selo para passar no teste.
+- Reinvestigação da pendência em 02/11: conferidos diretamente o `manifest.json` e o CSV `cobertura_dominios` do diretório configurado em `GOLD_CSV_V2_HOST_DIR`. O manifesto continua no lote `GOLD_20261031T020143Z_fd69c375`; o CSV tem 5.904 linhas de ocorrências `NAO_CERTIFICADA`, contra 48 linhas fechadas de consumo e 48 de faturamento. O [notebook produtor da declaração](../../data-engineering/notebook/Cobertura_Declaracao.ipynb) contém somente os pares consumo/leituras e faturamento/faturas em `DOMINIOS`; não produz declaração de ocorrências. O [contrato de cobertura](../contracts/gold-cobertura-v1.md) exige evidência vinculada à origem e não propaga automaticamente uma declaração global para alimentadores. Não foi localizada declaração aplicável a junho/2026 e ao alimentador consultado. Para retomar: reconciliar a extração de ocorrências com sua origem, publicar declaração válida para o período/recorte, exportar/carregar o pacote correspondente e repetir as perguntas Admin com SQL independente na nova publicação. Acrescentar o domínio à lista ou editar o CSV/banco como `FECHADO` sem essa evidência não encerra o aceite.
+- Leitor real: `has_schema_privilege` e `has_any_column_privilege` confirmaram ausência de acesso a `gold_cadastro.cadastro_titular_uc`; também não lê `public.auth_users` nem tem TEMP. O catálogo/contexto quantitativo GenAI não inclui a projeção pessoal. A referência numérica recebida continha somente indicador, período, município, valor agregado e proveniência.
+- A [evidência do run limpo](../../data-engineering/evidencias/workflow/run-limpo-250327107715287.md) registra 64 verificações sem falhas no mesmo lote, incluindo ocorrências e DEC/FEC. `Silver_to_gold.ipynb` implementa fórmulas e controles de duração, frequência, denominador e reconciliação. Portanto, a pendência não significa ausência das medidas nem erro de cálculo: é a falta da declaração de cobertura no pacote consultado pela aplicação, que não pode ser inferida apenas dessas verificações.
+
+Consultas de controle em transação `READ ONLY`, na mesma cópia/publicação, com parâmetros vinculados:
+
+```sql
+SELECT sum(receita_total_reais)
+FROM gold_v2.diagnostico_receita
+WHERE competencia = :competencia AND municipio = :municipio;
+
+SELECT "DEC", "FEC", total_ucs_alimentador,
+       duracao_total_interrupcoes_horas, frequencia_total_interrupcoes
+FROM gold_v2.indicadores_dec_fec
+WHERE competencia = :competencia AND id_alimentador = :alimentador;
+
+SELECT dominio, estado_cobertura, count(*)
+FROM gold_v2.cobertura_dominios
+GROUP BY dominio, estado_cobertura;
+```
+
+### Comandos, verificações e limites
+
+- `docker compose --env-file .env.gold-v2 -p web10-validation -f docker-compose.yml -f docker-compose.gold-v2.yml -f work/web10-validation/compose.override.yml build backend ai-agent frontend`: passou. `up -d --no-deps ai-agent backend frontend`: passou. Override e DSNs privados ficam em `work/`, ignorados.
+- `alembic upgrade head`, executado no serviço Backend com a credencial de carga apontada somente à cópia: passou. Não foi repetida a ingestão do lote.
+- `docker exec web10-validation-backend-1 python scripts/check_genai_runtime.py`: configuração, banco, leitor, publicação, catálogo, auditoria e GenAI `ready`; geração `configured`.
+- Em `backend/`, fonte sintética/session e CORS das fixtures: `python -m pytest -q -p no:cacheprovider --tb=short tests/test_genai_profile_access.py tests/test_platform_profiles.py tests/test_platform_authorization.py tests/test_profile_provisioning.py tests/test_genai_session_access.py tests/test_analytics_kpis_revenue.py tests/test_gold_http.py tests/test_analytics_query_parameters.py tests/test_security_regressions.py` → **141 passaram, 1 aviso preexistente Starlette/httpx, 14,40 s**. A primeira tentativa com CORS exclusivo da porta 5181 falhou em logins das fixtures (403); repetir com as origens 5173 esperadas resolveu essa contaminação de configuração, sem mudar o código de login.
+- Roteiros privados executados: `python work/web10-validation/finalize_validation.py` (matriz HTTP, SQL e privilégios), `node work/web10-validation/validate_browser.mjs` (login, menu, chat real e navegação negada) e `python work/web10-validation/check_reconciliation.py` (igualdade do número/contexto/publicação, referência persistida e bloqueio de Continuidade sem modelo). Capturas em `work/web10-validation/admin-revenue.png`, `admin-dec.png` e `admin-fec.png`; artefatos privados ignorados pelo Git. Os testes de autorização versionados reproduzem a regressão com dados artificiais; os roteiros privados exigem a publicação e configuração locais autorizadas.
+- Esta rodada não repete o ciclo de ordens nem todos os cenários de inatividade/expiração/downgrade no navegador; essas provas anteriores e os testes automatizados ficam distinguidos nas seções históricas. Não é aceite integral de IA ou Dados.
+- Decisão vigente: **manter WEB-10 Em validação**, com Receita real comprovada e Continuidade ainda pendente por cobertura da fonte. Sem merge enquanto esse limite permanecer.
+- Encerramento: as cinco contas temporárias e suas sessões foram removidas da cópia; o arquivo de credenciais temporárias foi apagado. Os três serviços `web10-validation` foram parados. O snapshot privado e as capturas permanecem locais para conferência; chave/configuração ignoradas preservadas e composição original `dev131-gold` mantida ativa.
+
+## Ambiente e isolamento — rodada histórica de 01/11
 
 - Container PostgreSQL 16 já autorizado: `web10-profiles-task1-test`, bind local `127.0.0.1:55444`.
 - Banco da jornada no browser: `grid360_web10_task5_test`, criado vazio com owner `web10_migrator` não-superuser. Recebeu a migração atual e cinco contas artificiais; contém apenas dados sintéticos da demonstração e ordens criadas no fluxo desta validação.
