@@ -28,6 +28,13 @@ from app.services.genai_replay import execution_artifact
 from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
 
 
+class GoldCoverageUnavailable(GenAIServiceUnavailable):
+    """O serviço está disponível, mas o recorte não tem cobertura validada."""
+
+    def __init__(self):
+        super().__init__(retryable=False)
+
+
 async def answer_gold_question(
     engine: Engine,
     client: GenAIQuestionClient,
@@ -88,8 +95,15 @@ async def answer_gold_question(
     required = {*metric.required_capability_ids, planned.source.capability_id}
     if (report.batch_ref != planned.publication.batch_ref
         or report.lot_state not in {"ready", "partial"}
-        or any(key not in report.capabilities or report.capabilities[key].status != "available"
-               for key in required)):
+        or any(key not in report.capabilities for key in required)):
+        raise GenAIServiceUnavailable(retryable=False)
+    unavailable = [report.capabilities[key] for key in required
+                   if report.capabilities[key].status != "available"]
+    if unavailable:
+        coverage_reasons = {"period_missing", "period_insufficient", "coverage_missing",
+                            "coverage_incomplete", "table_empty", "source_not_in_gold"}
+        if all(set(capability.reasons) <= coverage_reasons for capability in unavailable):
+            raise GoldCoverageUnavailable
         raise GenAIServiceUnavailable(retryable=False)
     quality = GoldEvidenceQuality(
         readiness_version=report.readiness_version,
