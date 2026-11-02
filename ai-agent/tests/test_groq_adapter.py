@@ -169,7 +169,7 @@ def test_groq_request_targets_chat_completions_with_bearer_key_and_json_mode() -
         "metric_id": "consumption_demo", "unit": "unidades fictícias",
         "source_id": "synthetic_fixture",
     }
-    assert "genai-grounding-v3" in system["content"]
+    assert "genai-grounding-v4" in system["content"]
     assert prompt["question"] == QUESTION
     assert prompt["context"] == [{"role": "user", "content": "Pergunta anterior"}]
     assert prompt["evidence"]["reference"]["source"] == "synthetic_fixture:consumption_demo"

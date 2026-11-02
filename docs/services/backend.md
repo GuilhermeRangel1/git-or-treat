@@ -13,7 +13,7 @@ A rota pública Backend /api/v1/ai/questions já coordena sessão individual →
 
 Os trechos históricos de preparação abaixo que descrevem ausência de autenticação, SQL conversacional ou ligação interna foram superados por essa fatia. Isso não entrega automaticamente outros domínios, insights Gold ou o aceite integral do portal. Contratos vigentes: [chat](../contracts/genai-chat-api.md), [execução](../contracts/genai-query-execution.md), [coordenação](../contracts/genai-gold-coordination.md) e [auditoria](../contracts/genai-audit.md).
 
-O ingresso Backend deve aceitar prompt v3 antes de implantar a GenAI v3. O contrato público continua v1 e conserva a marca is_demo para a fonte sintética explícita. Fonte Gold indisponível não ativa demonstração.
+O ingresso Backend deve aceitar prompt v4 antes de implantar a GenAI v4; eventos v1/v2/v3 continuam compatíveis. O contrato público continua v1 e conserva a marca is_demo para a fonte sintética explícita. Fonte Gold indisponível não ativa demonstração.
 
 ## Responsabilidade
 

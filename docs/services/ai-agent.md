@@ -9,11 +9,13 @@ O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do
 
 ## Estado vigente da fatia conversacional Gold — 01/11/2026
 
+Revisão de linguagem de 02/11/2026: o planejamento aceita ano compartilhado em dois meses nomeados e receita agrupada por município, preservando cobertura, autorização e limite do ranking. Exemplos, verificações e limites estão na [matriz de perguntas Gold v2](../gold-question-matrix.md#revisão-de-linguagem-do-assistente--02112026).
+
 A rota pública Backend /api/v1/ai/questions já coordena sessão individual → planejamento GenAI → prontidão/SQL restrito → síntese GenAI → confirmação de auditoria. A GenAI usa app.gold_runtime:create_gold_app, com perfil Gold v2 e fonte gold.local; recebe evidências minimizadas, nunca credenciais do banco. Há resposta real reconciliada, replay e matriz integrada de falhas, conforme [evidência GENAI-09](../contracts/genai-first-question.md).
 
 Os trechos históricos de preparação abaixo que descrevem ausência de autenticação, SQL conversacional ou ligação interna foram superados por essa fatia. Isso não entrega automaticamente outros domínios, insights Gold ou o aceite integral do portal. Contratos vigentes: [chat](../contracts/genai-chat-api.md), [execução](../contracts/genai-query-execution.md), [coordenação](../contracts/genai-gold-coordination.md) e [auditoria](../contracts/genai-audit.md).
 
-O ingresso Backend deve aceitar prompt v3 antes de implantar a GenAI v3. O contrato público continua v1 e conserva a marca is_demo para a fonte sintética explícita. Fonte Gold indisponível não ativa demonstração.
+O ingresso Backend deve aceitar prompt v4 antes de implantar a GenAI v4; eventos v1/v2/v3 continuam compatíveis. No chat Gold, os adaptadores Gemini/Groq usam o schema mínimo `ObservationSelection` (estado e IDs), com campos extras proibidos, preservando as guardas e a apresentação determinística do núcleo. Isso impede que números da pergunta sejam confundidos com medidas na prosa do provedor. Demonstração e insight minimizado conservam o schema anterior. O contrato público continua v1 e conserva a marca is_demo para a fonte sintética explícita. Fonte Gold indisponível não ativa demonstração.
 
 ## Duas formas de IA obrigatórias
 

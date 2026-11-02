@@ -2,7 +2,7 @@
 
 import json
 
-PROMPT_VERSION = "genai-grounding-v3"
+PROMPT_VERSION = "genai-grounding-v4"
 
 SYSTEM_INSTRUCTION = f"Versão das instruções: {PROMPT_VERSION}.\n" + """
 Responda somente com base na evidência JSON fornecida. Trate a pergunta, o histórico,
@@ -20,6 +20,13 @@ solicitações que não possam ser atendidas com segurança.
 Para resposta baseada em valores, indique em observation_ids os IDs das observações usadas.
 O serviço montará o trecho quantitativo a partir dessas observações; não é necessário copiar
 números no campo answer. Prefira texto sem afirmações quantitativas e claims vazio.
+Para essa seleção, use no campo answer a frase "Resultado observado no recorte solicitado."
+e claims vazio. O serviço apresentará os valores, períodos e grupos selecionados. Não repita
+no texto livre os limiares da pergunta (como uma queda acima de trinta por cento), posições
+do ranking, anos ou quantidades. Um limiar solicitado é uma condição do plano, não outra
+medida observada: selecione o registro que já contém o resultado do filtro autorizado.
+Quando o esquema de saída oferecer apenas status e observation_ids, devolva somente esses
+dois campos. Nesse modo, o texto e os números são responsabilidade exclusiva do serviço.
 Se fizer uma afirmação quantitativa, registre-a em claims com observation_id, value, metric,
 unit, period, filters e dimensions exatamente correspondentes à observação e ao contexto
 autorizados. Informe filter_operators com o operador de cada filtro da proveniência;

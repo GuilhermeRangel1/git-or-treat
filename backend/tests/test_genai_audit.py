@@ -11,6 +11,25 @@ from app.schemas.genai_audit import GenAIAuditEvent
 from app.services.genai_audit import AuditStore
 
 
+@pytest.mark.parametrize("version", [
+    "genai-grounding-v1", "genai-grounding-v2", "genai-grounding-v3", "genai-grounding-v4",
+])
+def test_audit_persists_current_and_previous_prompt_versions(version, tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'versions.db'}")
+    AUDIT_EVENTS.create(engine)
+    event = GenAIAuditEvent(
+        correlation_id="a" * 32, stage="response", code="completed", outcome="success",
+        duration_ms=1, prompt_version=version,
+    )
+    try:
+        AuditStore(engine).record(event)
+        assert AuditStore(engine).read("a" * 32)[0]["event"]["prompt_version"] == version
+        with pytest.raises(ValidationError):
+            GenAIAuditEvent.model_validate({**event.model_dump(), "prompt_version": "unknown"})
+    finally:
+        engine.dispose()
+
+
 def test_audit_survives_new_store_and_expires_after_thirty_days(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'audit.db'}")
     AUDIT_EVENTS.create(engine)
