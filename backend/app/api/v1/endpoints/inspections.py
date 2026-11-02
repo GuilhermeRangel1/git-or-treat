@@ -24,6 +24,7 @@ analytics_router = APIRouter(
     route_class=StrictAnalyticsRoute,
     dependencies=[Depends(require_permission("inspections:read"))],
 )
+get_inspections_gold_context = get_optional_gold_context_for("inspections:read")
 
 
 def order_conflict_response(exc: inspection_service.OrderConflictError) -> JSONResponse:
@@ -49,7 +50,7 @@ def get_inspection_queue(
     alimentador: str | None = Query(None, max_length=100),
     expected_lote: str | None = Query(None, max_length=100),
     expected_fingerprint: str | None = Query(None, max_length=64, pattern=r"^[a-f0-9]{64}$"),
-    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("inspections:read")),
+    gold_context: GoldContext | None = Depends(get_inspections_gold_context),
     repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ):
     """Read-only demonstration queue; estimates are provisional and not Gold metrics."""
@@ -73,7 +74,7 @@ def get_suspicion_detail(
     uc_id: str,
     expected_lote: str | None = Query(None, max_length=100),
     expected_fingerprint: str | None = Query(None, max_length=64, pattern=r"^[a-f0-9]{64}$"),
-    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("inspections:read")),
+    gold_context: GoldContext | None = Depends(get_inspections_gold_context),
     repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ):
     if gold_context is not None:

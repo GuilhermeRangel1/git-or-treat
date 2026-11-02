@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 from sqlalchemy import create_engine
 
-from app.core.genai_gold_access import build_profile_access_scope
+from app.core.genai_gold_access import GOLD_DIMENSIONS, GOLD_METRICS, build_profile_access_scope
 from app.core.platform_access import PlatformProfile
 from app.core.platform_identity import PlatformIdentity
 from app.schemas.ai import AIQuestionRequest
@@ -14,7 +14,7 @@ def identity(profile: PlatformProfile | None) -> PlatformIdentity:
     return PlatformIdentity("user:test", profile, frozenset({"ai:ask"}), "session")
 
 
-def test_scope_matrix_separates_commercial_and_operations_and_keeps_admin_union():
+def test_scope_matrix_separates_commercial_and_operations_and_gives_admin_full_scope():
     commercial = build_profile_access_scope(identity(PlatformProfile.COMMERCIAL))
     operations = build_profile_access_scope(identity(PlatformProfile.OPERATIONS))
     admin = build_profile_access_scope(identity(PlatformProfile.ADMIN))
@@ -23,8 +23,9 @@ def test_scope_matrix_separates_commercial_and_operations_and_keeps_admin_union(
     assert "network.equivalent_interruption_duration" not in commercial.allowed_metric_ids
     assert "network.equivalent_interruption_duration" in operations.allowed_metric_ids
     assert "billing.revenue" not in operations.allowed_metric_ids
-    assert admin.allowed_metric_ids == commercial.allowed_metric_ids | operations.allowed_metric_ids
-    assert admin.allowed_dimension_ids == commercial.allowed_dimension_ids | operations.allowed_dimension_ids
+    assert commercial.allowed_metric_ids | operations.allowed_metric_ids <= admin.allowed_metric_ids
+    assert admin.allowed_metric_ids == GOLD_METRICS
+    assert admin.allowed_dimension_ids == GOLD_DIMENSIONS
     assert (admin.profile_id, admin.source_id) == ("v-energy-grid-360-gold", "gold.local")
 
 

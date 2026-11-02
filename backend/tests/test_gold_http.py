@@ -1,6 +1,5 @@
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -9,15 +8,16 @@ from app.core.config import settings
 from app.core.analytics_access import require_gold_analytics_read
 from app.core.database import get_analytics_db
 from app.main import app
-from app.repositories.gold_context import get_optional_gold_context
+from app.api.v1.endpoints.inspections import get_inspections_gold_context
 from app.models.gold_load import ATTEMPTS, BATCH, TABLES
 from app.models.gold_v2_load import TABLES as V2_TABLES
 from app.services.gold_import import import_gold
 from tests.test_gold_import import SAMPLES, write_origin
+from tests.support.platform_auth import login_as_profile
 
 
 @pytest.fixture
-def gold_client(tmp_path, monkeypatch):
+def gold_client(tmp_path, monkeypatch, client):
     for name, (header, rows) in SAMPLES.items():
         folder = tmp_path / name
         folder.mkdir()
@@ -34,17 +34,18 @@ def gold_client(tmp_path, monkeypatch):
         with Session(engine) as session:
             yield session
     monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setattr(settings, "APP_ENV", "development")
     original = dict(app.dependency_overrides)
     app.dependency_overrides[get_analytics_db] = database
     # Este conjunto exercita a compatibilidade v1 anterior ao contrato de
     # sessão; as rotas Gold v2 autenticadas têm provas próprias em PostgreSQL.
-    app.dependency_overrides[get_optional_gold_context] = lambda: None
+    app.dependency_overrides[get_inspections_gold_context] = lambda: None
     app.dependency_overrides[require_gold_analytics_read] = lambda: None
     statements = []
     event.listen(engine, "before_cursor_execute", lambda conn, cursor, statement, params, context, many: statements.append(statement))
     try:
-        with TestClient(app) as client:
-            yield client, statements
+        login_as_profile(client, monkeypatch, "admin", username="gold-http-admin")
+        yield client, statements
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(original)
@@ -87,8 +88,18 @@ def test_gold_legacy_journeys_require_read_identity(gold_client, monkeypatch):
         response = client.get(path, headers={"Authorization": "Bearer test-read-token-" + "r" * 40})
         assert response.status_code == 200
     monkeypatch.setattr(analytics_access, "get_order_identity", lambda *_: OrderIdentity("no-read", frozenset(), "session"))
-    for path in ("/api/v1/analytics/options", "/api/v1/revenue", "/api/v1/ucs?q=FAKE"):
-        assert client.get(path).status_code == 403
+    for path in ("/api/v1/analytics/options", "/api/v1/revenue"):
+        response = client.get(
+            path,
+            headers={"Authorization": "Bearer test-read-token-" + "r" * 40},
+        )
+        assert response.status_code == 403
+    # A rota de UCs usa a permissÃ£o de plataforma `ucs:read`; o token de leitura
+    # a concede mesmo quando a identidade operacional de ordens nÃ£o tem leitura.
+    assert client.get(
+        "/api/v1/ucs?q=FAKE",
+        headers={"Authorization": "Bearer test-read-token-" + "r" * 40},
+    ).status_code == 200
 
 
 def test_gold_legacy_journeys_accept_authenticated_reader_session(gold_client, clean_test_db, monkeypatch):
@@ -98,10 +109,11 @@ def test_gold_legacy_journeys_accept_authenticated_reader_session(gold_client, c
 
     client, _ = gold_client
     app.dependency_overrides.pop(require_gold_analytics_read)
+    client.cookies.clear()
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr(settings, "APP_ENV", "development")
     monkeypatch.setattr(settings, "ORDERS_AUTH_MODE", "session")
-    create_user("gold-reader")
+    create_user("gold-reader", profile="admin")
     assert client.get("/api/v1/revenue").status_code == 401
     login = client.post("/api/v1/auth/login", json={"username": "gold-reader", "password": "correct horse battery staple"}, headers={"Origin": "http://localhost:5173"})
     assert login.status_code == 200

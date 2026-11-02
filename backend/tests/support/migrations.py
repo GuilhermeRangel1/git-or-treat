@@ -72,7 +72,9 @@ def assert_upgraded(connection):
     if connection.dialect.name == "postgresql":
         tables |= set(inspect(connection).get_table_names(schema="gold"))
         tables |= set(inspect(connection).get_table_names(schema="gold_v2"))
-        tables |= set(inspect(connection).get_table_names(schema="gold_cadastro"))
+        cadastro_tables = set(inspect(connection).get_table_names(schema="gold_cadastro"))
+        assert "cadastro_titular_uc" in cadastro_tables
+        tables |= cadastro_tables
     assert EXPECTED_TABLES <= tables
 
 
@@ -81,7 +83,10 @@ def assert_downgraded(connection):
     if connection.dialect.name == "postgresql":
         for schema in ("gold", "gold_v2", "gold_cadastro"):
             if inspect(connection).has_schema(schema):
-                assert not EXPECTED_TABLES.intersection(inspect(connection).get_table_names(schema=schema))
+                remaining = set(inspect(connection).get_table_names(schema=schema))
+                assert not EXPECTED_TABLES.intersection(remaining)
+                if schema == "gold_cadastro":
+                    assert "cadastro_titular_uc" not in remaining
 
 
 def assert_schema_matches_models(connection, metadata=None):

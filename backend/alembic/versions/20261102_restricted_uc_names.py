@@ -32,7 +32,7 @@ def upgrade():
             name="ck_gold_cadastro_nome_status",
         ),
         schema="gold_cadastro",
-        comment="Dados pessoais mínimos para Atendimento; não conceder ao leitor analítico/GenAI.",
+        comment="Dados pessoais mínimos para a jornada de Atendimento; proibido no catálogo GenAI.",
     )
     op.create_index(
         "ix_gold_cadastro_uc",
