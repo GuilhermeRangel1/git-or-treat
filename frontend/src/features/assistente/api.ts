@@ -83,6 +83,16 @@ export async function askAIQuestion(
     }
     if (!(error instanceof ApiError)) throw error;
 
+    const publicError = decodeAIQuestionErrorResponse(error.data);
+    if (publicError?.error.code === "invalid_continuation") {
+      throw new AIChatApiError(
+        "O contexto anterior não é mais válido. Inicie uma nova conversa.",
+        false,
+        error.status,
+        publicError.error.code,
+        publicError.correlation_id,
+      );
+    }
     if (error.status === 409) markGoldPublicationStale();
     const accessMessages: Record<number, string> = {
       401: "Sua sessão expirou. Entre novamente para continuar.",
@@ -96,7 +106,6 @@ export async function askAIQuestion(
       throw new AIChatApiError(accessMessage, false, error.status);
     }
 
-    const publicError = decodeAIQuestionErrorResponse(error.data);
     if (publicError) {
       throw new AIChatApiError(
         publicError.message,

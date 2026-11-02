@@ -321,3 +321,8 @@ Detalhamento por bairro requer a dimensão `geography.neighborhood` no escopo va
 # Atualização de Receita — 02/11/2026
 
 Os snapshots comparativos incluem `measured_energy_kwh`, agregado do consumo medido por competência, independente de faturas. `billed_energy_kwh` continua distinto e nulo quando não publicado. Preço observado e decomposição preço × volume mantêm receita e consumo da base comparável.
+
+
+## IA-07 — acompanhamento natural
+
+O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).

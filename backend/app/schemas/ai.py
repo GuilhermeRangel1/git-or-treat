@@ -9,6 +9,7 @@ from pydantic import (
     StrictInt,
     StrictStr,
     StringConstraints,
+    model_serializer,
     model_validator,
 )
 
@@ -84,6 +85,7 @@ class AIQuestionError(BaseModel):
         "invalid_upstream_response",
         "ungrounded_response",
         "invalid_context",
+        "invalid_continuation",
         "internal_error",
     ]
     retryable: StrictBool
@@ -154,6 +156,14 @@ class AIQuestionResponse(BaseModel):
     evidence: list[AIEvidenceReference] = Field(default_factory=list, max_length=20)
     limitations: list[AIResponseLimitation] = Field(default_factory=list, max_length=20)
     analysis_context: AIAnalysisContext | None = None
+    continuation_token: Annotated[str, StringConstraints(min_length=1, max_length=16000)] | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_absent_continuation(self, handler):
+        data = handler(self)
+        if self.continuation_token is None:
+            data.pop("continuation_token", None)
+        return data
 
     @model_validator(mode="after")
     def validate_status_content(self) -> Self:
