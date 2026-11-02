@@ -8,6 +8,25 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/shared/analytics/sourceOptions", () => ({
+  useSourceOptions: () => ({
+    data: {
+      data: {
+        municipio: ["Olinda", "Recife"],
+        classe: ["Comercial", "Residencial"],
+      },
+      source: {
+        kind: "gold_csv",
+        version: "gold-csv-v2:test-publication",
+        is_demo: false,
+        updated_at: "2026-11-02T00:00:00Z",
+      },
+    },
+    isPending: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 import UC360Page from "./UC360Page";
 
 function renderPage(initial = "/uc-360") {
@@ -70,19 +89,25 @@ describe("UC 360 search flow", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-    renderPage();
+    renderPage("/uc-360?start=2025-01&end=2025-12");
     fireEvent.change(screen.getByLabelText("Número da UC"), {
       target: { value: "1001" },
+    });
+    fireEvent.change(screen.getByLabelText("Município"), {
+      target: { value: "Recife" },
+    });
+    fireEvent.change(screen.getByLabelText("Classe de consumo"), {
+      target: { value: "Residencial" },
     });
     expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Buscar UC" }));
     expect(await screen.findByRole("button", { name: /UC-1001/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /UC-1001/ }));
     expect(await screen.findByText("UC UC-1001")).toBeTruthy();
-    expect(screen.getByLabelText("Número da UC")).toHaveValue("1001");
-    expect(screen.getByRole("button", { name: /UC-1001/ })).toBeTruthy();
+    expect(screen.queryByLabelText("Número da UC")).toBeNull();
+    expect(screen.queryByRole("button", { name: /UC-1001/ })).toBeNull();
     expect(screen.getByTestId("location").textContent).toBe(
-      "/uc-360/UC-1001?q=1001",
+      "/uc-360/UC-1001?q=1001&municipio=Recife&classe=Residencial&start=2025-01&end=2025-12",
     );
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -93,9 +118,78 @@ describe("UC 360 search flow", () => {
     expect(
       await screen.findByText("A unidade informada não foi encontrada."),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Nova busca" }));
-    expect(screen.getByLabelText("Número da UC")).toBeTruthy();
-    expect(screen.getByTestId("location").textContent).toBe("/uc-360");
+    fireEvent.click(screen.getByRole("link", { name: "Voltar à busca" }));
+    expect(screen.getByLabelText("Número da UC")).toHaveValue("1001");
+    expect(screen.getByLabelText("Município")).toHaveValue("Recife");
+    expect(screen.getByLabelText("Classe de consumo")).toHaveValue(
+      "Residencial",
+    );
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/uc-360?q=1001&municipio=Recife&classe=Residencial&start=2025-01&end=2025-12",
+    );
+  });
+
+  it("searches by municipality and class without a UC number", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const params = new URLSearchParams(String(input).split("?")[1]);
+      const item =
+        params.get("classe") === "Comercial"
+          ? {
+              uc_id: "UC-1002",
+              municipio: "Recife",
+              bairro: "Boa Vista",
+              classe: "Comercial",
+              alimentador: "AL-01",
+              status: "active",
+            }
+          : {
+              uc_id: "UC-1003",
+              municipio: "Olinda",
+              bairro: "Casa Caiada",
+              classe: "Residencial",
+              alimentador: "AL-02",
+              status: "active",
+            };
+      return new Response(
+        JSON.stringify({
+          data: { items: [item] },
+          pagination: { page: 1, page_size: 20, total: 1, total_pages: 1 },
+          metadata: { status: "available" },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderPage();
+    fireEvent.change(screen.getByLabelText("Município"), {
+      target: { value: "Olinda" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar UC" }));
+    expect(await screen.findByRole("button", { name: /UC-1003/ })).toBeTruthy();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const requestUrl = String(fetchMock.mock.calls[0][0]);
+    const params = new URLSearchParams(requestUrl.split("?")[1]);
+    expect(params.get("municipio")).toBe("Olinda");
+    expect(params.has("q")).toBe(false);
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/uc-360?municipio=Olinda",
+    );
+
+    fireEvent.change(screen.getByLabelText("Município"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Classe de consumo"), {
+      target: { value: "Comercial" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar UC" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const classRequestUrl = String(fetchMock.mock.calls[1][0]);
+    const classParams = new URLSearchParams(classRequestUrl.split("?")[1]);
+    expect(classParams.get("classe")).toBe("Comercial");
+    expect(classParams.has("municipio")).toBe(false);
+    expect(classParams.has("q")).toBe(false);
+    expect(await screen.findByRole("button", { name: /UC-1002/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /UC-1003/ })).toBeNull();
   });
 
   it("blocks API calls for a duplicated URL query", async () => {
@@ -116,7 +210,10 @@ describe("UC 360 search flow", () => {
       "/uc-360/UC-1001?q=one&q=two",
     );
     expect(screen.getByRole("alert").textContent).toContain("duplicado");
-    expect(screen.getByLabelText("Número da UC")).toBeTruthy();
+    expect(screen.queryByLabelText("Número da UC")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Voltar à busca" }),
+    ).toHaveAttribute("href", "/uc-360?q=one&q=two");
     expect(screen.queryByText(/Nenhuma UC selecionada/)).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -128,7 +225,7 @@ describe("UC 360 search flow", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Buscar UC" }));
     expect(screen.getByRole("alert").textContent).toContain(
-      "1 a 100 caracteres",
+      "número, município ou classe",
     );
     expect(
       screen.getByLabelText("Número da UC").getAttribute("aria-invalid"),

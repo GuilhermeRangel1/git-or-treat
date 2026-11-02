@@ -67,6 +67,42 @@ def test_uc_search_preserves_case_insensitive_id_filter_order_pagination_and_pro
     assert body["metadata"]["status"] == "available"
 
 
+def test_uc_search_filters_by_municipality_and_class_before_pagination(client):
+    by_municipality = client.get(
+        "/api/v1/ucs",
+        params={"municipio": "Recife", "page_size": 2},
+    )
+    assert by_municipality.status_code == 200
+    assert [item["uc_id"] for item in by_municipality.json()["data"]["items"]] == [
+        "UC-1001",
+        "UC-1002",
+    ]
+    assert by_municipality.json()["pagination"] == {
+        "page": 1,
+        "page_size": 2,
+        "total": 8,
+        "total_pages": 4,
+    }
+
+    by_class = client.get("/api/v1/ucs", params={"classe": "Comercial"})
+    assert [item["uc_id"] for item in by_class.json()["data"]["items"]] == [
+        "UC-1002",
+        "UC-1007",
+    ]
+    unmatched_municipality = client.get(
+        "/api/v1/ucs", params={"municipio": "Unknown municipality"}
+    )
+    assert unmatched_municipality.json()["data"]["items"] == []
+
+    combined = client.get(
+        "/api/v1/ucs",
+        params={"q": "UC-1007", "municipio": "Recife", "classe": "Comercial"},
+    )
+    assert [item["uc_id"] for item in combined.json()["data"]["items"]] == [
+        "UC-1007"
+    ]
+
+
 @pytest.mark.parametrize("q", ["Pessoa", "CLI-DEMO"])
 def test_uc_search_does_not_search_customer_fields(client, q):
     response = client.get("/api/v1/ucs", params={"q": q})
@@ -78,7 +114,16 @@ def test_uc_search_does_not_search_customer_fields(client, q):
     assert body["metadata"]["status"] == "empty"
 
 
-@pytest.mark.parametrize("query", [{"q": ""}, {"q": "  "}, {"order_by": "customer_name"}])
+@pytest.mark.parametrize(
+    "query",
+    [
+        {"q": ""},
+        {"q": "  "},
+        {"municipio": " "},
+        {"classe": " "},
+        {"order_by": "customer_name"},
+    ],
+)
 def test_uc_search_preserves_validation_errors(client, query):
     response = client.get("/api/v1/ucs", params=query)
 

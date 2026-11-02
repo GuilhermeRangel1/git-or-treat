@@ -98,6 +98,11 @@ it("preserva e valida a proveniência recebida na busca de UC", () => {
   render(
     <UC360SearchPanel
       query="FAKE"
+      municipio=""
+      classe=""
+      options={{ municipio: [], classe: [] }}
+      optionsLoading={false}
+      optionsError={null}
       page={1}
       results={results}
       isFetching={false}
@@ -106,6 +111,7 @@ it("preserva e valida a proveniência recebida na busca de UC", () => {
       onPageChange={vi.fn()}
       onSelect={vi.fn()}
       onRetry={vi.fn()}
+      onRetryOptions={vi.fn()}
     />,
   );
   expect(results.metadata.provenance?.source.version).toBe(

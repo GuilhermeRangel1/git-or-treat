@@ -3,15 +3,31 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { apiClient } from "@/shared/api/client";
-import { useUCOverview, useUCSeries } from "./useUC360";
+import { useUCOverview, useUCSearch, useUCSeries } from "./useUC360";
 
 vi.mock("@/shared/api/client", () => ({ apiClient: vi.fn() }));
 vi.mock("./contract", () => ({
+  decodeUCSearch: (value: unknown) => value,
   decodeUCOverview: (value: unknown) => value,
   decodeUCHistory: (value: unknown) => value,
 }));
 
 afterEach(() => vi.resetAllMocks());
+
+it("applies municipality and class to a search without a text query", async () => {
+  vi.mocked(apiClient).mockResolvedValue({ data: { items: [] } });
+  const { result } = renderHook(
+    () => useUCSearch("", "Recife", "Comercial", 2, true),
+    { wrapper },
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  const [endpoint] = vi.mocked(apiClient).mock.calls[0];
+  const params = new URLSearchParams(String(endpoint).split("?")[1]);
+  expect(params.get("municipio")).toBe("Recife");
+  expect(params.get("classe")).toBe("Comercial");
+  expect(params.get("page")).toBe("2");
+  expect(params.has("q")).toBe(false);
+});
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({

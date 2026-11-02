@@ -63,6 +63,19 @@ def test_uc_v2_search_overview_and_histories_keep_uc_scope_and_absence(gold_clie
     client, _ = gold_client
     publish_fixture()
     assert client.get("/api/v1/ucs?q=FAKE&page_size=1").json()["pagination"]["total"] == 2
+    filtered_search = client.get(
+        "/api/v1/ucs", params={"municipio": "Cidade", "classe": "Residencial"}
+    )
+    assert filtered_search.status_code == 200
+    assert filtered_search.json()["pagination"]["total"] == 2
+    unmatched_class = client.get("/api/v1/ucs", params={"classe": "Comercial"})
+    assert unmatched_class.status_code == 200
+    assert unmatched_class.json()["data"]["items"] == []
+    unmatched_municipality = client.get(
+        "/api/v1/ucs", params={"municipio": "Another municipality"}
+    )
+    assert unmatched_municipality.status_code == 200
+    assert unmatched_municipality.json()["data"]["items"] == []
     overview = client.get("/api/v1/ucs/FAKE-A/overview?start=2025-01&end=2025-02")
     assert overview.status_code == 200, overview.text
     data = overview.json()["data"]

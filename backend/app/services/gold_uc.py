@@ -23,14 +23,20 @@ def period(repository, start, end):
     return validate_period(start, end)
 
 
-def search(repository, q, page, page_size, order_by):
-    from app.services.uc_analytics import validate_uc_id
+def search(repository, q, municipio, classe, page, page_size, order_by):
+    from app.services.uc_analytics import validate_uc_id, validate_uc_search_filter
     uc = repository.tables["visao_360_uc"]
     if order_by not in {"uc_id", "municipio", "bairro", "classe", "alimentador", "status"}:
         raise AnalyticsAPIError(422, "invalid_query", "Ordenação inválida.")
     statement = select(uc)
     if q is not None:
         statement = statement.where(uc.c.id_uc.ilike(f"%{validate_uc_id(q)}%"))
+    municipio = validate_uc_search_filter(municipio, "municipio")
+    classe = validate_uc_search_filter(classe, "classe")
+    if municipio is not None:
+        statement = statement.where(uc.c.municipio == municipio)
+    if classe is not None:
+        statement = statement.where(uc.c.classe == classe)
     sort = uc.c.id_uc if order_by == "uc_id" else uc.c[order_by]
     rows, pagination = repository.page(statement, page, page_size, sort.asc(), uc.c.id_uc.asc())
     items = [{key: value for key, value in profile(row).items() if key not in {"customer_name", "customer_reference"}} for row in rows]

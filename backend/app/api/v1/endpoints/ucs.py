@@ -56,12 +56,14 @@ def _source_period(repository):
 def search_ucs(
     repository: AnalyticsRepositoryDep,
     q: str | None = Query(None, max_length=100),
+    municipio: str | None = Query(None, max_length=100),
+    classe: str | None = Query(None, max_length=100),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     order_by: str = Query("uc_id", max_length=32),
 ):
     selected, pagination, state = build_uc_search(
-        repository, q, page, page_size, order_by
+        repository, q, municipio, classe, page, page_size, order_by
     )
     return {
         "data": {"items": selected},

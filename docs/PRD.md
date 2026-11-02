@@ -3452,3 +3452,13 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - O cartão antes nomeado “Energia faturada” agora mostra consumo medido (`consumo_total_kwh`/agregado mensal observado), com unidade kWh e comparação entre mês inicial e final. A API publica `measured_energy_kwh` nos snapshots; zero, nulo e cobertura parcial permanecem distintos.
 - Preço observado e decomposição preço × volume continuam usando os pares da base comparável. A troca não afirma energia faturada nem comprova a premissa de queda citada na abertura do case; essa limitação permanece para o diagnóstico ENT-01. Estado oficial de WEB-02 não é alterado por esta mudança isolada.
 - Verificações: pytest dirigido Backend 39 passou/1 ignorado; Vitest Receita 38 passou; fronteiras passaram em 187 arquivos; build TypeScript/Vite passou. Oxlint passou com aviso preexistente em `AuthProvider.tsx`; `git diff --check` passou.
+
+### 2026-11-02 — WEB-03 — retorno da UC 360 à busca
+
+- Ao selecionar um resultado, a busca deixa a tela e a UC abre no detalhe próprio `/uc-360/:ucId`. O link `Voltar à busca` retorna ao termo, página e período usados; URLs legadas com `?uc=` continuam compatíveis. O estado oficial de WEB-03 permanece inalterado.
+- Verificações: `npm.cmd test -- src/features/uc360 --run` (38 passaram); `npm.cmd run build` passou; `npm.cmd run lint` sem erros, com aviso preexistente em `AuthProvider.tsx`. `npm.cmd run format:check` passou.
+
+### 2026-11-02 — WEB-03 — busca da UC por município e classe
+
+- A busca aceita texto do número, município e classe em qualquer combinação, inclusive município/classe sem texto. O Backend aplica os filtros à tabela cadastral antes de ordenar e paginar; opções vêm do catálogo da publicação ativa. A URL preserva os critérios ao abrir o detalhe e voltar à busca. WEB-03 permanece Em andamento.
+- Verificações: no Backend, `python -m pytest -q tests/test_analytics_ucs.py tests/test_gold_uc_v2.py` (15 passaram, um aviso de depreciação Starlette) e `python -m compileall -q app/api/v1/endpoints/ucs.py app/services/uc_analytics.py app/services/gold_uc.py` passaram. No frontend, 42 testes UC360, `npm.cmd run format:check`, `npm.cmd run build`, `npm.cmd run check:boundaries` (187 arquivos), `npm.cmd run lint` e `git diff --check` passaram; lint manteve o aviso preexistente de `AuthProvider.tsx`. Ruff não pôde ser executado porque não está instalado no `.venv` (`No module named ruff`).

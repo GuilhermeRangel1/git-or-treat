@@ -110,6 +110,8 @@ def _coverage_months(
 def build_uc_search(
     repository: AnalyticsRepository,
     q: str | None,
+    municipio: str | None,
+    classe: str | None,
     page: int,
     page_size: int,
     order_by: str,
@@ -117,9 +119,11 @@ def build_uc_search(
     from app.repositories.gold import GoldAnalyticsRepository
     if isinstance(repository, GoldAnalyticsRepository):
         from app.services.gold_uc import search
-        return search(repository, q, page, page_size, order_by)
+        return search(repository, q, municipio, classe, page, page_size, order_by)
     if q is not None:
         q = validate_uc_id(q)
+    municipio = validate_uc_search_filter(municipio, "municipio")
+    classe = validate_uc_search_filter(classe, "classe")
     items = [
         {
             key: unit[key]
@@ -134,6 +138,8 @@ def build_uc_search(
         }
         for unit in repository.units
         if q is None or q.casefold() in unit["uc_id"].casefold()
+        if municipio is None or municipio == unit["municipio"]
+        if classe is None or classe == unit["classe"]
     ]
     selected, pagination = page_items(
         items,
@@ -143,6 +149,20 @@ def build_uc_search(
         {"uc_id", "municipio", "bairro", "classe", "alimentador", "status"},
     )
     return selected, pagination, "available" if items else "empty"
+
+
+def validate_uc_search_filter(value: str | None, field: str) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        raise AnalyticsAPIError(
+            422,
+            "invalid_query",
+            "Filtro de busca inválido.",
+            [{"field": field, "message": "Informe um valor não vazio."}],
+        )
+    return normalized
 
 
 def build_uc_detail(

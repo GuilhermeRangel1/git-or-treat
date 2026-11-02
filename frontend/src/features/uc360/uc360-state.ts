@@ -10,6 +10,8 @@ export const UC_HISTORY_SECTIONS = [
 export type UCHistorySection = (typeof UC_HISTORY_SECTIONS)[number];
 export type UC360SearchState = {
   q: string;
+  municipio: string;
+  classe: string;
   uc: string;
   start: string;
   end: string;
@@ -43,6 +45,8 @@ export function parseUC360SearchParams(
   const startRaw = one("start"),
     endRaw = one("end"),
     qRaw = one("q"),
+    municipioRaw = one("municipio"),
+    classeRaw = one("classe"),
     ucRaw = one("uc"),
     sectionRaw = one("section");
   const start = month(startRaw),
@@ -57,6 +61,16 @@ export function parseUC360SearchParams(
     invalid.push("O início do período deve ser anterior ao fim.");
   if (qRaw !== null && (!qRaw.trim() || qRaw.trim().length > 100))
     invalid.push("Busca inválida: informe de 1 a 100 caracteres.");
+  if (
+    municipioRaw !== null &&
+    (!municipioRaw.trim() || municipioRaw.trim().length > 100)
+  )
+    invalid.push("Filtro de município inválido.");
+  if (
+    classeRaw !== null &&
+    (!classeRaw.trim() || classeRaw.trim().length > 100)
+  )
+    invalid.push("Filtro de classe inválido.");
   if (searchPage === null || historyPage === null)
     invalid.push("Página inválida.");
   if (
@@ -66,6 +80,8 @@ export function parseUC360SearchParams(
     invalid.push("Seção de histórico inválida.");
   return {
     q: qRaw?.trim() ?? "",
+    municipio: municipioRaw?.trim() ?? "",
+    classe: classeRaw?.trim() ?? "",
     uc: ucRaw?.trim() ?? "",
     start: start ?? "",
     end: end ?? "",
@@ -76,11 +92,16 @@ export function parseUC360SearchParams(
     invalid,
   };
 }
-export function applyUCSearch(current: URLSearchParams, query: string) {
+export function applyUCSearch(
+  current: URLSearchParams,
+  criteria: { q: string; municipio: string; classe: string },
+) {
   const next = new URLSearchParams(current);
-  const normalized = query.trim();
-  if (normalized) next.set("q", normalized);
-  else next.delete("q");
+  for (const key of ["q", "municipio", "classe"] as const) {
+    const normalized = criteria[key].trim();
+    if (normalized) next.set(key, normalized);
+    else next.delete(key);
+  }
   next.delete("uc");
   next.delete("section");
   next.delete("history_page");

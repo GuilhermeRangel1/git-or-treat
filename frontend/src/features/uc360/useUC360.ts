@@ -4,17 +4,28 @@ import { decodeUCOverview, decodeUCSearch, decodeUCHistory } from "./contract";
 import type { UCHistorySection } from "./uc360-state";
 import { useGoldPublicationKey } from "@/shared/analytics/goldPublication";
 
-export function useUCSearch(q: string, page: number, enabled: boolean) {
+export function useUCSearch(
+  q: string,
+  municipio: string,
+  classe: string,
+  page: number,
+  enabled: boolean,
+) {
   const publication = useGoldPublicationKey();
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: "20",
+    order_by: "uc_id",
+  });
+  if (q) params.set("q", q);
+  if (municipio) params.set("municipio", municipio);
+  if (classe) params.set("classe", classe);
   return useQuery({
-    queryKey: ["uc360", "search", publication, q, page],
+    queryKey: ["uc360", "search", publication, q, municipio, classe, page],
     enabled,
     queryFn: async ({ signal }) =>
       decodeUCSearch(
-        await apiClient<unknown>(
-          `/api/v1/ucs?${new URLSearchParams({ q, page: String(page), page_size: "20", order_by: "uc_id" })}`,
-          { signal },
-        ),
+        await apiClient<unknown>(`/api/v1/ucs?${params}`, { signal }),
       ),
     staleTime: 30_000,
   });

@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
+import type { SourceOptions } from "@/shared/analytics/sourceOptions";
+import Button from "@/shared/ui/Button";
 import type { UCSearchResponse } from "./contract";
 
 const inputClass =
@@ -8,18 +10,33 @@ const inputClass =
 
 type Props = {
   query: string;
+  municipio: string;
+  classe: string;
+  options: Pick<SourceOptions, "municipio" | "classe"> | undefined;
+  optionsLoading: boolean;
+  optionsError: Error | null;
   page: number;
   results: UCSearchResponse | undefined;
   isFetching: boolean;
   error: Error | null;
-  onSearch: (query: string) => void;
+  onSearch: (criteria: {
+    q: string;
+    municipio: string;
+    classe: string;
+  }) => void;
   onPageChange: (page: number) => void;
   onSelect: (ucId: string) => void;
   onRetry: () => void;
+  onRetryOptions: () => void;
 };
 
 export default function UC360SearchPanel({
   query,
+  municipio,
+  classe,
+  options,
+  optionsLoading,
+  optionsError,
   page,
   results,
   isFetching,
@@ -28,10 +45,13 @@ export default function UC360SearchPanel({
   onPageChange,
   onSelect,
   onRetry,
+  onRetryOptions,
 }: Props) {
-  const [draft, setDraft] = useState({ applied: query, value: query });
+  const applied = { q: query, municipio, classe };
+  const appliedKey = JSON.stringify(applied);
+  const [draft, setDraft] = useState({ appliedKey, value: applied });
   const [validation, setValidation] = useState("");
-  const value = draft.applied === query ? draft.value : query;
+  const value = draft.appliedKey === appliedKey ? draft.value : applied;
   const errorMessage =
     error instanceof ApiError && error.status === 422
       ? "Busca inválida. Use de 1 a 100 caracteres."
@@ -39,13 +59,17 @@ export default function UC360SearchPanel({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const normalized = value.trim();
-    if (!normalized || normalized.length > 100) {
-      setValidation("Informe um identificador de 1 a 100 caracteres.");
+    const normalized = value.q.trim();
+    if (normalized.length > 100) {
+      setValidation("Informe um identificador de até 100 caracteres.");
+      return;
+    }
+    if (!normalized && !value.municipio && !value.classe) {
+      setValidation("Informe um número, município ou classe para buscar.");
       return;
     }
     setValidation("");
-    onSearch(normalized);
+    onSearch({ ...value, q: normalized });
   }
 
   return (
@@ -59,34 +83,104 @@ export default function UC360SearchPanel({
         </h2>
         <p className="mt-1 text-sm text-muted">
           A UC identifica um ponto de consumo. Digite o número informado durante
-          o atendimento.
+          o atendimento ou use os filtros de município e classe.
         </p>
       </div>
       <form className="grid w-full gap-3" onSubmit={submit}>
-        <label
-          className="grid w-full max-w-80 gap-1 text-sm font-medium"
-          htmlFor="uc-number"
-        >
-          Número da UC
-          <input
-            id="uc-number"
-            className={`${inputClass} w-full`}
-            autoComplete="off"
-            value={value}
-            onChange={(event) => {
-              setDraft({ applied: query, value: event.target.value });
-              setValidation("");
-            }}
-            aria-describedby={
-              error
-                ? "uc-search-error"
-                : validation
-                  ? "uc-search-validation"
-                  : undefined
-            }
-            aria-invalid={Boolean(error || validation)}
-          />
-        </label>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <label
+            className="grid w-full gap-1 text-sm font-medium"
+            htmlFor="uc-number"
+          >
+            Número da UC
+            <input
+              id="uc-number"
+              className={`${inputClass} w-full`}
+              autoComplete="off"
+              value={value.q}
+              onChange={(event) => {
+                setDraft({
+                  appliedKey,
+                  value: { ...value, q: event.target.value },
+                });
+                setValidation("");
+              }}
+              aria-describedby={
+                error
+                  ? "uc-search-error"
+                  : validation
+                    ? "uc-search-validation"
+                    : undefined
+              }
+              aria-invalid={Boolean(error || validation)}
+            />
+          </label>
+          <label
+            className="grid w-full gap-1 text-sm font-medium"
+            htmlFor="uc-municipality"
+          >
+            Município
+            <select
+              id="uc-municipality"
+              className={`${inputClass} w-full`}
+              value={value.municipio}
+              disabled={optionsLoading || Boolean(optionsError)}
+              onChange={(event) => {
+                setDraft({
+                  appliedKey,
+                  value: { ...value, municipio: event.target.value },
+                });
+                setValidation("");
+              }}
+            >
+              <option value="">Todos os municípios</option>
+              {value.municipio &&
+                !options?.municipio.includes(value.municipio) && (
+                  <option value={value.municipio}>
+                    {value.municipio} (aplicado)
+                  </option>
+                )}
+              {(options?.municipio ?? [])
+                .filter((item) => item.trim())
+                .map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label
+            className="grid w-full gap-1 text-sm font-medium"
+            htmlFor="uc-class"
+          >
+            Classe de consumo
+            <select
+              id="uc-class"
+              className={`${inputClass} w-full`}
+              value={value.classe}
+              disabled={optionsLoading || Boolean(optionsError)}
+              onChange={(event) => {
+                setDraft({
+                  appliedKey,
+                  value: { ...value, classe: event.target.value },
+                });
+                setValidation("");
+              }}
+            >
+              <option value="">Todas as classes</option>
+              {value.classe && !options?.classe.includes(value.classe) && (
+                <option value={value.classe}>{value.classe} (aplicada)</option>
+              )}
+              {(options?.classe ?? [])
+                .filter((item) => item.trim())
+                .map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </div>
         <button
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-content px-4 text-sm font-medium text-canvas hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content sm:w-fit"
           type="submit"
@@ -95,6 +189,21 @@ export default function UC360SearchPanel({
           Buscar UC
         </button>
       </form>
+
+      {optionsLoading && (
+        <p className="text-sm text-muted" role="status">
+          Carregando opções dos filtros…
+        </p>
+      )}
+      {optionsError && (
+        <p className="text-sm text-danger" role="alert">
+          Não foi possível carregar municípios e classes. A busca por número
+          continua disponível.{" "}
+          <button type="button" onClick={onRetryOptions} className="underline">
+            Tentar carregar filtros
+          </button>
+        </p>
+      )}
       {validation && (
         <p
           id="uc-search-validation"
@@ -119,7 +228,7 @@ export default function UC360SearchPanel({
       )}
       {results && !results.data.items.length && (
         <p className="text-sm text-muted" role="status">
-          Nenhuma unidade corresponde a “{query}”.
+          Nenhuma unidade corresponde aos critérios informados.
         </p>
       )}
       {results && results.data.items.length > 0 && (
@@ -144,27 +253,30 @@ export default function UC360SearchPanel({
         </ul>
       )}
       {results && results.pagination.total_pages > 1 && (
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
-          <button
-            type="button"
+        <nav
+          aria-label="Paginação dos resultados da busca"
+          className="flex flex-wrap items-center justify-between gap-3"
+        >
+          <Button
+            variant="outline"
+            leftIcon={<ArrowLeft size={16} aria-hidden="true" />}
             disabled={page <= 1}
             onClick={() => onPageChange(page - 1)}
-            className="min-h-10 rounded border border-control px-3 disabled:opacity-50"
           >
             Anterior
-          </button>
-          <span>
+          </Button>
+          <span className="text-sm text-muted">
             Página {results.pagination.page} de {results.pagination.total_pages}
           </span>
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            rightIcon={<ArrowRight size={16} aria-hidden="true" />}
             disabled={page >= results.pagination.total_pages}
             onClick={() => onPageChange(page + 1)}
-            className="min-h-10 rounded border border-control px-3 disabled:opacity-50"
           >
             Próxima
-          </button>
-        </div>
+          </Button>
+        </nav>
       )}
     </section>
   );
