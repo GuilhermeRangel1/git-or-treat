@@ -101,6 +101,32 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.get("/api/v1/internal/runtime-status", dependencies=[Depends(require_gold_auth)])
+async def runtime_status(request: Request) -> dict:
+    """Diagnóstico autenticado de configuração; não comprova conectividade do provedor."""
+    active = request.app.state.runtime_settings
+    configured = (
+        active.model_provider == "gemini" and active.gemini_api_key is not None
+        or active.model_provider == "groq" and active.groq_api_key is not None
+    )
+    return {
+        "source": request.app.state.source_id,
+        "schema_version": "gold-csv-v2",
+        "catalog": request.app.state.domain_profile.physical_catalog.model_dump(mode="json"),
+        "audit_configured": active.audit_url is not None and active.audit_write_token is not None,
+        "generation_configured": configured,
+        "routing_enabled": active.model_routing_enabled,
+        "cache_enabled": active.model_cache_ttl_seconds > 0,
+        "limits": {
+            name: getattr(active, name) for name in (
+                "request_timeout_ms", "source_timeout_ms", "model_timeout_ms",
+                "model_total_timeout_ms", "model_max_calls", "concurrent_requests",
+                "concurrent_models", "evidence_max_rows", "evidence_max_bytes",
+            )
+        },
+    }
+
+
 @router.get("/api/v1/capabilities", response_model=CapabilitiesResponse)
 async def capabilities() -> CapabilitiesResponse:
     """Descreve o contrato disponível sem divulgar segredos ou estado interno."""

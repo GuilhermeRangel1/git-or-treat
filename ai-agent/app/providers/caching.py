@@ -17,6 +17,7 @@ from app.providers.protocols import (
 from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
 from app.schemas.read_plan import normalized_filters
+from app.telemetry import record_execution
 
 # v2: filtros normalizados e catálogo físico da proveniência na chave.
 CACHE_KEY_VERSION = 2
@@ -98,7 +99,9 @@ class CachingModelAdapter:
         key = cache_key(question, context, evidence, self._namespace)
         cached = self._lookup(key)
         if cached is not None:
+            record_execution("cache", 0, 0, "hit")
             return cached.model_copy()
+        record_execution("cache", 0, 0, "miss")
 
         task = self._in_flight.get(key)
         if task is None or task.done():

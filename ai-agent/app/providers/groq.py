@@ -17,6 +17,7 @@ from app.providers.protocols import (
     ModelProviderUnavailable,
 )
 from app.schemas.questions import ConversationTurn
+from app.telemetry import record_usage
 
 if TYPE_CHECKING:
     from app.schemas.evidence import EvidenceResult
@@ -91,7 +92,12 @@ class GroqModelAdapter:
             raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
 
         try:
-            choice = response.json()["choices"][0]
+            body = response.json()
+            usage = body.get("usage") or {}
+            if isinstance(usage, dict):
+                record_usage("groq", prompt=usage.get("prompt_tokens"),
+                             output=usage.get("completion_tokens"), total=usage.get("total_tokens"))
+            choice = body["choices"][0]
             if choice.get("finish_reason") not in (None, "stop"):
                 raise ValueError("geracao incompleta")
             response_text = choice["message"]["content"]

@@ -1,4 +1,7 @@
 import asyncio
+import json
+import logging
+from time import monotonic
 from contextlib import asynccontextmanager, suppress
 from uuid import uuid4
 
@@ -146,7 +149,13 @@ app.add_middleware(SecurityHeadersMiddleware)
 async def add_correlation_id(request: Request, call_next):
     correlation_id = uuid4().hex
     request.state.correlation_id = correlation_id
+    started = monotonic()
     response = await call_next(request)
+    if request.url.path == "/api/v1/ai/questions":
+        logging.getLogger("uvicorn.error").info("genai_execution %s", json.dumps({
+            "correlation_id": correlation_id, "stage": "http", "status": response.status_code,
+            "work_ms": int((monotonic() - started) * 1000),
+        }, separators=(",", ":")))
     response.headers["X-Correlation-ID"] = correlation_id
     return response
 
