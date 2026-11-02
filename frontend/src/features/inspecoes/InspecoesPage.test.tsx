@@ -158,10 +158,15 @@ const goldItem = {
     inspections_performed: 0,
     confirmed_irregular_inspections: null,
     historical_average_kwh_per_reading: null,
-    distributed_generation_present: null,
+    distributed_generation_present: "Sim",
     cadastral_status: "ATIVA",
     call_center_contacts: null,
     interruptions: null,
+    historical_recovery_mean_kwh_per_inspection: 20,
+    historical_recovery_interval_lower_kwh: 5,
+    historical_recovery_interval_upper_kwh: 40,
+    historical_recovery_reference: "global",
+    historical_recovery_status: "DISPONIVEL_REFERENCIA_HISTORICA",
   },
   variation: {
     p1_start: "2022-07",
@@ -202,9 +207,71 @@ const goldDetail = {
     ...goldItem,
     rule_version: "gold-fila-inspecao-v1",
     limitations: ["A categoria não é prioridade operacional."],
+    investigation_potential: {
+      baseline_start: "2023-11",
+      baseline_end: "2024-01",
+      recent_start: "2024-11",
+      recent_end: "2025-01",
+      baseline_kwh: 900,
+      recent_kwh: 600,
+      potential_kwh: 300,
+      unavailable_reason: null,
+    },
+    consumption_comparison: {
+      baseline_start: "2024-08",
+      baseline_end: "2024-10",
+      recent_start: "2024-11",
+      recent_end: "2025-01",
+      baseline_kwh: 300,
+      recent_kwh: 150,
+      change_percent: -50,
+      unavailable_reason: null,
+    },
   },
   metadata: goldMetadata,
 };
+
+it("restringe bairros ao município na fila Gold atual", async () => {
+  const queue = {
+    ...goldQueue,
+    data: {
+      ...goldQueue.data,
+      filter_options: {
+        ...goldQueue.data.filter_options,
+        municipio: ["Recife", "Olinda"],
+        bairro: ["Centro", "Bairro Novo"],
+      },
+      neighborhoods: [
+        { municipio: "Recife", bairro: "Centro" },
+        { municipio: "Olinda", bairro: "Bairro Novo" },
+      ],
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementation(async () => respond(queue)),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes");
+  await screen.findByRole("columnheader", {
+    name: "Posição / UC / categoria",
+  });
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  expect(screen.getByLabelText("Bairro")).toBeDisabled();
+  expect(
+    screen.getByRole("option", {
+      name: "Selecione um município primeiro",
+    }),
+  ).toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+  expect(screen.getByLabelText("Bairro")).toBeEnabled();
+  expect(
+    screen.getByRole("option", { name: "Bairro Novo" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("option", { name: "Centro" }),
+  ).not.toBeInTheDocument();
+});
 
 it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmados", async () => {
   const createdOrder = {
@@ -241,11 +308,17 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
 
   expect(
     await screen.findByRole("columnheader", {
-      name: "Posição / UC / categoria Gold",
+      name: "Posição / UC / categoria",
     }),
   ).toBeVisible();
   expect(screen.getByText("UC-GOLD / REVISAR")).toBeVisible();
   expect(screen.getAllByText("Posição oficial na fila: 7")).toHaveLength(2);
+  expect(
+    screen.getByText(/Energia recuperável individual indisponível/),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("columnheader", { name: "Energia recuperável" }),
+  ).not.toBeInTheDocument();
   expect(
     screen.getAllByText(/Contatos ao atendimento: indisponível/),
   ).toHaveLength(2);
@@ -255,12 +328,21 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(
     screen.queryByText("Prioridade demonstrativa"),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
   expect(screen.getByLabelText("Ordenar por")).toHaveValue("queue_position");
-  expect(screen.getByLabelText("Direção")).toHaveValue("asc");
+  expect(screen.getByLabelText("Direção da ordenação")).toHaveValue("asc");
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  const filterDialog = screen.getByRole("dialog", { name: "Ajustar filtros" });
+  expect(within(filterDialog).getByLabelText("Município")).toBeVisible();
+  expect(within(filterDialog).getByLabelText("Bairro")).toBeVisible();
+  expect(within(filterDialog).getByLabelText("Classe")).toBeVisible();
+  expect(within(filterDialog).getByLabelText("Alimentador")).toBeVisible();
+  expect(within(filterDialog).queryByLabelText("Ordenar por")).toBeNull();
+  expect(within(filterDialog).queryByLabelText("UCs por página")).toBeNull();
   expect(
-    screen.getByRole("option", { name: "Posição oficial da fila" }),
-  ).toBeInTheDocument();
+    within(filterDialog).queryByRole("option", {
+      name: "Posição oficial da fila",
+    }),
+  ).not.toBeInTheDocument();
   await user.keyboard("{Escape}");
   await user.click(
     screen.getAllByRole("link", { name: "Ver evidência de UC-GOLD" })[0],
@@ -268,7 +350,26 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(
     await screen.findByText("Energia recuperável indisponível"),
   ).toBeVisible();
-  expect(screen.getByText(/snapshot sem competência mensal/)).toBeVisible();
+  expect(
+    screen.getByText(/fotografia cadastral, sem competência mensal/),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("region", {
+      name: "Potencial estimado para investigação",
+    }),
+  ).toHaveTextContent("300 kWh");
+  expect(
+    screen.getByText(/geração distribuída cadastrada; ela pode influenciar/),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/Não é energia recuperada, previsão validada/),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("region", { name: "Referência histórica de recuperação" }),
+  ).toHaveTextContent("não é estimativa para esta UC");
+  expect(
+    screen.getByRole("region", { name: "Comparação proposta de consumo" }),
+  ).toHaveTextContent("-50%");
   await user.click(
     screen.getByRole("button", { name: "Criar ordem de inspeção" }),
   );
@@ -403,6 +504,172 @@ it("exige nova confirmação após troca de fingerprint e não repete a intenç�
     source_version: "gold-batch-2",
     source_fingerprint: "b".repeat(64),
   });
+});
+
+it("explica a janela da fila sem expor identificadores técnicos", async () => {
+  const gold = envelope([
+    { ...item, priority: 0.92, potential_recoverable_energy_kwh: null },
+  ]);
+  gold.metadata = {
+    ...gold.metadata,
+    source: {
+      ...metadata.source,
+      kind: "gold_csv",
+      version: "GOLD-ARTIFICIAL:hash",
+      is_demo: false,
+    },
+    limitations: ["A fila não informa janela temporal própria."],
+  };
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(gold)));
+  mount();
+  expect(
+    await screen.findByText(/A fila não informa uma janela temporal própria/),
+  ).toBeVisible();
+  expect(screen.queryByText("GOLD-ARTIFICIAL:hash")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", {
+      name: "Período, unidades e fonte dos dados",
+    }),
+  ).not.toBeInTheDocument();
+});
+
+it("na Gold v2 desativa ordenação por energia e preserva a volta do detalhe", async () => {
+  const goldItem = {
+    ...item,
+    priority: null,
+    priority_label: "ALTA - HISTORICO IRREGULAR",
+    reason: "Histórico confirmado",
+    potential_recoverable_energy_kwh: null,
+    signals: [],
+  };
+  const goldMetadata = {
+    ...metadata,
+    source: {
+      ...metadata.source,
+      kind: "gold_csv",
+      is_demo: false,
+      version: "gold-csv-v2:artificial:publicacao",
+      publication_lote: "artificial",
+      publication_fingerprint: "a".repeat(64),
+    },
+  };
+  const queue = {
+    ...envelope(),
+    data: {
+      ...envelope().data,
+      items: [goldItem],
+      neighborhoods: [
+        { municipio: "Recife", bairro: "Centro" },
+        { municipio: "Olinda", bairro: "Bairro Novo" },
+      ],
+      summary: {
+        total_units: 1,
+        highest_priority: null,
+        estimated_units: 0,
+        unavailable_estimate_units: 1,
+      },
+    },
+    pagination: { page: 1, page_size: 10, total: 1, total_pages: 1 },
+    metadata: goldMetadata,
+  };
+  const evidence = {
+    data: {
+      ...goldItem,
+      rule_version: "gold-csv-v2",
+      historical_recovery: {
+        mean_kwh_per_inspection: 20,
+        lower_kwh_per_inspection: 5,
+        upper_kwh_per_inspection: 40,
+        reference: "global",
+      },
+      estimate_evidence: {
+        baseline_kwh: null,
+        observed_kwh: null,
+        horizon_months: null,
+        reference: "Não informado",
+        unavailable_reason: "Estimativa ausente",
+      },
+      limitations: [],
+    },
+    metadata: goldMetadata,
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation(async (url: string) =>
+        respond(url.includes("/queue/UC-") ? evidence : queue),
+      ),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes?municipio=Recife&page=1");
+  await firstEvidenceLink();
+  expect(
+    screen.getByText(
+      /A fonte não fornece estimativa individual de energia recuperável/,
+    ),
+  ).toBeVisible();
+  expect(screen.queryByText("Estimativa indisponível")).not.toBeInTheDocument();
+  expect(screen.getAllByText("Histórico confirmado").length).toBeGreaterThan(0);
+  await user.click(screen.getByRole("button", { name: /Ajustar filtros/ }));
+  expect(
+    screen.getByRole("option", { name: /Energia estimada \(indisponível\)/ }),
+  ).toBeDisabled();
+  await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+  expect(
+    screen.getByRole("option", { name: "Bairro Novo" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("option", { name: "Centro" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Fechar filtros" }));
+  await user.click(
+    (
+      await screen.findAllByRole("link", { name: "Ver evidência de UC-1004" })
+    )[0],
+  );
+  expect(await screen.findByText("Histórico confirmado")).toBeVisible();
+  expect(
+    screen.getByText("Média histórica de recuperação por inspeção"),
+  ).toBeVisible();
+  expect(screen.getByText(/não é estimativa para esta UC/)).toBeVisible();
+  expect(
+    screen.getByText(/A fila não informa uma janela temporal própria/),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Ver fundamentos" }));
+  expect(screen.getAllByText("Não informado").length).toBeGreaterThan(0);
+  expect(
+    screen.queryByText(/Regra: máximo entre zero/),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Fechar fundamentos" }));
+  await user.click(screen.getByRole("link", { name: "Voltar à fila" }));
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "municipio=Recife&page=1",
+  );
+});
+
+it("oferece recuperação para link antigo com ordenação por energia indisponível", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation(async (url: string) =>
+        url.includes("potential_recoverable_energy_kwh")
+          ? respond({ error: { code: "estimate_sort_unavailable" } }, 422)
+          : respond(envelope()),
+      ),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes?order_by=potential_recoverable_energy_kwh");
+  await user.click(
+    await screen.findByRole("button", { name: "Ordenar por prioridade" }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).not.toHaveTextContent(
+      "order_by=",
+    ),
+  );
+  expect(await firstEvidenceLink()).toBeVisible();
 });
 
 it("abre evidências reproduzíveis e volta preservando a página e os filtros", async () => {
@@ -557,20 +824,29 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   const user = userEvent.setup();
   mount();
   await firstEvidenceLink();
-  expect(screen.getByText("jan/2025 – fev/2025")).toBeVisible();
-  expect(screen.getByText("Não aplicada")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
-  await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+  expect(screen.queryByText("Competência")).not.toBeInTheDocument();
+  expect(screen.queryByText("Comparar com")).not.toBeInTheDocument();
   await user.selectOptions(
     screen.getByLabelText("Ordenar por"),
     "potential_recoverable_energy_kwh",
   );
   await user.selectOptions(screen.getByLabelText("Ordenar por"), "uc_id");
-  await user.selectOptions(screen.getByLabelText("Direção"), "asc");
-  await user.selectOptions(screen.getByLabelText("Direção"), "desc");
-  await user.selectOptions(screen.getByLabelText("Direção"), "asc");
+  await user.selectOptions(
+    screen.getByLabelText("Direção da ordenação"),
+    "asc",
+  );
+  await user.selectOptions(
+    screen.getByLabelText("Direção da ordenação"),
+    "desc",
+  );
+  await user.selectOptions(
+    screen.getByLabelText("Direção da ordenação"),
+    "asc",
+  );
   await user.selectOptions(screen.getByLabelText("UCs por página"), "20");
   await user.selectOptions(screen.getByLabelText("UCs por página"), "50");
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
   await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
   expect(
     await screen.findByText(
@@ -596,7 +872,11 @@ it("mostra e remove o alimentador ativo no resumo e na consulta", async () => {
   await user.selectOptions(screen.getByLabelText("Alimentador"), "AL-03");
   await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
-  expect(await screen.findByText("Alimentador: AL-03")).toBeVisible();
+  expect(
+    await within(
+      screen.getByRole("region", { name: "Filtros aplicados" }),
+    ).findByText("AL-03"),
+  ).toBeVisible();
   await waitFor(() => {
     const request = new URL(
       fetch.mock.calls.at(-1)![0],
@@ -610,12 +890,20 @@ it("mostra e remove o alimentador ativo no resumo e na consulta", async () => {
 
   await user.click(screen.getByRole("button", { name: /Ajustar filtros/ }));
   await user.click(screen.getByRole("button", { name: "Limpar filtros" }));
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "alimentador=AL-03",
+  );
+  await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
   await waitFor(() => {
     expect(screen.getByLabelText("URL atual")).not.toHaveTextContent(
       "alimentador=",
     );
   });
-  expect(screen.queryByText("Alimentador: AL-03")).not.toBeInTheDocument();
+  expect(
+    within(
+      screen.getByRole("region", { name: "Filtros aplicados" }),
+    ).queryByText("AL-03"),
+  ).not.toBeInTheDocument();
 });
 
 it("pagina pelo servidor e mantém estimativa ausente distinta de zero", async () => {

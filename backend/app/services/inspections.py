@@ -117,12 +117,12 @@ def create_from_queue(
     if existing:
         return existing, False
     if settings.ANALYTICS_SOURCE == "gold":
-        # The shared lock is held by this same transaction through order+event commit.
-        # The loader's exclusive counterpart prevents a publication swap mid-create.
-        db.execute(text("SELECT pg_advisory_xact_lock_shared(73460127)"))
         if payload.source_fingerprint is None:
             db.rollback()
             raise AnalyticsAPIError(422, "invalid_query", "Fingerprint da publicação obrigatório.", [{"field": "source_fingerprint", "message": "Envie o fingerprint recebido no detalhe da fila Gold."}])
+        # The shared lock is held by this same transaction through order+event commit.
+        # The loader's exclusive counterpart prevents a publication swap mid-create.
+        db.execute(text("SELECT pg_advisory_xact_lock_shared(73460127)"))
         try:
             context = load_gold_context(
                 db.connection(), expected_lote=payload.source_version,

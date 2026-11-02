@@ -83,13 +83,18 @@ export default function GoldOperationFoundations({
         onClose={() => setIndicator(null)}
         triggerRef={triggerRef}
         title={title}
-        description="Valores e população recebidos da publicação Gold v2 para o recorte aplicado. Indicadores internos simplificados, sem apuração regulatória oficial; o cadastro atual não comprova uma população histórica."
+        description="Veja como o indicador foi calculado, qual base foi considerada e quais são os limites deste resultado."
         closeLabel="Fechar fundamentos"
         size="md"
         header="inline"
         className="grid gap-4 p-5 sm:p-6 [overflow-wrap:anywhere]"
       >
         <section className="grid gap-3 text-sm" aria-label={title}>
+          <p>
+            Indicador simplificado; não representa apuração regulatória oficial.
+            O cadastro atual não comprova a população histórica do período.
+          </p>
+          <p>{definition.event_grain}</p>
           <p>
             <strong>Período solicitado:</strong> {formatPeriod(summary.period)}.
           </p>
@@ -123,13 +128,14 @@ export default function GoldOperationFoundations({
             <strong>Unidade:</strong> {unit}.
           </p>
           <p>
-            <strong>Incluídos ({included.length}):</strong>{" "}
-            {included.join(", ") || "nenhum"}.
+            <strong>Alimentadores considerados:</strong> {included.length}.
           </p>
-          <p>
-            <strong>Excluídos ({excluded.length}):</strong>{" "}
-            {excluded.join(", ") || "nenhum"}.
-          </p>
+          {isSummary ? (
+            <p>
+              <strong>Fora do cálculo:</strong> {excluded.length}{" "}
+              alimentador(es).
+            </p>
+          ) : null}
           {summary.limitations.length ? (
             <div>
               <strong>Limitações:</strong>
@@ -151,23 +157,9 @@ export default function GoldOperationFoundations({
               <strong>Cobertura:</strong> {definition.completeness}
             </p>
             <p>
-              <strong>Eventos:</strong> {definition.event_grain}
-            </p>
-            <p>
-              <strong>Publicação:</strong> lote {metadata.source.version} ·
-              schema {metadata.schema_version} · contrato{" "}
-              {metadata.contract_version} · fingerprint {metadata.fingerprint}
-            </p>
-            <p>
               <strong>Atualizado em:</strong>{" "}
-              {formatUpdatedAt(metadata.source.updated_at)} UTC.
+              {formatUpdatedAt(metadata.source.updated_at)}.
             </p>
-            {metadata.limitations.length ? (
-              <p>
-                <strong>Limitações da fonte:</strong>{" "}
-                {metadata.limitations.join(" ")}
-              </p>
-            ) : null}
           </div>
         </section>
       </Modal>

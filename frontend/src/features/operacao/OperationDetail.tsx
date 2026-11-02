@@ -191,9 +191,9 @@ export default function OperationDetail({
               <div className="max-w-full min-w-0 overflow-x-auto">
                 <table
                   aria-label="Ocorrências de interrupção"
-                  className="w-full min-w-[560px] border-collapse text-left text-sm"
+                  className="w-full min-w-[560px] border-collapse text-left font-sans text-sm leading-[22px]"
                 >
-                  <thead className="text-xs text-muted">
+                  <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
                     <tr>
                       <th scope="col" className="px-3 py-2">
                         Registro

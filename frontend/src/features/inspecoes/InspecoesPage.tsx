@@ -15,17 +15,10 @@ import type { Metadata } from "./contract";
 import { useOrderAccess, useSession } from "@/shared/auth/useSession";
 
 function DemonstrationLine({ metadata }: { metadata: Metadata }) {
-  const gold = metadata.contract_version === "2.0.0";
+  if (!metadata.source.is_demo) return null;
   return (
     <p className="text-xs leading-[18px] text-muted">
-      {gold
-        ? `Gold · publicação ${metadata.source.version}`
-        : metadata.source.is_demo
-          ? "Demonstração · dados sintéticos"
-          : "Fonte analítica"}
-      {gold
-        ? " · snapshot cadastral · atualizado em: "
-        : " · atualização ilustrativa: "}
+      Demonstração · dados sintéticos · atualização ilustrativa:{" "}
       {new Intl.DateTimeFormat("pt-BR", {
         day: "2-digit",
         month: "2-digit",
@@ -85,8 +78,48 @@ export default function InspecoesPage() {
   );
   const detail = useSuspicion(parsed?.detail ?? null, parsed !== null);
   const active = parsed?.detail ? detail : queue;
+  const errorPayload =
+    active.error instanceof ApiError ? active.error.data : null;
+  const estimateSortUnavailable = !!(
+    errorPayload &&
+    typeof errorPayload === "object" &&
+    "error" in errorPayload &&
+    errorPayload.error &&
+    typeof errorPayload.error === "object" &&
+    "code" in errorPayload.error &&
+    errorPayload.error.code === "estimate_sort_unavailable"
+  );
   const metadata = active.data?.metadata;
   const goldDetail = detail.data && "category" in detail.data.data;
+  const canCreateOrder =
+    !session.configured ||
+    access.data?.canWrite ||
+    access.lastConfirmedAccess?.access.canWrite;
+  const createOrderAction =
+    parsed?.detail && canCreateOrder ? (
+      <CreateOrder
+        key={parsed.detail}
+        uc={parsed.detail}
+        sourceVersion={detail.data?.metadata.source.version}
+        sourceFingerprint={
+          detail.data && "fingerprint" in detail.data.metadata
+            ? detail.data.metadata.fingerprint
+            : undefined
+        }
+        requireSourceFingerprint={
+          detail.data?.metadata.contract_version === "2.0.0"
+        }
+        ruleVersion={detail.data?.data.rule_version}
+        disabled={
+          !detail.data ||
+          detail.isFetching ||
+          detail.isError ||
+          (session.configured &&
+            (access.isFetching || session.needsReauthentication))
+        }
+        onRefresh={() => void detail.refetch()}
+      />
+    ) : null;
   const back = new URLSearchParams(params);
   back.delete("uc");
 
@@ -105,8 +138,8 @@ export default function InspecoesPage() {
         <p className="text-sm leading-[22px] text-muted">
           {parsed?.detail
             ? goldDetail
-              ? `${parsed.detail} · Categoria ${detail.data && "category" in detail.data.data ? (detail.data.data.category ?? "não classificada") : "consultando"} na triagem Gold.`
-              : `${parsed.detail} · Prioridade ${detail.data && "priority" in detail.data.data ? detail.data.data.priority.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "consultando"} neste cenário demonstrativo.`
+              ? `${parsed.detail} · Categoria ${detail.data && "category" in detail.data.data ? (detail.data.data.category ?? "não classificada") : "consultando"} na triagem.`
+              : `${parsed.detail} · Prioridade ${detail.data && "priority" in detail.data.data ? (detail.data.data.priority_label ?? detail.data.data.priority?.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) ?? "indisponível") : "consultando"}.`
             : "Uma fila explicável para orientar a investigação de perdas. Suspeita não é fraude comprovada."}
         </p>
       </header>
@@ -131,9 +164,12 @@ export default function InspecoesPage() {
       {!invalid && !parsed?.detail ? (
         <InspectionFilters
           params={params}
-          request={parsed?.request ?? ""}
           options={queue.data?.data.filter_options ?? {}}
-          metadata={metadata}
+          neighborhoods={
+            queue.data && "neighborhoods" in queue.data.data
+              ? queue.data.data.neighborhoods
+              : []
+          }
           onChange={setParams}
         />
       ) : null}
@@ -165,6 +201,21 @@ export default function InspecoesPage() {
           >
             Tentar novamente
           </button>
+          {estimateSortUnavailable && (
+            <button
+              type="button"
+              className={`${inspectionAction} mt-3`}
+              onClick={() => {
+                const next = new URLSearchParams(params);
+                next.delete("order_by");
+                next.delete("direction");
+                next.set("page", "1");
+                setParams(next);
+              }}
+            >
+              Ordenar por prioridade
+            </button>
+          )}
         </div>
       ) : null}
       {!invalid && active.isFetching && !active.isPending ? (
@@ -180,6 +231,7 @@ export default function InspecoesPage() {
         </Link>
       ) : null}
 
+      {!invalid ? createOrderAction : null}
       {!invalid && active.data && metadata ? (
         <>
           {parsed?.detail && detail.data ? (
@@ -199,12 +251,14 @@ export default function InspecoesPage() {
                 >
                   <div>
                     <p className="text-sm font-semibold">
-                      Prioridade demonstrativa
+                      {metadata.source.is_demo
+                        ? "Prioridade demonstrativa"
+                        : "Prioridade publicada"}
                     </p>
                     <p className="mt-1 text-sm leading-[22px]">
-                      Motivos e estimativas são sintéticos. Critério final de
-                      priorização e energia recuperável dependem de validação
-                      com as fontes.
+                      {metadata.source.is_demo
+                        ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
+                        : "A fila não informa uma janela temporal própria. A fonte não fornece estimativa individual de energia recuperável."}
                     </p>
                   </div>
                 </aside>
@@ -218,17 +272,6 @@ export default function InspecoesPage() {
           ) : null}
 
           <footer className="flex flex-col items-stretch gap-2 text-xs text-muted sm:flex-row sm:items-center sm:gap-4">
-            <p className="w-full sm:max-w-[600px]">
-              Fonte:{" "}
-              {metadata.contract_version === "2.0.0"
-                ? `Gold · ${metadata.source.version} · fingerprint ${"fingerprint" in metadata ? metadata.fingerprint : "não disponível"}`
-                : metadata.source.is_demo
-                  ? "cenário sintético"
-                  : metadata.source.kind}
-              {metadata.contract_version === "2.0.0"
-                ? ". Consulta limitada a esta publicação."
-                : ". Nenhuma consulta à Gold."}
-            </p>
             <button
               ref={foundationsTriggerRef}
               type="button"
@@ -261,34 +304,6 @@ export default function InspecoesPage() {
             ? "Verificando permissão para criar ordens…"
             : "Sua conta tem acesso somente para consulta de ordens."}
         </p>
-      ) : null}
-      {!invalid &&
-      parsed?.detail &&
-      (!session.configured ||
-        access.data?.canWrite ||
-        access.lastConfirmedAccess?.access.canWrite) ? (
-        <CreateOrder
-          key={parsed.detail}
-          uc={parsed.detail}
-          sourceVersion={detail.data?.metadata.source.version}
-          sourceFingerprint={
-            detail.data && "fingerprint" in detail.data.metadata
-              ? detail.data.metadata.fingerprint
-              : undefined
-          }
-          requireSourceFingerprint={
-            detail.data?.metadata.contract_version === "2.0.0"
-          }
-          ruleVersion={detail.data?.data.rule_version}
-          disabled={
-            !detail.data ||
-            detail.isFetching ||
-            detail.isError ||
-            (session.configured &&
-              (access.isFetching || session.needsReauthentication))
-          }
-          onRefresh={() => void detail.refetch()}
-        />
       ) : null}
     </div>
   );

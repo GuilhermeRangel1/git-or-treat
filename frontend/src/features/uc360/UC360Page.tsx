@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   applyUCPeriod,
   applyUCSearch,
   parseUC360SearchParams,
   selectUCHistory,
 } from "./uc360-state";
-import { useUCOverview, useUCSearch, useUCHistory } from "./useUC360";
+import {
+  useUCOverview,
+  useUCSearch,
+  useUCHistory,
+  useUCSeries,
+} from "./useUC360";
+import { useSourceOptions } from "@/shared/analytics/sourceOptions";
 import UC360Detail from "./UC360Detail";
 import UC360SearchPanel from "./UC360SearchPanel";
 export default function UC360Page() {
@@ -15,6 +27,7 @@ export default function UC360Page() {
   const [params, setParams] = useSearchParams();
   const state = parseUC360SearchParams(params);
   const selectedUCId = routeUCId ?? state.uc;
+  const catalog = useSourceOptions();
   const [historyDraft, setHistoryDraft] = useState({
     applied: state.section,
     open: Boolean(state.section),
@@ -25,6 +38,19 @@ export default function UC360Page() {
       : Boolean(state.section);
   const historyDisclosureRef = useRef<HTMLDetailsElement>(null);
   const currentSearch = params.toString();
+  const searchReturnParams = new URLSearchParams();
+  for (const key of [
+    "q",
+    "municipio",
+    "classe",
+    "search_page",
+    "start",
+    "end",
+  ]) {
+    for (const value of params.getAll(key))
+      searchReturnParams.append(key, value);
+  }
+  const searchReturnQuery = searchReturnParams.toString();
   const hasDuplicatedUC = state.invalid.some((message) =>
     message.includes("uc duplicado"),
   );
@@ -44,8 +70,12 @@ export default function UC360Page() {
   }, [currentSearch, hasDuplicatedUC, navigate, routeUCId, state.uc]);
   const search = useUCSearch(
     state.q,
+    state.municipio,
+    state.classe,
     state.searchPage,
-    !state.invalid.length && Boolean(state.q) && !selectedUCId,
+    !selectedUCId &&
+      !state.invalid.length &&
+      Boolean(state.q || state.municipio || state.classe),
   );
   const overview = useUCOverview(
     selectedUCId,
@@ -61,8 +91,26 @@ export default function UC360Page() {
     state.historyPage,
     !state.invalid.length,
   );
-  function submitSearch(query: string) {
-    const searchParams = applyUCSearch(params, query);
+  const series = useUCSeries(
+    selectedUCId,
+    overview.data?.data.period.start ?? "",
+    overview.data?.data.period.end ?? "",
+    !state.invalid.length && Boolean(overview.data),
+  );
+  const previousYear = (month: string) => {
+    const year = Number(month.slice(0, 4));
+    return year > 1
+      ? `${String(year - 1).padStart(4, "0")}${month.slice(4)}`
+      : "";
+  };
+  const previousSeries = useUCSeries(
+    selectedUCId,
+    previousYear(overview.data?.data.period.start ?? ""),
+    previousYear(overview.data?.data.period.end ?? ""),
+    !state.invalid.length && Boolean(overview.data),
+  );
+  function submitSearch(criteria: Parameters<typeof applyUCSearch>[1]) {
+    const searchParams = applyUCSearch(params, criteria);
     navigate(`/uc-360?${searchParams.toString()}`);
   }
   function openHistorySection(section: Parameters<typeof selectUCHistory>[1]) {
@@ -85,15 +133,31 @@ export default function UC360Page() {
     <div
       className={`grid w-full min-w-0 ${selectedUCId ? "mt-0 gap-6" : "mt-6 gap-4"}`}
     >
-      {!selectedUCId && (
+      {selectedUCId ? (
+        <nav aria-label="Navegação da unidade consumidora">
+          <Link
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            to={`/uc-360${searchReturnQuery ? `?${searchReturnQuery}` : ""}`}
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
+            Voltar à busca
+          </Link>
+        </nav>
+      ) : (
         <UC360SearchPanel
           query={state.q}
+          municipio={state.municipio}
+          classe={state.classe}
+          options={catalog.data?.data}
+          optionsLoading={catalog.isPending}
+          optionsError={catalog.error}
           page={state.searchPage}
           results={search.data}
           isFetching={search.isFetching}
           error={search.error}
           onSearch={submitSearch}
           onRetry={() => void search.refetch()}
+          onRetryOptions={() => void catalog.refetch()}
           onPageChange={(page) => {
             const next = new URLSearchParams(params);
             next.set("search_page", String(page));
@@ -101,6 +165,11 @@ export default function UC360Page() {
           }}
           onSelect={(ucId) => {
             const detailParams = new URLSearchParams();
+            if (state.q) detailParams.set("q", state.q);
+            if (state.municipio) detailParams.set("municipio", state.municipio);
+            if (state.classe) detailParams.set("classe", state.classe);
+            if (state.searchPage > 1)
+              detailParams.set("search_page", String(state.searchPage));
             if (state.start && state.end) {
               detailParams.set("start", state.start);
               detailParams.set("end", state.end);
@@ -145,9 +214,49 @@ export default function UC360Page() {
               error: overview.error,
             },
             history: {
-              data: history.data,
+              data:
+                history.data?.metadata.source.version ===
+                overview.data?.metadata.source.version
+                  ? history.data
+                  : undefined,
               pending: history.isPending,
-              error: history.error,
+              error:
+                history.data &&
+                overview.data &&
+                history.data.metadata.source.version !==
+                  overview.data.metadata.source.version
+                  ? new Error(
+                      "A publicação do histórico mudou; atualize os dados.",
+                    )
+                  : history.error,
+            },
+            series: {
+              data:
+                series.data?.version === overview.data?.metadata.source.version
+                  ? series.data
+                  : undefined,
+              pending: series.isPending || series.isFetching,
+              error:
+                series.data &&
+                overview.data &&
+                series.data.version !== overview.data.metadata.source.version
+                  ? new Error("A publicação da série mudou.")
+                  : series.error,
+            },
+            previousSeries: {
+              data:
+                previousSeries.data?.version ===
+                overview.data?.metadata.source.version
+                  ? previousSeries.data
+                  : undefined,
+              pending: previousSeries.isPending || previousSeries.isFetching,
+              error:
+                previousSeries.data &&
+                overview.data &&
+                previousSeries.data.version !==
+                  overview.data.metadata.source.version
+                  ? new Error("A publicação do histórico anterior mudou.")
+                  : previousSeries.error,
             },
             filters: {
               start: state.start,
@@ -161,7 +270,15 @@ export default function UC360Page() {
           disclosureRef={historyDisclosureRef}
           actions={{
             onOverviewRetry: () => void overview.refetch(),
-            onHistoryRetry: () => void history.refetch(),
+            onHistoryRetry: () => {
+              void overview.refetch();
+              void history.refetch();
+            },
+            onSeriesRetry: () => {
+              void overview.refetch();
+              void series.refetch();
+              void previousSeries.refetch();
+            },
             onNewSearch: () => navigate("/uc-360"),
             onHistoryOpen: setHistoryOpen,
             onSelectHistory: openHistorySection,

@@ -23,6 +23,14 @@ class GoldInspectionRepository:
             "alimentador": self._options(self.queue.c.alimentador),
         }
 
+    def neighborhoods(self) -> list[dict[str, str]]:
+        rows = self.connection.execute(
+            select(self.queue.c.municipio, self.queue.c.bairro)
+            .where(self.queue.c.municipio.is_not(None), self.queue.c.bairro.is_not(None))
+            .distinct().order_by(self.queue.c.municipio, self.queue.c.bairro)
+        )
+        return [{"municipio": municipality, "bairro": neighborhood} for municipality, neighborhood in rows]
+
     def _options(self, column) -> list[str]:
         rows = self.connection.execute(
             select(column).distinct().where(column.is_not(None)).order_by(column)
@@ -134,3 +142,21 @@ class GoldInspectionRepository:
         ).where(q.c.id_uc == uc_id)
         row = self.connection.execute(statement).mappings().first()
         return dict(row) if row else None
+
+    def consumption_rows(self, uc_id: str) -> tuple[str | None, list]:
+        monthly = TABLES["consumo_mensal_uc"]
+        end = self.connection.execute(select(func.max(monthly.c.competencia))).scalar_one()
+        if not end:
+            return None, []
+        rows = self.connection.execute(
+            select(monthly).where(monthly.c.id_uc == uc_id, monthly.c.competencia <= end).order_by(monthly.c.competencia.desc()).limit(15)
+        ).mappings().all()
+        return end, rows
+
+    def meter_rows(self, uc_id: str) -> list:
+        meter = TABLES["medidor_uc"]
+        return self.connection.execute(select(
+            meter.c.data_instalacao, meter.c.data_retirada,
+            meter.c.flag_instalacao_sentinela, meter.c.flag_instalacao_futura,
+            meter.c.flag_retirada_sentinela, meter.c.flag_retirada_futura,
+        ).where(meter.c.id_uc == uc_id)).mappings().all()

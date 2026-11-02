@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OrderDetail } from "@/shared/api/orders";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
@@ -186,48 +186,52 @@ describe("OrderFoundationsDialog", () => {
       }),
     ).toBeInTheDocument();
     expect(await screen.findByText("REVISAR")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Proveniência da publicação"));
-    expect(screen.getByText("batch-old")).toBeInTheDocument();
-    expect(screen.getByText("b".repeat(64))).toBeInTheDocument();
+    expect(
+      screen.queryByText("Proveniência da publicação"),
+    ).not.toBeInTheDocument();
+    for (const technicalValue of [
+      "batch-old",
+      "b".repeat(64),
+      "gold-csv-v2",
+      "gold-fila-inspecao-v1",
+    ]) {
+      expect(screen.queryByText(technicalValue)).not.toBeInTheDocument();
+    }
     expect(
       within(screen.getByText("Inspeções realizadas").parentElement!).getByText(
         "0",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "A Gold não publicou uma estimativa individual para esta UC; a referência histórica é apresentada separadamente.",
-      ),
+      screen.getByText(/Não há estimativa de energia recuperável para esta UC/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Categoria não é prioridade de despacho."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Média histórica de recuperação por inspeção"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("0 kWh/inspeção")).toBeInTheDocument();
-    expect(screen.getByText("0 a 0 kWh/inspeção")).toBeInTheDocument();
+      screen.queryByText("Categoria não é prioridade de despacho."),
+    ).not.toBeInTheDocument();
+    for (const internalRecoveryDetail of [
+      "Média histórica de recuperação por inspeção",
+      "0 kWh/inspeção",
+      "0 a 0 kWh/inspeção",
+      "Global",
+      "Referência histórica disponível",
+      "Estimativa individual indisponível",
+      "Média global histórica com grupos opcionais (v2)",
+    ]) {
+      expect(
+        screen.queryByText(internalRecoveryDetail),
+      ).not.toBeInTheDocument();
+    }
     expect(
       within(
         screen.getByText("Variação percentual observada").parentElement!,
       ).getByText("Indisponível"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Global")).toBeInTheDocument();
     expect(
-      screen.getByText("Referência histórica disponível"),
-    ).toBeInTheDocument();
+      screen.queryByText("DISPONIVEL_REFERENCIA_HISTORICA"),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByText("Estimativa individual indisponível"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Média global histórica com grupos opcionais (v2)"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("DISPONIVEL_REFERENCIA_HISTORICA"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("MEDIA_GLOBAL_COM_GRUPOS_OPCIONAIS_V2"),
-    ).toBeInTheDocument();
+      screen.queryByText("MEDIA_GLOBAL_COM_GRUPOS_OPCIONAIS_V2"),
+    ).not.toBeInTheDocument();
     expect(getOrderDetail).toHaveBeenCalledTimes(1);
   });
 });

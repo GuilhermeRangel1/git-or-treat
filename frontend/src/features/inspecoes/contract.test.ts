@@ -111,6 +111,32 @@ describe("contrato Gold da fila de inspeções", () => {
     });
   });
 
+  it("preserva a comparação trimestral proposta no detalhe Gold", () => {
+    const decoded = decodeDetail({
+      data: {
+        ...goldItem,
+        rule_version: "gold-fila-inspecao-v1",
+        limitations: [],
+        consumption_comparison: {
+          baseline_start: "2024-08",
+          baseline_end: "2024-10",
+          recent_start: "2024-11",
+          recent_end: "2025-01",
+          baseline_kwh: 300,
+          recent_kwh: 150,
+          change_percent: -50,
+          unavailable_reason: null,
+        },
+      },
+      metadata,
+    });
+    expect(decoded.data.consumption_comparison).toMatchObject({
+      baseline_kwh: 300,
+      recent_kwh: 150,
+      change_percent: -50,
+    });
+  });
+
   it("requires a positive integer queue position in Gold details", () => {
     expect(() =>
       decodeDetail({
