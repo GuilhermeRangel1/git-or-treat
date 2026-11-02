@@ -6,6 +6,63 @@ import FieldFiles from "./FieldFiles";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("mostra apenas exportação em Inspeções e apenas resultados em Ordens", () => {
+  const client = new QueryClient();
+  const { rerender } = render(
+    <QueryClientProvider client={client}>
+      <FieldFiles mode="export" />
+    </QueryClientProvider>,
+  );
+  expect(
+    screen.getByRole("button", { name: "Exportar fila" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Selecionar planilha" }),
+  ).not.toBeInTheDocument();
+  rerender(
+    <QueryClientProvider client={client}>
+      <FieldFiles mode="results" />
+    </QueryClientProvider>,
+  );
+  expect(
+    screen.queryByRole("button", { name: "Exportar fila" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Selecionar planilha" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Baixar modelo de resultados" }),
+  ).toBeInTheDocument();
+});
+
+it("pergunta o formato antes de solicitar o modelo e mantém explicação de erro no diálogo", async () => {
+  const fetch = vi.fn<(url: string) => Promise<Response>>(
+    async () =>
+      new Response(
+        JSON.stringify({ detail: "Não existem ordens em andamento." }),
+        { status: 422 },
+      ),
+  );
+  vi.stubGlobal("fetch", fetch);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <FieldFiles request="" />
+    </QueryClientProvider>,
+  );
+  const user = userEvent.setup();
+  await user.click(
+    screen.getByRole("button", { name: "Baixar modelo de resultados" }),
+  );
+  expect(fetch).not.toHaveBeenCalled();
+  expect(screen.getByRole("radio", { name: /Excel \(XLSX\)/ })).toBeChecked();
+  await user.click(screen.getByRole("radio", { name: /CSV/ }));
+  await user.click(screen.getByRole("button", { name: "Baixar CSV" }));
+  expect(
+    await screen.findByText("Não existem ordens em andamento."),
+  ).toBeInTheDocument();
+  expect(fetch.mock.calls[0][0]).toContain("template?format=csv");
+});
+
 it("restringe bairros ao município e limpa o bairro ao trocar de cidade", async () => {
   vi.stubGlobal(
     "fetch",

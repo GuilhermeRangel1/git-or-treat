@@ -3513,7 +3513,7 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 ### 02/11/2026 — WEB-09: correção do ambiente e modelo CSV
 
 - Logs do backend Docker confirmaram ModuleNotFoundError de openpyxl ao gerar modelo Excel. Serviço reconstruído com requirements e reiniciado sem alterar o banco; openpyxl 3.1.5 confirmado no container. A consulta operacional encontrou zero ordens EM_ANDAMENTO.
-- Modelo sem ordens passa a explicar a necessidade de criar/iniciar uma inspeção. GET /inspections/field-results/template aceita format=csv além de xlsx; API oferece modelo CSV e mensagem explicativa se o serviço Excel estiver indisponível. Ausência da biblioteca passa a 503 controlado, sem stack na resposta.
+- Modelo sem ordens passa a explicar a necessidade de criar/iniciar uma inspeção. GET /inspections/field-results/template aceita format=csv além de xlsx; portal oferece modelo CSV e mensagem explicativa se o serviço Excel estiver indisponível. Ausência da biblioteca passa a 503 controlado, sem stack na resposta.
 - CSV mínimo: ordem_id;versao;uc_id;resultado, preenchido pelo servidor com ordens existentes. Não inventar IDs nem resultados de inspeção para teste no banco operacional. Modelo de referência vazio foi entregue fora do repositório.
 - Verificações: 5 testes backend e 5 testes de interface passaram; build/tipos passou. Container confirmou dependência e mensagem de ausência. Não houve gravação de resultados reais nem aceite integral do requisito; estado preservado.
 ### 02/11/2026 — correção operacional da fonte após reconstrução do backend
@@ -3521,3 +3521,12 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - A reconstrução para instalar openpyxl foi iniciada apenas com docker-compose.yml e recriou o backend com ANALYTICS_SOURCE=synthetic. A pessoa usuária reportou redução da fila de 45.000 para 2 UCs. Configuração efetiva confirmou fonte sintética e ausência do overlay, enquanto o ai-agent preservava os dois arquivos Compose.
 - Restaurado somente backend com docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml up -d --no-deps backend. Loader não executado; banco e demais serviços não foram recriados.
 - Verificação no container: ANALYTICS_SOURCE=gold, openpyxl=3.1.5 e COUNT da fila pelo GoldInspectionRepository = 45.000 UCs. Não foram consultados registros individuais nem alterados dados. A configuração Compose Gold completa deve ser preservada em futuras recriações.
+### 02/11/2026 — WEB-09: escolha do formato do modelo
+
+- O botão único Baixar modelo de resultados abre diálogo com escolha Excel (XLSX) ou CSV antes da solicitação. Cancelar não baixa arquivo; erros permanecem no diálogo e sucesso fecha o modal. Seleção de ordens e backend preservados.
+- FieldFiles.tsx e FieldFiles.test.tsx: seis testes de interface passaram, incluindo solicitação somente após confirmação e envio de format=csv. Build/tipos passou; sem nova inspeção visual. Estado do requisito preservado.
+### 02/11/2026 — WEB-08/WEB-09: separar envio da fila e retorno operacional
+
+- Inspeções mostra apenas envio/exportação da fila. Ordens recebe o registro de resultados por planilha e o download do modelo com escolha CSV/XLSX, condicionado à permissão de escrita. A mensagem após upload explicita a quantidade de ordens concluídas e preserva os erros por linha; cache operacional continua invalidado.
+- Componente compartilhado em frontend/src/shared/inspections/FieldFiles.tsx permite compor as duas jornadas sem imports entre features. Não houve alteração de banco, transições ou configuração de execução.
+- Verificações: 42 testes de FieldFiles, InspecoesPage e OrdensPage passaram; build/tipos, lint e fronteiras passaram (aviso preexistente em AuthProvider). Sem nova inspeção visual no navegador; estados dos requisitos preservados.

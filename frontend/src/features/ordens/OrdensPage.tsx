@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { Order } from "@/shared/api/orders";
 import { getOrderDetail, searchOrders } from "@/shared/api/orders";
 import Button from "@/shared/ui/Button";
+import FieldFiles from "@/shared/inspections/FieldFiles";
 import OrderActionsDialog from "./OrderActionsDialog";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
 import OrderFilters from "./OrderFilters";
@@ -308,6 +309,10 @@ export default function OrdensPage() {
             </>
           ) : null}
         </>
+      ) : null}
+
+      {!session.configured || access.data?.canWrite === true ? (
+        <FieldFiles mode="results" />
       ) : null}
 
       {selectedOrder ? (

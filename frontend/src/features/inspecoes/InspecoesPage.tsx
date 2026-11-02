@@ -269,7 +269,9 @@ export default function InspecoesPage() {
                 params={params}
                 onChange={setParams}
               />
-              {parsed ? <FieldFiles request={parsed.request} /> : null}
+              {parsed ? (
+                <FieldFiles mode="export" request={parsed.request} />
+              ) : null}
             </>
           ) : null}
 
