@@ -280,3 +280,7 @@ escrita, conteúdo de chamados e cadastro continuam fora do leitor. Veja a
 ## GENAI-13 — invalidação integrada
 
 Assistente e insight vinculam a publicação conhecida à consulta; o insight envia/confere fingerprint e o resolvedor lê a view de metadados no PostgreSQL. Mudança de publicação ou acesso retira contexto anterior e retentativas; resposta/erro atrasados não substituem revisão vigente. Evidências e limites da integração em [GENAI-13](../plans/2026-11-01-genai13-invalidacao-integrada.md). Mantida compatibilidade dos campos opcionais e dos modos demonstrativos explícitos.
+
+O insight do Panorama pode incluir `analysis.composicaoAtual` (opcional): maior receita observada por município/classe/bairro autorizado e participação na soma observada do mês, quando a comparação temporal não estiver disponível. O cálculo reconcilia os grupos com o KPI e não estima valores ausentes; participação não é variação temporal.
+
+Detalhamento por bairro requer a dimensão `geography.neighborhood` no escopo validado e reconciliação da projeção de bairros com o total do KPI. A mesma decisão de autorização é aplicada na consulta e na recomputação da auditoria; sem permissão ou reconciliação, a composição não é publicada.

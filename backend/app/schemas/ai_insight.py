@@ -249,9 +249,18 @@ class PanoramaInsightContribution(BaseModel):
     )
 
 
+class PanoramaCurrentComposition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dimension: Literal["municipio", "classe", "bairro"]
+    segmento: Annotated[StrictStr, StringConstraints(min_length=1, max_length=120)]
+    valor: StrictFloat = Field(ge=0, allow_inf_nan=False)
+    participacaoPercentual: StrictFloat = Field(ge=0, le=100, allow_inf_nan=False)
+
+
 class PanoramaInsightAnalysis(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    composicaoAtual: PanoramaCurrentComposition | None = None
     direcao: Literal["alta", "queda", "estavel", "indisponivel"]
     variacaoPercentual: StrictFloat | None = Field(default=None, allow_inf_nan=False)
     principalContribuicao: PanoramaInsightContribution | None = None

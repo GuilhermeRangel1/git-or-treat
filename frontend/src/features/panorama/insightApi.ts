@@ -98,6 +98,32 @@ export async function requestPanoramaInsight(
         result.insight.observation.values[0]?.value !== metric.valorAtual)
     )
       throw new Error("O insight não corresponde aos números exibidos.");
+    const composition = result.analysis.composicaoAtual;
+    if (composition) {
+      const expectedDimension =
+        filters.municipio === "todos"
+          ? "municipio"
+          : filters.classe === "todas"
+            ? "classe"
+            : "bairro";
+      if (
+        composition.dimension !== expectedDimension ||
+        metric.valorAtual == null ||
+        metric.valorAtual <= 0 ||
+        composition.valor > metric.valorAtual ||
+        Math.abs(
+          (composition.valor / metric.valorAtual) * 100 -
+            composition.participacaoPercentual,
+        ) > 0.051 ||
+        !result.insight.observation.values.some(
+          (value) =>
+            value.value === composition.valor &&
+            value.label ===
+              `Maior receita observada no mês · ${composition.segmento}`,
+        )
+      )
+        throw new Error("A composição não corresponde ao recorte exibido.");
+    }
     return result;
   } catch {
     throw new PanoramaInsightApiError(

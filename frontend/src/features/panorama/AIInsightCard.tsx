@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { isGoldPublicationStale } from "../../shared/analytics/goldPublication";
 import Button from "../../shared/ui/Button";
+import { formatPanoramaTimestamp } from "./panorama-format";
 import type {
   PanoramaData,
   PanoramaFilters,
@@ -69,6 +70,12 @@ function filterLabel(value: string, allLabel: string) {
   return value;
 }
 
+function businessLanguage(value: string) {
+  return value
+    .replace(/(?:fonte |dados )?Gold(?: v2)?/gi, "fonte de dados interna")
+    .replace(/UCs?\/mês/g, "unidades consumidoras por mês")
+    .replace(/\bUCs\b/g, "unidades consumidoras");
+}
 function formatValue(value: number | null, unit: string) {
   if (value == null) return "Indisponível";
   if (unit === "R$" || unit === "BRL")
@@ -91,12 +98,18 @@ function describeTrend(
   metric: PanoramaData["metricas"]["energiaFaturada"],
   filters: PanoramaFilters,
 ) {
+  if (analysis.composicaoAtual) {
+    const item = analysis.composicaoAtual;
+    return `${item.segmento} concentra ${formatPercentage(item.participacaoPercentual)} da receita observada no período (${formatValue(item.valor, metric.unidade)}).`;
+  }
+  if (metric.valorAtual === 0 && analysis.direcao === "indisponivel")
+    return `A receita observada em ${periodLabel(filters.periodo)} soma ${formatValue(0, metric.unidade)} no recorte selecionado.`;
   const current = periodLabel(filters.periodo);
   const previous = comparisonLabel(filters);
   const percentage = formatPercentage(analysis.variacaoPercentual);
 
   if (analysis.direcao === "indisponivel")
-    return "Não há comparação válida para identificar uma tendência neste recorte.";
+    return `A receita observada em ${current} foi de ${formatValue(metric.valorAtual, metric.unidade)}. Explore os valores por município e classe no detalhamento.`;
   if (analysis.direcao === "estavel")
     return `${metric.nome} ficou estável de ${previous} para ${current}.`;
 
@@ -226,7 +239,15 @@ export default function AIInsightCard({
     limitations.push(
       "Os números são fictícios e servem apenas para demonstração; não representam dados operacionais reais.",
     );
-  const uniqueLimitations = [...new Set(limitations)];
+  const uniqueLimitations = [
+    ...new Set(
+      [
+        ...limitations,
+        ...(metric.limitacoes ?? []),
+        ...(metric.limitacoesComparacao ?? []),
+      ].map(businessLanguage),
+    ),
+  ];
 
   let stateMessage = "";
   if (publicationStale) {
@@ -314,7 +335,7 @@ export default function AIInsightCard({
               </p>
               <p className="text-xs text-muted">
                 Análise assistida por IA ·{" "}
-                {isDemo ? "dados demonstrativos" : "dados Gold"}
+                {isDemo ? "dados demonstrativos" : "fonte de dados interna"}
               </p>
             </div>
           </div>
@@ -341,11 +362,14 @@ export default function AIInsightCard({
                 {formatValue(metric.valorAtual, metric.unidade)}
               </p>
               <p className="mt-0.5 text-xs text-muted">
-                {metric.nome} · {periodLabel(filters.periodo)}
+                {isDemo ? metric.nome : "Receita observada"} ·{" "}
+                {periodLabel(filters.periodo)}
               </p>
               <p className="mt-1 text-xs text-muted">
                 {metric.valorAnterior == null
-                  ? "Sem valor comparável disponível"
+                  ? filters.comparacao === "nenhuma"
+                    ? "Sem comparação selecionada"
+                    : "Leitura dos valores observados no período"
                   : `${comparisonLabel(filters)}: ${formatValue(metric.valorAnterior, metric.unidade)}${metric.variacaoAbsoluta == null ? "" : ` · variação ${formatValue(metric.variacaoAbsoluta, metric.unidade)}`}`}
               </p>
             </>
@@ -383,7 +407,7 @@ export default function AIInsightCard({
                 .
               </p>
             )}
-            {analysis && (
+            {analysis && analysis.direcao !== "indisponivel" && (
               <p className="mt-3 border-l-2 border-[var(--accent-pistache)] pl-3 text-xs leading-5 text-muted">
                 <span className="font-semibold text-content">
                   Próximo passo:
@@ -391,7 +415,7 @@ export default function AIInsightCard({
                 {compactNextStep(analysis)}
               </p>
             )}
-            {insight.hypothesis && (
+            {insight.hypothesis && analysis?.direcao !== "indisponivel" && (
               <div className="mt-3 border-l-2 border-[var(--accent-goiaba)] pl-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
                   Hipótese para investigar
@@ -533,11 +557,14 @@ export default function AIInsightCard({
                       {formatValue(metric.valorAtual, metric.unidade)}
                     </p>
                     <p className="mt-0.5 text-xs text-muted">
-                      {metric.nome} · {periodLabel(filters.periodo)}
+                      {isDemo ? metric.nome : "Receita observada"} ·{" "}
+                      {periodLabel(filters.periodo)}
                     </p>
                     <p className="mt-1 text-xs text-muted">
                       {metric.valorAnterior == null
-                        ? "Sem valor comparável disponível"
+                        ? filters.comparacao === "nenhuma"
+                          ? "Sem comparação selecionada"
+                          : "Leitura dos valores observados no período"
                         : `${comparisonLabel(filters)}: ${formatValue(metric.valorAnterior, metric.unidade)}${metric.variacaoAbsoluta == null ? "" : ` · variação ${formatSignedValue(metric.variacaoAbsoluta, metric.unidade)}`}`}
                     </p>
                   </>
@@ -589,43 +616,46 @@ export default function AIInsightCard({
                 </div>
               </section>
 
-              {insight?.status === "answered" && insight.hypothesis && (
-                <section
-                  aria-labelledby="panorama-insight-hypothesis-title"
-                  className="rounded-xl border border-[var(--line)] bg-surface p-4"
-                >
-                  <h3
-                    id="panorama-insight-hypothesis-title"
-                    className="font-heading text-sm font-semibold"
+              {insight?.status === "answered" &&
+                analysis?.direcao !== "indisponivel" &&
+                insight.hypothesis && (
+                  <section
+                    aria-labelledby="panorama-insight-hypothesis-title"
+                    className="rounded-xl border border-[var(--line)] bg-surface p-4"
                   >
-                    Hipótese para investigar
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-content">
-                    {insight.hypothesis}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-muted">
-                    Interpretação gerada pela IA; os dados observados não
-                    comprovam uma causa.
-                  </p>
-                </section>
-              )}
+                    <h3
+                      id="panorama-insight-hypothesis-title"
+                      className="font-heading text-sm font-semibold"
+                    >
+                      Hipótese para investigar
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-content">
+                      {insight.hypothesis}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-muted">
+                      Interpretação gerada pela IA; os dados observados não
+                      comprovam uma causa.
+                    </p>
+                  </section>
+                )}
 
-              {insight?.status === "answered" && (
-                <section className="rounded-xl border border-[var(--line)] bg-[var(--accent-pistache-subtle)]/60 p-4">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold">
-                    <Info
-                      aria-hidden="true"
-                      className="size-4 text-[var(--accent-pistache)]"
-                    />
-                    Recomendação
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    {analysis
-                      ? investigationSuggestion(analysis, filters)
-                      : "Confira o detalhamento do período antes de tirar conclusões."}
-                  </p>
-                </section>
-              )}
+              {insight?.status === "answered" &&
+                analysis?.direcao !== "indisponivel" && (
+                  <section className="rounded-xl border border-[var(--line)] bg-[var(--accent-pistache-subtle)]/60 p-4">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold">
+                      <Info
+                        aria-hidden="true"
+                        className="size-4 text-[var(--accent-pistache)]"
+                      />
+                      Recomendação
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {analysis
+                        ? investigationSuggestion(analysis, filters)
+                        : "Confira o detalhamento do período antes de tirar conclusões."}
+                    </p>
+                  </section>
+                )}
 
               <div className="flex flex-wrap gap-1.5">
                 <span className="rounded-full border border-[var(--line)] bg-surface px-2.5 py-1 text-[11px] text-muted">
@@ -644,7 +674,8 @@ export default function AIInsightCard({
 
               <p className="flex items-start gap-1.5 text-xs leading-5 text-muted">
                 <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                {uniqueLimitations[0]}
+                Consulte o fundamento para conhecer a cobertura e os critérios
+                do cálculo.
               </p>
 
               <section className="border-t border-[var(--line)] pt-4">
@@ -674,8 +705,8 @@ export default function AIInsightCard({
                       <p>
                         {metric.nome} ({metric.unidade}) ·{" "}
                         {periodLabel(filters.periodo)}
-                        {metric.valorAnterior == null
-                          ? ""
+                        {filters.comparacao === "nenhuma"
+                          ? " · Sem comparação"
                           : ` comparado a ${comparisonLabel(filters)}`}
                       </p>
                       <p>
@@ -685,29 +716,35 @@ export default function AIInsightCard({
                     </div>
                     <div>
                       <p className="font-semibold">Definição</p>
-                      <p>{response?.metric.definicao ?? metric.definicao}</p>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Fórmula aplicada</p>
-                      <p className="font-mono">
-                        {response?.metric.formula ?? metric.formula}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Fonte e lote</p>
                       <p>
-                        {isDemo ? "Dados sintéticos" : "Dados Gold"} ·{" "}
-                        {data.loteVersao}
+                        {businessLanguage(
+                          response?.metric.definicao ?? metric.definicao,
+                        )}
                       </p>
-                      <p>Atualizado em {data.dataAtualizacao}</p>
-                      {insight?.evidence.map((item) => (
-                        <p
-                          key={`${item.source}:${item.description}`}
-                          className="break-all"
-                        >
-                          Evidência: {item.source} · {item.description}
-                        </p>
-                      ))}
+                    </div>
+                    <div>
+                      <p className="font-semibold">Como o valor é calculado</p>
+                      <p>
+                        {isDemo
+                          ? "Soma da energia faturada no período e nos filtros selecionados."
+                          : "Soma da receita faturada nas unidades consumidoras com fatura e leituras válidas no período e nos filtros selecionados."}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="font-semibold">Fonte dos dados</p>
+                      <p>
+                        {isDemo
+                          ? "Dados demonstrativos"
+                          : "Fonte de dados interna"}
+                      </p>
+                      <p>
+                        Atualizado em{" "}
+                        {formatPanoramaTimestamp(data.dataAtualizacao)}
+                      </p>
+                      <p>
+                        Os valores usam os mesmos indicadores e filtros do
+                        Panorama.
+                      </p>
                     </div>
                     <div>
                       <p className="font-semibold">Limitações</p>

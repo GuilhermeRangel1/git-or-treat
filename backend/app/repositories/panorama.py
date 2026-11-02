@@ -81,8 +81,8 @@ class GoldPanoramaRepository:
 
     def revenue_groups(self, current, previous, dimension, municipio=None, classe=None):
         """Agrega somente colunas financeiras concedidas; limita a decomposição."""
-        table = self.table
-        column = {"municipio": table.c.municipio, "classe": table.c.classe_consumo}[dimension]
+        table = TABLES["consumo_receita_bairro"] if dimension == "bairro" else self.table
+        column = {"municipio": table.c.municipio, "classe": table.c.classe_consumo, **({"bairro": table.c.bairro} if dimension == "bairro" else {})}[dimension]
         conditions = [table.c.competencia.in_((current, previous))]
         if municipio is not None:
             conditions.append(table.c.municipio == municipio)
