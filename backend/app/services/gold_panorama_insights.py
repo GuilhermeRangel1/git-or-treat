@@ -16,6 +16,7 @@ from app.schemas.ai_insight import (
     AIInsightResponse,
     AIInsightScreenContext,
     PanoramaInsightAnalysis,
+    PanoramaCurrentComposition,
     PanoramaInsightContribution,
     PanoramaInsightMetric,
     PanoramaInsightRequest,
@@ -41,6 +42,7 @@ GoldPanoramaInsightPreparation: TypeAlias = tuple[
 def build_gold_panorama_insight(
     repository: GoldPanoramaRepository,
     request: PanoramaInsightRequest,
+    *, allow_neighborhood: bool = False,
 ) -> GoldPanoramaInsightPreparation:
     """Recalcula receita comparável no snapshot já autorizado pelo servidor.
 
@@ -153,6 +155,13 @@ def build_gold_panorama_insight(
                             value=contribution.variacaoAbsoluta,
                         )
                     )
+        if metric.valorAnterior is None:
+            composition = current_revenue_composition(repository, applied_filters, actual, allow_neighborhood=allow_neighborhood)
+            analysis.composicaoAtual = composition
+            if composition is not None:
+                observations.extend([
+                    AIInsightObservationValue(label=f"Maior receita observada no mês · {composition.segmento}", value=composition.valor),
+                ])
         prepared = AIInsightRequest(
             screen=AIInsightScreenContext(
                 metric=metric.nome,
@@ -264,3 +273,29 @@ def build_gold_revenue_analysis(
         ), [
             "Participações representam o total dos movimentos de mesmo sinal, não a variação líquida; a comparação usa valores publicados sem fechamento mensal certificado."
         ]
+
+
+def current_revenue_composition(repository, filters, actual, *, allow_neighborhood=False) -> PanoramaCurrentComposition | None:
+    """Concentração do mês observado; não estima valores ausentes ou variação."""
+    if not actual["revenue"] or actual["revenue"] <= 0:
+        return None
+    dimension = "municipio" if filters["municipio"] == "todos" else "classe" if filters["classe"] == "todas" else "bairro" if allow_neighborhood else None
+    if dimension is None:
+        return None
+    period = filters["periodo"]
+    rows = repository.revenue_groups(period, period, dimension,
+        None if filters["municipio"] == "todos" else filters["municipio"],
+        None if filters["classe"] == "todas" else filters["classe"])
+    if len(rows) > 1000:
+        return None
+    values = {r["segment"]: r["revenue"] for r in rows if r["period"] == period and r["revenue"] is not None}
+    if not values or any(v < 0 for v in values.values()):
+        return None
+    with localcontext() as context:
+        context.prec = 100
+        if sum(values.values()) != actual["revenue"]:
+            return None
+        name = min(values, key=lambda key: (-values[key], key))
+        return PanoramaCurrentComposition(dimension=dimension, segmento=name,
+            valor=float(values[name].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            participacaoPercentual=float((values[name] / actual["revenue"] * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)))
