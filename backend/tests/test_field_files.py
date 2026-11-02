@@ -41,6 +41,9 @@ def test_excel_template_roundtrip_and_rejected_files(client, monkeypatch):
     client.patch(f'{ROOT}/orders/{oid}', json={'version': 1, 'status': 'EM_ANDAMENTO'})
     template = client.get(ROOT + '/field-results/template').json()
     assert template['count'] == 1
+    csv_template = client.get(ROOT + '/field-results/template?format=csv').json()
+    assert csv_template['count'] == 1
+    assert f'{oid};2;EXCEL-1;' in csv_template['csv']
     workbook = load_workbook(io.BytesIO(base64.b64decode(template['xlsx'])))
     sheet = workbook['Resultados']
     assert sheet['A2'].value == str(oid)
@@ -62,6 +65,15 @@ def test_excel_template_roundtrip_and_rejected_files(client, monkeypatch):
     assert client.post(ROOT + '/field-results/import', json={'xlsx': 'invalid'}).json()['errors']
     assert client.post(ROOT + '/field-results/import', json={'csv': 'x', 'xlsx': 'x'}).status_code == 422
     workbook.close()
+
+
+def test_template_explains_absent_orders(client, monkeypatch):
+    token = 'empty-template-' + 'w' * 32
+    monkeypatch.setattr('app.core.config.settings.ORDERS_WRITE_TOKEN', SecretStr(token))
+    client.headers['Authorization'] = 'Bearer ' + token
+    response = client.get(ROOT + '/field-results/template')
+    assert response.status_code == 422
+    assert 'Não existem ordens em andamento' in response.json()['detail']
 
 
 def test_export_includes_entire_scope_and_real_options(client, monkeypatch):

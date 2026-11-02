@@ -3510,3 +3510,14 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 
 - Opções de exportação incluem pares reais municipio/bairro da fonte. Bairro fica desabilitado sem município, mostra somente bairros correspondentes e é limpo ao trocar a cidade. Os filtros principais da fila já possuem esse comportamento e foram preservados.
 - Arquivos: endpoint de inspeções, FieldFiles.tsx e teste de interação com dois municípios e bairros distintos. Build/tipos passou. Estados dos requisitos preservados; sem aceite visual novo.
+### 02/11/2026 — WEB-09: correção do ambiente e modelo CSV
+
+- Logs do backend Docker confirmaram ModuleNotFoundError de openpyxl ao gerar modelo Excel. Serviço reconstruído com requirements e reiniciado sem alterar o banco; openpyxl 3.1.5 confirmado no container. A consulta operacional encontrou zero ordens EM_ANDAMENTO.
+- Modelo sem ordens passa a explicar a necessidade de criar/iniciar uma inspeção. GET /inspections/field-results/template aceita format=csv além de xlsx; API oferece modelo CSV e mensagem explicativa se o serviço Excel estiver indisponível. Ausência da biblioteca passa a 503 controlado, sem stack na resposta.
+- CSV mínimo: ordem_id;versao;uc_id;resultado, preenchido pelo servidor com ordens existentes. Não inventar IDs nem resultados de inspeção para teste no banco operacional. Modelo de referência vazio foi entregue fora do repositório.
+- Verificações: 5 testes backend e 5 testes de interface passaram; build/tipos passou. Container confirmou dependência e mensagem de ausência. Não houve gravação de resultados reais nem aceite integral do requisito; estado preservado.
+### 02/11/2026 — correção operacional da fonte após reconstrução do backend
+
+- A reconstrução para instalar openpyxl foi iniciada apenas com docker-compose.yml e recriou o backend com ANALYTICS_SOURCE=synthetic. A pessoa usuária reportou redução da fila de 45.000 para 2 UCs. Configuração efetiva confirmou fonte sintética e ausência do overlay, enquanto o ai-agent preservava os dois arquivos Compose.
+- Restaurado somente backend com docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml up -d --no-deps backend. Loader não executado; banco e demais serviços não foram recriados.
+- Verificação no container: ANALYTICS_SOURCE=gold, openpyxl=3.1.5 e COUNT da fila pelo GoldInspectionRepository = 45.000 UCs. Não foram consultados registros individuais nem alterados dados. A configuração Compose Gold completa deve ser preservada em futuras recriações.

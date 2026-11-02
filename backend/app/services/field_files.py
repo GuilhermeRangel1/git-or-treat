@@ -54,12 +54,20 @@ def read_xlsx(content: str) -> str:
         workbook.close()
 
 
-def field_template(db: Session) -> dict:
-    from openpyxl import Workbook
+def field_template(db: Session, format: str = "xlsx") -> dict:
     from app.models.operational import InspectionOrder, OrderStatus
     orders = db.query(InspectionOrder).filter(InspectionOrder.status == OrderStatus.IN_PROGRESS).order_by(InspectionOrder.id).limit(501).all()
     if len(orders) > 500:
         raise ValueError("Há mais de 500 ordens em andamento. Reduza o lote antes de baixar o modelo.")
+    if not orders:
+        raise ValueError("Não existem ordens em andamento. Crie uma ordem pela fila e inicie a inspeção em Ordens antes de baixar o modelo.")
+    if format == "csv":
+        output = io.StringIO(newline='')
+        writer = csv.writer(output, delimiter=';', lineterminator='\r\n')
+        writer.writerow(['ordem_id', 'versao', 'uc_id', 'resultado'])
+        writer.writerows((str(order.id), order.version, order.uc_id, '') for order in orders)
+        return {'csv': output.getvalue(), 'count': len(orders)}
+    from openpyxl import Workbook
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = 'Resultados'

@@ -98,10 +98,12 @@ def import_field_results(payload: FieldUpload, db: Session = Depends(get_db),
 
 
 @router.get("/field-results/template", summary="Modelo Excel das ordens em andamento")
-def download_field_template(response: Response, actor: str = Depends(require_orders_write), db: Session = Depends(get_db)):
+def download_field_template(response: Response, format: Literal["xlsx", "csv"] = "xlsx", actor: str = Depends(require_orders_write), db: Session = Depends(get_db)):
     response.headers['Cache-Control'] = 'no-store'
     try:
-        return field_template(db)
+        return field_template(db, format)
+    except ModuleNotFoundError:
+        raise HTTPException(503, "O serviço de planilhas Excel está indisponível. Baixe o modelo CSV ou solicite a atualização do backend.") from None
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
