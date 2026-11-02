@@ -20,8 +20,11 @@ HEADERS = {"Authorization": f"Bearer {TOKEN}", "X-Correlation-ID": "a" * 32}
 
 @pytest.mark.parametrize("question,comparison", [
     ("Compare a receita de janeiro e março de 2025.", ["2025-01", "2025-03"]),
+    ("Compare a receita de janeiro e marco de 2025.", ["2025-01", "2025-03"]),
+    ("Compare a receita de janeiro com março de 2025.", ["2025-01", "2025-03"]),
     ("Compare o consumo entre janeiro e março de 2025.", ["2025-01", "2025-03"]),
     ("Receita de janeiro a março de 2025?", None),
+    ("Receita de janeiro ate marco de 2025?", None),
 ])
 def test_shared_year_reaches_http_plan_without_losing_a_month(question, comparison):
     core, request = _setup(question)
