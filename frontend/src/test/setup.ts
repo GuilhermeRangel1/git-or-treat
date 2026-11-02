@@ -8,6 +8,23 @@ import {
   setUnauthorizedHandler,
 } from "@/shared/auth/authorization";
 
+// Jornadas sintéticas isolam o catálogo, preservando seus mocks de negócio.
+// sourceOptions.test.tsx remove este mock e exercita Fetch, decoder e Query reais.
+vi.mock("@/shared/analytics/sourceOptions", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/shared/analytics/sourceOptions")>();
+  const { sourceOptionsFixture } =
+    await import("../shared/analytics/sourceOptions.fixture.test-support");
+  return {
+    ...actual,
+    useSourceOptions: () => ({
+      data: sourceOptionsFixture,
+      isPending: false,
+      isError: false,
+    }),
+  };
+});
+
 // Garante que o TanStack Query sempre considere o ambiente online em testes
 onlineManager.setOnline(true);
 

@@ -40,7 +40,7 @@ export const routes = [
     label: "Receita",
     title: "Entenda a receita.",
     subtitle:
-      "Compare períodos, investigue territórios e separe preço efetivo de volume faturado.",
+      "Compare períodos, investigue territórios e analise preço observado e consumo medido.",
     requirementId: "WEB-02",
     requiredPermission: "revenue:read",
     icon: ChartNoAxesCombined,

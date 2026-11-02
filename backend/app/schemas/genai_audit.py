@@ -32,7 +32,9 @@ class GenAIAuditEvent(BaseModel):
     catalog_version: Literal["v1"] | None = None
     plan_id: Hex64 | None = None
     evidence_ref: Hex64 | None = None
-    prompt_version: Literal["genai-grounding-v1", "genai-grounding-v2", "genai-grounding-v3"] = "genai-grounding-v3"
+    prompt_version: Literal[
+        "genai-grounding-v1", "genai-grounding-v2", "genai-grounding-v3", "genai-grounding-v4",
+    ] = "genai-grounding-v4"
 
 
 class AuditExecutionArtifact(BaseModel):

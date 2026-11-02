@@ -372,7 +372,7 @@ def test_gemini_and_fake_model_use_the_same_core_and_business_response() -> None
     assert (
         answers
         == [
-            "Demonstração sintética: energy.consumption — período de demonstração: "
+            "Demonstração sintética: Resultado da consulta — período de demonstração: "
             "420 unidades fictícias."
         ]
         * 2

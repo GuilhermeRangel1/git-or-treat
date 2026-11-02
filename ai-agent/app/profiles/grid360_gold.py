@@ -223,6 +223,31 @@ _BUSINESS_METRICS = {
 }
 
 
+_BUSINESS_METRICS["network.interruption_events"] = (
+    "Ocorrências distintas de interrupção",
+    "Conta eventos distintos no alimentador registrado na ocorrência e mês de "
+    "abertura UTC; um evento associado a várias UCs conta uma vez. Não é DEC nem FEC.",
+)
+_PRICE_VOLUME_WINDOW = "janelas publicadas de preço-volume"
+_PRICE_VOLUME_LABELS = {
+    "Efeito volume": "R$", "Efeito preço observado": "R$", "Interação preço-volume": "R$",
+    "Entradas na base": "R$", "Saídas da base": "R$", "Sem leitura fora da base": "R$",
+    "Outras parcelas fora da base": "R$", "Variação total": "R$",
+    "Participações de UCs na base comum": "participações",
+    "Participações de UCs observadas": "participações",
+}
+_BUSINESS_METRICS["billing.price_volume"] = (
+    "Decomposição da variação da receita",
+    "Decomposição publicada em preço observado, volume, interação e composição da "
+    "base; não comprova causalidade nem tarifa homologada.",
+)
+_GD_WINDOW = "P1 2022-07 a 2023-06 versus P2 2025-07 a 2026-06"
+_BUSINESS_METRICS["energy.gd_consumption_drop"] = (
+    "UCs elegíveis com GD e queda de consumo superior a 30%",
+    "Conta UCs com GD e queda bruta superior a 30%, com ao menos seis meses com "
+    "leitura em cada janela fixa; não demonstra causa nem origem solar.",
+)
+
 def _metric(
     id_: str,
     domain_id: str,
@@ -244,6 +269,19 @@ def _metric(
         "granularities": granularities,
         "max_window_days": None if accumulated else GOLD_MAX_WINDOW_DAYS,
         "dimension_ids": dimension_ids,
+        "accumulated_metric_id": {
+            "service.attendance": "service.accumulated_attendance",
+            "service.satisfaction": "service.accumulated_satisfaction",
+        }.get(id_),
+        "grouping_dimension_ids": (
+            ("customer.consumption_class", "geography.municipality")
+            if id_ == "billing.revenue" else
+            ("geography.neighborhood",) if id_ == "energy.consumption" else ()
+        ),
+        "comparison_grouping_dimension_ids": (
+            ("geography.neighborhood",) if id_ == "energy.consumption" else ()
+        ),
+        "grouping_requires_comparison": id_ == "energy.consumption",
         "required_filter_dimension_ids": (
             ("network.feeder",) if id_.startswith("network.equivalent_interruption_") else ()
         ),
@@ -277,7 +315,8 @@ _METRICS = (
     _metric(
         "energy.consumption",
         "consumption",
-        ("consumo", "consumo de energia", "energia consumida"),
+        ("consumo", "consumo de energia", "energia consumida", "volume residencial",
+         "volume comercial", "volume de consumo"),
         "kWh",
         ("energy",),
         _COMMERCIAL_WITH_UC,
@@ -304,7 +343,8 @@ _METRICS = (
     _metric(
         "billing.effective_tariff",
         "revenue",
-        ("tarifa média efetiva", "tarifa efetiva", "preço médio por kWh"),
+        ("tarifa média efetiva", "tarifa efetiva", "preço médio por kWh",
+         "preço médio observado da energia"),
         "R$/kWh",
         ("currency",),
         _COMMERCIAL_WITH_UC,
@@ -319,7 +359,8 @@ _METRICS = (
     _metric(
         "energy.average_consumption_per_uc",
         "consumption",
-        ("consumo médio por UC", "consumo médio por unidade consumidora"),
+        ("consumo médio por UC", "consumo médio por unidade consumidora",
+         "consumo médio por unidade com leitura"),
         "kWh por UC com leitura no mês",
         ("energy",),
         _COMMERCIAL,
@@ -371,7 +412,7 @@ _METRICS = (
     _metric(
         "service.satisfaction",
         "service",
-        ("satisfação", "nota de satisfação"),
+        ("satisfação", "nota de satisfação", "satisfação média"),
         "pontos",
         ("score",),
         ("customer.consumer_unit",),
@@ -403,6 +444,85 @@ _METRICS = (
         ),
         accumulated=True,
     ),
+)
+
+
+_METRICS += (
+    {
+        **_metric(
+            "billing.price_volume",
+            "revenue",
+            ("efeito preço", "efeito volume", "preço e volume", "decomposição da receita"),
+            "R$",
+            ("currency",),
+            ("geography.municipality", "geography.neighborhood", "customer.consumption_class"),
+            (
+                "Preço observado não é tarifa homologada nem causa comprovada. Base "
+                "comum requer seis "
+                "pares de meses válidos por UC; entradas, saídas e parcelas fora da "
+                "base permanecem separadas. "
+                "Contagens por recorte são participações, não UCs únicas globais.",
+            ),
+            accumulated=True,
+        ),
+        "default_period_phrase": _PRICE_VOLUME_WINDOW,
+        "accumulated_period_phrases": (_PRICE_VOLUME_WINDOW,),
+        "absorbed_metric_ids": ("billing.revenue",),
+        "observation_labels": _PRICE_VOLUME_LABELS,
+        "requires_published_windows": True,
+        "evidence_fields": [
+            *_evidence_fields(
+                ("geography.municipality", "geography.neighborhood", "customer.consumption_class")
+            ),
+            _field("label", "label", "string"),
+        ],
+    },
+)
+
+_METRICS += (
+    {
+        **_metric(
+            "network.interruption_events",
+            "network",
+            ("quantas interrupções", "número de interrupções", "contagem de interrupções"),
+            "ocorrências",
+            ("count",),
+            ("network.feeder",),
+            (
+                "Conta eventos distintos, não pares UC–ocorrência; alimentador do "
+                "evento e abertura UTC. "
+                "Ausência de linha não comprova zero; não é apuração regulatória DEC/FEC.",
+            ),
+            granularities=("month",),
+        ),
+        "required_filter_dimension_ids": ("network.feeder",),
+    },
+)
+
+_METRICS += (
+    {
+        **_metric(
+            "energy.gd_consumption_drop",
+            "consumption",
+            ("queda de consumo acima de 30%", "queda de consumo superior a 30%"),
+            "UCs",
+            ("count",),
+            ("geography.municipality", "generation.distributed"),
+            (
+                "Janelas fixas P1 julho/2022 a junho/2023 e P2 julho/2025 a junho/2026; "
+                "somente UCs com ao menos seis meses com leitura em cada janela e "
+                "base inicial positiva. "
+                "Comparação indisponível não equivale a ausência de queda; GD não "
+                "prova causa nem fonte solar.",
+            ),
+            accumulated=True,
+        ),
+        "aggregate_subject_aliases": ("UCs", "unidades consumidoras"),
+        "default_period_phrase": _GD_WINDOW,
+        "accumulated_period_phrases": (_GD_WINDOW,),
+        "fixed_filter_values": {"generation.distributed": "Sim"},
+        "required_filter_dimension_ids": ("generation.distributed",),
+    },
 )
 
 
@@ -438,8 +558,16 @@ def _build_profile() -> DomainProfile:
         *values["units"],
         {"id": "service.score", "kind": "score", "aliases": ("ponto", "pontos")},
     )
-    values["metrics"] = _METRICS
-    values["dimensions"] = _DIMENSIONS
+    values["metrics"] = tuple(
+        {**metric, "supports_comparison": metric["id"] in {
+            "billing.revenue", "energy.consumption",
+        }} for metric in _METRICS
+    )
+    values["dimensions"] = tuple(
+        {**dimension, "parent_dimension_id": "geography.municipality"}
+        if dimension["id"] == "geography.neighborhood" else dimension
+        for dimension in _DIMENSIONS
+    )
     # Frases relativas; o planejador resolve limites com as competências do lote recebido.
     values["period_phrases"] = (
         "últimos 12 meses",
@@ -450,15 +578,19 @@ def _build_profile() -> DomainProfile:
         "últimos 3 meses",
         "mês passado",
         "este ano",
+        "neste ano",
         "histórico acumulado",
+        _GD_WINDOW,
+        _PRICE_VOLUME_WINDOW,
     )
     values["period_windows"] = ()
     values["default_period_phrase"] = None
     values["structured_dimension_filters"] = True
-    values["supports_grouping"] = False
-    values["supports_ordering"] = False
+    values["supports_grouping"] = True
+    values["supports_ordering"] = True
     values["default_period_context_phrases"] = ()
     values["comparison_period_phrases"] = ()
+    values["comparison_terms"] = (*values["comparison_terms"], "perdeu")
     values["non_location_phrases"] = ()
     values["ambiguities"] = (
         *values["ambiguities"],
@@ -467,6 +599,9 @@ def _build_profile() -> DomainProfile:
                 "valor pago", "valores pagos", "quanto foi pago", "receita recebida",
                 "receita paga", "valor recebido", "arrecadação", "arrecadado",
                 "pagamento", "pagamentos", "faturas pagas",
+                "receita arrecadada", "receitas arrecadadas", "valores arrecadados",
+                "faturamento arrecadado", "faturamento recebido", "faturamento pago",
+                "valores recebidos", "receitas recebidas", "receitas pagas",
             ),
             "clarification": (
                 "Receita faturada não comprova pagamento ou arrecadação. "
@@ -492,12 +627,15 @@ def _build_profile() -> DomainProfile:
         },
         {
             "phrases": ("solar", "energia solar", "painel solar", "painéis solares"),
+            "examples": ("Quantas UCs com GD em {geography.municipality} "
+                         "tiveram queda de consumo acima de 30%?",),
             "clarification": (
-                "A Gold v2 registra geração distribuída (GD), mas não confirma que a origem "
+                "Os dados identificam geração distribuída (GD), mas não confirmam que a fonte "
                 "seja solar. Posso filtrar UCs com ou sem GD registrada?"
             ),
         },
         {
+            "resolved_metric_ids": ("network.interruption_events",),
             "phrases": (
                 "interrupção",
                 "interrupções",
@@ -553,6 +691,8 @@ def _build_profile() -> DomainProfile:
             "phrases": (
                 "acima de", "abaixo de", "maior que", "menor que", "entre valores",
                 "mais de", "menos de", "pelo menos",
+                "superior a", "inferior a", "maior ou igual a", "menor ou igual a",
+                "igual a", "no mínimo", "no máximo",
             ),
             "clarification": (
                 "Esse filtro por valor ainda não está disponível no planejamento. "

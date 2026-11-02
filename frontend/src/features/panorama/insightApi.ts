@@ -38,7 +38,13 @@ export async function requestPanoramaInsight(
     response = await apiClient<unknown>("/api/v1/ai/insights", {
       method: "POST",
       signal,
-      body: JSON.stringify({ filters, loteVersao: data.loteVersao }),
+      body: JSON.stringify({
+        filters,
+        loteVersao: data.loteVersao,
+        ...(data.origem?.kind === "gold" && data.origem.fingerprint
+          ? { fingerprint: data.origem.fingerprint }
+          : {}),
+      }),
     });
   } catch (error) {
     if (error instanceof ApiError) {
@@ -68,12 +74,31 @@ export async function requestPanoramaInsight(
   }
 
   try {
-    return decodePanoramaInsight(
+    const result = decodePanoramaInsight(
       response,
       filters,
       data.loteVersao,
       data.dataAtualizacao,
+      data.origem?.isDemo ?? true,
     );
+    if (
+      data.origem?.kind === "gold" &&
+      data.origem.fingerprint &&
+      result.source.fingerprint !== data.origem.fingerprint
+    )
+      throw new Error("A publicação do insight mudou.");
+    const metric =
+      data.origem?.kind === "gold"
+        ? data.metricas.receitaFaturada
+        : data.metricas.energiaFaturada;
+    if (
+      result.insight.status === "answered" &&
+      (result.metric.id !== metric.id ||
+        result.insight.context.unit !== metric.unidade ||
+        result.insight.observation.values[0]?.value !== metric.valorAtual)
+    )
+      throw new Error("O insight não corresponde aos números exibidos.");
+    return result;
   } catch {
     throw new PanoramaInsightApiError(
       "O serviço retornou um insight incompatível com o recorte atual.",

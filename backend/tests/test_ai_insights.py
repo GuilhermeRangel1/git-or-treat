@@ -6,9 +6,9 @@ import httpx
 import pytest
 
 from app.main import app
+from app.api.v1.endpoints.ai import get_panorama_insight_repository
 from app.repositories.panorama import (
     SyntheticPanoramaRepository,
-    get_panorama_repository,
 )
 from app.schemas.ai_insight import AIInsightResponse, PanoramaInsightRequest
 from app.services.genai_client import (
@@ -100,7 +100,7 @@ def insight_repository(monkeypatch):
     repository = SyntheticPanoramaRepository()
     repository.records = [dict(row) for row in repository.records]
     monkeypatch.setitem(
-        app.dependency_overrides, get_panorama_repository, lambda: repository
+        app.dependency_overrides, get_panorama_insight_repository, lambda: repository
     )
     return repository
 
@@ -109,7 +109,7 @@ def test_panorama_insight_context_is_recomputed_from_the_active_source():
     request = PanoramaInsightRequest.model_validate(_request())
 
     payload, metric, source, analysis = build_panorama_insight(
-        get_panorama_repository(), request
+        get_panorama_insight_repository(), request
     )
 
     assert payload.screen.metric == "Energia Faturada"
@@ -156,7 +156,7 @@ def test_observed_zero_still_reaches_genai(client, monkeypatch):
         for row in repository.records
     ]
     previous = app.dependency_overrides.copy()
-    app.dependency_overrides[get_panorama_repository] = lambda: repository
+    app.dependency_overrides[get_panorama_insight_repository] = lambda: repository
     gateway = RecordingInsightGateway()
     monkeypatch.setattr(app.state, "genai_insight_client", gateway, raising=False)
     try:
@@ -315,7 +315,7 @@ def test_panorama_insight_explains_largest_class_contribution_to_decline():
         _request(municipio="Olinda", classe="todas")
     )
 
-    _, _, _, analysis = build_panorama_insight(get_panorama_repository(), request)
+    _, _, _, analysis = build_panorama_insight(get_panorama_insight_repository(), request)
 
     assert analysis.direcao == "queda"
     assert analysis.variacaoPercentual == -10.17
@@ -333,7 +333,7 @@ def test_panorama_insight_explains_municipal_decline_without_offsetting_increase
         _request(municipio="todos", classe="todas")
     )
 
-    _, _, _, analysis = build_panorama_insight(get_panorama_repository(), request)
+    _, _, _, analysis = build_panorama_insight(get_panorama_insight_repository(), request)
 
     assert analysis.direcao == "queda"
     assert analysis.variacaoPercentual == -10.0

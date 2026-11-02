@@ -30,3 +30,5 @@ relacionados na mesma mudança.
 - [ADR-0022 — Perfis de acesso da plataforma](0022-perfis-de-acesso-web10.md): aprovada em 01/11/2026 para WEB-10; perfil único por conta, permissões fixas calculadas no Backend, contas legadas sem concessão implícita e admin limitado às capacidades efetivamente disponíveis.
 
 - [D20 — projeção cadastral restrita](../../data-engineering/decisoes-tecnicas.md#93-exclusão-de-dados-pessoais-na-projeção-gold-d20-decidido): revisão pontual solicitada em 30/10/2026 para nome de exibição do titular, fora dos agregados e da GenAI; contratos e ACLs do consumidor continuam pendentes.
+
+- [ADR-0022 — Consumo das métricas documentadas na Gold v2](0022-consumo-metricas-documentadas-gold-v2.md): implementação local de comparação mensal, ranking de variação, GD/queda, eventos distintos e decomposição publicada; controles, cobertura e homologação permanecem distintos.

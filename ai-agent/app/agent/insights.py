@@ -32,6 +32,7 @@ from app.providers.protocols import (
 from app.schemas.access import AccessContext
 from app.schemas.evidence import EvidenceReference, EvidenceResult
 from app.schemas.insights import (
+    GoldScreenContext,
     InsightContextSummary,
     InsightObservation,
     ScreenContext,
@@ -86,7 +87,9 @@ class ScreenInsightOrchestrator:
         except asyncio.CancelledError:
             with suppress(AuditUnavailable):
                 await trace.emit_async(
-                    EventStage.RESPONSE, EventCode.CANCELLED, EventOutcome.CANCELLED,
+                    EventStage.RESPONSE,
+                    EventCode.CANCELLED,
+                    EventOutcome.CANCELLED,
                 )
             raise
         except ExecutionLimitExceeded:
@@ -140,6 +143,13 @@ class ScreenInsightOrchestrator:
     ) -> ScreenInsightResponse:
         try:
             self._access_policy.authorize_insight(access_context)
+            if isinstance(screen, GoldScreenContext) and (
+                access_context is None
+                or "billing.revenue" not in access_context.allowed_metric_ids
+                or not {"geography.municipality", "customer.consumption_class"}
+                <= access_context.allowed_dimension_ids
+            ):
+                raise EvidenceAccessDenied("escopo do Panorama indisponível")
         except EvidenceAccessDenied:
             await trace.emit_async(EventStage.POLICY, EventCode.DENIED, EventOutcome.REFUSED)
             failure = map_failure(FailureCode.ACCESS_DENIED)
@@ -157,13 +167,16 @@ class ScreenInsightOrchestrator:
         context_id = token_hex(32)
         records: list[dict[str, object]] = [
             {
-                "metric": "Indicador demonstrativo da tela",
+                "metric": screen.metric
+                if isinstance(screen, GoldScreenContext)
+                else "Indicador demonstrativo da tela",
                 "unit": screen.unit,
                 "period": screen.period.model_dump(mode="json"),
                 "filter_keys": sorted(screen.filters),
                 "observations": [
                     {
-                        "observation_id": f"row_{index}", "value": item.value,
+                        "observation_id": f"row_{index}",
+                        "value": item.value,
                         "context_id": context_id,
                     }
                     for index, item in enumerate(screen.observations, start=1)
@@ -172,9 +185,17 @@ class ScreenInsightOrchestrator:
         ]
         evidence = EvidenceResult(
             reference=EvidenceReference(
-                source=safe_reference_source("synthetic.screen", screen.reference.source),
-                description="Contexto sintético de tela fornecido pelo cliente.",
-                is_demo=True,
+                source=(
+                    "gold.local"
+                    if isinstance(screen, GoldScreenContext)
+                    else safe_reference_source("synthetic.screen", screen.reference.source)
+                ),
+                description=(
+                    screen.reference.description
+                    if isinstance(screen, GoldScreenContext)
+                    else "Contexto sintético de tela fornecido pelo cliente."
+                ),
+                is_demo=not isinstance(screen, GoldScreenContext),
             ),
             records=records,
         )
@@ -241,7 +262,8 @@ class ScreenInsightOrchestrator:
         }
         claim_observations = {
             key: {
-                "value": item.value, "unit": screen.unit,
+                "value": item.value,
+                "unit": screen.unit,
                 "period": f"{screen.period.start} a {screen.period.end}",
             }
             for key, item in observations.items()
@@ -251,8 +273,11 @@ class ScreenInsightOrchestrator:
             or len(set(generated.observation_ids)) != len(generated.observation_ids)
             or not set(generated.observation_ids) <= set(observations)
             or has_unsupported_claims(
-                generated, claim_observations, metric=screen.metric,
-                period=f"{screen.period.start} a {screen.period.end}", filters=screen.filters,
+                generated,
+                claim_observations,
+                metric=screen.metric,
+                period=f"{screen.period.start} a {screen.period.end}",
+                filters=screen.filters,
                 context_id=context_id,
             )
         ):
@@ -316,12 +341,24 @@ class ScreenInsightOrchestrator:
             error=error,
             evidence=[
                 EvidenceReference(
-                    source=safe_reference_source("synthetic.screen", screen.reference.source),
-                    description="Contexto sintético de tela fornecido pelo cliente.",
-                    is_demo=True,
+                    source=(
+                        "gold.local"
+                        if isinstance(screen, GoldScreenContext)
+                        else safe_reference_source("synthetic.screen", screen.reference.source)
+                    ),
+                    description=(
+                        screen.reference.description
+                        if isinstance(screen, GoldScreenContext)
+                        else "Contexto sintético de tela fornecido pelo cliente."
+                    ),
+                    is_demo=not isinstance(screen, GoldScreenContext),
                 )
             ]
             if expose_context
             else [],
-            limitations=SYNTHETIC_INSIGHT_LIMITATIONS,
+            limitations=(
+                list(screen.limitations)
+                if isinstance(screen, GoldScreenContext)
+                else SYNTHETIC_INSIGHT_LIMITATIONS
+            ),
         )

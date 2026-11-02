@@ -35,6 +35,10 @@ def gold_postgres(tmp_path, monkeypatch):
         connection.exec_driver_sql("CREATE SCHEMA gold")
         connection.exec_driver_sql("CREATE SCHEMA gold_v2")
     Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("CREATE VIEW gold.publicacao_contexto AS "
+            "SELECT schema_version,lote,publication_id,fingerprint,importado_em "
+            "FROM public.gold_carga_atual WHERE id=1")
 
     monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
     monkeypatch.setattr(settings, "APP_ENV", "development")
@@ -102,6 +106,8 @@ def gold_postgres(tmp_path, monkeypatch):
     try:
         yield engine, folder, write_batch, write_token, read_token, override_db, first_publication
     finally:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("DROP VIEW gold.publicacao_contexto")
         Base.metadata.drop_all(engine)
         with engine.begin() as connection:
             connection.exec_driver_sql("DROP SCHEMA gold CASCADE")

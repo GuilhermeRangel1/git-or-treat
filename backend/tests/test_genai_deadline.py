@@ -3,7 +3,6 @@
 import asyncio
 
 import pytest
-
 from app.services.genai_client import GenAITimeout
 from app.services.genai_deadline import GenAIRequestDeadline
 
@@ -134,3 +133,18 @@ def test_operation_cannot_swallow_stage_cancellation_and_return_late_result():
             await deadline.run(0.01, ignores_cancellation)
 
     asyncio.run(scenario())
+
+
+def test_gold_budget_survives_old_limit_without_extending_sql_or_resetting():
+    from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
+
+    now = [0.0]
+    deadline = GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS, clock=lambda: now[0])
+    now[0] = 40.0
+    assert deadline.remaining_timeout_ms(GOLD_REQUEST_TIMEOUT_SECONDS) == 20000
+    assert deadline.sql_timeout_ms(5) == 5000
+    now[0] = 59.0
+    assert deadline.sql_timeout_ms(5) == 1000
+    now[0] = 60.0
+    with pytest.raises(GenAITimeout):
+        deadline.remaining_timeout_ms(GOLD_REQUEST_TIMEOUT_SECONDS)

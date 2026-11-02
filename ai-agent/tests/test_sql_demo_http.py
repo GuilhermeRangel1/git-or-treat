@@ -46,6 +46,7 @@ def test_question_reads_approved_revenue_from_synthetic_database(tmp_path) -> No
     assert body["status"] == "answered"
     assert "3500.5 unidades fictícias" in body["answer"]
     assert body["analysis_context"] == {
+        "batch_reference": None,
         "metric": "billing.revenue",
         "metric_label": None,
         "metric_definition": None,

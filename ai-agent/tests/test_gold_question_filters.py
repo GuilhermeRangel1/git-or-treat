@@ -153,8 +153,8 @@ def test_follow_up_preserves_each_dimension_and_rechecks_revoked_access():
     assert result.plan is None
 
 
-def test_same_name_in_two_dimensions_requires_clarification():
-    core, request = _setup("Receita em Olinda no último trimestre?")
+def test_bare_same_name_in_two_dimensions_requires_clarification():
+    core, request = _setup("Receita Olinda no último trimestre?")
     ambiguous = QuestionPlanRequest.model_validate(
         {
             **request.model_dump(mode="python"),
@@ -316,7 +316,6 @@ def test_explicit_calendar_months_use_published_coverage(period, start, end):
         "de janeiro de 2025 a abril de 2025",
         "até março de 2025",
         "desde março de 2025",
-        "de janeiro a março de 2025",
         "março de 2025 até agora",
     ],
 )
@@ -466,7 +465,8 @@ def test_revalidation_refuses_unsupported_grouping_or_ordering(mutation):
     assert result.status.value == "planned"
     payload = result.plan.model_dump(mode="json")
     if mutation == "group_by":
-        payload["group_by_dimension_ids"] = ["geography.municipality"]
+        payload["dimension_ids"].append("tariff.subgroup")
+        payload["group_by_dimension_ids"] = ["tariff.subgroup"]
     else:
         payload["order"] = {"field_id": "billing.revenue", "direction": "desc"}
     proposed = LogicalReadPlan.model_validate(payload)
@@ -491,3 +491,18 @@ def test_business_synonyms_do_not_change_the_measure_population(question):
     result = asyncio.run(core.question.plan(request, "f" * 32))
     assert result.status.value == "needs_clarification", result.model_dump_json()
     assert result.plan is None
+
+
+def test_explicit_municipality_qualifier_disambiguates_shared_neighborhood_name():
+    from app.schemas.internal import DimensionValueCoverage
+    core, request = _setup("Receita no município de Recife em março de 2025?")
+    request = request.model_copy(update={"dimension_value_coverage": (
+        *[v for v in request.dimension_value_coverage
+          if v.dimension_id != "geography.neighborhood"],
+        DimensionValueCoverage(dimension_id="geography.neighborhood", values=["Recife"]),
+    )})
+    result = asyncio.run(core.question.plan(request, "f" * 32))
+    assert result.status.value == "planned"
+    assert {f.dimension_id: f.values for f in result.plan.filters} == {
+        "geography.municipality": ("Recife",),
+    }

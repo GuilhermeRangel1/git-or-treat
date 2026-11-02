@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from typing import Any
@@ -362,13 +363,27 @@ def _gold_metric(
     )
 
 
-def build_gold_panorama(
-    repository: GoldPanoramaRepository,
-    competencia: str | None,
-    comparacao: str,
-    municipio: str,
-    classe: str,
-) -> PanoramaData:
+@dataclass(frozen=True)
+class GoldFinancialSnapshot:
+    periods: list[str]
+    municipalities: list[str]
+    classes: list[str]
+    period: str
+    comparison: str
+    municipality: str
+    consumption_class: str
+    selected_municipality: str | None
+    selected_class: str | None
+    reference: str | None
+    actual: dict[str, Any]
+    prior: dict[str, Any] | None
+
+
+def read_gold_panorama_financials(
+    repository: GoldPanoramaRepository, competencia: str | None,
+    comparacao: str, municipio: str, classe: str,
+) -> GoldFinancialSnapshot:
+    """Lê somente o diagnóstico financeiro autorizado, sem cadastro individual."""
     periods, municipalities, classes = repository.options()
     if not periods:
         raise AnalyticsAPIError(503, "source_unavailable", "A fonte Gold não contém competências publicadas.")
@@ -385,6 +400,57 @@ def build_gold_panorama(
         repository.aggregate(reference, selected_municipality, selected_class)
         if reference and reference in periods else None
     )
+
+    return GoldFinancialSnapshot(periods, municipalities, classes, period, compare, municipality,
+            consumption_class, selected_municipality, selected_class, reference, actual, prior)
+
+
+def gold_panorama_revenue_metric(actual: dict[str, Any], prior: dict[str, Any] | None, reference: str | None) -> PanoramaMetric:
+    """Uma regra de receita comparável compartilhada pelo KPI e pelo insight."""
+    def status(row):
+        if row is None or row["row_count"] == 0:
+            return "empty"
+        if row["revenue_values"] == 0:
+            return "unavailable"
+        return "partial" if row["revenue_values"] < row["row_count"] else "available"
+    state = status(actual)
+    comparison = ("empty" if not reference or prior is None else
+                  "partial" if state == status(prior) == "available" else "unavailable")
+    if comparison == "partial":
+        comparison_limits = ["Ambas as competências têm valores observados, mas a Gold não declara fechamento mensal; variações descrevem somente os valores publicados."]
+    elif reference and prior is None:
+        comparison_limits = ["A competência de comparação não foi observada na fonte Gold."]
+    elif reference:
+        comparison_limits = ["Uma das competências tem valores ausentes ou indisponíveis; variação não calculada."]
+    else:
+        comparison_limits = ["Nenhuma competência de comparação foi solicitada."]
+    limits = ([] if state == "available" else
+        ["Não há linha Gold para a competência e os filtros selecionados."] if state == "empty" else
+        ["Valores ausentes em alguma dimensão; o total soma somente o que foi observado."] if state == "partial" else
+        ["A tabela Gold não contém esta grandeza."])
+    return _gold_metric(
+        "rec_fat", "Receita comparável", "Faturamento com todas as leituras observadas válidas",
+        "financeiro", "faturado", actual["revenue"],
+        prior["revenue"] if comparison == "partial" else None, "R$",
+        "Faturamento de UC/mês com fatura e todas as leituras observadas válidas.",
+        "Σ(receita_base_comparavel_reais)", state, limits,
+        comparison_status=comparison, comparison_limitations=comparison_limits,
+    )
+
+
+def build_gold_panorama(
+    repository: GoldPanoramaRepository,
+    competencia: str | None,
+    comparacao: str,
+    municipio: str,
+    classe: str,
+) -> PanoramaData:
+    financials = read_gold_panorama_financials(repository, competencia, comparacao, municipio, classe)
+    periods, municipalities, classes = financials.periods, financials.municipalities, financials.classes
+    period, compare = financials.period, financials.comparison
+    municipality, consumption_class = financials.municipality, financials.consumption_class
+    selected_municipality, selected_class = financials.selected_municipality, financials.selected_class
+    reference, actual, prior = financials.reference, financials.actual, financials.prior
 
     billed_count = repository.billed_uc_count(period, selected_municipality, selected_class)
     prior_billed_count = repository.billed_uc_count(reference, selected_municipality, selected_class) if prior is not None else None
@@ -453,7 +519,6 @@ def build_gold_panorama(
             return ["Uma das competências tem valores ausentes ou indisponíveis; variação não calculada."]
         return ["Nenhuma competência de comparação foi solicitada."]
 
-    revenue_comparison = comparison_state(revenue_status == "available", prior_revenue_status == "available")
     energy_comparison = comparison_state(energy_status == "available", prior_energy_status == "available")
     price_comparison = comparison_state(
         price is not None and revenue_status == energy_status == "available",
@@ -468,14 +533,7 @@ def build_gold_panorama(
         prior_continuity is not None and prior_continuity.fec_interruptions_per_uc is not None,
     )
     metrics = {
-        "receitaFaturada": _gold_metric(
-            "rec_fat", "Receita comparável", "Faturamento com todas as leituras observadas válidas",
-            "financeiro", "faturado", revenue, prior_revenue if revenue_comparison == "partial" else None, "R$",
-            "Faturamento de UC/mês com fatura e todas as leituras observadas válidas.",
-            "Σ(receita_base_comparavel_reais)", revenue_status,
-            metric_limit if revenue_status == "empty" else (base_limit if revenue_status == "partial" else ([] if revenue_status == "available" else unavailable)),
-            comparison_status=revenue_comparison, comparison_limitations=comparison_limitations(revenue_comparison),
-        ),
+        "receitaFaturada": gold_panorama_revenue_metric(actual, prior, reference),
         "receitaPaga": _gold_metric(
             "rec_pag", "Receita Paga", "Indisponível na exportação Gold", "financeiro", "pago",
             None, None, "R$", "A Gold não contém pagamentos.", "indisponível",

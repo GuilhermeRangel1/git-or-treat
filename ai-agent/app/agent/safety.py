@@ -409,6 +409,8 @@ _SECURITY_RULES = (
     # rankings agregados; "quem é o titular da UC" pede a identidade.
     _rule(
         "pii_identity",
+        r"\b(?:mostre|exiba|revele|copie)\b.{0,40}\b(?:cliente|titular)\s+escreveu\b"
+        r".{0,40}\b(?:chamado|atendimento|protocolo)\b",
         r"\b(?:dados pessoais|nomes? completos?|todos os clientes)\b",
         rf"\bdados (?:cadastrais|de cadastro)\b.{{0,15}}\b(?:{_PERSON})\b",
         r"\bquem (?:e|sao|seria|era|eram)\s+"

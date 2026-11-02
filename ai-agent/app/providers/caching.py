@@ -16,8 +16,11 @@ from app.providers.protocols import (
 )
 from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
+from app.schemas.read_plan import normalized_filters
+from app.telemetry import record_execution
 
-CACHE_KEY_VERSION = 1
+# v2: filtros normalizados e catálogo físico da proveniência na chave.
+CACHE_KEY_VERSION = 2
 
 
 def cache_key(
@@ -26,8 +29,17 @@ def cache_key(
     evidence: EvidenceResult,
     namespace: str,
 ) -> str:
-    """Hash estável das entradas; qualquer mudança na evidência gera outra chave."""
+    """Hash estável das entradas; qualquer mudança na evidência gera outra chave.
 
+    A proveniência inclui lote, qualidade e catálogo físico; filtros entram na forma
+    canônica para que a ordem não separe recortes iguais.
+    """
+
+    evidence_payload = evidence.model_dump(mode="json")
+    if evidence.provenance is not None:
+        evidence_payload["provenance"]["filters"] = normalized_filters(
+            evidence.provenance.filters
+        )
     payload = json.dumps(
         {
             "v": CACHE_KEY_VERSION,
@@ -35,7 +47,7 @@ def cache_key(
             "scope": evidence.cache_scope,
             "question": question,
             "context": [turn.model_dump(mode="json") for turn in context],
-            "evidence": evidence.model_dump(mode="json"),
+            "evidence": evidence_payload,
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -87,7 +99,9 @@ class CachingModelAdapter:
         key = cache_key(question, context, evidence, self._namespace)
         cached = self._lookup(key)
         if cached is not None:
+            record_execution("cache", 0, 0, "hit")
             return cached.model_copy()
+        record_execution("cache", 0, 0, "miss")
 
         task = self._in_flight.get(key)
         if task is None or task.done():

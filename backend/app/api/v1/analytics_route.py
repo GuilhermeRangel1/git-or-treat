@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.datastructures import QueryParams
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.analytics import AnalyticsAPIError
 
@@ -27,6 +28,10 @@ class AnalyticsRoute(APIRoute):
         async def analytics_handler(request: Request):
             try:
                 return await original_handler(request)
+            except SQLAlchemyError:
+                return JSONResponse(status_code=503, headers={"Cache-Control": "no-store"}, content={"error": {
+                    "code": "source_unavailable", "message": "A fonte analítica está indisponível; confira a carga e as migrações.", "details": [],
+                }})
             except RequestValidationError as exc:
                 details = [
                     {"field": ".".join(str(part) for part in error.get("loc", ()) if part != "query"), "message": "Valor inválido ou ausente."}

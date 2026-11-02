@@ -1,6 +1,7 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
+from app.core.analytics_access import require_gold_analytics_read
 
 from app.api.v1.analytics_route import AnalyticsRoute
 from app.core.platform_identity import require_permission
@@ -21,7 +22,7 @@ from app.services.uc_analytics import (
     build_uc_search,
 )
 
-router = APIRouter(route_class=AnalyticsRoute, dependencies=[Depends(require_permission("ucs:read"))])
+router = APIRouter(route_class=AnalyticsRoute, dependencies=[Depends(require_permission("ucs:read")), Depends(require_gold_analytics_read)])
 AnalyticsRepositoryDep = Annotated[
     AnalyticsRepository, Depends(get_analytics_repository)
 ]
@@ -37,6 +38,17 @@ def _uc_metadata(
     return result
 
 
+def _source_period(repository):
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        months = repository.options()["competencias"]
+        if not months:
+            from app.services.analytics import AnalyticsAPIError
+            raise AnalyticsAPIError(503, "source_unavailable", "Gold sem competências observadas.")
+        return months[0], months[-1]
+    return DEFAULT_START, DEFAULT_END
+
+
 @router.get(
     "",
     response_model=AnalyticsListResponse[UCListItem],
@@ -45,18 +57,20 @@ def _uc_metadata(
 def search_ucs(
     repository: AnalyticsRepositoryDep,
     q: str | None = Query(None, max_length=100),
+    municipio: str | None = Query(None, max_length=100),
+    classe: str | None = Query(None, max_length=100),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     order_by: str = Query("uc_id", max_length=32),
 ):
     selected, pagination, state = build_uc_search(
-        repository, q, page, page_size, order_by
+        repository, q, municipio, classe, page, page_size, order_by
     )
     return {
         "data": {"items": selected},
         "pagination": pagination,
         "metadata": metadata(
-            repository, state, DEFAULT_START, DEFAULT_END, AnalyticsFilters()
+            repository, state, *_source_period(repository), AnalyticsFilters()
         ),
     }
 
@@ -100,6 +114,7 @@ def get_uc_history(
         "distributed_generation",
         "interruptions",
         "calls",
+        "treatments",
     ],
     repository: AnalyticsRepositoryDep,
     start: str | None = Query(None, min_length=7, max_length=7),
@@ -133,6 +148,6 @@ def get_uc_history(
 def get_uc_360(uc_id: str, repository: AnalyticsRepositoryDep):
     data, state, limitations = build_uc_detail(repository, uc_id)
     filters = AnalyticsFilters()
-    result_metadata = metadata(repository, state, DEFAULT_START, DEFAULT_END, filters)
+    result_metadata = metadata(repository, state, *_source_period(repository), filters)
     result_metadata.limitations.extend(limitations)
     return {"data": data, "metadata": result_metadata}

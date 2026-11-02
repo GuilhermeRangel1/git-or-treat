@@ -19,6 +19,7 @@ from app.schemas.ai_insight import (
     PanoramaInsightRequest,
     PanoramaInsightSource,
 )
+from app.services.analytics import AnalyticsAPIError
 from app.services.panorama import (
     build_panorama,
     comparison_period,
@@ -57,6 +58,8 @@ def build_panorama_insight(
     )
     if data.loteVersao != request.loteVersao:
         raise StalePanoramaInsight
+    if request.fingerprint is not None:
+        raise AnalyticsAPIError(422, "invalid_request", "Expectativa de publicação exige fonte Gold.")
     if not repository.source_is_demo:
         raise UnsupportedPanoramaInsight
 

@@ -89,7 +89,8 @@ def metadata(repository: AnalyticsRepository, status: AnalyticsStatus, start: st
         status=status,
         period=AnalyticsPeriod(start=start, end=end),
         filters=filters,
-        source=AnalyticsSource(kind=repository.source_kind, version=repository.source_version, is_demo=repository.source_is_demo, updated_at=repository.source_updated_at),
+        source=AnalyticsSource(kind=repository.source_kind, version=repository.source_version, is_demo=repository.source_is_demo, updated_at=repository.source_updated_at,
+                               publication_lote=getattr(repository, "publication_lote", None), publication_fingerprint=getattr(repository, "publication_fingerprint", None)),
         limitations=list(repository.source_limitations),
     )
 

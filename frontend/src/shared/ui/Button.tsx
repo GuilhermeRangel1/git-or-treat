@@ -77,7 +77,10 @@ export default function Button({
     >
       {isLoading ? (
         <>
-          <Loader2 className="size-4 animate-spin shrink-0 text-current" />
+          <Loader2
+            aria-hidden="true"
+            className="size-4 animate-spin shrink-0 text-current motion-reduce:animate-none"
+          />
           {loadingLabel && <span>{loadingLabel}</span>}
         </>
       ) : (

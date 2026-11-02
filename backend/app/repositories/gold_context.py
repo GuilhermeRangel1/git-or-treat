@@ -5,9 +5,9 @@ from datetime import datetime
 import re
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Query, Request
+from fastapi import Depends, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -35,12 +35,16 @@ def load_gold_context(connection: Connection, expected_lote: str | None = None,
                       expected_fingerprint: str | None = None) -> GoldContext:
     """Read current publication metadata on an existing caller-owned connection."""
     try:
-        row = connection.execute(select(
+        statement = select(
             BATCH.c.lote,
             BATCH.c.schema_version,
             BATCH.c.fingerprint,
             BATCH.c.importado_em,
-        ).where(BATCH.c.id == 1)).mappings().one_or_none()
+        ).where(BATCH.c.id == 1)
+        if connection.dialect.name == "postgresql":
+            statement = text("SELECT schema_version, lote, fingerprint, importado_em "
+                             "FROM gold.publicacao_contexto")
+        row = connection.execute(statement).mappings().one_or_none()
     except SQLAlchemyError:
         raise AnalyticsSourceUnavailable() from None
     if row is None:

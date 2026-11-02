@@ -140,9 +140,7 @@ def _client(model_adapter=None, scenario_tool=None) -> InProcessClient:
             ReadAccessPolicy(GRID360_DEMO_PROFILE, SYNTHETIC_SOURCE_ID),
         ),
         model_adapter=model_adapter or FakeModelAdapter(),
-        safety_gate=QuestionSafetyGate(
-            out_of_scope_terms=GRID360_DEMO_PROFILE.out_of_scope_terms
-        ),
+        safety_gate=QuestionSafetyGate(out_of_scope_terms=GRID360_DEMO_PROFILE.out_of_scope_terms),
     )
     return InProcessClient(
         create_app(
@@ -216,9 +214,7 @@ def test_reworded_demo_questions_resolve_to_the_expected_fixture(
     assert interpretation.status.value == "ready"
     assert interpretation.intent is not None
     assert interpretation.intent.domain == expected_domain
-    result = SyntheticScenarioTool().execute(
-        SyntheticScenarioRequest(intent=interpretation.intent)
-    )
+    result = SyntheticScenarioTool().execute(SyntheticScenarioRequest(intent=interpretation.intent))
 
     assert result.status is ToolStatus.SUCCESS
     assert result.evidence is not None
@@ -238,7 +234,7 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
         "status": "answered",
         "model_tier": None,
         "answer": (
-            "Demonstração sintética: energy.consumption — período de demonstração: "
+            "Demonstração sintética: Resultado da consulta — período de demonstração: "
             "420 unidades fictícias."
         ),
         "message": None,
@@ -257,6 +253,7 @@ def test_http_question_uses_synthetic_evidence_and_returns_its_reference() -> No
         "audit_reference": None,
         "error": None,
         "analysis_context": {
+            "batch_reference": None,
             "metric": "energy.consumption",
             "metric_label": None,
             "metric_definition": None,

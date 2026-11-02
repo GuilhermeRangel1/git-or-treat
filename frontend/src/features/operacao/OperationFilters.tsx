@@ -123,11 +123,12 @@ export default function OperationFilters({
 
   const summary = [
     {
-      label: "Período",
-      value:
-        query.start === query.end
-          ? formatMonth(query.start)
-          : `${formatMonth(query.start)} – ${formatMonth(query.end)}`,
+      label: "Mês inicial",
+      value: formatMonth(query.start),
+    },
+    {
+      label: "Mês final",
+      value: formatMonth(query.end),
     },
     ...(municipalityOptions.length > 0
       ? [
@@ -141,16 +142,7 @@ export default function OperationFilters({
       label: "Alimentador",
       value: query.feederId ?? "Todos os alimentadores",
     },
-    {
-      label: "Ordenação do ranking",
-      value: query.metric === "dec" ? "DEC decrescente" : "FEC decrescente",
-    },
   ];
-  const canReset =
-    Boolean(query.feederId || query.municipality) ||
-    start !== (competencyOptions.at(-1) ?? "2025-01") ||
-    end !== (competencyOptions.at(-1) ?? "2025-02");
-
   return (
     <>
       <section
@@ -314,19 +306,15 @@ export default function OperationFilters({
             </div>
           ) : null}
           <div className="flex flex-col-reverse justify-between gap-3 border-t border-divider pt-4 sm:col-span-2 sm:flex-row sm:items-center">
-            {canReset ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={resetDraft}
-                leftIcon={<RotateCcw className="size-3.5" aria-hidden="true" />}
-              >
-                Limpar filtros
-              </Button>
-            ) : (
-              <span />
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={resetDraft}
+              leftIcon={<RotateCcw className="size-3.5" aria-hidden="true" />}
+            >
+              Limpar filtros
+            </Button>
             <div className="flex justify-end gap-2">
               <Button
                 type="button"

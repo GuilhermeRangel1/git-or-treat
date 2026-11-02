@@ -6,10 +6,12 @@ import json
 import math
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from time import monotonic
 from typing import TypeVar
 
 from app.schemas.access import AccessContext
-from app.schemas.read_plan import LogicalReadPlan
+from app.schemas.read_plan import LogicalReadPlan, cache_plan_digest
+from app.telemetry import record_execution
 
 T = TypeVar("T")
 
@@ -23,7 +25,8 @@ def authorized_cache_scope(context: AccessContext, plan: LogicalReadPlan) -> str
 
     payload = {
         "access": context.model_dump(mode="json", exclude={"correlation_id"}),
-        "plan": plan.fingerprint(),
+        # Filtros normalizados: ordem diferente não separa o mesmo recorte.
+        "plan": cache_plan_digest(plan),
         "catalog_version": plan.catalog_version,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -118,7 +121,7 @@ class RequestBudget:
         if self._source_calls > self._controller.limits.max_source_calls:
             raise ExecutionLimitExceeded("limite de chamadas à fonte")
         return await self._bounded(
-            self._controller._sources, self._controller.limits.source_seconds, action
+            self._controller._sources, self._controller.limits.source_seconds, action, "source"
         )
 
     async def model(self, action: Callable[[], Awaitable[T]]) -> T:
@@ -126,7 +129,7 @@ class RequestBudget:
         if self._model_calls > self._controller.limits.max_model_calls:
             raise ExecutionLimitExceeded("limite de chamadas ao modelo")
         return await self._bounded(
-            self._controller._models, self._controller.limits.model_seconds, action
+            self._controller._models, self._controller.limits.model_seconds, action, "model"
         )
 
     @staticmethod
@@ -134,12 +137,26 @@ class RequestBudget:
         semaphore: asyncio.Semaphore,
         seconds: float,
         action: Callable[[], Awaitable[T]],
+        stage: str,
     ) -> T:
+        started = monotonic()
+        acquired = None
+        outcome = "error"
         try:
             async with asyncio.timeout(seconds) as deadline:
                 async with semaphore:
-                    return await action()
+                    acquired = monotonic()
+                    result = await action()
+                    outcome = "success"
+                    return result
+        except asyncio.CancelledError:
+            outcome = "cancelled"
+            raise
         except TimeoutError:
             if not deadline.expired():
                 raise
             raise ExecutionLimitExceeded("prazo da dependência esgotado") from None
+        finally:
+            finished = monotonic()
+            record_execution(stage, int(((acquired or finished) - started) * 1000),
+                             int((finished - acquired) * 1000) if acquired else 0, outcome)

@@ -55,6 +55,7 @@ export interface PanoramaInsightEnvelope {
   metric: { id: string; definicao: string; formula: string };
   analysis: PanoramaInsightAnalysis;
   source: {
+    fingerprint?: string | null;
     kind: string;
     loteVersao: string;
     dataAtualizacao: string;
@@ -155,6 +156,7 @@ export function decodePanoramaInsight(
   expectedFilters: PanoramaFilters,
   expectedBatch: string,
   expectedUpdatedAt: string,
+  expectedDemo: boolean = true,
 ): PanoramaInsightEnvelope {
   if (
     !isRecord(value) ||
@@ -313,7 +315,8 @@ export function decodePanoramaInsight(
     !isText(value.source.dataAtualizacao, 80) ||
     !Number.isFinite(Date.parse(value.source.dataAtualizacao)) ||
     value.source.dataAtualizacao !== expectedUpdatedAt ||
-    value.source.isDemo !== true
+    value.source.isDemo !== expectedDemo ||
+    value.source.kind !== (expectedDemo ? "synthetic" : "gold")
   ) {
     throw new Error("O insight não corresponde ao lote exibido no Panorama.");
   }
@@ -340,7 +343,14 @@ export function decodePanoramaInsight(
     limitations: decodeTextList(raw.limitations, 22, 300),
   };
 
-  if (status === "answered" && insight.evidence.some((item) => !item.is_demo))
+  if (
+    status === "answered" &&
+    insight.evidence.some(
+      (item) =>
+        item.is_demo !== expectedDemo ||
+        (!expectedDemo && item.source !== "gold.local"),
+    )
+  )
     throw new Error(
       "A resposta não está identificada como demonstração sintética.",
     );
@@ -354,10 +364,14 @@ export function decodePanoramaInsight(
       formula: value.metric.formula,
     },
     source: {
+      fingerprint:
+        typeof value.source.fingerprint === "string"
+          ? value.source.fingerprint
+          : null,
       kind: value.source.kind,
       loteVersao: value.source.loteVersao,
       dataAtualizacao: value.source.dataAtualizacao,
-      isDemo: true,
+      isDemo: expectedDemo,
       limitacoes: decodeTextList(value.source.limitacoes, 20, 300),
     },
   };

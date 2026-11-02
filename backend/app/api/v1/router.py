@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     ai,
+    analytics_options,
     auth,
     genai_audit,
     health,
@@ -14,6 +15,7 @@ from app.api.v1.endpoints import (
 )
 
 api_router = APIRouter()
+api_router.include_router(analytics_options.router, prefix="/analytics", tags=["Catálogo analítico"])
 
 api_router.include_router(genai_audit.router, prefix="/internal", tags=["Interno"])
 

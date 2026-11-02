@@ -106,7 +106,7 @@ def test_official_gold_runtime_preserves_first_question_outcomes(monkeypatch, ca
             assert body.get('answer') is None
             assert body['evidence'] == []
         else:
-            assert '12 R$' in body['answer']
+            assert 'R$ 12,00' in body['answer']
             assert all(not item['is_demo'] for item in body['evidence'])
         if case in {'no_evidence', 'audit_unavailable'}:
             assert calls == []

@@ -228,3 +228,20 @@ class GenAIInsightClient:
         if result.correlation_id != correlation_id:
             raise GenAIResponseInvalid
         return result
+
+
+    async def synthesize_gold(self, payload: dict[str, Any], *, correlation_id: str) -> AIInsightResponse:
+        """Usa a borda interna; o contexto nunca vem diretamente do navegador."""
+        response = await _post_genai_json(
+            http_client=self._http_client, base_url=self._base_url,
+            service_token=self._service_token,
+            path="/api/v1/internal/insight-syntheses", payload=payload,
+            correlation_id=correlation_id,
+        )
+        try:
+            result = AIInsightResponse.model_validate(response)
+        except (ValueError, ValidationError) as exc:
+            raise GenAIResponseInvalid from exc
+        if result.correlation_id != correlation_id:
+            raise GenAIResponseInvalid
+        return result

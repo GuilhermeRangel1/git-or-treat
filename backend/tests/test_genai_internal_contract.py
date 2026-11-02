@@ -119,13 +119,13 @@ def test_one_backend_deadline_supplies_decreasing_budgets_to_both_envelopes():
     from app.services.genai_deadline import GenAIRequestDeadline
 
     now = [0.0]
-    deadline = GenAIRequestDeadline.start(35, clock=lambda: now[0])
+    deadline = GenAIRequestDeadline.start(60, clock=lambda: now[0])
     plan = deepcopy(next(v["payload"] for v in FIXTURE["valid"] if v["id"] == "gold-plan-request-gold-v2"))
-    plan["remaining_timeout_ms"] = deadline.remaining_timeout_ms(35)
-    assert QuestionPlanRequest.model_validate(plan).remaining_timeout_ms == 35000
+    plan["remaining_timeout_ms"] = deadline.remaining_timeout_ms(60)
+    assert QuestionPlanRequest.model_validate(plan).remaining_timeout_ms == 60000
     now[0] = 2
     assert deadline.sql_timeout_ms(5) == 5000
     now[0] = 7
     synthesis = deepcopy(next(v["payload"] for v in FIXTURE["valid"] if v["id"] == "request-synthesis-available-gold-v2"))
-    synthesis["remaining_timeout_ms"] = deadline.remaining_timeout_ms(35)
-    assert QuestionSynthesisRequest.model_validate(synthesis).remaining_timeout_ms == 28000
+    synthesis["remaining_timeout_ms"] = deadline.remaining_timeout_ms(60)
+    assert QuestionSynthesisRequest.model_validate(synthesis).remaining_timeout_ms == 53000

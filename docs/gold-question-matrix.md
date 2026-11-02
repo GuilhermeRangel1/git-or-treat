@@ -1,5 +1,48 @@
 # Matriz de perguntas para o catálogo Gold v2
 
+## Revisão de amostras e provas técnicas — 02/11/2026
+
+A busca apenas na última competência escondia amostras reais de receita e consumo nulos. FAT-13 e CON-10 passaram na API pública após selecionar mês, município e classe da mesma amostra em toda a publicação. FAT-12/13/15 e CON-10 adotam `COMPETENCIA_DA_AMOSTRA`; base zero exige denominador observado, sem converter nulo em zero. Os outros cinco continuam sem amostra após conferência de todas as competências. SEG-06/07 foram revalidados em suítes separadas (1.751 testes GenAI e uma prova PostgreSQL de 102,35 s), sem forçar PASS no runner live. Ver [regras, notebooks, resultados e reprodução](plans/2026-11-02-genai-amostras-e-provas-tecnicas.md). As rodadas completas abaixo permanecem históricas; não foi refeita a matriz inteira nesta fatia.
+
+## Frases naturais observadas no Assistente — 02/11/2026
+
+FAT-01, FAT-04 e CON-01 passaram a usar as frases das capturas (“em Recife” e “no bairro …, em Recife”), mantendo os controles e critérios originais. A conversa real com os seis exemplos teve cinco respostas numéricas reconciliadas e um bloqueio por cobertura, sem divergência; a contagem recebeu rechecagem após o texto final. Essa rodada não substitui uma matriz completa de 57 casos. Ver [textos, comportamento e evidência](plans/2026-11-02-genai-perguntas-da-tela.md).
+
+
+## Revalidação do prazo Gold — 02/11/2026
+
+Com o prazo aprovado de 60 s no Backend e 70 s no Assistente, a matriz completa `20261102T104426_802753Z` terminou com **43 PASS, 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE e 2 NAO_EXECUTADO**, sem falhas inesperadas ou erros de execução. CON-01 passou em 15,93 s; as 22 respostas numéricas têm modelo concluído na auditoria. Os dois casos técnicos foram cobertos separadamente nas suítes. Bloqueios e ausência de amostra continuam limitações da fonte; não equivalem a domínios homologados. SQL mantém teto de 5 s. Ver [evidência e comandos](plans/2026-11-02-genai-prazo-gold.md).
+
+
+## Varredura ampliada de consistência — 02/11/2026
+
+O núcleo passou a reconhecer notação mensal numérica, prefixos mês/competência, espaços/Unicode equivalentes, rótulos de classe e acompanhamentos de período/comparação. Exclusões, arrecadação e limites não representados não viram consultas de inclusão ou total. Uma colisão bairro/município encontrada na rodada real foi corrigida com a relação de dimensão pai, preservando ambiguidades sem qualificador.
+
+Verificações finais: **4160 testes passaram/5 skips de ambiente**, 135 variações artificiais sem divergência. Rodada oficial real `20261102T100421_528580Z`: **42 PASS, 1 FAIL por timeout, 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE e 2 NAO_EXECUTADO**. CON-01 passou na rechecagem isolada em 22,04 s; o timeout anterior permanece registrado. De 18 variações reais, 17 passaram na primeira execução e L04 passou após correção/reteste; auditoria confirmou 10 chamadas de modelo concluídas e 8 esclarecimentos anteriores ao modelo/executor quantitativo. Não equivale a uma nova matriz completa com zero FAIL. Detalhes, controles, resultados e reprodução no [registro da varredura](plans/2026-11-02-genai-consistencia-linguagem.md). Estados oficiais preservados.
+
+## Continuação — variações de escrita dos períodos — 02/11/2026
+
+A expansão do ano compartilhado também reconhece `marco`, `ate` e a comparação `janeiro com março de 2025`. Essas três variações pediam esclarecimento indevidamente antes da correção. A mudança preserva a escrita dos municípios e filtros; não completa ano ausente nem permite intervalos invertidos ou competências sem cobertura. `Compare ... com ...` continua sendo comparação; `de ... ate ...` continua sendo intervalo.
+
+Integração executável na rota interna de planejamento, com perfil e contrato Gold v2. Verificação: em `ai-agent/`, `python -m pytest -q tests/test_gold_planning_http.py tests/test_gold_temporal.py tests/test_gold_question_filters.py --tb=short` → **127 passaram**; Ruff dos dois arquivos de código/teste e `git diff --check` passaram. Três regressões falharam antes da correção e passaram depois. Esta continuação usa casos artificiais na fronteira HTTP; não é outra execução da matriz Gold/Gemini abaixo e não altera a cobertura do lote.
+
+## Revalidação real da matriz — 02/11/2026
+
+A rodada final `20261102T041125_013170Z` executou os 57 casos pela API pública, com sessão individual, Gold v2, Gemini e auditoria reais, reconciliando os valores por controles SQL independentes somente leitura. Resultado: **43 PASS, zero FAIL, cinco BLOQUEADO, sete SEM_AMOSTRA_NO_LOTE e dois NAO_EXECUTADO** (provas técnicas separadas). Os 14 casos em FAIL na rodada `20261102T025654_378948Z` passaram. Nenhum erro de execução. Contas temporárias e sessões removidas. Esse resultado supera apenas as pendências de revalidação da revisão abaixo; não altera a cobertura ou homologa domínios bloqueados.
+
+O runner foi alinhado ao formato legível das respostas sem perder vínculo de números com mês/efeito. A configuração privada recebeu os controles autorizados, incluindo C08/C09 com aceite explícito nesta rodada. O chat Gold usa seleção mínima de observações nos adaptadores Gemini/Groq, com prompt v4 e ingresso de auditoria compatível; nenhuma guarda de fundamentação foi relaxada. GenAI: 4093 testes passaram/4 skips; Backend dirigido: 41 passaram; prova integrada PostgreSQL descartável: 1 passou. Roteiro, resultado por ID, bloqueios e limites no [registro sanitizado da rodada](plans/2026-11-02-genai-assistente-matriz-real.md). IA-01/IA-02/IA-03/IA-06 mantêm seus estados oficiais.
+
+## Revisão de linguagem do Assistente — 02/11/2026
+
+- `Compare a receita de maio e junho de 2026` explicita o mesmo ano nos dois meses antes da extração do calendário. Comparação conserva dois pontos; `receita de maio a junho de 2026` conserva o intervalo. Não usa o relógio nem o último ano do lote para completar um ano ausente. Dias, intervalos invertidos e competências sem cobertura continuam exigindo esclarecimento.
+- `Qual município teve a maior receita em junho de 2026?` usa o agrupamento municipal e a ordenação por receita já implementados no executor. O perfil libera essa dimensão somente para receita, além do agrupamento por classe existente. O limite do ranking continua sendo um grupo; município precisa estar no escopo e na evidência autorizada. Comparações agrupadas de receita continuam indisponíveis.
+- Caminho: rota interna de planejamento → `QuestionAnalysisPlanner.plan` → calendário/perfil → plano aprovado → executor SQL existente no Backend → rota interna de síntese. O perfil implantável `GRID360_GOLD_RUNTIME_PROFILE` deriva do perfil lógico alterado. A entrada pública continua sendo `/api/v1/ai/questions` no Backend.
+- Verificação reproduzível em `ai-agent/`: `python -m pytest -q tests/test_gold_planning_http.py tests/test_gold_temporal.py tests/test_gold_question_filters.py --tb=short` → **124 passaram**. Regressão completa `python -m pytest -q --tb=short` → **4077 passaram, 4 skips**, em container descartável sem rede, com `.env` privado mascarado por arquivo vazio. Ruff dos arquivos alterados e `git diff --check` passaram.
+- Prova separada de consulta real: `_admit_plan` + `_query` do Backend reconciliaram o maior faturamento municipal e a receita residencial de junho/2026 com SQL independente na publicação Gold v2 local (`gold_v2`, `gold-catalog-v2`, `gold-csv-v2`). Usado `venergy_genai_reader`, transação `REPEATABLE READ` / `READ ONLY`, prazo SQL de 5 s; somente os estados de sucesso foram registrados. Controles independentes: `SUM(receita_total_reais)` por município, ordenado decrescente com nulos por último e desempate municipal, e soma da mesma medida com `classe_consumo = 'RESIDENCIAL'`. Ambos filtram `competencia = '2026-06'`.
+- Limites: HTTP e síntese foram exercitados com modelo controlado; a conferência PostgreSQL foi separada. Não houve nova chamada Gemini, jornada no navegador, alteração de cobertura, credenciais ou permissões. A recusa residencial observada no navegador ainda não está comprovadamente resolvida: consulta reconciliada não prova a saída do provedor. As 14 falhas da matriz anterior não são declaradas corrigidas por estes testes. IA-01/IA-02 mantêm seus estados oficiais.
+
+## Registro anterior da matriz
+
 Matriz versionada para o trabalho de linguagem do núcleo GenAI. As expectativas abaixo vêm do catálogo lógico Gold v2, do contrato de execução e dos critérios do cartão; não usam respostas de fixtures para afirmar resultado sobre a Gold. Os testes de planejamento usam cobertura e valores de dimensão sintéticos explícitos, e não comprovam inventário ou valores do lote real.
 
 | ID | Pergunta | Saída esperada | Verificação independente |

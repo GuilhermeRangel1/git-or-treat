@@ -16,8 +16,20 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Recife",
 });
 
-function statusText(status: OrderStatus | null) {
-  return status ? orderStatusLabel(status) : "Não informado";
+function statusDescription(
+  action: keyof typeof actionLabels,
+  previousStatus: OrderStatus | null,
+  newStatus: OrderStatus | null,
+) {
+  if (action === "CRIACAO" && newStatus) {
+    return `Status inicial: ${orderStatusLabel(newStatus)}`;
+  }
+
+  if (previousStatus && newStatus) {
+    return `Estado: ${orderStatusLabel(previousStatus)} → ${orderStatusLabel(newStatus)}`;
+  }
+
+  return newStatus ? `Estado: ${orderStatusLabel(newStatus)}` : null;
 }
 
 export default function OrderHistory({ orderId }: { orderId: number }) {
@@ -71,42 +83,49 @@ export default function OrderHistory({ orderId }: { orderId: number }) {
       ) : null}
       {history.data && history.data.length > 0 ? (
         <ol className="grid min-w-0 gap-3" aria-label="Eventos do histórico">
-          {history.data.map((event) => (
-            <li
-              key={event.id}
-              className="grid min-w-0 gap-1 rounded-lg border border-border bg-canvas p-3 text-sm"
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <strong className="font-medium">
-                  {actionLabels[event.action]}
-                </strong>
-                <time
-                  className="text-xs text-muted"
-                  dateTime={event.created_at}
-                >
-                  {dateFormatter.format(new Date(event.created_at))}
-                </time>
-              </div>
-              <p className="text-muted">
-                Estado: {statusText(event.previous_status)} →{" "}
-                {statusText(event.new_status)}
-              </p>
-              {event.details ? (
-                <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">
-                  {event.details}
-                </p>
-              ) : null}
-              {event.notes ? (
-                <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">
-                  Observação: {event.notes}
-                </p>
-              ) : null}
-              <p className="min-w-0 whitespace-pre-wrap text-xs text-muted [overflow-wrap:anywhere]">
-                Ator: {event.actor?.trim() || "Não informado"} · Versão:{" "}
-                {event.order_version ?? "Não informada"}
-              </p>
-            </li>
-          ))}
+          {history.data.map((event) => {
+            const status = statusDescription(
+              event.action,
+              event.previous_status,
+              event.new_status,
+            );
+            const details = event.details?.trim();
+            const isGenericCreationDetail =
+              event.action === "CRIACAO" &&
+              ["ordem criada", "ordem criada."].includes(
+                details?.toLocaleLowerCase("pt-BR") ?? "",
+              );
+
+            return (
+              <li
+                key={event.id}
+                className="grid min-w-0 gap-1 rounded-lg border border-border bg-canvas p-3 text-sm"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <strong className="font-medium">
+                    {actionLabels[event.action]}
+                  </strong>
+                  <time
+                    className="text-xs text-muted"
+                    dateTime={event.created_at}
+                  >
+                    {dateFormatter.format(new Date(event.created_at))}
+                  </time>
+                </div>
+                {status ? <p className="text-muted">{status}</p> : null}
+                {details && !isGenericCreationDetail ? (
+                  <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">
+                    {details}
+                  </p>
+                ) : null}
+                {event.notes ? (
+                  <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">
+                    Observação: {event.notes}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
         </ol>
       ) : null}
     </section>

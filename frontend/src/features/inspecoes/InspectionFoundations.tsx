@@ -1,6 +1,7 @@
 import { ListChecks, Zap } from "lucide-react";
 import type { DetailEnvelope, Metadata } from "./contract";
 import { energy, formatNumber } from "./format";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import ConsumptionComparison from "./ConsumptionComparison";
 
 function monthLabel(value: string) {
@@ -22,6 +23,16 @@ function monthLabel(value: string) {
   return `${monthNames[Number(month) - 1] ?? month} de ${year}`;
 }
 
+function observedMonthsLabel(count: number | null, start: string, end: string) {
+  if (count === null) return "Meses observados indisponíveis";
+  const [startYear, startMonth] = start.split("-").map(Number);
+  const [endYear, endMonth] = end.split("-").map(Number);
+  const expected = (endYear - startYear) * 12 + endMonth - startMonth + 1;
+  return expected > 0
+    ? `${count} de ${expected} meses observados`
+    : `${count} meses observados`;
+}
+
 export default function InspectionFoundations({
   metadata,
   detail,
@@ -37,49 +48,16 @@ export default function InspectionFoundations({
       <div className="space-y-5 p-5 sm:p-6">
         <section className="space-y-3" aria-labelledby="source-title">
           <h3 id="source-title" className="font-heading text-lg font-semibold">
-            Publicação e limites
+            Dados da fila
           </h3>
-          <dl className="grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-muted">Origem</dt>
-              <dd className="mt-1 font-medium">
-                Gold · publicação {metadata.source.version}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted">Contrato</dt>
-              <dd className="mt-1 font-medium">{metadata.contract_version}</dd>
-            </div>
-            <div>
-              <dt className="text-muted">Esquema Gold</dt>
-              <dd className="mt-1 font-medium">{metadata.schema_version}</dd>
-            </div>
-            <div>
-              <dt className="text-muted">Fingerprint</dt>
-              <dd className="mt-1 break-all font-mono text-xs">
-                {metadata.fingerprint}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted">Temporalidade</dt>
-              <dd className="mt-1 font-medium">
-                Snapshot cadastral, sem competência mensal
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted">Atualizado em (UTC)</dt>
-              <dd className="mt-1 font-medium">
-                {new Date(metadata.source.updated_at).toLocaleString("pt-BR", {
-                  timeZone: "UTC",
-                })}
-              </dd>
-            </div>
-          </dl>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
-            {metadata.limitations.map((text) => (
-              <li key={text}>{text}</li>
-            ))}
-          </ul>
+          <p className="text-sm text-muted">
+            Atualizados em{" "}
+            {new Date(metadata.source.updated_at).toLocaleString("pt-BR", {
+              dateStyle: "short",
+              timeStyle: "short",
+            })}
+            . A fila é uma fotografia cadastral, sem mês de referência.
+          </p>
         </section>
         {goldDetail ? (
           <>
@@ -91,16 +69,13 @@ export default function InspectionFoundations({
                 id="triage-title"
                 className="font-heading text-lg font-semibold"
               >
-                Categoria e regra de triagem
+                Classificação e evidências
               </h3>
               <p className="mt-2 text-sm">
-                Categoria registrada:{" "}
-                <strong>{goldDetail.category ?? "não classificada"}</strong>. A
-                categoria original da Gold não é convertida em score ou
-                prioridade operacional.
-              </p>
-              <p className="mt-2 text-sm text-muted">
-                Versão da regra: {goldDetail.rule_version}
+                Categoria:{" "}
+                <strong>{goldDetail.category ?? "não classificada"}</strong>.
+                Ela orienta a triagem; não confirma irregularidade nem define
+                despacho.
               </p>
               <p className="mt-2 text-sm">
                 Motivo: {goldDetail.reason ?? "não informado"}
@@ -162,12 +137,12 @@ export default function InspectionFoundations({
                 id="variation-title"
                 className="font-heading text-lg font-semibold"
               >
-                Janelas de variação exportadas
+                Comparação do consumo
               </h3>
               {goldDetail.variation ? (
                 <dl className="mt-3 grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-muted">P1</dt>
+                    <dt className="text-muted">Janela de referência</dt>
                     <dd>
                       {goldMonthRange(
                         goldDetail.variation.p1_start,
@@ -175,16 +150,19 @@ export default function InspectionFoundations({
                       )}
                     </dd>
                     <dd>
-                      {goldDetail.variation.p1_months_observed ??
-                        "Meses observados indisponíveis"}{" "}
-                      mês(es) ·{" "}
+                      {observedMonthsLabel(
+                        goldDetail.variation.p1_months_observed,
+                        goldDetail.variation.p1_start,
+                        goldDetail.variation.p1_end,
+                      )}
+                      {" · "}
                       {goldDetail.variation.p1_average_kwh_per_month === null
                         ? "média indisponível"
                         : `${formatNumber(goldDetail.variation.p1_average_kwh_per_month)} kWh/mês`}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-muted">P2</dt>
+                    <dt className="text-muted">Janela recente</dt>
                     <dd>
                       {goldMonthRange(
                         goldDetail.variation.p2_start,
@@ -192,9 +170,12 @@ export default function InspectionFoundations({
                       )}
                     </dd>
                     <dd>
-                      {goldDetail.variation.p2_months_observed ??
-                        "Meses observados indisponíveis"}{" "}
-                      mês(es) ·{" "}
+                      {observedMonthsLabel(
+                        goldDetail.variation.p2_months_observed,
+                        goldDetail.variation.p2_start,
+                        goldDetail.variation.p2_end,
+                      )}
+                      {" · "}
                       {goldDetail.variation.p2_average_kwh_per_month === null
                         ? "média indisponível"
                         : `${formatNumber(goldDetail.variation.p2_average_kwh_per_month)} kWh/mês`}
@@ -202,7 +183,12 @@ export default function InspectionFoundations({
                   </div>
                   <div>
                     <dt className="text-muted">Diferença observada</dt>
-                    <dd>
+                    <dd
+                      className={signedValueTone(
+                        goldDetail.variation.variation_kwh,
+                        false,
+                      )}
+                    >
                       {goldDetail.variation.variation_kwh === null
                         ? "Indisponível"
                         : `${formatNumber(goldDetail.variation.variation_kwh)} kWh/mês`}
@@ -210,7 +196,12 @@ export default function InspectionFoundations({
                   </div>
                   <div>
                     <dt className="text-muted">Variação percentual</dt>
-                    <dd>
+                    <dd
+                      className={signedValueTone(
+                        goldDetail.variation.variation_pct,
+                        false,
+                      )}
+                    >
                       {goldDetail.variation.variation_pct === null
                         ? "Indisponível"
                         : `${formatNumber(goldDetail.variation.variation_pct)}%`}
@@ -233,31 +224,15 @@ export default function InspectionFoundations({
                 </p>
               )}
               <p className="mt-3 text-sm text-muted">
-                A diferença de consumo descreve somente os períodos observados;
-                não estima recuperação.
+                A variação descreve o consumo observado; não estima energia
+                recuperável nem confirma irregularidade.
               </p>
-            </section>
-            <section
-              className="border-t border-border pt-5"
-              aria-labelledby="limitations-title"
-            >
-              <h3
-                id="limitations-title"
-                className="font-heading text-lg font-semibold"
-              >
-                Limitações e próximos cuidados
-              </h3>
-              <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-muted">
-                {goldDetail.limitations.map((text) => (
-                  <li key={text}>{text}</li>
-                ))}
-              </ul>
             </section>
           </>
         ) : (
           <p className="border-t border-border pt-5 text-sm text-muted">
-            Abra uma UC da fila para consultar as evidências e janelas
-            preservadas na publicação.
+            Abra uma UC da fila para consultar a classificação, as evidências e
+            a comparação do consumo.
           </p>
         )}
       </div>
@@ -270,14 +245,17 @@ export default function InspectionFoundations({
         <h3 id="source-title" className="font-heading text-lg font-semibold">
           Fonte e limites
         </h3>
-        <p className="text-sm">
+        <p className="text-sm [overflow-wrap:anywhere]">
           {metadata.source.is_demo
             ? "Demonstração com dados sintéticos"
             : "Fonte analítica"}{" "}
           · {metadata.source.kind} · {metadata.source.version}
         </p>
         <p className="text-sm">
-          Janela: {monthLabel(metadata.period.start)} a{" "}
+          {metadata.source.kind === "gold_csv"
+            ? "Cobertura do consumo no lote"
+            : "Janela"}
+          : {monthLabel(metadata.period.start)} a{" "}
           {monthLabel(metadata.period.end)} · Energia em kWh · Atualizado em{" "}
           {new Date(metadata.source.updated_at).toLocaleString("pt-BR", {
             timeZone: "UTC",
@@ -309,9 +287,15 @@ export default function InspectionFoundations({
               Como a prioridade foi calculada
             </h3>
             <p className="mt-2 text-sm leading-5">
-              Pontuação: <strong>{formatNumber(detail.priority)} / 1</strong>.
-              Soma dos pesos dos sinais presentes, limitada a 1 e arredondada a
-              duas casas. Não é probabilidade de irregularidade.
+              Prioridade:{" "}
+              <strong>
+                {detail.priority_label ??
+                  `${formatNumber(detail.priority ?? 0)} / 1`}
+              </strong>
+              .{" "}
+              {metadata.source.is_demo
+                ? "Soma dos pesos dos sinais presentes, limitada a 1 e arredondada a duas casas. Não é probabilidade de irregularidade."
+                : "Categoria publicada na Gold. Não há score nem pesos fornecidos nesta versão."}
             </p>
             <ul className="mt-3 space-y-2">
               {detail.signals.map((signal) => (
@@ -320,31 +304,44 @@ export default function InspectionFoundations({
                   className="flex flex-wrap justify-between gap-2 rounded-lg bg-canvas p-3 text-sm"
                 >
                   <span>{signal.label}</span>
-                  <strong>+{formatNumber(signal.weight)}</strong>
+                  <strong className={signedValueTone(signal.weight)}>
+                    {signal.weight > 0 ? "+" : ""}
+                    {formatNumber(signal.weight)}
+                  </strong>
                 </li>
               ))}
             </ul>
-            <p
-              className="mt-4 rounded-lg bg-canvas p-3 font-mono text-sm"
-              aria-label="Composição da prioridade"
-            >
-              min(1;{" "}
-              {detail.signals
-                .map((signal) => formatNumber(signal.weight))
-                .join(" + ") || "0"}
-              ) = {formatNumber(detail.priority)}
-            </p>
+            {metadata.source.is_demo ? (
+              <p
+                className="mt-4 rounded-lg bg-canvas p-3 font-mono text-sm"
+                aria-label="Composição da prioridade"
+              >
+                min(1;{" "}
+                {detail.signals
+                  .map((signal) => formatNumber(signal.weight))
+                  .join(" + ") || "0"}
+                ) ={" "}
+                {detail.priority === null
+                  ? "score não fornecido"
+                  : formatNumber(detail.priority)}
+              </p>
+            ) : null}
             <h4 className="mt-5 font-semibold">
               O que define a posição na fila
             </h4>
             <p className="mt-2 text-sm text-muted">
-              Na ordenação padrão, as maiores pontuações aparecem primeiro no
-              recorte filtrado. Alterar filtros ou ordenação pode mudar a
-              posição.
+              {metadata.source.is_demo
+                ? "Na ordenação padrão, as maiores pontuações aparecem primeiro no recorte filtrado. Alterar filtros ou ordenação pode mudar a posição."
+                : metadata.source.version.startsWith("gold-csv-v2:")
+                  ? "A ordem segue a posição publicada: categoria, histórico de irregularidades, média de consumo e UC; casos para revisão ficam ao final."
+                  : "Ordenação categórica publicada, sem score de risco."}
             </p>
             <p className="mt-2 text-sm text-muted">
-              Desempate: maior estimativa disponível, depois número da UC em
-              ordem crescente. Estimativas ausentes ficam por último.
+              {metadata.source.is_demo
+                ? "Desempate: maior estimativa disponível, depois número da UC em ordem crescente. Estimativas ausentes ficam por último."
+                : metadata.source.version.startsWith("gold-csv-v2:")
+                  ? "Desempate: mais irregularidades, maior média de consumo e número da UC. A média é por leitura e não indica período próprio."
+                  : "Desempate por número da UC crescente. Estimativas de recuperação não foram fornecidas."}
             </p>
           </section>
 
@@ -362,10 +359,16 @@ export default function InspectionFoundations({
             <p className="mt-2 font-heading text-2xl font-semibold text-brand">
               {energy(detail.potential_recoverable_energy_kwh)}
             </p>
-            <ConsumptionComparison evidence={detail.estimate_evidence} />
+            {metadata.source.is_demo ? (
+              <ConsumptionComparison evidence={detail.estimate_evidence} />
+            ) : null}
             <dl className="mt-4 grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-muted">Referência mensal hipotética</dt>
+                <dt className="text-muted">
+                  {metadata.source.is_demo
+                    ? "Referência mensal hipotética"
+                    : "Referência mensal não fornecida"}
+                </dt>
                 <dd className="mt-1 font-mono font-medium">
                   {detail.estimate_evidence.baseline_kwh === null
                     ? "Referência indisponível"
@@ -373,19 +376,31 @@ export default function InspectionFoundations({
                 </dd>
               </div>
               <div>
-                <dt className="text-muted">Observação mensal sintética</dt>
+                <dt className="text-muted">
+                  {metadata.source.is_demo
+                    ? "Observação mensal sintética"
+                    : "Observação mensal não fornecida"}
+                </dt>
                 <dd>{energy(detail.estimate_evidence.observed_kwh)}</dd>
               </div>
               <div>
                 <dt className="text-muted">Horizonte de projeção</dt>
-                <dd>{detail.estimate_evidence.horizon_months} mês(es)</dd>
+                <dd>
+                  {detail.estimate_evidence.horizon_months === null
+                    ? "Não informado"
+                    : `${detail.estimate_evidence.horizon_months} mês(es)`}
+                </dd>
               </div>
             </dl>
-            <p className="mt-3 text-sm">
-              Regra: máximo entre zero e (referência − observação), multiplicado
-              pelo horizonte em meses; arredondamento a duas casas.
-            </p>
-            {detail.potential_recoverable_energy_kwh !== null &&
+            {metadata.source.is_demo ? (
+              <p className="mt-3 text-sm">
+                Regra: máximo entre zero e (referência − observação),
+                multiplicado pelo horizonte em meses; arredondamento a duas
+                casas.
+              </p>
+            ) : null}
+            {metadata.source.is_demo &&
+            detail.potential_recoverable_energy_kwh !== null &&
             detail.estimate_evidence.baseline_kwh !== null &&
             detail.estimate_evidence.observed_kwh !== null ? (
               <p className="mt-2 font-mono text-sm">

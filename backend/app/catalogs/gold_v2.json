@@ -9,6 +9,7 @@
       "metric_id": "billing.revenue",
       "label": "Receita faturada",
       "definition": "Total das faturas do recorte, incluindo faturas sem leitura; não representa valor pago.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "geography.municipality": [
           "eq",
@@ -155,6 +156,7 @@
       "metric_id": "energy.consumption",
       "label": "Consumo medido",
       "definition": "Total medido nas leituras do recorte, incluindo leituras sem fatura; não é energia faturada.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "geography.municipality": [
           "eq",
@@ -286,6 +288,7 @@
       "metric_id": "billing.average_ticket",
       "label": "Ticket médio por UC faturada no mês",
       "definition": "Razão entre a soma da receita faturada e a soma das UCs faturadas de cada mês do recorte.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "geography.municipality": [
           "eq",
@@ -405,6 +408,7 @@
       "metric_id": "billing.effective_tariff",
       "label": "Preço médio observado por kWh",
       "definition": "Receita dividida pelo consumo da mesma base com fatura e leituras integralmente válidas; não é tarifa homologada.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "geography.municipality": [
           "eq",
@@ -555,6 +559,7 @@
       "metric_id": "energy.average_consumption_per_uc",
       "label": "Consumo médio por UC com leitura no mês",
       "definition": "Razão entre o consumo medido e a soma das UCs com leitura de cada mês do recorte.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "geography.municipality": [
           "eq",
@@ -664,6 +669,7 @@
       "metric_id": "network.equivalent_interruption_duration",
       "label": "Duração equivalente de interrupção (DEC)",
       "definition": "Horas de interrupção por UC do alimentador no mês; indicador simplificado com cadastro atual, sem agregação entre meses ou alimentadores.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "geography.municipality": [
           "eq",
@@ -725,6 +731,7 @@
       "metric_id": "network.equivalent_interruption_frequency",
       "label": "Frequência equivalente de interrupção (FEC)",
       "definition": "Pares UC–ocorrência por UC do alimentador no mês; indicador simplificado com cadastro atual, sem agregação entre meses ou alimentadores.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "geography.municipality": [
           "eq",
@@ -786,6 +793,7 @@
       "metric_id": "service.attendance",
       "label": "Chamados por abertura",
       "definition": "Contagem de protocolos abertos no recorte em UTC, sem contar tratativas; zero exige cobertura certificada.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "customer.consumer_unit": [
           "eq",
@@ -838,6 +846,7 @@
       "metric_id": "service.satisfaction",
       "label": "Satisfação dos chamados por abertura",
       "definition": "Média das notas individuais válidas dos protocolos abertos no recorte em UTC; zero é válido e ausência não é nota.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "customer.consumer_unit": [
           "eq",
@@ -892,6 +901,7 @@
       "metric_id": "service.accumulated_attendance",
       "label": "Chamados no histórico acumulado",
       "definition": "Total de protocolos do histórico publicado, sem intervalo de datas conhecido ou certificação de completude histórica.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "customer.consumer_unit": [
           "eq",
@@ -948,6 +958,7 @@
       "metric_id": "service.accumulated_satisfaction",
       "label": "Satisfação no histórico acumulado",
       "definition": "Média das notas individuais válidas do histórico publicado, sem período conhecido; não é média das médias por UC.",
+      "fixed_filter_values": {},
       "dimension_operators": {
         "customer.consumer_unit": [
           "eq",
@@ -999,36 +1010,229 @@
           "decimal_shapes": {}
         }
       ]
+    },
+    {
+      "metric_id": "billing.price_volume",
+      "label": "Decomposição da variação da receita",
+      "definition": "Decomposição publicada em preço observado, volume, interação e composição da base; não comprova causalidade nem tarifa homologada.",
+      "fixed_filter_values": {},
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "geography.neighborhood": [
+          "eq",
+          "in"
+        ],
+        "customer.consumption_class": [
+          "eq",
+          "in"
+        ]
+      },
+      "capability_id": "faturamento.preco_volume",
+      "required_capability_ids": [
+        "faturamento.preco_volume"
+      ],
+      "accumulated_period_phrases": [
+        "janelas publicadas de preço-volume"
+      ],
+      "granularities": [
+        "month",
+        "year"
+      ],
+      "max_window_days": null,
+      "aggregation": "published_decomposition",
+      "unit": "R$",
+      "unit_kind": "currency",
+      "measure_type": "double",
+      "numerator_type": null,
+      "denominator_type": null,
+      "rounding": {
+        "decimals": 2,
+        "mode": "half_even"
+      },
+      "null_rule": "read_null_is_absent",
+      "required_dimension_ids": [],
+      "sources": [
+        {
+          "capability_id": "faturamento.preco_volume",
+          "table": "decomposicao_receita",
+          "temporal_column": null,
+          "temporal_transform": "identity",
+          "grain": [
+            "municipio",
+            "bairro",
+            "classe_consumo",
+            "inicio_p0",
+            "fim_p0",
+            "inicio_p1",
+            "fim_p1"
+          ],
+          "measure_column": "variacao_faturamento_total_reais",
+          "numerator_column": null,
+          "denominator_column": null,
+          "nullable_columns": [
+            "efeito_volume_reais",
+            "efeito_preco_observado_reais",
+            "efeito_interacao_reais",
+            "variacao_entradas_reais",
+            "variacao_saidas_reais",
+            "variacao_sem_leitura_fora_base_reais",
+            "variacao_outros_fora_base_reais",
+            "faturamento_p0_reais",
+            "faturamento_p1_reais",
+            "residuo_reconciliacao_reais",
+            "qtd_ucs_entrantes",
+            "qtd_ucs_saintes",
+            "qtd_ucs_base_comum",
+            "qtd_ucs_observadas",
+            "metodo",
+            "estado_decomposicao",
+            "run_id_silver",
+            "lote_bronze_silver"
+          ],
+          "dimension_columns": {
+            "geography.municipality": "municipio",
+            "geography.neighborhood": "bairro",
+            "customer.consumption_class": "classe_consumo"
+          },
+          "decimal_shapes": {}
+        }
+      ]
+    },
+    {
+      "metric_id": "network.interruption_events",
+      "label": "Ocorrências distintas de interrupção",
+      "definition": "Conta eventos distintos no alimentador registrado na ocorrência e mês de abertura UTC; um evento associado a várias UCs conta uma vez. Não é DEC nem FEC.",
+      "fixed_filter_values": {},
+      "dimension_operators": {
+        "network.feeder": [
+          "eq",
+          "in"
+        ]
+      },
+      "capability_id": "interrupcoes.uc_acumulado",
+      "required_capability_ids": [
+        "interrupcoes.uc_acumulado"
+      ],
+      "accumulated_period_phrases": [],
+      "granularities": [
+        "month"
+      ],
+      "max_window_days": 1830,
+      "aggregation": "count_distinct",
+      "unit": "ocorrências",
+      "unit_kind": "count",
+      "measure_type": "string",
+      "numerator_type": null,
+      "denominator_type": null,
+      "rounding": {
+        "decimals": 0,
+        "mode": "half_even"
+      },
+      "null_rule": "count_requires_certified_zero",
+      "required_dimension_ids": [
+        "network.feeder"
+      ],
+      "sources": [
+        {
+          "capability_id": "interrupcoes.uc_acumulado",
+          "table": "ocorrencias_uc",
+          "temporal_column": "data_abertura",
+          "temporal_transform": "utc_month",
+          "grain": [
+            "id_ocorrencia",
+            "id_uc"
+          ],
+          "measure_column": "id_ocorrencia",
+          "numerator_column": null,
+          "denominator_column": null,
+          "nullable_columns": [],
+          "dimension_columns": {
+            "network.feeder": "alimentador"
+          },
+          "decimal_shapes": {}
+        }
+      ]
+    },
+    {
+      "metric_id": "energy.gd_consumption_drop",
+      "label": "UCs elegíveis com GD e queda de consumo superior a 30%",
+      "definition": "Conta UCs com GD e queda bruta superior a 30%, com ao menos seis meses com leitura em cada janela fixa; não demonstra causa nem origem solar.",
+      "fixed_filter_values": {
+        "generation.distributed": "Sim"
+      },
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "generation.distributed": [
+          "eq",
+          "in"
+        ]
+      },
+      "capability_id": "consumo.variacao_uc",
+      "required_capability_ids": [
+        "consumo.variacao_uc"
+      ],
+      "accumulated_period_phrases": [
+        "P1 2022-07 a 2023-06 versus P2 2025-07 a 2026-06"
+      ],
+      "granularities": [
+        "month",
+        "year"
+      ],
+      "max_window_days": null,
+      "aggregation": "count_gd_drop",
+      "unit": "UCs",
+      "unit_kind": "count",
+      "measure_type": "bigint",
+      "numerator_type": null,
+      "denominator_type": null,
+      "rounding": {
+        "decimals": 0,
+        "mode": "half_even"
+      },
+      "null_rule": "count_requires_certified_zero",
+      "required_dimension_ids": [
+        "generation.distributed"
+      ],
+      "sources": [
+        {
+          "capability_id": "consumo.variacao_uc",
+          "table": "variacao_consumo_uc",
+          "temporal_column": null,
+          "temporal_transform": "identity",
+          "grain": [
+            "id_uc"
+          ],
+          "measure_column": "meses_com_leitura_p1",
+          "numerator_column": null,
+          "denominator_column": null,
+          "nullable_columns": [
+            "consumo_medio_inicial",
+            "consumo_medio_final",
+            "meses_com_leitura_p2",
+            "queda_consumo_superior_30_pct"
+          ],
+          "dimension_columns": {
+            "geography.municipality": "municipio",
+            "generation.distributed": "possui_gd"
+          },
+          "decimal_shapes": {}
+        }
+      ]
     }
   ],
   "unavailable": [
-    {
-      "capability_id": "faturamento.preco_volume",
-      "reasons": [
-        "definition_pending"
-      ],
-      "note": "Fonte e método de preço observado disponíveis; mapeamento consumidor das duas janelas, estados e controles de reconciliação ainda não liberado."
-    },
     {
       "capability_id": "faturamento.faturas_em_aberto",
       "reasons": [
         "definition_pending"
       ],
       "note": "Fonte faturas_uc disponível; distinguir valor nominal declarado e saldo indicativo. Controles consumidores ainda não mapeados; a fonte não prova saldo contábil."
-    },
-    {
-      "capability_id": "consumo.variacao_uc",
-      "reasons": [
-        "definition_pending"
-      ],
-      "note": "Variação publicada usa janelas fixas da Gold; falta mapear sua seleção e limitações no consumidor, sem comparação arbitrária."
-    },
-    {
-      "capability_id": "interrupcoes.uc_acumulado",
-      "reasons": [
-        "definition_pending"
-      ],
-      "note": "Fontes detalhada e acumulada disponíveis; contagem e duração por UC ainda sem mapeamento consumidor e controles próprios."
     },
     {
       "capability_id": "apoio.fila_inspecao",

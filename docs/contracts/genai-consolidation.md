@@ -114,3 +114,7 @@ Assim, o item composto fica comprovado pela janela, complexidade, recursos e tem
 - Revisões independentes de padrões e especificação: nenhum bloqueio funcional; corrigidas a contagem de dias e as referências documentais de pendências intermediárias.
 
 Os três cartões técnicos GENAI-02/04/06 ficam concluídos para esta entrega local. Isso não altera os estados oficiais IA nem certifica cobertura inexistente ou implantação de produção. Novas alterações permanecem locais até autorização de commit/push.
+
+### Prazo vigente — 02/11/2026
+
+A revisão aprovada da [ADR-0002](../decisions/0002-genai-gold-query-owner.md) amplia o orçamento global Gold para 60 s e o prazo do navegador do Assistente para 70 s. SQL preserva o teto de 5 s e consome o saldo global; não há renovação entre etapas. As medições anteriores com 35 s permanecem históricas.

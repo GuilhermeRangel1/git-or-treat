@@ -1,6 +1,6 @@
 """Tipos de intenção analítica independentes das fixtures de demonstração."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
@@ -36,6 +36,9 @@ class AnalysisIntent(BaseModel):
     domain: LogicalIdentifier
     metric_id: LogicalIdentifier | None = None
     dimension_ids: list[LogicalIdentifier] = Field(default_factory=list, max_length=10)
+    group_by_dimension_ids: list[LogicalIdentifier] = Field(default_factory=list, max_length=10)
+    comparison_period_phrases: tuple[str, str] | None = None
+    ranking_direction: Literal["asc", "desc"] | None = None
     metric_phrase: str | None = Field(default=None, min_length=1, max_length=160)
     period_phrase: str | None = Field(default=None, min_length=1, max_length=160)
     geography_phrase: str | None = Field(default=None, min_length=1, max_length=160)

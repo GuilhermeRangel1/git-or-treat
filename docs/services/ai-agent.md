@@ -1,17 +1,30 @@
 # Serviço: agente de inteligência artificial
 
+> Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
+
+
 **Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** fluxo sintético de perguntas e contrato de insight contextual estão preparados nos endpoints `POST /api/v1/questions` e `POST /api/v1/insights`. A rota `/assistente` do portal usa o contrato provisório Backend → GenAI em [genai-chat-api.md](../contracts/genai-chat-api.md). A chamada pode usar um adaptador Gemini ou Groq configurado no serviço; sem credenciais, o serviço continua saudável, mas não gera resposta de modelo. A primeira fatia Gold v2 usa sessão individual no Backend; histórico persistido continua pendente. Veja o estado vigente abaixo. Os adaptadores Gemini e Groq são opcionais por ambiente e podem formar uma cadeia de fallback entre provedores. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. O código configura `gemini-3.5-flash-lite` como padrão do adaptador Gemini e permite escolher outro ID, como `gemini-3.6-flash`; o Groq usa `openai/gpt-oss-120b` por padrão, que passou em uma execução do smoke test real com dados sintéticos em 20/10/2026. O Groq remove modelos com o tempo: confira o nome do modelo na lista da conta antes de usar e troque-o com `GENAI_GROQ_MODEL` se necessário. A escolha definitiva do provedor continua aberta pela equipe.
 
 
+## GENAI-12 — insight do Panorama Gold v2
+
+O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do KPI. O Backend coordena sessão individual, prontidão, leitor restrito/snapshot, síntese interna e auditoria durável; a GenAI reutiliza o núcleo de insight. O portal distingue Gold de demonstração, preserva recorte/fundamento/limitações e prioriza falhas sobre cache antigo. Migração `genai12000001` publica somente metadados mínimos por view, sem acesso direto à tabela operacional de carga. Contrato, implantação e reprodução: [insight do Panorama](../contracts/panorama-insight-api.md); evidências e limites: [GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Os registros anteriores sobre ausência de insight externo são históricos; a rota pública GenAI demonstrativa permanece separada da entrada interna Gold.
+
 ## Estado vigente da fatia conversacional Gold — 01/11/2026
+
+Revisão de linguagem de 02/11/2026: o planejamento aceita ano compartilhado em dois meses nomeados, inclusive `marco`/`ate` sem acentos e comparação com a ligação `com`, e receita agrupada por município, preservando cobertura, autorização e limite do ranking. Exemplos, verificações e limites estão na [matriz de perguntas Gold v2](../gold-question-matrix.md#revisão-de-linguagem-do-assistente--02112026).
+
+A [varredura de consistência](../plans/2026-11-02-genai-consistencia-linguagem.md) acrescenta notação mês/ano, prefixos mensais, agrupamentos e acompanhamentos equivalentes. Exclusões, limites não suportados, arrecadação e datas parcialmente inválidas pedem esclarecimento. Rótulos de filtro não criam outra métrica; a relação bairro/município evita confundir nomes iguais quando há qualificador explícito. A comparação conserva seus dois meses ao trocar para outro indicador compatível. Esses ajustes não ampliam fórmulas ou a cobertura da fonte; o relatório registra também o timeout observado na rodada real e sua rechecagem.
 
 A rota pública Backend /api/v1/ai/questions já coordena sessão individual → planejamento GenAI → prontidão/SQL restrito → síntese GenAI → confirmação de auditoria. A GenAI usa app.gold_runtime:create_gold_app, com perfil Gold v2 e fonte gold.local; recebe evidências minimizadas, nunca credenciais do banco. Há resposta real reconciliada, replay e matriz integrada de falhas, conforme [evidência GENAI-09](../contracts/genai-first-question.md).
 
 Os trechos históricos de preparação abaixo que descrevem ausência de autenticação, SQL conversacional ou ligação interna foram superados por essa fatia. Isso não entrega automaticamente outros domínios, insights Gold ou o aceite integral do portal. Contratos vigentes: [chat](../contracts/genai-chat-api.md), [execução](../contracts/genai-query-execution.md), [coordenação](../contracts/genai-gold-coordination.md) e [auditoria](../contracts/genai-audit.md).
 
-O ingresso Backend deve aceitar prompt v3 antes de implantar a GenAI v3. O contrato público continua v1 e conserva a marca is_demo para a fonte sintética explícita. Fonte Gold indisponível não ativa demonstração.
+O ingresso Backend deve aceitar prompt v4 antes de implantar a GenAI v4; eventos v1/v2/v3 continuam compatíveis. No chat Gold, os adaptadores Gemini/Groq usam o schema mínimo `ObservationSelection` (estado e IDs), com campos extras proibidos, preservando as guardas e a apresentação determinística do núcleo. Isso impede que números da pergunta sejam confundidos com medidas na prosa do provedor. Demonstração e insight minimizado conservam o schema anterior. O contrato público continua v1 e conserva a marca is_demo para a fonte sintética explícita. Fonte Gold indisponível não ativa demonstração.
 
 ## Duas formas de IA obrigatórias
+
+Operação local Gold v2 (GENAI-15): diagnóstico autenticado em `/api/v1/internal/runtime-status` distingue configuração de geração e liveness; o Backend executa `scripts/check_genai_runtime.py` para conferir banco, papel, publicação, catálogo e auditoria. Logs operacionais contêm somente correlação, tempos/fila e tokens, sem prompt/evidência. O loader exige credencial própria. [Runbook, critérios, carga, custo estimado e falhas observadas](../plans/2026-11-02-genai15-operacao-gold.md).
 
 1. **Agente conversacional Text-to-SQL no portal:** interpreta português cotidiano, consulta Gold e devolve resposta clara, numérica e fundamentada.
 2. **Insight embutido em uma tela:** interpreta o dado que o usuário vê e sugere o que investigar, mantendo vínculo explícito com filtros e período da tela.
@@ -446,7 +459,7 @@ O planejamento Gold v2 também resolve competências explícitas (mês/ano, AAAA
 A resolução Gold confere cada menção explícita de dimensão para que um valor reconhecido não oculte outro desconhecido. Ao retomar o contexto, reinterpreta a última fala com o prefixo ainda disponível nos três turnos do contrato e reaplica catálogo/escopo atuais. O teste integrado do produtor Backend lê tabelas v2 de um banco migrado artificial e envia o envelope ao núcleo em outro processo; isso comprova a ligação de componentes em teste, sem instalar um coordenador HTTP de produção.
 
 
-O perfil Gold declara agrupamento e ordenação indisponíveis também na revalidação de planos (`supports_grouping`/`supports_ordering`), com defaults compatíveis para os demais perfis. Pedidos de ranking, filtros numéricos, situação da fatura ou presença de leitura não representados no catálogo recebem esclarecimento em vez de retornar um total com qualificadores descartados. Sinônimos de pagamento/arrecadação e energia injetada/compensada/entregue são distinguidos de receita faturada e consumo medido.
+Antes da fatia GENAI-10B abaixo, o perfil Gold recusava agrupamento e ordenação na revalidação; a nova whitelist por métrica substitui essa restrição global para contribuição por classe em uma competência. Pedidos de ranking, filtros numéricos, situação da fatura ou presença de leitura não representados no catálogo recebem esclarecimento em vez de retornar um total com qualificadores descartados. Sinônimos de pagamento/arrecadação e energia injetada/compensada/entregue são distinguidos de receita faturada e consumo medido.
 
 
 ### Operações internas Gold v2 — integração HTTP de 31/10/2026
@@ -459,3 +472,38 @@ A guarda da evidência permite valores dinâmicos exatamente iguais aos filtros 
 ### GENAI-04 — decisão temporal aprovada e chamador Backend
 
 A pessoa usuária aprovou a ADR-0018 nesta entrega: âncora na competência mais recente do lote, janela mensal inclusiva e esclarecimento de lacunas. O Backend agora possui um chamador operacional do planejamento (`plan_gold_question`, exposto pela CLI homônima), que conserva a publicação e reautoriza o escopo, antes de admitir a fonte física e a cobertura efetiva do recorte. As rotas internas e o núcleo são os mesmos já existentes. Não há SQL nem credencial Gold na GenAI. Comparação sem suporte, inclusive com base zero, permanece esclarecimento sem plano; cálculo percentual pertence à execução quantitativa, sem converter nulo/ausência em zero.
+
+
+### GENAI-10B — contribuição por classe e atendimento acumulado
+
+O perfil v2 declara agrupamentos por métrica: somente receita por classe nesta fatia.
+A pergunta de maior contribuição em uma competência produz agrupamento, ordem pela
+receita e limite de uma linha; o acompanhamento conserva esses campos. Ranking de
+vários meses ou outras dimensões continua esclarecimento. As flags globais permitem
+a operação, mas não substituem a lista da métrica nem a revalidação do plano.
+
+As métricas mensais de atendimento declaram sua variante acumulada no próprio perfil.
+O período explícito de histórico seleciona essa variante, sem atribuir mês ao total.
+A guarda exige o período acumulado exato na observação. Qualificadores explícitos de
+dimensão distinguem município de bairro homônimo; pedidos não qualificados conservam
+a ambiguidade. A matriz, comandos e limites estão na
+[entrega incremental dos domínios](../contracts/genai-domain-implementation.md).
+
+
+### GENAI-10B — comparação, GD, eventos e decomposição publicados
+
+O núcleo existente passou a planejar dois meses explícitos de receita/consumo e
+ranking por variação absoluta de consumo por bairro, mantendo filtros, cobertura
+e base zero. GD/queda usa somente as janelas fixas e a população elegível de Dados.
+Eventos distintos não são FEC. Preço/volume exige componentes completos e janelas
+publicadas no envelope interno de evidência. O modelo não calcula fórmulas.
+Detalhes de semântica, controle e limites na [ADR-0022](../decisions/0022-consumo-metricas-documentadas-gold-v2.md)
+e na [entrega 10B](../contracts/genai-domain-implementation.md).
+
+## Perguntas naturais com nomes geográficos compartilhados — 02/11/2026
+
+No perfil Gold, “em <nome>” usa o município quando esse valor também aparece em um bairro. Qualificação explícita de bairro prevalece; nome compartilhado sem qualificação pede esclarecimento. A resolução usa somente valores autorizados da publicação e a hierarquia do perfil. A apresentação de chamados acumulados usa contagem inteira em português e não inventa intervalo mensal. As três perguntas naturais que falharam na tela foram incorporadas aos testes e aos textos principais FAT-01/FAT-04/CON-01; ver [evidência](../plans/2026-11-02-genai-perguntas-da-tela.md).
+
+No esclarecimento de uma ambiguidade, uma nova pergunta interrogativa completa é interpretada independentemente; uma resposta curta de refinamento ainda pode preservar o recorte original. Isso evita que a pergunta de volume residencial herde a métrica da pergunta anterior sobre solar. O indicador é reconhecido, e a ausência de base comparativa pede o período de referência. A mensagem de GD usa termos de negócio e não expõe a versão física da Gold.
+
+As mensagens de esclarecimento Gold podem anexar um exemplo completo, montado com competências publicadas e validado pelo planejador no mesmo escopo. A geração é determinística, sem banco ou modelo, e não promete cobertura. A borda do planejamento separa o sufixo do motivo original ao interpretar o histórico, preservando respostas curtas. Sem candidato aprovado, não inventa mês ou métrica disponível. Ver [exemplos e validação](../plans/2026-11-02-genai-perguntas-da-tela.md#continuação--exemplos-nas-mensagens-de-esclarecimento).

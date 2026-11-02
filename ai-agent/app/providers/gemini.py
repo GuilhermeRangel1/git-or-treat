@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.generation.prompts import SYSTEM_INSTRUCTION, generation_contents
+from app.generation.selection import parse_answer, response_model
 from app.providers.protocols import (
     GeneratedAnswer,
     ModelProviderInvalidResponse,
@@ -13,6 +14,7 @@ from app.providers.protocols import (
 )
 from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
+from app.telemetry import record_usage
 
 
 class GeminiModelAdapter:
@@ -61,7 +63,7 @@ class GeminiModelAdapter:
                     "system_instruction": SYSTEM_INSTRUCTION,
                     "temperature": 0,
                     "response_mime_type": "application/json",
-                    "response_json_schema": GeneratedAnswer.model_json_schema(),
+                    "response_json_schema": response_model(evidence).model_json_schema(),
                 },
             )
         except Exception as exc:
@@ -82,6 +84,14 @@ class GeminiModelAdapter:
                 "O provedor de modelo está temporariamente indisponível."
             ) from None
 
+        usage = getattr(response, "usage_metadata", None)
+        record_usage(
+            "gemini", prompt=getattr(usage, "prompt_token_count", None),
+            output=getattr(usage, "candidates_token_count", None),
+            thoughts=getattr(usage, "thoughts_token_count", None),
+            cached=getattr(usage, "cached_content_token_count", None),
+            total=getattr(usage, "total_token_count", None),
+        )
         try:
             candidates = getattr(response, "candidates", None)
             if candidates:
@@ -91,7 +101,7 @@ class GeminiModelAdapter:
             response_text = response.text
             if not isinstance(response_text, str) or not response_text.strip():
                 raise ValueError("resposta vazia")
-            return GeneratedAnswer.model_validate_json(response_text)
+            return parse_answer(response_text, evidence)
         except (AttributeError, TypeError, ValueError, ValidationError):
             raise ModelProviderInvalidResponse(
                 "O provedor retornou uma resposta inválida."

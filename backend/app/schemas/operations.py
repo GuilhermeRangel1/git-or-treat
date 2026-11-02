@@ -126,6 +126,20 @@ class GoldOperationDetailResponse(BaseModel):
     metadata: GoldMetadata
 
 
+class GoldObservedOccurrence(BaseModel):
+    event_id: str
+    uc_id: str
+    opened_at: str
+    cause: str | None
+    duration_hours: float | None
+
+
+class GoldOccurrencePage(BaseModel):
+    data: list[GoldObservedOccurrence]
+    pagination: Pagination
+    metadata: GoldMetadata
+
+
 class ContinuityDefinition(BaseModel):
     reference: str = "docs/contracts/operations-dev08.md#definicao-demonstrativa"
     label: str = "Indicadores simplificados de demonstração; sem apuração regulatória oficial."

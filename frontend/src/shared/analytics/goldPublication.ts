@@ -28,6 +28,10 @@ export function useGoldPublicationKey() {
     goldPublicationKey,
   );
 }
+export function useGoldPublicationRevision() {
+  const snapshot = () => `${generation}:${goldPublicationKey()}:${stale}`;
+  return useSyncExternalStore(subscribeGoldPublication, snapshot, snapshot);
+}
 export function resetGoldPublication() {
   publication = null;
   stale = false;
@@ -35,10 +39,12 @@ export function resetGoldPublication() {
   listeners.forEach((listener) => listener());
 }
 export function acceptGoldPublication(metadata: GoldMetadata) {
-  const next = {
+  return acceptGoldIdentity({
     lote: metadata.source.version,
     fingerprint: metadata.fingerprint,
-  };
+  });
+}
+export function acceptGoldIdentity(next: GoldPublicationIdentity) {
   if (
     publication &&
     (publication.lote !== next.lote ||

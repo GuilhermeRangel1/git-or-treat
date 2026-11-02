@@ -1,12 +1,15 @@
 """Coordenação Gold do Backend sobre plano, executor e síntese existentes."""
 
 import asyncio
+import json
+import logging
 from collections.abc import Awaitable, Callable
 from time import monotonic
 
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_audit import BackendAuditEvent
 from app.schemas.genai_evidence import GoldEvidenceQuality
@@ -24,7 +27,14 @@ from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
 from app.services.genai_flow import should_synthesize
 from app.services.genai_planning import GoldPlanningResult, plan_gold_question
 from app.services.genai_replay import execution_artifact
-from app.services.gold_catalog import load_gold_catalog
+from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
+
+
+class GoldCoverageUnavailable(GenAIServiceUnavailable):
+    """O serviço está disponível, mas o recorte não tem cobertura validada."""
+
+    def __init__(self):
+        super().__init__(retryable=False)
 
 
 async def answer_gold_question(
@@ -36,6 +46,7 @@ async def answer_gold_question(
     correlation_id: str,
     readiness_gate: Callable[[GoldPlanningResult], Awaitable[GoldReadinessReport]] | None = None,
     audit_store: AuditStore | None = None,
+    expected_batch_ref: str | None = None,
 ) -> AIQuestionResponse:
     """Mantém plano, identidade, publicação e prazo entre as duas operações HTTP.
 
@@ -45,7 +56,7 @@ async def answer_gold_question(
     if audit_store is None:
         raise GenAIServiceUnavailable(retryable=False)
     started = monotonic()
-    deadline = GenAIRequestDeadline.start(35)
+    deadline = GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS)
 
     async def audit(stage, code, outcome, **metadata):
         event = BackendAuditEvent(
@@ -57,10 +68,11 @@ async def answer_gold_question(
         except (SQLAlchemyError, ValueError):
             raise GenAIServiceUnavailable(retryable=False) from None
 
-    await deadline.run(35, lambda: audit("request", "started", "started"))
+    await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit("request", "started", "started"))
+    # Publicação já conferida contra a tela; troca até a captura é mudança em curso.
     planned = await plan_gold_question(
         engine, client, request, resolve_scope=resolve_scope,
-        correlation_id=correlation_id,
+        correlation_id=correlation_id, expected_batch_ref=expected_batch_ref,
         deadline=deadline,
     )
     if planned.response.status is not QuestionPlanStatus.PLANNED:
@@ -70,7 +82,7 @@ async def answer_gold_question(
         outcome = "error" if response.status == "recoverable_error" else (
             "refused" if response.status == "refused" else "success"
         )
-        reference = await deadline.run(35, lambda: audit("response", "completed", outcome))
+        reference = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit("response", "completed", outcome))
         return planned.response.response.model_copy(update={"audit_reference": reference})
     if engine is None:
         # Identidade promovida entre a admissão HTTP e o planejamento: este
@@ -80,15 +92,24 @@ async def answer_gold_question(
         raise GenAIResponseInvalid
     if readiness_gate is None:
         raise GenAIServiceUnavailable(retryable=False)
-    report = await planned.deadline.run(35, lambda: readiness_gate(planned))
+    report = await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: readiness_gate(planned))
     report = GoldReadinessReport.model_validate(report.model_dump(mode="json"))
-    metric = next(m for m in load_gold_catalog().metrics
-                  if m.metric_id == planned.response.plan.metric_id)
+    metric = next((m for m in load_gold_catalog().metrics
+                   if m.metric_id == planned.response.plan.metric_id), None)
+    if metric is None:
+        raise GoldCatalogIncompatible
     required = {*metric.required_capability_ids, planned.source.capability_id}
     if (report.batch_ref != planned.publication.batch_ref
         or report.lot_state not in {"ready", "partial"}
-        or any(key not in report.capabilities or report.capabilities[key].status != "available"
-               for key in required)):
+        or any(key not in report.capabilities for key in required)):
+        raise GenAIServiceUnavailable(retryable=False)
+    unavailable = [report.capabilities[key] for key in required
+                   if report.capabilities[key].status != "available"]
+    if unavailable:
+        coverage_reasons = {"period_missing", "period_insufficient", "coverage_missing",
+                            "coverage_incomplete", "table_empty", "source_not_in_gold"}
+        if all(set(capability.reasons) <= coverage_reasons for capability in unavailable):
+            raise GoldCoverageUnavailable
         raise GenAIServiceUnavailable(retryable=False)
     quality = GoldEvidenceQuality(
         readiness_version=report.readiness_version,
@@ -104,9 +125,10 @@ async def answer_gold_question(
         "metric_id": planned.response.plan.metric_id,
         "source_id": planned.response.plan.source_id,
     }
-    await planned.deadline.run(35, lambda: audit("plan", "ready", "success", artifact=execution_artifact(planned), **metadata))
+    await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit("plan", "ready", "success", artifact=execution_artifact(planned), **metadata))
+    query_started = monotonic()
     lookup = await planned.deadline.run(
-        35, lambda: asyncio.to_thread(
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(
             execute_gold_plan, engine, planned, resolve_scope=resolve_scope,
             quality=quality,
         ),
@@ -117,52 +139,57 @@ async def answer_gold_question(
     ):
         raise GenAIResponseInvalid
     row_count = len(lookup.evidence.records) if lookup.evidence else 0
-    await planned.deadline.run(35, lambda: audit(
+    logging.getLogger("uvicorn.error").info("genai_execution %s", json.dumps({
+        "correlation_id": correlation_id, "stage": "query",
+        "work_ms": int((monotonic() - query_started) * 1000), "row_count": row_count,
+        "evidence_bytes": len(lookup.model_dump_json().encode("utf-8")),
+    }, separators=(",", ":")))
+    await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit(
         "source", "completed", "success", row_count=row_count, artifact=execution_artifact(planned, lookup=lookup), **metadata,
     ))
     current_scope = await planned.deadline.run(
-        35, lambda: asyncio.to_thread(resolve_scope),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope),
     )
     if current_scope != planned.access_scope:
         raise GoldExecutionDenied
     await planned.deadline.run(
-        35, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
     payload = QuestionSynthesisRequest(
         **request.model_dump(), access_scope=planned.access_scope,
         dimension_value_coverage=planned.dimension_value_coverage,
-        remaining_timeout_ms=planned.deadline.remaining_timeout_ms(35),
+        remaining_timeout_ms=planned.deadline.remaining_timeout_ms(GOLD_REQUEST_TIMEOUT_SECONDS),
         plan=planned.response.plan,
         plan_fingerprint=planned.response.plan_fingerprint,
         lookup=lookup, expected_batch_ref=planned.publication.batch_ref,
     )
     result = await planned.deadline.run(
-        35, lambda: client.synthesize(payload, correlation_id=correlation_id),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: client.synthesize(payload, correlation_id=correlation_id),
     )
     current_scope = await planned.deadline.run(
-        35, lambda: asyncio.to_thread(resolve_scope),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope),
     )
     if current_scope != planned.access_scope:
         raise GoldExecutionDenied
     await planned.deadline.run(
-        35, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
-    planned.deadline.remaining_seconds(35)
+    planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     outcome = "error" if result.status == "recoverable_error" else (
         "refused" if result.status == "refused" else "success"
     )
-    reference = await planned.deadline.run(35, lambda: audit(
+    reference = await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit(
         "response", "completed", outcome, row_count=row_count, **metadata,
     ))
     # A confirmação durável também consome tempo; não publicar com escopo/lote
     # revogados enquanto a transação de auditoria era confirmada.
-    current_scope = await planned.deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
+    current_scope = await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope))
     if current_scope != planned.access_scope:
         raise GoldExecutionDenied
     await planned.deadline.run(
-        35, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
-    planned.deadline.remaining_seconds(35)
+    planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     return result.model_copy(update={"audit_reference": reference})
 
 
@@ -176,6 +203,16 @@ def build_readiness_gate(engine: Engine, client: GenAIQuestionClient, approved_c
             while (year, month) <= (plan.window.end.year, plan.window.end.month):
                 periods.append(f"{year:04d}-{month:02d}")
                 year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        if plan.comparison_periods is not None:
+            periods = list(plan.comparison_periods)
+        if plan.metric_id == "billing.price_volume":
+            from app.services.gold_price_volume import configured_windows, window_months
+            def read_windows():
+                with planned.publication.execution_snapshot(engine) as connection:
+                    connection.exec_driver_sql("SET LOCAL statement_timeout = '5000ms'")
+                    return configured_windows(connection, plan)
+            windows = await planned.deadline.run(5, lambda: asyncio.to_thread(read_windows))
+            periods = list(window_months(windows)) if windows is not None else []
         return await client.evaluate_readiness(
             engine, requested_periods=tuple(periods),
             approved_controls=frozenset(approved_controls),

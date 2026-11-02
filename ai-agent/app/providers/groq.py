@@ -9,6 +9,7 @@ import httpx
 from pydantic import SecretStr, ValidationError
 
 from app.generation.prompts import SYSTEM_INSTRUCTION, generation_contents
+from app.generation.selection import parse_answer, response_model
 from app.providers.protocols import (
     GeneratedAnswer,
     ModelProviderInvalidResponse,
@@ -16,6 +17,7 @@ from app.providers.protocols import (
     ModelProviderUnavailable,
 )
 from app.schemas.questions import ConversationTurn
+from app.telemetry import record_usage
 
 if TYPE_CHECKING:
     from app.schemas.evidence import EvidenceResult
@@ -57,12 +59,17 @@ class GroqModelAdapter:
         evidence: EvidenceResult,
     ) -> GeneratedAnswer:
         contents = generation_contents(question, context, evidence)
+        system_prompt = (
+            f"{SYSTEM_INSTRUCTION}\n"
+            "Responda com um único objeto JSON, sem texto fora dele, que siga este esquema JSON:\n"
+            f"{json.dumps(response_model(evidence).model_json_schema(), ensure_ascii=False)}"
+        )
         payload = {
             "model": self._model_name,
             "temperature": 0,
             "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": contents},
             ],
         }
@@ -85,13 +92,18 @@ class GroqModelAdapter:
             raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
 
         try:
-            choice = response.json()["choices"][0]
+            body = response.json()
+            usage = body.get("usage") or {}
+            if isinstance(usage, dict):
+                record_usage("groq", prompt=usage.get("prompt_tokens"),
+                             output=usage.get("completion_tokens"), total=usage.get("total_tokens"))
+            choice = body["choices"][0]
             if choice.get("finish_reason") not in (None, "stop"):
                 raise ValueError("geracao incompleta")
             response_text = choice["message"]["content"]
             if not isinstance(response_text, str) or not response_text.strip():
                 raise ValueError("resposta vazia")
-            return GeneratedAnswer.model_validate_json(response_text)
+            return parse_answer(response_text, evidence)
         except (KeyError, IndexError, TypeError, ValueError, ValidationError):
             raise ModelProviderInvalidResponse(
                 "O provedor retornou uma resposta inválida."
