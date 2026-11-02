@@ -32,7 +32,8 @@ export type UCProfile = {
   uc_id: string;
   customer_reference: string | null;
   customer_name: string | null;
-  customer_identification_status?: "available" | "absent" | "conflict" | "unavailable";
+  customer_identification_status?:
+    "available" | "absent" | "conflict" | "unavailable";
   municipio: string;
   bairro: string;
   classe: string;
@@ -328,14 +329,22 @@ function profile(value: unknown): UCProfile {
   for (const key of ["customer_reference", "customer_name"] as const)
     if (p[key] !== null && typeof p[key] !== "string")
       throw new UCContractError(`data.profile.${key} deve ser texto ou null.`);
-  const identificationStatus = p.customer_identification_status ?? "unavailable";
-  if (!(["available", "absent", "conflict", "unavailable"] as unknown[]).includes(identificationStatus))
-    throw new UCContractError("data.profile.customer_identification_status inválido.");
+  const identificationStatus =
+    p.customer_identification_status ?? "unavailable";
+  if (
+    !(["available", "absent", "conflict", "unavailable"] as unknown[]).includes(
+      identificationStatus,
+    )
+  )
+    throw new UCContractError(
+      "data.profile.customer_identification_status inválido.",
+    );
   return {
     uc_id: str(p.uc_id, "profile.uc_id"),
     customer_reference: p.customer_reference as string | null,
     customer_name: p.customer_name as string | null,
-    customer_identification_status: identificationStatus as UCProfile["customer_identification_status"],
+    customer_identification_status:
+      identificationStatus as UCProfile["customer_identification_status"],
     municipio: str(p.municipio, "profile.municipio"),
     bairro: str(p.bairro, "profile.bairro"),
     classe: str(p.classe, "profile.classe"),

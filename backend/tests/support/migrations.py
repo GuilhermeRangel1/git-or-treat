@@ -72,13 +72,14 @@ def assert_upgraded(connection):
     if connection.dialect.name == "postgresql":
         tables |= set(inspect(connection).get_table_names(schema="gold"))
         tables |= set(inspect(connection).get_table_names(schema="gold_v2"))
+        tables |= set(inspect(connection).get_table_names(schema="gold_cadastro"))
     assert EXPECTED_TABLES <= tables
 
 
 def assert_downgraded(connection):
     assert not EXPECTED_TABLES.intersection(inspect(connection).get_table_names())
     if connection.dialect.name == "postgresql":
-        for schema in ("gold", "gold_v2"):
+        for schema in ("gold", "gold_v2", "gold_cadastro"):
             if inspect(connection).has_schema(schema):
                 assert not EXPECTED_TABLES.intersection(inspect(connection).get_table_names(schema=schema))
 
@@ -92,12 +93,15 @@ def assert_schema_matches_models(connection, metadata=None):
     if connection.dialect.name == "sqlite":
         translated = MetaData()
         for table in metadata.tables.values():
+            if table.schema == "gold_cadastro":
+                continue
             table.to_metadata(translated, schema=None)
         metadata = translated
     context = MigrationContext.configure(connection, opts={
         "compare_type": True, "compare_server_default": True,
         "include_schemas": connection.dialect.name == "postgresql",
-        "include_name": lambda name, type_, parent: type_ != "schema" or name in {None, "gold", "gold_v2"},
+        "include_name": lambda name, type_, parent: type_ != "schema"
+        or name in {None, "gold", "gold_v2", "gold_cadastro"},
     })
     changes = produce_migrations(context, metadata).upgrade_ops
     assert changes.is_empty(), f"Modelo sem migração correspondente: {changes.as_diffs()}"
@@ -106,7 +110,13 @@ def assert_schema_matches_models(connection, metadata=None):
 @contextmanager
 def migrated_database(connection):
     if connection.dialect.name == "sqlite":
-        connection.execution_options(schema_translate_map={"gold": None, "gold_v2": None})
+        connection.execution_options(
+            schema_translate_map={
+                "gold": None,
+                "gold_v2": None,
+                "gold_cadastro": None,
+            }
+        )
     assert_clean_database(connection)
     config = alembic_config(connection)
     connection.commit()

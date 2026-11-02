@@ -13,7 +13,13 @@ def test_profile_assignment_preserves_existing_password_and_legacy_permissions(t
     database_url = f"sqlite:///{(tmp_path / 'profile-assignment.sqlite').as_posix()}"
     engine = create_engine(
         database_url,
-        execution_options={"schema_translate_map": {"gold": None, "gold_v2": None}},
+        execution_options={
+            "schema_translate_map": {
+                "gold": None,
+                "gold_v2": None,
+                "gold_cadastro": None,
+            }
+        },
     )
     Base.metadata.create_all(bind=engine)
     with engine.begin() as connection:
@@ -35,7 +41,13 @@ def test_profile_assignment_preserves_existing_password_and_legacy_permissions(t
 
     verify = create_engine(
         database_url,
-        execution_options={"schema_translate_map": {"gold": None, "gold_v2": None}},
+        execution_options={
+            "schema_translate_map": {
+                "gold": None,
+                "gold_v2": None,
+                "gold_cadastro": None,
+            }
+        },
     )
     try:
         with Session(verify) as db:
@@ -53,7 +65,13 @@ def test_bootstrap_does_not_promote_or_reset_existing_profileless_account(tmp_pa
     credentials_path = tmp_path / "credentials.txt"
     engine = create_engine(
         database_url,
-        execution_options={"schema_translate_map": {"gold": None, "gold_v2": None}},
+        execution_options={
+            "schema_translate_map": {
+                "gold": None,
+                "gold_v2": None,
+                "gold_cadastro": None,
+            }
+        },
     )
     Base.metadata.create_all(bind=engine)
     with engine.begin() as connection:
@@ -75,7 +93,13 @@ def test_bootstrap_does_not_promote_or_reset_existing_profileless_account(tmp_pa
     assert "losses username: losses" not in credentials_path.read_text(encoding="utf-8")
     verify = create_engine(
         database_url,
-        execution_options={"schema_translate_map": {"gold": None, "gold_v2": None}},
+        execution_options={
+            "schema_translate_map": {
+                "gold": None,
+                "gold_v2": None,
+                "gold_cadastro": None,
+            }
+        },
     )
     try:
         with Session(verify) as db:

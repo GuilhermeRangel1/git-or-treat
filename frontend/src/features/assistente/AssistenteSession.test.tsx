@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
+import { PROFILE_PERMISSIONS } from "@/shared/auth/platformAccess";
 import { AuthProvider } from "@/shared/auth/AuthProvider";
 import RequireSession from "@/shared/auth/RequireSession";
 import { useSession } from "@/shared/auth/useSession";
@@ -28,7 +29,12 @@ it.each([false, true])(
     });
     const session = (id: string) => ({
       enabled: true,
-      user: { id, username: id, permissions: ["orders:read"] },
+      user: {
+        id,
+        username: id,
+        profile: "customer_service",
+        permissions: PROFILE_PERMISSIONS.customer_service,
+      },
       expires_at: "2099-01-01T00:00:00Z",
     });
     const answer = (text: string) => ({

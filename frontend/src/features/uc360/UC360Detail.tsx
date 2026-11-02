@@ -108,8 +108,10 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
             Demonstração · dados sintéticos
           </p>
         )}
-        {selected && metadata?.source.kind === "gold_csv" &&
-          (selected.profile.customer_identification_status ?? "unavailable") !== "available" && (
+        {selected &&
+          metadata?.source.kind === "gold_csv" &&
+          (selected.profile.customer_identification_status ?? "unavailable") !==
+            "available" && (
             <p className="text-sm text-muted">
               {selected.profile.customer_identification_status === "absent"
                 ? "Titular sem nome informado na origem."

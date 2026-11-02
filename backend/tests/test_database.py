@@ -39,6 +39,7 @@ def test_model_metadata_loads_without_importing_database_engine():
             "gold_v2.tratativas_uc",
             "gold_v2.variacao_consumo_uc",
             "gold_v2.visao_360_uc",
+            "gold_cadastro.cadastro_titular_uc",
             "operational_inspection_orders",
             "operational_order_history",
             "auth_users",

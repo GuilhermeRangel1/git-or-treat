@@ -252,7 +252,13 @@ def test_bootstrap_creates_random_credentials_once_and_preserves_existing_accoun
     database_url = f"sqlite:///{database_path.as_posix()}"
     engine = create_engine(
         database_url,
-        execution_options={"schema_translate_map": {"gold": None, "gold_v2": None}},
+        execution_options={
+            "schema_translate_map": {
+                "gold": None,
+                "gold_v2": None,
+                "gold_cadastro": None,
+            }
+        },
     )
     Base.metadata.create_all(bind=engine)
     engine.dispose()
