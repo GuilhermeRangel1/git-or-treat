@@ -15,6 +15,9 @@ import {
 } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ReceitaPage from "./ReceitaPage";
+import RevenueBreakdown from "./RevenueBreakdown";
+import RevenueSeries from "./RevenueSeries";
+import type { RevenueEnvelope } from "./contract";
 import { revenueRefinementDestination } from "./revenue-filters";
 
 const response = {
@@ -193,6 +196,74 @@ const response = {
   },
 };
 
+it("oculta colunas inteiramente ausentes e volta a mostrá-las para zero observado", async () => {
+  const user = userEvent.setup();
+  const data = structuredClone(response);
+  data.data.series.forEach((row) => {
+    (row as { paid_amount: number | null }).paid_amount = null;
+    (row as { billed_energy_kwh: number | null }).billed_energy_kwh = null;
+  });
+  const { rerender } = render(
+    <RevenueSeries envelope={data as unknown as RevenueEnvelope} />,
+  );
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Ver tabela da série/ }));
+  const dialog = screen.getByRole("dialog", { name: "Tabela da série" });
+  expect(
+    within(dialog).queryByRole("columnheader", { name: "Receita paga (BRL)" }),
+  ).not.toBeInTheDocument();
+  expect(
+    within(dialog).queryByRole("columnheader", {
+      name: "Energia faturada (kWh)",
+    }),
+  ).not.toBeInTheDocument();
+  expect(
+    within(dialog).getByText(/Energia faturada não está disponível/),
+  ).toBeVisible();
+  data.data.series[0].paid_amount = 0;
+  data.data.series[0].billed_energy_kwh = 0;
+  rerender(<RevenueSeries envelope={data as unknown as RevenueEnvelope} />);
+  expect(
+    screen.getByRole("columnheader", { name: "Receita paga (BRL)" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("columnheader", { name: "Energia faturada (kWh)" }),
+  ).toBeVisible();
+  const january = within(dialog).getByRole("row", { name: /Jan\/2025/ });
+  expect(within(january).getByText("R$ 0,00")).toBeVisible();
+  expect(within(january).getByText("0 kWh")).toBeVisible();
+  expect(within(dialog).getAllByText("Sem dado")).toHaveLength(2);
+  expect(
+    within(dialog).queryByText(/não está disponível/),
+  ).not.toBeInTheDocument();
+});
+
+it("pagina muitos recortes e mantém a soma de todos os grupos", async () => {
+  const data = structuredClone(response);
+  data.data.breakdown.items = Array.from({ length: 25 }, (_, index) => ({
+    ...data.data.breakdown.items[0],
+    key: `grupo-${index}`,
+    label: `Grupo ${index}`,
+    filters: {
+      ...data.data.breakdown.items[0].filters,
+      municipio: `Grupo ${index}`,
+    },
+  }));
+  render(
+    <RevenueBreakdown
+      envelope={data as unknown as RevenueEnvelope}
+      groupBy="municipio"
+      onGroupByChange={() => {}}
+      onExplore={() => {}}
+    />,
+  );
+  expect(screen.getByText("Grupo 0")).toBeInTheDocument();
+  expect(screen.queryByText("Grupo 24")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Próxima" }));
+  expect(screen.getByText("Grupo 24")).toBeInTheDocument();
+  expect(screen.getByText("Soma conhecida dos recortes")).toBeInTheDocument();
+});
+
 function mountPage(initialEntry = "/receita") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -205,6 +276,94 @@ function mountPage(initialEntry = "/receita") {
     </QueryClientProvider>,
   );
 }
+
+it("mostra as janelas Gold separadas da comparação mensal e sinaliza base incompleta", async () => {
+  const gold = structuredClone(response);
+  gold.data.price_volume.reference_version = "gold-csv-v2";
+  const v2 = {
+    ...gold,
+    data: {
+      ...gold.data,
+      window_decomposition: {
+        status: "partial",
+        windows: ["2023-01", "2023-12", "2024-01", "2024-12"],
+        method: "metodo",
+        components: {
+          volume: 10,
+          preco: 20,
+          interacao: 1,
+          entradas: 4,
+          saidas: -3,
+          sem_leitura: 2,
+          outros: 1,
+        },
+        total_change_brl: 35,
+        residual_brl: null,
+        group_count: 3,
+        incomplete_groups: 1,
+        limitations: ["Somente parcelas conhecidas."],
+      },
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(v2), { status: 200 })),
+  );
+  mountPage("/receita?competencia_inicio=2025-01&competencia_fim=2025-02");
+  expect(
+    await screen.findByRole("heading", { name: "Preço × volume por janela" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText("Jan/2023–Dez/2023 vs. Jan/2024–Dez/2024"),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/Parcial: 1 de 3 grupos sem cobertura completa/),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      /1 de 3 grupos sem base comum; as parcelas somam apenas valores conhecidos/,
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      /Janelas fixas da análise, independentes do período da série/,
+    ),
+  ).toBeVisible();
+  vi.unstubAllGlobals();
+});
+
+it("mantém o período e omite identificadores técnicos na Receita", async () => {
+  const gold = structuredClone(response);
+  gold.metadata.source = {
+    ...gold.metadata.source,
+    kind: "gold_csv",
+    is_demo: false,
+    version: "GOLD-ARTIFICIAL:hash",
+  };
+  gold.data.price_volume.reference_version = "gold-csv-v2";
+  gold.metadata.limitations = ["Receita paga não fornecida nesta exportação."];
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(gold), { status: 200 })),
+  );
+  mountPage("/receita?competencia_inicio=2025-01&competencia_fim=2025-02");
+  expect(
+    await screen.findByRole("region", { name: "Filtros aplicados" }),
+  ).toBeVisible();
+  expect(screen.queryByText("GOLD-ARTIFICIAL:hash")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/Fonte: Gold CSV · importação local/),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", {
+      name: "Período, unidades e fonte dos dados",
+    }),
+  ).not.toBeInTheDocument();
+});
 
 function LocationProbe() {
   const location = useLocation();
@@ -290,9 +449,9 @@ describe("Receita", () => {
     ).toBeVisible();
     expect(within(summary).queryByText(/Mês: 2025-/)).not.toBeInTheDocument();
     expect(within(summary).getAllByText("R$ 76.500,00")[0]).toBeVisible();
-    expect(within(summary).getAllByText(/Antes: R\$ 80\.000,00/i)).toHaveLength(
-      1,
-    );
+    expect(
+      within(summary).getByText("R$ 80.000,00").closest("p"),
+    ).toHaveTextContent(/Antes: R\$\s*80\.000,00/i);
     expect(within(summary).getByText("R$ 0,8500/kWh")).toBeVisible();
     expect(
       screen.getByRole("heading", {
@@ -317,11 +476,7 @@ describe("Receita", () => {
     expect(within(breakdown).getByText("Base adequada")).toBeVisible();
     expect(within(breakdown).getByText(/Antes: 10/)).toBeVisible();
     expect(within(breakdown).getByText(/Final: 10 UCs/)).toBeVisible();
-    expect(
-      screen.getByText("Cobertura parcial", {
-        selector: 'span[role="status"]',
-      }),
-    ).toBeVisible();
+    expect(screen.queryByText("Cobertura parcial")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Ver acumulados e extremos"),
     ).not.toBeInTheDocument();
@@ -330,22 +485,23 @@ describe("Receita", () => {
         name: "Receita, energia e preço em cada extremo",
       }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByText("R$ 76.500,00")).toHaveLength(2);
+    expect(screen.getAllByText("R$ 76.500,00")).toHaveLength(1);
     expect(screen.getAllByText("R$ 80.000,00")).not.toHaveLength(0);
     expect(screen.getAllByText("−R$ 3.500,00")).toHaveLength(2);
-    expect(screen.getByText("90.000 kWh")).toBeVisible();
+    expect(within(summary).getByText("90.000,00 kWh")).toBeVisible();
     expect(screen.getByText(/Dados sintéticos/i)).toBeVisible();
     expect(
       screen.queryByText("Ver método, cobertura e limitações"),
     ).not.toBeInTheDocument();
 
     const series = screen.getByRole("region", { name: /Série mensal/i });
-    expect(within(series).getByRole("table")).toBeVisible();
     expect(
-      within(series).getByText(/Escala vertical inclui R\$ 0,00/),
+      within(series).getByText(/Receita faturada por mês \(BRL\)\./),
     ).toBeVisible();
-    expect(within(series).getAllByText("Jan/2025")).toHaveLength(2);
-    expect(within(series).getAllByText("Fev/2025")).toHaveLength(2);
+    expect(
+      within(series).getByRole("button", { name: /Ver tabela da série/ }),
+    ).toBeVisible();
+    expect(within(series).queryByRole("table")).not.toBeInTheDocument();
     expect(within(series).queryByText("2025-01")).not.toBeInTheDocument();
     const chart = within(series).getByRole("img", {
       name: /Receita faturada por mês/i,
@@ -363,6 +519,20 @@ describe("Receita", () => {
       "aria-describedby",
       "revenue-series-tooltip",
     );
+    await user.click(
+      within(series).getByRole("button", { name: /Ver tabela da série/ }),
+    );
+    const seriesDialog = screen.getByRole("dialog");
+    expect(within(seriesDialog).getByRole("table")).toBeVisible();
+    const january = within(seriesDialog).getByRole("row", {
+      name: /Jan\/2025/,
+    });
+    const february = within(seriesDialog).getByRole("row", {
+      name: /Fev\/2025/,
+    });
+    expect(within(january).getByText("R$ 80.000,00")).toBeVisible();
+    expect(within(february).getByText("R$ 76.500,00")).toBeVisible();
+    expect(within(february).getByText("90.000 kWh")).toBeVisible();
   });
 
   it("shows the initial and final amounts and reconciles the visible groups", async () => {
@@ -507,8 +677,10 @@ describe("Receita", () => {
       within(breakdown).getByText("1 grupo sem comparação."),
     ).toBeVisible();
     expect(
-      within(breakdown).getByText("Diferença não atribuída: −R$ 1.500,00."),
-    ).toBeVisible();
+      within(breakdown)
+        .getByText("−R$ 1.500,00", { selector: "span" })
+        .closest("p"),
+    ).toHaveTextContent("Diferença não atribuída: −R$ 1.500,00.");
     expect(
       within(breakdown).queryByText("Os recortes fecham com o total."),
     ).not.toBeInTheDocument();
@@ -547,7 +719,7 @@ describe("Receita", () => {
     expect(filtersTrigger).toHaveFocus();
   });
 
-  it("allows filtering by neighborhood across municipalities", async () => {
+  it("requires a municipality before filtering by neighborhood and clears the neighborhood when it changes", async () => {
     const fetchMock = vi
       .fn()
       .mockImplementation(
@@ -560,10 +732,15 @@ describe("Receita", () => {
     await user.click(
       await screen.findByRole("button", { name: "Ajustar filtros" }),
     );
-    await user.selectOptions(
-      await screen.findByLabelText("Bairro"),
-      "Bairro Novo",
-    );
+    const neighborhood = await screen.findByLabelText("Bairro");
+    expect(neighborhood).toBeDisabled();
+    await screen.findByRole("option", { name: "Olinda" });
+    await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+    expect(neighborhood).toBeEnabled();
+    await user.selectOptions(neighborhood, "Bairro Novo");
+    await user.selectOptions(screen.getByLabelText("Município"), "Recife");
+    expect(neighborhood).toHaveValue("");
+    await user.selectOptions(neighborhood, "Bairro Novo");
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
@@ -572,7 +749,7 @@ describe("Receita", () => {
       window.location.origin,
     );
     expect(requestUrl.searchParams.get("bairro")).toBe("Bairro Novo");
-    expect(requestUrl.searchParams.has("municipio")).toBe(false);
+    expect(requestUrl.searchParams.get("municipio")).toBe("Recife");
   });
 
   it("preserves a URL feeder through requests, form apply, context, and cache identity", async () => {
@@ -1206,7 +1383,7 @@ describe("Receita", () => {
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
-    await user.selectOptions(screen.getByLabelText("Mês do fim"), "03");
+    await user.selectOptions(screen.getByLabelText("Mês final"), "2025-01");
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 
@@ -1315,7 +1492,10 @@ describe("Receita", () => {
     expect(within(breakdown).getByText("Base pequena")).toBeVisible();
     expect(within(breakdown).getByText(/Antes: 4/)).toBeVisible();
     expect(within(breakdown).getByText(/Final: 4 UCs/)).toBeVisible();
-    expect(screen.getByText("Indisponível")).toBeVisible();
+    const summary = screen.getByRole("region", { name: "Resumo da receita" });
+    expect(within(summary).getByText("−R$ 3.500,00")).toBeVisible();
+    expect(within(summary).queryByText(/%/)).not.toBeInTheDocument();
+    expect(within(breakdown).queryByText(/%/)).not.toBeInTheDocument();
   });
 
   it("keeps an absolute delta but withholds price-volume effects when initial revenue is zero", async () => {
@@ -1439,7 +1619,8 @@ describe("Receita", () => {
     );
     mountPage();
 
-    expect(await screen.findByText("Cobertura parcial")).toBeVisible();
+    await screen.findAllByText("Indisponível");
+    expect(screen.queryByText("Cobertura parcial")).not.toBeInTheDocument();
     expect(screen.getAllByText("Indisponível").length).toBeGreaterThan(0);
     expect(
       screen.queryByText("Ver método, cobertura e limitações"),

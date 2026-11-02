@@ -27,6 +27,7 @@ from app.schemas.operations import (
     GoldOperationRankingData,
     GoldRankedFeeder,
     GoldOperationOptionsResponse,
+    GoldOccurrencePage,
 )
 from app.services.analytics import (
     AnalyticsAPIError,
@@ -211,6 +212,25 @@ def get_operation_ranking(
         data=OperationRankingData(items=ranked, excluded=excluded, metric=metric),
         metadata=operation_metadata(repository, state, start, end, filters, points),
     )
+
+
+@router.get("/feeders/{feeder_id}/occurrences", response_model=GoldOccurrencePage)
+def get_gold_occurrences(
+    feeder_id: Annotated[str, Path(min_length=1, max_length=100)],
+    period: Annotated[tuple[str, str], Depends(exploration_period)],
+    page: Annotated[int, Query(ge=1, le=1000000)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    municipio: Annotated[str | None, Query(max_length=100)] = None,
+    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+) -> GoldOccurrencePage:
+    if gold_context is None:
+        raise AnalyticsAPIError(422, "unsupported_source", "Ocorrências observadas disponíveis somente para a fonte Gold.")
+    repository = GoldOperationsRepository(gold_context)
+    _, meta = gold_operation_points(repository, *period, municipio=municipio, alimentador=feeder_id)
+    items, total = repository.occurrences(feeder_id, *period, page, page_size)
+    meta.status = "partial" if total else "unavailable"
+    meta.limitations.append("Ocorrências observadas por UC e data de abertura; o alimentador registrado pode refletir cadastro atual. Datas ausentes ficam fora da janela e ausência de registros não comprova cobertura completa.")
+    return GoldOccurrencePage(data=items, pagination={"page": page, "page_size": page_size, "total": total, "total_pages": (total + page_size - 1) // page_size}, metadata=meta)
 
 
 @router.get(

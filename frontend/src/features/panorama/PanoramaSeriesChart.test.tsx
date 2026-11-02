@@ -36,38 +36,23 @@ describe("PanoramaSeriesChart", () => {
       const competencia = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
       return { ...data[0], competencia, receitaFaturada: index * 1000 };
     });
-    const { container } = render(
-      <PanoramaSeriesChart data={history} selectedPeriod="2026-06" />,
-    );
+    render(<PanoramaSeriesChart data={history} selectedPeriod="2026-06" />);
 
-    expect(
-      container.querySelectorAll(".panorama-series-chart__point"),
-    ).toHaveLength(12);
+    expect(screen.getAllByRole("img", { name: /^Exibir / })).toHaveLength(12);
     await user.click(screen.getByRole("button", { name: "24 meses" }));
-    expect(
-      container.querySelectorAll(".panorama-series-chart__point"),
-    ).toHaveLength(24);
+    expect(screen.getAllByRole("img", { name: /^Exibir / })).toHaveLength(24);
     await user.click(screen.getByRole("button", { name: "Todo o histórico" }));
-    expect(
-      container.querySelectorAll(".panorama-series-chart__point"),
-    ).toHaveLength(48);
+    expect(screen.getAllByRole("img", { name: /^Exibir / })).toHaveLength(48);
     expect(screen.getByText("Jul/2022 – Jun/2026")).toBeVisible();
     expect(
-      container.querySelectorAll(".panorama-series-chart__tick--mobile"),
-    ).toHaveLength(4);
+      screen.getByRole("button", { name: "Todo o histórico" }),
+    ).toHaveAttribute("aria-pressed", "true");
     expect(
-      container.querySelectorAll(".panorama-series-chart__tick--desktop"),
-    ).toHaveLength(6);
-    for (const tick of container.querySelectorAll(
-      ".panorama-series-chart__tick--mobile, .panorama-series-chart__tick--desktop",
-    )) {
-      expect(tick.textContent).toMatch(/\/20\d{2}/);
-    }
+      screen.getByRole("img", { name: /^Receita faturada por mês/ }),
+    ).toHaveAccessibleName(/Jul\/2022:.*Jun\/2026:/);
 
     await user.click(screen.getByRole("button", { name: "12 meses" }));
-    expect(
-      container.querySelectorAll(".panorama-series-chart__point"),
-    ).toHaveLength(12);
+    expect(screen.getAllByRole("img", { name: /^Exibir / })).toHaveLength(12);
     expect(screen.getByText("Jul/2025 – Jun/2026")).toBeVisible();
   });
 
@@ -76,7 +61,7 @@ describe("PanoramaSeriesChart", () => {
       <PanoramaSeriesChart data={[data[0]]} selectedPeriod="2024-03" />,
     );
     expect(
-      screen.getByRole("button", { name: /Mar\/2024: R\$/ }),
+      screen.getByRole("img", { name: /Exibir Mar\/2024, faturamento R\$/ }),
     ).toBeVisible();
 
     rerender(<PanoramaSeriesChart data={data} selectedPeriod="2024-02" />);
@@ -85,34 +70,47 @@ describe("PanoramaSeriesChart", () => {
     ).toBeVisible();
   });
 
-  it("mantém lacunas da fonte Gold como indisponíveis na série e na alternativa textual", () => {
-    const { container } = render(
+  it("mantém lacunas da fonte Gold como indisponíveis na série e na alternativa textual", async () => {
+    const user = userEvent.setup();
+    render(
       <PanoramaSeriesChart
         sourceKind="gold"
         data={[{ ...data[0], receitaFaturada: null }, data[1]]}
       />,
     );
 
-    expect(screen.getByText("Valores em R$ mil por mês")).toBeVisible();
+    expect(screen.getByText("Receita faturada por mês (BRL).")).toBeVisible();
     expect(
-      container.querySelector(".panorama-series-chart__tick--mobile"),
-    ).toHaveTextContent(/Mar\/2024 · —/);
-    expect(screen.getByRole("group")).toHaveAccessibleName(
-      /Mar\/2024 e Abr\/2024/,
+      screen.getByRole("img", { name: /^Receita faturada por mês/ }),
+    ).toHaveAccessibleName(/Mar\/2024: sem dado; Abr\/2024: R\$/);
+    expect(
+      screen.queryByRole("img", { name: /^Exibir Mar\/2024/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: /^Exibir Abr\/2024/ }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: /Ver tabela da série/ }),
+    );
+    expect(screen.getByRole("row", { name: /Mar\/2024/ })).toHaveTextContent(
+      "Indisponível",
     );
   });
 
   it("mostra a soma como indisponível quando a série inteira não tem valores", async () => {
     const user = userEvent.setup();
-    const { container } = render(
+    render(
       <PanoramaSeriesChart
         sourceKind="gold"
         data={data.map((point) => ({ ...point, receitaFaturada: null }))}
       />,
     );
     expect(
-      container.querySelectorAll(".panorama-series-chart__tick--mobile"),
-    ).toHaveLength(2);
+      screen.getByText("Sem dados de faturamento no período"),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("img", { name: /^Exibir / }),
+    ).not.toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: /Ver tabela da série/ }),
     );
@@ -121,7 +119,7 @@ describe("PanoramaSeriesChart", () => {
     expect(screen.getByRole("table")).not.toHaveTextContent(/R\$\s*0,00/);
   });
 
-  it("mostra uma série mensal com valores visíveis, escala em R$ mil e período parcial", () => {
+  it("mostra uma série mensal em reais e identifica a competência parcial", () => {
     render(
       <PanoramaSeriesChart
         data={data}
@@ -133,15 +131,15 @@ describe("PanoramaSeriesChart", () => {
     expect(
       screen.getByRole("heading", { name: "Receita por competência" }),
     ).toBeVisible();
-    expect(screen.getByText("Valores em R$ mil por mês")).toBeVisible();
-    expect(screen.getByRole("group")).toHaveAccessibleName(
-      /Receita por competência.*Receita faturada mensal entre Mar\/2024 e Abr\/2024/,
-    );
+    expect(screen.getByText("Receita faturada por mês (BRL).")).toBeVisible();
+    expect(
+      screen.getByRole("img", { name: /^Receita faturada por mês/ }),
+    ).toHaveAccessibleName(/Mar\/2024:.*Abr\/2024:/);
     expect(screen.getByText(/Competência parcial/)).toBeVisible();
 
-    const selectedPoint = document.querySelector(
-      ".panorama-series-chart__point.is-selected",
-    );
+    const selectedPoint = screen.getByRole("img", {
+      name: /Exibir Abr\/2024,.*competência selecionada, competência parcial/,
+    });
     expect(selectedPoint).toHaveAttribute("data-partial", "true");
     expect(
       screen.queryByRole("button", { name: /Físico|Pago|Ver Tabela/ }),
@@ -177,15 +175,27 @@ describe("PanoramaSeriesChart", () => {
       { ...data[0], receitaFaturada: 0 },
       { ...data[1], receitaFaturada: 12345.67 },
     ];
-    const { container } = render(
-      <PanoramaSeriesChart data={centData} selectedPeriod="2024-04" />,
-    );
+    render(<PanoramaSeriesChart data={centData} selectedPeriod="2024-04" />);
 
-    const zeroPoint = container.querySelector(
-      '.panorama-series-chart__point[aria-label^="Mar/2024"]',
+    const zeroPoint = screen.getByRole("img", {
+      name: /Exibir Mar\/2024, faturamento R\$\s*0,00/,
+    });
+    expect(zeroPoint).toBeVisible();
+    expect(zeroPoint).not.toHaveAccessibleName(/competência selecionada/);
+    fireEvent.focus(zeroPoint);
+    expect(screen.getByRole("tooltip")).toHaveAccessibleName(
+      /Mar\/2024: R\$\s*0,00/,
     );
-    expect(zeroPoint).toHaveStyle({ top: "192px" });
-    expect(zeroPoint).not.toHaveClass("is-selected");
+    fireEvent.blur(zeroPoint);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    const centPoint = screen.getByRole("img", {
+      name: /Exibir Abr\/2024, faturamento R\$\s*12\.345,67, competência selecionada/,
+    });
+    await user.hover(centPoint);
+    expect(screen.getByRole("tooltip")).toHaveAccessibleName(
+      /Abr\/2024: R\$\s*12\.345,67/,
+    );
+    await user.unhover(centPoint);
 
     await user.click(
       screen.getByRole("button", { name: "Ver tabela da série →" }),

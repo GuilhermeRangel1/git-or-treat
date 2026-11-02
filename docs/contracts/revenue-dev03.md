@@ -5,6 +5,8 @@
 
 Complementa o [catálogo analítico](analytics-api.md), o [desenho](../design/2026-10-21-dev03-design.md) e o [plano](../plans/2026-10-21-dev03-plan.md). Contrato de aplicação demonstrativo; não define Gold. Controlador é responsável por mudanças neste acordo e deve avisar os dois implementadores antes de alterar nomes ou semânticas.
 
+Extensão aditiva Gold v2: `data.window_decomposition` é nulo para fontes anteriores ou objeto com `status`, quatro `windows` inclusivas, `method`, `components` (volume, preco, interacao, entradas, saidas, sem_leitura e outros), variação total, resíduo, quantidades de grupos e limitações. A análise usa as janelas fixadas na publicação, separadas da comparação mensal existente. Grupos sem base comum tornam somas parciais e impedem apresentar resíduo como fechamento; alimentador não é suportado pelo grão publicado. O preço observado mensal usa receita e consumo da base comparável, não tarifa homologada nem energia faturada. Detalhes semânticos no [dicionário Gold](../dicionario_gold.md#diagnóstico-preço-volume-no-notebook--preparação-de-30102026).
+
 ## Operação e tipos
 
 `GET /api/v1/revenue` preserva os parâmetros DEV-01 e acrescenta `group_by`, enum `municipio|bairro|classe`, padrão `municipio`. Competências padrão preservadas: `2025-01` a `2025-02`. Valores desconhecidos, vazios ou parâmetros escalares repetidos retornam 422. Se o tratamento comum precisar mudar para rejeitar repetições, limitar essa mudança a Receita.

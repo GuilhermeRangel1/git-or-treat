@@ -19,6 +19,34 @@ O ingresso Backend deve aceitar prompt v3 antes de implantar a GenAI v3. O contr
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
+Receita, catálogo de filtros e UC 360 consultam a Gold por adaptadores próprios e exigem identidade de leitura no modo Gold. Os contratos v1 permanecem apenas para compatibilidade; a publicação v2 é a referência atual. A leitura não homologa automaticamente as medidas ou a cobertura.
+
+A UC 360 v2 consulta o cadastro e cada fonte individualmente pela chave da UC, sob a mesma identidade de publicação. Retorna histórico mensal, faturas observadas, vínculos de medidores, chamados e interrupções com paginação; cobertura individual não é presumida. O histórico de faturas expõe separadamente o status declarado e o valor nominal declarado em aberto, sem classificá-los como pagamento comprovado ou saldo contábil. A seleção de possível medidor na referência Gold usa datas e é parcial; ambiguidades permanecem indisponíveis. Potência de GD é exposta separadamente em kWp. Titular, pagamento efetivo e energia faturada não são inferidos. Veja o [contrato da UC Gold v2](../contracts/uc360-gold-v2.md).
+
+O resumo conta faturas declaradas em aberto no período com estado parcial; a data de pagamento informada é exposta apenas com sinais consistentes, sem afirmar liquidação. A UC também oferece tratativas estruturadas paginadas por chamado, sem texto restrito. Em Operação, `/operations/feeders/{feeder_id}/occurrences` consulta ocorrências observadas por alimentador e data de abertura, sob autenticação e identidade Gold; registro ausente não certifica zero, e a atribuição pode refletir cadastro atual.
+
+A fila Gold v2 apresenta categoria e motivo publicados, usa a posição de triagem do lote e expõe opções de filtro extraídas da própria fila. A ordenação por estimativa individual é recusada. O detalhe compara três competências com as três anteriores como contexto candidato, sem atribuir essa janela à suspeita ou alterar a prioridade. A criação de ordem segue o contrato DEV-13.1: exige autorização de escrita, fingerprint da publicação e snapshot validado. Consulte o [contrato Gold DEV-13.1](../contracts/analytics-gold-dev13-1.md) e a descrição histórica da [fila DEV-13.2](../contracts/inspection-gold-v2.md).
+
+O detalhe também calcula cenário individual de queda de consumo por trimestres homólogos para investigação, com seis leituras mensais válidas, períodos e limitações explícitas. O valor não representa recuperação nem altera a ordenação; metodologia e ausência de validação retrospectiva estão no contrato da fila.
+
+Receita v2 apresenta preço observado somente a partir da receita e do consumo da base comparável e retorna, em `window_decomposition`, a decomposição materializada nas duas janelas da publicação. As sete parcelas são somadas por recorte, com método e janelas confrontados com o manifesto; grupos sem base comum mantêm resultado parcial e não são tratados como zero. O total só é exibido quando todos os grupos o possuem e o resíduo só é declarado com parcelas completas. Filtro por alimentador torna essa análise indisponível porque a tabela não tem esse grão; não se atribui a ela o recorte dos fatos mensais. Comparação entre meses e comparação entre janelas são independentes. O método continua candidato, sem homologar tarifa, energia faturada ou fechamento contábil.
+
+A entrega local em `data/gold/v2` passou a usar o esquema `gold-csv-v2`; selecionar o diretório e a versão explicitamente na carga, sem apagar a v1. O [mapeamento histórico DEV-13.2](../contracts/gold-v2-jornadas-dev132.md) descreve uma entrega anterior de sete tabelas, não o pacote atual de quinze. O período informado na fila v1 é cobertura do consumo do lote, não uma janela própria da suspeita.
+
+Para revisar a publicação já carregada no banco SQLite isolado local `backend/data/gold/receita-v2.sqlite`, sem alterar `.env`, executar no PowerShell em `backend/`:
+
+```powershell
+$env:DATABASE_URL = 'sqlite:///data/gold/receita-v2.sqlite'
+$env:ANALYTICS_SOURCE = 'gold'
+$env:APP_ENV = 'development'
+$env:ORDERS_AUTH_MODE = 'service'
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+```
+
+Em outro terminal, em `frontend/`, executar `npm run dev -- --host 127.0.0.1` e abrir `/receita`. O banco SQLite contém dados da entrega privada e permanece ignorado pelo Git. É uma validação local, não substitui PostgreSQL ou aceite das métricas. Para execução direta com PostgreSQL, o hostname `db` configurado para Compose só resolve dentro da rede Docker; usar a conexão local apropriada sem publicar credenciais. Não alterar o banco operacional existente para executar esta prova.
+
+A prova posterior usou PostgreSQL 18 no banco isolado `gold_receita_v2_test`, com migrações, importação das quinze tabelas e reconciliação privada da API; a conexão local foi preparada apenas no processo e o banco operacional anterior foi preservado. Para reproduzir, configure o endereço local e credenciais por um canal seguro no processo, sem gravá-los no repositório; o arquivo `.env` do Compose não deve ser exposto.
+
 As ordens têm persistência operacional inicial, separada da Gold analítica. As rotas de Panorama, fila/Ordens e Operação podem consultar a fonte sintética explícita ou, em `ANALYTICS_SOURCE=gold`, a publicação CSV v2 após autenticação e validação de lote. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. As cargas v1 e v2 são transacionais, conforme os [contratos provisórios v1](../contracts/gold-csv-v1.md) e [v2](../contracts/gold-csv-v2.md). O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
 ## DEV-01: contratos antes da Gold
@@ -78,7 +106,7 @@ O portal envia filtros aplicados e `loteVersao` a `POST /api/v1/ai/insights`; nu
 
 Recorte sem registros retorna `no_evidence` com observações vazias antes da chamada à GenAI; zero observado em registros existentes continua elegível para interpretação. Os controles de filtro, lote e fonte são aplicados antes da decisão de ausência.
 
-Na versão atual, o serviço só gera o contexto com a fonte sintética do Panorama; fonte não compatível falha fechada. Isso conecta o caminho da interface, mas não comprova Gold, autorização de usuário, auditoria persistida ou uma geração ao vivo de provedor. A evolução para Gold precisa revisar a métrica com o dicionário e continuar recalculando os valores no Backend.
+O insight de Panorama usa o contexto sintético; fonte não compatível falha fechada. Isso não comprova insight Gold ou geração ao vivo de provedor.
 
 O cálculo sintético do Panorama recebe `PanoramaRepository`, com cobertura e comparações demonstrativas preservadas. `ANALYTICS_SOURCE` aceita `synthetic`, `unavailable` e `gold`. O modo Gold usa consultas agregadas específicas, publica opções reais e ausências, e mantém identidade de lote/fingerprint por resposta. O insight continua exclusivamente sintético e falha fechado em Gold; sua adaptação precisa recalcular contexto na fonte real antes de ser habilitada. Veja o [contrato DEV-13.1](../contracts/analytics-gold-dev13-1.md).
 
@@ -168,6 +196,10 @@ Na revisão DEV-08, todas as rotas de Operação passaram a recusar parâmetros 
 
 A refatoração de alinhamento DEV-08 move a composição e paginação do detalhe para `build_feeder_detail`, com resposta tipada. As rotas de Operação retornam modelos explícitos; `StrictAnalyticsRoute` fica na fronteira HTTP comum. Receita e Operação compartilham `repeated_query_parameters`, preservando seus contratos e políticas de erro.
 
+## Integração provisória Gold v1 — 27/10/2026
+
+Receita, UC 360 e fila de inspeção têm composição executável com `ANALYTICS_SOURCE=gold`, consultas SQL parametrizadas, agregação/paginação no banco e catálogo de filtros real. O portal preserva rotas e valida envelopes; apresenta lote, importação local, limitações e ausências. `priority_label` preserva a categoria textual; score e estimativa são nulos. Histórico mensal da UC distingue agregado financeiro de fatura individual. Modo sintético permanece explícito e não solicita banco. Panorama/Operação e GenAI não foram homologados para essa fonte; os requisitos continuam abertos. Veja [contrato e execução local](../contracts/gold-csv-v1.md#consumo-provisório-pela-api-e-pelo-portal).
+
 ## Preparação da identidade de publicação Gold — 28/10/2026
 
 O Backend passa a validar a origem do manifesto e persistir a origem e `publication_id`, derivando deles o `batch_ref`. A identidade permanece em repetição e muda atomicamente em nova publicação. O schema analítico e o papel de leitura seguem a ADR-0017; [manifesto e compatibilidade](../contracts/gold-csv-v1.md#origem-e-publicação) e [migração, permissões e recuperação](../contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação) descrevem o uso. O campo nos envelopes GenAI, os endpoints de planejar/sintetizar e o executor de consultas de negócio continuam pendentes. Esta preparação não ativa a fonte real nem conclui GENAI-01 ou requisitos IA/DE.
@@ -225,6 +257,8 @@ O artefato declara o limite datado de até 1.830 dias por métrica; a política 
 
 
 ### Cliente das operações internas — 31/10/2026
+
+Na integração DEV-13.2, as respostas analíticas Gold CSV v2 informam lote e fingerprint em `source`. Receita, UC 360 e opções aceitam `expected_lote` e `expected_fingerprint`, conferidos sob o bloqueio da publicação; divergências geram 409 e parâmetros repetidos geram 422. As fontes anteriores não recebem identidade inventada.
 
 `GenAIQuestionClient.plan(QuestionPlanRequest, correlation_id=...)` e `synthesize(QuestionSynthesisRequest, correlation_id=...)` usam as rotas internas contratuais, token e transporte existentes. Validam schema e correlação; o planejamento também confere o fingerprint pelo schema. Não há fallback para `/api/v1/questions`. A prova `test_database_metadata_drives_the_composed_genai_plan` liga o produtor do banco v2 ao cliente e às rotas GenAI reais ASGI em processo separado, incluindo síntese de ausência. A ponte de transporte é controlada e o banco é artificial. Esta entrega não ativa o coordenador no endpoint do portal, não autentica a pessoa usuária e não executa SQL de negócio.
 

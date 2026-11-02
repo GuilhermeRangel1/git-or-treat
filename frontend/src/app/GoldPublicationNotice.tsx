@@ -13,6 +13,9 @@ const analyticGroups = new Set([
   "operations",
   "inspection-queue",
   "inspection-suspicion",
+  "revenue",
+  "uc360",
+  "analytics",
 ]);
 
 export default function GoldPublicationNotice() {

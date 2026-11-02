@@ -53,6 +53,11 @@ export function statusLabel(status: UCStatus) {
 
 export function humanizeLimitation(text: string) {
   return text
+    .replace(
+      /Detalhe não fornecido nos CSVs Gold desta versão/gi,
+      "Detalhe não informado nesta consulta",
+    )
+    .replace(/\bGold(?: CSV)?\b/gi, "fonte de dados")
     .replace(/\bcomparison\.(initial|final)\./g, (_, point: string) =>
       point === "initial" ? "período anterior: " : "período atual: ",
     )

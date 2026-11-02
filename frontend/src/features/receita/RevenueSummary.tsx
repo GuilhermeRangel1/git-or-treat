@@ -1,4 +1,5 @@
 import type { RevenueEnvelope } from "./contract";
+import { signedValueTone } from "@/shared/ui/signedValue";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -31,15 +32,6 @@ function signedMoney(value: number | null) {
   if (value === null) return "Indisponível";
   return (
     (value < 0 ? "−" : value > 0 ? "+" : "") + currency.format(Math.abs(value))
-  );
-}
-
-function signedPercent(value: number | null, eligible: boolean) {
-  if (value === null || !eligible) return "Indisponível";
-  return (
-    (value < 0 ? "−" : value > 0 ? "+" : "") +
-    decimal.format(Math.abs(value)) +
-    "%"
   );
 }
 
@@ -78,11 +70,26 @@ function MetricCard({
     <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
       <h3 className="text-sm text-muted">{label}</h3>
       <p
-        className={`break-words font-heading ${valueClassName ?? "text-4xl"} leading-tight font-semibold tracking-tight text-content`}
+        className={`min-w-0 [overflow-wrap:anywhere] font-heading ${valueClassName ?? (value.length > 13 ? "text-2xl" : "text-3xl")} leading-tight font-semibold tracking-tight ${value.startsWith("-") || value.startsWith("−") ? "text-danger" : "text-content"}`}
       >
         {value}
       </p>
-      <p className="text-xs text-muted">Antes: {before}</p>
+      {value !== "Indisponível" || before !== "Indisponível" ? (
+        <p className="text-xs text-muted">
+          Antes:{" "}
+          <span
+            className={
+              before.startsWith("-") || before.startsWith("−")
+                ? "text-danger"
+                : "text-content"
+            }
+          >
+            {before}
+          </span>
+        </p>
+      ) : (
+        <p className="text-xs text-muted">A fonte não informa esta medida.</p>
+      )}
       <p className="text-xs text-muted">Mês: {competence}</p>
     </article>
   );
@@ -97,14 +104,7 @@ export default function RevenueSummary({
   const initial = data.comparison.initial;
   const final = data.comparison.final;
   const change = data.comparison.billed_amount_change_brl;
-  const signStyle =
-    change === null
-      ? "text-muted"
-      : change < 0
-        ? "text-danger"
-        : change > 0
-          ? "text-success"
-          : "text-content";
+  const signStyle = signedValueTone(change);
 
   return (
     <section aria-labelledby="revenue-summary-title" className="min-w-0">
@@ -129,30 +129,24 @@ export default function RevenueSummary({
           value={price(final.observed_price_brl_per_kwh)}
           before={price(initial.observed_price_brl_per_kwh)}
           competence={competenceLabel(final.competencia)}
-          valueClassName="text-[32px]"
+          valueClassName="text-xl sm:text-2xl"
         />
         <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
           <h3 className="text-sm text-muted">Variação</h3>
           <p
             className={
-              "flex items-center justify-center gap-2 break-words font-heading text-4xl leading-tight font-semibold tracking-tight " +
+              "flex min-w-0 flex-wrap items-center justify-center gap-2 [overflow-wrap:anywhere] font-heading text-xl sm:text-2xl leading-tight font-semibold tracking-tight " +
               signStyle
             }
           >
             <span aria-hidden="true">
               {change === null ? "" : change > 0 ? "▲" : change < 0 ? "▼" : "▶"}
             </span>
-            {signedMoney(change)}
+            <span className="min-w-0">{signedMoney(change)}</span>
           </p>
           <p className="text-xs text-muted">
             Período: {competenceLabel(initial.competencia)} →{" "}
             {competenceLabel(final.competencia)}
-          </p>
-          <p className="text-xs text-muted">
-            {signedPercent(
-              data.comparison.billed_amount_change_percent,
-              data.quality.percent_change_eligible,
-            )}
           </p>
         </article>
       </div>

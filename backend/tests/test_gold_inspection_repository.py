@@ -6,7 +6,7 @@ from sqlalchemy import MetaData, create_engine, insert
 from app.models.gold_v2_load import TABLES
 from app.repositories.gold_inspections import GoldInspectionRepository
 from app.schemas.analytics import AnalyticsFilters
-from app.services.inspection_analytics import build_gold_queue_response
+from app.services.inspection_analytics import build_gold_queue_response, build_gold_suspicion_response
 
 
 def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
@@ -15,6 +15,8 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
     queue = TABLES["fila_inspecao"].to_metadata(metadata)
     variation = TABLES["variacao_consumo_uc"].to_metadata(metadata)
     profile = TABLES["visao_360_uc"].to_metadata(metadata)
+    monthly = TABLES["consumo_mensal_uc"].to_metadata(metadata)
+    TABLES["medidor_uc"].to_metadata(metadata)
     metadata.create_all(engine)
 
     with engine.begin() as connection:
@@ -58,6 +60,17 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
             {"id_uc": "UC-2", "status": "ATIVA"},
             {"id_uc": "UC-0", "status": "ATIVA"},
         ])
+        connection.execute(insert(monthly), [
+            {"id_uc": "UC-1", "competencia": month, "consumo_kwh": value,
+             "qtd_leituras_observadas": 1, "qtd_leituras_validas": 1}
+            for month, value in [("2024-08", 100), ("2024-09", 100), ("2024-10", 100),
+                                 ("2024-11", 50), ("2024-12", 50), ("2025-01", 50)]
+        ])
+        connection.execute(insert(monthly), [
+            {"id_uc": "UC-1", "competencia": month, "consumo_kwh": 300,
+             "qtd_leituras_observadas": 1, "qtd_leituras_validas": 1}
+            for month in ("2023-11", "2023-12", "2024-01")
+        ])
 
         context = SimpleNamespace(
             connection=connection, lote="fixture", schema_version="gold-csv-v2",
@@ -74,6 +87,8 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
             repository, AnalyticsFilters(municipio="Cidade A"), 2, 1, "queue_position", "asc",
         )
         descending = build_gold_queue_response(repository, AnalyticsFilters(), 1, 1, "queue_position", "desc")
+        detail = build_gold_suspicion_response(repository, "UC-1")
+        incomplete = build_gold_suspicion_response(repository, "UC-2")
 
     assert first_page.pagination.total == 3
     assert first_page.pagination.total_pages == 3
@@ -90,5 +105,15 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
     assert second.evidence.estimated_recoverable_energy_kwh is None
     assert second.evidence.recovery_estimate_status == "ESTIMATIVA_UC_INDISPONIVEL"
     assert filtered_first.pagination.total == 2
+    assert filtered_first.data.neighborhoods == [
+        {"municipio": "Cidade A", "bairro": "Bairro A"},
+        {"municipio": "Cidade A", "bairro": "Bairro B"},
+        {"municipio": "Cidade B", "bairro": "Bairro C"},
+    ]
     assert [item.uc_id for item in filtered_first.data.items + filtered_second.data.items] == ["UC-2", "UC-1"]
     assert "insuficiente" in first_page.data.items[0].recovery_unavailable_reason
+    assert detail.data.consumption_comparison.baseline_kwh == 300
+    assert detail.data.consumption_comparison.recent_kwh == 150
+    assert detail.data.consumption_comparison.change_percent == -50
+    assert detail.data.investigation_potential.potential_kwh == 750
+    assert incomplete.data.consumption_comparison.recent_kwh is None

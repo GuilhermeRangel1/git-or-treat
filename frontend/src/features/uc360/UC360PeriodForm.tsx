@@ -24,8 +24,8 @@ export default function UC360PeriodForm({
   const applied = `${appliedStart}/${appliedEnd}`;
   const [draft, setDraft] = useState({
     applied,
-    start: appliedStart || "2025-01",
-    end: appliedEnd || "2025-02",
+    start: appliedStart || period.start,
+    end: appliedEnd || period.end,
   });
   const [validation, setValidation] = useState<ValidationError | null>(null);
   const startId = useId();
@@ -34,8 +34,8 @@ export default function UC360PeriodForm({
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
   const start =
-    draft.applied === applied ? draft.start : appliedStart || "2025-01";
-  const end = draft.applied === applied ? draft.end : appliedEnd || "2025-02";
+    draft.applied === applied ? draft.start : appliedStart || period.start;
+  const end = draft.applied === applied ? draft.end : appliedEnd || period.end;
 
   function submit(event: FormEvent) {
     event.preventDefault();

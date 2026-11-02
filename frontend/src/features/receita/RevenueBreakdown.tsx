@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { RevenueEnvelope } from "./contract";
 import type { RevenueGroupBy } from "./revenue-filters";
+import { signedValueTone } from "@/shared/ui/signedValue";
 
 const money = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -42,7 +44,23 @@ export default function RevenueBreakdown({
   ) => void;
 }) {
   const breakdown = envelope.data.breakdown;
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const totalPages = Math.max(1, Math.ceil(breakdown.items.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleItems = breakdown.items.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
   const reconciliation = breakdown.reconciliation;
+  const sharedLimitations =
+    breakdown.items.length > 1
+      ? [...new Set(breakdown.items[0].quality.limitations)].filter((note) =>
+          breakdown.items.every((item) =>
+            item.quality.limitations.includes(note),
+          ),
+        )
+      : [];
   const closesWithTotal =
     reconciliation.status === "available" &&
     reconciliation.non_comparable_group_count === 0 &&
@@ -65,22 +83,27 @@ export default function RevenueBreakdown({
         </p>
       ) : (
         <>
+          {sharedLimitations.length > 0 && (
+            <p className="mb-3 text-sm text-muted">
+              {sharedLimitations.join(" ")}
+            </p>
+          )}
           <div className="min-w-0 max-w-full overflow-x-auto">
-            <table className="w-full min-w-[880px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[880px] border-collapse text-left font-sans text-sm">
               <caption className="sr-only">
                 Comparação de receita por{" "}
                 {dimensionLabels[breakdown.dimension].toLocaleLowerCase(
                   "pt-BR",
                 )}
               </caption>
-              <thead className="h-11 border-b border-border text-xs text-muted">
+              <thead className="h-11 border-b border-border font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
                 <tr>
                   <th scope="col" className="px-3 py-2 font-medium">
                     <label className="flex items-center gap-2">
                       <span className="sr-only">Agrupar recortes</span>
                       <select
                         aria-label="Agrupar recortes"
-                        className="min-h-9 rounded-md border border-control bg-canvas px-2 text-sm font-medium text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                        className="min-h-9 rounded-md border border-control bg-canvas px-2 font-sans text-sm font-medium text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                         value={groupBy}
                         onChange={(event) =>
                           onGroupByChange(event.target.value as RevenueGroupBy)
@@ -111,7 +134,7 @@ export default function RevenueBreakdown({
                 </tr>
               </thead>
               <tbody>
-                {breakdown.items.map((item) => {
+                {visibleItems.map((item) => {
                   const neighborhood = displayValue(
                     item.label,
                     "Não informado",
@@ -130,6 +153,9 @@ export default function RevenueBreakdown({
                         item.comparison.final.billed_uc_count === null
                       ? "Base desconhecida"
                       : "Base adequada";
+                  const rowLimitations = item.quality.limitations.filter(
+                    (note) => !sharedLimitations.includes(note),
+                  );
 
                   return (
                     <tr
@@ -138,7 +164,7 @@ export default function RevenueBreakdown({
                     >
                       <th
                         scope="row"
-                        className="px-3 py-2 font-semibold text-content"
+                        className="max-w-80 px-3 py-2 font-semibold [overflow-wrap:anywhere] text-content"
                       >
                         <span>{rowLabel}</span>
                         <span className="ml-2 inline-flex flex-wrap items-center gap-x-1 text-xs font-normal text-muted">
@@ -160,23 +186,30 @@ export default function RevenueBreakdown({
                             {item.comparison.final.billed_uc_count ?? "—"} UCs
                           </span>
                         </span>
-                        {item.quality.limitations.length ? (
+                        {rowLimitations.length ? (
                           <span className="block text-xs font-normal text-muted">
-                            {item.quality.limitations.join(" ")}
+                            {rowLimitations.join(" ")}
                           </span>
-                        ) : !item.quality.percent_change_eligible ? (
+                        ) : !item.quality.percent_change_eligible &&
+                          item.quality.limitations.length === 0 ? (
                           <span className="block text-xs font-normal text-muted">
                             Percentual indisponível
                           </span>
                         ) : null}
                       </th>
-                      <td className="px-3 py-2">
+                      <td
+                        className={`px-3 py-2 ${signedValueTone(item.comparison.initial.billed_amount, false)}`}
+                      >
                         {knownMoney(item.comparison.initial.billed_amount)}
                       </td>
-                      <td className="px-3 py-2">
+                      <td
+                        className={`px-3 py-2 ${signedValueTone(item.comparison.final.billed_amount, false)}`}
+                      >
                         {knownMoney(item.comparison.final.billed_amount)}
                       </td>
-                      <td className="px-3 py-2">
+                      <td
+                        className={`px-3 py-2 ${signedValueTone(item.comparison.billed_amount_change_brl)}`}
+                      >
                         {signedMoney(item.comparison.billed_amount_change_brl)}
                       </td>
                       <td className="px-3 py-2 text-right">
@@ -207,13 +240,19 @@ export default function RevenueBreakdown({
                       Variação apenas dos grupos comparáveis
                     </span>
                   </th>
-                  <td className="px-3 py-3">
+                  <td
+                    className={`px-3 py-3 ${signedValueTone(reconciliation.initial_known_sum_brl, false)}`}
+                  >
                     {knownMoney(reconciliation.initial_known_sum_brl)}
                   </td>
-                  <td className="px-3 py-3">
+                  <td
+                    className={`px-3 py-3 ${signedValueTone(reconciliation.final_known_sum_brl, false)}`}
+                  >
                     {knownMoney(reconciliation.final_known_sum_brl)}
                   </td>
-                  <td className="px-3 py-3">
+                  <td
+                    className={`px-3 py-3 ${signedValueTone(reconciliation.comparable_change_sum_brl)}`}
+                  >
                     {signedMoney(reconciliation.comparable_change_sum_brl)}
                   </td>
                   <td aria-hidden="true" />
@@ -221,6 +260,35 @@ export default function RevenueBreakdown({
               </tfoot>
             </table>
           </div>
+          {totalPages > 1 ? (
+            <nav
+              aria-label="Paginação dos recortes"
+              className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm"
+            >
+              <span>
+                Página {currentPage} de {totalPages} · {breakdown.items.length}{" "}
+                recortes
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-control px-3 py-2 disabled:opacity-50"
+                  disabled={currentPage === 1}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-control px-3 py-2 disabled:opacity-50"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  Próxima
+                </button>
+              </div>
+            </nav>
+          ) : null}
           {closesWithTotal ? (
             <p className="mt-3 text-sm text-muted">
               Os recortes fecham com o total.
@@ -242,7 +310,14 @@ export default function RevenueBreakdown({
                   </p>
                   <p>
                     Diferença não atribuída:{" "}
-                    {signedMoney(reconciliation.unattributed_change_brl)}.
+                    <span
+                      className={signedValueTone(
+                        reconciliation.unattributed_change_brl,
+                      )}
+                    >
+                      {signedMoney(reconciliation.unattributed_change_brl)}
+                    </span>
+                    .
                   </p>
                 </>
               ) : null}
@@ -250,7 +325,12 @@ export default function RevenueBreakdown({
               reconciliation.residual_brl !== 0 ? (
                 <p>
                   Diferença para o total:{" "}
-                  {signedMoney(reconciliation.residual_brl)}.
+                  <span
+                    className={signedValueTone(reconciliation.residual_brl)}
+                  >
+                    {signedMoney(reconciliation.residual_brl)}
+                  </span>
+                  .
                 </p>
               ) : null}
               {reconciliation.limitations.length > 0 ? (

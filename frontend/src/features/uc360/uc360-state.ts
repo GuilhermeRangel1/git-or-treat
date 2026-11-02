@@ -5,6 +5,7 @@ export const UC_HISTORY_SECTIONS = [
   "distributed_generation",
   "interruptions",
   "calls",
+  "treatments",
 ] as const;
 export type UCHistorySection = (typeof UC_HISTORY_SECTIONS)[number];
 export type UC360SearchState = {

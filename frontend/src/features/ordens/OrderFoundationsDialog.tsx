@@ -129,13 +129,13 @@ export default function OrderFoundationsDialog({
                       }
                     />
                     <p className="rounded-lg border border-border bg-canvas p-3 text-sm">
-                      A categoria é uma triagem Gold e não representa prioridade
+                      A categoria é uma triagem e não representa prioridade
                       operacional de despacho. A ordem preserva esta evidência
                       histórica.
                     </p>
                     <div className="grid gap-2">
                       <h4 className="text-sm font-medium">
-                        Evidências Gold congeladas
+                        Dados registrados na triagem
                       </h4>
                       <dl className="grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
                         {foundation.goldEvidence.map((item) => (
@@ -184,8 +184,8 @@ export default function OrderFoundationsDialog({
                     foundation.origin === "gold"
                       ? foundation.recoveryEstimateStatus ===
                         "ESTIMATIVA_UC_INDISPONIVEL"
-                        ? "A Gold não publicou uma estimativa individual para esta UC; a referência histórica é apresentada separadamente."
-                        : "Não publicada na Gold; não é calculada nesta tela."
+                        ? "Não há estimativa individual disponível para esta unidade consumidora."
+                        : "Não disponível; nenhum valor é estimado nesta tela."
                       : foundation.estimateUnavailable
                         ? "Não disponível; ausência de estimativa não é zero."
                         : `${formatNumber(foundation.estimateKwh!)} kWh`
@@ -233,86 +233,6 @@ export default function OrderFoundationsDialog({
                     </ul>
                   </div>
                 )}
-                {foundation.origin === "gold" ? (
-                  <details className="rounded-lg border border-border bg-canvas p-3">
-                    <summary className="min-h-11 cursor-pointer content-center text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
-                      Proveniência da publicação
-                    </summary>
-                    <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-                      <Detail
-                        label="Lote de origem"
-                        value={foundation.source?.version ?? "Não informado."}
-                        mono
-                      />
-                      <Detail
-                        label="Schema físico"
-                        value={foundation.schemaVersion ?? "Não informado."}
-                        mono
-                      />
-                      <Detail
-                        label="Escopo temporal"
-                        value={
-                          foundation.temporalScope === "snapshot"
-                            ? "Snapshot cadastral, sem competência mensal."
-                            : (foundation.temporalScope ?? "Não informado.")
-                        }
-                      />
-                      <Detail
-                        label="Atualização da fonte"
-                        value={
-                          foundation.source?.updatedAt
-                            ? formatTimestamp(foundation.source.updatedAt)
-                            : "Não informada."
-                        }
-                      />
-                      <Detail
-                        label="Regra registrada na criação"
-                        value={foundation.ruleVersion ?? "Não informada."}
-                        mono
-                      />
-                      <Detail
-                        label="Fingerprint da publicação"
-                        value={
-                          foundation.fingerprint ??
-                          "Não preservado no snapshot."
-                        }
-                        mono
-                      />
-                      <Detail
-                        label="Referência da suspeita"
-                        value={
-                          current.suspicion_reference ??
-                          "Não preservada nesta ordem."
-                        }
-                        mono
-                      />
-                    </dl>
-                    <dl className="mt-3 grid gap-3 text-xs text-muted">
-                      <Detail
-                        label="Código do estado da média histórica"
-                        value={
-                          foundation.historicalRecoveryStatus ??
-                          "Não informado."
-                        }
-                        mono
-                      />
-                      <Detail
-                        label="Código do estado da estimativa individual"
-                        value={
-                          foundation.recoveryEstimateStatus ?? "Não informado."
-                        }
-                        mono
-                      />
-                      <Detail
-                        label="Código do método de estimativa"
-                        value={
-                          foundation.recoveryEstimateMethod ?? "Não informado."
-                        }
-                        mono
-                      />
-                    </dl>
-                  </details>
-                ) : null}
               </section>
             )}
             {foundation.origin !== "gold" && foundation.source ? (

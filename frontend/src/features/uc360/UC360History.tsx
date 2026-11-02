@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { AlertCircle, ArrowUpRight, X } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 import type { UCHistory, UCHistoryItem, UCMeter, UCStatus } from "./contract";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import type { UCHistorySection } from "./uc360-state";
 import {
   formatUCCompetence,
@@ -17,6 +18,7 @@ const sectionLabels: Record<UCHistorySection, string> = {
   distributed_generation: "Geração própria",
   interruptions: "Interrupções",
   calls: "Chamados",
+  treatments: "Tratativas",
 };
 const historyLabels: Record<string, string> = {
   invoice_id: "Fatura",
@@ -31,6 +33,9 @@ const historyLabels: Record<string, string> = {
   due_date: "Vencimento",
   payment_date: "Data do pagamento",
   payment_status: "Situação do pagamento",
+  declared_status: "Situação declarada na fatura",
+  declared_open_amount: "Valor nominal declarado em aberto",
+  declared_payment_date: "Data de pagamento informada",
   currency_unit: "Moeda",
   installed_at: "Instalado em",
   removed_at: "Retirado em",
@@ -40,9 +45,18 @@ const historyLabels: Record<string, string> = {
   duration_hours: "Duração",
   opened_at: "Aberto em",
   category: "Categoria",
+  position: "Posição",
+  treatment_date: "Data da tratativa",
+  action_category: "Ação classificada",
+  channel: "Canal",
 };
 const historyColumns: Record<UCHistorySection, string[]> = {
-  consumption: ["competencia", "measured_energy_kwh", "status"],
+  consumption: [
+    "competencia",
+    "measured_energy_kwh",
+    "billed_amount",
+    "status",
+  ],
   invoices: [
     "invoice_id",
     "competencia",
@@ -52,11 +66,21 @@ const historyColumns: Record<UCHistorySection, string[]> = {
     "due_date",
     "payment_date",
     "payment_status",
+    "declared_status",
+    "declared_open_amount",
+    "declared_payment_date",
   ],
   meters: ["meter_id", "installed_at", "removed_at"],
   distributed_generation: ["capacity_kw", "status"],
   interruptions: ["event_id", "competencia", "feeder_id", "duration_hours"],
   calls: ["call_id", "opened_at", "category"],
+  treatments: [
+    "call_id",
+    "position",
+    "treatment_date",
+    "action_category",
+    "channel",
+  ],
 };
 const money = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -65,19 +89,21 @@ const money = new Intl.NumberFormat("pt-BR", {
 const decimal = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 
 function historyValue(key: string, value: unknown) {
-  if (value === null) return "Sem dado";
+  if (value == null) return "Sem dado";
   if (key === "competencia") return formatUCCompetence(String(value));
   if (
     [
       "due_date",
       "payment_date",
+      "declared_payment_date",
       "installed_at",
       "removed_at",
       "opened_at",
+      "treatment_date",
     ].includes(key)
   )
     return formatUCDate(String(value));
-  if (key === "billed_amount" || key === "paid_amount")
+  if (["billed_amount", "paid_amount", "declared_open_amount"].includes(key))
     return money.format(Number(value));
   if (["measured_energy_kwh", "billed_energy_kwh"].includes(key))
     return `${decimal.format(Number(value))} kWh`;
@@ -117,6 +143,8 @@ function historyRowKey(
       return String(row.event_id);
     case "calls":
       return String(row.call_id);
+    case "treatments":
+      return `${row.call_id}-${row.position}`;
   }
 }
 
@@ -148,6 +176,8 @@ function coverageMessage(status: UCStatus) {
 
 function currentMeterMessage(meter: UCMeter | null, status?: UCStatus) {
   if (meter) {
+    if (status === "partial")
+      return `Possível medidor na data de referência: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. A indicação depende das datas disponíveis; consulte as limitações e o histórico.`;
     return `Vigente no snapshot: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. Consulte o histórico para vínculos anteriores e retiradas.`;
   }
   switch (status) {
@@ -213,8 +243,32 @@ export function HistoryPanel({
   onSelectSection: (section: UCHistorySection) => void;
   onPageChange: (page: number) => void;
 }) {
+  const columns = section
+    ? historyColumns[section].filter((key) => {
+        const goldV2 =
+          history?.metadata.source.version.startsWith("gold-csv-v2:");
+        if (
+          section === "invoices" &&
+          goldV2 &&
+          [
+            "paid_amount",
+            "billed_energy_kwh",
+            "payment_date",
+            "payment_status",
+          ].includes(key)
+        )
+          return false;
+        return (
+          ![
+            "declared_status",
+            "declared_open_amount",
+            "declared_payment_date",
+          ].includes(key) || history?.metadata.source.kind === "gold_csv"
+        );
+      })
+    : [];
   return (
-    <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
+    <section className="grid min-w-0 gap-3 rounded-xl bg-surface p-4 sm:p-5">
       <h3 className="font-heading text-lg font-semibold">
         Histórico da unidade
       </h3>
@@ -243,34 +297,40 @@ export function HistoryPanel({
       {error != null && <ErrorMessage error={error} retry={onRetry} />}
       {history && (
         <>
-          <p className="text-sm text-muted">
+          <p className="min-w-0 break-all text-sm text-muted">
             {statusLabel(history.metadata.status)} · {history.pagination.total}{" "}
-            {history.pagination.total === 1 ? "registro" : "registros"} · fonte{" "}
-            {history.metadata.source.version}
+            {history.pagination.total === 1 ? "registro" : "registros"}
           </p>
-          {history.metadata.limitations.length > 0 && (
+          {history.metadata.limitations.some(
+            (note) => !/atualização indica a importação local/i.test(note),
+          ) && (
             <ul
               className="grid gap-1 text-sm text-muted"
               aria-label="Limitações da fonte"
             >
-              {history.metadata.limitations.map((limitation) => (
-                <li key={limitation}>{humanizeLimitation(limitation)}</li>
-              ))}
+              {history.metadata.limitations
+                .filter(
+                  (note) =>
+                    !/atualização indica a importação local/i.test(note),
+                )
+                .map((limitation) => (
+                  <li key={limitation}>{humanizeLimitation(limitation)}</li>
+                ))}
             </ul>
           )}
           {history.data.items.length > 0 && section ? (
             <>
               <div className="hidden overflow-x-auto rounded-lg border border-control md:block">
-                <table className="w-full border-collapse text-left text-sm">
+                <table className="w-full border-collapse text-left font-sans text-sm leading-[22px]">
                   <caption className="sr-only">
                     Histórico de {sectionLabels[section].toLowerCase()} da
                     unidade
                   </caption>
-                  <thead className="bg-canvas text-muted">
+                  <thead className="bg-canvas font-mono text-xs leading-[18px] text-muted">
                     <tr>
-                      {historyColumns[section].map((key) => (
+                      {columns.map((key) => (
                         <th
-                          className="whitespace-nowrap px-3 py-2 font-semibold"
+                          className="whitespace-nowrap px-3 py-2 font-normal"
                           key={key}
                           scope="col"
                         >
@@ -285,9 +345,9 @@ export function HistoryPanel({
                         className="border-t border-control"
                         key={historyRowKey(section, row, index)}
                       >
-                        {historyColumns[section].map((key) => (
+                        {columns.map((key) => (
                           <td
-                            className="max-w-64 break-words px-3 py-2 text-content"
+                            className={`max-w-64 px-3 py-2 [overflow-wrap:anywhere] ${typeof row[key] === "number" ? signedValueTone(row[key] as number, false) : "text-content"}`}
                             key={key}
                           >
                             {historyValue(key, row[key])}
@@ -308,12 +368,14 @@ export function HistoryPanel({
                     className="rounded-lg border border-control p-3"
                   >
                     <dl className="grid grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] gap-x-3 gap-y-2 text-sm">
-                      {historyColumns[section].map((key) => (
+                      {columns.map((key) => (
                         <div className="contents" key={key}>
                           <dt className="text-muted">
                             {historyLabels[key] ?? key}
                           </dt>
-                          <dd className="break-words text-content">
+                          <dd
+                            className={`[overflow-wrap:anywhere] ${typeof row[key] === "number" ? signedValueTone(row[key] as number, false) : "text-content"}`}
+                          >
                             {historyValue(key, row[key])}
                           </dd>
                         </div>
@@ -517,9 +579,9 @@ export function EvidenceDialog({
                 </p>
               )}
               <p className="text-sm text-muted">
-                Chamados nesta demonstração incluem apenas identificador,
-                abertura e categoria. Nenhuma lacuna deve ser interpretada como
-                valor zero ou causa da variação da conta.
+                Consulte a cobertura informada para os dados de atendimento.
+                Nenhuma lacuna deve ser interpretada como valor zero ou causa da
+                variação da conta.
               </p>
             </section>
           </div>

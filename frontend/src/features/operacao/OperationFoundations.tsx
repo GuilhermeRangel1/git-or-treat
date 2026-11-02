@@ -111,11 +111,11 @@ export default function OperationFoundations({
               </p>
               <p>
                 <strong>Alimentadores incluídos:</strong>{" "}
-                {summaryData.included_feeder_ids.join(", ") || "nenhum"}.
+                {summaryData.included_feeder_ids.length} alimentador(es).
               </p>
               <p>
                 <strong>Alimentadores excluídos:</strong>{" "}
-                {summaryData.excluded_feeder_ids.join(", ") || "nenhum"}.
+                {summaryData.excluded_feeder_ids.length} alimentador(es).
               </p>
               {summaryData.limitations.map((item) => (
                 <p key={item}>{formatMonthReferences(item)}</p>
@@ -199,17 +199,10 @@ export default function OperationFoundations({
           ) : (
             <p role="status">Definição indisponível nesta resposta.</p>
           )}
-          {source ? (
-            <div className="grid gap-1 border-t border-border pt-3">
-              <p>
-                <strong>Fonte:</strong> {source.kind} · versão {source.version}{" "}
-                · {source.is_demo ? "demonstrativa" : "não demonstrativa"}.
-              </p>
-              <p>
-                <strong>Atualizado em:</strong>{" "}
-                {formatUpdatedAt(source.updated_at)} UTC.
-              </p>
-            </div>
+          {source?.updated_at ? (
+            <p className="border-t border-border pt-3 text-xs text-muted">
+              Atualizado em {formatUpdatedAt(source.updated_at)}.
+            </p>
           ) : null}
         </section>
       </Modal>

@@ -79,8 +79,11 @@ describe("UC 360 search flow", () => {
     expect(await screen.findByRole("button", { name: /UC-1001/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /UC-1001/ }));
     expect(await screen.findByText("UC UC-1001")).toBeTruthy();
-    expect(screen.queryByLabelText("Número da UC")).toBeNull();
-    expect(screen.getByTestId("location").textContent).toBe("/uc-360/UC-1001");
+    expect(screen.getByLabelText("Número da UC")).toHaveValue("1001");
+    expect(screen.getByRole("button", { name: /UC-1001/ })).toBeTruthy();
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/uc-360/UC-1001?q=1001",
+    );
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/UC-1001/overview"),
@@ -113,7 +116,7 @@ describe("UC 360 search flow", () => {
       "/uc-360/UC-1001?q=one&q=two",
     );
     expect(screen.getByRole("alert").textContent).toContain("duplicado");
-    expect(screen.queryByLabelText("Número da UC")).toBeNull();
+    expect(screen.getByLabelText("Número da UC")).toBeTruthy();
     expect(screen.queryByText(/Nenhuma UC selecionada/)).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -316,20 +319,27 @@ describe("UC 360 search flow", () => {
       }),
     ).toBeTruthy();
     expect(
-      within(financialComparison).getByRole("heading", {
+      within(financialComparison).queryByRole("heading", {
         name: "Valor pago (BRL)",
       }),
+    ).toBeNull();
+    expect(
+      within(financialComparison).getByText(
+        /valor efetivamente pago não está disponível/,
+      ),
     ).toBeTruthy();
     const billingSupport = screen.getByRole("region", {
       name: "Apoio ao atendimento",
     });
     expect(
       within(billingSupport).getByRole("heading", {
-        name: "Faturas em aberto",
+        name: "Faturas declaradas em aberto",
       }),
     ).toBeTruthy();
     expect(
-      within(billingSupport).getByText(/contagem, sem saldo ou atraso/),
+      within(billingSupport).getByText(
+        /situação declarada, sem saldo confirmado/,
+      ),
     ).toBeTruthy();
     expect(
       screen.getByRole("columnheader", { name: "Competência" }),
@@ -498,7 +508,7 @@ describe("UC 360 search flow", () => {
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Medidores" }));
     expect((await screen.findAllByText("MED-004")).length).toBeGreaterThan(0);
-    expect(screen.getByText(/1 registro · fonte dev04-v1/)).toBeTruthy();
+    expect(screen.getByText(/Disponível · 1 registro/)).toBeTruthy();
     expect(
       fetchMock.mock.calls.some(([url]) =>
         String(url).includes("/history/meters"),

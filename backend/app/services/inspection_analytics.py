@@ -1,5 +1,6 @@
 from app.repositories.analytics import AnalyticsRepository
 from app.repositories.gold_inspections import GoldInspectionRepository
+from app.services.gold_inspections import comparison_from_rows, investigation_potential_from_rows
 from app.schemas.analytics import AnalyticsFilters, AnalyticsSource, AnalyticsStatus
 from app.schemas.gold import GoldMetadata
 from app.schemas.inspection_queue import (
@@ -100,6 +101,10 @@ def build_queue_response(
     direction: str,
 ) -> QueueResponse:
     """Compose the product response before pagination, preserving source and scope."""
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        from app.services.gold_inspections import queue_response
+        return queue_response(repository, filters, page, page_size, order_by, direction)
     items, state = build_inspection_queue(repository, filters)
     items = sort_queue(items, order_by, direction)
     total = len(items)
@@ -137,6 +142,10 @@ def build_queue_response(
 def build_suspicion_response(
     repository: AnalyticsRepository, uc_id: str,
 ) -> SuspicionResponse:
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        from app.services.gold_inspections import suspicion_response
+        return suspicion_response(repository, uc_id)
     item = suspicion_detail(repository, uc_id)
     state = "partial" if item["potential_recoverable_energy_kwh"] is None else "available"
     result_metadata = metadata(
@@ -242,7 +251,7 @@ def build_gold_queue_response(
     state: AnalyticsStatus = "empty" if total == 0 else "available"
     return GoldInspectionQueueResponse(
         data={
-            "items": items, "filter_options": options,
+            "items": items, "filter_options": options, "neighborhoods": repository.neighborhoods(),
             "summary": {
                 "total_units": total,
                 "categories": {key: count for key, count in category_counts.items() if key is not None},
@@ -261,8 +270,11 @@ def build_gold_suspicion_response(repository: GoldInspectionRepository, uc_id: s
     if row is None:
         raise AnalyticsAPIError(404, "not_found", "Suspeita não encontrada na publicação Gold atual.")
     item = _gold_item(row)
+    end, rows = repository.consumption_rows(uc_id)
     return GoldSuspicionResponse(
         data=GoldSuspicionDetail(**item.model_dump(), rule_version=GOLD_INSPECTION_RULE_VERSION,
+                                 consumption_comparison=comparison_from_rows(rows, end) if end else None,
+                                 investigation_potential=investigation_potential_from_rows(rows, end, repository.meter_rows(uc_id)) if end else None,
                                  limitations=list(GOLD_INSPECTION_LIMITATIONS)),
         metadata=_gold_metadata(repository, "available", AnalyticsFilters()),
     )

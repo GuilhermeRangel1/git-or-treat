@@ -6,7 +6,12 @@ import {
   parseUC360SearchParams,
   selectUCHistory,
 } from "./uc360-state";
-import { useUCOverview, useUCSearch, useUCHistory } from "./useUC360";
+import {
+  useUCOverview,
+  useUCSearch,
+  useUCHistory,
+  useUCSeries,
+} from "./useUC360";
 import UC360Detail from "./UC360Detail";
 import UC360SearchPanel from "./UC360SearchPanel";
 export default function UC360Page() {
@@ -45,7 +50,7 @@ export default function UC360Page() {
   const search = useUCSearch(
     state.q,
     state.searchPage,
-    !state.invalid.length && Boolean(state.q) && !selectedUCId,
+    !state.invalid.length && Boolean(state.q),
   );
   const overview = useUCOverview(
     selectedUCId,
@@ -60,6 +65,24 @@ export default function UC360Page() {
     state.end,
     state.historyPage,
     !state.invalid.length,
+  );
+  const series = useUCSeries(
+    selectedUCId,
+    overview.data?.data.period.start ?? "",
+    overview.data?.data.period.end ?? "",
+    !state.invalid.length && Boolean(overview.data),
+  );
+  const previousYear = (month: string) => {
+    const year = Number(month.slice(0, 4));
+    return year > 1
+      ? `${String(year - 1).padStart(4, "0")}${month.slice(4)}`
+      : "";
+  };
+  const previousSeries = useUCSeries(
+    selectedUCId,
+    previousYear(overview.data?.data.period.start ?? ""),
+    previousYear(overview.data?.data.period.end ?? ""),
+    !state.invalid.length && Boolean(overview.data),
   );
   function submitSearch(query: string) {
     const searchParams = applyUCSearch(params, query);
@@ -85,33 +108,34 @@ export default function UC360Page() {
     <div
       className={`grid w-full min-w-0 ${selectedUCId ? "mt-0 gap-6" : "mt-6 gap-4"}`}
     >
-      {!selectedUCId && (
-        <UC360SearchPanel
-          query={state.q}
-          page={state.searchPage}
-          results={search.data}
-          isFetching={search.isFetching}
-          error={search.error}
-          onSearch={submitSearch}
-          onRetry={() => void search.refetch()}
-          onPageChange={(page) => {
-            const next = new URLSearchParams(params);
-            next.set("search_page", String(page));
-            setParams(next);
-          }}
-          onSelect={(ucId) => {
-            const detailParams = new URLSearchParams();
-            if (state.start && state.end) {
-              detailParams.set("start", state.start);
-              detailParams.set("end", state.end);
-            }
-            const search = detailParams.toString();
-            navigate(
-              `/uc-360/${encodeURIComponent(ucId)}${search ? `?${search}` : ""}`,
-            );
-          }}
-        />
-      )}
+      <UC360SearchPanel
+        query={state.q}
+        page={state.searchPage}
+        results={search.data}
+        isFetching={search.isFetching}
+        error={search.error}
+        onSearch={submitSearch}
+        onRetry={() => void search.refetch()}
+        onPageChange={(page) => {
+          const next = new URLSearchParams(params);
+          next.set("search_page", String(page));
+          setParams(next);
+        }}
+        onSelect={(ucId) => {
+          const detailParams = new URLSearchParams();
+          if (state.q) detailParams.set("q", state.q);
+          if (state.searchPage > 1)
+            detailParams.set("search_page", String(state.searchPage));
+          if (state.start && state.end) {
+            detailParams.set("start", state.start);
+            detailParams.set("end", state.end);
+          }
+          const search = detailParams.toString();
+          navigate(
+            `/uc-360/${encodeURIComponent(ucId)}${search ? `?${search}` : ""}`,
+          );
+        }}
+      />
       {state.invalid.length > 0 && (
         <div
           role="alert"
@@ -145,9 +169,49 @@ export default function UC360Page() {
               error: overview.error,
             },
             history: {
-              data: history.data,
+              data:
+                history.data?.metadata.source.version ===
+                overview.data?.metadata.source.version
+                  ? history.data
+                  : undefined,
               pending: history.isPending,
-              error: history.error,
+              error:
+                history.data &&
+                overview.data &&
+                history.data.metadata.source.version !==
+                  overview.data.metadata.source.version
+                  ? new Error(
+                      "A publicação do histórico mudou; atualize os dados.",
+                    )
+                  : history.error,
+            },
+            series: {
+              data:
+                series.data?.version === overview.data?.metadata.source.version
+                  ? series.data
+                  : undefined,
+              pending: series.isPending || series.isFetching,
+              error:
+                series.data &&
+                overview.data &&
+                series.data.version !== overview.data.metadata.source.version
+                  ? new Error("A publicação da série mudou.")
+                  : series.error,
+            },
+            previousSeries: {
+              data:
+                previousSeries.data?.version ===
+                overview.data?.metadata.source.version
+                  ? previousSeries.data
+                  : undefined,
+              pending: previousSeries.isPending || previousSeries.isFetching,
+              error:
+                previousSeries.data &&
+                overview.data &&
+                previousSeries.data.version !==
+                  overview.data.metadata.source.version
+                  ? new Error("A publicação do histórico anterior mudou.")
+                  : previousSeries.error,
             },
             filters: {
               start: state.start,
@@ -161,7 +225,15 @@ export default function UC360Page() {
           disclosureRef={historyDisclosureRef}
           actions={{
             onOverviewRetry: () => void overview.refetch(),
-            onHistoryRetry: () => void history.refetch(),
+            onHistoryRetry: () => {
+              void overview.refetch();
+              void history.refetch();
+            },
+            onSeriesRetry: () => {
+              void overview.refetch();
+              void series.refetch();
+              void previousSeries.refetch();
+            },
             onNewSearch: () => navigate("/uc-360"),
             onHistoryOpen: setHistoryOpen,
             onSelectHistory: openHistorySection,

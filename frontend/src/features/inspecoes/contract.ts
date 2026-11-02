@@ -10,7 +10,8 @@ export type QueueItem = {
   neighborhood: string;
   class_name: string;
   feeder_id: string;
-  priority: number;
+  priority: number | null;
+  priority_label?: string | null;
   reason: string;
   potential_recoverable_energy_kwh: number | null;
   indicators: string[];
@@ -60,6 +61,11 @@ export type GoldInspectionItem = {
     cadastral_status: string | null;
     call_center_contacts: number | null;
     interruptions: number | null;
+    historical_recovery_mean_kwh_per_inspection: number | null;
+    historical_recovery_interval_lower_kwh: number | null;
+    historical_recovery_interval_upper_kwh: number | null;
+    historical_recovery_reference: string | null;
+    historical_recovery_status: string | null;
   };
   variation: GoldInspectionVariation | null;
 };
@@ -68,6 +74,7 @@ export type SyntheticQueueEnvelope = {
   data: {
     items: QueueItem[];
     filter_options: Record<string, string[]>;
+    neighborhoods: { municipio: string; bairro: string }[];
     summary: {
       total_units: number;
       highest_priority: number | null;
@@ -87,6 +94,7 @@ export type GoldQueueEnvelope = {
   data: {
     items: GoldInspectionItem[];
     filter_options: Record<string, string[]>;
+    neighborhoods: { municipio: string; bairro: string }[];
     summary: {
       total_units: number;
       categories: Record<string, number>;
@@ -111,16 +119,46 @@ export type SyntheticDetailEnvelope = {
     estimate_evidence: {
       baseline_kwh: number | null;
       observed_kwh: number | null;
-      horizon_months: number;
+      horizon_months: number | null;
       reference: string;
       unavailable_reason: string | null;
     };
+    historical_recovery: {
+      mean_kwh_per_inspection: number;
+      lower_kwh_per_inspection: number;
+      upper_kwh_per_inspection: number;
+      reference: string;
+    } | null;
+    consumption_comparison: {
+      baseline_start: string;
+      baseline_end: string;
+      recent_start: string;
+      recent_end: string;
+      baseline_kwh: number | null;
+      recent_kwh: number | null;
+      change_percent: number | null;
+      unavailable_reason: string | null;
+    } | null;
     limitations: string[];
   };
   metadata: SyntheticMetadata;
 };
 export type GoldDetailEnvelope = {
-  data: GoldInspectionItem & { rule_version: string; limitations: string[] };
+  data: GoldInspectionItem & {
+    rule_version: string;
+    limitations: string[];
+    consumption_comparison: SyntheticDetailEnvelope["data"]["consumption_comparison"];
+    investigation_potential: {
+      baseline_start: string;
+      baseline_end: string;
+      recent_start: string;
+      recent_end: string;
+      baseline_kwh: number | null;
+      recent_kwh: number | null;
+      potential_kwh: number | null;
+      unavailable_reason: string | null;
+    } | null;
+  };
   metadata: GoldMetadata;
 };
 export type DetailEnvelope = SyntheticDetailEnvelope | GoldDetailEnvelope;
@@ -156,8 +194,14 @@ function strings(value: unknown): string[] {
 }
 function item(value: unknown): QueueItem {
   const row = record(value);
-  const priority = number(row.priority);
-  if (priority > 1) invalid();
+  const priority = nullable(row.priority);
+  const priority_label =
+    row.priority_label == null ? null : string(row.priority_label);
+  if (
+    (priority !== null && priority > 1) ||
+    (priority === null && !priority_label?.trim())
+  )
+    invalid();
   if (!Array.isArray(row.signals)) invalid();
   return {
     uc_id: string(row.uc_id),
@@ -166,6 +210,7 @@ function item(value: unknown): QueueItem {
     class_name: string(row.class_name),
     feeder_id: string(row.feeder_id),
     priority,
+    priority_label,
     reason: string(row.reason),
     potential_recoverable_energy_kwh: nullable(
       row.potential_recoverable_energy_kwh,
@@ -185,7 +230,7 @@ function metadata(value: unknown): Metadata {
     period = record(row.period),
     source = record(row.source);
   if (
-    row.contract_version !== "1.0.0" ||
+    !["1.0.0", "1.1.0"].includes(String(row.contract_version)) ||
     typeof source.is_demo !== "boolean" ||
     !["available", "partial", "empty", "unavailable"].includes(
       string(row.status),
@@ -301,6 +346,32 @@ function goldItem(value: unknown): GoldInspectionItem {
       cadastral_status: nullableText(evidence.cadastral_status),
       call_center_contacts: nullableNonNegative(evidence.call_center_contacts),
       interruptions: nullableNonNegative(evidence.interruptions),
+      historical_recovery_mean_kwh_per_inspection:
+        evidence.historical_recovery_mean_kwh_per_inspection == null
+          ? null
+          : nullableNonNegative(
+              evidence.historical_recovery_mean_kwh_per_inspection,
+            ),
+      historical_recovery_interval_lower_kwh:
+        evidence.historical_recovery_interval_lower_kwh == null
+          ? null
+          : nullableNonNegative(
+              evidence.historical_recovery_interval_lower_kwh,
+            ),
+      historical_recovery_interval_upper_kwh:
+        evidence.historical_recovery_interval_upper_kwh == null
+          ? null
+          : nullableNonNegative(
+              evidence.historical_recovery_interval_upper_kwh,
+            ),
+      historical_recovery_reference:
+        evidence.historical_recovery_reference == null
+          ? null
+          : string(evidence.historical_recovery_reference),
+      historical_recovery_status:
+        evidence.historical_recovery_status == null
+          ? null
+          : string(evidence.historical_recovery_status),
     },
     variation: row.variation === null ? null : goldVariation(row.variation),
   };
@@ -311,6 +382,18 @@ function goldQueue(value: Record<string, unknown>): GoldQueueEnvelope {
   const raw = record(data.summary);
   if (!Array.isArray(data.items)) invalid();
   const options = record(data.filter_options);
+  const neighborhoods =
+    data.neighborhoods == null
+      ? []
+      : Array.isArray(data.neighborhoods)
+        ? data.neighborhoods.map((value) => {
+            const entry = record(value);
+            return {
+              municipio: string(entry.municipio),
+              bairro: string(entry.bairro),
+            };
+          })
+        : invalid();
   const filter_options: Record<string, string[]> = {};
   for (const key of ["municipio", "bairro", "classe", "alimentador"])
     filter_options[key] = strings(options[key]);
@@ -351,6 +434,7 @@ function goldQueue(value: Record<string, unknown>): GoldQueueEnvelope {
     data: {
       items: data.items.map(goldItem),
       filter_options,
+      neighborhoods,
       summary: { ...summary, estimated_units: 0 },
     },
     pagination: { page, page_size, total, total_pages },
@@ -372,6 +456,18 @@ function decodeSyntheticQueue(
   const filter_options: Record<string, string[]> = {};
   for (const key of ["municipio", "bairro", "classe", "alimentador"])
     filter_options[key] = strings(options[key]);
+  const neighborhoods =
+    data.neighborhoods === undefined
+      ? []
+      : Array.isArray(data.neighborhoods)
+        ? data.neighborhoods.map((value) => {
+            const item = record(value);
+            return {
+              municipio: string(item.municipio),
+              bairro: string(item.bairro),
+            };
+          })
+        : invalid();
   const page = number(pagination.page),
     page_size = number(pagination.page_size),
     total = number(pagination.total),
@@ -400,12 +496,13 @@ function decodeSyntheticQueue(
       summary.unavailable_estimate_units,
     ].every(Number.isSafeInteger) ||
     summary.estimated_units + summary.unavailable_estimate_units !== total ||
-    (total === 0) !== (summary.highest_priority === null) ||
+    (metadata(root.metadata).source.kind !== "gold_csv" &&
+      (total === 0) !== (summary.highest_priority === null)) ||
     (summary.highest_priority !== null && summary.highest_priority > 1)
   )
     invalid();
   return {
-    data: { items, filter_options, summary },
+    data: { items, filter_options, neighborhoods, summary },
     pagination: { page, page_size, total, total_pages },
     metadata: metadata(root.metadata) as SyntheticMetadata,
   };
@@ -419,18 +516,45 @@ export function decodeDetail(value: unknown): DetailEnvelope {
         ...goldItem(data),
         rule_version: string(data.rule_version),
         limitations: strings(data.limitations),
+        consumption_comparison: decodeConsumptionComparison(
+          data.consumption_comparison,
+        ),
+        investigation_potential: decodeInvestigationPotential(
+          data.investigation_potential,
+        ),
       },
       metadata: decodeGoldMetadata(root.metadata),
     };
   }
   const data = record(root.data),
     evidence = record(data.estimate_evidence);
-  const horizon = number(evidence.horizon_months);
-  if (!Number.isSafeInteger(horizon) || horizon < 1) invalid();
+  const horizon = nullable(evidence.horizon_months);
+  if (horizon !== null && (!Number.isSafeInteger(horizon) || horizon < 1))
+    invalid();
+  const historical =
+    data.historical_recovery == null ? null : record(data.historical_recovery);
+  const recovery = historical
+    ? {
+        mean_kwh_per_inspection: number(historical.mean_kwh_per_inspection),
+        lower_kwh_per_inspection: number(historical.lower_kwh_per_inspection),
+        upper_kwh_per_inspection: number(historical.upper_kwh_per_inspection),
+        reference: string(historical.reference),
+      }
+    : null;
+  if (
+    recovery &&
+    (recovery.lower_kwh_per_inspection > recovery.upper_kwh_per_inspection ||
+      !["global", "0", "1"].includes(recovery.reference))
+  )
+    invalid();
   return {
     data: {
       ...item(data),
       rule_version: string(data.rule_version),
+      historical_recovery: recovery,
+      consumption_comparison: decodeConsumptionComparison(
+        data.consumption_comparison,
+      ),
       estimate_evidence: {
         baseline_kwh: nullable(evidence.baseline_kwh),
         observed_kwh: nullable(evidence.observed_kwh),
@@ -444,5 +568,63 @@ export function decodeDetail(value: unknown): DetailEnvelope {
       limitations: strings(data.limitations),
     },
     metadata: metadata(root.metadata) as SyntheticMetadata,
+  };
+}
+
+function decodeInvestigationPotential(
+  value: unknown,
+): GoldDetailEnvelope["data"]["investigation_potential"] {
+  if (value == null) return null;
+  const item = record(value);
+  const baseline = nullable(item.baseline_kwh);
+  const recent = nullable(item.recent_kwh);
+  const potential = nullable(item.potential_kwh);
+  const reason =
+    item.unavailable_reason === null ? null : string(item.unavailable_reason);
+  if (
+    (potential === null &&
+      (baseline !== null || recent !== null || reason === null)) ||
+    (potential !== null &&
+      (baseline === null ||
+        recent === null ||
+        reason !== null ||
+        Math.abs(potential - Math.max(0, baseline - recent)) > 0.000001))
+  )
+    invalid();
+  return {
+    baseline_start: string(item.baseline_start),
+    baseline_end: string(item.baseline_end),
+    recent_start: string(item.recent_start),
+    recent_end: string(item.recent_end),
+    baseline_kwh: baseline,
+    recent_kwh: recent,
+    potential_kwh: potential,
+    unavailable_reason: reason,
+  };
+}
+
+function decodeConsumptionComparison(
+  value: unknown,
+): SyntheticDetailEnvelope["data"]["consumption_comparison"] {
+  if (value == null) return null;
+  const comparison = record(value);
+  const percent = comparison.change_percent;
+  if (
+    percent !== null &&
+    (typeof percent !== "number" || !Number.isFinite(percent))
+  )
+    invalid();
+  return {
+    baseline_start: string(comparison.baseline_start),
+    baseline_end: string(comparison.baseline_end),
+    recent_start: string(comparison.recent_start),
+    recent_end: string(comparison.recent_end),
+    baseline_kwh: nullable(comparison.baseline_kwh),
+    recent_kwh: nullable(comparison.recent_kwh),
+    change_percent: percent as number | null,
+    unavailable_reason:
+      comparison.unavailable_reason === null
+        ? null
+        : string(comparison.unavailable_reason),
   };
 }

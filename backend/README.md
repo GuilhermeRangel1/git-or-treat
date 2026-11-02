@@ -167,7 +167,7 @@ A revisão `goldv2000001` cria o schema físico separado `gold_v2`, com as quinz
 python scripts/load_gold.py --directory data/export_csv/<run_id>/<export_id> --schema-version gold-csv-v2
 ```
 
-O importador valida o manifesto e cada schema, cabeçalho, tipo, chave, marcador de nulo, contagem e hash; confere os agregados financeiros entre as três projeções; publica em uma transação e mantém a publicação anterior em caso de erro. `\N` é nulo e string vazia permanece vazia. A repetição idêntica é idempotente. Ele carrega apenas as quinze tabelas analíticas; não carrega o pacote restrito `gold-cadastro-v1` nem fornece nome de titular à GenAI. A v2 ainda não está conectada às consultas da API, chat ou insights.
+O importador valida o manifesto e cada schema, cabeçalho, tipo, chave, marcador de nulo, contagem e hash; confere os agregados financeiros entre as três projeções; publica em uma transação e mantém a publicação anterior em caso de erro. `\N` é nulo e string vazia permanece vazia. A repetição idêntica é idempotente. Ele carrega apenas as quinze tabelas analíticas; não carrega o pacote restrito `gold-cadastro-v1` nem fornece nome de titular à GenAI. As consultas Gold v2 exigem a configuração e a autorização descritas nos contratos dos consumidores.
 
 Para repetir a verificação de volume com o pacote real, configure `GOLD_CSV_V2_DIR` com o caminho local da exportação e execute `python -m pytest tests/test_gold_import_v2_real.py -q`. O teste usa SQLite temporário e remove o banco ao final. Não coloque os CSVs no repositório nem use um banco compartilhado/produção para essa prova.
 
@@ -201,6 +201,10 @@ Para os testes de integração novos, configure também `TEST_GOLD_ANALYTICS_POS
 Todas as mutações exigem `version` inteiro positivo retornado pelo GET. Sem versão ou com tipo inválido: 422; versão obsoleta: 409 `version_conflict`, sem gravar ordem/histórico. Após 409, consulte novamente e permita que a pessoa revise a alteração. Não reenvie automaticamente a intenção com uma versão nova.
 
 Cancelamento só é aceito por `POST /api/v1/inspections/orders/{id}/cancel`, com `confirmed_order_id` igual ao ID da rota e a versão atual. `PATCH` com CANCELADA retorna 422. Os exemplos do Swagger mostram início, resultado, cancelamento e conflito. Clientes DEV-06 precisam adaptar as alterações; criação/consulta não mudam. Não há nova migração de banco nesta revisão; reinicie o backend para carregar as rotas/schemas atualizados.
+
+## Consultar a Gold v1 local
+
+Após migrar e carregar os CSVs, selecione `ANALYTICS_SOURCE=gold` e `ORDERS_AUTH_MODE=service`, com `DATABASE_URL` apontando para esse banco. Receita, busca/overview/histórico da UC e fila consultam a Gold. Não há fallback para fixtures; grandezas ausentes ficam indisponíveis. Catálogo: `/api/v1/analytics/options`. Veja [comandos e limites](../docs/contracts/gold-csv-v1.md#consumo-provisório-pela-api-e-pelo-portal). A seleção no `.env` e no Docker continua explícita.
 
 ### Preparação Gold para GENAI-01
 

@@ -1,4 +1,5 @@
 import type { UCChange, UCMeasure, UCOverview, UCStatus } from "./contract";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import {
   formatUCCompetence,
   formatUCAmount,
@@ -7,13 +8,6 @@ import {
 } from "./uc360-format";
 
 const decimal = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
-
-function changeTone(value: number | null) {
-  if (value === null || value === 0) return "text-muted";
-  return value > 0
-    ? "text-[var(--status-success)]"
-    : "text-[var(--accent-goiaba)]";
-}
 
 function Metric({
   title,
@@ -48,23 +42,29 @@ function Metric({
   return (
     <article className="grid min-w-0 content-start gap-2 rounded-xl border border-control/60 bg-surface px-3 py-4 text-left sm:px-4 sm:py-5">
       <h3 className="text-sm text-muted">{title}</h3>
-      <p className="break-words font-heading text-2xl font-semibold text-content sm:text-3xl">
+      <p
+        className={`[overflow-wrap:anywhere] font-heading text-2xl font-semibold sm:text-3xl ${signedValueTone(current.value, false)}`}
+      >
         {formatUCAmount(current.value, unit)}
       </p>
       <p className="break-words text-sm font-semibold text-muted">
-        <span className={changeTone(change.delta)}>{delta}</span> ·{" "}
-        <span className={changeTone(change.percent_change)}>{percent}</span>
+        <span className={signedValueTone(change.delta)}>{delta}</span> ·{" "}
+        <span className={signedValueTone(change.percent_change)}>
+          {percent}
+        </span>
       </p>
       <p className="text-xs text-muted">
-        Período anterior: {formatUCAmount(before.value, unit)}
+        Mês inicial:{" "}
+        <span className={signedValueTone(before.value, false)}>
+          {formatUCAmount(before.value, unit)}
+        </span>
       </p>
-      <p className="text-xs text-muted">
-        {period} · atual: {statusLabel(current.status)} · anterior:{" "}
-        {statusLabel(before.status)}
-      </p>
-      <p className="text-xs text-muted">
-        Comparação: {statusLabel(change.status)}
-      </p>
+      <p className="text-xs text-muted">{period}</p>
+      {change.status !== "available" && (
+        <p className="text-xs text-muted">
+          Comparação: {statusLabel(change.status)}
+        </p>
+      )}
       {limitations.length > 0 && (
         <p className="text-xs text-muted">
           {limitations.map(humanizeLimitation).join(" ")}
@@ -93,10 +93,10 @@ function SummaryMetric({
       : "text-[28px] leading-8 lg:text-4xl lg:leading-10"
     : "text-xl sm:text-2xl";
   return (
-    <article className="grid min-w-0 min-h-36 content-center gap-2 rounded-xl bg-surface p-3 text-left md:text-center sm:min-h-48 sm:p-5">
+    <article className="grid min-w-0 content-start gap-2 rounded-xl bg-surface p-3 text-left sm:p-4">
       <h3 className="text-sm font-medium text-muted">{title}</h3>
       <p
-        className={`break-words font-heading font-semibold text-content ${valueSize}`}
+        className={`[overflow-wrap:anywhere] font-heading font-semibold text-content ${valueSize}`}
       >
         {value}
       </p>
@@ -128,24 +128,40 @@ export function UC360SupportMetrics({ data }: { data: UCOverview["data"] }) {
         <SummaryMetric
           title="Geração própria"
           value={
-            data.distributed_generation.items.length > 0
-              ? data.distributed_generation.items
-                  .map((item) => `${decimal.format(item.capacity_kw)} kW`)
-                  .join(" · ")
-              : data.distributed_generation.status === "empty"
-                ? "Sem cadastro"
-                : "Sem dado"
+            data.gold_generation?.capacity_kwp != null
+              ? `${decimal.format(data.gold_generation.capacity_kwp)} kWp`
+              : data.gold_generation_record === false
+                ? "Sem registro de GD"
+                : data.gold_generation_record === true
+                  ? "Potência não informada"
+                  : data.distributed_generation.items.length > 0
+                    ? data.distributed_generation.items
+                        .map((item) => `${decimal.format(item.capacity_kw)} kW`)
+                        .join(" · ")
+                    : data.distributed_generation.status === "empty"
+                      ? "Sem cadastro"
+                      : "Sem dado"
           }
-          detail="Potência cadastrada em kW; não é energia compensada."
-          status={data.distributed_generation.status}
+          detail={
+            data.gold_generation_record === false
+              ? "Nenhum cadastro de geração encontrado na fonte; cobertura não certificada."
+              : data.gold_generation
+                ? "Potência de pico cadastrada em kWp; não é geração ou energia compensada."
+                : "Potência cadastrada em kW; não é energia compensada."
+          }
+          status={
+            data.gold_generation_record != null
+              ? "partial"
+              : data.distributed_generation.status
+          }
           limitations={data.distributed_generation.limitations}
         />
         <SummaryMetric
-          title="Faturas em aberto"
+          title="Faturas declaradas em aberto"
           value={
             data.open_invoices.count?.toLocaleString("pt-BR") ?? "Sem dado"
           }
-          detail={`${formatUCCompetence(data.period.start)} a ${formatUCCompetence(data.period.end)} · contagem, sem saldo ou atraso`}
+          detail={`${formatUCCompetence(data.period.start)} a ${formatUCCompetence(data.period.end)} · situação declarada, sem saldo confirmado`}
           status={data.open_invoices.status}
           limitations={data.open_invoices.limitations}
         />
@@ -160,6 +176,9 @@ export function UC360Comparison({
   comparison: UCOverview["data"]["comparison"];
 }) {
   const comparisonPeriod = `${formatUCCompetence(comparison.initial.competencia)} → ${formatUCCompetence(comparison.final.competencia)}`;
+  const showPaid =
+    comparison.initial.paid_amount.value !== null ||
+    comparison.final.paid_amount.value !== null;
   return (
     <section className="grid gap-4" aria-label="Indicadores comparativos">
       <h2 className="font-heading text-xl font-semibold text-content">
@@ -209,15 +228,22 @@ export function UC360Comparison({
             unit="BRL"
             period={comparisonPeriod}
           />
-          <Metric
-            title="Valor pago (BRL)"
-            current={comparison.final.paid_amount}
-            before={comparison.initial.paid_amount}
-            change={comparison.paid_amount}
-            unit="BRL"
-            period={comparisonPeriod}
-          />
+          {showPaid && (
+            <Metric
+              title="Valor pago (BRL)"
+              current={comparison.final.paid_amount}
+              before={comparison.initial.paid_amount}
+              change={comparison.paid_amount}
+              unit="BRL"
+              period={comparisonPeriod}
+            />
+          )}
         </div>
+        {!showPaid && (
+          <p className="text-xs text-muted">
+            O valor efetivamente pago não está disponível nesta consulta.
+          </p>
+        )}
       </div>
     </section>
   );

@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import type { DetailEnvelope, Metadata } from "./contract";
 import { energy } from "./format";
+import { signedValueTone } from "@/shared/ui/signedValue";
 
 const months = [
   "janeiro",
@@ -24,16 +26,18 @@ function periodLabel(value: string) {
 export default function SuspicionDetail({
   data,
   metadata,
+  action,
 }: {
   data: DetailEnvelope["data"];
   metadata: Metadata;
+  action?: ReactNode;
 }) {
   if ("category" in data) {
     const evidence = data.evidence;
     const metric = (label: string, value: number | null, unit = "") => (
       <div key={label}>
         <dt className="text-xs text-muted">{label}</dt>
-        <dd className="mt-1 font-medium">
+        <dd className={`mt-1 font-medium ${signedValueTone(value, false)}`}>
           {value === null ? "Indisponível" : `${formatGold(value)}${unit}`}
         </dd>
       </div>
@@ -43,6 +47,7 @@ export default function SuspicionDetail({
         className="space-y-5 lg:space-y-6"
         aria-labelledby="suspicion-title"
       >
+        {action}
         <section
           className="rounded-xl bg-surface p-4 sm:p-6"
           aria-labelledby="suspicion-title"
@@ -51,11 +56,11 @@ export default function SuspicionDetail({
             id="suspicion-title"
             className="font-heading text-lg leading-[26px] font-semibold lg:text-xl lg:leading-7"
           >
-            O que consta na triagem Gold
+            O que consta na triagem
           </h2>
           <p className="mt-4 text-xs leading-[18px] text-muted">
-            Publicação {metadata.source.version} · snapshot sem competência
-            mensal
+            Os dados da fila são uma fotografia cadastral, sem competência
+            mensal.
           </p>
           <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
             <div>
@@ -75,6 +80,37 @@ export default function SuspicionDetail({
               <dd className="mt-1">{data.feeder_id ?? "Indisponível"}</dd>
             </div>
           </dl>
+          {evidence.historical_recovery_status ===
+            "DISPONIVEL_REFERENCIA_HISTORICA" &&
+            evidence.historical_recovery_reference !== null &&
+            ["global", "0", "1"].includes(
+              evidence.historical_recovery_reference,
+            ) &&
+            evidence.historical_recovery_mean_kwh_per_inspection !== null &&
+            evidence.historical_recovery_interval_lower_kwh !== null &&
+            evidence.historical_recovery_interval_upper_kwh !== null &&
+            evidence.historical_recovery_interval_lower_kwh <=
+              evidence.historical_recovery_interval_upper_kwh && (
+              <section
+                className="mt-5 rounded-lg bg-canvas p-4 text-sm"
+                aria-label="Referência histórica de recuperação"
+              >
+                <h3 className="font-medium">
+                  Média histórica de recuperação por inspeção
+                </h3>
+                <p className="mt-1">
+                  {energy(evidence.historical_recovery_mean_kwh_per_inspection)}{" "}
+                  por inspeção · intervalo{" "}
+                  {energy(evidence.historical_recovery_interval_lower_kwh)} a{" "}
+                  {energy(evidence.historical_recovery_interval_upper_kwh)}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Referência{" "}
+                  {evidence.historical_recovery_reference ?? "não informada"};
+                  método candidato, não é estimativa para esta UC.
+                </p>
+              </section>
+            )}
           <p className="mt-5 font-medium">Evidências publicadas</p>
           <dl className="mt-2 grid gap-4 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
             {metric("Inspeções realizadas", evidence.inspections_performed)}
@@ -102,6 +138,93 @@ export default function SuspicionDetail({
               </dd>
             </div>
           </dl>
+          {data.investigation_potential && (
+            <section
+              className="mt-5 rounded-lg bg-canvas p-4 text-sm"
+              aria-label="Potencial estimado para investigação"
+            >
+              <h3 className="font-medium">
+                Potencial estimado para investigação
+              </h3>
+              <p className="mt-1 text-xs text-muted">
+                {periodLabel(data.investigation_potential.baseline_start)} a{" "}
+                {periodLabel(data.investigation_potential.baseline_end)}{" "}
+                comparado com{" "}
+                {periodLabel(data.investigation_potential.recent_start)} a{" "}
+                {periodLabel(data.investigation_potential.recent_end)}.
+              </p>
+              {data.investigation_potential.potential_kwh !== null ? (
+                <>
+                  <p className="mt-2 font-semibold">
+                    {energy(data.investigation_potential.potential_kwh)} nos
+                    três meses analisados
+                  </p>
+                  <p className="mt-1">
+                    Consumo medido:{" "}
+                    {energy(data.investigation_potential.baseline_kwh)} →{" "}
+                    {energy(data.investigation_potential.recent_kwh)}.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1">
+                  {data.investigation_potential.unavailable_reason}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-muted">
+                Diferença de consumo, limitada a zero quando houve aumento. Não
+                é energia recuperada, previsão validada nem prova de
+                irregularidade; um resultado zero não descarta irregularidade. A
+                cobertura das leituras não é certificada e mudanças de
+                atividade, ocupação ou medidor podem influenciar a comparação.
+              </p>
+              {evidence.distributed_generation_present?.trim().toLowerCase() ===
+                "sim" && (
+                <p className="mt-2 text-xs text-muted">
+                  Há geração distribuída cadastrada; ela pode influenciar a
+                  queda de consumo.
+                </p>
+              )}
+            </section>
+          )}
+          {data.consumption_comparison && (
+            <section
+              className="mt-5 rounded-lg bg-canvas p-4 text-sm"
+              aria-label="Comparação proposta de consumo"
+            >
+              <h3 className="font-medium">Comparação proposta de consumo</h3>
+              <p className="mt-1 text-xs text-muted">
+                {periodLabel(data.consumption_comparison.baseline_start)} a{" "}
+                {periodLabel(data.consumption_comparison.baseline_end)}{" "}
+                comparado com{" "}
+                {periodLabel(data.consumption_comparison.recent_start)} a{" "}
+                {periodLabel(data.consumption_comparison.recent_end)}.
+              </p>
+              {data.consumption_comparison.baseline_kwh !== null &&
+                data.consumption_comparison.recent_kwh !== null && (
+                  <p className="mt-1">
+                    {energy(data.consumption_comparison.baseline_kwh)} →{" "}
+                    {energy(data.consumption_comparison.recent_kwh)}
+                    {data.consumption_comparison.change_percent !== null && (
+                      <span
+                        className={signedValueTone(
+                          data.consumption_comparison.change_percent,
+                        )}
+                      >{` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`}</span>
+                    )}
+                  </p>
+                )}
+              {data.consumption_comparison.unavailable_reason && (
+                <p className="mt-1 text-muted">
+                  {data.consumption_comparison.unavailable_reason}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-muted">
+                Regra proposta: três meses contra os três anteriores. Leituras
+                observadas não certificam cobertura completa; a comparação não
+                define prioridade nem comprova irregularidade.
+              </p>
+            </section>
+          )}
           <section
             className="mt-5 rounded-lg border border-border p-4"
             aria-label="Variação de consumo observada"
@@ -165,7 +288,12 @@ export default function SuspicionDetail({
             aria-label="Estimativa de recuperação indisponível"
           >
             <h3 className="font-medium">Energia recuperável indisponível</h3>
-            <p className="mt-1">{data.recovery_unavailable_reason}</p>
+            <p className="mt-1">
+              {data.recovery_unavailable_reason.replace(
+                /\bGold\b/g,
+                "fonte de dados",
+              )}
+            </p>
             <p className="mt-1">
               Variação de consumo não é estimativa de energia recuperável.
             </p>
@@ -181,15 +309,18 @@ export default function SuspicionDetail({
       </article>
     );
   }
-  const priority = data.priority.toLocaleString("pt-BR", {
-    maximumFractionDigits: 2,
-  });
+  const priority =
+    data.priority_label ??
+    data.priority?.toLocaleString("pt-BR", {
+      maximumFractionDigits: 2,
+    });
 
   return (
     <article
       className="space-y-5 lg:space-y-6"
       aria-labelledby="suspicion-title"
     >
+      {action}
       <section
         className="rounded-xl bg-surface p-4 sm:p-6"
         aria-labelledby="suspicion-title"
@@ -201,11 +332,19 @@ export default function SuspicionDetail({
           O que motivou a investigação
         </h2>
         <p className="mt-4 text-xs leading-[18px] text-muted">
-          Janela da evidência:{" "}
-          {metadata.contract_version === "1.0.0"
+          {metadata.source.kind === "gold_csv"
+            ? "Cobertura do consumo no lote"
+            : "Janela da evidência"}
+          :{" "}
+          {metadata.period
             ? `${periodLabel(metadata.period.start)} a ${periodLabel(metadata.period.end)}`
-            : "Período não informado no contrato."}
+            : "Não informado"}
         </p>
+        {metadata.source.kind === "gold_csv" && (
+          <p className="mt-1 text-xs text-muted">
+            A fila não informa uma janela temporal própria para esta suspeita.
+          </p>
+        )}
         <div className="mt-4 text-sm leading-[22px]">
           <p className="font-medium">Motivo da suspeita</p>
           <p className="mt-1">{data.reason}</p>
@@ -213,14 +352,20 @@ export default function SuspicionDetail({
           <div className="mt-4">
             <span
               role="status"
-              aria-label={`Prioridade analítica: ${priority} de 1`}
-              className="inline-flex min-h-9 items-center rounded-full border border-[var(--status-info-text)] bg-[var(--status-info-bg)] px-3 text-sm font-semibold text-[var(--status-info-text)]"
+              aria-label={
+                data.priority === null
+                  ? `Prioridade categórica: ${priority}`
+                  : `Prioridade analítica: ${priority} de 1`
+              }
+              className="inline-flex min-h-9 max-w-full items-center rounded-full border border-[var(--status-info-text)] bg-[var(--status-info-bg)] px-3 text-sm font-semibold [overflow-wrap:anywhere] text-[var(--status-info-text)]"
             >
-              Prioridade {priority} / 1
+              Prioridade {priority}
+              {data.priority !== null ? " / 1" : ""}
             </span>
             <p className="mt-1 text-xs leading-[18px] text-muted">
-              Pontuação de priorização da fila; não é probabilidade de
-              irregularidade.
+              {data.priority === null
+                ? "Categoria publicada; regra provisória aguardando homologação."
+                : "Pontuação de priorização da fila; não é probabilidade de irregularidade."}
             </p>
           </div>
 
@@ -230,7 +375,9 @@ export default function SuspicionDetail({
               {energy(data.potential_recoverable_energy_kwh)}
             </p>
             <p className="text-xs leading-[18px] text-muted">
-              Estimativa demonstrativa, sem confirmação de recuperação.
+              {metadata.source.is_demo
+                ? "Estimativa demonstrativa, sem confirmação de recuperação."
+                : "Estimativa não fornecida nesta consulta."}
             </p>
           </div>
 
@@ -243,9 +390,78 @@ export default function SuspicionDetail({
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-muted">Sem sinais disponíveis.</p>
+              <p className="mt-1 text-muted">
+                {data.indicators.join(" · ") || "Sem sinais disponíveis."}
+              </p>
             )}
           </div>
+
+          {data.consumption_comparison && (
+            <div className="mt-4 rounded-lg bg-canvas p-3">
+              <p className="font-medium">Comparação proposta de consumo</p>
+              <p className="mt-1 text-xs text-muted">
+                {periodLabel(data.consumption_comparison.baseline_start)} a{" "}
+                {periodLabel(data.consumption_comparison.baseline_end)}{" "}
+                comparado com{" "}
+                {periodLabel(data.consumption_comparison.recent_start)} a{" "}
+                {periodLabel(data.consumption_comparison.recent_end)}.
+              </p>
+              {data.consumption_comparison.baseline_kwh !== null &&
+                data.consumption_comparison.recent_kwh !== null && (
+                  <p className="mt-1">
+                    {energy(data.consumption_comparison.baseline_kwh)} →{" "}
+                    {energy(data.consumption_comparison.recent_kwh)}
+                    {data.consumption_comparison.change_percent !== null && (
+                      <span
+                        className={signedValueTone(
+                          data.consumption_comparison.change_percent,
+                        )}
+                      >{` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`}</span>
+                    )}
+                  </p>
+                )}
+              {data.consumption_comparison.unavailable_reason && (
+                <p className="mt-1 text-muted">
+                  {data.consumption_comparison.unavailable_reason}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-muted">
+                Regra proposta: três meses contra os três anteriores, terminando
+                na última competência da publicação. Dados observados não
+                certificam cobertura completa. Esta comparação não define a
+                prioridade nem comprova irregularidade.
+              </p>
+            </div>
+          )}
+
+          {data.historical_recovery ? (
+            <div className="mt-4 rounded-lg bg-canvas p-3">
+              <p className="font-medium">
+                Média histórica de recuperação por inspeção
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {energy(data.historical_recovery.mean_kwh_per_inspection)} por
+                inspeção
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Intervalo histórico:{" "}
+                {energy(data.historical_recovery.lower_kwh_per_inspection)} a{" "}
+                {energy(data.historical_recovery.upper_kwh_per_inspection)} por
+                inspeção. Referência:{" "}
+                {data.historical_recovery.reference === "global"
+                  ? "geral"
+                  : data.historical_recovery.reference === "1"
+                    ? "com histórico anterior de irregularidade"
+                    : "sem histórico anterior de irregularidade"}
+                .
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Referência candidata baseada em inspeções anteriores; não é
+                estimativa para esta UC nem garantia de recuperação. Método
+                sujeito a homologação.
+              </p>
+            </div>
+          ) : null}
 
           <p className="mt-4 text-muted">
             Verificar cadastro, medição, histórico e eventual geração própria
@@ -260,8 +476,9 @@ export default function SuspicionDetail({
         <div>
           <p className="text-sm leading-5 font-medium">Limite da evidência</p>
           <p className="text-sm leading-[22px]">
-            Não há irregularidade confirmada. A priorização orienta uma
-            inspeção; não constitui diagnóstico de fraude.
+            {metadata.source.is_demo
+              ? "Não há irregularidade confirmada. A priorização orienta uma inspeção; não constitui diagnóstico de fraude."
+              : "O histórico e a prioridade não confirmam uma nova irregularidade. A fila orienta investigação; não constitui diagnóstico de fraude."}
           </p>
         </div>
       </aside>

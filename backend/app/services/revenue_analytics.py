@@ -520,6 +520,10 @@ def build_revenue(
     filters: AnalyticsFilters,
     group_by: GroupBy = "municipio",
 ) -> dict:
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository):
+        from app.services.gold_revenue import build_gold_revenue
+        return build_gold_revenue(repository, start, end, filters, group_by)
     months = _month_sequence(start, end)
     units = _validate_and_filter_units(repository.units, filters)
     unit_ids = {unit["uc_id"] for unit in units}

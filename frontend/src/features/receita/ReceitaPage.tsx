@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
+import { useSourceOptions } from "@/shared/analytics/sourceOptions";
 import RevenueFiltersForm from "./RevenueFiltersForm";
 import RevenueBreakdown from "./RevenueBreakdown";
 import RevenueDecomposition from "./RevenueDecomposition";
@@ -10,6 +11,7 @@ import RevenueSeries from "./RevenueSeries";
 import RevenueSummary from "./RevenueSummary";
 import {
   parseRevenueSearchParams,
+  defaultRevenueFilters,
   revenueRefinementDestination,
   refineRevenueParams,
   updateRevenueBaseParams,
@@ -46,9 +48,20 @@ export default function ReceitaPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersTriggerRef = useRef<HTMLButtonElement>(null);
   const searchKey = searchParams.toString();
+  const catalog = useSourceOptions();
+  const defaults = useMemo(() => {
+    const months = catalog.data?.data.competencias;
+    if (catalog.data?.source.kind !== "gold_csv" || !months?.length)
+      return defaultRevenueFilters;
+    return {
+      ...defaultRevenueFilters,
+      competencia_inicio: months[Math.max(0, months.length - 12)],
+      competencia_fim: months[months.length - 1],
+    };
+  }, [catalog.data]);
   const parsed = useMemo(
-    () => parseRevenueSearchParams(new URLSearchParams(searchKey)),
-    [searchKey],
+    () => parseRevenueSearchParams(new URLSearchParams(searchKey), defaults),
+    [searchKey, defaults],
   );
   const revenue = useRevenue(parsed.query);
 
@@ -132,41 +145,41 @@ export default function ReceitaPage() {
 
   return (
     <div className="mt-6 grid min-w-0 w-full gap-4">
-      <div className="flex min-h-[18px] min-w-0 flex-wrap items-center justify-between gap-2 text-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          {envelope?.metadata.source.is_demo ? (
-            <span className="text-muted">
-              Demonstração · dados sintéticos · atualização:{" "}
-              {new Intl.DateTimeFormat("pt-BR", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                timeZone: "UTC",
-              }).format(new Date(envelope.metadata.source.updated_at))}
-            </span>
-          ) : null}
-          {envelope?.metadata.status === "partial" ? (
+      {envelope?.metadata.source.is_demo ||
+      envelope?.metadata.status === "unavailable" ||
+      envelope?.metadata.status === "empty" ||
+      (revenue.isFetching && envelope) ? (
+        <div className="flex min-h-[18px] min-w-0 flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            {envelope?.metadata.source.is_demo ? (
+              <span className="text-muted">
+                Demonstração · dados sintéticos · atualização:{" "}
+                {new Intl.DateTimeFormat("pt-BR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  timeZone: "UTC",
+                }).format(new Date(envelope.metadata.source.updated_at))}
+              </span>
+            ) : null}
+            {envelope?.metadata.status === "unavailable" ? (
+              <span role="status" className="text-muted">
+                Valores indisponíveis
+              </span>
+            ) : null}
+            {envelope?.metadata.status === "empty" ? (
+              <span role="status" className="text-muted">
+                Sem registros para este recorte; ausência não equivale a zero.
+              </span>
+            ) : null}
+          </div>
+          {revenue.isFetching && envelope ? (
             <span role="status" className="text-muted">
-              Cobertura parcial
-            </span>
-          ) : null}
-          {envelope?.metadata.status === "unavailable" ? (
-            <span role="status" className="text-muted">
-              Valores indisponíveis
-            </span>
-          ) : null}
-          {envelope?.metadata.status === "empty" ? (
-            <span role="status" className="text-muted">
-              Sem registros para este recorte; ausência não equivale a zero.
+              Atualizando consulta…
             </span>
           ) : null}
         </div>
-        {revenue.isFetching && envelope ? (
-          <span role="status" className="text-muted">
-            Atualizando consulta…
-          </span>
-        ) : null}
-      </div>
+      ) : null}
 
       {refinementLabels.length > 0 ? (
         <section
@@ -194,68 +207,61 @@ export default function ReceitaPage() {
 
       <section
         aria-label="Filtros aplicados"
-        className="mt-2 flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"
+        className="mt-2 flex min-w-0 flex-nowrap items-center gap-4 overflow-x-auto rounded-xl bg-surface px-4 py-4"
       >
-        <div
-          className={`grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm ${appliedFilters.alimentador ? "md:grid-cols-5" : "md:grid-cols-4"}`}
-        >
-          {(() => {
-            const territory = appliedFilters.bairro
-              ? filterLabel(appliedFilters.bairro, "Todos os bairros") +
-                (appliedFilters.municipio
-                  ? " · " +
-                    filterLabel(appliedFilters.municipio, "Não informado")
-                  : "")
-              : filterLabel(appliedFilters.municipio, "Todos os municípios");
-            return (
-              <>
-                <div>
-                  <p className="text-xs text-muted">Período</p>
-                  <p className="mt-1 text-sm font-medium text-content">
-                    {competenceLabel(
-                      envelope?.metadata.period.end ??
-                        parsed.base.competencia_fim,
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted">Comparar com</p>
-                  <p className="mt-1 text-sm font-medium text-content">
-                    {competenceLabel(
-                      envelope?.metadata.period.start ??
-                        parsed.base.competencia_inicio,
-                    )}
-                  </p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted">Território</p>
-                  <p className="mt-1 truncate text-sm font-medium text-content">
-                    {territory}
-                  </p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted">Classe</p>
-                  <p className="mt-1 truncate text-sm font-medium text-content">
-                    {filterLabel(appliedFilters.classe, "Todas as classes")}
-                  </p>
-                </div>
-                {appliedFilters.alimentador ? (
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted">Alimentador</p>
-                    <p className="mt-1 truncate text-sm font-medium text-content">
-                      {filterLabel(appliedFilters.alimentador, "Não informado")}
-                    </p>
-                  </div>
-                ) : null}
-              </>
-            );
-          })()}
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <dl className="flex min-w-0 flex-nowrap items-center gap-x-5 overflow-x-auto whitespace-nowrap text-sm">
+            <div className="w-24 shrink-0">
+              <dt className="text-xs text-muted">Mês inicial</dt>
+              <dd className="mt-1 truncate font-medium text-content">
+                {competenceLabel(
+                  envelope?.metadata.period.start ??
+                    parsed.base.competencia_inicio,
+                )}
+              </dd>
+            </div>
+            <div className="w-24 shrink-0">
+              <dt className="text-xs text-muted">Mês final</dt>
+              <dd className="mt-1 truncate font-medium text-content">
+                {competenceLabel(
+                  envelope?.metadata.period.end ?? parsed.base.competencia_fim,
+                )}
+              </dd>
+            </div>
+            <div className="w-36 shrink-0">
+              <dt className="text-xs text-muted">Município</dt>
+              <dd className="mt-1 truncate font-medium text-content">
+                {filterLabel(appliedFilters.municipio, "Todos os municípios")}
+              </dd>
+            </div>
+            <div className="w-36 shrink-0">
+              <dt className="text-xs text-muted">Bairro</dt>
+              <dd className="mt-1 truncate font-medium text-content">
+                {filterLabel(appliedFilters.bairro, "Todos os bairros")}
+              </dd>
+            </div>
+            <div className="w-36 shrink-0">
+              <dt className="text-xs text-muted">Classe</dt>
+              <dd className="mt-1 truncate font-medium text-content">
+                {filterLabel(appliedFilters.classe, "Todas as classes")}
+              </dd>
+            </div>
+            <div className="w-36 shrink-0">
+              <dt className="text-xs text-muted">Alimentador</dt>
+              <dd className="mt-1 truncate font-medium text-content">
+                {filterLabel(
+                  appliedFilters.alimentador,
+                  "Todos os alimentadores",
+                )}
+              </dd>
+            </div>
+          </dl>
           {(parsed.refinements.municipio ||
             parsed.refinements.bairro ||
             parsed.refinements.classe) && (
             <nav
               aria-label="Caminho do recorte"
-              className={`col-span-2 mt-1 flex flex-wrap items-center gap-1 text-xs ${appliedFilters.alimentador ? "md:col-span-5" : "md:col-span-4"}`}
+              className="flex flex-wrap items-center gap-1 text-xs"
             >
               <a
                 href={`?${totalRefinementParams.toString()}`}
@@ -367,10 +373,13 @@ export default function ReceitaPage() {
       >
         {filtersOpen ? (
           <RevenueFiltersForm
+            options={catalog.data?.data}
             initialFilters={parsed.base}
+            defaultFilters={defaults}
             searchKey={searchKey}
             envelope={envelope}
             onApply={applyFilters}
+            onCancel={() => setFiltersOpen(false)}
           />
         ) : null}
       </Modal>
@@ -425,6 +434,11 @@ export default function ReceitaPage() {
           <div className="grid min-w-0 gap-4 min-[1850px]:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <RevenueDecomposition envelope={envelope} />
             <RevenueBreakdown
+              key={JSON.stringify([
+                envelope.metadata.filters,
+                envelope.metadata.period,
+                parsed.groupBy,
+              ])}
               envelope={envelope}
               groupBy={parsed.groupBy}
               onGroupByChange={applyGroupBy}
