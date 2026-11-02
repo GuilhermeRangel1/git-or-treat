@@ -186,3 +186,4 @@ Assistente e insight vinculam a publicação conhecida à consulta; o insight en
 # Atualização de Receita — 02/11/2026
 
 O cartão de Receita apresenta “Consumo medido” em kWh nos mesmos extremos mensais usados pelos demais cartões. Quando a cobertura da medida é parcial, a tela informa isso junto ao cartão; ausência continua distinta de zero. A métrica não é chamada de energia faturada.
+Arquivos de campo: Inspeções oferece diálogo de exportação integral ou filtrada por categoria, município, bairro e classe, com opções carregadas da API. Paginação da tela não limita o arquivo.

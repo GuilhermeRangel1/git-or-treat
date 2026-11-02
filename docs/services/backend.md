@@ -317,3 +317,4 @@ Assistente e insight vinculam a publicação conhecida à consulta; o insight en
 # Atualização de Receita — 02/11/2026
 
 Os snapshots comparativos incluem `measured_energy_kwh`, agregado do consumo medido por competência, independente de faturas. `billed_energy_kwh` continua distinto e nulo quando não publicado. Preço observado e decomposição preço × volume mantêm receita e consumo da base comparável.
+Exportação WEB-08: GET /inspections/field-queue/export exige leitura de ordens e exporta o recorte completo (até 50.000 UCs), por municipio/bairro/classe/categoria; options_only retorna opções da fonte. Resultado JSON contém csv e count. CSV usa UTF-8, ponto e vírgula, fonte e filtros, com neutralização de fórmulas.

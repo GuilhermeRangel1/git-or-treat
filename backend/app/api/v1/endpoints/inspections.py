@@ -81,6 +81,51 @@ def get_suspicion_detail(
 router.include_router(analytics_router)
 
 
+@router.get("/field-queue/export", summary="Exportar a página filtrada da fila")
+def export_field_queue(actor: str = Depends(require_orders_read),
+                       municipio: str | None = Query(None, max_length=100),
+                       bairro: str | None = Query(None, max_length=100),
+                       classe: str | None = Query(None, max_length=100),
+                       categoria: str | None = Query(None, max_length=100),
+                       options_only: bool = False,
+                       order_by: Literal["priority", "uc_id", "potential_recoverable_energy_kwh", "category", "queue_position"] | None = None,
+                       direction: Literal["asc", "desc"] | None = None,
+                       gold_context: GoldContext | None = Depends(get_optional_gold_context),
+                       repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider)):
+    import csv
+    import io
+    import json
+    queue = get_inspection_queue(
+        page=1, page_size=1 if options_only else 50001,
+        order_by=order_by, direction=direction, municipio=municipio,
+        bairro=bairro, classe=classe, alimentador=None,
+        expected_lote=None, expected_fingerprint=None,
+        gold_context=gold_context, repository_provider=repository_provider,
+    )
+    if options_only:
+        categories = getattr(queue.data.summary, "categories", {})
+        return {"options": {**queue.data.filter_options, "categoria": sorted(categories)}}
+    if queue.pagination.total > 50000:
+        raise HTTPException(422, "O recorte excede 50.000 UCs. Aplique filtros para exportar.")
+    rows = [item.model_dump(mode="json") for item in queue.data.items]
+    if categoria is not None:
+        categories = getattr(queue.data.summary, "categories", {})
+        if categoria not in categories:
+            raise HTTPException(422, "Categoria indisponível neste recorte.")
+        rows = [row for row in rows if row.get("category") == categoria]
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+    columns = list(rows[0]) if rows else ["uc_id"]
+    writer.writerow([*columns, "fonte", "filtros"])
+    filters = json.dumps({"municipio": municipio, "bairro": bairro, "classe": classe, "categoria": categoria, "order_by": order_by, "direction": direction}, ensure_ascii=False)
+    def safe(value):
+        value = "" if value is None else json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+        return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) else value
+    for row in rows:
+        writer.writerow([*[safe(row.get(key)) for key in columns], safe(queue.metadata.source.version), safe(filters)])
+    return {"csv": output.getvalue(), "count": len(rows)}
+
+
 @router.get("/access", response_model=OrderAccessResponse, summary="Identidade e permissões das ordens")
 def get_order_access(response: Response, identity: OrderIdentity = Depends(get_order_identity)):
     response.headers["Cache-Control"] = "no-store"
