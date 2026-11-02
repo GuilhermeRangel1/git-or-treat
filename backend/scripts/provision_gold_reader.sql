@@ -32,6 +32,8 @@ REVOKE ALL ON SCHEMA gold FROM venergy_gold_reader;
 REVOKE ALL ON ALL TABLES IN SCHEMA gold FROM venergy_gold_reader;
 REVOKE ALL ON SCHEMA gold_v2 FROM venergy_gold_reader;
 REVOKE ALL ON ALL TABLES IN SCHEMA gold_v2 FROM venergy_gold_reader;
+REVOKE ALL ON SCHEMA gold_cadastro FROM venergy_gold_reader;
+REVOKE ALL ON ALL TABLES IN SCHEMA gold_cadastro FROM venergy_gold_reader;
 GRANT USAGE ON SCHEMA gold TO venergy_gold_reader;
 GRANT USAGE ON SCHEMA gold_v2 TO venergy_gold_reader;
 GRANT SELECT ON gold.gold_consumo_mensal_uc, gold.gold_consumo_receita_bairro,

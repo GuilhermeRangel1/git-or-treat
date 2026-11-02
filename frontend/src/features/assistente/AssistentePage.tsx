@@ -21,6 +21,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useGoldPublicationRevision } from "@/shared/analytics/goldPublication";
+import { useSession } from "@/shared/auth/useSession";
 import Button from "@/shared/ui/Button";
 import { AIChatApiError, askAIQuestion } from "./api";
 import type {
@@ -320,13 +321,26 @@ function MessageCard({
 
 export default function AssistentePage() {
   const publicationRevision = useGoldPublicationRevision();
+  const { user } = useSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const nextMessageId = useRef(0);
   const sendingRef = useRef(false);
+  const requestControllerRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
-  const mutation = useMutation({ mutationFn: askAIQuestion, retry: false });
+  const mutation = useMutation({
+    mutationFn: (request: AIQuestionRequest) =>
+      askAIQuestion(request, requestControllerRef.current?.signal),
+    retry: false,
+  });
+  const identityKey = `${user?.id ?? ""}:${user?.profile ?? ""}:${user?.permissions.join(",") ?? ""}`;
+  useEffect(() => {
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    sendingRef.current = false;
+    setMessages([]);
+  }, [identityKey]);
   // Publication changes invalidate interpretation history, including saved retries.
   useEffect(() => {
     // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
@@ -363,6 +377,8 @@ export default function AssistentePage() {
       : retryAttempt?.assistantMessageId;
     if (userMessageId === undefined || assistantMessageId === undefined) return;
     sendingRef.current = true;
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     const retryRequest = retryAttempt ?? {
       question,
       context,
@@ -428,6 +444,7 @@ export default function AssistentePage() {
         );
       });
     } catch (error) {
+      if (controller.signal.aborted) return;
       if (
         error instanceof AIChatApiError &&
         error.code === "superseded_request"
@@ -465,8 +482,11 @@ export default function AssistentePage() {
         ),
       );
     } finally {
-      sendingRef.current = false;
-      requestAnimationFrame(() => composerRef.current?.focus());
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+        sendingRef.current = false;
+        requestAnimationFrame(() => composerRef.current?.focus());
+      }
     }
   }
 

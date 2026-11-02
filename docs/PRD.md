@@ -465,6 +465,12 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 02/11/2026 — WEB-03 — identidade do cadastro restrito pelos manifestos
+
+- A pessoa usuária aprovou aceitar timestamp por linha anterior ao manifesto cadastral. A identidade da publicação continua protegida pela igualdade de run, linhagem, `data_processamento_gold` e IDs cruzados entre os manifestos analítico/cadastral. O timestamp das linhas deve ser válido, fuso-horário explícito e uniforme no pacote; sua divergência do manifesto deixa de bloquear a carga. Decisão: [ADR-0023](decisions/0023-timestamps-cadastro-restrito.md).
+- Em `backend/`, `.venv/Scripts/python.exe scripts/load_gold.py --directory data/export_csv/GOLD_20261031T020143Z_fd69c375/5a38fabca8b649598f01f7dca22a9dbb --schema-version gold-csv-v2 --cadastro-directory data/export_csv/GOLD_20261031T020143Z_fd69c375/dbc5928deefc45cead71f3fda8560136` retornou `status=unchanged`, `restricted_cadastro.status=loaded`, 45.000 registros e `available_to_genai=false`; manifesto analítico já ativo, cadastro anexado na transação. Smoke autenticado com perfil `admin`: login e overview HTTP 200, identificação `available`, nome presente; valor do nome e UC não foram exibidos/registrados. API health e frontend responderam HTTP 200. WEB-03 permanece Em andamento.
+
+
 ### 01/11/2026 — WEB-02 / WEB-03 / WEB-04 — cores para valores com sinal
 
 - Nas jornadas de Receita, UC 360 e Inspeções, valores apresentados com sinal positivo usam verde e negativos usam vermelho; valores sem sinal usam a cor normal do tema e indisponibilidade mantém identificação própria. A cor acompanha os tokens claro/escuro e não substitui o sinal ou a unidade.
@@ -3496,3 +3502,9 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Cache isolado: falhas transitórias preservadas no relatório; rechecagem final teve uma falha, uma resposta real e uma resposta reutilizada sem nova geração. A fase de modelo caiu de 2.633 ms para menos de 1 ms, mantendo reautorização e consulta. Disponibilidade do Gemini não é garantida. Metas locais foram fixadas após medição, sem aumentar prazos ou habilitar fallback sintético/roteamento leve.
 - Verificações: GenAI completo 4.189 passaram/5 skips; Backend completo 1.012 passaram/11 skips em cinco bancos descartáveis, incluindo contenção/cancelamento 57014, recuperação e limite real de conexões. Rechecagens finais: 60 GenAI, 24 Backend e três de resumo de métricas passaram; Ruff, compilação, Compose config e diff passaram. Skips/aviso preexistente detalhados no relatório.
 - Revisão Standards/Spec corrigiu associação de correlação nula, privilégio CREATE herdado e SELECT ausente. Revogação de coluna requerida reprovou readiness; restauração recuperou. Concessão CREATE de teste foi rejeitada pelo provisionamento. Contas/sessões de teste, quatro containers descartáveis, rede isolada e arquivos de senhas temporárias removidos. Sem ampliação de grants no banco principal; alterações ainda sem commit/push.
+
+### 2026-11-02 — WEB-03 — ligação do cadastro restrito à UC 360 (em validação)
+
+- Implementados schema/tabela isolados, leitor PostgreSQL de privilégio mínimo, validação pareada dos manifestos Gold v2/cadastro, consulta Backend autenticada e estados tipados no cabeçalho UC 360. O nome não entra na busca nem na GenAI. Scripts e contrato operacional atualizados; sem alteração do estado oficial de WEB-03 ou WEB-10.
+- Migração `python -m alembic upgrade heads` passou e criou `20261102_cadastro`; `python scripts/provision_gold_cadastro_reader.py` criou o papel restrito e gravou o DSN apenas em `backend/.env`; `python -m compileall -q app scripts` e importação da aplicação passaram.
+- Resultado inicial: a importação foi revertida porque o timestamp nas 45.000 linhas divergia do manifesto em 425 segundos. Em seguida, por aprovação da pessoa usuária e conforme [ADR-0023](../decisions/0023-timestamps-cadastro-restrito.md), o pareamento passou a usar a identidade coincidente dos manifestos, mantendo timestamp de linha válido e uniforme. Reexecução carregou 45.000 linhas (`status=unchanged`, cadastro `loaded`, GenAI sem acesso); smoke admin: login/overview 200, estado `available` e nome presente, sem exibir valores pessoais. API e frontend responderam 200; captura visual ainda não feita.

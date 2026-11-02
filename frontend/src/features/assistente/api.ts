@@ -37,6 +37,7 @@ export class AIChatApiError extends Error {
 
 export async function askAIQuestion(
   request: AIQuestionRequest,
+  signal?: AbortSignal,
 ): Promise<AIQuestionResponse> {
   const generation = getGoldGeneration();
   const publicationKey = goldPublicationKey();
@@ -61,7 +62,7 @@ export async function askAIQuestion(
   try {
     rawResponse = await apiClient<unknown>("/api/v1/ai/questions", {
       method: "POST",
-      signal: controller.signal,
+      signal: signal ?? controller.signal,
       body: JSON.stringify(payload),
     });
   } catch (error) {

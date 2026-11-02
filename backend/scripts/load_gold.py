@@ -16,15 +16,18 @@ from app.services.gold_import_v2 import import_gold_v2
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, default=settings.GOLD_DATA_DIR / "v1")
+    parser.add_argument("--cadastro-directory", type=Path, help="Pacote cadastral restrito gold-cadastro-v1 pareado com o manifesto Gold v2.")
     parser.add_argument("--batch", help="Conferência opcional do run_id do manifesto; não substitui a origem.")
     parser.add_argument(
         "--schema-version", choices=("gold-csv-v1", "gold-csv-v2"),
         help="Versão explícita; v2 carrega somente as quinze tabelas analíticas.",
     )
     args = parser.parse_args()
+    if args.cadastro_directory is not None and args.schema_version != "gold-csv-v2":
+        parser.error("--cadastro-directory exige --schema-version gold-csv-v2")
     try:
         if args.schema_version == "gold-csv-v2":
-            result = import_gold_v2(engine, args.directory, args.batch)
+            result = import_gold_v2(engine, args.directory, args.batch, args.cadastro_directory)
         else:
             result = import_gold(engine, args.directory, args.batch, args.schema_version)
     except (GoldImportError, SQLAlchemyError, OSError, UnicodeError, csv.Error) as error:

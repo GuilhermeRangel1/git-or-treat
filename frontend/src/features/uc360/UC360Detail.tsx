@@ -108,11 +108,14 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
             Demonstração · dados sintéticos
           </p>
         )}
-        {selected &&
-          metadata?.source.kind === "gold_csv" &&
-          !selected.profile.customer_name?.trim() && (
+        {selected && metadata?.source.kind === "gold_csv" &&
+          (selected.profile.customer_identification_status ?? "unavailable") !== "available" && (
             <p className="text-sm text-muted">
-              Nome do titular não disponível no cadastro consultado.
+              {selected.profile.customer_identification_status === "absent"
+                ? "Titular sem nome informado na origem."
+                : selected.profile.customer_identification_status === "conflict"
+                  ? "A origem aponta conflito na identificação do titular."
+                  : "Cadastro restrito indisponível para esta UC."}
             </p>
           )}
       </header>

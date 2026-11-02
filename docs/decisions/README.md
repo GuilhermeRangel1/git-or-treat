@@ -32,3 +32,5 @@ relacionados na mesma mudança.
 - [D20 — projeção cadastral restrita](../../data-engineering/decisoes-tecnicas.md#93-exclusão-de-dados-pessoais-na-projeção-gold-d20-decidido): revisão pontual solicitada em 30/10/2026 para nome de exibição do titular, fora dos agregados e da GenAI; contratos e ACLs do consumidor continuam pendentes.
 
 - [ADR-0022 — Consumo das métricas documentadas na Gold v2](0022-consumo-metricas-documentadas-gold-v2.md): implementação local de comparação mensal, ranking de variação, GD/queda, eventos distintos e decomposição publicada; controles, cobertura e homologação permanecem distintos.
+
+- [ADR-0023 — Pareamento do cadastro restrito pelos manifestos](0023-timestamps-cadastro-restrito.md): aprovada em 02/11/2026; timestamps das linhas cadastrais precisam ser válidos e uniformes, enquanto a identidade da publicação usa metadados coincidentes dos manifestos.

@@ -222,7 +222,7 @@ def get_gold_occurrences(
     page: Annotated[int, Query(ge=1, le=1000000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     municipio: Annotated[str | None, Query(max_length=100)] = None,
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("operations:read")),
 ) -> GoldOccurrencePage:
     if gold_context is None:
         raise AnalyticsAPIError(422, "unsupported_source", "Ocorrências observadas disponíveis somente para a fonte Gold.")
