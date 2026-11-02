@@ -240,8 +240,39 @@ O executor de medidas e a coordenação do endpoint do portal permanecem em GENA
 `load_gold.py --schema-version gold-csv-v2 --directory <export-analitico> --cadastro-directory <export-cadastral>` valida os manifestos cruzados e publica a projeção em `gold_cadastro` na mesma transação que a publicação analítica. `GOLD_CADASTRO_DATABASE_URL` aponta a uma credencial dedicada, read-only, limitada ao schema; `venergy_gold_reader` e a conexão GenAI não recebem permissão cadastral. A rota de overview aplica `ucs:read` antes da consulta e cruza run/export IDs da publicação ativa. O contrato cadastral não integra catálogo, planejamento, evidência, síntese ou auditoria IA.
 
 A API informa `available`, `absent`, `conflict` ou `unavailable`. Ausência de linha, pacote ou conexão nunca é apresentada como ausência de titular. O pareamento usa run, linhagem, processamento e IDs cruzados dos manifestos; timestamps das linhas cadastrais são validados quanto a fuso/formato e uniformidade, mas podem divergir do instante dos manifestos. Ver [decisão de timestamps cadastrais](../decisions/0023-timestamps-cadastro-restrito.md), [contrato cadastral](../contracts/gold-cadastro-v1.md) e [contrato UC 360](../contracts/uc360-gold-v2.md).
+
 ## WEB-10 — perfis e autorização por recurso
 
 A [ADR-0022](../decisions/0022-perfis-de-acesso-web10.md) define a política fixa `commercial`, `customer_service`, `losses`, `operations` e `admin`. `platform_identity` resolve usuário ativo e perfil em cada requisição; permissões vêm do catálogo `platform_access`, enquanto o JSON legado de grants não concede acesso de sessão. Endpoints analíticos e operacionais exigem permissões específicas antes de abrir providers/snapshots. Rotas internas de auditoria continuam com identidade técnica e não são elevadas por admin. A [matriz de acesso](../contracts/platform-access.md) é a referência de recurso/rota.
 
 O campo de perfil é nullable para preservar contas anteriores sem migração de privilégio. Provisionamento e atribuição são explícitos; scripts, 401/403, recuperação de admin e rollback estão no [contrato local de autenticação](../contracts/local-auth.md#perfis-de-plataforma--web-10). `service` permanece leitura analítica técnica apenas em desenvolvimento, sem `ai:ask`/admin; `demo` exige desenvolvimento e fonte sintética. Para GenAI Gold v2, o escopo efetivo é a interseção entre perfil, catálogo, capacidades e grants técnicos: Comercial tem cinco métricas de faturamento/energia, Operação DEC/FEC, admin a união de sete; Atendimento e Perdas recebem estado público `needs_clarification` sem iniciar engine/modelo enquanto não houver capacidade aprovada. Isso não amplia o leitor nem habilita dados UC individual. A suíte completa do Backend passou (901 aprovados, 102 testes pulados, 1 aviso); os skips incluem PostgreSQL opt-in e as provas dirigidas WEB-10 foram executadas separadamente. WEB-10 permanece `Em validação` enquanto faltarem respostas Admin e reconciliação com Gold autorizado.
+
+No ranking explícito com agrupamento, o executor retorna exatamente o limite do plano.
+A linha extra para detectar truncamento é preservada nas consultas completas; não
+converte uma solicitação legítima de top-1 em erro por existir um segundo grupo.
+O teste integrado confere duas classes e mantém a recusa da consulta completa truncada.
+
+
+### GENAI-10B — execução das métricas documentadas v2
+
+O catálogo físico inclui comparação mensal, GD/queda elegível, contagem distinta
+de eventos e decomposição publicada. O executor revalida o filtro intrínseco GD,
+usa SQL parametrizado e classifica os bairros antes de limitar a saída. C08/C09
+confrontam população e medidas; preço/volume exige cobertura dos dois domínios nas
+janelas publicadas, método V3, mesma origem e reconciliação por linha. Campos
+opcionais ausentes preservam envelopes/fingerprints existentes. As novas leituras
+locais foram explicitamente autorizadas e estão reproduzíveis no provisionamento;
+escrita, conteúdo de chamados e cadastro continuam fora do leitor. Veja a
+[entrega 10B](../contracts/genai-domain-implementation.md).
+
+
+## GENAI-13 — invalidação integrada
+
+Assistente e insight vinculam a publicação conhecida à consulta; o insight envia/confere fingerprint e o resolvedor lê a view de metadados no PostgreSQL. Mudança de publicação ou acesso retira contexto anterior e retentativas; resposta/erro atrasados não substituem revisão vigente. Evidências e limites da integração em [GENAI-13](../plans/2026-11-01-genai13-invalidacao-integrada.md). Mantida compatibilidade dos campos opcionais e dos modos demonstrativos explícitos.
+O insight do Panorama pode incluir `analysis.composicaoAtual` (opcional): maior receita observada por município/classe/bairro autorizado e participação na soma observada do mês, quando a comparação temporal não estiver disponível. O cálculo reconcilia os grupos com o KPI e não estima valores ausentes; participação não é variação temporal.
+
+Detalhamento por bairro requer a dimensão `geography.neighborhood` no escopo validado e reconciliação da projeção de bairros com o total do KPI. A mesma decisão de autorização é aplicada na consulta e na recomputação da auditoria; sem permissão ou reconciliação, a composição não é publicada.
+
+# Atualização de Receita — 02/11/2026
+
+Os snapshots comparativos incluem `measured_energy_kwh`, agregado do consumo medido por competência, independente de faturas. `billed_energy_kwh` continua distinto e nulo quando não publicado. Preço observado e decomposição preço × volume mantêm receita e consumo da base comparável.

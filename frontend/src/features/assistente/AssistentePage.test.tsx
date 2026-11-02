@@ -82,6 +82,7 @@ describe("Assistente Grid 360", () => {
     const context = await screen.findByLabelText("Recorte analisado");
     expect(within(context).getByText(": Receita faturada")).toBeVisible();
     expect(within(context).getByText("Município")).toBeVisible();
+    expect(within(context).getByText(": Jan/2025 – Fev/2025")).toBeVisible();
     expect(context).toHaveAttribute(
       "title",
       "Faturamento observado; não representa valor pago.",
@@ -89,7 +90,7 @@ describe("Assistente Grid 360", () => {
     expect(context).not.toHaveTextContent("billing.revenue");
     expect(context).not.toHaveTextContent("geography.municipality");
   });
-  it("mostra a referência de conferência da evidência real sem aviso sintético", async () => {
+  it("oculta referências técnicas e mantém a procedência compreensível", async () => {
     const reference = "abcdef0123456789abcdef0123456789";
     vi.stubGlobal(
       "fetch",
@@ -98,6 +99,11 @@ describe("Assistente Grid 360", () => {
           ...answered,
           audit_reference: reference,
           answer: "A receita no recorte informado está fundamentada na Gold.",
+          analysis_context: {
+            ...answered.analysis_context,
+            period: "2026-05-01 a 2026-05-31",
+            batch_reference: "gold-csv-v2:LOTE_INTERNO:HASH_INTERNO",
+          },
           evidence: [
             {
               source: "gold.local",
@@ -120,17 +126,41 @@ describe("Assistente Grid 360", () => {
       "A receita no recorte informado está fundamentada na Gold.",
     );
     expect(
-      screen.getByText(`Referência para conferência: ${reference}`),
-    ).not.toBeVisible();
+      screen.queryByText(`Referência para conferência: ${reference}`),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByText("Como chegamos à resposta"));
-    expect(
-      screen.getByText(`Referência para conferência: ${reference}`),
-    ).toBeVisible();
-    expect(screen.getByText("Dados da distribuidora")).toBeVisible();
+    expect(screen.getByText("Fonte de dados interna")).toBeVisible();
+    expect(screen.getByText(": Mai/2026")).toBeVisible();
+    expect(screen.queryByText(/Referência para conferência/)).toBeNull();
+    expect(screen.queryByText(/Lote consultado/)).toBeNull();
+    expect(screen.queryByText(/LOTE_INTERNO|HASH_INTERNO/)).toBeNull();
+    expect(screen.queryByText(reference)).toBeNull();
     expect(screen.queryByText("gold.local")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Demonstração sintética"),
     ).not.toBeInTheDocument();
+  });
+
+  it("oferece perguntas comuns alinhadas aos recortes do case", () => {
+    renderPage();
+    const suggestions = screen.getByRole("region", {
+      name: "Perguntas comuns",
+    });
+    expect(
+      within(suggestions).getByRole("button", {
+        name: "Qual foi a receita residencial em junho de 2026?",
+      }),
+    ).toBeVisible();
+    expect(
+      within(suggestions).getByRole("button", {
+        name: "Qual município teve maior receita em junho de 2026?",
+      }),
+    ).toBeVisible();
+    expect(
+      within(suggestions).getByRole("button", {
+        name: "Quantos chamados constam no histórico acumulado?",
+      }),
+    ).toBeVisible();
   });
 
   it("mostra carregamento e bloqueia outro envio até a resposta", async () => {
@@ -149,7 +179,7 @@ describe("Assistente Grid 360", () => {
     await user.keyboard("{Enter}");
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Analisando a pergunta e consultando evidências",
+      "Consultando os dados",
     );
     const sendButton = screen.getByRole("button", { name: "Enviar pergunta" });
     expect(sendButton).toBeVisible();
@@ -178,7 +208,7 @@ describe("Assistente Grid 360", () => {
     expect(screen.getByText("Resposta fundamentada")).toBeVisible();
     expect(screen.getByText(/Demonstração sintética/)).toBeVisible();
     expect(screen.getByText("Dados de demonstração")).toBeVisible();
-    expect(screen.getByText(/2025-01 a 2025-02/)).toBeVisible();
+    expect(screen.getByText(/Jan\/2025 – Fev\/2025/)).toBeVisible();
     expect(
       screen.getByText(/Os valores não representam dados reais/),
     ).toBeVisible();
@@ -196,10 +226,25 @@ describe("Assistente Grid 360", () => {
     ).toHaveTextContent(": kWh fictícios");
     expect(
       within(analysisContext).getAllByRole("definition")[2],
-    ).toHaveTextContent(": 2025-01 a 2025-02");
+    ).toHaveTextContent(": Jan/2025 – Fev/2025");
     expect(
       within(analysisContext).getAllByRole("definition")[3],
     ).toHaveTextContent(": Exemplo");
+
+    const questionIndex = screen.getByRole("complementary", {
+      name: "Perguntas desta conversa",
+    });
+    const originalQuestion = document.getElementById("assistant-message-0")!;
+    originalQuestion.scrollIntoView = vi.fn();
+    await user.click(
+      within(questionIndex).getByRole("button", {
+        name: /Como variou o consumo/,
+      }),
+    );
+    expect(originalQuestion).toHaveFocus();
+    expect(originalQuestion.scrollIntoView).toHaveBeenCalledWith({
+      block: "nearest",
+    });
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(options.method).toBe("POST");
@@ -278,7 +323,11 @@ describe("Assistente Grid 360", () => {
       String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
     );
     expect(secondRequest.context).toEqual([]);
-    expect(screen.getByText("Me passe uma receita de bolo.")).toBeVisible();
+    expect(
+      within(screen.getByRole("log")).getByText(
+        "Me passe uma receita de bolo.",
+      ),
+    ).toBeVisible();
     expect(screen.getByText(refusal)).toBeVisible();
   });
 

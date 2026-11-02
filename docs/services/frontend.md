@@ -192,7 +192,9 @@ Assistente e insight vinculam a publicação conhecida à consulta; o insight en
 
 ### UC 360 — nome de titular cadastral restrito
 
-O cabeçalho da UC mostra `customer_name` apenas na consulta individual autenticada. `customer_identification_status` diferencia nome disponível, ausente na origem, conflitante e integração indisponível. A busca e o contexto GenAI não incluem o nome. O CSV local continua responsabilidade exclusiva do Backend; consulte [contrato cadastral](../contracts/gold-cadastro-v1.md#consumidor-local-backenduc-360--02112026). A tela aguarda pacote cadastral válido: a tentativa de importação de 31/10 foi rejeitada por divergência de timestamp no manifesto.
+O cabeçalho da UC mostra `customer_name` apenas na consulta individual autenticada. `customer_identification_status` diferencia nome disponível, ausente na origem, conflitante e integração indisponível. A busca e o contexto GenAI não incluem o nome. O pacote local foi carregado e a API retorna identificação disponível para a amostra validada; a revisão visual da tela permanece pendente. Consulte o [contrato cadastral](../contracts/gold-cadastro-v1.md#consumidor-local-backenduc-360--02112026).
+
+O Assistente tem uma identidade visual animada em `AssistantIdentity.tsx` e estilos locais em `assistant.css`, com movimento reduzido via media query. O layout amplia a conversa e apresenta índice navegável de perguntas em telas largas. O índice deriva do estado em memória da conversa e não representa histórico persistido. Os pulsos de consulta indicam espera da requisição, sem afirmar progresso de etapas do servidor.
 # Atualização de Receita — 02/11/2026
 
 O cartão de Receita apresenta “Consumo medido” em kWh nos mesmos extremos mensais usados pelos demais cartões. Quando a cobertura da medida é parcial, a tela informa isso junto ao cartão; ausência continua distinta de zero. A métrica não é chamada de energia faturada.

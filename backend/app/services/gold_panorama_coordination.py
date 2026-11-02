@@ -138,7 +138,8 @@ async def generate_gold_panorama_insight(
     await revalidate()
     prepared, metric, source, analysis = await work(
         lambda: read_gold_panorama_insight(
-            engine, operational_engine, publication, payload
+            engine, operational_engine, publication, payload,
+            "geography.neighborhood" in scope.allowed_dimension_ids,
         )
     )
     await revalidate()
@@ -216,6 +217,7 @@ def read_gold_panorama_insight(
     operational_engine: Engine,
     publication: GoldPublicationContext,
     payload: PanoramaInsightRequest,
+    allow_neighborhood: bool = False,
 ) -> GoldPanoramaInsightPreparation:
     # Metadados operacionais não concedem acesso quantitativo ao executor.
     with operational_engine.connect() as connection:
@@ -243,7 +245,7 @@ def read_gold_panorama_insight(
 
         event.listen(connection, "before_cursor_execute", limit_sql)
         context = replace(metadata, connection=connection)
-        return build_gold_panorama_insight(GoldPanoramaRepository(context), payload)
+        return build_gold_panorama_insight(GoldPanoramaRepository(context), payload, allow_neighborhood=allow_neighborhood)
 
 
 def published_revenue_periods(
@@ -298,7 +300,8 @@ def verify_audited_panorama_insight(
     if response.get("batch_ref") != publication.batch_ref:
         return False
     prepared, _, _, _ = read_gold_panorama_insight(
-        engine, operational_engine, publication, payload
+        engine, operational_engine, publication, payload,
+        "geography.neighborhood" in scope.allowed_dimension_ids,
     )
     if resolve_scope() != scope:
         raise GoldExecutionDenied
