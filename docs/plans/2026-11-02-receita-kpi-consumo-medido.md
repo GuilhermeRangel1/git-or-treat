@@ -8,7 +8,7 @@
 
 **Tech Stack:** FastAPI, Pydantic, SQLAlchemy, PostgreSQL/Gold v2, React, TypeScript, Vitest e pytest.
 
-**Spec:** decisão aprovada nesta conversa; [PRD](../../PRD.md), WEB-01/02/07 e ENT-01; [dicionário Gold](../../dicionario_gold.md); PDF privado `Case_Final_V_Energy_Grid_360.pdf`, seções 5.2 (p. 8) e 5.4 (p. 9).
+**Spec:** decisão aprovada nesta conversa; [PRD](../PRD.md), WEB-01/02/07 e ENT-01; [dicionário Gold](../dicionario_gold.md); PDF privado `Case_Final_V_Energy_Grid_360.pdf`, seções 5.2 (p. 8) e 5.4 (p. 9).
 
 ## Decisões e limites
 
