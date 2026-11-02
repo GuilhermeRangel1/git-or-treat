@@ -1,5 +1,9 @@
 # Matriz de perguntas para o catálogo Gold v2
 
+## Revisão de amostras e provas técnicas — 02/11/2026
+
+A busca apenas na última competência escondia amostras reais de receita e consumo nulos. FAT-13 e CON-10 passaram na API pública após selecionar mês, município e classe da mesma amostra em toda a publicação. FAT-12/13/15 e CON-10 adotam `COMPETENCIA_DA_AMOSTRA`; base zero exige denominador observado, sem converter nulo em zero. Os outros cinco continuam sem amostra após conferência de todas as competências. SEG-06/07 foram revalidados em suítes separadas (1.751 testes GenAI e uma prova PostgreSQL de 102,35 s), sem forçar PASS no runner live. Ver [regras, notebooks, resultados e reprodução](plans/2026-11-02-genai-amostras-e-provas-tecnicas.md). As rodadas completas abaixo permanecem históricas; não foi refeita a matriz inteira nesta fatia.
+
 ## Frases naturais observadas no Assistente — 02/11/2026
 
 FAT-01, FAT-04 e CON-01 passaram a usar as frases das capturas (“em Recife” e “no bairro …, em Recife”), mantendo os controles e critérios originais. A conversa real com os seis exemplos teve cinco respostas numéricas reconciliadas e um bloqueio por cobertura, sem divergência; a contagem recebeu rechecagem após o texto final. Essa rodada não substitui uma matriz completa de 57 casos. Ver [textos, comportamento e evidência](plans/2026-11-02-genai-perguntas-da-tela.md).

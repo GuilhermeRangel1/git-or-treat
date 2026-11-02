@@ -52,6 +52,7 @@ MONTH = frozenset({"competencia", "mes_extenso", "ano"})
 WINDOW = frozenset({"inicio", "fim"})
 PAIR = frozenset({"p0", "p1", "mes_p0", "ano_p0", "mes_p1", "ano_p1"})
 PERIOD_PROVIDES = {
+    "COMPETENCIA_DA_AMOSTRA": MONTH,
     "SEM_PERIODO": frozenset(),
     "HISTORICO_ACUMULADO": frozenset(),
     "JANELAS_FIXAS_VARIACAO": frozenset(),
@@ -168,6 +169,10 @@ def validate_matrix(matrix: dict, catalog: dict) -> dict[str, list[str]]:
                 if missing:
                     problems.append(f"amostra {sample} sem entrada: {sorted(missing)}")
                 provides |= set(definition["saida"])
+        if (rule == "COMPETENCIA_DA_AMOSTRA"
+                and (sample is None or "competencia" not in
+                     matrix["regras_amostra"].get(sample, {}).get("saida", ()))):
+            problems.append("período exige competência na saída da amostra")
         provides |= {dim_params[item["dimensao"]] for item in case["filtros"]
                      if item["dimensao"] in dim_params}
         texts = [case["pergunta"], *(turn["content"] for turn in case["contexto"])]
@@ -273,6 +278,13 @@ def resolve_parameters(matrix: dict, case: dict, db: ControlDatabase, cache: dic
         if not rows or any(rows[0].get(name) in (None, "") for name in rule["saida"]):
             raise NoSample(f"amostra {sample} sem recorte no lote")
         params.update({name: rows[0][name] for name in rule["saida"]})
+        if case["periodo"]["regra"] == "COMPETENCIA_DA_AMOSTRA":
+            month = params.get("competencia", "")
+            if not isinstance(month, str) or not re.fullmatch(
+                r"[0-9]{4}-(?:0[1-9]|1[0-2])", month,
+            ):
+                raise MatrixError("amostra sem competência mensal válida")
+            params.update(_month_vars(month))
     return params
 
 

@@ -198,6 +198,10 @@
     "JANELAS_FIXAS_VARIACAO": {
       "descricao": "Janelas P1/P2 definidas pela Gold em variacao_consumo_uc (dicionário, seção 6); não são escolhidas pela pergunta.",
       "sql": null
+    },
+    "COMPETENCIA_DA_AMOSTRA": {
+      "descricao": "Competência mais recente que contém a amostra exigida, pesquisada em toda a publicação; mês e ano vêm da mesma linha do recorte.",
+      "sql": null
     }
   },
   "regras_amostra": {
@@ -244,48 +248,44 @@
       "sql": "SELECT m.municipio, b.bairro FROM (SELECT DISTINCT municipio FROM gold_v2.consumo_receita_bairro WHERE competencia = :competencia) m CROSS JOIN (SELECT DISTINCT bairro FROM gold_v2.consumo_receita_bairro WHERE competencia = :competencia) b WHERE NOT EXISTS (SELECT 1 FROM gold_v2.consumo_receita_bairro x WHERE x.competencia = :competencia AND x.municipio = m.municipio AND x.bairro = b.bairro) ORDER BY m.municipio, b.bairro LIMIT 1"
     },
     "RECORTE_RECEITA_ZERO": {
-      "descricao": "Município e classe com receita somada exatamente zero e ao menos um valor não nulo.",
-      "entrada": [
-        "competencia"
-      ],
+      "descricao": "Na competência mais recente com a condição, em toda a publicação: Município e classe com receita somada exatamente zero e ao menos um valor não nulo.",
+      "entrada": [],
       "saida": [
+        "competencia",
         "municipio",
         "classe"
       ],
-      "sql": "SELECT municipio, classe_consumo AS classe FROM gold_v2.diagnostico_receita WHERE competencia = :competencia GROUP BY municipio, classe_consumo HAVING COUNT(receita_total_reais) > 0 AND SUM(receita_total_reais) = 0 ORDER BY municipio, classe_consumo LIMIT 1"
+      "sql": "SELECT competencia, municipio, classe_consumo AS classe FROM gold_v2.diagnostico_receita GROUP BY competencia, municipio, classe_consumo HAVING COUNT(receita_total_reais) > 0 AND SUM(receita_total_reais) = 0 ORDER BY competencia DESC, municipio, classe_consumo LIMIT 1"
     },
     "RECORTE_RECEITA_NULA": {
-      "descricao": "Município e classe com linhas na competência e receita inteiramente nula.",
-      "entrada": [
-        "competencia"
-      ],
+      "descricao": "Na competência mais recente com a condição, em toda a publicação: Município e classe com linhas na competência e receita inteiramente nula.",
+      "entrada": [],
       "saida": [
+        "competencia",
         "municipio",
         "classe"
       ],
-      "sql": "SELECT municipio, classe_consumo AS classe FROM gold_v2.diagnostico_receita WHERE competencia = :competencia GROUP BY municipio, classe_consumo HAVING COUNT(*) > 0 AND COUNT(receita_total_reais) = 0 ORDER BY municipio, classe_consumo LIMIT 1"
+      "sql": "SELECT competencia, municipio, classe_consumo AS classe FROM gold_v2.diagnostico_receita GROUP BY competencia, municipio, classe_consumo HAVING COUNT(*) > 0 AND COUNT(receita_total_reais) = 0 ORDER BY competencia DESC, municipio, classe_consumo LIMIT 1"
     },
     "RECORTE_CONSUMO_NULO": {
-      "descricao": "Município e classe com linhas na competência e consumo inteiramente nulo.",
-      "entrada": [
-        "competencia"
-      ],
+      "descricao": "Na competência mais recente com a condição, em toda a publicação: Município e classe com linhas na competência e consumo inteiramente nulo.",
+      "entrada": [],
       "saida": [
+        "competencia",
         "municipio",
         "classe"
       ],
-      "sql": "SELECT municipio, classe_consumo AS classe FROM gold_v2.diagnostico_receita WHERE competencia = :competencia GROUP BY municipio, classe_consumo HAVING COUNT(*) > 0 AND COUNT(consumo_total_kwh) = 0 ORDER BY municipio, classe_consumo LIMIT 1"
+      "sql": "SELECT competencia, municipio, classe_consumo AS classe FROM gold_v2.diagnostico_receita GROUP BY competencia, municipio, classe_consumo HAVING COUNT(*) > 0 AND COUNT(consumo_total_kwh) = 0 ORDER BY competencia DESC, municipio, classe_consumo LIMIT 1"
     },
     "RECORTE_TARIFA_BASE_ZERO": {
-      "descricao": "Município e classe com consumo comparável somado zero ou nulo (denominador da tarifa).",
-      "entrada": [
-        "competencia"
-      ],
+      "descricao": "Competência, município e classe com consumo comparável observado e soma exatamente zero; nulo não é zero.",
+      "entrada": [],
       "saida": [
+        "competencia",
         "municipio",
         "classe"
       ],
-      "sql": "SELECT municipio, classe_consumo AS classe FROM gold_v2.diagnostico_receita WHERE competencia = :competencia GROUP BY municipio, classe_consumo HAVING COALESCE(SUM(consumo_base_comparavel_kwh), 0) = 0 ORDER BY municipio, classe_consumo LIMIT 1"
+      "sql": "SELECT competencia, municipio, classe_consumo AS classe FROM gold_v2.diagnostico_receita GROUP BY competencia, municipio, classe_consumo HAVING COUNT(consumo_base_comparavel_kwh) > 0 AND SUM(consumo_base_comparavel_kwh) = 0 ORDER BY competencia DESC, municipio, classe_consumo LIMIT 1"
     },
     "ALIMENTADOR_MAIOR_DEC": {
       "descricao": "Definição do C11: alimentador de maior DEC na competência.",
@@ -1520,7 +1520,7 @@
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita",
       "periodo": {
-        "regra": "ULTIMA_COMPETENCIA_RECEITA"
+        "regra": "COMPETENCIA_DA_AMOSTRA"
       },
       "filtros": [
         {
@@ -1569,7 +1569,7 @@
       "metrica": "billing.revenue",
       "capacidade": "faturamento.receita",
       "periodo": {
-        "regra": "ULTIMA_COMPETENCIA_RECEITA"
+        "regra": "COMPETENCIA_DA_AMOSTRA"
       },
       "filtros": [
         {
@@ -1665,7 +1665,7 @@
       "metrica": "billing.effective_tariff",
       "capacidade": "faturamento.receita",
       "periodo": {
-        "regra": "ULTIMA_COMPETENCIA_RECEITA"
+        "regra": "COMPETENCIA_DA_AMOSTRA"
       },
       "filtros": [
         {
@@ -2261,7 +2261,7 @@
       "metrica": "energy.consumption",
       "capacidade": "faturamento.receita",
       "periodo": {
-        "regra": "ULTIMA_COMPETENCIA_CONSUMO"
+        "regra": "COMPETENCIA_DA_AMOSTRA"
       },
       "filtros": [
         {

@@ -212,6 +212,50 @@ def test_technical_regression_cases_are_listed_as_not_executed():
     assert "genai_failure_matrix.py" in outcome.motivo
 
 
+@pytest.mark.parametrize("case_id,sample", [
+    ("FAT-13", "RECORTE_RECEITA_NULA"), ("CON-10", "RECORTE_CONSUMO_NULO"),
+])
+def test_null_sample_uses_its_own_month_instead_of_latest_month(case_id, sample):
+    seen = []
+    db = revenue_database(**{f"amostra:{sample}": [
+        {"competencia": "1999-02", "municipio": "Recife", "classe": "RESIDENCIAL"},
+    ]})
+    outcome = run(case_id, client(lambda payload: status("needs_clarification"), seen=seen), db)
+    assert outcome.classe == "PASS"
+    assert "fevereiro de 1999" in seen[0]["question"]
+    assert outcome.parametros["competencia"] == "1999-02"
+    assert not any(name.startswith("periodo:") for name, _, _ in db.calls)
+
+
+def test_zero_denominator_sample_does_not_select_null_denominator():
+    import sqlite3
+
+    with sqlite3.connect(":memory:") as db:
+        db.execute("ATTACH DATABASE ':memory:' AS gold_v2")
+        db.execute("CREATE TABLE gold_v2.diagnostico_receita "
+                   "(competencia TEXT, municipio TEXT, classe_consumo TEXT, "
+                   "consumo_base_comparavel_kwh REAL)")
+        db.executemany("INSERT INTO gold_v2.diagnostico_receita VALUES (?, ?, ?, ?)", [
+            ("2000-03", "Recife", "RESIDENCIAL", None),
+            ("1999-02", "Recife", "RESIDENCIAL", 0),
+        ])
+        sql = MATRIX["regras_amostra"]["RECORTE_TARIFA_BASE_ZERO"]["sql"]
+        assert db.execute(sql).fetchall() == [("1999-02", "Recife", "RESIDENCIAL")]
+        db.execute("DELETE FROM gold_v2.diagnostico_receita WHERE competencia='1999-02'")
+        assert db.execute(sql).fetchall() == []
+
+
+@pytest.mark.parametrize("month", ["1999-13", 1999])
+def test_invalid_sample_month_fails_before_sending_question(month):
+    db = revenue_database(**{"amostra:RECORTE_RECEITA_NULA": [
+        {"competencia": month, "municipio": "Recife", "classe": "RESIDENCIAL"},
+    ]})
+    seen = []
+    outcome = run("FAT-13", client(lambda payload: status("needs_clarification"), seen=seen), db)
+    assert outcome.classe == "FAIL" and not outcome.erro_execucao
+    assert seen == []
+
+
 def test_missing_sample_is_pending_and_never_pass():
     db = revenue_database(**{"amostra:RECORTE_RECEITA_ZERO": []})
     outcome = run("FAT-12", client(lambda payload: REVENUE_OK), db)
