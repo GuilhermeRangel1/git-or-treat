@@ -186,4 +186,5 @@ Assistente e insight vinculam a publicação conhecida à consulta; o insight en
 # Atualização de Receita — 02/11/2026
 
 O cartão de Receita apresenta “Consumo medido” em kWh nos mesmos extremos mensais usados pelos demais cartões. Quando a cobertura da medida é parcial, a tela informa isso junto ao cartão; ausência continua distinta de zero. A métrica não é chamada de energia faturada.
-Arquivos de campo: Inspeções oferece diálogo de exportação integral ou filtrada por categoria, município, bairro e classe, com opções carregadas da API. Paginação da tela não limita o arquivo.
+Arquivos de campo: Inspeções oferece diálogo de exportação integral ou filtrada por categoria, município, bairro e classe, com opções carregadas da API. Paginação da tela não limita o arquivo. Importação atual usa CSV e apresenta erros por linha; XLSX e validação visual continuam pendentes.
+WEB-09: Baixar modelo de resultados gera Excel das ordens em andamento; preencher resultado na aba Resultados e importar XLSX ou CSV. Portal apresenta contagem de resultados e erros por linha e atualiza o cache de Ordens. Cada linha válida é confirmada separadamente; revisão visual permanece pendente.

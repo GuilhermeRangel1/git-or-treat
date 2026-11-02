@@ -81,6 +81,31 @@ def get_suspicion_detail(
 router.include_router(analytics_router)
 
 
+from app.services.field_files import FieldUpload, import_results, read_xlsx, field_template
+
+
+@router.post("/field-results/import", summary="Importar CSV de resultados de campo")
+def import_field_results(payload: FieldUpload, db: Session = Depends(get_db),
+                         actor: str = Depends(require_orders_write)):
+    if payload.xlsx is not None:
+        try:
+            content = read_xlsx(payload.xlsx)
+        except Exception:
+            return {"imported": 0, "errors": [{"line": 1, "message": "XLSX inválido. Use a aba Resultados do modelo, até 500 ordens, sem fórmulas."}]}
+    else:
+        content = payload.csv
+    return import_results(db, content, actor)
+
+
+@router.get("/field-results/template", summary="Modelo Excel das ordens em andamento")
+def download_field_template(response: Response, actor: str = Depends(require_orders_write), db: Session = Depends(get_db)):
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        return field_template(db)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 @router.get("/field-queue/export", summary="Exportar a página filtrada da fila")
 def export_field_queue(actor: str = Depends(require_orders_read),
                        municipio: str | None = Query(None, max_length=100),

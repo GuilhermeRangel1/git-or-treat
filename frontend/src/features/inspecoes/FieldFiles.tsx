@@ -4,7 +4,8 @@ import Modal from "@/shared/ui/Modal";
 import { withGoldPublication } from "@/shared/analytics/goldPublication";
 import { inspectionControl } from "./inspection-ui";
 import Button from "@/shared/ui/Button";
-import { Download, ArrowUpRight } from "lucide-react";
+import { Download, FileSpreadsheet, Upload, ArrowUpRight } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 function download(name: string, content: string) {
   const url = URL.createObjectURL(
@@ -18,6 +19,7 @@ function download(name: string, content: string) {
 }
 
 export default function FieldFiles({ request }: { request: string }) {
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [open, setOpen] = useState(false);
@@ -25,6 +27,47 @@ export default function FieldFiles({ request }: { request: string }) {
   const [options, setOptions] = useState<Record<string, string[]>>({});
   const [filters, setFilters] = useState<Record<string, string>>({});
   const trigger = useRef<HTMLButtonElement>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  async function template() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const value = await apiClient<unknown>(
+        "/api/v1/inspections/field-results/template",
+      );
+      if (
+        !value ||
+        typeof value !== "object" ||
+        !("xlsx" in value) ||
+        typeof value.xlsx !== "string" ||
+        !("count" in value) ||
+        !Number.isSafeInteger(value.count)
+      )
+        throw new Error("Modelo inválido.");
+      const bytes = Uint8Array.from(atob(value.xlsx), (char) =>
+        char.charCodeAt(0),
+      );
+      const url = URL.createObjectURL(
+        new Blob([bytes], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "resultados-campo.xlsx";
+      link.click();
+      URL.revokeObjectURL(url);
+      setMessage(
+        `${value.count} ordem(ns) em andamento no modelo. Preencha a coluna resultado e envie a planilha.`,
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Falha ao baixar modelo.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   async function openExport() {
     setOpen(true);
     setMessage("");
@@ -91,6 +134,61 @@ export default function FieldFiles({ request }: { request: string }) {
       setBusy(false);
     }
   }
+  async function upload(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 1_000_000) {
+      setMessage("O arquivo deve ter até 1 MB.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      const isExcel = file.name.toLowerCase().endsWith(".xlsx");
+      let payload: { csv: string } | { xlsx: string };
+      if (isExcel) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        payload = { xlsx: btoa(binary) };
+      } else if (file.name.toLowerCase().endsWith(".csv")) {
+        payload = { csv: await file.text() };
+      } else throw new Error("Selecione um arquivo XLSX ou CSV.");
+      const result = await apiClient<unknown>(
+        "/api/v1/inspections/field-results/import",
+        { method: "POST", body: JSON.stringify(payload) },
+      );
+      if (
+        !result ||
+        typeof result !== "object" ||
+        !("imported" in result) ||
+        typeof result.imported !== "number" ||
+        !("errors" in result) ||
+        !Array.isArray(result.errors)
+      )
+        throw new Error("Resposta de importação inválida.");
+      const errors = result.errors.map((error: unknown) => {
+        if (
+          !error ||
+          typeof error !== "object" ||
+          !("line" in error) ||
+          typeof error.line !== "number" ||
+          !("message" in error) ||
+          typeof error.message !== "string"
+        )
+          throw new Error("Resposta de importação inválida.");
+        return `Linha ${error.line}: ${error.message}`;
+      });
+      setMessage(
+        `${result.imported} resultado(s) registrado(s). ${errors.join(" ")}`,
+      );
+      if (result.imported > 0)
+        void queryClient.invalidateQueries({ queryKey: ["orders"] });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Falha ao importar.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section
       aria-label="Arquivos de campo"
@@ -101,10 +199,10 @@ export default function FieldFiles({ request }: { request: string }) {
           Arquivos de campo
         </h2>
         <p className="mt-1 text-sm leading-6 text-muted">
-          Prepare a fila para a equipe de campo.
+          Prepare a equipe e registre o retorno das inspeções.
         </p>
       </header>
-      <div className="grid">
+      <div className="grid divide-y divide-border lg:grid-cols-[0.85fr_1.15fr] lg:divide-x lg:divide-y-0">
         <div className="flex flex-col items-start gap-4 p-5 sm:p-6">
           <span className="flex size-10 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
             <ArrowUpRight size={20} aria-hidden="true" />
@@ -128,6 +226,72 @@ export default function FieldFiles({ request }: { request: string }) {
           >
             Exportar fila
           </Button>
+        </div>
+        <div className="space-y-4 p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
+              <FileSpreadsheet size={20} aria-hidden="true" />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold text-content">
+                Registrar resultados de campo
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                Baixe o modelo, preencha a coluna resultado e envie a planilha
+                de volta.
+              </p>
+            </div>
+          </div>
+          <div className="rounded-lg border border-dashed border-control bg-canvas p-4 sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-content">
+                  Planilha preenchida
+                </p>
+                <p
+                  id="field-file-help"
+                  className="mt-1 text-xs leading-5 text-muted"
+                >
+                  XLSX ou CSV · até 1 MB · 500 ordens
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                disabled={busy}
+                leftIcon={<Upload size={16} aria-hidden="true" />}
+                onClick={() => uploadRef.current?.click()}
+              >
+                Selecionar planilha
+              </Button>
+            </div>
+            <input
+              ref={uploadRef}
+              className="sr-only"
+              tabIndex={-1}
+              aria-describedby="field-file-help"
+              aria-label="Importar resultados de campo"
+              type="file"
+              accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              disabled={busy}
+              onChange={(event) => {
+                void upload(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </div>
+          <Button
+            variant="ghost"
+            className="w-full sm:w-auto sm:px-0"
+            disabled={busy}
+            leftIcon={<Download size={16} aria-hidden="true" />}
+            onClick={() => void template()}
+          >
+            Baixar modelo de resultados
+          </Button>
+          <p className="text-xs leading-5 text-muted">
+            Cada linha válida é registrada. Se houver erros, corrija as linhas
+            indicadas e reenvie.
+          </p>
         </div>
       </div>
       <Modal
