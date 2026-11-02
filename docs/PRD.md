@@ -3501,3 +3501,12 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - FieldFiles.tsx organiza envio da fila e retorno de resultados em dois blocos, com botões compartilhados, ícones, cabeçalho, limites próximos ao upload e mensagens de processamento/retorno em área própria. O seletor nativo fica associado a um botão acessível. Desktop usa duas colunas; telas menores empilham os blocos.
 - Diálogo de exportação usa opções em cartões, campos de filtro em grade responsiva e rodapé com cancelar/baixar. Tokens existentes preservam claro/escuro; comportamento operacional permanece igual.
 - Verificações: 20 testes de FieldFiles/InspecoesPage passaram; build/tipos, lint e fronteiras passaram (aviso preexistente em AuthProvider). Sem inspeção visual no navegador nesta revisão; estados dos requisitos preservados.
+### 02/11/2026 — WEB-08: contagem do recorte e mensagens de exportação
+
+- O diálogo consulta count_only a cada mudança de escopo/filtros, incluindo categoria. Na Gold, COUNT usa os mesmos predicados da exportação e o snapshot autenticado; categoria passa a ser aplicada antes do limite/paginação. Respostas de seleções antigas não substituem a contagem da chave atual; download fica desabilitado durante consulta, com zero, erro ou mais de 50.000 UCs.
+- Recortes vazios mostram explicação em português. Erros de filtros, sessão, publicação e indisponibilidade recebem mensagens de produto, sem expor Falha HTTP 422. A contagem não gera CSV nem carrega as linhas Gold.
+- Verificações: 22 testes de interface passaram (incluindo alteração de filtro, zero e 422); 8 testes backend de arquivos/fila/repositório passaram. Build/tipos, lint, fronteiras e diff passaram; aviso preexistente de AuthProvider mantido. Sem nova validação visual ou aceite integral; estados preservados.
+### 02/11/2026 — WEB-08: bairros vinculados ao município na exportação
+
+- Opções de exportação incluem pares reais municipio/bairro da fonte. Bairro fica desabilitado sem município, mostra somente bairros correspondentes e é limpo ao trocar a cidade. Os filtros principais da fila já possuem esse comportamento e foram preservados.
+- Arquivos: endpoint de inspeções, FieldFiles.tsx e teste de interação com dois municípios e bairros distintos. Build/tipos passou. Estados dos requisitos preservados; sem aceite visual novo.

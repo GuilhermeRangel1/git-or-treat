@@ -1,11 +1,25 @@
 import { useRef, useState } from "react";
-import { apiClient } from "@/shared/api/client";
+import { apiClient, ApiError } from "@/shared/api/client";
 import Modal from "@/shared/ui/Modal";
 import { withGoldPublication } from "@/shared/analytics/goldPublication";
 import { inspectionControl } from "./inspection-ui";
 import Button from "@/shared/ui/Button";
 import { Download, FileSpreadsheet, Upload, ArrowUpRight } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGoldPublicationKey } from "@/shared/analytics/goldPublication";
+
+function exportError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 422)
+      return "Não existem UCs para essa combinação de filtros, ou uma das opções não é válida. Revise município, bairro, categoria e classe.";
+    if (error.status === 401 || error.status === 403)
+      return "Sua sessão não permite exportar esta fila. Entre novamente ou solicite acesso.";
+    if (error.status === 409)
+      return "A fila foi atualizada. Atualize a página e escolha os filtros novamente.";
+    return "Não foi possível consultar a fila agora. Tente novamente em instantes.";
+  }
+  return "Não foi possível preparar a exportação. Tente novamente.";
+}
 
 function download(name: string, content: string) {
   const url = URL.createObjectURL(
@@ -26,8 +40,37 @@ export default function FieldFiles({ request }: { request: string }) {
   const [scope, setScope] = useState("all");
   const [options, setOptions] = useState<Record<string, string[]>>({});
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [neighborhoods, setNeighborhoods] = useState<
+    { municipio: string; bairro: string }[]
+  >([]);
   const trigger = useRef<HTMLButtonElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const publication = useGoldPublicationKey();
+  const countParams = new URLSearchParams({ count_only: "true" });
+  if (scope === "filtered")
+    for (const [key, value] of Object.entries(filters))
+      if (value) countParams.set(key, value);
+  const countRequest = countParams.toString();
+  const count = useQuery({
+    queryKey: ["inspection-export-count", publication, countRequest],
+    enabled: open,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const value = await apiClient<unknown>(
+        `/api/v1/inspections/field-queue/export?${withGoldPublication(new URLSearchParams(countRequest))}`,
+        { signal },
+      );
+      if (
+        !value ||
+        typeof value !== "object" ||
+        !("count" in value) ||
+        !Number.isSafeInteger(value.count) ||
+        Number(value.count) < 0
+      )
+        throw new Error("Contagem inválida.");
+      return Number(value.count);
+    },
+  });
   async function template() {
     setBusy(true);
     setMessage("");
@@ -94,15 +137,29 @@ export default function FieldFiles({ request }: { request: string }) {
         decoded[key] = values;
       }
       setOptions(decoded);
+      if ("neighborhoods" in value) {
+        if (
+          !Array.isArray(value.neighborhoods) ||
+          !value.neighborhoods.every(
+            (item) =>
+              item &&
+              typeof item === "object" &&
+              typeof item.municipio === "string" &&
+              typeof item.bairro === "string",
+          )
+        )
+          throw new Error("Bairros inválidos.");
+        setNeighborhoods(value.neighborhoods);
+      } else setNeighborhoods([]);
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Falha ao consultar opções.",
-      );
+      setMessage(exportError(error));
     } finally {
       setBusy(false);
     }
   }
   async function exportQueue() {
+    if (count.isFetching || count.isError || !count.data || count.data > 50000)
+      return;
     setBusy(true);
     setMessage("");
     try {
@@ -129,7 +186,7 @@ export default function FieldFiles({ request }: { request: string }) {
       setMessage(`${response.count} UC(s) exportada(s).`);
       setOpen(false);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao exportar.");
+      setMessage(exportError(error));
     } finally {
       setBusy(false);
     }
@@ -346,15 +403,28 @@ export default function FieldFiles({ request }: { request: string }) {
                     <select
                       className={inspectionControl}
                       value={filters[key] ?? ""}
+                      disabled={key === "bairro" && !filters.municipio}
                       onChange={(event) =>
                         setFilters((previous) => ({
                           ...previous,
                           [key]: event.target.value,
+                          ...(key === "municipio" ? { bairro: "" } : {}),
                         }))
                       }
                     >
-                      <option value="">Todas as opções</option>
-                      {(options[key] ?? []).map((value) => (
+                      <option value="">
+                        {key === "bairro" && !filters.municipio
+                          ? "Selecione um município primeiro"
+                          : "Todas as opções"}
+                      </option>
+                      {(key === "bairro"
+                        ? neighborhoods
+                            .filter(
+                              (item) => item.municipio === filters.municipio,
+                            )
+                            .map((item) => item.bairro)
+                        : (options[key] ?? [])
+                      ).map((value) => (
                         <option key={value}>{value}</option>
                       ))}
                     </select>
@@ -371,13 +441,34 @@ export default function FieldFiles({ request }: { request: string }) {
             Todas as UCs do recorte serão incluídas, até 50.000 por arquivo. A
             ordenação atual será preservada.
           </p>
+          <p
+            role="status"
+            className="rounded-lg border border-border bg-canvas p-4 text-sm font-medium"
+            aria-live="polite"
+          >
+            {count.isFetching || count.isPending
+              ? "Contando UCs…"
+              : count.isError
+                ? exportError(count.error)
+                : count.data === 0
+                  ? "Não existem UCs com esses filtros. Altere a seleção para exportar."
+                  : count.data > 50000
+                    ? `${count.data?.toLocaleString("pt-BR")} UCs encontradas. Refine os filtros para ficar dentro do limite de 50.000.`
+                    : `${count.data?.toLocaleString("pt-BR")} UC(s) serão incluídas no arquivo.`}
+          </p>
           <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
             <Button variant="ghost" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
             <Button
               variant="primary"
-              disabled={busy}
+              disabled={
+                busy ||
+                count.isFetching ||
+                count.isError ||
+                !count.data ||
+                count.data > 50000
+              }
               leftIcon={<Download size={16} aria-hidden="true" />}
               onClick={() => void exportQueue()}
             >

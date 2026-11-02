@@ -113,6 +113,7 @@ def export_field_queue(actor: str = Depends(require_orders_read),
                        classe: str | None = Query(None, max_length=100),
                        categoria: str | None = Query(None, max_length=100),
                        options_only: bool = False,
+                       count_only: bool = False,
                        order_by: Literal["priority", "uc_id", "potential_recoverable_energy_kwh", "category", "queue_position"] | None = None,
                        direction: Literal["asc", "desc"] | None = None,
                        gold_context: GoldContext | None = Depends(get_optional_gold_context),
@@ -120,8 +121,11 @@ def export_field_queue(actor: str = Depends(require_orders_read),
     import csv
     import io
     import json
+    if count_only and gold_context is not None:
+        count = GoldInspectionRepository(gold_context).count(filters_model(municipio, bairro, classe, None), categoria)
+        return {"count": count}
     queue = get_inspection_queue(
-        page=1, page_size=1 if options_only else 50001,
+        page=1, page_size=1 if options_only or count_only else 50001,
         order_by=order_by, direction=direction, municipio=municipio,
         bairro=bairro, classe=classe, alimentador=None,
         expected_lote=None, expected_fingerprint=None,
@@ -129,7 +133,23 @@ def export_field_queue(actor: str = Depends(require_orders_read),
     )
     if options_only:
         categories = getattr(queue.data.summary, "categories", {})
-        return {"options": {**queue.data.filter_options, "categoria": sorted(categories)}}
+        if gold_context is not None:
+            neighborhoods = queue.data.neighborhoods
+        else:
+            neighborhoods = [dict(municipio=municipality, bairro=neighborhood) for municipality, neighborhood in sorted({
+                (unit["municipio"], unit["bairro"]) for unit in repository_provider().units
+                if unit.get("municipio") and unit.get("bairro")
+            })]
+        return {"options": {**queue.data.filter_options, "categoria": sorted(categories)}, "neighborhoods": neighborhoods}
+    if gold_context is not None and categoria is not None:
+        queue = build_gold_queue_response(
+            GoldInspectionRepository(gold_context), filters_model(municipio, bairro, classe, None),
+            1, 50001, order_by or "queue_position", direction or "asc", categoria,
+        )
+    if count_only:
+        if categoria is not None:
+            raise HTTPException(422, "Esta fonte não publica categorias para filtrar a fila.")
+        return {"count": queue.pagination.total}
     if queue.pagination.total > 50000:
         raise HTTPException(422, "O recorte excede 50.000 UCs. Aplique filtros para exportar.")
     rows = [item.model_dump(mode="json") for item in queue.data.items]

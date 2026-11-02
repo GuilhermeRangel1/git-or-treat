@@ -79,6 +79,9 @@ def test_export_includes_entire_scope_and_real_options(client, monkeypatch):
         exported = client.get(ROOT + '/field-queue/export').json()
         assert exported['count'] == page['pagination']['total']
         assert exported['count'] > len(page['data']['items'])
+        count = client.get(ROOT + '/field-queue/export?count_only=true').json()
+        assert count == {'count': exported['count']}
+        assert 'csv' not in count
         rows = list(csv.DictReader(io.StringIO(exported['csv']), delimiter=';'))
         assert len(rows) == exported['count']
         options = client.get(ROOT + '/field-queue/export?options_only=true').json()['options']
