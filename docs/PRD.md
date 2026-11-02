@@ -3200,3 +3200,9 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - A prontidão reutiliza a leitura de cobertura dentro do snapshot da requisição, evitando consultas repetidas por alimentador. Prazo, controles, autorização e conferência de publicação permanecem ativos; não há cache entre requisições.
 - Verificações: `python -m pytest tests/test_gold_domain_readiness.py tests/test_gold_attendance_readiness.py -q`: 57 passaram, 1 skip e aviso Starlette preexistente. Medição local: cerca de 24 s antes e 15 s depois. Os testes da matriz/runner passaram (305) e os de interpretação/períodos passaram (168).
 - A rodada da matriz contra a API Gold real registrou 29 PASS, 14 FAIL, 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE e 2 NAO_EXECUTADO. IA-04 continua sem mudança de estado; as divergências e bloqueios permanecem pendentes de investigação.
+
+### 2026-11-02 — IA-04 — inicia a composição GenAI Gold no Docker local
+
+- O override `docker-compose.gold-v2.yml` inicia `app.gold_runtime:create_gold_app --factory`, com o perfil Gold e auditoria durável. O entrypoint demonstrativo recusava a síntese interna Gold. Os pré-requisitos de configuração privada estão documentados em `.env.gold-v2.example`.
+- Ajustes de ambiente locais: leitor dedicado somente leitura provisionado; TEMP retirado de PUBLIC e concedido explicitamente ao papel operacional; URL, tokens distintos e controles C01/C02/C04 configurados nos arquivos ignorados pelo Git. Segredos e alterações locais do banco não integram o commit.
+- Verificação integrada: a API pública, com sessão temporária e Gold v2 local, respondeu HTTP 200 com insight `answered` em 19,95 s; auditoria recebeu eventos e a sessão/conta de teste foi removida. Isso comprova a API local, não substitui a inspeção visual do navegador nem conclui IA-04.
