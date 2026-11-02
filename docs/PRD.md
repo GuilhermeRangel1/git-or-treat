@@ -3194,3 +3194,9 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Preflight usa a view de metadados existente; prova local com leitor sem acesso à tabela operacional passou. Nenhuma ampliação de privilégios, carga ou chamada Gemini nesta rodada.
 - Backend: 96 testes passaram/quatro skips de variantes de dialeto; núcleo/cache: 12 passaram. Chromium exercitou portal real com APIs artificiais, sucesso/409, vínculo de publicação e resposta atrasada de rota. Mapa dos dez aceites, comandos e limites em [invalidação integrada](plans/2026-11-01-genai13-invalidacao-integrada.md).
 - Estados oficiais IA-03/04/05/06 preservados. Implementação nos commits 35d3984 (Backend) e 3d1d1ae (portal), com roteiro/evidências na mesma branch; revisão final sem bloqueios após correções. GENAI-13: dez aceites técnicos locais contemplados, sem reduzir os critérios originais. Frontend: 80 passaram e revalidação final dos 19 testes da página; build, formatação, fronteiras e Ruff passaram. Lint sem erros, com aviso preexistente do AuthProvider.
+
+### 2026-11-02 — IA-04 — reduz consultas repetidas na prontidão Gold
+
+- A prontidão reutiliza a leitura de cobertura dentro do snapshot da requisição, evitando consultas repetidas por alimentador. Prazo, controles, autorização e conferência de publicação permanecem ativos; não há cache entre requisições.
+- Verificações: `python -m pytest tests/test_gold_domain_readiness.py tests/test_gold_attendance_readiness.py -q`: 57 passaram, 1 skip e aviso Starlette preexistente. Medição local: cerca de 24 s antes e 15 s depois. Os testes da matriz/runner passaram (305) e os de interpretação/períodos passaram (168).
+- A rodada da matriz contra a API Gold real registrou 29 PASS, 14 FAIL, 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE e 2 NAO_EXECUTADO. IA-04 continua sem mudança de estado; as divergências e bloqueios permanecem pendentes de investigação.

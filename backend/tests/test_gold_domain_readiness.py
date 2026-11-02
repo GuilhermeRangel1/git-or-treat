@@ -6,6 +6,30 @@ from app.services.gold_attendance_readiness import observe_domain_readiness
 from tests.test_gold_attendance_readiness import published  # noqa: F401
 
 
+def test_coverage_is_read_once_per_snapshot_without_cross_request_cache(published):  # noqa: F811
+    from sqlalchemy import event
+
+    reads = []
+
+    def record(connection, cursor, statement, parameters, context, executemany):
+        upper = statement.upper()
+        if ("COBERTURA_DOMINIOS" in upper and upper.startswith("SELECT")
+                and "LIMIT" not in upper and "DISTINCT" not in upper):
+            reads.append(statement)
+
+    event.listen(published, "before_cursor_execute", record)
+    try:
+        first = observe_domain_readiness(published, requested_periods=("2001-01",),
+                                        approved_controls=frozenset())
+        assert len(reads) == 1
+        second = observe_domain_readiness(published, requested_periods=("2001-01",),
+                                         approved_controls=frozenset())
+        assert len(reads) == 2
+        assert first == second
+    finally:
+        event.remove(published, "before_cursor_execute", record)
+
+
 def test_domain_observation_does_not_promote_missing_measures_to_zero(published):  # noqa: F811
     facts = observe_domain_readiness(
         published,
