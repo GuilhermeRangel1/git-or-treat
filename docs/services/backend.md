@@ -1,5 +1,8 @@
 # Serviço: backend e banco local
 
+> Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
+
+
 **Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** API FastAPI, SQLAlchemy, ORM e Alembic; demonstração sintética preservada. A DEV-13.1 acrescenta modo Gold explícito para Panorama, fila/Ordens e Operação, com contrato v2 e limitações reais; o aceite integrado do portal permanece pendente. **Stack atual:** Python 3.12 no Docker/CI, FastAPI, SQLAlchemy e PostgreSQL com psycopg 3; testes HTTP sintéticos usam SQLite e os de integração Gold usam PostgreSQL descartável.
 
 

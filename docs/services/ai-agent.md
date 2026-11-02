@@ -1,5 +1,8 @@
 # Serviço: agente de inteligência artificial
 
+> Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
+
+
 **Escopo:** IA-01 a IA-08 do [PRD](../PRD.md). **Estado:** fluxo sintético de perguntas e contrato de insight contextual estão preparados nos endpoints `POST /api/v1/questions` e `POST /api/v1/insights`. A rota `/assistente` do portal usa o contrato provisório Backend → GenAI em [genai-chat-api.md](../contracts/genai-chat-api.md). A chamada pode usar um adaptador Gemini ou Groq configurado no serviço; sem credenciais, o serviço continua saudável, mas não gera resposta de modelo. A primeira fatia Gold v2 usa sessão individual no Backend; histórico persistido continua pendente. Veja o estado vigente abaixo. Os adaptadores Gemini e Groq são opcionais por ambiente e podem formar uma cadeia de fallback entre provedores. **Stack do case:** Python integrado ao FastAPI e banco local Gold; framework de agente à escolha. O código configura `gemini-3.5-flash-lite` como padrão do adaptador Gemini e permite escolher outro ID, como `gemini-3.6-flash`; o Groq usa `openai/gpt-oss-120b` por padrão, que passou em uma execução do smoke test real com dados sintéticos em 20/10/2026. O Groq remove modelos com o tempo: confira o nome do modelo na lista da conta antes de usar e troque-o com `GENAI_GROQ_MODEL` se necessário. A escolha definitiva do provedor continua aberta pela equipe.
 
 

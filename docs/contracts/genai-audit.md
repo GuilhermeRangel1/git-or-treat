@@ -14,7 +14,7 @@ O Backend grava eventos pelo `AuditStore` com a conexão operacional. O adaptado
 
 As credenciais são configuradas privadamente por `GENAI_AUDIT_WRITE_TOKEN` no Backend e `GENAI_AUDIT_URL`/`GENAI_AUDIT_WRITE_TOKEN` no serviço GenAI. Configuração parcial ou ambígua é recusada. O adaptador não segue redirecionamentos, usa timeout de 2 segundos e exige confirmação com referência opaca. Habilitar essa configuração torna a auditoria obrigatória também na composição GenAI. Tokens de sessão e de planejamento/síntese não substituem o token de auditoria.
 
-O núcleo continua sem driver, HTTP ou imports do Backend. As requisições de auditoria são uma comunicação técnica interna adicional, sem callback para a API pública de perguntas. Cada gravação SQL tem timeout de 2 segundos e de lock de 500 ms. O coordenador conserva um único prazo de 35 segundos desde a auditoria inicial até a revalidação final; confirmar a trilha não renova o orçamento.
+O núcleo continua sem driver, HTTP ou imports do Backend. As requisições de auditoria são uma comunicação técnica interna adicional, sem callback para a API pública de perguntas. Cada gravação SQL tem timeout de 2 segundos e de lock de 500 ms. O coordenador conserva um único prazo de 60 segundos desde a auditoria inicial até a revalidação final; confirmar a trilha não renova o orçamento.
 
 ## Conteúdo permitido e limites de reprodução
 
