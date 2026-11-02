@@ -3246,3 +3246,22 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Evidência: [revisão de prazo Gold](plans/2026-11-02-genai-prazo-gold.md). GenAI: 4.160 passaram, 5 skips; Backend completo: 901 passaram, 114 skips; transporte do Assistente: 11 passaram. Ruff, fronteiras, formatação, build e diff passaram; lint sem erros, com aviso preexistente em AuthProvider.
 - Matriz real com Gemini `20261102T104426_802753Z`: 43 PASS, 5 bloqueados pela fonte, 7 sem amostra e 2 verificações técnicas separadas; nenhuma falha inesperada ou erro de execução. CON-01 passou em 15,93 s; auditoria confirmou modelo concluído nas 22 respostas numéricas. Contas temporárias removidas. Requisitos oficiais e pendências de cobertura preservados.
 - Insight do Panorama pela API pública com Gold v2 e Gemini: HTTP 200 `answered` em 15,12 s; modelo confirmado na auditoria, conta/sessões temporárias removidas. A validação do prazo no navegador foi automatizada, sem nova jornada visual.
+
+### 2026-11-02 — IA-01 / IA-02 / IA-06 — corrige as perguntas naturais usadas na tela
+
+- Reconhece município em “em Recife” mesmo quando há bairro com o mesmo nome; preserva bairro explicitamente qualificado, relação bairro/município, classe e autorização. Nomes compartilhados sem qualificação continuam esclarecendo. A matriz passou a usar as frases naturais em FAT-01/FAT-04/CON-01.
+- Apresenta contagem acumulada com separador brasileiro e texto direto, sem decimal artificial ou repetição do período. Falta de cobertura recebe mensagem própria não repetível; falhas de aprovação, publicação e infraestrutura permanecem distintas.
+- Evidência: [perguntas da tela](plans/2026-11-02-genai-perguntas-da-tela.md). GenAI completo: 4.165 passaram/5 skips; Backend completo: 907 passaram/114 skips; após a redação final, 130 regressões HTTP/runner passaram. Ruff e diff passaram.
+- Conversa com Gold v2/Gemini e controle SQL independente: cinco respostas numéricas reconciliadas e um bloqueio esperado, zero divergências. Contagem final reconfirmada em chamada real separada. Contas temporárias removidas, sem nova carga ou ampliação de permissões. Estados oficiais e lacunas de cobertura preservados; não houve nova jornada visual ou nova matriz completa de 57 casos nesta fatia.
+
+### 2026-11-02 — IA-01 / IA-02 — isola novas perguntas de esclarecimentos anteriores
+
+- Pergunta completa após esclarecimento solar/GD é interpretada independentemente, evitando juntar dois indicadores indevidos. Respostas curtas continuam preservando o recorte anterior; a mensagem de solar não expõe “Gold v2” nem equipara GD a solar.
+- Sequência real do case: esclarecimento de GD, solicitação de base temporal para volume residencial e solicitação de período para receita comercial. API local Gold v2, três estados esperados, conta temporária removida. Evidência na [continuação das perguntas da tela](plans/2026-11-02-genai-perguntas-da-tela.md#continuação--esclarecimentos-dos-exemplos-do-case).
+- Verificações: 72 regressões HTTP passaram; GenAI completo 4.168 passaram/5 skips; Ruff e diff passaram. Estados oficiais preservados; não equivale a três respostas numéricas nem encerra cobertura anual ou domínios pendentes.
+
+### 2026-11-02 — IA-01 / IA-02 — exemplos copiáveis nos esclarecimentos Gold
+
+- Mensagens Gold de esclarecimento anexaram exemplos construídos com competências publicadas e aprovados no mesmo planejador/escopo. Preservam filtros quando válidos e não inventam exemplo se faltarem dados de período ou uma opção autorizada. Copiar o exemplo inicia nova validação; respostas curtas continuam reconhecidas.
+- Verificações: GenAI 4.176 passaram/5 skips; Ruff e diff passaram. Quatro exemplos copiados pela API local (receita, GD, ranking de bairro e crescimento comercial) retornaram `answered` com modelo real concluído na auditoria; conta temporária removida. Evidência na [continuação das perguntas da tela](plans/2026-11-02-genai-perguntas-da-tela.md#continuação--exemplos-nas-mensagens-de-esclarecimento).
+- Estados oficiais preservados. Aprovação de um exemplo no planejamento não homologa cobertura; essa prova de cópia pela API não é nova reconciliação SQL independente nem jornada visual.

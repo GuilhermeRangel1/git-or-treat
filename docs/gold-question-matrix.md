@@ -1,5 +1,10 @@
 # Matriz de perguntas para o catálogo Gold v2
 
+## Frases naturais observadas no Assistente — 02/11/2026
+
+FAT-01, FAT-04 e CON-01 passaram a usar as frases das capturas (“em Recife” e “no bairro …, em Recife”), mantendo os controles e critérios originais. A conversa real com os seis exemplos teve cinco respostas numéricas reconciliadas e um bloqueio por cobertura, sem divergência; a contagem recebeu rechecagem após o texto final. Essa rodada não substitui uma matriz completa de 57 casos. Ver [textos, comportamento e evidência](plans/2026-11-02-genai-perguntas-da-tela.md).
+
+
 ## Revalidação do prazo Gold — 02/11/2026
 
 Com o prazo aprovado de 60 s no Backend e 70 s no Assistente, a matriz completa `20261102T104426_802753Z` terminou com **43 PASS, 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE e 2 NAO_EXECUTADO**, sem falhas inesperadas ou erros de execução. CON-01 passou em 15,93 s; as 22 respostas numéricas têm modelo concluído na auditoria. Os dois casos técnicos foram cobertos separadamente nas suítes. Bloqueios e ausência de amostra continuam limitações da fonte; não equivalem a domínios homologados. SQL mantém teto de 5 s. Ver [evidência e comandos](plans/2026-11-02-genai-prazo-gold.md).

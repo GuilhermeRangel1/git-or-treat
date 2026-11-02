@@ -497,3 +497,11 @@ Eventos distintos não são FEC. Preço/volume exige componentes completos e jan
 publicadas no envelope interno de evidência. O modelo não calcula fórmulas.
 Detalhes de semântica, controle e limites na [ADR-0022](../decisions/0022-consumo-metricas-documentadas-gold-v2.md)
 e na [entrega 10B](../contracts/genai-domain-implementation.md).
+
+## Perguntas naturais com nomes geográficos compartilhados — 02/11/2026
+
+No perfil Gold, “em <nome>” usa o município quando esse valor também aparece em um bairro. Qualificação explícita de bairro prevalece; nome compartilhado sem qualificação pede esclarecimento. A resolução usa somente valores autorizados da publicação e a hierarquia do perfil. A apresentação de chamados acumulados usa contagem inteira em português e não inventa intervalo mensal. As três perguntas naturais que falharam na tela foram incorporadas aos testes e aos textos principais FAT-01/FAT-04/CON-01; ver [evidência](../plans/2026-11-02-genai-perguntas-da-tela.md).
+
+No esclarecimento de uma ambiguidade, uma nova pergunta interrogativa completa é interpretada independentemente; uma resposta curta de refinamento ainda pode preservar o recorte original. Isso evita que a pergunta de volume residencial herde a métrica da pergunta anterior sobre solar. O indicador é reconhecido, e a ausência de base comparativa pede o período de referência. A mensagem de GD usa termos de negócio e não expõe a versão física da Gold.
+
+As mensagens de esclarecimento Gold podem anexar um exemplo completo, montado com competências publicadas e validado pelo planejador no mesmo escopo. A geração é determinística, sem banco ou modelo, e não promete cobertura. A borda do planejamento separa o sufixo do motivo original ao interpretar o histórico, preservando respostas curtas. Sem candidato aprovado, não inventa mês ou métrica disponível. Ver [exemplos e validação](../plans/2026-11-02-genai-perguntas-da-tela.md#continuação--exemplos-nas-mensagens-de-esclarecimento).
