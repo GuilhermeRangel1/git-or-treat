@@ -125,49 +125,46 @@ export default function UC360OverviewTable({
           <caption className="sr-only">
             Comparação de consumo medido e valores por competência
           </caption>
-          <thead>
-            <tr className="h-8 text-xs text-muted">
-              <th className="pb-2 font-medium" scope="col">
+          <thead className="font-mono text-xs leading-[18px] text-muted">
+            <tr className="h-8">
+              <th className="pb-2 font-normal" scope="col">
                 Competência
               </th>
-              <th className="pb-2 font-medium" scope="col">
+              <th className="pb-2 font-normal" scope="col">
                 Consumo medido
               </th>
-              <th className="pb-2 font-medium" scope="col">
+              <th className="pb-2 font-normal" scope="col">
                 Valor faturado
               </th>
               {showPaid && (
-                <th className="pb-2 font-medium" scope="col">
+                <th className="pb-2 font-normal" scope="col">
                   Valor pago
                 </th>
               )}
-              <th className="pb-2 font-medium" scope="col">
+              <th className="pb-2 font-normal" scope="col">
                 Cobertura
               </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="font-sans text-sm leading-[22px]">
             {snapshots.map(({ key, snapshot }) => (
               <tr className="h-14" key={key}>
-                <th
-                  className="pr-2 text-sm font-semibold text-content"
-                  scope="row"
-                >
+                <th className="pr-2 font-semibold text-content" scope="row">
                   {formatUCCompetence(snapshot.competencia)}
                 </th>
                 <td
-                  className={`pr-2 text-sm ${signedValueTone(snapshot.measured_energy_kwh.value, false)}`}
+                  className={`pr-2 ${signedValueTone(snapshot.measured_energy_kwh.value, false)}`}
                 >
                   {measureValue(snapshot.measured_energy_kwh, "energy")}
                 </td>
                 <td
-                  className={`pr-2 text-sm ${signedValueTone(snapshot.billed_amount.value, false)}`}
+                  className={`pr-2 ${signedValueTone(snapshot.billed_amount.value, false)}`}
                 >
                   {measureValue(snapshot.billed_amount, "money")}
                 </td>
                 {showPaid && (
                   <td
-                    className={`pr-2 text-sm ${signedValueTone(snapshot.paid_amount.value, false)}`}
+                    className={`pr-2 ${signedValueTone(snapshot.paid_amount.value, false)}`}
                   >
                     {measureValue(snapshot.paid_amount, "money")}
                   </td>

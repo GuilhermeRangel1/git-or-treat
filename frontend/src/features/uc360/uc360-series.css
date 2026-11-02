@@ -1,0 +1,122 @@
+.uc360-series {
+  display: flex;
+  flex-direction: column;
+}
+
+.uc360-series__title {
+  margin: 0;
+  font-family: var(--font-title, Manrope, sans-serif);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.uc360-series__figure {
+  min-width: 0;
+  margin: 16px 0 0;
+}
+
+.uc360-series__plot-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.uc360-series__chart-enter {
+  animation: uc360-series-enter 420ms ease-out both;
+}
+
+.uc360-series__line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: uc360-series-draw 900ms ease-out forwards;
+}
+
+.uc360-series__point {
+  cursor: crosshair;
+  outline: none;
+}
+
+.uc360-series__point:focus-visible {
+  filter: drop-shadow(0 0 4px var(--accent-goiaba));
+}
+
+.uc360-series__details-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  align-self: flex-start;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.uc360-series__details-link:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.uc360-series__table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.uc360-series__table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+}
+
+.uc360-series__table th,
+.uc360-series__table td {
+  border-bottom: 1px solid var(--line-subtle);
+  padding: 10px 8px;
+  overflow-wrap: anywhere;
+}
+
+.uc360-series__table thead th:not(:first-child),
+.uc360-series__table td {
+  text-align: right;
+}
+
+.uc360-series__table th[scope="row"] {
+  font-weight: 600;
+}
+
+@keyframes uc360-series-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes uc360-series-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uc360-series__chart-enter,
+  .uc360-series__line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

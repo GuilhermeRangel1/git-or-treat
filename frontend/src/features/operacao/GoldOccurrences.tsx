@@ -125,8 +125,8 @@ export default function GoldOccurrences({
         <p>Não há ocorrências observadas neste recorte.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
+          <table className="w-full text-left font-sans text-sm leading-[22px]">
+            <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
               <tr>
                 <th>Ocorrência</th>
                 <th>UC</th>

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import UC360Series from "./UC360Series";
 
@@ -17,9 +17,9 @@ it("interrompe a linha em meses ausentes ou nulos e preserva o zero", () => {
     <UC360Series data={data} pending={false} error={null} onRetry={vi.fn()} />,
   );
   expect(
-    screen.getByRole("img", { name: /Gráfico de consumo medido/ }),
+    screen.getByRole("img", { name: /Consumo medido mensal em kWh/ }),
   ).toBeInTheDocument();
-  expect(container.querySelectorAll("polyline")).toHaveLength(2);
+  expect(container.querySelectorAll("path")).toHaveLength(2);
   expect(container.querySelectorAll("circle")).toHaveLength(5);
   expect(container.querySelector("title")?.textContent).toContain("0 kWh");
 });
@@ -49,6 +49,7 @@ it("compara cada competência com o mesmo mês do ano anterior, distinguindo zer
       onRetry={vi.fn()}
     />,
   );
+  fireEvent.click(screen.getByRole("button", { name: /Ver tabela da série/ }));
   const rows = within(screen.getByRole("table")).getAllByRole("row");
   expect(rows[1]).toHaveTextContent("50 kWh");
   expect(rows[1]).toHaveTextContent("0 kWh");

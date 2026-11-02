@@ -100,6 +100,10 @@
   font-weight: 500;
 }
 
+.panorama-series-chart__table thead th:last-child {
+  text-align: right;
+}
+
 .panorama-series-chart__table td {
   text-align: right;
   white-space: nowrap;

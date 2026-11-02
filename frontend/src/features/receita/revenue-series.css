@@ -66,6 +66,10 @@
   font-weight: 500;
 }
 
+.revenue-series__table thead th:not(:first-child) {
+  text-align: right;
+}
+
 .revenue-series__table td {
   text-align: right;
   word-break: break-word;

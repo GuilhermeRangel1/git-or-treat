@@ -321,16 +321,16 @@ export function HistoryPanel({
           {history.data.items.length > 0 && section ? (
             <>
               <div className="hidden overflow-x-auto rounded-lg border border-control md:block">
-                <table className="w-full border-collapse text-left text-sm">
+                <table className="w-full border-collapse text-left font-sans text-sm leading-[22px]">
                   <caption className="sr-only">
                     Histórico de {sectionLabels[section].toLowerCase()} da
                     unidade
                   </caption>
-                  <thead className="bg-canvas text-muted">
+                  <thead className="bg-canvas font-mono text-xs leading-[18px] text-muted">
                     <tr>
                       {columns.map((key) => (
                         <th
-                          className="whitespace-nowrap px-3 py-2 font-semibold"
+                          className="whitespace-nowrap px-3 py-2 font-normal"
                           key={key}
                           scope="col"
                         >

@@ -404,7 +404,7 @@ export default function InspectionQueue({
                   {!legacyGold && <col className="w-[19%]" />}
                   <col className="w-[24%]" />
                 </colgroup>
-                <thead className="text-xs leading-[18px] text-muted">
+                <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
                   <tr>
                     {[
                       "UC / prioridade",

@@ -158,10 +158,10 @@ export default function OperationSeries({
       />
       <div className="max-w-full min-w-0 overflow-x-auto rounded-xl">
         <table
-          className="w-full min-w-[440px] border-collapse rounded-xl bg-surface text-left text-sm"
+          className="w-full min-w-[440px] border-collapse rounded-xl bg-surface text-left font-sans text-sm leading-[22px]"
           aria-label="Dados mensais de continuidade"
         >
-          <thead className="text-xs text-muted">
+          <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
             <tr>
               <th scope="col" className="px-4 py-3">
                 Mês

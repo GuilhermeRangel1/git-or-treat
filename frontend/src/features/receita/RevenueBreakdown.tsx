@@ -89,21 +89,21 @@ export default function RevenueBreakdown({
             </p>
           )}
           <div className="min-w-0 max-w-full overflow-x-auto">
-            <table className="w-full min-w-[880px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[880px] border-collapse text-left font-sans text-sm">
               <caption className="sr-only">
                 Comparação de receita por{" "}
                 {dimensionLabels[breakdown.dimension].toLocaleLowerCase(
                   "pt-BR",
                 )}
               </caption>
-              <thead className="h-11 border-b border-border text-xs text-muted">
+              <thead className="h-11 border-b border-border font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
                 <tr>
                   <th scope="col" className="px-3 py-2 font-medium">
                     <label className="flex items-center gap-2">
                       <span className="sr-only">Agrupar recortes</span>
                       <select
                         aria-label="Agrupar recortes"
-                        className="min-h-9 rounded-md border border-control bg-canvas px-2 text-sm font-medium text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                        className="min-h-9 rounded-md border border-control bg-canvas px-2 font-sans text-sm font-medium text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                         value={groupBy}
                         onChange={(event) =>
                           onGroupByChange(event.target.value as RevenueGroupBy)

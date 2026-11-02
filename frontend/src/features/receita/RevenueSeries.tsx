@@ -431,11 +431,11 @@ export default function RevenueSeries({
         header="inline"
       >
         <div className="revenue-series__table-wrap">
-          <table className="revenue-series__table">
+          <table className="revenue-series__table font-sans">
             <caption className="sr-only">
               Série mensal de faturamento e energia
             </caption>
-            <thead className="text-xs text-muted">
+            <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
               <tr>
                 <th scope="col" className="font-medium">
                   Mês
