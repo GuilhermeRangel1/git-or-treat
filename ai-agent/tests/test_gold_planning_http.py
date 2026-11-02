@@ -334,7 +334,10 @@ def test_ate03_ate04_select_accumulated_metric_without_inventing_calendar(questi
     assert body["plan"]["window"]["phrase"] == "histórico acumulado"
 
 
-def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date():
+@pytest.mark.parametrize("value,formatted", [
+    (5, "5 chamados de atendimento"), (318871.0, "318.871 chamados de atendimento"),
+])
+def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date(value, formatted):
     core, request = _setup("Quantos chamados de atendimento existem no histórico acumulado?")
     request = request.model_copy(update={"temporal_coverage": (
         *request.temporal_coverage,
@@ -346,7 +349,7 @@ def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date
         ).json()
         assert planned["status"] == "planned"
         plan = LogicalReadPlan.model_validate(planned["plan"])
-        lookup = _lookup(plan, batch_ref=request.batch_ref, value=5)
+        lookup = _lookup(plan, batch_ref=request.batch_ref, value=value)
         lookup.evidence.records[0]["period"] = "histórico acumulado"
         synthesis = QuestionSynthesisRequest(
             question=request.question, access_scope=request.access_scope,
@@ -356,7 +359,8 @@ def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date
         response = client.post(SYNTHESIS_PATH, json=synthesis, headers=HEADERS).json()
         assert response["status"] == "answered"
         assert response["analysis_context"]["period"] == "histórico acumulado"
-        assert "5 protocolos" in response["answer"]
+        assert response["answer"] == f"No histórico acumulado, foram registrados {formatted}."
+        assert response["answer"].count("histórico acumulado") == 1
         synthesis["lookup"]["evidence"]["records"][0]["period"] = "2025-03"
         wrong = client.post(SYNTHESIS_PATH, json=synthesis, headers=HEADERS).json()
         assert wrong["status"] == "recoverable_error"

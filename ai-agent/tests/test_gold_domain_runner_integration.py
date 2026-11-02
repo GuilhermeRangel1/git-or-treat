@@ -121,7 +121,7 @@ def test_numeric_case_passes_and_uses_the_independent_control_with_resolved_scop
     assert outcome.classe == "PASS" and outcome.divergencias == []
     assert outcome.valores_esperados == ["1234.57"]
     assert seen == [{
-        "question": "Qual foi a receita faturada no município de Recife em março de 2000?",
+        "question": "Qual foi a receita faturada em Recife em março de 2000?",
         "context": [],
     }]
     name, sql, params = db.calls[-1]

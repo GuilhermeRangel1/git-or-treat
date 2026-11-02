@@ -627,8 +627,10 @@ def _build_profile() -> DomainProfile:
         },
         {
             "phrases": ("solar", "energia solar", "painel solar", "painéis solares"),
+            "examples": ("Quantas UCs com GD em {geography.municipality} "
+                         "tiveram queda de consumo acima de 30%?",),
             "clarification": (
-                "A Gold v2 registra geração distribuída (GD), mas não confirma que a origem "
+                "Os dados identificam geração distribuída (GD), mas não confirmam que a fonte "
                 "seja solar. Posso filtrar UCs com ou sem GD registrada?"
             ),
         },

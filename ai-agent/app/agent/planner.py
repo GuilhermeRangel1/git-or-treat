@@ -1,7 +1,8 @@
 """Liga a interpretação a uma fonte de evidências sem gerar texto natural."""
 
 import asyncio
-from collections.abc import Mapping
+import re
+from collections.abc import Iterator, Mapping
 from enum import StrEnum
 from typing import Self
 
@@ -10,13 +11,17 @@ from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 from app.agent.access import ReadAccessPolicy
 from app.agent.evidence_guard import EvidenceGuard
 from app.agent.execution import ExecutionLimitExceeded, RequestBudget
-from app.agent.interpreter import QuestionInterpreter, _normalize
+from app.agent.interpreter import QuestionInterpreter, _find_phrases, _normalize
 from app.agent.read_plan import (
     PlanCapabilityUnavailable,
     ReadPlanBuilder,
     ReadPlanValidator,
 )
-from app.agent.temporal import explicit_monthly_phrases, normalize_calendar_phrases
+from app.agent.temporal import (
+    explicit_monthly_phrases,
+    monthly_period_label,
+    normalize_calendar_phrases,
+)
 from app.ports.events import (
     AuditUnavailable,
     EventCode,
@@ -159,6 +164,109 @@ class QuestionAnalysisPlanner:
         )
 
     def plan(
+        self,
+        question: str,
+        context: list[ConversationTurn] | None = None,
+        access_context: AccessContext | None = None,
+        trace: EventTrace | None = None,
+        temporal_coverage: Mapping[str, tuple[str, tuple[str, ...]]] | None = None,
+        dimension_value_coverage: Mapping[str, tuple[str, ...]] | None = None,
+    ) -> PlannedQuestion:
+        """Acrescenta uma formulação aprovada, sem consultar fonte nem modelo."""
+        separator = "\n\nExemplo de pergunta: "
+        clean_context = [
+            turn.model_copy(update={"content": turn.content.split(separator, 1)[0]})
+            if turn.role == "assistant" and self.profile.structured_dimension_filters else turn
+            for turn in context or []
+        ]
+        result = self._plan(
+            question, clean_context, access_context, trace,
+            temporal_coverage, dimension_value_coverage,
+        )
+        if not self.profile.structured_dimension_filters or result.read_plan is not None:
+            return result
+        for candidate in self._clarification_examples(
+            question, temporal_coverage, dimension_value_coverage,
+        ):
+            try:
+                example = self._plan(
+                    candidate, None, access_context, None,
+                    temporal_coverage, dimension_value_coverage,
+                )
+            except (EvidenceAccessDenied, ValueError):
+                continue
+            if example.read_plan is None:
+                continue
+            suffix = f'{separator}“{candidate}”'
+            if result.clarification is not None:
+                return result.model_copy(update={"clarification": result.clarification.model_copy(
+                    update={"message": result.clarification.message + suffix},
+                )})
+            return result.model_copy(update={"interpretation": result.interpretation.model_copy(
+                update={"clarification_question":
+                        result.interpretation.clarification_question + suffix},
+            )})
+        return result
+
+    def _clarification_examples(
+        self, question: str,
+        coverage: Mapping[str, tuple[str, tuple[str, ...]]] | None,
+        dimensions: Mapping[str, tuple[str, ...]] | None,
+    ) -> Iterator[str]:
+        """Os exemplos usam somente competências recebidas; nenhum mês é presumido."""
+        if not coverage:
+            return
+        normalized = _normalize(question)
+        for rule in self.profile.ambiguities:
+            if not any(_normalize(phrase) in normalized for phrase in rule.phrases):
+                continue
+            for template in rule.examples:
+                candidate = template
+                for key, values in (dimensions or {}).items():
+                    value = next(
+                        (value for value in values if _normalize(value) in normalized), None,
+                    )
+                    if value is not None:
+                        candidate = candidate.replace("{" + key + "}", value)
+                if "{" not in candidate:
+                    yield candidate
+        metrics = sorted(self.profile.metrics, key=lambda metric: not any(
+            _normalize(alias) in normalized for alias in metric.aliases
+        ))
+        compare = any(_normalize(term) in normalized for term in self.profile.comparison_terms)
+        for metric in metrics:
+            kind, competencies = coverage.get(metric.id, (None, ()))
+            if kind != "monthly" or not competencies:
+                continue
+            periods = [monthly_period_label(period) for period in sorted(competencies)]
+            alias = metric.label.lower() if metric.label else metric.aliases[0]
+            original = normalize_calendar_phrases(question)
+            temporal_phrases = (*self.profile.period_phrases, *explicit_monthly_phrases(original))
+            for start, end, _ in reversed(_find_phrases(original, temporal_phrases)):
+                original = original[:start] + " " * (end - start) + original[end:]
+            original = " ".join(original.split()).rstrip(" ?.")
+            original = re.sub(r"\b(?:em|no|na|nos|nas|de)\s*$", "", original).strip()
+            period = (f"entre {periods[-2]} e {periods[-1]}"
+                      if compare and metric.supports_comparison and len(periods) >= 2
+                      else f"em {periods[-1]}")
+            yield f"{original} {period}?"
+            parents = {dimension.parent_dimension_id for dimension in self.profile.dimensions}
+            for dimension in self.profile.dimensions:
+                values = (dimensions or {}).get(dimension.id, ())
+                if dimension.id in parents and values:
+                    for child in self.profile.dimensions:
+                        matches = _find_phrases(original, child.aliases)
+                        if child.parent_dimension_id == dimension.id and matches:
+                            end = matches[0][1]
+                            yield (f"{original[:end]} de {values[0]}{original[end:]} "
+                                   f"{period}?")
+                    yield (f"{original} no {dimension.aliases[0]} de {values[0]} "
+                           f"{period}?")
+            if compare and metric.supports_comparison and len(periods) >= 2:
+                yield f"Compare {alias} entre {periods[-2]} e {periods[-1]}."
+            yield f"Quero consultar {alias} em {periods[-1]}."
+
+    def _plan(
         self,
         question: str,
         context: list[ConversationTurn] | None = None,

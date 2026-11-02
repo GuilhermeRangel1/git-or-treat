@@ -164,7 +164,13 @@ class QuestionInterpreter:
                 (rule for rule in self._profile.ambiguities
                  if rule.clarification == turns[-1].content), None
             )
-            if pending is not None:
+            # Uma nova pergunta completa não é uma resposta ao esclarecimento
+            # anterior: juntar os textos criaria métricas e recortes indevidos.
+            starts_new_question = re.match(
+                r"^(?:qual|quais|quanto|quanta|quantos|quantas|como|onde)\b",
+                _normalize(question).strip(),
+            )
+            if pending is not None and not starts_new_question:
                 original = turns[-2].content
                 for start, end, _ in reversed(_find_phrases(original, pending.phrases)):
                     original = original[:start] + " " * (end - start) + original[end:]
@@ -697,6 +703,23 @@ class QuestionInterpreter:
                     rf"\b{re.escape(_normalize(alias))}\s+(?:(?:de|do|da)\s+)?$", prefix
                 ) for alias in dimension.aliases)
             }
+            # Uma localização introduzida por "em" usa o município quando o
+            # nome também existe como bairro. Qualificadores explícitos prevalecem.
+            if not qualified and re.search(r"\bem\s+$", prefix):
+                parent_ids = {
+                    dimension.parent_dimension_id for dimension in self._profile.dimensions
+                    if dimension.parent_dimension_id and any(
+                        _normalize(match[2]) == _normalize(alias)
+                        for value in dimension.values for alias in value.aliases
+                    )
+                }
+                qualified = {
+                    dimension.id for dimension in self._profile.dimensions
+                    if dimension.id in parent_ids and any(
+                        _normalize(match[2]) == _normalize(alias)
+                        for value in dimension.values for alias in value.aliases
+                    )
+                }
             for dimension in self._profile.dimensions:
                 if dimension.parent_dimension_id and any(re.search(
                     rf"\bqual\s+(?:(?:o|a)\s+)?{re.escape(_normalize(alias))}\s+de\s+$",

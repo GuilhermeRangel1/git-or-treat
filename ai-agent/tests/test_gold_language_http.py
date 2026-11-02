@@ -11,10 +11,11 @@ from .test_gold_planning_http import HEADERS, PLAN_PATH, SYNTHESIS_PATH, _applic
 from .test_gold_question_filters import _setup
 
 
-def _plan(question, context=(), *, dimension_values=None):
+def _plan(question, context=(), *, dimension_values=None, extra_coverage=()):
     core, request = _setup(question)
     payload = request.model_dump(mode="json")
     payload["context"] = list(context)
+    payload["temporal_coverage"].extend(extra_coverage)
     if dimension_values is not None:
         payload["dimension_value_coverage"] = dimension_values
     with InProcessClient(_application(core)) as client:
@@ -287,7 +288,7 @@ def test_language_normalization_survives_plan_revalidation_and_synthesis(follow_
 
 @pytest.mark.parametrize("qualified", [True, False])
 def test_child_place_reference_qualifies_a_parent_name_shared_with_other_neighborhoods(qualified):
-    place = "no bairro Casa Caiada de Recife" if qualified else "em Recife"
+    place = "no bairro Casa Caiada de Recife" if qualified else "Recife"
     result = _plan(
         f"Receita da classe de consumo residencial {place} em março de 2025?",
         dimension_values=[
@@ -305,3 +306,137 @@ def test_child_place_reference_qualifies_a_parent_name_shared_with_other_neighbo
     else:
         assert result["status"] == "needs_clarification", result
         assert result.get("plan") is None
+
+
+@pytest.mark.parametrize("question,metric,neighborhood", [
+    ("Qual foi a receita faturada em Recife em junho de 2026?", "billing.revenue", False),
+    ("Qual foi o consumo de energia em Recife em junho de 2026?", "energy.consumption", False),
+    ("Qual foi a receita residencial no bairro Brasília Teimosa, em Recife, em junho de 2026?",
+     "billing.revenue", True),
+])
+def test_exact_browser_questions_resolve_municipality_shared_with_neighborhood(
+    question, metric, neighborhood,
+):
+    core, request = _setup(question)
+    payload = request.model_dump(mode="json")
+    for coverage in payload["temporal_coverage"]:
+        coverage["competencies"] = ["2026-06"]
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "geography.municipality", "values": ["Recife", "Olinda"]},
+        {"dimension_id": "geography.neighborhood", "values": ["Recife", "Brasília Teimosa"]},
+    ]
+    with InProcessClient(_application(core)) as client:
+        result = client.post(PLAN_PATH, json=payload, headers=HEADERS).json()
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == metric
+    assert result["plan"]["window"]["start"] == "2026-06-01"
+    filters = {item["dimension_id"]: item["values"] for item in result["plan"]["filters"]}
+    assert filters == ({"geography.municipality": ["Recife"],
+                        "geography.neighborhood": ["Brasília Teimosa"],
+                        "customer.consumption_class": ["RESIDENCIAL"]}
+                       if neighborhood else {"geography.municipality": ["Recife"]})
+
+
+def test_explicit_neighborhood_overrides_municipal_default_for_same_name():
+    result = _plan("Receita no bairro Recife em março de 2025?", dimension_values=[
+        {"dimension_id": "geography.municipality", "values": ["Recife"]},
+        {"dimension_id": "geography.neighborhood", "values": ["Recife"]},
+    ])
+    assert result["status"] == "planned", result
+    assert result["plan"]["filters"] == [{"dimension_id": "geography.neighborhood",
+                                         "operator": "eq", "values": ["Recife"]}]
+
+
+@pytest.mark.parametrize("with_context", [False, True])
+def test_new_case_question_does_not_inherit_an_unresolved_solar_indicator(with_context):
+    solar = "Quantas UCs com solar em Olinda tiveram queda de consumo acima de 30%?"
+    solar_result = _plan(solar)
+    assert solar_result["status"] == "needs_clarification"
+    message = solar_result["response"]["message"]
+    assert "Gold" not in message and "GD" in message and "solar" in message
+    context = [{"role":"user", "content":solar},
+               {"role":"assistant", "content":message}] if with_context else []
+    question = "Qual bairro mais perdeu volume residencial no último ano?"
+    result = _plan(question, context)
+    assert result["status"] == "needs_clarification", result
+    assert result["response"]["message"].split("\n\nExemplo de pergunta:")[0] == (
+        "Qual período deve servir de base para essa comparação?"
+    )
+    assert result == _plan(question)
+
+
+def test_full_revenue_growth_question_after_solar_asks_only_for_missing_period():
+    solar = "Quantas UCs com solar em Olinda tiveram queda de consumo acima de 30%?"
+    result = _plan("Quanto cresceu a receita comercial em Jaboatão dos Guararapes?", [
+        {"role":"user", "content":solar},
+        {"role":"assistant", "content":_plan(solar)["response"]["message"]},
+    ], dimension_values=[
+        {"dimension_id":"geography.municipality", "values":["Olinda", "Jaboatão dos Guararapes"]},
+    ])
+    assert result["status"] == "needs_clarification", result
+    assert result["response"]["message"].split("\n\nExemplo de pergunta:")[0] == (
+        "Qual período você quer consultar ou comparar?"
+    )
+
+
+@pytest.mark.parametrize("question", [
+    "Receita e consumo em março de 2025?",
+    "Qual foi a receita?",
+    "Qual bairro mais perdeu volume residencial no último ano?",
+    "Receita em um município inventado em março de 2025?",
+    "Quantas UCs com solar em Olinda tiveram queda de consumo acima de 30%?",
+])
+def test_clarification_has_a_complete_example_that_is_accepted_in_the_same_scope(question):
+    extra = [{"metric_id":"energy.gd_consumption_drop", "kind":"none"}]
+    result = _plan(question, extra_coverage=extra)
+    assert result["status"] == "needs_clarification", result
+    message = result["response"]["message"]
+    example = message.split("\n\nExemplo de pergunta: “", 1)[1].removesuffix("”")
+    follow_up = _plan(example, [
+        {"role":"user", "content":question}, {"role":"assistant", "content":message},
+    ], extra_coverage=extra)
+    assert follow_up["status"] == "planned", follow_up
+    if "bairro" in question:
+        assert follow_up["plan"]["group_by_dimension_ids"] == ["geography.neighborhood"]
+        assert follow_up["plan"]["comparison_periods"] == ["2025-02", "2025-03"]
+        assert {item["dimension_id"] for item in follow_up["plan"]["filters"]} == {
+            "customer.consumption_class",
+        }
+    if "solar" in question:
+        assert "GD" in example and "solar" not in example
+        assert follow_up["plan"]["metric_id"] == "energy.gd_consumption_drop"
+
+
+def test_example_uses_published_months_and_does_not_break_a_short_period_reply():
+    question = "Receita residencial em Olinda"
+    message = _plan(question)["response"]["message"]
+    assert "março de 2025" in message
+    result = _plan("março de 2025", [
+        {"role":"user", "content":question}, {"role":"assistant", "content":message},
+    ])
+    assert result["status"] == "planned", result
+    assert {item["dimension_id"]: item["values"] for item in result["plan"]["filters"]} == {
+        "geography.municipality":["Olinda"], "customer.consumption_class":["RESIDENCIAL"],
+    }
+
+
+@pytest.mark.parametrize("available", [True, False])
+def test_examples_respect_read_scope_and_are_omitted_without_published_periods(available):
+    core, request = _setup("Qual indicador?")
+    payload = request.model_dump(mode="json")
+    payload["access_scope"]["allowed_metric_ids"] = ["energy.consumption"]
+    payload["temporal_coverage"] = [coverage for coverage in payload["temporal_coverage"]
+                                    if coverage["metric_id"] == "energy.consumption"]
+    if not available:
+        payload["temporal_coverage"][0]["competencies"] = []
+    with InProcessClient(_application(core)) as client:
+        result = client.post(PLAN_PATH, json=payload, headers=HEADERS).json()
+        message = result["response"]["message"]
+        if not available:
+            assert "Exemplo de pergunta:" not in message
+            return
+        example = message.split("\n\nExemplo de pergunta: “", 1)[1].removesuffix("”")
+        payload["question"] = example
+        planned = client.post(PLAN_PATH, json=payload, headers=HEADERS).json()
+    assert planned["status"] == "planned", planned
+    assert planned["plan"]["metric_id"] == "energy.consumption"

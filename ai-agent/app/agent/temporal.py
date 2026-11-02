@@ -211,3 +211,9 @@ def _months_between(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[
         months.append(current)
         current = _shift_month(*current, 1)
     return months
+
+
+def monthly_period_label(period: str) -> str:
+    """Competência já validada para uma frase legível em português."""
+    year, month = period.split("-")
+    return f"{_MONTH_NAMES[int(month) - 1]} de {year}"

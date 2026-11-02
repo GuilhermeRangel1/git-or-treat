@@ -153,8 +153,8 @@ def test_follow_up_preserves_each_dimension_and_rechecks_revoked_access():
     assert result.plan is None
 
 
-def test_same_name_in_two_dimensions_requires_clarification():
-    core, request = _setup("Receita em Olinda no último trimestre?")
+def test_bare_same_name_in_two_dimensions_requires_clarification():
+    core, request = _setup("Receita Olinda no último trimestre?")
     ambiguous = QuestionPlanRequest.model_validate(
         {
             **request.model_dump(mode="python"),
