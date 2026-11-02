@@ -1,3 +1,5 @@
+import { ASSISTANT_EXAMPLES } from "@/shared/help/assistantExamples";
+import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -45,15 +47,7 @@ type ChatMessage = {
   outdated?: boolean;
 };
 
-const SUGGESTIONS = [
-  "Qual foi a receita faturada em junho de 2026?",
-  "Qual foi a receita residencial em junho de 2026?",
-  "Quanto foi o consumo medido em Recife em junho de 2026?",
-  "Qual município teve maior receita em junho de 2026?",
-  "Compare a receita de maio e junho de 2026.",
-  "Qual o DEC do alimentador ALM-JAB-015 em junho de 2026?",
-  "Quantos chamados constam no histórico acumulado?",
-];
+const SUGGESTIONS = ASSISTANT_EXAMPLES;
 
 const RESPONSE_STATES: Record<
   AIQuestionResponse["status"],
@@ -563,7 +557,7 @@ export default function AssistentePage() {
       aria-labelledby="assistant-heading"
       className="assistant-workspace mx-auto h-full min-h-0 w-full rounded-[20px] border border-divider bg-surface"
     >
-      <header className="assistant-toolbar flex min-h-12 shrink-0 items-center justify-between gap-3 border-b border-divider px-4 py-3">
+      <header className="assistant-toolbar flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-divider px-4 py-3">
         <div className="flex items-center gap-2.5">
           <span className="flex size-9 items-center justify-center rounded-full bg-brand/10 text-brand">
             <MessageCircle aria-hidden="true" className="size-4" />
@@ -577,18 +571,21 @@ export default function AssistentePage() {
             </p>
           </div>
         </div>
-        {hasMessages && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={startNewConversation}
-            disabled={mutation.isPending}
-            leftIcon={<Plus aria-hidden="true" className="size-4" />}
-          >
-            <span className="hidden sm:inline">Nova conversa</span>
-            <span className="sm:hidden">Nova</span>
-          </Button>
-        )}
+        <div className="flex shrink-0 items-center justify-end gap-1">
+          <IndicatorHelp screen="assistente" />
+          {hasMessages && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={startNewConversation}
+              disabled={mutation.isPending}
+              leftIcon={<Plus aria-hidden="true" className="size-4" />}
+            >
+              <span className="hidden sm:inline">Nova conversa</span>
+              <span className="sm:hidden">Nova</span>
+            </Button>
+          )}
+        </div>
       </header>
 
       <AssistantIdentity pending={mutation.isPending} />
