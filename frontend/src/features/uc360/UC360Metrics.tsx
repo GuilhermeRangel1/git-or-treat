@@ -26,11 +26,11 @@ function Metric({
 }) {
   const delta =
     change.delta === null
-      ? "Variação indisponível"
-      : `${change.delta > 0 ? "+" : ""}${formatUCAmount(change.delta, unit)}`;
+      ? "Não foi possível comparar este período"
+      : `Variação: ${change.delta > 0 ? "+" : ""}${formatUCAmount(change.delta, unit)}`;
   const percent =
-    change.percent_change === null
-      ? "Percentual indisponível"
+    change.delta === null || change.percent_change === null
+      ? null
       : `${change.percent_change > 0 ? "+" : ""}${decimal.format(change.percent_change)}%`;
   const limitations = [
     ...new Set([
@@ -48,21 +48,30 @@ function Metric({
         {formatUCAmount(current.value, unit)}
       </p>
       <p className="break-words text-sm font-semibold text-muted">
-        <span className={signedValueTone(change.delta)}>{delta}</span> ·{" "}
-        <span className={signedValueTone(change.percent_change)}>
-          {percent}
-        </span>
+        <span className={signedValueTone(change.delta)}>{delta}</span>
+        {percent !== null && (
+          <>
+            {" · "}
+            <span className={signedValueTone(change.percent_change)}>
+              {percent}
+            </span>
+          </>
+        )}
       </p>
       <p className="text-xs text-muted">
-        Mês inicial:{" "}
-        <span className={signedValueTone(before.value, false)}>
-          {formatUCAmount(before.value, unit)}
-        </span>
+        {before.value === null
+          ? "Sem valor disponível no mês inicial"
+          : "Mês inicial:"}{" "}
+        {before.value !== null && (
+          <span className={signedValueTone(before.value, false)}>
+            {formatUCAmount(before.value, unit)}
+          </span>
+        )}
       </p>
       <p className="text-xs text-muted">{period}</p>
-      {change.status !== "available" && (
+      {change.status !== "available" && change.delta !== null && (
         <p className="text-xs text-muted">
-          Comparação: {statusLabel(change.status)}
+          Dados da comparação: {statusLabel(change.status).toLowerCase()}
         </p>
       )}
       {limitations.length > 0 && (
@@ -104,7 +113,7 @@ function SummaryMetric({
       <p className="text-xs text-muted">{statusLabel(status)}</p>
       {limitations.length > 0 && (
         <details className="text-xs text-muted">
-          <summary className="cursor-pointer">Limites da fonte</summary>
+          <summary className="cursor-pointer">Sobre os dados</summary>
           <p className="mt-1">
             {limitations.map(humanizeLimitation).join(" ")}
           </p>
@@ -131,23 +140,29 @@ export function UC360SupportMetrics({ data }: { data: UCOverview["data"] }) {
             data.gold_generation?.capacity_kwp != null
               ? `${decimal.format(data.gold_generation.capacity_kwp)} kWp`
               : data.gold_generation_record === false
-                ? "Sem registro de GD"
+                ? "Sem cadastro"
                 : data.gold_generation_record === true
-                  ? "Potência não informada"
+                  ? "Cadastro encontrado"
                   : data.distributed_generation.items.length > 0
                     ? data.distributed_generation.items
                         .map((item) => `${decimal.format(item.capacity_kw)} kW`)
                         .join(" · ")
                     : data.distributed_generation.status === "empty"
-                      ? "Sem cadastro"
+                      ? "Sem registro"
                       : "Sem dado"
           }
           detail={
             data.gold_generation_record === false
-              ? "Nenhum cadastro de geração encontrado na fonte; cobertura não certificada."
-              : data.gold_generation
-                ? "Potência de pico cadastrada em kWp; não é geração ou energia compensada."
-                : "Potência cadastrada em kW; não é energia compensada."
+              ? "Não encontramos cadastro de geração própria para esta UC. Isso não confirma que ela não tenha painéis solares."
+              : data.gold_generation?.capacity_kwp != null
+                ? "A potência cadastrada não informa quanta energia foi gerada ou compensada."
+                : data.gold_generation_record === true
+                  ? "Há um cadastro de geração própria, mas a potência não foi informada."
+                  : data.distributed_generation.items.length > 0
+                    ? "A potência cadastrada não informa quanta energia foi gerada ou compensada."
+                    : data.distributed_generation.status === "empty"
+                      ? "Não encontramos registro de geração própria para esta UC."
+                      : "Não foi possível consultar o cadastro de geração própria."
           }
           status={
             data.gold_generation_record != null
@@ -157,11 +172,11 @@ export function UC360SupportMetrics({ data }: { data: UCOverview["data"] }) {
           limitations={data.distributed_generation.limitations}
         />
         <SummaryMetric
-          title="Faturas declaradas em aberto"
+          title="Faturas marcadas como em aberto"
           value={
             data.open_invoices.count?.toLocaleString("pt-BR") ?? "Sem dado"
           }
-          detail={`${formatUCCompetence(data.period.start)} a ${formatUCCompetence(data.period.end)} · situação declarada, sem saldo confirmado`}
+          detail={`${formatUCCompetence(data.period.start)} a ${formatUCCompetence(data.period.end)} · o saldo atualizado não foi confirmado`}
           status={data.open_invoices.status}
           limitations={data.open_invoices.limitations}
         />
@@ -186,11 +201,11 @@ export function UC360Comparison({
       </h2>
       <div
         className="grid gap-3 rounded-xl border border-control p-3 sm:p-4"
-        aria-label="Comparação de energia e consumo"
+        aria-label="Consumo e financeiro"
         role="region"
       >
         <h2 className="font-heading text-lg font-semibold text-content">
-          Energia e consumo
+          Consumo e financeiro
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Metric
@@ -201,25 +216,6 @@ export function UC360Comparison({
             unit="kWh"
             period={comparisonPeriod}
           />
-          <Metric
-            title="Energia faturada (kWh)"
-            current={comparison.final.billed_energy_kwh}
-            before={comparison.initial.billed_energy_kwh}
-            change={comparison.billed_energy_kwh}
-            unit="kWh"
-            period={comparisonPeriod}
-          />
-        </div>
-      </div>
-      <div
-        className="grid gap-3 rounded-xl border border-control p-3 sm:p-4"
-        aria-label="Comparação de valores financeiros"
-        role="region"
-      >
-        <h2 className="font-heading text-lg font-semibold text-content">
-          Valores financeiros
-        </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Metric
             title="Valor faturado (BRL)"
             current={comparison.final.billed_amount}

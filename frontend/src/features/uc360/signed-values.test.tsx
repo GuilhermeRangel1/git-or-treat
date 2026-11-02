@@ -27,7 +27,11 @@ it("usa cores pelo sinal em deltas e preserva zero neutro", () => {
     paid_amount: delta(0),
   } as UCOverview["data"]["comparison"];
   render(<UC360Comparison comparison={comparison} />);
-  expect(screen.getByText("+5 kWh")).toHaveClass("text-success");
-  expect(screen.getByText("-3 kWh")).toHaveClass("text-danger");
-  expect(screen.getAllByText("R$ 0,00")[0]).toHaveClass("text-content");
+  expect(screen.getByText("Variação: +5 kWh")).toHaveClass("text-success");
+  expect(
+    screen.queryByRole("heading", { name: "Energia faturada (kWh)" }),
+  ).toBeNull();
+  expect(screen.getAllByText("Variação: R$ 0,00")[0]).toHaveClass(
+    "text-content",
+  );
 });

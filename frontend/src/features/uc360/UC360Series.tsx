@@ -192,10 +192,7 @@ export default function UC360Series({
       className="uc360-series min-w-0 rounded-xl border border-border bg-surface p-4 text-content sm:p-5"
     >
       <h2 className="uc360-series__title">Série mensal de consumo medido</h2>
-      <p className="mt-1 text-sm text-muted">
-        Consumo medido por competência (kWh). Meses sem valor ou registro não
-        representam consumo zero.
-      </p>
+      <p className="mt-1 text-sm text-muted">Consumo medido por mês (kWh).</p>
 
       {pending && (
         <p role="status" className="mt-3 text-sm text-muted">

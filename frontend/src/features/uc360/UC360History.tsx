@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { AlertCircle, ArrowUpRight, X } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
-import type { UCHistory, UCHistoryItem, UCMeter, UCStatus } from "./contract";
+import type { UCHistory, UCHistoryItem, UCStatus } from "./contract";
 import { signedValueTone } from "@/shared/ui/signedValue";
 import type { UCHistorySection } from "./uc360-state";
 import {
@@ -148,49 +148,35 @@ function historyRowKey(
   }
 }
 
-function emptyHistoryMessage(status: UCStatus) {
+function emptyHistoryMessage(
+  status: UCStatus,
+  section: UCHistorySection | null,
+) {
+  const subject = section
+    ? ` de ${sectionLabels[section].toLowerCase()}`
+    : " do histórico";
   switch (status) {
     case "empty":
-      return "A fonte confirma cobertura neste período e nenhum registro para esta unidade.";
+      return `Nenhum registro${subject} foi encontrado para esta UC no período consultado.`;
     case "partial":
-      return "A fonte tem cobertura parcial; os registros conhecidos podem não representar todo o período.";
+      return `Os registros${subject} podem não cobrir todo o período consultado.`;
     case "unavailable":
-      return "A cobertura desta fonte não está disponível; não é possível concluir se houve registros.";
+      return `Não foi possível consultar os registros${subject}. Isso não confirma que não houve ocorrências.`;
     case "available":
-      return "A fonte está disponível, mas não retornou registros para esta consulta.";
+      return `Nenhum registro${subject} foi retornado nesta consulta.`;
   }
 }
 
 function coverageMessage(status: UCStatus) {
   switch (status) {
     case "available":
-      return "Fonte disponível para a consulta.";
+      return "Consulta concluída para o período selecionado.";
     case "empty":
-      return "A fonte confirma cobertura e nenhum registro neste recorte.";
+      return "Nenhum registro encontrado neste período.";
     case "partial":
-      return "Cobertura parcial; esta resposta pode não incluir todo o recorte.";
+      return "Os dados podem estar incompletos neste período.";
     case "unavailable":
-      return "Cobertura indisponível; não é possível concluir se há registros.";
-  }
-}
-
-function currentMeterMessage(meter: UCMeter | null, status?: UCStatus) {
-  if (meter) {
-    if (status === "partial")
-      return `Possível medidor na data de referência: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. A indicação depende das datas disponíveis; consulte as limitações e o histórico.`;
-    return `Vigente no snapshot: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. Consulte o histórico para vínculos anteriores e retiradas.`;
-  }
-  switch (status) {
-    case "empty":
-      return "Nenhum medidor vigente registrado no snapshot.";
-    case "partial":
-      return "O vínculo vigente está ambíguo; não é possível escolher um medidor.";
-    case "unavailable":
-      return "A cobertura do medidor vigente está indisponível; não é possível determinar ausência.";
-    case "available":
-      return "A fonte do snapshot está disponível, mas não retornou medidor vigente.";
-    default:
-      return "O estado do medidor vigente não foi informado neste diálogo.";
+      return "Não foi possível consultar estes dados; isso não confirma que não houve registros.";
   }
 }
 
@@ -209,7 +195,7 @@ export function ErrorMessage({
     >
       <AlertCircle size={18} aria-hidden="true" />
       {unavailable
-        ? "Fonte de atendimento indisponível."
+        ? "Não foi possível consultar os dados de atendimento agora."
         : error instanceof ApiError && error.status === 404
           ? "A unidade informada não foi encontrada."
           : "Não foi possível carregar os dados da unidade."}
@@ -298,15 +284,21 @@ export function HistoryPanel({
       {history && (
         <>
           <p className="min-w-0 break-all text-sm text-muted">
-            {statusLabel(history.metadata.status)} · {history.pagination.total}{" "}
-            {history.pagination.total === 1 ? "registro" : "registros"}
+            {statusLabel(history.metadata.status)}
+            {history.pagination.total > 0 && (
+              <>
+                {" · "}
+                {history.pagination.total}{" "}
+                {history.pagination.total === 1 ? "registro" : "registros"}
+              </>
+            )}
           </p>
           {history.metadata.limitations.some(
             (note) => !/atualização indica a importação local/i.test(note),
           ) && (
             <ul
               className="grid gap-1 text-sm text-muted"
-              aria-label="Limitações da fonte"
+              aria-label="Avisos sobre os dados"
             >
               {history.metadata.limitations
                 .filter(
@@ -387,7 +379,7 @@ export function HistoryPanel({
             </>
           ) : (
             <p className="text-sm text-muted">
-              {emptyHistoryMessage(history.metadata.status)}
+              {emptyHistoryMessage(history.metadata.status, section)}
             </p>
           )}
           {history.pagination.total_pages > 1 && (
@@ -422,14 +414,10 @@ export function HistoryPanel({
 
 export function EvidenceDialog({
   sectionStatus,
-  meter,
-  currentMeterStatus,
   limitations,
   onSelectHistory,
 }: {
   sectionStatus: Record<string, UCStatus>;
-  meter: UCMeter | null;
-  currentMeterStatus?: UCStatus;
   limitations: string[];
   onSelectHistory: (section: UCHistorySection) => void;
 }) {
@@ -456,22 +444,22 @@ export function EvidenceDialog({
     {
       title: "Consumo e leituras",
       sections: ["consumption"],
-      note: "Mês sem leitura só é uma lacuna confirmada quando a cobertura daquela competência é conhecida; fonte indisponível não demonstra ausência.",
+      note: "Um mês sem leitura registrada não permite afirmar que o consumo foi zero.",
     },
     {
       title: "Medidor",
       sections: ["meters"],
-      note: currentMeterMessage(meter, currentMeterStatus),
+      note: "Consulte o histórico abaixo para ver instalações e retiradas de medidores.",
     },
     {
       title: "Faturas e pagamentos",
       sections: ["invoices"],
-      note: "Valores faturados e pagos permanecem separados; pagamento é informação da fatura, não um fluxo de caixa separado.",
+      note: "Valor faturado e valor pago são informações diferentes. O saldo atual pode não estar confirmado nesta consulta.",
     },
     {
       title: "Geração própria",
       sections: ["distributed_generation"],
-      note: "O cadastro informa potência em kW; não representa energia compensada.",
+      note: "A potência cadastrada não informa quanta energia foi gerada ou compensada.",
     },
     {
       title: "Interrupções e chamados",
@@ -488,7 +476,7 @@ export function EvidenceDialog({
         className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-content px-4 text-sm text-surface"
       >
         <ArrowUpRight size={16} aria-hidden="true" />
-        Ver detalhes
+        Ver históricos e avisos
       </button>
       <dialog
         ref={dialogRef}
@@ -504,11 +492,11 @@ export function EvidenceDialog({
             tabIndex={-1}
             className="font-heading text-[26px] leading-8 font-semibold focus-visible:outline-2 focus-visible:outline-brand sm:text-[32px] sm:leading-10"
           >
-            Histórico e fontes da UC
+            Dados e históricos da UC
           </h3>
           <p className="mt-2 text-sm text-muted">
-            A cobertura é informada por fonte. Ausência confirmada, cobertura
-            parcial e indisponibilidade têm significados diferentes.
+            Escolha uma categoria para consultar os registros do período. A
+            falta de informação não confirma que o evento não ocorreu.
           </p>
         </header>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-8 sm:pb-4">
@@ -562,7 +550,7 @@ export function EvidenceDialog({
               className="grid gap-2"
             >
               <h4 id="uc-source-limitations" className="text-sm font-semibold">
-                Lacunas e limitações
+                O que não foi possível confirmar
               </h4>
               {limitations.length > 0 ? (
                 <ul className="grid gap-2 text-sm text-muted">
@@ -574,14 +562,12 @@ export function EvidenceDialog({
                 </ul>
               ) : (
                 <p className="text-sm text-muted">
-                  O overview não declarou limitações adicionais. Consulte o
-                  estado de cobertura de cada fonte acima.
+                  Não há outros avisos para esta consulta.
                 </p>
               )}
               <p className="text-sm text-muted">
-                Consulte a cobertura informada para os dados de atendimento.
-                Nenhuma lacuna deve ser interpretada como valor zero ou causa da
-                variação da conta.
+                Dados ausentes não significam zero nem explicam, por si só, uma
+                variação na conta.
               </p>
             </section>
           </div>

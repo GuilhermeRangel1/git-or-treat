@@ -65,8 +65,10 @@ it("distingue cadastro de GD ausente de geração comprovadamente inexistente", 
     period,
   } as unknown as UCOverview["data"];
   render(<UC360SupportMetrics data={data} />);
-  expect(screen.getByText("Sem registro de GD")).toBeVisible();
-  expect(screen.getByText(/cobertura não certificada/)).toBeVisible();
+  expect(screen.getByText("Sem cadastro")).toBeVisible();
+  expect(
+    screen.getByText(/não confirma que ela não tenha painéis solares/),
+  ).toBeVisible();
 });
 
 it("mantém valor pago quando há um zero observado", () => {
@@ -223,7 +225,9 @@ it("mantém informações úteis da UC sem expor identificadores técnicos", () 
     />,
   );
   expect(screen.getAllByText(/3,5 kWp/).length).toBeGreaterThan(0);
-  expect(screen.getByText(/Possível medidor: M-FAKE/)).toBeVisible();
+  expect(
+    screen.getByText(/Possível vínculo com o medidor M-FAKE/),
+  ).toBeVisible();
   expect(screen.queryByText("GOLD-ARTIFICIAL:hash")).not.toBeInTheDocument();
   expect(
     screen.queryByText(/Gold CSV · importação local/),

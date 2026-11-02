@@ -375,11 +375,8 @@ describe("UC 360 search flow", () => {
     expect(
       screen.getByRole("form", { name: "Período da consulta" }).textContent,
     ).toContain("Período aplicado: 01/2025 a 02/2025");
-    const energyComparison = screen.getByRole("region", {
-      name: "Comparação de energia e consumo",
-    });
-    const financialComparison = screen.getByRole("region", {
-      name: "Comparação de valores financeiros",
+    const consumptionFinancial = screen.getByRole("region", {
+      name: "Consumo e financeiro",
     });
     expect(
       screen.getByRole("heading", { name: "Indicadores comparativos" }),
@@ -391,72 +388,69 @@ describe("UC 360 search flow", () => {
       screen.queryByRole("heading", { name: /^Valor faturado$/ }),
     ).toBeNull();
     expect(
-      within(energyComparison).getByRole("heading", {
-        name: "Energia e consumo",
+      within(consumptionFinancial).getByRole("heading", {
+        name: "Consumo e financeiro",
       }),
     ).toBeTruthy();
     expect(
-      within(energyComparison).getByRole("heading", {
+      within(consumptionFinancial).getByRole("heading", {
         name: "Consumo medido (kWh)",
       }),
     ).toBeTruthy();
     expect(
-      within(energyComparison).getByRole("heading", {
-        name: "Energia faturada (kWh)",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(financialComparison).getByRole("heading", {
-        name: "Valores financeiros",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(financialComparison).getByRole("heading", {
+      within(consumptionFinancial).getByRole("heading", {
         name: "Valor faturado (BRL)",
       }),
     ).toBeTruthy();
     expect(
-      within(financialComparison).queryByRole("heading", {
+      within(consumptionFinancial).queryByRole("heading", {
         name: "Valor pago (BRL)",
       }),
     ).toBeNull();
     expect(
-      within(financialComparison).getByText(
+      within(consumptionFinancial).getByText(
         /valor efetivamente pago não está disponível/,
       ),
     ).toBeTruthy();
+    expect(
+      within(consumptionFinancial).queryByRole("heading", {
+        name: "Energia faturada (kWh)",
+      }),
+    ).toBeNull();
     const billingSupport = screen.getByRole("region", {
       name: "Apoio ao atendimento",
     });
     expect(
       within(billingSupport).getByRole("heading", {
-        name: "Faturas declaradas em aberto",
+        name: "Faturas marcadas como em aberto",
       }),
     ).toBeTruthy();
     expect(
-      within(billingSupport).getByText(
-        /situação declarada, sem saldo confirmado/,
-      ),
+      within(billingSupport).getByText(/saldo atualizado não foi confirmado/),
     ).toBeTruthy();
     expect(
       screen.getByRole("columnheader", { name: "Competência" }),
     ).toBeTruthy();
     const historyDisclosure = screen
-      .getByText("Históricos por fonte")
+      .getByText("Consultar históricos")
       .closest("details");
     expect(historyDisclosure?.open).toBe(false);
     expect(screen.getAllByText("R$ 105,00").length).toBeGreaterThan(0);
-    expect(screen.getByText("-100 kWh")).toBeTruthy();
+    expect(screen.getByText("Variação: -100 kWh")).toBeTruthy();
     expect(screen.getByText("-100%")).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Fatos observados" }),
+      screen.getByRole("heading", { name: "O que os dados mostram" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Hipóteses e limites" }),
+      screen.getByRole("heading", {
+        name: "O que ainda não dá para concluir",
+      }),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Ver detalhes" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver históricos e avisos" }),
+    );
     expect(
-      await screen.findByRole("heading", { name: "Histórico e fontes da UC" }),
+      await screen.findByRole("heading", { name: "Dados e históricos da UC" }),
     ).toBeTruthy();
     fireEvent.click(
       screen.getAllByRole("button", { name: "Abrir histórico" })[5],
@@ -600,12 +594,12 @@ describe("UC 360 search flow", () => {
 
     expect(
       await screen.findByText(
-        "Nenhum medidor vigente no snapshot; consulte o histórico de medidores.",
+        "O cadastro consultado não informa um medidor atual para esta UC.",
       ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Medidores" }));
     expect((await screen.findAllByText("MED-004")).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Disponível · 1 registro/)).toBeTruthy();
+    expect(screen.getByText(/Dados disponíveis · 1 registro/)).toBeTruthy();
     expect(
       fetchMock.mock.calls.some(([url]) =>
         String(url).includes("/history/meters"),
@@ -615,7 +609,7 @@ describe("UC 360 search flow", () => {
     expect(screen.queryByText(/Valor faturado: Sem dado.*Sem dado/)).toBeNull();
     expect(
       screen.getByText(
-        /Não há dois valores disponíveis para comparar consumo medido/,
+        /Não há dados disponíveis para comparar os dois meses selecionados/,
       ),
     ).toBeTruthy();
     const limitation = screen.getAllByText(

@@ -1,14 +1,27 @@
 import { Search } from "lucide-react";
 import type { RefObject } from "react";
-import type { UCHistory, UCOverview } from "./contract";
+import type { UCHistory, UCOverview, UCStatus } from "./contract";
 import { ErrorMessage, EvidenceDialog, HistoryPanel } from "./UC360History";
 import UC360OverviewTable from "./UC360OverviewTable";
 import UC360Series from "./UC360Series";
 import UC360Interpretation from "./UC360Interpretation";
 import { UC360Comparison, UC360SupportMetrics } from "./UC360Metrics";
 import UC360PeriodForm from "./UC360PeriodForm";
-import { formatUCDate, formatUCPower, statusLabel } from "./uc360-format";
+import { currentMeterMessage } from "./uc360-format";
 import type { UCHistorySection } from "./uc360-state";
+
+function recordsStatus(subject: string, status: UCStatus) {
+  switch (status) {
+    case "available":
+      return `Histórico de ${subject} consultado para o período.`;
+    case "empty":
+      return `Nenhum registro de ${subject} no período consultado.`;
+    case "partial":
+      return `O histórico de ${subject} pode estar incompleto neste período.`;
+    case "unavailable":
+      return `Não foi possível consultar ${subject}; isso não confirma que não houve registros.`;
+  }
+}
 
 type Props = {
   unit: {
@@ -99,7 +112,7 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
           metadata?.source.kind === "gold_csv" &&
           !selected.profile.customer_name?.trim() && (
             <p className="text-sm text-muted">
-              Titular indisponível nesta consulta.
+              Nome do titular não disponível no cadastro consultado.
             </p>
           )}
       </header>
@@ -155,73 +168,37 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
               />
               <details className="rounded-xl bg-surface p-4 sm:p-5">
                 <summary className="cursor-pointer font-heading font-semibold">
-                  Ver indicadores comparativos
+                  Ver detalhes da comparação
                 </summary>
                 <UC360Comparison comparison={selected.comparison} />
               </details>
               <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
                 <h2 className="font-heading text-lg font-semibold">
-                  Contexto da unidade
+                  Medidor, interrupções e chamados
                 </h2>
-                <p className="text-sm text-muted">
-                  Fontes reunidas na mesma jornada, com ausências explícitas.
-                </p>
                 <ul className="grid gap-1 text-sm text-content">
                   <li>
-                    {selected.current_meter.item ? (
-                      <>
-                        {selected.current_meter.status === "partial"
-                          ? "Possível medidor"
-                          : "Medidor"}
-                        : {selected.current_meter.item.meter_id}
-                      </>
-                    ) : selected.current_meter.status === "empty" ? (
-                      "Nenhum medidor vigente no snapshot; consulte o histórico de medidores"
-                    ) : (
-                      <>Medidor: {statusLabel(selected.current_meter.status)}</>
+                    {currentMeterMessage(
+                      selected.current_meter.item,
+                      selected.current_meter.status,
                     )}
-                    {selected.current_meter.item?.removed_at
-                      ? ` · retirado em ${formatUCDate(selected.current_meter.item.removed_at)}`
-                      : ""}
-                    .
                   </li>
                   <li>
-                    Interrupções e rede:{" "}
-                    {statusLabel(
+                    {recordsStatus(
+                      "interrupções",
                       selected.section_status.interruptions ?? "unavailable",
                     )}
-                    .
                   </li>
                   <li>
-                    Chamados e atendimento:{" "}
-                    {statusLabel(
+                    {recordsStatus(
+                      "chamados",
                       selected.section_status.calls ?? "unavailable",
                     )}
-                    .
-                  </li>
-                  <li>
-                    Geração própria:{" "}
-                    {selected.gold_generation?.capacity_kwp != null
-                      ? `${selected.gold_generation.capacity_kwp.toLocaleString("pt-BR")} kWp (cadastro observado)`
-                      : selected.gold_generation_record === false
-                        ? "sem registro na fonte; cobertura não certificada"
-                        : selected.gold_generation_record === true
-                          ? "cadastro encontrado; potência não informada"
-                          : selected.distributed_generation.items.length
-                            ? selected.distributed_generation.items
-                                .map((item) => formatUCPower(item.capacity_kw))
-                                .join(", ")
-                            : statusLabel(
-                                selected.distributed_generation.status,
-                              )}
-                    . Potência não representa energia compensada.
                   </li>
                 </ul>
                 <div className="flex flex-wrap gap-2">
                   <EvidenceDialog
                     sectionStatus={selected.section_status}
-                    meter={selected.current_meter.item}
-                    currentMeterStatus={selected.current_meter.status}
                     limitations={[
                       ...new Set([
                         ...metadata.limitations,
@@ -250,7 +227,7 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                 className="grid min-w-0 gap-3 rounded-xl bg-surface p-4 sm:p-5"
               >
                 <summary className="cursor-pointer font-heading text-lg font-semibold">
-                  Históricos por fonte
+                  Consultar históricos
                 </summary>
                 <HistoryPanel
                   section={unit.filters.section || "consumption"}

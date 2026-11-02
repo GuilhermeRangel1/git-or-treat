@@ -38,7 +38,7 @@ function Coverage({
   return (
     <span className="text-xs leading-4 text-muted">
       {sameStatus
-        ? `Todas as medidas: ${statusLabel(measures[0][1])}`
+        ? statusLabel(measures[0][1])
         : measures
             .map(([label, status]) => `${label}: ${statusLabel(status)}`)
             .join(" · ")}
@@ -142,7 +142,7 @@ export default function UC360OverviewTable({
                 </th>
               )}
               <th className="pb-2 font-normal" scope="col">
-                Cobertura
+                Dados
               </th>
             </tr>
           </thead>

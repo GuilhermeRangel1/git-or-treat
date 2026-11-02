@@ -68,7 +68,8 @@ export default function UC360PeriodForm({
           Período consultado
         </h2>
         <p className="mt-1 text-xs text-muted">
-          Escolha as competências para atualizar indicadores e históricos.
+          Escolha o período para atualizar o consumo, os valores e os
+          históricos.
         </p>
       </div>
       <fieldset
