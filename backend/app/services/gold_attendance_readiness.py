@@ -13,6 +13,7 @@ from time import monotonic
 from sqlalchemy import Table, select
 from sqlalchemy.engine import Engine
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.models.gold_v2_load import TABLES
 from app.repositories.gold_publication import (
     GoldPublicationChanged,
@@ -104,7 +105,7 @@ def _observe_publication(
             raise ValueError("Competência inválida.")
     if not approved_controls <= ({"C14", "C15"} | (ANALYTICAL_CONTROLS if include_domains else set())):
         raise ValueError("Controle fora desta observação.")
-    expires = monotonic() + 35
+    expires = monotonic() + GOLD_REQUEST_TIMEOUT_SECONDS
     context = GoldPublicationContext.capture(engine)
     if expected_batch_ref is not None and expected_batch_ref != context.batch_ref:
         raise GoldPublicationChanged("A publicação Gold mudou.")

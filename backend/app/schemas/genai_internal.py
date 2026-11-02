@@ -13,6 +13,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_MS
 from app.schemas.ai import AICorrelationId, AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_evidence import EvidenceLookupResult, GoldBatchRef
 from app.schemas.genai_physical_catalog import PhysicalCatalogRef
@@ -88,7 +89,7 @@ class DimensionValueCoverage(BaseModel):
 
 class QuestionPlanRequest(AIQuestionRequest):
     access_scope: AccessScope
-    remaining_timeout_ms: int = Field(strict=True, gt=0, le=35000)
+    remaining_timeout_ms: int = Field(strict=True, gt=0, le=GOLD_REQUEST_TIMEOUT_MS)
     batch_ref: GoldBatchRef | None = None
     temporal_coverage: tuple[TemporalCoverage, ...] = Field(default=(), max_length=100)
     dimension_value_coverage: tuple[DimensionValueCoverage, ...] = Field(
@@ -180,7 +181,7 @@ class QuestionPlanResponse(BaseModel):
 class QuestionSynthesisRequest(AIQuestionRequest):
     dimension_value_coverage: tuple[DimensionValueCoverage, ...] = Field(default=(), max_length=20)
     access_scope: AccessScope
-    remaining_timeout_ms: int = Field(strict=True, gt=0, le=35000)
+    remaining_timeout_ms: int = Field(strict=True, gt=0, le=GOLD_REQUEST_TIMEOUT_MS)
     plan: LogicalReadPlan
     plan_fingerprint: PlanFingerprint
     lookup: EvidenceLookupResult

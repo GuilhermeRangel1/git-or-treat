@@ -57,7 +57,7 @@ export async function askAIQuestion(
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, 40_000);
+  }, 70_000);
   try {
     rawResponse = await apiClient<unknown>("/api/v1/ai/questions", {
       method: "POST",

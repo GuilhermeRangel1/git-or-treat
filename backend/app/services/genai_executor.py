@@ -12,6 +12,7 @@ from sqlalchemy import case, exists, func, literal, or_, select, text, union_all
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.models.gold_v2 import TABLES
 from app.schemas.genai_evidence import (
     EvidenceLookupResult,
@@ -319,7 +320,7 @@ def execute_gold_plan(
     except GenAIResponseInvalid:
         raise GoldExecutionDenied from None
 
-    planned.deadline.remaining_seconds(35)
+    planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     current_scope = resolve_scope()
     if current_scope != planned.access_scope:
         raise GoldExecutionDenied
@@ -356,7 +357,7 @@ def execute_gold_plan(
             from app.repositories.gold_publication import publication_lineage
             origin = publication_lineage(connection, planned.publication.batch_ref)
 
-    planned.deadline.remaining_seconds(35)
+    planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     if resolve_scope() != current_scope:
         raise GoldExecutionDenied
     if len(rows) > min(plan.limit, MAX_EVIDENCE_ROWS):

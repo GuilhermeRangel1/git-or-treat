@@ -47,7 +47,7 @@ def main():
     evaluate = evaluate_domain_readiness if args.scope == "domains" else evaluate_attendance_readiness
 
     async def run():
-        async with httpx.AsyncClient(timeout=35, trust_env=False) as client:
+        async with httpx.AsyncClient(timeout=60, trust_env=False) as client:
             return await evaluate(
                 engine, http_client=client, base_url=base, service_token=token,
                 requested_periods=tuple(args.period),

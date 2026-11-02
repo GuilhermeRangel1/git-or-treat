@@ -634,7 +634,7 @@ def run_matrix(matrix: dict, catalog: dict, cases: list[dict], client: FlowClien
 class HttpFlowClient:
     """Sessão individual pela API pública; nada da resposta é registrado além do envelope."""
 
-    def __init__(self, base_url: str, origin: str, *, transport=None, timeout: float = 45.0):
+    def __init__(self, base_url: str, origin: str, *, transport=None, timeout: float = 70.0):
         import httpx
 
         if "@" in base_url.split("//", 1)[-1].split("/", 1)[0]:

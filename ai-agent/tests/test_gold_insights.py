@@ -43,7 +43,7 @@ def test_gold_insight_runtime(monkeypatch, case):
     _, request = _setup("Receita residencial em Olinda em março de 2025?")
     body = {
         "access_scope": request.access_scope.model_dump(mode="json"),
-        "remaining_timeout_ms": 35000,
+        "remaining_timeout_ms": 60000,
         "batch_ref": request.batch_ref,
         "screen": {
             "metric": "Receita comparável",

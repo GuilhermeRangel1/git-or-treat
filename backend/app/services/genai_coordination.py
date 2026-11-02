@@ -7,6 +7,7 @@ from time import monotonic
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_audit import BackendAuditEvent
 from app.schemas.genai_evidence import GoldEvidenceQuality
@@ -46,7 +47,7 @@ async def answer_gold_question(
     if audit_store is None:
         raise GenAIServiceUnavailable(retryable=False)
     started = monotonic()
-    deadline = GenAIRequestDeadline.start(35)
+    deadline = GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS)
 
     async def audit(stage, code, outcome, **metadata):
         event = BackendAuditEvent(
@@ -58,7 +59,7 @@ async def answer_gold_question(
         except (SQLAlchemyError, ValueError):
             raise GenAIServiceUnavailable(retryable=False) from None
 
-    await deadline.run(35, lambda: audit("request", "started", "started"))
+    await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit("request", "started", "started"))
     # Publicação já conferida contra a tela; troca até a captura é mudança em curso.
     planned = await plan_gold_question(
         engine, client, request, resolve_scope=resolve_scope,
@@ -72,13 +73,13 @@ async def answer_gold_question(
         outcome = "error" if response.status == "recoverable_error" else (
             "refused" if response.status == "refused" else "success"
         )
-        reference = await deadline.run(35, lambda: audit("response", "completed", outcome))
+        reference = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit("response", "completed", outcome))
         return planned.response.response.model_copy(update={"audit_reference": reference})
     if planned.deadline is None or planned.access_scope is None or planned.source is None:
         raise GenAIResponseInvalid
     if readiness_gate is None:
         raise GenAIServiceUnavailable(retryable=False)
-    report = await planned.deadline.run(35, lambda: readiness_gate(planned))
+    report = await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: readiness_gate(planned))
     report = GoldReadinessReport.model_validate(report.model_dump(mode="json"))
     metric = next((m for m in load_gold_catalog().metrics
                    if m.metric_id == planned.response.plan.metric_id), None)
@@ -104,9 +105,9 @@ async def answer_gold_question(
         "metric_id": planned.response.plan.metric_id,
         "source_id": planned.response.plan.source_id,
     }
-    await planned.deadline.run(35, lambda: audit("plan", "ready", "success", artifact=execution_artifact(planned), **metadata))
+    await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit("plan", "ready", "success", artifact=execution_artifact(planned), **metadata))
     lookup = await planned.deadline.run(
-        35, lambda: asyncio.to_thread(
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(
             execute_gold_plan, engine, planned, resolve_scope=resolve_scope,
             quality=quality,
         ),
@@ -117,52 +118,52 @@ async def answer_gold_question(
     ):
         raise GenAIResponseInvalid
     row_count = len(lookup.evidence.records) if lookup.evidence else 0
-    await planned.deadline.run(35, lambda: audit(
+    await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit(
         "source", "completed", "success", row_count=row_count, artifact=execution_artifact(planned, lookup=lookup), **metadata,
     ))
     current_scope = await planned.deadline.run(
-        35, lambda: asyncio.to_thread(resolve_scope),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope),
     )
     if current_scope != planned.access_scope:
         raise GoldExecutionDenied
     await planned.deadline.run(
-        35, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
     payload = QuestionSynthesisRequest(
         **request.model_dump(), access_scope=planned.access_scope,
         dimension_value_coverage=planned.dimension_value_coverage,
-        remaining_timeout_ms=planned.deadline.remaining_timeout_ms(35),
+        remaining_timeout_ms=planned.deadline.remaining_timeout_ms(GOLD_REQUEST_TIMEOUT_SECONDS),
         plan=planned.response.plan,
         plan_fingerprint=planned.response.plan_fingerprint,
         lookup=lookup, expected_batch_ref=planned.publication.batch_ref,
     )
     result = await planned.deadline.run(
-        35, lambda: client.synthesize(payload, correlation_id=correlation_id),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: client.synthesize(payload, correlation_id=correlation_id),
     )
     current_scope = await planned.deadline.run(
-        35, lambda: asyncio.to_thread(resolve_scope),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope),
     )
     if current_scope != planned.access_scope:
         raise GoldExecutionDenied
     await planned.deadline.run(
-        35, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
-    planned.deadline.remaining_seconds(35)
+    planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     outcome = "error" if result.status == "recoverable_error" else (
         "refused" if result.status == "refused" else "success"
     )
-    reference = await planned.deadline.run(35, lambda: audit(
+    reference = await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit(
         "response", "completed", outcome, row_count=row_count, **metadata,
     ))
     # A confirmação durável também consome tempo; não publicar com escopo/lote
     # revogados enquanto a transação de auditoria era confirmada.
-    current_scope = await planned.deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
+    current_scope = await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope))
     if current_scope != planned.access_scope:
         raise GoldExecutionDenied
     await planned.deadline.run(
-        35, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
-    planned.deadline.remaining_seconds(35)
+    planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     return result.model_copy(update={"audit_reference": reference})
 
 

@@ -9,17 +9,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import create_engine
-from sqlalchemy.engine import make_url
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
-
 from app.core.config import settings
 from app.core.database import engine as operational_engine
 from app.schemas.genai_internal import AccessScope, QuestionPlanResponse
 from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus
 from app.services.genai_audit import AuditStore
 from app.services.genai_executor import GoldExecutionDenied
+from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 AUDIT_OPERATOR_ROLE = "venergy_genai_audit_operator"
 _TRANSPORT_OPTIONS = frozenset({
@@ -118,7 +117,7 @@ def _verify_reference(reference: str, plan_path: Path, audit_store: AuditStore) 
             response=response,
             publication=publication,
             access_scope=scope,
-            deadline=GenAIRequestDeadline.start(35),
+            deadline=GenAIRequestDeadline.start(60),
         )
 
         def resolve_current_scope():

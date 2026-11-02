@@ -167,7 +167,7 @@ class GoldScreenInsightRequest(BaseModel):
     screen: GoldScreenContext
     batch_ref: GoldBatchRef
     access_scope: AccessScope
-    remaining_timeout_ms: int = Field(strict=True, ge=1, le=35000)
+    remaining_timeout_ms: int = Field(strict=True, ge=1, le=60000)
 
     @field_validator("batch_ref")
     @classmethod
