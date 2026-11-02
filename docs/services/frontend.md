@@ -188,3 +188,7 @@ O Assistente tem uma identidade visual animada em `AssistantIdentity.tsx` e esti
 # Atualização de Receita — 02/11/2026
 
 O cartão de Receita apresenta “Consumo medido” em kWh nos mesmos extremos mensais usados pelos demais cartões. Quando a cobertura da medida é parcial, a tela informa isso junto ao cartão; ausência continua distinta de zero. A métrica não é chamada de energia faturada.
+
+## FAQ contextual de indicadores
+
+Assistente, Panorama, Receita, Operação e UC 360 oferecem a ajuda “Entenda os indicadores”, pelo componente `shared/help/IndicatorHelp`. As nove perguntas usam definições geradas do catálogo Gold v2; a ajuda estática funciona sem IA ou API de dados e distingue conceito de consulta numérica. Vigência, fonte, versão, retirada de verbetes, manutenção e evidências estão no [contrato do FAQ](../contracts/indicator-faq.md). `npm run check:faq` integra o CI Frontend; após alterar o catálogo, gerar novamente e revisar os textos. A fonte aparece como referência interna sem link para GitHub; a ajuda inclui exemplos de perguntas com cópia e seleção manual, reaproveitados das perguntas comuns do Assistente. A pessoa usuária aprovou a experiência e os textos do FAQ em 02/11/2026, concluindo os dez critérios na entrega local; integração por commit/PR permanece pendente.

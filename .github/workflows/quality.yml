@@ -190,6 +190,7 @@ jobs:
 
       - name: Verificar arquitetura, formatação e testes do frontend
         run: |
+          npm run check:faq
           npm run check:boundaries
           npm run format:check
           npm test
