@@ -1,6 +1,11 @@
 services:
   ai-agent:
     command: ["uvicorn", "app.gold_runtime:create_gold_app", "--factory", "--host", "0.0.0.0", "--port", "8001"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   gold-loader:
     build:
@@ -8,6 +13,8 @@ services:
       dockerfile: backend/Dockerfile
     env_file:
       - backend/.env
+    environment:
+      DATABASE_URL: ${GOLD_LOADER_DATABASE_URL:?Configure a credencial exclusiva de carga em .env.gold-v2}
     depends_on:
       db:
         condition: service_healthy
@@ -27,6 +34,11 @@ services:
     restart: "no"
 
   backend:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       ANALYTICS_SOURCE: gold
     depends_on:

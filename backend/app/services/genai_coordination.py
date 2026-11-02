@@ -1,6 +1,8 @@
 """Coordenação Gold do Backend sobre plano, executor e síntese existentes."""
 
 import asyncio
+import json
+import logging
 from collections.abc import Awaitable, Callable
 from time import monotonic
 
@@ -120,6 +122,7 @@ async def answer_gold_question(
         "source_id": planned.response.plan.source_id,
     }
     await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit("plan", "ready", "success", artifact=execution_artifact(planned), **metadata))
+    query_started = monotonic()
     lookup = await planned.deadline.run(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(
             execute_gold_plan, engine, planned, resolve_scope=resolve_scope,
@@ -132,6 +135,11 @@ async def answer_gold_question(
     ):
         raise GenAIResponseInvalid
     row_count = len(lookup.evidence.records) if lookup.evidence else 0
+    logging.getLogger("uvicorn.error").info("genai_execution %s", json.dumps({
+        "correlation_id": correlation_id, "stage": "query",
+        "work_ms": int((monotonic() - query_started) * 1000), "row_count": row_count,
+        "evidence_bytes": len(lookup.model_dump_json().encode("utf-8")),
+    }, separators=(",", ":")))
     await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit(
         "source", "completed", "success", row_count=row_count, artifact=execution_artifact(planned, lookup=lookup), **metadata,
     ))

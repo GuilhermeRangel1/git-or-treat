@@ -175,12 +175,11 @@ Para repetir a verificação de volume com o pacote real, configure `GOLD_CSV_V2
 
 O Compose complementar `docker-compose.gold-v2.yml` acrescenta um serviço de carga de execução única. Ele espera o PostgreSQL ficar saudável, aplica `alembic upgrade head` e carrega explicitamente `gold-csv-v2`; o backend só inicia após o serviço de carga terminar com sucesso. O Compose padrão continua disponível sem exigir a exportação local.
 
-Prepare `.env.db` e `backend/.env` conforme as instruções acima. Em `backend/.env`, `DATABASE_URL` deve usar o host `db` e credenciais compatíveis com `.env.db` (nunca `localhost` dentro do container). Crie `.env.gold-v2` a partir de `.env.gold-v2.example` e aponte `GOLD_CSV_V2_HOST_DIR` para a pasta local exata que contém `manifest.json` e as quinze pastas CSV. A pasta entra no container como somente leitura; os dados não são copiados para a imagem nem versionados.
+Prepare `.env.db`, `backend/.env` e `.env.gold-v2` pelos exemplos. `GOLD_LOADER_DATABASE_URL` em `.env.gold-v2` é obrigatória e exclusiva do migrador/loader; `DATABASE_URL` no Backend usa o papel operacional `v_energy_app`, e `GENAI_GOLD_DATABASE_URL` usa o leitor quantitativo `venergy_genai_reader`. URLs dentro do Compose usam o host `db`, nunca `localhost`. Em banco novo, aplique os provisionamentos após migração/carga e antes dos consumidores, conforme o [runbook GENAI-15](../docs/plans/2026-11-02-genai15-operacao-gold.md). Aponte `GOLD_CSV_V2_HOST_DIR` para a pasta com `manifest.json` e as quinze pastas CSV. Ela é montada somente leitura; dados e segredos não são versionados.
 
-Na raiz do repositório, suba a stack no modo Gold v2. O Compose usa `synthetic` por padrão; defina `ANALYTICS_SOURCE=gold` no ambiente do processo para ativar os leitores v2:
+Na raiz do repositório, suba a stack no modo Gold v2. O overlay fixa a fonte Gold e o entrypoint GenAI; o Compose padrão sem overlay usa `synthetic` por padrão:
 
 ```powershell
-$env:ANALYTICS_SOURCE = "gold"
 docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml up --build
 ```
 
