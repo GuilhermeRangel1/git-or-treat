@@ -100,7 +100,11 @@ function describeTrend(
 ) {
   if (analysis.composicaoAtual) {
     const item = analysis.composicaoAtual;
-    return `${item.segmento} concentra ${formatPercentage(item.participacaoPercentual)} da receita observada no período (${formatValue(item.valor, metric.unidade)}).`;
+    const scope = item.dimension === "municipio" ? "entre os municípios" : item.dimension === "classe" ? "entre as classes de consumo" : "entre os bairros";
+    const concentration = item.participacaoPercentual > 50
+      ? "Esse segmento reúne mais da metade do valor observado neste recorte."
+      : "Esse é o maior segmento do recorte; o restante da receita está distribuído entre os demais grupos.";
+    return `${item.segmento} concentra ${formatPercentage(item.participacaoPercentual)} da receita observada em ${periodLabel(filters.periodo)} (${formatValue(item.valor, metric.unidade)}), liderando ${scope}. ${concentration}`;
   }
   if (metric.valorAtual === 0 && analysis.direcao === "indisponivel")
     return `A receita observada em ${periodLabel(filters.periodo)} soma ${formatValue(0, metric.unidade)} no recorte selecionado.`;
@@ -111,7 +115,7 @@ function describeTrend(
   if (analysis.direcao === "indisponivel")
     return `A receita observada em ${current} foi de ${formatValue(metric.valorAtual, metric.unidade)}. Explore os valores por município e classe no detalhamento.`;
   if (analysis.direcao === "estavel")
-    return `${metric.nome} ficou estável de ${previous} para ${current}.`;
+    return `${metric.nome} ficou estável de ${previous} para ${current}. A estabilidade do total pode coexistir com altas e quedas entre os segmentos; confira os movimentos no detalhamento.`;
 
   const verb = analysis.direcao === "queda" ? "caiu" : "aumentou";
   const change =
@@ -152,7 +156,13 @@ function investigationSuggestion(
 ) {
   const contribution = analysis.principalContribuicao;
   if (analysis.direcao === "indisponivel")
-    return "Selecione um período comparável para encontrar mudanças no indicador.";
+    return analysis.composicaoAtual?.dimension === "municipio"
+      ? `Selecione ${analysis.composicaoAtual.segmento} e examine as classes que compõem sua receita.`
+      : analysis.composicaoAtual?.dimension === "classe"
+        ? `Selecione a classe ${analysis.composicaoAtual.segmento} para examinar sua distribuição territorial.`
+        : analysis.composicaoAtual?.dimension === "bairro"
+          ? `Acompanhe ${analysis.composicaoAtual.segmento} em outras competências com valores comparáveis para avaliar a continuidade dessa concentração.`
+          : "Explore os valores por município e classe ou escolha outro período com evidência disponível.";
   if (analysis.direcao === "estavel")
     return "Compare os recortes por município e classe; o total pode ocultar movimentos diferentes entre grupos.";
   if (contribution?.dimension === "classe")
@@ -167,7 +177,13 @@ function investigationSuggestion(
 function compactNextStep(analysis: PanoramaInsightAnalysis) {
   const contribution = analysis.principalContribuicao;
   if (analysis.direcao === "indisponivel")
-    return "escolha um período comparável.";
+    return analysis.composicaoAtual?.dimension === "municipio"
+      ? `explore ${analysis.composicaoAtual.segmento} por classe.`
+      : analysis.composicaoAtual?.dimension === "classe"
+        ? `examine a distribuição territorial de ${analysis.composicaoAtual.segmento}.`
+        : analysis.composicaoAtual?.dimension === "bairro"
+          ? `acompanhe ${analysis.composicaoAtual.segmento} em outros períodos comparáveis.`
+          : "explore município, classe ou outro período disponível.";
   if (analysis.direcao === "estavel")
     return "compare município e classe neste recorte.";
   if (contribution?.dimension === "classe")
@@ -407,7 +423,7 @@ export default function AIInsightCard({
                 .
               </p>
             )}
-            {analysis && analysis.direcao !== "indisponivel" && (
+            {analysis && metric.valorAtual !== 0 && (
               <p className="mt-3 border-l-2 border-[var(--accent-pistache)] pl-3 text-xs leading-5 text-muted">
                 <span className="font-semibold text-content">
                   Próximo passo:
@@ -640,7 +656,7 @@ export default function AIInsightCard({
                 )}
 
               {insight?.status === "answered" &&
-                analysis?.direcao !== "indisponivel" && (
+                analysis && metric.valorAtual !== 0 && (
                   <section className="rounded-xl border border-[var(--line)] bg-[var(--accent-pistache-subtle)]/60 p-4">
                     <h3 className="flex items-center gap-2 text-sm font-semibold">
                       <Info
