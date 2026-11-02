@@ -37,3 +37,7 @@ Na revisão do retorno pelos recortes em 21/10/2026, adotar remoção explícita
 - Controle independente: R$ 80.000 → R$ 76.500 e 100.000 → 90.000 kWh; delta −R$ 3.500, volume −R$ 8.000, preço +R$ 5.000 e interação −R$ 500.
 - Aceite exige HTTP, interação de usuário e navegador com API real, incluindo retorno ao total, limites e casos de cobertura. Design ou teste isolado não conclui requisitos.
 - Rever janelas anuais do PRD §7.2, população, métrica, método, mix, fonte tarifária e limiar quando o dicionário Gold estiver disponível. Atualizar dicionário/contrato/consumidores e reconciliar Gold → API → portal antes de concluir WEB-02, WEB-07 ou ENT-01.
+
+## Revisão — 01/11/2026: percentual no cartão de resumo
+
+O PDF do case exige explicar a variação da receita por preço e volume, mas não exige um KPI percentual no cartão. A seção 7.7 do PRD contém cenários propostos de verificação; por isso, diferença percentual deixa de ser critério de aceite da tela. O cartão de resumo da Receita apresenta a variação absoluta em moeda. A API mantém o campo percentual para consumidores que tenham cobertura financeira adequada; a tela só poderá voltar a exibi-lo mediante nova decisão de produto e evidência da cobertura.

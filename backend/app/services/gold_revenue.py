@@ -47,7 +47,7 @@ def comparison(start, end, rows):
 def quality(comp, *, v2=False):
     counts = [comp[name]["billed_uc_count"] for name in ("initial", "final")]
     return {"small_base_threshold_uc": 5, "small_base": any(count is not None and count < 5 for count in counts), "percent_change_eligible": False,
-            "limitations": ["Comparação percentual entre competências aguarda cobertura homologada." if v2 else "Comparação percentual e preço-volume aguardam definição e cobertura homologadas."]}
+            "limitations": ["Percentual não calculado: a publicação não comprova fechamento contábil do faturamento nos meses comparados." if v2 else "Comparação percentual e preço-volume aguardam definição e cobertura homologadas."]}
 
 
 WINDOW_COMPONENTS = {

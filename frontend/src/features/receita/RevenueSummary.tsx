@@ -35,15 +35,6 @@ function signedMoney(value: number | null) {
   );
 }
 
-function signedPercent(value: number | null, eligible: boolean) {
-  if (value === null || !eligible) return "Indisponível";
-  return (
-    (value < 0 ? "−" : value > 0 ? "+" : "") +
-    decimal.format(Math.abs(value)) +
-    "%"
-  );
-}
-
 function competenceLabel(value: string) {
   const monthNames = [
     "Jan",
@@ -156,17 +147,6 @@ export default function RevenueSummary({
           <p className="text-xs text-muted">
             Período: {competenceLabel(initial.competencia)} →{" "}
             {competenceLabel(final.competencia)}
-          </p>
-          <p
-            className={`text-xs ${signedValueTone(data.quality.percent_change_eligible ? data.comparison.billed_amount_change_percent : null)}`}
-          >
-            {data.comparison.billed_amount_change_percent === null ||
-            !data.quality.percent_change_eligible
-              ? "Percentual indisponível"
-              : signedPercent(
-                  data.comparison.billed_amount_change_percent,
-                  data.quality.percent_change_eligible,
-                )}
           </p>
         </article>
       </div>

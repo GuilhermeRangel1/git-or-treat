@@ -13,6 +13,17 @@ function signedAmount(value: number | null) {
   );
 }
 
+function competenceLabel(value: string) {
+  const date = new Date(`${value}-01T00:00:00Z`);
+  const month = new Intl.DateTimeFormat("pt-BR", {
+    month: "short",
+    timeZone: "UTC",
+  })
+    .format(date)
+    .replace(".", "");
+  return `${month.charAt(0).toLocaleUpperCase("pt-BR")}${month.slice(1)}/${value.slice(0, 4)}`;
+}
+
 function EffectBar({
   value,
   maximum,
@@ -68,19 +79,20 @@ export default function RevenueDecomposition({
         </h2>
         {window.windows.length === 4 ? (
           <p className="mt-3 text-sm text-muted">
-            {window.windows[0]} a {window.windows[1]} → {window.windows[2]} a{" "}
-            {window.windows[3]}
+            {competenceLabel(window.windows[0])}–
+            {competenceLabel(window.windows[1])} vs.{" "}
+            {competenceLabel(window.windows[2])}–
+            {competenceLabel(window.windows[3])}
           </p>
         ) : null}
         <p className="mt-2 text-sm text-muted">
-          Esta análise usa períodos definidos para a comparação, independentes
-          dos meses selecionados na série.
+          Janelas fixas da análise, independentes do período da série.
         </p>
         {window.status === "partial" ? (
           <p role="status" className="mt-3 text-sm text-muted">
-            Resultado parcial: {window.incomplete_groups} de{" "}
-            {window.group_count} recortes sem base ou valores completos. As
-            parcelas mostram somente valores conhecidos.
+            Parcial: {window.incomplete_groups} de{" "}
+            {window.group_count.toLocaleString("pt-BR")} grupos sem cobertura
+            completa.
           </p>
         ) : null}
         {window.status === "unavailable" ? (
@@ -115,11 +127,27 @@ export default function RevenueDecomposition({
             </div>
           </dl>
         )}
-        {window.limitations.map((note) => (
-          <p key={note} className="mt-3 text-xs leading-relaxed text-muted">
-            {note}
+        {window.status === "unavailable" ? (
+          window.limitations.map((note) => (
+            <p key={note} className="mt-3 text-xs leading-relaxed text-muted">
+              {note}
+            </p>
+          ))
+        ) : (
+          <p className="mt-3 text-xs leading-relaxed text-muted">
+            <span className="font-semibold">Limitações:</span> preço calculado
+            sobre consumo medido, não é tarifa homologada nem representa energia
+            faturada. Método candidato; não comprova fechamento contábil.
+            {window.incomplete_groups > 0 ? (
+              <>
+                {" "}
+                {window.incomplete_groups.toLocaleString("pt-BR")} de{" "}
+                {window.group_count.toLocaleString("pt-BR")} grupos sem base
+                comum; as parcelas somam apenas valores conhecidos.
+              </>
+            ) : null}
           </p>
-        ))}
+        )}
       </section>
     );
   }
