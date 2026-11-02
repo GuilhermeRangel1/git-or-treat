@@ -3540,3 +3540,19 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 
 
 - Após avaliação visual da pessoa usuária, o último experimento de SVG com 12 partículas foi desfeito. Restaurada a animação anterior em camadas e órbitas discretas; mantidas a tipografia ampliada e a interface do chat.
+
+
+### 2026-11-02 — FAQ contextual no portal
+
+- Adicional [FAQ contextual](https://trello.com/c/gnODdgCZ), apoiando IA-03/IA-05 e WEB-01/02/03/06. Estados oficiais preservados. Integração executável local em `feat/genai-assistente-evolucao`, base `67db692`; alterações sem commit/push.
+- Assistente, Panorama, Receita, Operação e UC 360 oferecem “Entenda os indicadores”/“Ajuda”. Nove perguntas canônicas usam `label`/`definition` do catálogo Gold v2, com metadados de versão, vigência, público e manutenção; o pacote não inclui schema físico, grants ou dados de consultas. Busca ambígua oferece escolhas, perguntas quantitativas orientam ao fluxo existente e ausência tem mensagem própria.
+- `generate-indicator-faq.mjs` gera o artefato conceitual; `check:faq` no CI Frontend impede divergência entre ele e o catálogo. Build do frontend continua independente do checkout do Backend. Validade/tela/estado/conflito filtram verbetes; React apresenta texto sem executar conteúdo. Fonte e versão ficam acessíveis. Ajuda estática funciona com APIs/provedor indisponíveis e não usa cache remoto ou fallback antigo.
+- Verificações finais da implementação: 103 testes passaram em seis arquivos de componentes/páginas. Chromium confirmou cinco telas em 1440 e 390 px, claro/escuro, teclado, Escape/foco, rascunho preservado e ausência de overflow no modal; envio quantitativo permaneceu na API pública existente. Sessão e APIs foram interceptadas para esta prova de interface; nenhuma chamada Gemini. Corrigido Escape consumido pelo campo search no Chromium. Inspeção das capturas nos dois temas realizada pelo agente.
+- Conferência de catálogo, build, lint, fronteiras (194 arquivos), formatação e diff passaram; lint mantém aviso preexistente em `AuthProvider.tsx:108`. Processo de manutenção e mapa dos dez critérios em [contrato do FAQ](contracts/indicator-faq.md).
+- Nove critérios técnicos contemplados. O décimo pede compreensão por pessoa não técnica/revisão responsável; implementação está pronta para avaliação da pessoa usuária no portal. A prova automatizada não atribui esse aceite a terceiros e o cartão permanece em validação.
+
+- Ajuste solicitado pela pessoa usuária: fonte exibida apenas como referência interna, sem link para GitHub. FAQ ganhou quatro exemplos selecionáveis/copiáveis reaproveitados das perguntas comuns do Assistente, com orientação para editar datas/município e seleção manual se o clipboard falhar. Cópia não envia consulta nem altera o rascunho. Novos cenários de cópia e ausência de links passaram, e o Chromium confirmou a apresentação nos dois temas e larguras.
+
+- Continuação do FAQ: a pedido da pessoa usuária, seleção ampliada para 18 exemplos adicionais sem repetir os textos da tela inicial, em quatro grupos (receita/preços, consumo/GD, comparação e atendimento). Base: cenários positivos da matriz Gold v2. Verificação dirigida final: 25 testes de ajuda/Assistente passaram; build, lint, formatação e jornada Chromium passaram novamente. Sem nova rodada quantitativa/Gemini dos 18 exemplos; revisão humana do cartão preservada.
+
+- Aceite final local do FAQ em 02/11/2026: após avaliar a interface e a seleção ampliada de perguntas, a pessoa usuária confirmou “já tá bom pra mim” e autorizou concluir o último item do cartão. Registrado aceite da experiência e dos textos derivados das definições existentes, substituindo a pendência de revisão humana deste adicional. Cartão 10/10 na entrega local, sem atribuir aprovação a terceiros ou homologar outros requisitos IA/WEB. Alterações permanecem locais em `feat/genai-assistente-evolucao`, sem commit/push/PR nesta rodada.

@@ -1,3 +1,4 @@
+import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bot, ChartNoAxesCombined } from "lucide-react";
@@ -109,6 +110,9 @@ export default function PanoramaPage() {
           <p className="mt-2 text-sm leading-[22px] text-muted">
             Um panorama da operação comercial, do atendimento e da continuidade.
           </p>
+        </div>
+        <div className="flex justify-end">
+          <IndicatorHelp screen="panorama" />
         </div>
       </header>
 
