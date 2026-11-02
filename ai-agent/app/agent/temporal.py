@@ -23,6 +23,29 @@ _MONTH_NAMES = (
     "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
 )
 _MONTH_NUMBERS = {_normalize(name): index for index, name in enumerate(_MONTH_NAMES, 1)}
+_SHARED_YEAR = re.compile(
+    r"(?<!\w)(?P<first>" + "|".join(_MONTH_NAMES) + r")"
+    r"(?P<link>\s+(?:e|a|até)\s+)(?P<second>" + "|".join(_MONTH_NAMES) + r")"
+    r"\s+(?:de\s+)?(?P<year>[0-9]{4})(?![\w-])",
+    re.IGNORECASE,
+)
+
+
+def expand_shared_calendar_year(text: str) -> str:
+    """Explicita o ano comum em 'maio e junho de 2026', sem usar relógio ou lote.
+
+    Os dois meses pertencem ao ano escrito. Uma virada de ano continua exigindo
+    anos separados e a resolução existente valida ordem, calendário e cobertura.
+    """
+    return _SHARED_YEAR.sub(
+        lambda match: (
+            f"{match['first']} de {match['year']}{match['link']}"
+            f"{match['second']} de {match['year']}"
+        ),
+        text,
+    )
+
+
 _NAMED_MONTH = r"(?:" + "|".join(_MONTH_NUMBERS) + r")\s+(?:de\s+)?[0-9]{4}"
 _MONTH_TOKEN = rf"(?:{_NAMED_MONTH}|[0-9]{{4}}-(?:0[1-9]|1[0-2]))"
 _EXPLICIT_PERIOD = re.compile(

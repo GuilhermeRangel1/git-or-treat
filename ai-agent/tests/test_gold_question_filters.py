@@ -316,7 +316,6 @@ def test_explicit_calendar_months_use_published_coverage(period, start, end):
         "de janeiro de 2025 a abril de 2025",
         "até março de 2025",
         "desde março de 2025",
-        "de janeiro a março de 2025",
         "março de 2025 até agora",
     ],
 )
@@ -466,7 +465,8 @@ def test_revalidation_refuses_unsupported_grouping_or_ordering(mutation):
     assert result.status.value == "planned"
     payload = result.plan.model_dump(mode="json")
     if mutation == "group_by":
-        payload["group_by_dimension_ids"] = ["geography.municipality"]
+        payload["dimension_ids"].append("tariff.subgroup")
+        payload["group_by_dimension_ids"] = ["tariff.subgroup"]
     else:
         payload["order"] = {"field_id": "billing.revenue", "direction": "desc"}
     proposed = LogicalReadPlan.model_validate(payload)

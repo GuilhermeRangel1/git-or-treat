@@ -274,7 +274,8 @@ def _metric(
             "service.satisfaction": "service.accumulated_satisfaction",
         }.get(id_),
         "grouping_dimension_ids": (
-            ("customer.consumption_class",) if id_ == "billing.revenue" else
+            ("customer.consumption_class", "geography.municipality")
+            if id_ == "billing.revenue" else
             ("geography.neighborhood",) if id_ == "energy.consumption" else ()
         ),
         "comparison_grouping_dimension_ids": (

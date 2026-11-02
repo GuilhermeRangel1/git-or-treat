@@ -16,7 +16,7 @@ from app.agent.read_plan import (
     ReadPlanBuilder,
     ReadPlanValidator,
 )
-from app.agent.temporal import explicit_monthly_phrases
+from app.agent.temporal import expand_shared_calendar_year, explicit_monthly_phrases
 from app.ports.events import (
     AuditUnavailable,
     EventCode,
@@ -171,6 +171,12 @@ class QuestionAnalysisPlanner:
 
         profile = self._profile_with_dimension_values(dimension_value_coverage)
         if profile.structured_dimension_filters:
+            question = expand_shared_calendar_year(question)
+            context = [
+                turn.model_copy(update={"content": expand_shared_calendar_year(turn.content)})
+                if turn.role == "user" else turn
+                for turn in context or []
+            ]
             phrases = tuple(dict.fromkeys(
                 phrase for text in (question, *(turn.content for turn in context or []))
                 for phrase in explicit_monthly_phrases(text)
