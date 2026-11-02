@@ -36,6 +36,15 @@ def test_answer_without_numbers_yields_nothing():
     assert runner.parse_numbers(None) == []
 
 
+@pytest.mark.parametrize("text,wrong", [
+    ("80,00", Decimal(8000)),
+    ("-4.17", Decimal(-417)),
+    ("1234.56", Decimal(123456)),
+])
+def test_decimal_separator_cannot_be_removed_to_match_a_wrong_value(text, wrong):
+    assert wrong not in runner.parse_numbers(text)
+
+
 @pytest.mark.parametrize("value,decimals,expected", [
     (Decimal("1.005"), 2, Decimal("1.00")),
     (Decimal("1.015"), 2, Decimal("1.02")),

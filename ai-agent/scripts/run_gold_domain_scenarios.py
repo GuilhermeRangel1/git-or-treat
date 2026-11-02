@@ -334,10 +334,14 @@ def parse_numbers(text: str | None) -> list[Decimal]:
             candidates.add(token.replace(thousands, "").replace(decimal_mark, "."))
         elif "," in token:
             candidates.add(token.replace(".", "").replace(",", "."))
-            candidates.add(token.replace(",", ""))
+            groups = token.lstrip("-").split(",")
+            if 1 <= len(groups[0]) <= 3 and all(len(group) == 3 for group in groups[1:]):
+                candidates.add(token.replace(",", ""))
         else:
             candidates.add(token)
-            if token.count(".") >= 1:
+            groups = token.lstrip("-").split(".")
+            if (len(groups) > 1 and 1 <= len(groups[0]) <= 3
+                    and all(len(group) == 3 for group in groups[1:])):
                 candidates.add(token.replace(".", ""))
         for candidate in candidates:
             try:
@@ -378,6 +382,48 @@ def period_matches(case: dict, period: str, params: dict) -> bool:
     return normalize(period) in {normalize(value) for value in accepted}
 
 
+def observation_numbers(answer: str, label: str, unit: str | None = None,
+                        period: str | None = None) -> list[Decimal]:
+    """Liga o número ao seu período/rótulo nos formatos técnico e legível do núcleo.
+
+    Não basta o valor aparecer em outro ponto da resposta: uma troca dos meses ou
+    dos efeitos continua falhando, mesmo quando todos os números estão presentes.
+    """
+    lines = answer.splitlines()
+    answer, label = normalize(answer), normalize(label)
+    number = r"[+-]?[0-9][0-9.,]*"
+    legacy = re.search(
+        re.escape(label) + r"(?:,[^:\n]{1,200})?:\s*(" + number + r")"
+        + (r"\s*" + re.escape(normalize(unit)) if unit else ""), answer,
+    )
+    values = parse_numbers(legacy.group(1)) if legacy else []
+    aliases = {label}
+    if re.fullmatch(r"[0-9]{4}-(?:0[1-9]|1[0-2])", label):
+        year, month = map(int, label.split("-"))
+        aliases.add(normalize(f"{MONTH_NAMES[month - 1]} de {year}"))
+    for line in lines:
+        line = normalize(line)
+        match = re.fullmatch(
+            r"\s*(?:[•*-]\s*)?(?:r\$\s*(?P<money>" + number + r")"
+            r"|(?P<number>" + number + r")\s+(?P<unit>[^\n]+?))\s+em\s+(?P<tail>.+)",
+            line,
+        )
+        if match is None:
+            continue
+        actual_unit = "r$" if match["money"] is not None else match["unit"].strip()
+        if unit is not None and actual_unit != normalize(unit):
+            continue
+        tail = match["tail"].rstrip(".").strip()
+        details = re.fullmatch(r"(?P<period>.+?)\s+\((?P<labels>[^()]*)\)", tail)
+        actual_period = details["period"] if details else tail
+        labels = {item.strip() for item in details["labels"].split(";")} if details else set()
+        if period is not None and actual_period != normalize(period):
+            continue
+        if actual_period in aliases or label in labels:
+            values.extend(parse_numbers(match["money"] or match["number"]))
+    return values
+
+
 def numeric_divergences(case: dict, body: dict, expected: list[Decimal], tolerance: Decimal,
                         params: dict, dim_params: dict) -> tuple[list[str], list[Decimal]]:
     divergences = []
@@ -402,16 +448,16 @@ def numeric_divergences(case: dict, body: dict, expected: list[Decimal], toleran
     if label and normalize(label) not in normalize(body.get("answer") or ""):
         divergences.append("plano")
     for label, expected_value in params.get("_rotulos_numericos", {}).items():
-        match = re.search(re.escape(normalize(label)) + r":\s*([+-]?[0-9][0-9.,]*)",
-                          normalize(body.get("answer") or ""))
-        observed_values = parse_numbers(match.group(1)) if match else []
+        observed_values = observation_numbers(
+            body.get("answer") or "", label, period=params.get("_periodo_publicado"),
+        )
         if expected_value is None or not any(
             abs(value - Decimal(str(expected_value))) <= tolerance for value in observed_values
         ):
             divergences.append("numero")
     comparison = params.get("_comparacao_esperada")
     if comparison:
-        answer = normalize(body.get("answer") or "")
+        answer = body.get("answer") or ""
         labels = {
             "valor": (params["p0"], case["unidade"]),
             "valor_final": (params["p1"], case["unidade"]),
@@ -419,11 +465,8 @@ def numeric_divergences(case: dict, body: dict, expected: list[Decimal], toleran
             "percentual": (f"Variação percentual de {params['p0']} a {params['p1']}", "%"),
         }
         for column, (label, unit) in labels.items():
-            match = re.search(re.escape(normalize(label))
-                              + r"(?:,[^:\n]{1,200})?:\s*([+-]?[0-9][0-9.,]*)\s*"
-                              + re.escape(normalize(unit)), answer)
             wanted = comparison.get(column)
-            observed = parse_numbers(match.group(1)) if match else []
+            observed = observation_numbers(answer, label, unit)
             if wanted is None:
                 if observed:
                     divergences.append("numero")

@@ -359,3 +359,42 @@ def test_comparison_cannot_pass_with_initial_and_final_values_swapped():
     )
     outcome = run("FAT-09", client(lambda payload: wrong), db)
     assert outcome.classe == "FAIL" and "numero" in outcome.divergencias
+
+
+@pytest.mark.parametrize("swapped", [False, True])
+def test_comparison_reconciles_readable_currency_without_losing_month_binding(swapped):
+    db = revenue_database(**{"controle:CTL-FAT-COMPARACAO": [
+        {"valor": 80, "valor_final": 100, "variacao": 20, "percentual": 25},
+    ]})
+    first, last = (100, 80) if swapped else (80, 100)
+    reply = answered(
+        f"Resultados de receita faturada no período solicitado:\n"
+        f"• R$ {first},00 em março de 1999\n• R$ {last},00 em março de 2000\n"
+        "• R$ 20,00 em Variação absoluta de 1999-03 a 2000-03\n"
+        "• 25.0 % em Variação percentual de 1999-03 a 2000-03",
+        "billing.revenue", {"geography.municipality": "JABOATAO DOS GUARARAPES",
+                            "customer.consumption_class": "COMERCIAL"}, "R$",
+        period="1999-03-01 a 2000-03-31",
+    )
+    outcome = run("FAT-09", client(lambda payload: reply), db)
+    assert outcome.classe == ("FAIL" if swapped else "PASS")
+    assert ("numero" in outcome.divergencias) is swapped
+
+
+def test_readable_decomposition_binds_each_value_to_effect_and_published_window():
+    period = "P0 1998-01 a 1998-12; P1 1999-01 a 1999-12"
+    answer = (
+        f"• R$ -100,00 em {period} (Efeito volume)\n"
+        f"• R$ 200,00 em {period} (Efeito preço observado)\n"
+        f"• 5 participações em {period} (Participações de UCs na base comum)"
+    )
+    assert runner.observation_numbers(answer, "Efeito volume", "R$", period) == [Decimal(-100)]
+    assert runner.observation_numbers(answer, "Efeito preço observado", "R$", period) == [
+        Decimal(200),
+    ]
+    assert runner.observation_numbers(answer, "Efeito volume", "kWh", period) == []
+    assert runner.observation_numbers(answer, "Efeito volume", "R$", "outro período") == []
+    assert runner.observation_numbers(answer, "Efeito volume inexistente", "R$", period) == []
+    assert runner.observation_numbers(
+        answer, "Participações de UCs na base comum", period=period,
+    ) == [Decimal(5)]
