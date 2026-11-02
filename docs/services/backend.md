@@ -1,5 +1,7 @@
 # Serviço: backend e banco local
 
+GENAI-15: execução Gold v2 usa `GOLD_LOADER_DATABASE_URL` exclusiva de carga no overlay; `DATABASE_URL` operacional e `GENAI_GOLD_DATABASE_URL` quantitativa permanecem separadas. Diagnóstico em `scripts/check_genai_runtime.py`, carga em `scripts/benchmark_genai.py` e resumo sanitizado em `scripts/summarize_genai_benchmark.py`. [Runbook e evidência local](../plans/2026-11-02-genai15-operacao-gold.md). O diagnóstico persiste um evento operacional e não certifica cobertura de domínio nem disponibilidade externa do provedor.
+
 > Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
 
 

@@ -14,6 +14,7 @@ from app.providers.protocols import (
 )
 from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
+from app.telemetry import record_usage
 
 
 class GeminiModelAdapter:
@@ -83,6 +84,14 @@ class GeminiModelAdapter:
                 "O provedor de modelo está temporariamente indisponível."
             ) from None
 
+        usage = getattr(response, "usage_metadata", None)
+        record_usage(
+            "gemini", prompt=getattr(usage, "prompt_token_count", None),
+            output=getattr(usage, "candidates_token_count", None),
+            thoughts=getattr(usage, "thoughts_token_count", None),
+            cached=getattr(usage, "cached_content_token_count", None),
+            total=getattr(usage, "total_token_count", None),
+        )
         try:
             candidates = getattr(response, "candidates", None)
             if candidates:

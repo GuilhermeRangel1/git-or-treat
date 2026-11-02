@@ -25,6 +25,7 @@ from app.schemas.domain_profile import DomainProfile
 from app.schemas.insights import ScreenContext, ScreenInsightResponse
 from app.schemas.internal import QuestionPlanRequest, QuestionPlanResponse, QuestionSynthesisRequest
 from app.schemas.questions import QuestionRequest, QuestionResponse
+from app.telemetry import correlation
 
 SourceMode = Literal["demo", "external"]
 
@@ -85,7 +86,11 @@ def create_api_application(
             incoming_id if re.fullmatch(r"[a-f0-9]{32}", incoming_id) else uuid4().hex
         )
         request.state.correlation_id = correlation_id
-        response = await call_next(request)
+        token = correlation.set(correlation_id)
+        try:
+            response = await call_next(request)
+        finally:
+            correlation.reset(token)
         response.headers["X-Correlation-ID"] = correlation_id
         return response
 
@@ -102,5 +107,6 @@ def create_api_application(
     application.state.question_orchestrator = question_handler
     application.state.insight_orchestrator = insight_handler
     application.state.readiness_handler = readiness_handler
+    application.state.runtime_settings = settings
     application.include_router(router)
     return application
