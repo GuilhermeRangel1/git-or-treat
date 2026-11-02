@@ -24,6 +24,8 @@ O ingresso Backend deve aceitar prompt v4 antes de implantar a GenAI v4; eventos
 
 ## Duas formas de IA obrigatórias
 
+Operação local Gold v2 (GENAI-15): diagnóstico autenticado em `/api/v1/internal/runtime-status` distingue configuração de geração e liveness; o Backend executa `scripts/check_genai_runtime.py` para conferir banco, papel, publicação, catálogo e auditoria. Logs operacionais contêm somente correlação, tempos/fila e tokens, sem prompt/evidência. O loader exige credencial própria. [Runbook, critérios, carga, custo estimado e falhas observadas](../plans/2026-11-02-genai15-operacao-gold.md).
+
 1. **Agente conversacional Text-to-SQL no portal:** interpreta português cotidiano, consulta Gold e devolve resposta clara, numérica e fundamentada.
 2. **Insight embutido em uma tela:** interpreta o dado que o usuário vê e sugere o que investigar, mantendo vínculo explícito com filtros e período da tela.
 
