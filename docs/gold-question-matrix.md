@@ -1,5 +1,17 @@
 # Matriz de perguntas para o catálogo Gold v2
 
+## Varredura ampliada de consistência — 02/11/2026
+
+O núcleo passou a reconhecer notação mensal numérica, prefixos mês/competência, espaços/Unicode equivalentes, rótulos de classe e acompanhamentos de período/comparação. Exclusões, arrecadação e limites não representados não viram consultas de inclusão ou total. Uma colisão bairro/município encontrada na rodada real foi corrigida com a relação de dimensão pai, preservando ambiguidades sem qualificador.
+
+Verificações finais: **4160 testes passaram/5 skips de ambiente**, 135 variações artificiais sem divergência. Rodada oficial real `20261102T100421_528580Z`: **42 PASS, 1 FAIL por timeout, 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE e 2 NAO_EXECUTADO**. CON-01 passou na rechecagem isolada em 22,04 s; o timeout anterior permanece registrado. De 18 variações reais, 17 passaram na primeira execução e L04 passou após correção/reteste; auditoria confirmou 10 chamadas de modelo concluídas e 8 esclarecimentos anteriores ao modelo/executor quantitativo. Não equivale a uma nova matriz completa com zero FAIL. Detalhes, controles, resultados e reprodução no [registro da varredura](plans/2026-11-02-genai-consistencia-linguagem.md). Estados oficiais preservados.
+
+## Continuação — variações de escrita dos períodos — 02/11/2026
+
+A expansão do ano compartilhado também reconhece `marco`, `ate` e a comparação `janeiro com março de 2025`. Essas três variações pediam esclarecimento indevidamente antes da correção. A mudança preserva a escrita dos municípios e filtros; não completa ano ausente nem permite intervalos invertidos ou competências sem cobertura. `Compare ... com ...` continua sendo comparação; `de ... ate ...` continua sendo intervalo.
+
+Integração executável na rota interna de planejamento, com perfil e contrato Gold v2. Verificação: em `ai-agent/`, `python -m pytest -q tests/test_gold_planning_http.py tests/test_gold_temporal.py tests/test_gold_question_filters.py --tb=short` → **127 passaram**; Ruff dos dois arquivos de código/teste e `git diff --check` passaram. Três regressões falharam antes da correção e passaram depois. Esta continuação usa casos artificiais na fronteira HTTP; não é outra execução da matriz Gold/Gemini abaixo e não altera a cobertura do lote.
+
 ## Revalidação real da matriz — 02/11/2026
 
 A rodada final `20261102T041125_013170Z` executou os 57 casos pela API pública, com sessão individual, Gold v2, Gemini e auditoria reais, reconciliando os valores por controles SQL independentes somente leitura. Resultado: **43 PASS, zero FAIL, cinco BLOQUEADO, sete SEM_AMOSTRA_NO_LOTE e dois NAO_EXECUTADO** (provas técnicas separadas). Os 14 casos em FAIL na rodada `20261102T025654_378948Z` passaram. Nenhum erro de execução. Contas temporárias e sessões removidas. Esse resultado supera apenas as pendências de revalidação da revisão abaixo; não altera a cobertura ou homologa domínios bloqueados.

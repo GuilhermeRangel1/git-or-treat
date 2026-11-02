@@ -9,7 +9,9 @@ O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do
 
 ## Estado vigente da fatia conversacional Gold — 01/11/2026
 
-Revisão de linguagem de 02/11/2026: o planejamento aceita ano compartilhado em dois meses nomeados e receita agrupada por município, preservando cobertura, autorização e limite do ranking. Exemplos, verificações e limites estão na [matriz de perguntas Gold v2](../gold-question-matrix.md#revisão-de-linguagem-do-assistente--02112026).
+Revisão de linguagem de 02/11/2026: o planejamento aceita ano compartilhado em dois meses nomeados, inclusive `marco`/`ate` sem acentos e comparação com a ligação `com`, e receita agrupada por município, preservando cobertura, autorização e limite do ranking. Exemplos, verificações e limites estão na [matriz de perguntas Gold v2](../gold-question-matrix.md#revisão-de-linguagem-do-assistente--02112026).
+
+A [varredura de consistência](../plans/2026-11-02-genai-consistencia-linguagem.md) acrescenta notação mês/ano, prefixos mensais, agrupamentos e acompanhamentos equivalentes. Exclusões, limites não suportados, arrecadação e datas parcialmente inválidas pedem esclarecimento. Rótulos de filtro não criam outra métrica; a relação bairro/município evita confundir nomes iguais quando há qualificador explícito. A comparação conserva seus dois meses ao trocar para outro indicador compatível. Esses ajustes não ampliam fórmulas ou a cobertura da fonte; o relatório registra também o timeout observado na rodada real e sua rechecagem.
 
 A rota pública Backend /api/v1/ai/questions já coordena sessão individual → planejamento GenAI → prontidão/SQL restrito → síntese GenAI → confirmação de auditoria. A GenAI usa app.gold_runtime:create_gold_app, com perfil Gold v2 e fonte gold.local; recebe evidências minimizadas, nunca credenciais do banco. Há resposta real reconciliada, replay e matriz integrada de falhas, conforme [evidência GENAI-09](../contracts/genai-first-question.md).
 
