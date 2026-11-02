@@ -3194,3 +3194,89 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Preflight usa a view de metadados existente; prova local com leitor sem acesso à tabela operacional passou. Nenhuma ampliação de privilégios, carga ou chamada Gemini nesta rodada.
 - Backend: 96 testes passaram/quatro skips de variantes de dialeto; núcleo/cache: 12 passaram. Chromium exercitou portal real com APIs artificiais, sucesso/409, vínculo de publicação e resposta atrasada de rota. Mapa dos dez aceites, comandos e limites em [invalidação integrada](plans/2026-11-01-genai13-invalidacao-integrada.md).
 - Estados oficiais IA-03/04/05/06 preservados. Implementação nos commits 35d3984 (Backend) e 3d1d1ae (portal), com roteiro/evidências na mesma branch; revisão final sem bloqueios após correções. GENAI-13: dez aceites técnicos locais contemplados, sem reduzir os critérios originais. Frontend: 80 passaram e revalidação final dos 19 testes da página; build, formatação, fronteiras e Ruff passaram. Lint sem erros, com aviso preexistente do AuthProvider.
+
+### 2026-11-02 — IA-04 — reduz consultas repetidas na prontidão Gold
+
+- A prontidão reutiliza a leitura de cobertura dentro do snapshot da requisição, evitando consultas repetidas por alimentador. Prazo, controles, autorização e conferência de publicação permanecem ativos; não há cache entre requisições.
+- Verificações: `python -m pytest tests/test_gold_domain_readiness.py tests/test_gold_attendance_readiness.py -q`: 57 passaram, 1 skip e aviso Starlette preexistente. Medição local: cerca de 24 s antes e 15 s depois. Os testes da matriz/runner passaram (305) e os de interpretação/períodos passaram (168).
+- A rodada da matriz contra a API Gold real registrou 29 PASS, 14 FAIL, 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE e 2 NAO_EXECUTADO. IA-04 continua sem mudança de estado; as divergências e bloqueios permanecem pendentes de investigação.
+
+### 2026-11-02 — IA-04 — inicia a composição GenAI Gold no Docker local
+
+- O override `docker-compose.gold-v2.yml` inicia `app.gold_runtime:create_gold_app --factory`, com o perfil Gold e auditoria durável. O entrypoint demonstrativo recusava a síntese interna Gold. Os pré-requisitos de configuração privada estão documentados em `.env.gold-v2.example`.
+- Ajustes de ambiente locais: leitor dedicado somente leitura provisionado; TEMP retirado de PUBLIC e concedido explicitamente ao papel operacional; URL, tokens distintos e controles C01/C02/C04 configurados nos arquivos ignorados pelo Git. Segredos e alterações locais do banco não integram o commit.
+- Verificação integrada: a API pública, com sessão temporária e Gold v2 local, respondeu HTTP 200 com insight `answered` em 19,95 s; auditoria recebeu eventos e a sessão/conta de teste foi removida. Isso comprova a API local, não substitui a inspeção visual do navegador nem conclui IA-04.
+
+### 2026-11-02 — IA-01 / IA-02 — períodos naturais e ranking municipal no Assistente
+
+- Estados oficiais preservados: IA-01 e IA-02 continuam `Pendente`. Integração executável no núcleo Gold v2; sem novo aceite integral dos requisitos.
+- O planejamento explicita o ano compartilhado em dois meses nomeados, preservando a diferença entre comparação e intervalo. O perfil habilita o agrupamento municipal da receita já suportado pelo executor existente. Cobertura ausente, dias, ordem de intervalo, escopo e limites continuam verificados.
+- Arquivos: `ai-agent/app/agent/temporal.py`, `planner.py`, `profiles/grid360_gold.py`, regressões HTTP/filtros e [matriz de perguntas](gold-question-matrix.md#revisão-de-linguagem-do-assistente--02112026). Branch `fix/genai-prontidao-gold-local`, continuação sem novo commit/push.
+- Verificações: 124 testes direcionados passaram; regressão GenAI completa em container descartável sem rede e sem configuração privada: 4077 passaram, 4 skips. Ruff dos arquivos afetados e `git diff --check` passaram. Leitor restrito no PostgreSQL Gold v2 reconciliou ranking municipal e receita residencial de junho/2026 com SQL independente, somente leitura e prazo de 5 s.
+- Limites: provas HTTP com modelo controlado e SQL real separadas; nenhuma chamada nova ao Gemini ou validação visual. A recusa residencial do navegador e as 14 falhas da matriz anterior continuam exigindo revalidação; a consulta SQL conferida não comprova a síntese pelo provedor. Sem mudança no lote ou nas permissões.
+
+### 2026-11-02 — IA-01 / IA-02 / IA-03 / IA-06 — revalidação completa do Assistente com Gold e Gemini
+
+- Estados oficiais preservados; os quatro domínios ainda dependem de cobertura/amostras da fonte. Rodada final `20261102T041125_013170Z`: 57 casos pela API pública com login/cookie, PostgreSQL Gold v2, HTTP entre serviços, Gemini e auditoria reais. Resultado: 43 PASS, zero FAIL, 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE e 2 NAO_EXECUTADO pelo runner live (provas técnicas executadas separadamente). Os 14 casos em FAIL na rodada `20261102T025654_378948Z` passaram; nenhum erro de execução. Contas temporárias/sessões removidas.
+- Correções: ano compartilhado em competências; agrupamento municipal de receita; override Compose fixa a fonte Gold; runner reconhece respostas legíveis mantendo vínculo de número/período/efeito e separadores decimais; seleção Gold mínima nos adaptadores Gemini/Groq com schema fechado, prompt v4 e auditoria compatível com v1/v2/v3. Guardas, limites e executor existentes preservados.
+- Ambiente privado: sincronizados os controles aprovados; C08/C09 passaram na conferência local e foram habilitados somente após autorização explícita nesta rodada. Controle independente de unicidade de chamados usa observador operacional autorizado em READ ONLY; leitor do Assistente conserva suas permissões atuais. Arquivos .env e relatórios com parâmetros/valores permanecem ignorados, sem commit.
+- Verificações: suíte completa GenAI `python -m pytest -q --tb=short`: 4093 passaram, 4 skips; testes dirigidos Backend de auditoria/cliente/coordenação Panorama: 41 passaram; `tests/test_genai_session_postgres.py`: 1 passou em 127,22 s, com falhas determinísticas, sessão, permissões e SQL em PostgreSQL descartável removido depois. SEG-06/07 comprovados nessas fronteiras e na suíte GenAI. Ruff GenAI/arquivos Backend, dry-run dos 57 casos, configuração Compose e diff-check passaram; aviso Starlette preexistente no Backend.
+- Evidência por ID e reprodução em [matriz real do Assistente](plans/2026-11-02-genai-assistente-matriz-real.md), [matriz de perguntas](gold-question-matrix.md) e [contrato da auditoria](contracts/genai-audit.md). Branch `fix/genai-prontidao-gold-local`, alterações ainda sem novo commit/push.
+- Limites: não houve nova carga, ampliação de privilégios PostgreSQL ou jornada visual. Receita paga, cobertura temporal de ocorrências/DEC/FEC e atendimento mensal continuam bloqueados; zero/nulo/base zero/ausência sem amostra não foram fabricados. Não declara 57 respostas numéricas ou aceite integral dos requisitos.
+
+### 2026-11-02 — IA-01 / IA-02 — consistência de escrita nos períodos
+
+- Integração executável: Backend → planejamento HTTP GenAI → núcleo/perfil Gold v2. A expansão do ano compartilhado reconhece `marco`/`ate` sem acentos e a ligação `com` em comparação. Preserva nomes/filtros originais, anos explícitos, ordem e cobertura; não altera métricas, SQL ou geração.
+- Evidência: três variações antes em `needs_clarification` passaram a `planned` com limites e competências esperados. `python -m pytest -q tests/test_gold_planning_http.py tests/test_gold_temporal.py tests/test_gold_question_filters.py --tb=short` em `ai-agent/`: 127 passaram; `python -m ruff check app/agent/temporal.py tests/test_gold_planning_http.py` e `git diff --check`: passaram.
+- Arquivos: `ai-agent/app/agent/temporal.py`, `ai-agent/tests/test_gold_planning_http.py` e [matriz de perguntas](gold-question-matrix.md#continuação--variações-de-escrita-dos-períodos--02112026). Branch `fix/genai-prontidao-gold-local`; alterações desta continuação ainda sem commit/push.
+- IA-01/IA-02 mantêm os estados oficiais. Testes HTTP com casos artificiais; sem nova rodada Gold/Gemini ou jornada visual e sem novo aceite da cobertura do lote.
+
+### 2026-11-02 — IA-01 / IA-02 / IA-06 — varredura de consistência e rechecagem com Gemini
+
+- Integração executável no mesmo núcleo/perfil Gold v2: calendário aceita mês/ano, prefixos mensais, espaço e Unicode equivalentes; rótulos de classe e pedidos de agrupamento não são confundidos com métricas ou valores. Acompanhamentos preservam período, filtros e par de comparação; mudanças de abertura incompatíveis exigem esclarecimento.
+- Correções de fidelidade: exclusões não viram inclusões, limites numéricos não representados não são descartados, arrecadação não é substituída por receita faturada e extremos inválidos não são reduzidos ao mês reconhecido. Uma colisão de nomes bairro/município revelada pela Gold foi corrigida com a relação pai declarada, sem presumir relacionamento ausente na fonte.
+- Verificações finais: 192 testes dirigidos de HTTP/filtros/calendário passaram; suíte completa GenAI em ambiente sem configuração privada: 4160 passaram, 5 skips (smoke opt-in, PostgreSQL sem DSNs e link simbólico indisponível no Windows). Ruff completo e diff-check passaram. Varredura exploratória artificial de 135 variações sem divergências.
+- Rodada real autorizada `20261102T100421_528580Z`: 42 PASS, 1 FAIL por prazo global (CON-01), 5 BLOQUEADO, 7 SEM_AMOSTRA_NO_LOTE e 2 NAO_EXECUTADO. Rechecagem de CON-01 `20261102T101912_392670Z`: PASS em 22,04 s. Foram conferidas 18 variações reais: 17 PASS inicialmente e L04 PASS após correção/reteste. A auditoria comprovou 10 chamadas Gemini concluídas e 8 esclarecimentos anteriores ao modelo/executor; contas temporárias removidas. Fonte Gold v2, sessão, SQL independente e auditoria reais; cache de modelo desligado.
+- Evidência, IDs dos controles, limites e reprodução: [consistência de linguagem](plans/2026-11-02-genai-consistencia-linguagem.md). Arquivos: `ai-agent/app/agent/{interpreter,planner,temporal}.py`, `profiles/grid360_gold.py`, testes HTTP de linguagem/planejamento e guias. Branch `fix/genai-prontidao-gold-local`; continuação ainda sem commit/push. Serviço local reconstruído com essas correções.
+- Estados oficiais preservados. Não conclui domínios sem cobertura nem transforma a rechecagem em uma matriz completa sem falhas; o risco de prazo quando preparação e provedor se aproximam de 35 s continua registrado. Sem nova carga, alteração de privilégios, redução de controles ou jornada visual.
+
+### 2026-11-02 — IA-01 / IA-04 / IA-06 — amplia o prazo compartilhado Gold
+
+- Revisão aprovada da ADR-0002: 60 s totais na coordenação Gold e 70 s no navegador do Assistente. Transporte interno usa default de 60 s; contratos de plano/síntese/insight aceitam saldo de 1 a 60.000 ms. SQL mantém teto de 5 s, consumindo o saldo do mesmo relógio. Nenhuma mudança de fonte, permissão ou cobertura.
+- Evidência: [revisão de prazo Gold](plans/2026-11-02-genai-prazo-gold.md). GenAI: 4.160 passaram, 5 skips; Backend completo: 901 passaram, 114 skips; transporte do Assistente: 11 passaram. Ruff, fronteiras, formatação, build e diff passaram; lint sem erros, com aviso preexistente em AuthProvider.
+- Matriz real com Gemini `20261102T104426_802753Z`: 43 PASS, 5 bloqueados pela fonte, 7 sem amostra e 2 verificações técnicas separadas; nenhuma falha inesperada ou erro de execução. CON-01 passou em 15,93 s; auditoria confirmou modelo concluído nas 22 respostas numéricas. Contas temporárias removidas. Requisitos oficiais e pendências de cobertura preservados.
+- Insight do Panorama pela API pública com Gold v2 e Gemini: HTTP 200 `answered` em 15,12 s; modelo confirmado na auditoria, conta/sessões temporárias removidas. A validação do prazo no navegador foi automatizada, sem nova jornada visual.
+
+### 2026-11-02 — IA-01 / IA-02 / IA-06 — corrige as perguntas naturais usadas na tela
+
+- Reconhece município em “em Recife” mesmo quando há bairro com o mesmo nome; preserva bairro explicitamente qualificado, relação bairro/município, classe e autorização. Nomes compartilhados sem qualificação continuam esclarecendo. A matriz passou a usar as frases naturais em FAT-01/FAT-04/CON-01.
+- Apresenta contagem acumulada com separador brasileiro e texto direto, sem decimal artificial ou repetição do período. Falta de cobertura recebe mensagem própria não repetível; falhas de aprovação, publicação e infraestrutura permanecem distintas.
+- Evidência: [perguntas da tela](plans/2026-11-02-genai-perguntas-da-tela.md). GenAI completo: 4.165 passaram/5 skips; Backend completo: 907 passaram/114 skips; após a redação final, 130 regressões HTTP/runner passaram. Ruff e diff passaram.
+- Conversa com Gold v2/Gemini e controle SQL independente: cinco respostas numéricas reconciliadas e um bloqueio esperado, zero divergências. Contagem final reconfirmada em chamada real separada. Contas temporárias removidas, sem nova carga ou ampliação de permissões. Estados oficiais e lacunas de cobertura preservados; não houve nova jornada visual ou nova matriz completa de 57 casos nesta fatia.
+
+### 2026-11-02 — IA-01 / IA-02 — isola novas perguntas de esclarecimentos anteriores
+
+- Pergunta completa após esclarecimento solar/GD é interpretada independentemente, evitando juntar dois indicadores indevidos. Respostas curtas continuam preservando o recorte anterior; a mensagem de solar não expõe “Gold v2” nem equipara GD a solar.
+- Sequência real do case: esclarecimento de GD, solicitação de base temporal para volume residencial e solicitação de período para receita comercial. API local Gold v2, três estados esperados, conta temporária removida. Evidência na [continuação das perguntas da tela](plans/2026-11-02-genai-perguntas-da-tela.md#continuação--esclarecimentos-dos-exemplos-do-case).
+- Verificações: 72 regressões HTTP passaram; GenAI completo 4.168 passaram/5 skips; Ruff e diff passaram. Estados oficiais preservados; não equivale a três respostas numéricas nem encerra cobertura anual ou domínios pendentes.
+
+### 2026-11-02 — IA-01 / IA-02 — exemplos copiáveis nos esclarecimentos Gold
+
+- Mensagens Gold de esclarecimento anexaram exemplos construídos com competências publicadas e aprovados no mesmo planejador/escopo. Preservam filtros quando válidos e não inventam exemplo se faltarem dados de período ou uma opção autorizada. Copiar o exemplo inicia nova validação; respostas curtas continuam reconhecidas.
+- Verificações: GenAI 4.176 passaram/5 skips; Ruff e diff passaram. Quatro exemplos copiados pela API local (receita, GD, ranking de bairro e crescimento comercial) retornaram `answered` com modelo real concluído na auditoria; conta temporária removida. Evidência na [continuação das perguntas da tela](plans/2026-11-02-genai-perguntas-da-tela.md#continuação--exemplos-nas-mensagens-de-esclarecimento).
+- Estados oficiais preservados. Aprovação de um exemplo no planejamento não homologa cobertura; essa prova de cópia pela API não é nova reconciliação SQL independente nem jornada visual.
+
+
+### 2026-11-02 — IA-02 / IA-03 — revisão do isolamento de nova pergunta
+
+- Corrigida herança silenciosa de classe/período ao iniciar pergunta interrogativa com métrica explícita após uma consulta anterior. Acompanhamento explícito e respostas curtas a esclarecimentos continuam cobertos pelos testes do núcleo Gold v2 existente.
+- Três regressões HTTP; 157 testes dirigidos e 4.184 da suíte GenAI completa passaram, com 5 skips e smoke remoto desligado. Ruff dos arquivos alterados e diff-check passaram. Revisão estática sem bloqueios após a correção; evidência e observação de manutenção em [perguntas da tela](plans/2026-11-02-genai-perguntas-da-tela.md#revisão-para-entrega--isolamento-de-nova-pergunta).
+- Validação visual continua bloqueada pelo navegador local desativado no Work; CI de PR não verificado, nenhum PR aberto localizado para esta branch. Sem nova rodada pública Gold/Gemini ou alteração de estados oficiais. Correção local ainda sem commit/push.
+
+### 2026-11-02 — IA-01 / IA-02 / IA-03 / IA-06 — amostras nulas e provas técnicas
+
+- Corrigido o runner da matriz Gold v2: quatro casos de zero/nulo/base zero procuram a competência mais recente que contém a amostra, em toda a publicação, preservando mês, município e classe. A seleção de tarifa exige denominador observado igual a zero; nulo não é substituído por zero. Sem alteração de métricas, catálogo físico, permissões ou cobertura.
+- Conferidos dicionário, contratos e notebooks `Silver_to_gold`/`Cobertura_Declaracao`: nulos por ausência de fonte são legítimos; o notebook de declaração fecha apenas consumo e faturamento. A busca somente leitura de todas as competências encontrou amostras para FAT-13 e CON-10; ambos passaram na API pública Gold v2 em `20261102T121234_564139Z`, com `needs_clarification` e sem número inventado. Os cinco restantes confirmaram `SEM_AMOSTRA_NO_LOTE` em `20261102T121636_068419Z`; ATE-02 é opcional. Contas/sessões temporárias removidas.
+- SEG-06/07 revalidados separadamente: 1.751 testes de runtime/gate passaram; prova Backend com PostgreSQL 16 descartável passou em 102,35 s, incluindo fonte/modelo/auditoria indisponíveis, revogação, recuperação e ACL. Ajustadas duas expectativas antigas do texto de atendimento, mantendo unidade técnica conferida. Configuração privada foi mascarada nos testes, sem novas chamadas Gemini.
+- Runner/matriz: 274 testes dirigidos passaram; dry-run dos 57 IDs e Ruff por módulo passaram. Evidências e limites em [amostras e provas técnicas](plans/2026-11-02-genai-amostras-e-provas-tecnicas.md). Alterações locais ainda sem commit/push na branch `fix/genai-prontidao-gold-local`.
+- Estados oficiais preservados. Cinco casos ainda dependem de amostra/cobertura da fonte; provas técnicas aprovadas não viram respostas Gold do runner. Não declara nova rodada completa dos 57 casos ou jornada visual.

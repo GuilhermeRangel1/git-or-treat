@@ -8,7 +8,7 @@ O coordenador reusa `plan_gold_question`, `should_synthesize`, `execute_gold_pla
 
 ## Invariantes e prontidão
 
-O mesmo plano/fingerprint, pessoa/escopo, publicação e correlação atravessam a consulta e a síntese. O prazo de 35 s iniciado pelo planejamento é consumido nas etapas seguintes; o executor limita SQL ao saldo e a 5 s. Cancelamento da coroutine não demonstra cancelamento imediato de trabalho em thread: essa prova segue pendente.
+O mesmo plano/fingerprint, pessoa/escopo, publicação e correlação atravessam a consulta e a síntese. O prazo de 60 s iniciado pelo planejamento é consumido nas etapas seguintes; o executor limita SQL ao saldo e a 5 s. Cancelamento da coroutine não demonstra cancelamento imediato de trabalho em thread: essa prova segue pendente.
 
 `GoldPlanningResult` conserva o vocabulário observado na publicação. `QuestionSynthesisRequest.dimension_value_coverage` é um campo opcional (default vazio) adicionado simetricamente nos contratos dos dois serviços. Seus IDs precisam estar no escopo, ser únicos e não conter UC. A síntese reaprova o plano com esse vocabulário, mantendo EvidenceGuard, fingerprint e autorização. Exemplos canônicos v1 foram atualizados; emissor e receptor devem ser implantados em conjunto, pois receptor antigo com `extra=forbid` recusará o campo novo.
 

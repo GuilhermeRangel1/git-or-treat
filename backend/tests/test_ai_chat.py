@@ -4,7 +4,6 @@ from typing import Any
 
 import httpx
 import pytest
-
 from app.main import app
 from app.schemas.ai import AIQuestionResponse
 from app.services.genai_client import (
@@ -269,9 +268,8 @@ def test_genai_client_classifies_timeout_network_and_invalid_responses(
 
 @pytest.mark.parametrize('status', [401, 403])
 def test_gold_authorization_dependency_uses_safe_chat_contract(client, status):
-    from fastapi import HTTPException
-
     from app.core.genai_gold_database import get_question_gold_resources
+    from fastapi import HTTPException
 
     def denied():
         raise HTTPException(status, 'private identity and scope detail')
@@ -293,10 +291,10 @@ def test_gold_authorization_dependency_uses_safe_chat_contract(client, status):
     assert 'answer' not in body
 
 def test_gold_audit_failure_blocks_public_question_before_planning(client, monkeypatch):
-    from sqlalchemy.exc import SQLAlchemyError
-
     from app.core.genai_gold_database import get_question_gold_resources
     from app.services.genai_audit import AuditStore
+    from sqlalchemy.exc import SQLAlchemyError
+
     from tests.support.database import test_engine
 
     gateway = FakeQuestionGateway()
@@ -327,6 +325,7 @@ def test_gold_unavailable_publication_returns_safe_chat_error(client, monkeypatc
     from app.api.v1.endpoints import ai
     from app.core.genai_gold_database import get_question_gold_resources
     from app.repositories import gold_publication
+
     from tests.support.database import test_engine
 
     async def unavailable(*args, **kwargs):
@@ -348,3 +347,31 @@ def test_gold_unavailable_publication_returns_safe_chat_error(client, monkeypatc
     assert body['correlation_id'] == response.headers['x-correlation-id']
     assert 'answer' not in body
     assert 'private' not in response.text
+
+
+def test_gold_missing_coverage_returns_actionable_message_without_retry(client, monkeypatch):
+    from app.api.v1.endpoints import ai
+    from app.core.genai_gold_database import get_question_gold_resources
+    from app.services.genai_coordination import GoldCoverageUnavailable
+
+    from tests.support.database import test_engine
+
+    async def unavailable(*args, **kwargs):
+        raise GoldCoverageUnavailable()
+
+    monkeypatch.setattr(ai, "answer_gold_question", unavailable)
+    previous = app.dependency_overrides.get(get_question_gold_resources)
+    app.dependency_overrides[get_question_gold_resources] = lambda: (test_engine, lambda: None)
+    try:
+        response = client.post("/api/v1/ai/questions", json={"question": "Qual o DEC em junho de 2026?"})
+    finally:
+        if previous is None:
+            app.dependency_overrides.pop(get_question_gold_resources, None)
+        else:
+            app.dependency_overrides[get_question_gold_resources] = previous
+    assert response.status_code == 503
+    body = response.json()
+    assert body["error"] == {"code": "service_unavailable", "retryable": False}
+    assert "cobertura suficiente" in body["message"]
+    assert "temporariamente" not in body["message"]
+    assert "answer" not in body

@@ -121,7 +121,7 @@ def test_numeric_case_passes_and_uses_the_independent_control_with_resolved_scop
     assert outcome.classe == "PASS" and outcome.divergencias == []
     assert outcome.valores_esperados == ["1234.57"]
     assert seen == [{
-        "question": "Qual foi a receita faturada no município de Recife em março de 2000?",
+        "question": "Qual foi a receita faturada em Recife em março de 2000?",
         "context": [],
     }]
     name, sql, params = db.calls[-1]
@@ -210,6 +210,50 @@ def test_technical_regression_cases_are_listed_as_not_executed():
     outcome = run("SEG-06", None, None)
     assert outcome.classe == "NAO_EXECUTADO"
     assert "genai_failure_matrix.py" in outcome.motivo
+
+
+@pytest.mark.parametrize("case_id,sample", [
+    ("FAT-13", "RECORTE_RECEITA_NULA"), ("CON-10", "RECORTE_CONSUMO_NULO"),
+])
+def test_null_sample_uses_its_own_month_instead_of_latest_month(case_id, sample):
+    seen = []
+    db = revenue_database(**{f"amostra:{sample}": [
+        {"competencia": "1999-02", "municipio": "Recife", "classe": "RESIDENCIAL"},
+    ]})
+    outcome = run(case_id, client(lambda payload: status("needs_clarification"), seen=seen), db)
+    assert outcome.classe == "PASS"
+    assert "fevereiro de 1999" in seen[0]["question"]
+    assert outcome.parametros["competencia"] == "1999-02"
+    assert not any(name.startswith("periodo:") for name, _, _ in db.calls)
+
+
+def test_zero_denominator_sample_does_not_select_null_denominator():
+    import sqlite3
+
+    with sqlite3.connect(":memory:") as db:
+        db.execute("ATTACH DATABASE ':memory:' AS gold_v2")
+        db.execute("CREATE TABLE gold_v2.diagnostico_receita "
+                   "(competencia TEXT, municipio TEXT, classe_consumo TEXT, "
+                   "consumo_base_comparavel_kwh REAL)")
+        db.executemany("INSERT INTO gold_v2.diagnostico_receita VALUES (?, ?, ?, ?)", [
+            ("2000-03", "Recife", "RESIDENCIAL", None),
+            ("1999-02", "Recife", "RESIDENCIAL", 0),
+        ])
+        sql = MATRIX["regras_amostra"]["RECORTE_TARIFA_BASE_ZERO"]["sql"]
+        assert db.execute(sql).fetchall() == [("1999-02", "Recife", "RESIDENCIAL")]
+        db.execute("DELETE FROM gold_v2.diagnostico_receita WHERE competencia='1999-02'")
+        assert db.execute(sql).fetchall() == []
+
+
+@pytest.mark.parametrize("month", ["1999-13", 1999])
+def test_invalid_sample_month_fails_before_sending_question(month):
+    db = revenue_database(**{"amostra:RECORTE_RECEITA_NULA": [
+        {"competencia": month, "municipio": "Recife", "classe": "RESIDENCIAL"},
+    ]})
+    seen = []
+    outcome = run("FAT-13", client(lambda payload: status("needs_clarification"), seen=seen), db)
+    assert outcome.classe == "FAIL" and not outcome.erro_execucao
+    assert seen == []
 
 
 def test_missing_sample_is_pending_and_never_pass():
@@ -359,3 +403,42 @@ def test_comparison_cannot_pass_with_initial_and_final_values_swapped():
     )
     outcome = run("FAT-09", client(lambda payload: wrong), db)
     assert outcome.classe == "FAIL" and "numero" in outcome.divergencias
+
+
+@pytest.mark.parametrize("swapped", [False, True])
+def test_comparison_reconciles_readable_currency_without_losing_month_binding(swapped):
+    db = revenue_database(**{"controle:CTL-FAT-COMPARACAO": [
+        {"valor": 80, "valor_final": 100, "variacao": 20, "percentual": 25},
+    ]})
+    first, last = (100, 80) if swapped else (80, 100)
+    reply = answered(
+        f"Resultados de receita faturada no período solicitado:\n"
+        f"• R$ {first},00 em março de 1999\n• R$ {last},00 em março de 2000\n"
+        "• R$ 20,00 em Variação absoluta de 1999-03 a 2000-03\n"
+        "• 25.0 % em Variação percentual de 1999-03 a 2000-03",
+        "billing.revenue", {"geography.municipality": "JABOATAO DOS GUARARAPES",
+                            "customer.consumption_class": "COMERCIAL"}, "R$",
+        period="1999-03-01 a 2000-03-31",
+    )
+    outcome = run("FAT-09", client(lambda payload: reply), db)
+    assert outcome.classe == ("FAIL" if swapped else "PASS")
+    assert ("numero" in outcome.divergencias) is swapped
+
+
+def test_readable_decomposition_binds_each_value_to_effect_and_published_window():
+    period = "P0 1998-01 a 1998-12; P1 1999-01 a 1999-12"
+    answer = (
+        f"• R$ -100,00 em {period} (Efeito volume)\n"
+        f"• R$ 200,00 em {period} (Efeito preço observado)\n"
+        f"• 5 participações em {period} (Participações de UCs na base comum)"
+    )
+    assert runner.observation_numbers(answer, "Efeito volume", "R$", period) == [Decimal(-100)]
+    assert runner.observation_numbers(answer, "Efeito preço observado", "R$", period) == [
+        Decimal(200),
+    ]
+    assert runner.observation_numbers(answer, "Efeito volume", "kWh", period) == []
+    assert runner.observation_numbers(answer, "Efeito volume", "R$", "outro período") == []
+    assert runner.observation_numbers(answer, "Efeito volume inexistente", "R$", period) == []
+    assert runner.observation_numbers(
+        answer, "Participações de UCs na base comum", period=period,
+    ) == [Decimal(5)]

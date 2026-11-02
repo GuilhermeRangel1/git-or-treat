@@ -13,6 +13,7 @@ from time import monotonic
 from sqlalchemy import Table, select
 from sqlalchemy.engine import Engine
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.models.gold_v2_load import TABLES
 from app.repositories.gold_publication import (
     GoldPublicationChanged,
@@ -104,13 +105,29 @@ def _observe_publication(
             raise ValueError("Competência inválida.")
     if not approved_controls <= ({"C14", "C15"} | (ANALYTICAL_CONTROLS if include_domains else set())):
         raise ValueError("Controle fora desta observação.")
-    expires = monotonic() + 35
+    expires = monotonic() + GOLD_REQUEST_TIMEOUT_SECONDS
     context = GoldPublicationContext.capture(engine)
     if expected_batch_ref is not None and expected_batch_ref != context.batch_ref:
         raise GoldPublicationChanged("A publicação Gold mudou.")
     if context.reference.schema_version != "gold-csv-v2":
         raise GoldPublicationInvalid("Prontidão de atendimento exige publicação v2.")
     with _snapshot(engine, context) as connection:
+        coverage_rows = None
+
+        def read_rows(table):
+            # A cobertura é compartilhada pelos recortes do mesmo snapshot.
+            # Evita reler a tabela inteira para cada alimentador, sem cache entre consultas.
+            nonlocal coverage_rows
+            if table is TABLES["cobertura_dominios"]:
+                if coverage_rows is None:
+                    coverage_rows = tuple(_rows(connection, table, expires))
+                for row in coverage_rows:
+                    if monotonic() >= expires:
+                        raise GenAITimeout
+                    yield row
+            else:
+                yield from _rows(connection, table, expires)
+
         _remaining_sql(connection, expires)
         origin = publication_lineage(connection, context.batch_ref)
         tables = {}
@@ -174,7 +191,7 @@ def _observe_publication(
                 c14_ok = False
         c14_ok &= not (detail.keys() - summary.keys())
         covered, closed, zeros = set(), set(), set()
-        for row in _rows(connection, TABLES["cobertura_dominios"], expires):
+        for row in read_rows(TABLES["cobertura_dominios"]):
             if row["dominio"] != "atendimentos" or row["recorte"] != "DOMINIO":
                 continue
             month, state, count = row["competencia"], row["estado_cobertura"], row["qtd_registros"]
@@ -215,7 +232,7 @@ def _observe_publication(
         }
         if include_domains:
             results, coverage = observe_domain_controls(
-                connection, read_rows=lambda table: _rows(connection,table,expires),
+                connection, read_rows=read_rows,
                 requested_periods=requested_periods, origin=origin, batch_ref=context.batch_ref)
             facts["control_results"].update({key:{"batch_ref":context.batch_ref,
                 "status":"passed" if value else "failed", "approved":key in approved_controls}

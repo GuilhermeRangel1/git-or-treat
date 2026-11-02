@@ -5,6 +5,7 @@ from typing import Literal
 import httpx
 from sqlalchemy.engine import Engine
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.repositories.gold_publication import GoldPublicationInvalid
 from app.schemas.gold_publication import PublicationReference
 from app.schemas.gold_readiness import GoldReadinessReport
@@ -23,18 +24,18 @@ async def _evaluate_readiness(
     scope: Literal["attendance", "domains"], expected_batch_ref: str | None = None,
 ) -> GoldReadinessReport:
     observer = observe_domain_readiness if scope == "domains" else observe_attendance_readiness
-    deadline = GenAIRequestDeadline.start(35)
+    deadline = GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS)
     if expected_batch_ref is not None:
         try:
             PublicationReference.parse(expected_batch_ref)
         except ValueError:
             raise GoldPublicationInvalid("A referência esperada da publicação é inválida.") from None
-    facts = await deadline.run(35, lambda: asyncio.to_thread(
+    facts = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(
         observer, engine, requested_periods=requested_periods,
         approved_controls=approved_controls, expected_batch_ref=expected_batch_ref,
     ))
     expected = facts["batch_ref"]
-    data = await deadline.run(35, lambda: _post_genai_json(
+    data = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: _post_genai_json(
         http_client=http_client, base_url=base_url.rstrip("/"), service_token=service_token,
         path="/api/v1/internal/gold-readiness", payload=facts, correlation_id=correlation_id,
     ))
@@ -49,11 +50,11 @@ async def _evaluate_readiness(
         "atendimento.mensal", "apoio.fila_inspecao", "apoio.medidor_uc", "apoio.energia_recuperavel",
     }:
         raise GenAIResponseInvalid
-    context = await deadline.run(35, lambda: asyncio.to_thread(GoldPublicationContext.capture, engine))
+    context = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(GoldPublicationContext.capture, engine))
     if context.batch_ref != expected:
         from app.repositories.gold_publication import GoldPublicationChanged
         raise GoldPublicationChanged("A publicação Gold mudou antes do retorno da prontidão.")
-    deadline.remaining_seconds(35)
+    deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     return report
 
 

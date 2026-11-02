@@ -26,6 +26,14 @@ _PROPER_NAME_AFTER_DE = re.compile(
     r"(?<!\w)(?i:de|do|da|dos|das)\s+([A-ZÀ-Ý][a-zà-ÿ]+)(?![\w-])"
 )
 _ENDS_WITH_EM = re.compile(r"(?:^|\W)em\s+$")
+_QUESTION_START = re.compile(r"^(?:qual|quais|quanto|quanta|quantos|quantas|como|onde)\b")
+_EXCLUDED_VALUE_PREFIX = re.compile(
+    r"\b(?:exceto|menos|excluindo|excluir|exclua|"
+    r"(?:sem|nao)(?:\s+(?:ser|seja|sejam|e|incluir|inclua|considerar|apenas|somente|so))?|"
+    r"(?:fora|diferentes?)\s+(?:de|do|da|dos|das))\s+"
+    r"(?:(?:a|o|os|as|de|do|da|dos|das|classe|consumo|municipio|cidade|bairro|"
+    r"alimentador|subgrupo)\s+)*$"
+)
 
 
 def _normalize(value: str) -> str:
@@ -130,9 +138,7 @@ class QuestionInterpreter:
     ) -> IntentInterpretation:
         turns = context or []
         pending_period_question = self._pending_period_question(turns)
-        current_question_has_metric = bool(
-            _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
-        )
+        current_question_has_metric = bool(self._metric_matches(question))
         if (
             self._profile.structured_dimension_filters and not current_question_has_metric
             and len(turns) >= 2 and turns[-1].role == "assistant"
@@ -159,7 +165,10 @@ class QuestionInterpreter:
                 (rule for rule in self._profile.ambiguities
                  if rule.clarification == turns[-1].content), None
             )
-            if pending is not None:
+            # Uma nova pergunta completa não é uma resposta ao esclarecimento
+            # anterior: juntar os textos criaria métricas e recortes indevidos.
+            starts_new_question = _QUESTION_START.match(_normalize(question).strip())
+            if pending is not None and not starts_new_question:
                 original = turns[-2].content
                 for start, end, _ in reversed(_find_phrases(original, pending.phrases)):
                     original = original[:start] + " " * (end - start) + original[end:]
@@ -220,7 +229,13 @@ class QuestionInterpreter:
 
         geography = self._dimension_value_matches(question, self._geography_dimensions)
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
-        metric_hits = _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
+        metric_hits = self._metric_matches(question)
+        if (
+            self._profile.structured_dimension_filters
+            and metric_hits
+            and _QUESTION_START.match(normalized)
+        ):
+            return False
         explicit_domains = {
             metric.domain_id
             for metric, alias in self._metric_aliases
@@ -228,6 +243,13 @@ class QuestionInterpreter:
         }
         periods = _find_phrases(question, self._profile.period_phrases)
         has_comparison = self._has_comparison(normalized)
+        if self._profile.structured_dimension_filters and periods and not metric_hits:
+            remaining = question
+            for start, end, _ in reversed(periods):
+                remaining = remaining[:start] + " " * (end - start) + remaining[end:]
+            remaining = re.sub(r"\b(?:em|no|na|so|somente|apenas)\b", "", _normalize(remaining))
+            if not re.search(r"\w", remaining):
+                return True
 
         if (
             (geography or class_phrase)
@@ -293,7 +315,7 @@ class QuestionInterpreter:
         if ambiguity is not None:
             return self._clarify(ambiguity.clarification)
 
-        metric_hits = _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
+        metric_hits = self._metric_matches(question)
         matched_metrics = {
             metric.id: metric
             for metric, alias in self._metric_aliases
@@ -351,14 +373,11 @@ class QuestionInterpreter:
 
         filter_question = detail_question
         value_question = question
+        location_question = question
         if grouping_allowed:
             # O nome da dimensão no pedido de contribuição não é um valor de filtro.
-            aliases = "|".join(re.escape(alias) for alias in breakdown.aliases)
-            filter_question = re.sub(
-                rf"\bqual\s+(?:(?:o|a)\s+)?(?:{aliases})\b",
-                lambda match: " " * len(match.group()), filter_question,
-                flags=re.IGNORECASE,
-            )
+            filter_question = self._without_grouping_reference(filter_question, breakdown)
+            location_question = filter_question
         structured = self._profile.structured_dimension_filters
         dimension_filters: dict[str, str] = {}
         if structured:
@@ -385,10 +404,7 @@ class QuestionInterpreter:
                     )
                 if matches:
                     prefix = _normalize(question[:matches[-1][0]])
-                    if re.search(
-                        r"\b(?:exceto|sem|menos|nao)\s+"
-                        r"(?:(?:a|o|classe|municipio|bairro)\s+)*$", prefix
-                    ):
+                    if _EXCLUDED_VALUE_PREFIX.search(prefix):
                         return self._clarify(
                             "Este recorte pede exclusão; informe o valor que deseja incluir."
                         )
@@ -412,7 +428,7 @@ class QuestionInterpreter:
                         "o filtro solicitado não foi reconhecido."
                     )
         geography = self._dimension_value_matches(question, self._geography_dimensions)
-        if self._has_unrecognized_location_phrase(question, geography):
+        if self._has_unrecognized_location_phrase(location_question, geography):
             return self._clarify(self._profile.clarifications.unknown_geography)
         unit_surface = self._incompatible_unit(question, selected_metric)
         unit_message = self._profile.clarifications.unit_mismatch
@@ -440,6 +456,16 @@ class QuestionInterpreter:
             base_intent.metric_phrase if base_intent else None,
         )
         periods = _find_phrases(question, self._profile.period_phrases)
+        metric_changed = (
+            base_intent is not None and selected_metric is not None
+            and base_intent.metric_id != selected_metric.id
+        )
+        if (self._profile.structured_dimension_filters and metric_changed
+                and base_intent.group_by_dimension_ids and breakdown is None):
+            return self._clarify(
+                "A consulta anterior separava o resultado por grupos. "
+                "Informe a abertura desejada para o novo indicador."
+            )
         default_period_context_requested = bool(
             _find_phrases(question, self._profile.default_period_context_phrases)
         )
@@ -477,8 +503,11 @@ class QuestionInterpreter:
         comparison_phrases = (
             base_intent.comparison_period_phrases
             if base_intent is not None and not periods and selected_metric is not None
-            and base_intent.metric_id == selected_metric.id else None
+            else None
         )
+        if (comparison_phrases is not None and selected_metric is not None
+                and not selected_metric.supports_comparison):
+            return self._clarify(self._profile.clarifications.comparison_baseline)
         if self._profile.structured_dimension_filters and comparison_requested:
             from app.agent.temporal import explicit_monthly_phrases
             explicit = explicit_monthly_phrases(question)
@@ -570,6 +599,36 @@ class QuestionInterpreter:
         )
         return IntentInterpretation(status=InterpretationStatus.READY, intent=intent)
 
+    def _metric_matches(self, question: str) -> list[tuple[int, int, str]]:
+        matches = _find_phrases(question, tuple(alias for _, alias in self._metric_aliases))
+        if not self._profile.structured_dimension_filters:
+            return matches
+        dimensions = _find_phrases(
+            question, tuple(alias for d in self._profile.dimensions for alias in d.aliases)
+        )
+        # "Consumo" dentro do rótulo "classe de consumo" não pede outra métrica.
+        return [match for match in matches if not any(
+            start <= match[0] and match[1] <= end for start, end, _ in dimensions
+        )]
+
+    @staticmethod
+    def _without_grouping_reference(question: str, dimension: DimensionDefinition) -> str:
+        for start, end, _ in reversed(_find_phrases(question, dimension.aliases)):
+            prefix = re.search(
+                r"\b(?:(?:em\s+)?qual\s+(?:(?:foi|é|e)\s+)?(?:(?:o|a)\s+)?"
+                r"|por\s+(?:cada\s+)?)$", question[:start], re.IGNORECASE,
+            )
+            tail = _normalize(question[end:]).lstrip()
+            tail = re.sub(r"^(?:a|o)\s+", "", tail)
+            # Um valor desconhecido depois de "por município" ainda é um filtro
+            # não reconhecido; não o apagamos para responder todos os municípios.
+            if prefix and (not tail or re.match(
+                r"^(?:[?.,;:]|(?:em|no|na|nos|nas|com|sem|de|do|da|teve|tem|foi|e|"
+                r"mais|menos|maior|menor|cresceu|caiu|perdeu|reduziu|aumentou)\b)", tail,
+            )):
+                question = question[:prefix.start()] + " " * (end - prefix.start()) + question[end:]
+        return question
+
     def _select_metric(
         self,
         matched: dict[str, MetricDefinition],
@@ -648,12 +707,38 @@ class QuestionInterpreter:
                     rf"\b{re.escape(_normalize(alias))}\s+(?:(?:de|do|da)\s+)?$", prefix
                 ) for alias in dimension.aliases)
             }
+            # Uma localização introduzida por "em" usa o município quando o
+            # nome também existe como bairro. Qualificadores explícitos prevalecem.
+            if not qualified and re.search(r"\bem\s+$", prefix):
+                parent_ids = {
+                    dimension.parent_dimension_id for dimension in self._profile.dimensions
+                    if dimension.parent_dimension_id and any(
+                        _normalize(match[2]) == _normalize(alias)
+                        for value in dimension.values for alias in value.aliases
+                    )
+                }
+                qualified = {
+                    dimension.id for dimension in self._profile.dimensions
+                    if dimension.id in parent_ids and any(
+                        _normalize(match[2]) == _normalize(alias)
+                        for value in dimension.values for alias in value.aliases
+                    )
+                }
             for dimension in self._profile.dimensions:
                 if dimension.parent_dimension_id and any(re.search(
                     rf"\bqual\s+(?:(?:o|a)\s+)?{re.escape(_normalize(alias))}\s+de\s+$",
                     prefix,
                 ) for alias in dimension.aliases):
                     qualified = {dimension.parent_dimension_id}
+                if dimension.parent_dimension_id:
+                    aliases = "|".join(re.escape(_normalize(alias)) for alias in dimension.aliases)
+                    reference = re.search(
+                        rf"\b(?:{aliases})\s+(?P<value>.+?)\s+(?:de|do|da)\s+$", prefix,
+                    )
+                    if reference and reference["value"] in {
+                        _normalize(alias) for value in dimension.values for alias in value.aliases
+                    }:
+                        qualified = {dimension.parent_dimension_id}
             if not qualified or any(
                 dimension.id in qualified and any(
                     _normalize(match[2]) == _normalize(alias)
@@ -720,6 +805,10 @@ class QuestionInterpreter:
     def _unsupported_detail(self, question: str) -> str | None:
         """Pedido de detalhe que o perfil não atende, fora de um período do catálogo."""
 
+        if self._profile.structured_dimension_filters and re.search(
+            r"(?:[<>]=?|!=)\s*(?:r\$\s*)?[+-]?[0-9]", question, re.IGNORECASE,
+        ):
+            return "Esse filtro por valor ainda não está disponível. Informe um recorte sem ele."
         period_spans = [
             (start, end)
             for start, end, _ in _find_phrases(question, self._profile.period_phrases)

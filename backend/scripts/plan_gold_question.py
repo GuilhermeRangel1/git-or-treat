@@ -50,7 +50,7 @@ def main():
             return AccessScope.model_validate_json(args.scope_file.read_text(encoding="utf-8"))
 
         async def run():
-            async with httpx.AsyncClient(timeout=35, trust_env=False) as transport:
+            async with httpx.AsyncClient(timeout=60, trust_env=False) as transport:
                 client = GenAIQuestionClient(http_client=transport, base_url=base.rstrip("/"),
                                             service_token=token)
                 return await plan_gold_question(

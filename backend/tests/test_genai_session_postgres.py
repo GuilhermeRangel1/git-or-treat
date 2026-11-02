@@ -680,9 +680,9 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     ("CON-08", "Quantas UCs com GD em Lumenia tiveram queda de consumo acima de 30%?",
                      "energy.gd_consumption_drop", "1.0 UCs"),
                     ("ATE-01", "Quantos chamados foram abertos em fevereiro de 2001?",
-                     "service.attendance", "2.0 protocolos"),
+                     "service.attendance", "2 chamados de atendimento"),
                     ("ATE-03", "Quantos chamados de atendimento existem no histórico acumulado?",
-                     "service.accumulated_attendance", "3.0 protocolos"),
+                     "service.accumulated_attendance", "3 chamados de atendimento"),
                     ("ATE-04", "Qual é a satisfação média do atendimento no histórico acumulado?",
                      "service.accumulated_satisfaction", "2.0 pontos"),
                     ("FAT-10", "Qual classe mais contribuiu para a receita em Lumenia em janeiro de 2001?",
@@ -705,6 +705,8 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert body["status"] == "answered", (case_id, body)
                     assert body["analysis_context"]["metric"] == metric_id
                     assert expected_text in body["answer"], case_id
+                    if metric_id in {"service.attendance", "service.accumulated_attendance"}:
+                        assert body["analysis_context"]["unit"] == "protocolos"
                     if case_id == "FAT-11":
                         # Valores literais da fixture, ligados ao componente exibido.
                         expected_components = {

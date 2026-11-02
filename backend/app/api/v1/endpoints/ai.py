@@ -16,7 +16,10 @@ from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
     get_question_gold_resources,
 )
-from app.repositories.gold_publication import GoldPublicationChanged, GoldPublicationUnavailable
+from app.repositories.gold_publication import (
+    GoldPublicationChanged,
+    GoldPublicationUnavailable,
+)
 from app.repositories.panorama import PanoramaRepository, get_panorama_repository
 from app.schemas.ai import (
     AIQueryRequest,
@@ -40,15 +43,17 @@ from app.services.genai_client import (
     GenAIServiceUnavailable,
     GenAITimeout,
 )
-from app.services.genai_coordination import answer_gold_question
+from app.services.genai_coordination import (
+    GoldCoverageUnavailable,
+    answer_gold_question,
+)
 from app.services.genai_executor import GoldExecutionDenied
-from app.services.gold_panorama_coordination import generate_gold_panorama_insight
-
 from app.services.genai_expected_publication import (
     ExpectedPublicationMismatch,
     resolve_expected_batch_ref,
 )
 from app.services.gold_catalog import GoldCatalogIncompatible
+from app.services.gold_panorama_coordination import generate_gold_panorama_insight
 from app.services.panorama_insights import (
     StalePanoramaInsight,
     UnsupportedPanoramaInsight,
@@ -248,6 +253,12 @@ async def ask_genai_question(
         return _question_error(
             request, status_code=503, code="service_unavailable", retryable=True,
             message="A consulta Gold está temporariamente indisponível.",
+        )
+    except GoldCoverageUnavailable:
+        return _question_error(
+            request, status_code=503, code="service_unavailable", retryable=False,
+            message="Os dados disponíveis não têm cobertura suficiente para responder "
+                    "a esse indicador no recorte solicitado. Tente outro período ou indicador.",
         )
     except GenAIServiceUnavailable as exc:
         return _question_error(

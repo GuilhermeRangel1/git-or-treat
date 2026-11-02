@@ -274,7 +274,8 @@ def _metric(
             "service.satisfaction": "service.accumulated_satisfaction",
         }.get(id_),
         "grouping_dimension_ids": (
-            ("customer.consumption_class",) if id_ == "billing.revenue" else
+            ("customer.consumption_class", "geography.municipality")
+            if id_ == "billing.revenue" else
             ("geography.neighborhood",) if id_ == "energy.consumption" else ()
         ),
         "comparison_grouping_dimension_ids": (
@@ -589,6 +590,7 @@ def _build_profile() -> DomainProfile:
     values["supports_ordering"] = True
     values["default_period_context_phrases"] = ()
     values["comparison_period_phrases"] = ()
+    values["comparison_terms"] = (*values["comparison_terms"], "perdeu")
     values["non_location_phrases"] = ()
     values["ambiguities"] = (
         *values["ambiguities"],
@@ -597,6 +599,9 @@ def _build_profile() -> DomainProfile:
                 "valor pago", "valores pagos", "quanto foi pago", "receita recebida",
                 "receita paga", "valor recebido", "arrecadação", "arrecadado",
                 "pagamento", "pagamentos", "faturas pagas",
+                "receita arrecadada", "receitas arrecadadas", "valores arrecadados",
+                "faturamento arrecadado", "faturamento recebido", "faturamento pago",
+                "valores recebidos", "receitas recebidas", "receitas pagas",
             ),
             "clarification": (
                 "Receita faturada não comprova pagamento ou arrecadação. "
@@ -622,8 +627,10 @@ def _build_profile() -> DomainProfile:
         },
         {
             "phrases": ("solar", "energia solar", "painel solar", "painéis solares"),
+            "examples": ("Quantas UCs com GD em {geography.municipality} "
+                         "tiveram queda de consumo acima de 30%?",),
             "clarification": (
-                "A Gold v2 registra geração distribuída (GD), mas não confirma que a origem "
+                "Os dados identificam geração distribuída (GD), mas não confirmam que a fonte "
                 "seja solar. Posso filtrar UCs com ou sem GD registrada?"
             ),
         },
@@ -684,6 +691,8 @@ def _build_profile() -> DomainProfile:
             "phrases": (
                 "acima de", "abaixo de", "maior que", "menor que", "entre valores",
                 "mais de", "menos de", "pelo menos",
+                "superior a", "inferior a", "maior ou igual a", "menor ou igual a",
+                "igual a", "no mínimo", "no máximo",
             ),
             "clarification": (
                 "Esse filtro por valor ainda não está disponível no planejamento. "
