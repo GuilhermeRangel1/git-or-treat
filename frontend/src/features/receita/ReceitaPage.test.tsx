@@ -196,7 +196,8 @@ const response = {
   },
 };
 
-it("oculta colunas inteiramente ausentes e volta a mostrá-las para zero observado", () => {
+it("oculta colunas inteiramente ausentes e volta a mostrá-las para zero observado", async () => {
+  const user = userEvent.setup();
   const data = structuredClone(response);
   data.data.series.forEach((row) => {
     (row as { paid_amount: number | null }).paid_amount = null;
@@ -205,14 +206,19 @@ it("oculta colunas inteiramente ausentes e volta a mostrá-las para zero observa
   const { rerender } = render(
     <RevenueSeries envelope={data as unknown as RevenueEnvelope} />,
   );
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Ver tabela da série/ }));
+  const dialog = screen.getByRole("dialog", { name: "Tabela da série" });
   expect(
-    screen.queryByRole("columnheader", { name: "Receita paga (BRL)" }),
+    within(dialog).queryByRole("columnheader", { name: "Receita paga (BRL)" }),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByRole("columnheader", { name: "Energia faturada (kWh)" }),
+    within(dialog).queryByRole("columnheader", {
+      name: "Energia faturada (kWh)",
+    }),
   ).not.toBeInTheDocument();
   expect(
-    screen.getByText(/Energia faturada não está disponível/),
+    within(dialog).getByText(/Energia faturada não está disponível/),
   ).toBeVisible();
   data.data.series[0].paid_amount = 0;
   data.data.series[0].billed_energy_kwh = 0;
@@ -223,6 +229,13 @@ it("oculta colunas inteiramente ausentes e volta a mostrá-las para zero observa
   expect(
     screen.getByRole("columnheader", { name: "Energia faturada (kWh)" }),
   ).toBeVisible();
+  const january = within(dialog).getByRole("row", { name: /Jan\/2025/ });
+  expect(within(january).getByText("R$ 0,00")).toBeVisible();
+  expect(within(january).getByText("0 kWh")).toBeVisible();
+  expect(within(dialog).getAllByText("Sem dado")).toHaveLength(2);
+  expect(
+    within(dialog).queryByText(/não está disponível/),
+  ).not.toBeInTheDocument();
 });
 
 it("pagina muitos recortes e mantém a soma de todos os grupos", async () => {
@@ -302,9 +315,22 @@ it("mostra as janelas Gold separadas da comparação mensal e sinaliza base inco
   expect(
     await screen.findByRole("heading", { name: "Preço × volume por janela" }),
   ).toBeVisible();
-  expect(screen.getByText(/2023-01 a 2023-12/)).toBeVisible();
-  expect(screen.getByText(/Resultado parcial: 1 de 3/)).toBeVisible();
-  expect(screen.getByText("Somente parcelas conhecidas.")).toBeVisible();
+  expect(
+    screen.getByText("Jan/2023–Dez/2023 vs. Jan/2024–Dez/2024"),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/Parcial: 1 de 3 grupos sem cobertura completa/),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      /1 de 3 grupos sem base comum; as parcelas somam apenas valores conhecidos/,
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      /Janelas fixas da análise, independentes do período da série/,
+    ),
+  ).toBeVisible();
   vi.unstubAllGlobals();
 });
 
@@ -459,10 +485,10 @@ describe("Receita", () => {
         name: "Receita, energia e preço em cada extremo",
       }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByText("R$ 76.500,00")).toHaveLength(2);
+    expect(screen.getAllByText("R$ 76.500,00")).toHaveLength(1);
     expect(screen.getAllByText("R$ 80.000,00")).not.toHaveLength(0);
     expect(screen.getAllByText("−R$ 3.500,00")).toHaveLength(2);
-    expect(screen.getByText("90.000 kWh")).toBeVisible();
+    expect(within(summary).getByText("90.000,00 kWh")).toBeVisible();
     expect(screen.getByText(/Dados sintéticos/i)).toBeVisible();
     expect(
       screen.queryByText("Ver método, cobertura e limitações"),
@@ -475,8 +501,7 @@ describe("Receita", () => {
     expect(
       within(series).getByRole("button", { name: /Ver tabela da série/ }),
     ).toBeVisible();
-    expect(within(series).getAllByText("Jan/2025")).toHaveLength(2);
-    expect(within(series).getAllByText("Fev/2025")).toHaveLength(2);
+    expect(within(series).queryByRole("table")).not.toBeInTheDocument();
     expect(within(series).queryByText("2025-01")).not.toBeInTheDocument();
     const chart = within(series).getByRole("img", {
       name: /Receita faturada por mês/i,
@@ -499,7 +524,15 @@ describe("Receita", () => {
     );
     const seriesDialog = screen.getByRole("dialog");
     expect(within(seriesDialog).getByRole("table")).toBeVisible();
-    expect(within(seriesDialog).getByText("Jan/2025")).toBeVisible();
+    const january = within(seriesDialog).getByRole("row", {
+      name: /Jan\/2025/,
+    });
+    const february = within(seriesDialog).getByRole("row", {
+      name: /Fev\/2025/,
+    });
+    expect(within(january).getByText("R$ 80.000,00")).toBeVisible();
+    expect(within(february).getByText("R$ 76.500,00")).toBeVisible();
+    expect(within(february).getByText("90.000 kWh")).toBeVisible();
   });
 
   it("shows the initial and final amounts and reconciles the visible groups", async () => {
@@ -686,7 +719,7 @@ describe("Receita", () => {
     expect(filtersTrigger).toHaveFocus();
   });
 
-  it("allows filtering by neighborhood across municipalities", async () => {
+  it("requires a municipality before filtering by neighborhood and clears the neighborhood when it changes", async () => {
     const fetchMock = vi
       .fn()
       .mockImplementation(
@@ -699,10 +732,15 @@ describe("Receita", () => {
     await user.click(
       await screen.findByRole("button", { name: "Ajustar filtros" }),
     );
-    await user.selectOptions(
-      await screen.findByLabelText("Bairro"),
-      "Bairro Novo",
-    );
+    const neighborhood = await screen.findByLabelText("Bairro");
+    expect(neighborhood).toBeDisabled();
+    await screen.findByRole("option", { name: "Olinda" });
+    await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+    expect(neighborhood).toBeEnabled();
+    await user.selectOptions(neighborhood, "Bairro Novo");
+    await user.selectOptions(screen.getByLabelText("Município"), "Recife");
+    expect(neighborhood).toHaveValue("");
+    await user.selectOptions(neighborhood, "Bairro Novo");
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
@@ -711,7 +749,7 @@ describe("Receita", () => {
       window.location.origin,
     );
     expect(requestUrl.searchParams.get("bairro")).toBe("Bairro Novo");
-    expect(requestUrl.searchParams.has("municipio")).toBe(false);
+    expect(requestUrl.searchParams.get("municipio")).toBe("Recife");
   });
 
   it("preserves a URL feeder through requests, form apply, context, and cache identity", async () => {
@@ -1345,7 +1383,7 @@ describe("Receita", () => {
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
-    await user.selectOptions(screen.getByLabelText("Mês do fim"), "03");
+    await user.selectOptions(screen.getByLabelText("Mês final"), "2025-01");
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 
@@ -1454,11 +1492,10 @@ describe("Receita", () => {
     expect(within(breakdown).getByText("Base pequena")).toBeVisible();
     expect(within(breakdown).getByText(/Antes: 4/)).toBeVisible();
     expect(within(breakdown).getByText(/Final: 4 UCs/)).toBeVisible();
-    expect(
-      within(
-        screen.getByRole("region", { name: "Resumo da receita" }),
-      ).getByText("Percentual indisponível"),
-    ).toBeVisible();
+    const summary = screen.getByRole("region", { name: "Resumo da receita" });
+    expect(within(summary).getByText("−R$ 3.500,00")).toBeVisible();
+    expect(within(summary).queryByText(/%/)).not.toBeInTheDocument();
+    expect(within(breakdown).queryByText(/%/)).not.toBeInTheDocument();
   });
 
   it("keeps an absolute delta but withholds price-volume effects when initial revenue is zero", async () => {

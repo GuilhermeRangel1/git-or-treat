@@ -91,6 +91,11 @@ export default function GoldOperationFoundations({
       >
         <section className="grid gap-3 text-sm" aria-label={title}>
           <p>
+            Indicador simplificado; não representa apuração regulatória oficial.
+            O cadastro atual não comprova a população histórica do período.
+          </p>
+          <p>{definition.event_grain}</p>
+          <p>
             <strong>Período solicitado:</strong> {formatPeriod(summary.period)}.
           </p>
           <p>

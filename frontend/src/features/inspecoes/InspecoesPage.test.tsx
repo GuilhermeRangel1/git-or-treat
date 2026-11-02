@@ -890,6 +890,10 @@ it("mostra e remove o alimentador ativo no resumo e na consulta", async () => {
 
   await user.click(screen.getByRole("button", { name: /Ajustar filtros/ }));
   await user.click(screen.getByRole("button", { name: "Limpar filtros" }));
+  expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+    "alimentador=AL-03",
+  );
+  await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
   await waitFor(() => {
     expect(screen.getByLabelText("URL atual")).not.toHaveTextContent(
       "alimentador=",

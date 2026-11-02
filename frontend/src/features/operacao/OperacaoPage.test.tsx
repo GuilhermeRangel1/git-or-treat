@@ -170,10 +170,8 @@ it("mostra consolidado parcial e distingue base incluída da população do reco
   expect(foundations).toHaveTextContent(
     "Período observado: Jan/2025 – Fev/2025",
   );
-  expect(foundations).toHaveTextContent(
-    "Fonte: synthetic · versão dev03-v1 · demonstrativa",
-  );
-  expect(foundations).toHaveTextContent("Atualizado em:");
+  expect(foundations).not.toHaveTextContent("dev03-v1");
+  expect(foundations).toHaveTextContent(/Atualizado em:? 21\/10\/2026/);
   expect(
     screen.getAllByRole("link", { name: "Investigar AL-03" }),
   ).toHaveLength(2);
@@ -462,9 +460,7 @@ it("mantém ocorrências observadas quando o denominador do alimentador é invá
   expect(foundations).toHaveTextContent(
     "Período observado: Jan/2025 – Fev/2025",
   );
-  expect(foundations).toHaveTextContent(
-    "Fonte: synthetic · versão dev03-v1 · demonstrativa",
-  );
+  expect(foundations).not.toHaveTextContent("dev03-v1");
   expect(foundations).not.toHaveTextContent("População do recorte: 10 UCs");
 });
 
@@ -819,6 +815,19 @@ it("navega do ranking Gold ao detalhe agregado e retorna preservando filtros", a
     name: "Fundamentos do DEC",
   });
   expect(decFoundations).toHaveTextContent("Período solicitado");
+  expect(decFoundations).toHaveTextContent("Numerador: 4 h");
+  expect(decFoundations).toHaveTextContent("Denominador: 2 UCs");
+  expect(decFoundations).toHaveTextContent("População: cadastro atual");
+  expect(decFoundations).toHaveTextContent(
+    "Cobertura: completude não comprovada",
+  );
+  for (const technicalValue of [
+    "ui-navigation-batch",
+    fingerprint,
+    "gold-csv-v2",
+  ]) {
+    expect(decFoundations).not.toHaveTextContent(technicalValue);
+  }
   expect(decFoundations).toHaveTextContent("apuração regulatória oficial");
   expect(decFoundations).toHaveTextContent("população histórica");
   await user.click(

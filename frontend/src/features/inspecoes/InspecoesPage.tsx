@@ -96,21 +96,22 @@ export default function InspecoesPage() {
     access.data?.canWrite ||
     access.lastConfirmedAccess?.access.canWrite;
   const createOrderAction =
-    parsed?.detail && detail.data && canCreateOrder ? (
+    parsed?.detail && canCreateOrder ? (
       <CreateOrder
         key={parsed.detail}
         uc={parsed.detail}
-        sourceVersion={detail.data.metadata.source.version}
+        sourceVersion={detail.data?.metadata.source.version}
         sourceFingerprint={
-          "fingerprint" in detail.data.metadata
+          detail.data && "fingerprint" in detail.data.metadata
             ? detail.data.metadata.fingerprint
             : undefined
         }
         requireSourceFingerprint={
-          detail.data.metadata.contract_version === "2.0.0"
+          detail.data?.metadata.contract_version === "2.0.0"
         }
-        ruleVersion={detail.data.data.rule_version}
+        ruleVersion={detail.data?.data.rule_version}
         disabled={
+          !detail.data ||
           detail.isFetching ||
           detail.isError ||
           (session.configured &&
@@ -230,15 +231,12 @@ export default function InspecoesPage() {
         </Link>
       ) : null}
 
+      {!invalid ? createOrderAction : null}
       {!invalid && active.data && metadata ? (
         <>
           {parsed?.detail && detail.data ? (
             <>
-              <SuspicionDetail
-                data={detail.data.data}
-                metadata={metadata}
-                action={createOrderAction}
-              />
+              <SuspicionDetail data={detail.data.data} metadata={metadata} />
               <Link className={inspectionAction} to={`?${back}`}>
                 <ArrowLeft size={16} aria-hidden="true" />
                 Voltar à fila

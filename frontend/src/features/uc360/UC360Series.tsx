@@ -72,8 +72,29 @@ export default function UC360Series({
   error: Error | null;
   onRetry: () => void;
 }) {
-  const rows = [...(data?.items ?? [])].sort((a, b) =>
+  const observedRows = [...(data?.items ?? [])].sort((a, b) =>
     a.competencia.localeCompare(b.competencia),
+  );
+  const observedByMonth = new Map(
+    observedRows.map((row) => [monthIndex(row.competencia), row]),
+  );
+  const firstMonth = observedRows.length
+    ? monthIndex(observedRows[0].competencia)
+    : 0;
+  const lastMonth = observedRows.length
+    ? monthIndex(observedRows[observedRows.length - 1].competencia)
+    : -1;
+  const rows: Point[] = Array.from(
+    { length: lastMonth - firstMonth + 1 },
+    (_, offset) => {
+      const index = firstMonth + offset;
+      return (
+        observedByMonth.get(index) ?? {
+          competencia: `${Math.floor((index - 1) / 12)}-${String(((index - 1) % 12) + 1).padStart(2, "0")}`,
+          measured_energy_kwh: null,
+        }
+      );
+    },
   );
   const previousValues = new Map(
     previous?.data?.items.map((item) => [

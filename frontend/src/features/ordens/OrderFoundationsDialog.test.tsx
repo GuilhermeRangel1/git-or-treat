@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OrderDetail } from "@/shared/api/orders";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
@@ -186,9 +186,17 @@ describe("OrderFoundationsDialog", () => {
       }),
     ).toBeInTheDocument();
     expect(await screen.findByText("REVISAR")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Proveniência da publicação"));
-    expect(screen.getByText("batch-old")).toBeInTheDocument();
-    expect(screen.getByText("b".repeat(64))).toBeInTheDocument();
+    expect(
+      screen.queryByText("Proveniência da publicação"),
+    ).not.toBeInTheDocument();
+    for (const technicalValue of [
+      "batch-old",
+      "b".repeat(64),
+      "gold-csv-v2",
+      "gold-fila-inspecao-v1",
+    ]) {
+      expect(screen.queryByText(technicalValue)).not.toBeInTheDocument();
+    }
     expect(
       within(screen.getByText("Inspeções realizadas").parentElement!).getByText(
         "0",
@@ -196,7 +204,7 @@ describe("OrderFoundationsDialog", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "A Gold não publicou uma estimativa individual para esta UC; a referência histórica é apresentada separadamente.",
+        "Não há estimativa individual disponível para esta unidade consumidora.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -223,11 +231,11 @@ describe("OrderFoundationsDialog", () => {
       screen.getByText("Média global histórica com grupos opcionais (v2)"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("DISPONIVEL_REFERENCIA_HISTORICA"),
-    ).toBeInTheDocument();
+      screen.queryByText("DISPONIVEL_REFERENCIA_HISTORICA"),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByText("MEDIA_GLOBAL_COM_GRUPOS_OPCIONAIS_V2"),
-    ).toBeInTheDocument();
+      screen.queryByText("MEDIA_GLOBAL_COM_GRUPOS_OPCIONAIS_V2"),
+    ).not.toBeInTheDocument();
     expect(getOrderDetail).toHaveBeenCalledTimes(1);
   });
 });
