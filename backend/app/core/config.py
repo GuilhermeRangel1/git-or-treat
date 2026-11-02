@@ -4,6 +4,8 @@ from typing import Literal
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -20,7 +22,7 @@ class Settings(BaseSettings):
 
     AI_AGENT_BASE_URL: AnyHttpUrl | None = None
     AI_AGENT_SERVICE_API_TOKEN: SecretStr | None = None
-    AI_AGENT_TIMEOUT_SECONDS: float = Field(default=35.0, ge=0.1, le=120.0)
+    AI_AGENT_TIMEOUT_SECONDS: float = Field(default=GOLD_REQUEST_TIMEOUT_SECONDS, ge=0.1, le=120.0)
     GENAI_AUDIT_WRITE_TOKEN: SecretStr | None = None
 
     @field_validator("GENAI_AUDIT_WRITE_TOKEN")

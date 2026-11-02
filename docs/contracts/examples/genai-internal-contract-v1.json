@@ -36,7 +36,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -434,7 +434,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35000,
+        "remaining_timeout_ms": 60000,
         "dimension_value_coverage": []
       }
     },
@@ -513,7 +513,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35000,
+        "remaining_timeout_ms": 60000,
         "dimension_value_coverage": []
       }
     },
@@ -592,7 +592,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35000,
+        "remaining_timeout_ms": 60000,
         "dimension_value_coverage": []
       }
     },
@@ -630,7 +630,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -810,7 +810,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35000,
+        "remaining_timeout_ms": 60000,
         "dimension_value_coverage": []
       }
     },
@@ -878,7 +878,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35000,
+        "remaining_timeout_ms": 60000,
         "dimension_value_coverage": []
       }
     },
@@ -946,7 +946,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35000,
+        "remaining_timeout_ms": 60000,
         "dimension_value_coverage": []
       }
     },
@@ -1102,7 +1102,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -1139,7 +1139,7 @@
           }
         ],
         "unexpected": true,
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -1445,7 +1445,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -1556,7 +1556,7 @@
         },
         "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
         "unexpected": true,
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -1628,7 +1628,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -1664,7 +1664,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -1700,7 +1700,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -1736,7 +1736,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -1773,7 +1773,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -2029,7 +2029,7 @@
           "limitations": []
         },
         "expected_batch_ref": null,
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -2139,7 +2139,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v1:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -2326,7 +2326,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -2490,7 +2490,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v3:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35000
+        "remaining_timeout_ms": 60000
       }
     },
     {
@@ -2706,7 +2706,7 @@
             ]
           }
         ],
-        "remaining_timeout_ms": 35001
+        "remaining_timeout_ms": 60001
       }
     },
     {
@@ -3437,7 +3437,7 @@
           "limitations": []
         },
         "expected_batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
-        "remaining_timeout_ms": 35001
+        "remaining_timeout_ms": 60001
       }
     },
     {

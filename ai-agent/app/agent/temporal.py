@@ -23,10 +23,52 @@ _MONTH_NAMES = (
     "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
 )
 _MONTH_NUMBERS = {_normalize(name): index for index, name in enumerate(_MONTH_NAMES, 1)}
+_SHARED_MONTH_NAME = "|".join(name.replace("ç", "[cç]") for name in _MONTH_NAMES)
+_SHARED_YEAR = re.compile(
+    r"(?<!\w)(?P<first>" + _SHARED_MONTH_NAME + r")"
+    r"(?P<link>\s+(?:e|a|at[eé]|com|para|versus)\s+)(?P<second>" + _SHARED_MONTH_NAME + r")"
+    r"\s+(?:de\s+)?(?P<year>[0-9]{4})(?![\w-])",
+    re.IGNORECASE,
+)
+_SLASH_MONTH = re.compile(
+    r"(?<![\w/.-])(?P<month>0?[1-9]|1[0-2]|" + _SHARED_MONTH_NAME + r")"
+    r"\s*/\s*(?P<year>[0-9]{4})(?![\w/-])", re.IGNORECASE,
+)
+_MONTHLY_PREFIX = re.compile(
+    r"\b(?:no\s+m[eê]s(?:\s+de)?|na\s+compet[eê]ncia(?:\s+de)?)\s+"
+    r"(?=(?:" + _SHARED_MONTH_NAME + r")\s+(?:de\s+)?[0-9]{4}"
+    r"|[0-9]{4}-(?:0[1-9]|1[0-2]))", re.IGNORECASE,
+)
+
+
+def normalize_calendar_phrases(text: str) -> str:
+    """Normaliza grafias mensais equivalentes, acentos Unicode e espaço em branco.
+
+    Os dois meses pertencem ao ano escrito. Uma virada de ano continua exigindo
+    anos separados e a resolução existente valida ordem, calendário e cobertura.
+    Notação mês/ano exige ano completo e não é extraída de uma data com dia.
+    """
+    text = " ".join(unicodedata.normalize("NFC", text).split())
+    text = _SHARED_YEAR.sub(
+        lambda match: (
+            f"{match['first']} de {match['year']}{match['link']}"
+            f"{match['second']} de {match['year']}"
+        ),
+        text,
+    )
+
+    def slash_month(match: re.Match) -> str:
+        token = _normalize(match["month"])
+        month = int(token) if token.isdigit() else _MONTH_NUMBERS[token]
+        return f"{match['year']}-{month:02d}"
+
+    return _MONTHLY_PREFIX.sub("em ", _SLASH_MONTH.sub(slash_month, text))
+
+
 _NAMED_MONTH = r"(?:" + "|".join(_MONTH_NUMBERS) + r")\s+(?:de\s+)?[0-9]{4}"
 _MONTH_TOKEN = rf"(?:{_NAMED_MONTH}|[0-9]{{4}}-(?:0[1-9]|1[0-2]))"
 _EXPLICIT_PERIOD = re.compile(
-    rf"(?<!\w)(?:de\s+{_MONTH_TOKEN}\s+(?:a|ate)\s+{_MONTH_TOKEN}"
+    rf"(?<!\w)(?:(?:de\s+)?{_MONTH_TOKEN}\s+(?:a|ate)\s+{_MONTH_TOKEN}"
     rf"|{_MONTH_TOKEN}|ano\s+(?:de\s+)?[0-9]{{4}})(?![\w-])"
 )
 
@@ -55,7 +97,8 @@ def has_incomplete_calendar_period(text: str) -> bool:
     if len(matches) == 2 and all(re.fullmatch(_MONTH_TOKEN, m.group()) for m in matches):
         remaining = re.sub(r"\bentre\b", " ", remaining)
     return bool(re.search(
-        r"\b(?:desde|ate|entre|" + "|".join(_MONTH_NUMBERS) + r")\b", remaining
+        r"\b(?:desde|ate|entre|" + "|".join(_MONTH_NUMBERS) + r")\b"
+        r"|(?<!\w)(?:[0-9]{4}[-/][0-9]+|[0-9]{1,2}/[0-9]{2,})(?!\w)", remaining
     ))
 
 
@@ -168,3 +211,9 @@ def _months_between(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[
         months.append(current)
         current = _shift_month(*current, 1)
     return months
+
+
+def monthly_period_label(period: str) -> str:
+    """Competência já validada para uma frase legível em português."""
+    year, month = period.split("-")
+    return f"{_MONTH_NAMES[int(month) - 1]} de {year}"

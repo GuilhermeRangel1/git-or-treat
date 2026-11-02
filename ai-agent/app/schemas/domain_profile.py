@@ -310,6 +310,7 @@ class DetailRule(BaseModel):
 
 class AmbiguityRule(BaseModel):
     resolved_metric_ids: tuple[LogicalIdentifier, ...] = ()
+    examples: tuple[CatalogText, ...] = Field(default=(), max_length=5)
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     phrases: tuple[CatalogPhrase, ...] = Field(min_length=1, max_length=20)

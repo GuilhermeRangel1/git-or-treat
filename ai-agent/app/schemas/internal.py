@@ -101,7 +101,7 @@ class QuestionPlanRequest(QuestionRequest):
     """Pergunta e até três turnos de contexto, com o escopo enviado pelo Backend."""
 
     access_scope: AccessScope
-    remaining_timeout_ms: int = Field(strict=True, gt=0, le=35000)
+    remaining_timeout_ms: int = Field(strict=True, gt=0, le=60000)
     batch_ref: GoldBatchRef | None = None
     temporal_coverage: tuple[TemporalCoverage, ...] = Field(default=(), max_length=100)
     dimension_value_coverage: tuple[DimensionValueCoverage, ...] = Field(
@@ -189,7 +189,7 @@ class QuestionSynthesisRequest(QuestionRequest):
 
     dimension_value_coverage: tuple[DimensionValueCoverage, ...] = Field(default=(), max_length=20)
     access_scope: AccessScope
-    remaining_timeout_ms: int = Field(strict=True, gt=0, le=35000)
+    remaining_timeout_ms: int = Field(strict=True, gt=0, le=60000)
     plan: LogicalReadPlan
     plan_fingerprint: str = Field(pattern=_FINGERPRINT_PATTERN)
     lookup: EvidenceLookupResult

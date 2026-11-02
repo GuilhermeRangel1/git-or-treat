@@ -11,6 +11,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.models.gold_v2 import TABLES
 from app.repositories.gold_publication import (
     GoldPublicationChanged,
@@ -200,12 +201,12 @@ async def plan_gold_question(
     O resolvedor é dependência confiável do Backend, nunca parte do corpo do portal.
     GENAI-06/07 consomem o plano admitido; o chamador não deve executar resposta recusada.
     """
-    deadline = deadline or GenAIRequestDeadline.start(35)
+    deadline = deadline or GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS)
     if expected_batch_ref is not None:
         PublicationReference.parse(expected_batch_ref)
-    scope = await deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
+    scope = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope))
     publication = await deadline.run(
-        35, lambda: asyncio.to_thread(GoldPublicationContext.capture, engine)
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(GoldPublicationContext.capture, engine)
     )
     if publication.reference.schema_version != GOLD_V2_SCHEMA_VERSION:
         # Rollback para publicação v1 não vira fallback: o executor lê somente gold_v2.
@@ -213,18 +214,18 @@ async def plan_gold_question(
     if expected_batch_ref is not None and publication.batch_ref != expected_batch_ref:
         raise GoldPublicationChanged("A publicação Gold mudou antes do planejamento.")
     fields = await deadline.run(
-        35, lambda: asyncio.to_thread(publication.planning_fields, engine, scope)
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(publication.planning_fields, engine, scope)
     )
     payload = QuestionPlanRequest(
         **request.model_dump(), access_scope=scope,
-        remaining_timeout_ms=deadline.remaining_timeout_ms(35), **fields,
+        remaining_timeout_ms=deadline.remaining_timeout_ms(GOLD_REQUEST_TIMEOUT_SECONDS), **fields,
     )
     response = await deadline.run(
-        35, lambda: client.plan(payload, correlation_id=correlation_id)
+        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: client.plan(payload, correlation_id=correlation_id)
     )
     # Mesmo os esclarecimentos só podem ser publicados sobre a referência original.
-    await deadline.run(35, lambda: asyncio.to_thread(publication.assert_current, engine))
-    current_scope = await deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
+    await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(publication.assert_current, engine))
+    current_scope = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope))
     if current_scope != scope:
         return GoldPlanningResult(_stop(
             QuestionPlanStatus.REFUSED,
@@ -242,7 +243,7 @@ async def plan_gold_question(
         response.plan.model_dump(mode="json"), response.plan_fingerprint
     )
     source = _admit_plan(plan, current_scope)
-    if not await deadline.run(35, lambda: asyncio.to_thread(
+    if not await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(
         _has_selected_coverage, engine, publication, plan, source
     )):
         return GoldPlanningResult(_stop(
@@ -251,13 +252,13 @@ async def plan_gold_question(
             "Informe outro período ou recorte; ausência não equivale a zero.", correlation_id,
         ), publication, access_scope=scope)
     # A consulta de cobertura também pode consumir o prazo ou coincidir com uma revogação.
-    current_scope = await deadline.run(35, lambda: asyncio.to_thread(resolve_scope))
+    current_scope = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope))
     if current_scope != scope:
         return GoldPlanningResult(_stop(
             QuestionPlanStatus.REFUSED,
             "As permissões mudaram. Refaça a pergunta com o acesso atual.", correlation_id,
         ), publication, access_scope=scope)
-    deadline.remaining_seconds(35)
+    deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     return GoldPlanningResult(
         response, publication, source, scope, deadline, payload.dimension_value_coverage,
     )

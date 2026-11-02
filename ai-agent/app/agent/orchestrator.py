@@ -83,6 +83,9 @@ def _describe_observation(
     if unit in {"BRL", "R$"} and isinstance(value, (int, float)) and not isinstance(value, bool):
         formatted = f"{value:,.2f}".translate(str.maketrans({",": ".", ".": ","}))
         value_with_unit = f"R$ {formatted}"
+    elif (human_readable and unit == "protocolos" and isinstance(value, (int, float))
+          and not isinstance(value, bool) and float(value).is_integer()):
+        value_with_unit = f"{value:,.0f} chamados de atendimento".replace(",", ".")
     else:
         value_with_unit = f"{value} {unit}"
     if human_readable:
@@ -539,7 +542,9 @@ class QuestionOrchestrator:
             )
             values = ", ".join(
                 _describe_observation(
-                    observations[item], labels, human_readable=not evidence.reference.is_demo
+                    {key: value for key, value in observations[item].items()
+                     if key != "period" or not metric.accumulated_period_phrases},
+                    labels, human_readable=not evidence.reference.is_demo
                 )
                 for item in answer_observation_ids
             )
@@ -547,6 +552,9 @@ class QuestionOrchestrator:
             title = metric.label or "Resultado da consulta"
             if evidence.reference.is_demo:
                 answer = f"{prefix}{title} — {period}: {values}."
+            elif (len(answer_observation_ids) == 1
+                  and read_plan.metric_id == "service.accumulated_attendance"):
+                answer = f"No histórico acumulado, foram registrados {values}."
             elif len(answer_observation_ids) == 1:
                 answer = f"Para {title.lower()}, o resultado foi de {values}."
             else:

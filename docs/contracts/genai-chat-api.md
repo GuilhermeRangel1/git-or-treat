@@ -101,7 +101,7 @@ O portal valida o envelope v1 em tempo de execução antes de mostrar o conteúd
 - O Backend usa `AI_AGENT_BASE_URL`: modo sintético faz `POST /api/v1/questions`; modo Gold usa `POST /api/v1/internal/question-plans` e `/api/v1/internal/question-syntheses`. Os envelopes internos não são aceitos do navegador.
 - `AI_AGENT_SERVICE_API_TOKEN` é enviado como `Authorization: Bearer ...`; o serviço GenAI valida esse token quando configurado. Tokens têm pelo menos 32 caracteres e permanecem no servidor.
 - `X-Correlation-ID` é criado pelo Backend, propagado ao GenAI e devolvido no cabeçalho e envelope da resposta. O ID correlaciona uma chamada; não é identidade nem trilha de auditoria persistida.
-- `AI_AGENT_TIMEOUT_SECONDS` tem default 35 s e faixa de 0,1 a 120 s; o timeout total interno configurado no GenAI também pode interromper antes.
+- `AI_AGENT_TIMEOUT_SECONDS` tem default 60 s e faixa de 0,1 a 120 s; o timeout total interno configurado no GenAI também pode interromper antes.
 - Redirecionamentos HTTP são desabilitados pelo cliente para não encaminhar credenciais a outro host.
 - O contrato é síncrono HTTP/JSON, sem retry automático. O endpoint do GenAI deve ser acessível apenas pela rede privada do serviço em implantação.
 
@@ -126,4 +126,8 @@ O campo opcional `analysis_context.batch_reference` contém a referência da pub
 
 A resposta quantitativa é montada a partir das observações aprovadas: valores monetários em reais usam formato brasileiro e meses são escritos por extenso. Séries usam uma linha por observação; texto livre do modelo não substitui números validados. Demonstração tem aviso visível antes de abrir os fundamentos; limitações permanecem visíveis.
 
-O portal preserva o rascunho nas falhas, impede envio simultâneo e impõe prazo de 40 segundos, superior ao orçamento de 35 segundos do Backend. Timeout/rede permitem repetição manual; 401/403, 409, 422 e 429 orientam uma nova ação, sem repetição automática. Em 409, respostas anteriores são sinalizadas como desatualizadas e seus contextos e retentativas são descartados. Histórico permanece apenas em memória e não é cache de resposta vigente. A renderização é texto simples: HTML e links enviados no conteúdo não são executados.
+O portal preserva o rascunho nas falhas, impede envio simultâneo e impõe prazo de 70 segundos, superior ao orçamento de 60 segundos do Backend. Timeout/rede permitem repetição manual; 401/403, 409, 422 e 429 orientam uma nova ação, sem repetição automática. Em 409, respostas anteriores são sinalizadas como desatualizadas e seus contextos e retentativas são descartados. Histórico permanece apenas em memória e não é cache de resposta vigente. A renderização é texto simples: HTML e links enviados no conteúdo não são executados.
+
+### Falta de cobertura conhecida na Gold
+
+Quando a prontidão da publicação atual informa somente falta de cobertura/fonte/período para a capacidade pedida, a API conserva HTTP 503 `service_unavailable` com `retryable=false`, mas explica que os dados não têm cobertura suficiente para aquele recorte e orienta outro período/indicador. A mensagem não atribui o bloqueio a uma indisponibilidade temporária do serviço. Não há chamada ao executor quantitativo ou ao modelo nesse caso. Falhas de controles/aprovação, publicação ou infraestrutura preservam seus tratamentos próprios. Ver [regressões da tela](../plans/2026-11-02-genai-perguntas-da-tela.md).

@@ -6,7 +6,7 @@
 
 O Backend autentica por sessão individual e coordena planejar → prontidão → SQL parametrizado com leitor restrito → sintetizar. As rotas internas question-plans/question-syntheses estão ligadas ao núcleo existente; não há callback público circular nem fallback Gold para demonstração. O schema físico é Gold CSV v2 e o perfil é v-energy-grid-360-gold, fonte gold.local. Versão lógica v1 não significa uso da Gold v1.
 
-Plano, identidade, escopo, catálogo e lote são revalidados entre etapas. Referência pública audit_reference é preenchida após auditoria durável confirmada; o replay administrativo da primeira resposta real foi comprovado. Prazo total de 35 s e SQL de até 5 s consomem o mesmo orçamento.
+Plano, identidade, escopo, catálogo e lote são revalidados entre etapas. Referência pública audit_reference é preenchida após auditoria durável confirmada; o replay administrativo da primeira resposta real foi comprovado. Prazo total de 60 s e SQL de até 5 s consomem o mesmo orçamento.
 
 Erros vigentes no Backend: publicação ausente/inválida → 503 service_unavailable/retryable false; publicação alterada → 409 invalid_context/retryable true; acesso negado → 401/403 access_denied sem retry. Fonte SQL temporariamente indisponível → 503 com retry; falha da confirmação obrigatória de auditoria → 503 sem retry. Mensagens fixas e correlação preservadas. A GenAI pode devolver recoverable_error no envelope v1, conforme o contrato público.
 
@@ -231,7 +231,7 @@ Valores atuais no código:
 
 | Configuração | Serviço | Default |
 | --- | --- | --- |
-| `AI_AGENT_TIMEOUT_SECONDS` | Backend, por chamada à GenAI | 35 s |
+| `AI_AGENT_TIMEOUT_SECONDS` | Backend, por chamada à GenAI | 60 s |
 | `GENAI_REQUEST_TIMEOUT_MS` | GenAI, por requisição | 30.000 ms |
 | `GENAI_SOURCE_TIMEOUT_MS` / `GENAI_SOURCE_MAX_CALLS` | GenAI, fonte de evidência | 10.000 ms / 1 |
 | `GENAI_MODEL_TIMEOUT_MS` / `GENAI_MODEL_TOTAL_TIMEOUT_MS` | GenAI, modelo | 20.000 ms / 30.000 ms |
@@ -243,7 +243,7 @@ Proposta:
 - Planejar não chama modelo nem fonte; deve terminar bem abaixo do prazo de uma requisição.
 - A execução no Backend usa timeout próprio, no máximo equivalente a `GENAI_SOURCE_TIMEOUT_MS`, e o limite de linhas do plano (até 100).
 - Sintetizar usa o orçamento de modelo atual. Como a fonte não é chamada nessa operação, `GENAI_SOURCE_MAX_CALLS` não se aplica a ela.
-- Decisão de 30/10/2026: 35 segundos para a requisição completa, incluindo planejamento, SQL e síntese; SQL tem teto de 5 segundos. Cada etapa recebe o menor valor entre seu limite local e o saldo disponível. O Backend mantém o relógio monotônico único; o prazo não reinicia entre chamadas.
+- Decisão de 30/10/2026, revisada em 02/11/2026: 60 segundos para a requisição completa, incluindo planejamento, SQL e síntese; SQL tem teto de 5 segundos. Cada etapa recebe o menor valor entre seu limite local e o saldo disponível. O Backend mantém o relógio monotônico único; o prazo não reinicia entre chamadas.
 
 Correlação e auditoria:
 
@@ -474,7 +474,7 @@ Referência: [SQLAlchemy Core 2.0 — isolamento por conexão](https://docs.sqla
 
 ### Prazo B6 compartilhado — preparação
 
-`backend/app/services/genai_deadline.py::GenAIRequestDeadline.start(total_seconds)` cria um prazo por requisição com relógio monotônico. Os valores total e por etapa são explícitos: o contrato final fixa 35 segundos totais e teto SQL de 5 segundos; o componente genérico não altera sozinho o timeout HTTP atual.
+`backend/app/services/genai_deadline.py::GenAIRequestDeadline.start(total_seconds)` cria um prazo por requisição com relógio monotônico. Os valores total e por etapa são explícitos: o contrato final fixa 60 segundos totais e teto SQL de 5 segundos; o componente genérico não altera sozinho o timeout HTTP atual.
 
 O futuro coordenador deve criar a instância na entrada, preservá-la durante planejamento, consulta e síntese e limitar cada etapa pelo menor valor entre seu teto e o tempo restante. `remaining_seconds(stage_limit_seconds)` fornece o limite para HTTP; `sql_timeout_ms(stage_limit_seconds)` arredonda para baixo e recusa menos de um milissegundo, sem devolver zero, que desativaria o timeout PostgreSQL. O executor deverá aplicar o valor no banco dentro da transação e manter o cancelamento concreto do driver.
 
@@ -523,9 +523,9 @@ Para concluir GENAI-01, revisar e aprovar estes exemplos e os envelopes dos dois
 
 ### Prazo final do contrato e migração dos consumidores
 
-A pessoa usuária definiu 35 segundos no total e SQL limitado a 5 segundos. O Backend cria `GenAIRequestDeadline.start(35)` na entrada da requisição, antes de resolver escopo/publicação, e imediatamente antes de cada chamada calcula `remaining_timeout_ms(35)`; o SQL recebe `sql_timeout_ms(5)`. O saldo arredonda para baixo, nunca vira zero e nunca renova o relógio. Sem saldo, não despacha nova etapa. Transporte, fila, revalidação, consulta e síntese consomem o mesmo orçamento global.
+A pessoa usuária definiu 60 segundos no total e SQL limitado a 5 segundos. O Backend cria `GenAIRequestDeadline.start(60)` na entrada da requisição, antes de resolver escopo/publicação, e imediatamente antes de cada chamada calcula `remaining_timeout_ms(60)`; o SQL recebe `sql_timeout_ms(5)`. O saldo arredonda para baixo, nunca vira zero e nunca renova o relógio. Sem saldo, não despacha nova etapa. Transporte, fila, revalidação, consulta e síntese consomem o mesmo orçamento global.
 
-As requisições internas de planejamento e síntese exigem `remaining_timeout_ms`, inteiro estrito de 1 a 35.000. Ausência, nulo, booleano, string, fração, zero, negativo ou valor superior são rejeitados nos dois serviços. A GenAI limita a operação ao menor valor entre o saldo recebido e seu teto local; a espera no semáforo consome esse limite, e uma operação que termina atrasada não produz resposta válida. A espera do cliente HTTP também deve usar o saldo local mais recente. O Backend descarta resultado ou resposta se seu prazo global tiver expirado, inclusive depois da síntese. Não se compara relógio monotônico entre processos; o número é um teto relativo e o relógio do Backend é a autoridade final.
+As requisições internas de planejamento e síntese exigem `remaining_timeout_ms`, inteiro estrito de 1 a 60.000. Ausência, nulo, booleano, string, fração, zero, negativo ou valor superior são rejeitados nos dois serviços. A GenAI limita a operação ao menor valor entre o saldo recebido e seu teto local; a espera no semáforo consome esse limite, e uma operação que termina atrasada não produz resposta válida. A espera do cliente HTTP também deve usar o saldo local mais recente. O Backend descarta resultado ou resposta se seu prazo global tiver expirado, inclusive depois da síntese. Não se compara relógio monotônico entre processos; o número é um teto relativo e o relógio do Backend é a autoridade final.
 
 O campo é exclusivamente interno: o navegador não escolhe o prazo ou o escopo. Os contratos públicos permanecem v1. Os envelopes internos v1 ainda estão em preparação e suas rotas não foram implantadas; esta finalização acrescenta um campo obrigatório e exige atualização conjunta de Backend e GenAI antes da ativação. Não se atribui automaticamente um novo saldo a envelopes antigos sem esse campo. Em rollback, restaurar o par de serviços/contratos compatível e manter a integração Gold desativada até reconferir os vetores.
 
@@ -543,6 +543,6 @@ A prova entre serviços usa a fábrica externa real e HTTP ASGI, com ponte de tr
 
 `backend/app/services/genai_planning.py::plan_gold_question` é o coordenador executável da fase de planejamento. `backend/scripts/plan_gold_question.py` é seu chamador operacional, com configuração de leitura e escopo local explícitos. Reutiliza B1/B2/B3/B4/B6/B7: captura publicação; produz metadados autorizados; chama o cliente interno com saldo do prazo; revalida publicação, escopo atual, fingerprint e catálogo; confere competências na fonte/recorte selecionados. Retorna o mesmo `QuestionPlanResponse` e a referência/fonte admitidas, ou recusa/esclarecimento sem plano. Nenhum novo envelope HTTP é necessário.
 
-Cobertura produzida por união de fontes é observacional. A existência de um mês em outra tabela ou em outro recorte não autoriza o plano: a admissão consulta somente a fonte escolhida com os filtros parametrizados e exige cada competência da janela. O produtor limita SQL ao saldo de 5 s; a operação usa prazo global de 35 s e não renova o relógio entre etapas. O papel de runtime é `venergy_gold_reader`; a CLI não registra valores do lote. A ADR-0018 foi aprovada pela pessoa usuária em 31/10/2026, superando a pendência semântica histórica.
+Cobertura produzida por união de fontes é observacional. A existência de um mês em outra tabela ou em outro recorte não autoriza o plano: a admissão consulta somente a fonte escolhida com os filtros parametrizados e exige cada competência da janela. O produtor limita SQL ao saldo de 5 s; a operação usa prazo global de 60 s e não renova o relógio entre etapas. O papel de runtime é `venergy_gold_reader`; a CLI não registra valores do lote. A ADR-0018 foi aprovada pela pessoa usuária em 31/10/2026, superando a pendência semântica histórica.
 
 Essa operação entrega o planejamento à admissão de fonte do Backend. Não é o executor quantitativo, não substitui a avaliação de prontidão nem ativa o endpoint Gold do portal; essas fronteiras permanecem GENAI-06/07/09/10. Nenhum estado oficial IA é concluído pela operação de planejamento.

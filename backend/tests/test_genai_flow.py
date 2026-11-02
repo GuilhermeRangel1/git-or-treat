@@ -1,8 +1,10 @@
 """Matriz de despacho B9; falhas nunca viram ausência legítima."""
 
 import pytest
-
-from app.repositories.gold_publication import GoldPublicationChanged, GoldPublicationInvalid
+from app.repositories.gold_publication import (
+    GoldPublicationChanged,
+    GoldPublicationInvalid,
+)
 from app.schemas.genai_plan import QuestionPlanStatus
 from app.services.genai_client import GenAIResponseInvalid, GenAITimeout
 from app.services.genai_flow import should_synthesize
@@ -69,3 +71,46 @@ def test_policy_is_explicit_and_unknown_state_is_rejected():
         should_synthesize(planning_status="planned", lookup=AVAILABLE, policy="unknown")
     with pytest.raises(GenAIResponseInvalid):
         should_synthesize(planning_status="answered", lookup=AVAILABLE, policy="completed_lookup")
+
+
+@pytest.mark.parametrize("reason,coverage_error", [
+    ("coverage_missing", True), ("coverage_incomplete", True), ("period_missing", True),
+    ("control_pending", False), ("publication_stale", False),
+])
+def test_known_source_gap_is_distinct_from_infrastructure_or_approval_failure(monkeypatch, reason, coverage_error):
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.schemas.ai import AIQuestionRequest
+    from app.schemas.gold_readiness import GoldReadinessReport
+    from app.services import genai_coordination as flow
+    from app.services.genai_client import GenAIServiceUnavailable
+    from app.services.gold_catalog import load_gold_catalog
+
+    metric = next(m for m in load_gold_catalog().metrics
+                  if m.metric_id == "network.equivalent_interruption_duration")
+    batch = "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc"
+    required = {*metric.required_capability_ids, "interrupcoes.dec_fec"}
+
+    async def plan(*args, **kwargs):
+        return SimpleNamespace(response=SimpleNamespace(status=QuestionPlanStatus.PLANNED,
+                               plan=SimpleNamespace(metric_id=metric.metric_id)),
+            deadline=kwargs["deadline"], access_scope=object(),
+            source=SimpleNamespace(capability_id="interrupcoes.dec_fec"),
+            publication=SimpleNamespace(batch_ref=batch))
+
+    async def gate(planned):
+        return GoldReadinessReport(readiness_version="gold-readiness-v2", batch_ref=batch,
+            lot_state="partial", capabilities={key:{"status":"unavailable", "reasons":[reason]}
+                                               for key in required})
+
+    class Audit:
+        def record(self, *args, **kwargs):
+            return "a" * 32
+
+    monkeypatch.setattr(flow, "plan_gold_question", plan)
+    with pytest.raises(GenAIServiceUnavailable) as error:
+        asyncio.run(flow.answer_gold_question(None, None, AIQuestionRequest(question="Qual o DEC?"),
+            resolve_scope=lambda: None, correlation_id="b" * 32, readiness_gate=gate, audit_store=Audit()))
+    assert isinstance(error.value, flow.GoldCoverageUnavailable) is coverage_error
+    assert error.value.retryable is False

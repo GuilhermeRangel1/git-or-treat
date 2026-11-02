@@ -11,6 +11,7 @@ from sqlalchemy import event, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.models.gold_v2_load import TABLES
 from app.repositories.gold_context import load_gold_context
 from app.repositories.panorama import GoldPanoramaRepository
@@ -74,10 +75,10 @@ async def generate_gold_panorama_insight(
 ) -> PanoramaInsightEnvelope:
     """Recalcula o mesmo KPI do portal; descarta resultado após revogação/troca."""
     started = monotonic()
-    deadline = GenAIRequestDeadline.start(35)
+    deadline = GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS)
 
     async def work(function):
-        return await deadline.run(35, lambda: asyncio.to_thread(function))
+        return await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(function))
 
     scope = await work(resolve_scope)
     _authorize_panorama_scope(scope)
@@ -114,7 +115,7 @@ async def generate_gold_panorama_insight(
     ):
         periods.append(previous)
     report = await deadline.run(
-        35,
+        GOLD_REQUEST_TIMEOUT_SECONDS,
         lambda: readiness_client.evaluate_readiness(
             operational_engine,
             requested_periods=tuple(sorted(set(periods))),
@@ -173,13 +174,13 @@ async def generate_gold_panorama_insight(
         result = prepared.model_copy(update={"correlation_id": correlation_id})
     else:
         result = await deadline.run(
-            35,
+            GOLD_REQUEST_TIMEOUT_SECONDS,
             lambda: client.synthesize_gold(
                 {
                     **serialized,
                     "access_scope": scope.model_dump(mode="json"),
                     "batch_ref": publication.batch_ref,
-                    "remaining_timeout_ms": deadline.remaining_timeout_ms(35),
+                    "remaining_timeout_ms": deadline.remaining_timeout_ms(GOLD_REQUEST_TIMEOUT_SECONDS),
                 },
                 correlation_id=correlation_id,
             ),

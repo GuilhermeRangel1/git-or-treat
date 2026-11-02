@@ -18,6 +18,77 @@ SYNTHESIS_PATH = "/api/v1/internal/question-syntheses"
 HEADERS = {"Authorization": f"Bearer {TOKEN}", "X-Correlation-ID": "a" * 32}
 
 
+@pytest.mark.parametrize("question,comparison", [
+    ("Compare a receita de janeiro e março de 2025.", ["2025-01", "2025-03"]),
+    ("Compare a receita de janeiro e marco de 2025.", ["2025-01", "2025-03"]),
+    ("Compare a receita de janeiro com março de 2025.", ["2025-01", "2025-03"]),
+    ("Compare o consumo entre janeiro e março de 2025.", ["2025-01", "2025-03"]),
+    ("Receita de janeiro a março de 2025?", None),
+    ("Receita de janeiro ate marco de 2025?", None),
+])
+def test_shared_year_reaches_http_plan_without_losing_a_month(question, comparison):
+    core, request = _setup(question)
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+    assert result["status"] == "planned", result
+    assert result["plan"].get("comparison_periods") == comparison
+    assert result["plan"]["window"]["start"] == "2025-01-01"
+    assert result["plan"]["window"]["end"] == "2025-03-31"
+
+
+@pytest.mark.parametrize("question", [
+    "Compare receita de janeiro e março.",
+    "Receita de dezembro a janeiro de 2025?",
+    "Receita de 10 de janeiro a março de 2025?",
+    "Receita de janeiro a abril de 2025?",
+])
+def test_shared_year_keeps_ambiguous_days_reversed_ranges_and_gaps_blocked(question):
+    core, request = _setup(question)
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+    assert result["status"] == "needs_clarification", result
+    assert result["plan"] is None
+
+
+def test_municipality_revenue_ranking_uses_grouped_evidence_and_enforces_scope():
+    core, request = _setup("Qual município teve a maior receita em março de 2025?")
+    with InProcessClient(_application(core)) as client:
+        planned = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+        assert planned["status"] == "planned", planned
+        plan = LogicalReadPlan.model_validate(planned["plan"])
+        assert plan.group_by_dimension_ids == ("geography.municipality",)
+        lookup = _lookup(plan, batch_ref=request.batch_ref)
+        lookup.evidence.records = [
+            {"period": "2025-03", "value": value, "unit": "R$", "municipality": city}
+            for city, value in [("Recife", 200)]
+        ]
+        synthesis = QuestionSynthesisRequest(
+            question=request.question, access_scope=request.access_scope,
+            remaining_timeout_ms=35000, plan=plan, plan_fingerprint=plan.fingerprint(),
+            lookup=lookup, expected_batch_ref=request.batch_ref,
+            dimension_value_coverage=request.dimension_value_coverage,
+        )
+        result = client.post(
+            SYNTHESIS_PATH, json=synthesis.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+        assert result["status"] == "answered", result
+        assert "Recife" in result["answer"]
+        assert "Olinda" not in result["answer"]
+        denied = request.model_dump(mode="json")
+        denied["access_scope"]["allowed_dimension_ids"].remove("geography.municipality")
+        denied["dimension_value_coverage"] = [
+            item for item in denied["dimension_value_coverage"]
+            if item["dimension_id"] != "geography.municipality"
+        ]
+        assert client.post(PLAN_PATH, json=denied, headers=HEADERS).json()["status"] == "refused"
+
+
 @pytest.mark.parametrize("label,metric", [
     ("receita", "billing.revenue"), ("consumo", "energy.consumption"),
 ])
@@ -263,7 +334,10 @@ def test_ate03_ate04_select_accumulated_metric_without_inventing_calendar(questi
     assert body["plan"]["window"]["phrase"] == "histórico acumulado"
 
 
-def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date():
+@pytest.mark.parametrize("value,formatted", [
+    (5, "5 chamados de atendimento"), (318871.0, "318.871 chamados de atendimento"),
+])
+def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date(value, formatted):
     core, request = _setup("Quantos chamados de atendimento existem no histórico acumulado?")
     request = request.model_copy(update={"temporal_coverage": (
         *request.temporal_coverage,
@@ -275,7 +349,7 @@ def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date
         ).json()
         assert planned["status"] == "planned"
         plan = LogicalReadPlan.model_validate(planned["plan"])
-        lookup = _lookup(plan, batch_ref=request.batch_ref, value=5)
+        lookup = _lookup(plan, batch_ref=request.batch_ref, value=value)
         lookup.evidence.records[0]["period"] = "histórico acumulado"
         synthesis = QuestionSynthesisRequest(
             question=request.question, access_scope=request.access_scope,
@@ -285,7 +359,8 @@ def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date
         response = client.post(SYNTHESIS_PATH, json=synthesis, headers=HEADERS).json()
         assert response["status"] == "answered"
         assert response["analysis_context"]["period"] == "histórico acumulado"
-        assert "5 protocolos" in response["answer"]
+        assert response["answer"] == f"No histórico acumulado, foram registrados {formatted}."
+        assert response["answer"].count("histórico acumulado") == 1
         synthesis["lookup"]["evidence"]["records"][0]["period"] = "2025-03"
         wrong = client.post(SYNTHESIS_PATH, json=synthesis, headers=HEADERS).json()
         assert wrong["status"] == "recoverable_error"

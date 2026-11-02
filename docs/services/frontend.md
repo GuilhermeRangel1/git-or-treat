@@ -1,5 +1,8 @@
 # Serviço: portal web
 
+> Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
+
+
 **Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros na URL, 4 KPIs principais, oito métricas auditáveis nos fundamentos, série mensal e API sintética em `GET /api/v1/panorama`. O Assistente envia perguntas ao Backend pelo contrato v1 e mostra evidências e limitações sintéticas. Receita mantém a exploração DEV-03; Inspeções mantém fila e detalhe auditável DEV-05. As demais jornadas seguem seus estados no PRD. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos, sem substituir o contrato do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
 
 O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite. As portas são publicadas somente em localhost por segurança; acesso de outro dispositivo exige ingresso configurado deliberadamente. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.

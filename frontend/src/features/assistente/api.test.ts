@@ -168,7 +168,12 @@ it("interrompe uma consulta que não responde e permite repetição manual", asy
       retryable: true,
       message: expect.stringContaining("demorou"),
     });
-    await vi.advanceTimersByTimeAsync(40_000);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(
+      (vi.mocked(fetch).mock.calls[0][1] as RequestInit).signal?.aborted,
+    ).toBe(false);
+    await vi.advanceTimersByTimeAsync(10_000);
     await result;
   } finally {
     vi.useRealTimers();
