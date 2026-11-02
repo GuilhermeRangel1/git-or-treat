@@ -129,6 +129,12 @@ class UCProfile(BaseModel):
     status: str
 
 
+class UCGoldGeneration(BaseModel):
+    capacity_kwp: float | None = Field(ge=0)
+    connection_date: str | None
+    modality: str | None
+
+
 class UCOverviewData(BaseModel):
     profile: UCProfile
     period: AnalyticsPeriod
@@ -136,6 +142,8 @@ class UCOverviewData(BaseModel):
     open_invoices: UCCountMeasure
     current_meter: UCMeterMeasure
     distributed_generation: UCGenerationSection
+    gold_generation: UCGoldGeneration | None = None
+    gold_generation_record: bool | None = None
     section_status: dict[str, AnalyticsStatus]
 
 
@@ -147,6 +155,7 @@ class UCOverviewResponse(BaseModel):
 class UCConsumptionHistoryItem(BaseModel):
     competencia: str
     measured_energy_kwh: Decimal | None
+    billed_amount: Decimal | None = None
     status: Literal["available", "partial", "unavailable"]
 
     @model_validator(mode="after")
@@ -167,7 +176,7 @@ class UCConsumptionHistoryItem(BaseModel):
             )
         return self
 
-    @field_serializer("measured_energy_kwh", when_used="json")
+    @field_serializer("measured_energy_kwh", "billed_amount", when_used="json")
     def serialize_energy(self, value: Decimal | None):
         return float(value) if value is not None else None
 
@@ -175,10 +184,13 @@ class UCConsumptionHistoryItem(BaseModel):
 class UCInvoiceHistoryItem(InvoiceDetail):
     billed_amount: float | None
     billed_energy_kwh: float | None
+    declared_status: str | None = None
+    declared_open_amount: float | None = None
+    declared_payment_date: str | None = None
 
 
 class UCMeterHistoryItem(MeterDetail):
-    pass
+    installed_at: str | None
 
 
 class UCGenerationHistoryItem(GenerationDetail):
@@ -186,11 +198,19 @@ class UCGenerationHistoryItem(GenerationDetail):
 
 
 class UCInterruptionHistoryItem(InterruptionDetail):
-    pass
+    duration_hours: float | None
 
 
 class UCCallHistoryItem(CallDetail):
     pass
+
+
+class UCTreatmentHistoryItem(BaseModel):
+    call_id: str
+    position: int
+    treatment_date: str | None
+    action_category: str
+    channel: str
 
 
 UCHistoryItem = (
@@ -200,6 +220,7 @@ UCHistoryItem = (
     | UCGenerationHistoryItem
     | UCInterruptionHistoryItem
     | UCCallHistoryItem
+    | UCTreatmentHistoryItem
 )
 
 

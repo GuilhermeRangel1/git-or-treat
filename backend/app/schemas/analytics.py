@@ -1,7 +1,7 @@
 from math import isfinite
 from typing import Generic, Literal, Optional, TypeVar
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer, model_validator
 
 
 AnalyticsStatus = Literal["available", "empty", "partial", "unavailable"]
@@ -26,6 +26,16 @@ class AnalyticsSource(BaseModel):
     version: str
     is_demo: bool
     updated_at: str
+    publication_lote: str | None = None
+    publication_fingerprint: str | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_source(self, handler: SerializerFunctionWrapHandler) -> dict:
+        source = handler(self)
+        for field in ("publication_lote", "publication_fingerprint"):
+            if source.get(field) is None:
+                source.pop(field, None)
+        return source
 
 
 class AnalyticsMetadata(BaseModel):
@@ -94,6 +104,7 @@ class RevenueSnapshot(BaseModel):
     competencia: str
     billed_amount: float | None
     billed_energy_kwh: float | None
+    measured_energy_kwh: float | None = None
     observed_price_brl_per_kwh: float | None
     billed_uc_count: int | None
     status: AnalyticsStatus
@@ -140,6 +151,18 @@ class RevenueDecomposition(BaseModel):
     rounding_adjustment_brl: float | None
     status: AnalyticsStatus
     limitations: list[str] = Field(default_factory=list)
+
+
+class RevenueWindowDecomposition(BaseModel):
+    status: AnalyticsStatus
+    windows: list[str]
+    method: str | None
+    components: dict[str, float | None]
+    total_change_brl: float | None
+    residual_brl: float | None
+    group_count: int
+    incomplete_groups: int
+    limitations: list[str]
 
 
 class RevenueBreakdownItem(BaseModel):
@@ -189,6 +212,7 @@ class RevenueData(BaseModel):
     series: list[RevenuePeriod]
     comparison: RevenueComparison
     price_volume: RevenueDecomposition
+    window_decomposition: RevenueWindowDecomposition | None = None
     coverage: RevenueCoverage
     quality: RevenueQuality
     breakdown: RevenueBreakdown
@@ -287,7 +311,8 @@ class InspectionQueueItem(BaseModel):
     neighborhood: str
     class_name: str
     feeder_id: str
-    priority: float
+    priority: float | None
+    priority_label: str | None = None
     reason: str
     potential_recoverable_energy_kwh: float | None
     indicators: list[str]

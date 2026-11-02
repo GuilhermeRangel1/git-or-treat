@@ -395,8 +395,8 @@ describe("OrderActionsDialog", () => {
       expect(
         screen.queryByRole("button", { name: "Cancelar ordem…" }),
       ).toBeNull();
-      expect(screen.getByText(/Ator: Não informado/)).toBeInTheDocument();
-      expect(screen.getByText(/Versão: Não informada/)).toBeInTheDocument();
+      expect(screen.getByText("Status inicial: Pendente")).toBeInTheDocument();
+      expect(screen.queryByText(/Ator:|Versão:/)).not.toBeInTheDocument();
       expect(
         screen.getByRole("textbox", { name: "Resultado de campo" }),
       ).toBeDisabled();

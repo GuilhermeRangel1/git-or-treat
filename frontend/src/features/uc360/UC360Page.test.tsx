@@ -8,6 +8,25 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/shared/analytics/sourceOptions", () => ({
+  useSourceOptions: () => ({
+    data: {
+      data: {
+        municipio: ["Olinda", "Recife"],
+        classe: ["Comercial", "Residencial"],
+      },
+      source: {
+        kind: "gold_csv",
+        version: "gold-csv-v2:test-publication",
+        is_demo: false,
+        updated_at: "2026-11-02T00:00:00Z",
+      },
+    },
+    isPending: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 import UC360Page from "./UC360Page";
 
 function renderPage(initial = "/uc-360") {
@@ -70,9 +89,15 @@ describe("UC 360 search flow", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-    renderPage();
+    renderPage("/uc-360?start=2025-01&end=2025-12");
     fireEvent.change(screen.getByLabelText("Número da UC"), {
       target: { value: "1001" },
+    });
+    fireEvent.change(screen.getByLabelText("Município"), {
+      target: { value: "Recife" },
+    });
+    fireEvent.change(screen.getByLabelText("Classe de consumo"), {
+      target: { value: "Residencial" },
     });
     expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Buscar UC" }));
@@ -80,7 +105,10 @@ describe("UC 360 search flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /UC-1001/ }));
     expect(await screen.findByText("UC UC-1001")).toBeTruthy();
     expect(screen.queryByLabelText("Número da UC")).toBeNull();
-    expect(screen.getByTestId("location").textContent).toBe("/uc-360/UC-1001");
+    expect(screen.queryByRole("button", { name: /UC-1001/ })).toBeNull();
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/uc-360/UC-1001?q=1001&municipio=Recife&classe=Residencial&start=2025-01&end=2025-12",
+    );
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/UC-1001/overview"),
@@ -90,9 +118,78 @@ describe("UC 360 search flow", () => {
     expect(
       await screen.findByText("A unidade informada não foi encontrada."),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Nova busca" }));
-    expect(screen.getByLabelText("Número da UC")).toBeTruthy();
-    expect(screen.getByTestId("location").textContent).toBe("/uc-360");
+    fireEvent.click(screen.getByRole("link", { name: "Voltar à busca" }));
+    expect(screen.getByLabelText("Número da UC")).toHaveValue("1001");
+    expect(screen.getByLabelText("Município")).toHaveValue("Recife");
+    expect(screen.getByLabelText("Classe de consumo")).toHaveValue(
+      "Residencial",
+    );
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/uc-360?q=1001&municipio=Recife&classe=Residencial&start=2025-01&end=2025-12",
+    );
+  });
+
+  it("searches by municipality and class without a UC number", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const params = new URLSearchParams(String(input).split("?")[1]);
+      const item =
+        params.get("classe") === "Comercial"
+          ? {
+              uc_id: "UC-1002",
+              municipio: "Recife",
+              bairro: "Boa Vista",
+              classe: "Comercial",
+              alimentador: "AL-01",
+              status: "active",
+            }
+          : {
+              uc_id: "UC-1003",
+              municipio: "Olinda",
+              bairro: "Casa Caiada",
+              classe: "Residencial",
+              alimentador: "AL-02",
+              status: "active",
+            };
+      return new Response(
+        JSON.stringify({
+          data: { items: [item] },
+          pagination: { page: 1, page_size: 20, total: 1, total_pages: 1 },
+          metadata: { status: "available" },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderPage();
+    fireEvent.change(screen.getByLabelText("Município"), {
+      target: { value: "Olinda" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar UC" }));
+    expect(await screen.findByRole("button", { name: /UC-1003/ })).toBeTruthy();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const requestUrl = String(fetchMock.mock.calls[0][0]);
+    const params = new URLSearchParams(requestUrl.split("?")[1]);
+    expect(params.get("municipio")).toBe("Olinda");
+    expect(params.has("q")).toBe(false);
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/uc-360?municipio=Olinda",
+    );
+
+    fireEvent.change(screen.getByLabelText("Município"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Classe de consumo"), {
+      target: { value: "Comercial" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar UC" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const classRequestUrl = String(fetchMock.mock.calls[1][0]);
+    const classParams = new URLSearchParams(classRequestUrl.split("?")[1]);
+    expect(classParams.get("classe")).toBe("Comercial");
+    expect(classParams.has("municipio")).toBe(false);
+    expect(classParams.has("q")).toBe(false);
+    expect(await screen.findByRole("button", { name: /UC-1002/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /UC-1003/ })).toBeNull();
   });
 
   it("blocks API calls for a duplicated URL query", async () => {
@@ -114,6 +211,9 @@ describe("UC 360 search flow", () => {
     );
     expect(screen.getByRole("alert").textContent).toContain("duplicado");
     expect(screen.queryByLabelText("Número da UC")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Voltar à busca" }),
+    ).toHaveAttribute("href", "/uc-360?q=one&q=two");
     expect(screen.queryByText(/Nenhuma UC selecionada/)).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -125,7 +225,7 @@ describe("UC 360 search flow", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Buscar UC" }));
     expect(screen.getByRole("alert").textContent).toContain(
-      "1 a 100 caracteres",
+      "número, município ou classe",
     );
     expect(
       screen.getByLabelText("Número da UC").getAttribute("aria-invalid"),
@@ -275,11 +375,8 @@ describe("UC 360 search flow", () => {
     expect(
       screen.getByRole("form", { name: "Período da consulta" }).textContent,
     ).toContain("Período aplicado: 01/2025 a 02/2025");
-    const energyComparison = screen.getByRole("region", {
-      name: "Comparação de energia e consumo",
-    });
-    const financialComparison = screen.getByRole("region", {
-      name: "Comparação de valores financeiros",
+    const consumptionFinancial = screen.getByRole("region", {
+      name: "Consumo e financeiro",
     });
     expect(
       screen.getByRole("heading", { name: "Indicadores comparativos" }),
@@ -291,65 +388,69 @@ describe("UC 360 search flow", () => {
       screen.queryByRole("heading", { name: /^Valor faturado$/ }),
     ).toBeNull();
     expect(
-      within(energyComparison).getByRole("heading", {
-        name: "Energia e consumo",
+      within(consumptionFinancial).getByRole("heading", {
+        name: "Consumo e financeiro",
       }),
     ).toBeTruthy();
     expect(
-      within(energyComparison).getByRole("heading", {
+      within(consumptionFinancial).getByRole("heading", {
         name: "Consumo medido (kWh)",
       }),
     ).toBeTruthy();
     expect(
-      within(energyComparison).getByRole("heading", {
-        name: "Energia faturada (kWh)",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(financialComparison).getByRole("heading", {
-        name: "Valores financeiros",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(financialComparison).getByRole("heading", {
+      within(consumptionFinancial).getByRole("heading", {
         name: "Valor faturado (BRL)",
       }),
     ).toBeTruthy();
     expect(
-      within(financialComparison).getByRole("heading", {
+      within(consumptionFinancial).queryByRole("heading", {
         name: "Valor pago (BRL)",
       }),
+    ).toBeNull();
+    expect(
+      within(consumptionFinancial).getByText(
+        /valor efetivamente pago não está disponível/,
+      ),
     ).toBeTruthy();
+    expect(
+      within(consumptionFinancial).queryByRole("heading", {
+        name: "Energia faturada (kWh)",
+      }),
+    ).toBeNull();
     const billingSupport = screen.getByRole("region", {
       name: "Apoio ao atendimento",
     });
     expect(
       within(billingSupport).getByRole("heading", {
-        name: "Faturas em aberto",
+        name: "Faturas marcadas como em aberto",
       }),
     ).toBeTruthy();
     expect(
-      within(billingSupport).getByText(/contagem, sem saldo ou atraso/),
+      within(billingSupport).getByText(/saldo atualizado não foi confirmado/),
     ).toBeTruthy();
     expect(
       screen.getByRole("columnheader", { name: "Competência" }),
     ).toBeTruthy();
     const historyDisclosure = screen
-      .getByText("Históricos por fonte")
+      .getByText("Consultar históricos")
       .closest("details");
     expect(historyDisclosure?.open).toBe(false);
     expect(screen.getAllByText("R$ 105,00").length).toBeGreaterThan(0);
-    expect(screen.getByText("-100 kWh")).toBeTruthy();
+    expect(screen.getByText("Variação: -100 kWh")).toBeTruthy();
     expect(screen.getByText("-100%")).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Fatos observados" }),
+      screen.getByRole("heading", { name: "O que os dados mostram" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Hipóteses e limites" }),
+      screen.getByRole("heading", {
+        name: "O que ainda não dá para concluir",
+      }),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Ver detalhes" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver históricos e avisos" }),
+    );
     expect(
-      await screen.findByRole("heading", { name: "Histórico e fontes da UC" }),
+      await screen.findByRole("heading", { name: "Dados e históricos da UC" }),
     ).toBeTruthy();
     fireEvent.click(
       screen.getAllByRole("button", { name: "Abrir histórico" })[5],
@@ -493,12 +594,12 @@ describe("UC 360 search flow", () => {
 
     expect(
       await screen.findByText(
-        "Nenhum medidor vigente no snapshot; consulte o histórico de medidores.",
+        "O cadastro consultado não informa um medidor atual para esta UC.",
       ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Medidores" }));
     expect((await screen.findAllByText("MED-004")).length).toBeGreaterThan(0);
-    expect(screen.getByText(/1 registro · fonte dev04-v1/)).toBeTruthy();
+    expect(screen.getByText(/Dados disponíveis · 1 registro/)).toBeTruthy();
     expect(
       fetchMock.mock.calls.some(([url]) =>
         String(url).includes("/history/meters"),
@@ -508,7 +609,7 @@ describe("UC 360 search flow", () => {
     expect(screen.queryByText(/Valor faturado: Sem dado.*Sem dado/)).toBeNull();
     expect(
       screen.getByText(
-        /Não há dois valores disponíveis para comparar consumo medido/,
+        /Não há dados disponíveis para comparar os dois meses selecionados/,
       ),
     ).toBeTruthy();
     const limitation = screen.getAllByText(
