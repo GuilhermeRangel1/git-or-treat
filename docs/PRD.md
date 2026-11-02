@@ -3311,3 +3311,15 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 
 - Varredura adicional do lote real em snapshot PostgreSQL REPEATABLE READ / READ ONLY com o leitor existente: 48 competências, 14 municípios e cinco classes; 4.320 agregados/recortes de composição (288 municipais, 672 por classe e 3.360 por bairro), 12.960 combinações temporais. Controle independente pré-agregou as duas projeções por competência/município/classe/bairro e comparou soma, contagens, segmento líder e participação; nenhuma divergência. 4.310 recortes sustentaram concentração; dez ficaram sem destaque por não satisfazer as condições da fonte. Não são 12.960 chamadas HTTP/Gemini ou jornadas visuais.
 - Regressões adicionais: limite de 1.000/1.001 grupos, desempate, nenhum acesso ao bairro sem permissão, virada de ano/fevereiro/ano anterior. Frontend rejeita participação, valor, dimensão ou nome de segmento sem correspondência com a observação monetária. 36 testes Backend e dez frontend passaram; build e diff-check passaram. Teste de recorte incompatível e resposta antiga mantido. Alterações sem commit/push.
+
+
+### 2026-11-02 — IA-05 — interface do Assistente Grid 360
+
+- Branch `feat/genai-frontend`: chat ampliado com identidade em goiaba/pistache, entrada do nome e flutuação discreta, sugestões em cartões, consulta pendente com pulsos sequenciais e índice das perguntas da conversa em telas largas. Preferência por movimento reduzido desliga as animações.
+- O índice navega até a pergunta e transfere foco; permanece temporário e não persiste conteúdo em storage. Histórico salvo não foi implementado. Indicador representa espera da chamada, sem simular etapas concluídas do servidor. Integração e invalidação por identidade/publicação permanecem nos pontos existentes.
+- Verificações no container frontend: 21 testes de conversa/sessão passaram, incluindo navegação pelo índice; build passou; lint sem erros (aviso preexistente AuthProvider) e fronteiras passaram. Navegador local recusado pela ferramenta por estar desativado nas configurações; validação visual, animação real e responsividade no navegador permanecem pendentes. Sem nova chamada Gemini, commit ou push nesta rodada; estado oficial preservado.
+
+- Refinamento visual desta rodada: corpo das mensagens 16–17 px, auxiliares 14 px e marca 28 px no desktop. Símbolo com entrada em camadas, estrela, aura, órbitas de pontos e maior atividade durante consulta; media query reduzida desliga também as novas animações. Build passou após o refinamento; sem nova prova visual ou nova execução dos testes funcionais, pois a mudança posterior foi de apresentação.
+
+
+- Após avaliação visual da pessoa usuária, o último experimento de SVG com 12 partículas foi desfeito. Restaurada a animação anterior em camadas e órbitas discretas; mantidas a tipografia ampliada e a interface do chat.
