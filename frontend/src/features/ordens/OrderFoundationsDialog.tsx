@@ -128,11 +128,6 @@ export default function OrderFoundationsDialog({
                         foundation.category ?? "Não informada no snapshot."
                       }
                     />
-                    <p className="rounded-lg border border-border bg-canvas p-3 text-sm">
-                      A categoria é uma triagem e não representa prioridade
-                      operacional de despacho. A ordem preserva esta evidência
-                      histórica.
-                    </p>
                     <div className="grid gap-2">
                       <h4 className="text-sm font-medium">
                         Dados registrados na triagem
@@ -159,38 +154,31 @@ export default function OrderFoundationsDialog({
                             </div>
                           ))}
                         </dl>
-                        <p className="text-sm text-muted">
-                          Diferença observada não é uma estimativa de
-                          recuperação.
-                        </p>
                       </div>
                     ) : null}
                   </>
                 ) : null}
-                {foundation.period ? (
+                {foundation.origin !== "gold" && foundation.period ? (
                   <Detail
                     label="Período da análise"
                     value={`${formatDate(foundation.period.start)} a ${formatDate(foundation.period.end)}`}
                   />
-                ) : (
+                ) : foundation.origin !== "gold" ? (
                   <Detail
                     label="Período da análise"
                     value="Não disponível no snapshot."
                   />
-                )}
-                <Detail
-                  label="Energia potencialmente recuperável"
-                  value={
-                    foundation.origin === "gold"
-                      ? foundation.recoveryEstimateStatus ===
-                        "ESTIMATIVA_UC_INDISPONIVEL"
-                        ? "Não há estimativa individual disponível para esta unidade consumidora."
-                        : "Não disponível; nenhum valor é estimado nesta tela."
-                      : foundation.estimateUnavailable
+                ) : null}
+                {foundation.origin !== "gold" ? (
+                  <Detail
+                    label="Energia potencialmente recuperável"
+                    value={
+                      foundation.estimateUnavailable
                         ? "Não disponível; ausência de estimativa não é zero."
                         : `${formatNumber(foundation.estimateKwh!)} kWh`
-                  }
-                />
+                    }
+                  />
+                ) : null}
                 {foundation.estimateEvidence && (
                   <Detail
                     label="Base da estimativa"
@@ -223,14 +211,32 @@ export default function OrderFoundationsDialog({
                     )}
                   </div>
                 ) : null}
-                {foundation.limitations.length > 0 && (
+                {(foundation.origin === "gold" ||
+                  foundation.limitations.length > 0) && (
                   <div className="grid gap-2">
-                    <h4 className="text-sm font-medium">Limites registrados</h4>
-                    <ul className="grid list-disc gap-1 pl-5 text-sm text-muted">
-                      {foundation.limitations.map((limitation, index) => (
-                        <li key={`${limitation}-${index}`}>{limitation}</li>
-                      ))}
-                    </ul>
+                    <h4 className="text-sm font-medium">
+                      {foundation.origin === "gold"
+                        ? "Sobre os dados da inspeção"
+                        : "Limites registrados"}
+                    </h4>
+                    {foundation.origin === "gold" ? (
+                      <p className="text-sm text-muted">
+                        A fila retrata o cadastro no momento da triagem. A
+                        categoria orienta a análise, mas não confirma
+                        irregularidade nem determina despacho.
+                        {foundation.category?.toUpperCase().includes("REVISAR")
+                          ? " “REVISAR” é uma categoria própria."
+                          : ""}{" "}
+                        Não há estimativa de energia recuperável para esta UC; a
+                        variação de consumo é apenas histórica.
+                      </p>
+                    ) : (
+                      <ul className="grid list-disc gap-1 pl-5 text-sm text-muted">
+                        {foundation.limitations.map((limitation, index) => (
+                          <li key={`${limitation}-${index}`}>{limitation}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
               </section>

@@ -289,13 +289,8 @@ export default function SuspicionDetail({
           >
             <h3 className="font-medium">Energia recuperável indisponível</h3>
             <p className="mt-1">
-              {data.recovery_unavailable_reason.replace(
-                /\bGold\b/g,
-                "fonte de dados",
-              )}
-            </p>
-            <p className="mt-1">
-              Variação de consumo não é estimativa de energia recuperável.
+              Não há estimativa de energia recuperável para esta UC. A variação
+              de consumo, por si só, não permite calculá-la.
             </p>
           </section>
         </section>

@@ -203,32 +203,28 @@ describe("OrderFoundationsDialog", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Não há estimativa individual disponível para esta unidade consumidora.",
-      ),
+      screen.getByText(/Não há estimativa de energia recuperável para esta UC/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Categoria não é prioridade de despacho."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Média histórica de recuperação por inspeção"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("0 kWh/inspeção")).toBeInTheDocument();
-    expect(screen.getByText("0 a 0 kWh/inspeção")).toBeInTheDocument();
+      screen.queryByText("Categoria não é prioridade de despacho."),
+    ).not.toBeInTheDocument();
+    for (const internalRecoveryDetail of [
+      "Média histórica de recuperação por inspeção",
+      "0 kWh/inspeção",
+      "0 a 0 kWh/inspeção",
+      "Global",
+      "Referência histórica disponível",
+      "Estimativa individual indisponível",
+      "Média global histórica com grupos opcionais (v2)",
+    ]) {
+      expect(
+        screen.queryByText(internalRecoveryDetail),
+      ).not.toBeInTheDocument();
+    }
     expect(
       within(
         screen.getByText("Variação percentual observada").parentElement!,
       ).getByText("Indisponível"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Global")).toBeInTheDocument();
-    expect(
-      screen.getByText("Referência histórica disponível"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Estimativa individual indisponível"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Média global histórica com grupos opcionais (v2)"),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("DISPONIVEL_REFERENCIA_HISTORICA"),
