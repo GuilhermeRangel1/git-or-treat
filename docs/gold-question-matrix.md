@@ -1,5 +1,22 @@
 # Matriz de perguntas para o catálogo Gold v2
 
+## Revalidação real da matriz — 02/11/2026
+
+A rodada final `20261102T041125_013170Z` executou os 57 casos pela API pública, com sessão individual, Gold v2, Gemini e auditoria reais, reconciliando os valores por controles SQL independentes somente leitura. Resultado: **43 PASS, zero FAIL, cinco BLOQUEADO, sete SEM_AMOSTRA_NO_LOTE e dois NAO_EXECUTADO** (provas técnicas separadas). Os 14 casos em FAIL na rodada `20261102T025654_378948Z` passaram. Nenhum erro de execução. Contas temporárias e sessões removidas. Esse resultado supera apenas as pendências de revalidação da revisão abaixo; não altera a cobertura ou homologa domínios bloqueados.
+
+O runner foi alinhado ao formato legível das respostas sem perder vínculo de números com mês/efeito. A configuração privada recebeu os controles autorizados, incluindo C08/C09 com aceite explícito nesta rodada. O chat Gold usa seleção mínima de observações nos adaptadores Gemini/Groq, com prompt v4 e ingresso de auditoria compatível; nenhuma guarda de fundamentação foi relaxada. GenAI: 4093 testes passaram/4 skips; Backend dirigido: 41 passaram; prova integrada PostgreSQL descartável: 1 passou. Roteiro, resultado por ID, bloqueios e limites no [registro sanitizado da rodada](plans/2026-11-02-genai-assistente-matriz-real.md). IA-01/IA-02/IA-03/IA-06 mantêm seus estados oficiais.
+
+## Revisão de linguagem do Assistente — 02/11/2026
+
+- `Compare a receita de maio e junho de 2026` explicita o mesmo ano nos dois meses antes da extração do calendário. Comparação conserva dois pontos; `receita de maio a junho de 2026` conserva o intervalo. Não usa o relógio nem o último ano do lote para completar um ano ausente. Dias, intervalos invertidos e competências sem cobertura continuam exigindo esclarecimento.
+- `Qual município teve a maior receita em junho de 2026?` usa o agrupamento municipal e a ordenação por receita já implementados no executor. O perfil libera essa dimensão somente para receita, além do agrupamento por classe existente. O limite do ranking continua sendo um grupo; município precisa estar no escopo e na evidência autorizada. Comparações agrupadas de receita continuam indisponíveis.
+- Caminho: rota interna de planejamento → `QuestionAnalysisPlanner.plan` → calendário/perfil → plano aprovado → executor SQL existente no Backend → rota interna de síntese. O perfil implantável `GRID360_GOLD_RUNTIME_PROFILE` deriva do perfil lógico alterado. A entrada pública continua sendo `/api/v1/ai/questions` no Backend.
+- Verificação reproduzível em `ai-agent/`: `python -m pytest -q tests/test_gold_planning_http.py tests/test_gold_temporal.py tests/test_gold_question_filters.py --tb=short` → **124 passaram**. Regressão completa `python -m pytest -q --tb=short` → **4077 passaram, 4 skips**, em container descartável sem rede, com `.env` privado mascarado por arquivo vazio. Ruff dos arquivos alterados e `git diff --check` passaram.
+- Prova separada de consulta real: `_admit_plan` + `_query` do Backend reconciliaram o maior faturamento municipal e a receita residencial de junho/2026 com SQL independente na publicação Gold v2 local (`gold_v2`, `gold-catalog-v2`, `gold-csv-v2`). Usado `venergy_genai_reader`, transação `REPEATABLE READ` / `READ ONLY`, prazo SQL de 5 s; somente os estados de sucesso foram registrados. Controles independentes: `SUM(receita_total_reais)` por município, ordenado decrescente com nulos por último e desempate municipal, e soma da mesma medida com `classe_consumo = 'RESIDENCIAL'`. Ambos filtram `competencia = '2026-06'`.
+- Limites: HTTP e síntese foram exercitados com modelo controlado; a conferência PostgreSQL foi separada. Não houve nova chamada Gemini, jornada no navegador, alteração de cobertura, credenciais ou permissões. A recusa residencial observada no navegador ainda não está comprovadamente resolvida: consulta reconciliada não prova a saída do provedor. As 14 falhas da matriz anterior não são declaradas corrigidas por estes testes. IA-01/IA-02 mantêm seus estados oficiais.
+
+## Registro anterior da matriz
+
 Matriz versionada para o trabalho de linguagem do núcleo GenAI. As expectativas abaixo vêm do catálogo lógico Gold v2, do contrato de execução e dos critérios do cartão; não usam respostas de fixtures para afirmar resultado sobre a Gold. Os testes de planejamento usam cobertura e valores de dimensão sintéticos explícitos, e não comprovam inventário ou valores do lote real.
 
 | ID | Pergunta | Saída esperada | Verificação independente |

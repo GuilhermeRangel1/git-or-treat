@@ -27,6 +27,8 @@ services:
     restart: "no"
 
   backend:
+    environment:
+      ANALYTICS_SOURCE: gold
     depends_on:
       gold-loader:
         condition: service_completed_successfully
