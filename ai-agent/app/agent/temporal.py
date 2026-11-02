@@ -65,6 +65,47 @@ def normalize_calendar_phrases(text: str) -> str:
     return _MONTHLY_PREFIX.sub("em ", _SLASH_MONTH.sub(slash_month, text))
 
 
+def complete_contextual_period(text: str, context: list) -> str:
+    """Completa só continuações curtas a partir de um único mês explícito.
+
+    Um intervalo ou comparação anterior não escolhe silenciosamente um ano.
+    Calendário/cobertura continuam sendo aprovados pelo resolvedor de janela.
+    """
+    normalized = _normalize(text).strip(" ?!.")
+    month = re.fullmatch(
+        r"(?:(?:e|agora|na verdade|corrigindo)[,:]?\s+)?"
+        r"(?:(?:em|no mes de|mes de)\s+)?(" + _SHARED_MONTH_NAME + r")",
+        normalized,
+    )
+    comparison = re.fullmatch(
+        r"(?:e\s+)?compar(?:e|ar)\s+com\s+(?:o\s+)?(?:mes|periodo)\s+anterior",
+        normalized,
+    )
+    year_correction = re.fullmatch(
+        r"(?:na verdade|corrigindo)[,:]?\s+(?:em\s+)?([0-9]{4})", normalized,
+    )
+    if month is None and comparison is None and year_correction is None:
+        return text
+    for turn in reversed(context):
+        if turn.role != "user":
+            continue
+        phrases = explicit_monthly_phrases(normalize_calendar_phrases(turn.content))
+        if not phrases:
+            return text
+        bounds = _explicit_bounds(phrases[0])
+        if len(phrases) != 1 or bounds is None or bounds[0] != bounds[1]:
+            return text
+        year, number = bounds[0]
+        if year_correction is not None:
+            return f"E em {int(year_correction[1]):04d}-{number:02d}?"
+        if month is not None:
+            return f"E em {year:04d}-{_MONTH_NUMBERS[_normalize(month[1])]:02d}?"
+        previous_year, previous_month = (year - 1, 12) if number == 1 else (year, number - 1)
+        return (f"E compare entre {previous_year:04d}-{previous_month:02d} "
+                f"e {year:04d}-{number:02d}.")
+    return text
+
+
 _NAMED_MONTH = r"(?:" + "|".join(_MONTH_NUMBERS) + r")\s+(?:de\s+)?[0-9]{4}"
 _MONTH_TOKEN = rf"(?:{_NAMED_MONTH}|[0-9]{{4}}-(?:0[1-9]|1[0-2]))"
 _EXPLICIT_PERIOD = re.compile(

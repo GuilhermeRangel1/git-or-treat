@@ -18,6 +18,7 @@ from app.agent.read_plan import (
     ReadPlanValidator,
 )
 from app.agent.temporal import (
+    complete_contextual_period,
     explicit_monthly_phrases,
     monthly_period_label,
     normalize_calendar_phrases,
@@ -280,6 +281,7 @@ class QuestionAnalysisPlanner:
         profile = self._profile_with_dimension_values(dimension_value_coverage)
         if profile.structured_dimension_filters:
             question = normalize_calendar_phrases(question)
+            question = complete_contextual_period(question, context or [])
             context = [
                 turn.model_copy(update={"content": normalize_calendar_phrases(turn.content)})
                 if turn.role == "user" else turn

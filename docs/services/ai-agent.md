@@ -507,3 +507,8 @@ No perfil Gold, “em <nome>” usa o município quando esse valor também apare
 No esclarecimento de uma ambiguidade, uma nova pergunta interrogativa completa é interpretada independentemente; uma resposta curta de refinamento ainda pode preservar o recorte original. Isso evita que a pergunta de volume residencial herde a métrica da pergunta anterior sobre solar. O indicador é reconhecido, e a ausência de base comparativa pede o período de referência. A mensagem de GD usa termos de negócio e não expõe a versão física da Gold.
 
 As mensagens de esclarecimento Gold podem anexar um exemplo completo, montado com competências publicadas e validado pelo planejador no mesmo escopo. A geração é determinística, sem banco ou modelo, e não promete cobertura. A borda do planejamento separa o sufixo do motivo original ao interpretar o histórico, preservando respostas curtas. Sem candidato aprovado, não inventa mês ou métrica disponível. Ver [exemplos e validação](../plans/2026-11-02-genai-perguntas-da-tela.md#continuação--exemplos-nas-mensagens-de-esclarecimento).
+
+
+## IA-07 — acompanhamento natural
+
+O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).

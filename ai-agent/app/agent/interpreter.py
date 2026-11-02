@@ -137,6 +137,21 @@ class QuestionInterpreter:
         context: list[ConversationTurn] | None = None,
     ) -> IntentInterpretation:
         turns = context or []
+        if (
+            self._profile.structured_dimension_filters and len(turns) >= 2
+            and turns[-2].role == "user" and turns[-1].role == "assistant"
+            and turns[-1].content.startswith("O mesmo nome corresponde a mais de uma dimensão;")
+        ):
+            selected = [dimension for dimension in self._profile.dimensions
+                        if _normalize(question).strip(" ?!.")
+                        in {_normalize(alias) for alias in dimension.aliases}]
+            if len(selected) == 1:
+                original = turns[-2].content
+                matches = self._dimension_value_matches(original, (selected[0],))
+                if len(matches) == 1:
+                    start, _, _ = matches[0]
+                    clarified = original[:start] + selected[0].aliases[0] + " " + original[start:]
+                    return self._interpret(clarified, self._previous_intent(turns[:-2]))
         pending_period_question = self._pending_period_question(turns)
         current_question_has_metric = bool(self._metric_matches(question))
         if (
@@ -186,7 +201,7 @@ class QuestionInterpreter:
                 return self._clarify(coverage_message)
         if pending_period_question is not None and not current_question_has_metric:
             combined_question = f"{pending_period_question} {question}"
-            return self._interpret(combined_question, None)
+            return self._interpret(combined_question, self._previous_intent(turns[:-2]))
 
         previous_intent = self._previous_intent(turns)
         if previous_intent is not None and not self._is_follow_up(question, previous_intent):
@@ -243,6 +258,16 @@ class QuestionInterpreter:
         }
         periods = _find_phrases(question, self._profile.period_phrases)
         has_comparison = self._has_comparison(normalized)
+        corrections = "|".join(
+            re.escape(_normalize(term)) for term in self._profile.correction_terms
+        )
+        if (
+            corrections
+            and re.match(rf"^(?:{corrections})\b", normalized)
+            and not metric_hits
+            and (periods or geography or class_phrase)
+        ):
+            return True
         if self._profile.structured_dimension_filters and periods and not metric_hits:
             remaining = question
             for start, end, _ in reversed(periods):
