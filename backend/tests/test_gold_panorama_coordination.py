@@ -5,13 +5,17 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.repositories.gold_publication import GoldPublicationChanged
 from app.schemas.ai_insight import (
-    AIInsightRequest, AIInsightResponse, PanoramaInsightAnalysis,
-    PanoramaInsightMetric, PanoramaInsightRequest, PanoramaInsightSource,
+    AIInsightRequest,
+    AIInsightResponse,
+    PanoramaInsightAnalysis,
+    PanoramaInsightMetric,
+    PanoramaInsightRequest,
+    PanoramaInsightSource,
 )
 from app.schemas.genai_internal import AccessScope
 from app.schemas.gold_readiness import GoldReadinessReport
-from app.repositories.gold_publication import GoldPublicationChanged
 from app.services import gold_panorama_coordination as flow
 from app.services.genai_client import GenAIResponseInvalid, GenAIServiceUnavailable
 from app.services.genai_executor import GoldExecutionDenied
@@ -102,6 +106,7 @@ def test_gold_insight_revalidates_scope_publication_and_audit(monkeypatch, case)
 
 def test_stale_gold_insight_metadata_uses_conflict(monkeypatch):
     from contextlib import contextmanager
+
     from app.services.analytics import AnalyticsAPIError
     from app.services.panorama_insights import StalePanoramaInsight
     @contextmanager
@@ -111,4 +116,27 @@ def test_stale_gold_insight_metadata_uses_conflict(monkeypatch):
         AnalyticsAPIError(409, "stale_batch", "Publicação alterada")))
     with pytest.raises(StalePanoramaInsight):
         flow.read_gold_panorama_insight(None, SimpleNamespace(connect=connect), None,
-            SimpleNamespace(loteVersao="old"))
+            SimpleNamespace(loteVersao="old", fingerprint=None))
+
+
+@pytest.mark.parametrize("matched", [True, False])
+def test_fingerprint_preflight_prevents_model_and_quantitative_read(monkeypatch, matched):
+    scope = AccessScope(caller_ref="test.reader", profile_id="v-energy-grid-360-gold",
+        source_id="gold.local", allowed_operations={"read"},
+        allowed_metric_ids={"billing.revenue"},
+        allowed_dimension_ids={"geography.municipality", "customer.consumption_class"})
+    publication = SimpleNamespace(batch_ref="current", reference=SimpleNamespace(
+        schema_version="gold-csv-v2", run_id="local-test"))
+    monkeypatch.setattr(flow.GoldPublicationContext, "capture", lambda engine: publication)
+    def resolve(engine, expected):
+        assert expected.fingerprint == "a" * 64
+        if not matched:
+            raise flow.ExpectedPublicationMismatch
+        return "replaced-during-preflight"
+    monkeypatch.setattr(flow, "resolve_expected_batch_ref", resolve)
+    payload = PanoramaInsightRequest(filters={"periodo": "2025-03", "comparacao": "nenhuma",
+        "municipio": "todos", "classe": "todas"}, loteVersao="local-test", fingerprint="a" * 64)
+    with pytest.raises(flow.StalePanoramaInsight):
+        asyncio.run(flow.generate_gold_panorama_insight(None, None, None, None, payload,
+            resolve_scope=lambda: scope, correlation_id="b" * 32, audit_store=None,
+            approved_controls=[]))

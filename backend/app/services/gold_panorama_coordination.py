@@ -20,6 +20,7 @@ from app.schemas.ai_insight import (
     PanoramaInsightEnvelope,
     PanoramaInsightRequest,
 )
+from app.schemas.ai_question_publication import AIExpectedPublication
 from app.schemas.genai_audit import BackendAuditEvent
 from app.schemas.genai_internal import AccessScope
 from app.schemas.gold_readiness import GoldReadinessReport
@@ -34,6 +35,10 @@ from app.services.genai_client import (
 )
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied
+from app.services.genai_expected_publication import (
+    ExpectedPublicationMismatch,
+    resolve_expected_batch_ref,
+)
 from app.services.genai_publication import GoldPublicationContext
 from app.services.gold_panorama_insights import (
     GoldPanoramaInsightPreparation,
@@ -87,6 +92,20 @@ async def generate_gold_panorama_insight(
 
     if payload.loteVersao != publication.reference.run_id:
         raise StalePanoramaInsight
+    if payload.fingerprint is not None:
+        try:
+            expected_batch = await work(
+                lambda: resolve_expected_batch_ref(
+                    operational_engine,
+                    AIExpectedPublication(
+                        lote=payload.loteVersao, fingerprint=payload.fingerprint
+                    ),
+                )
+            )
+        except ExpectedPublicationMismatch:
+            raise StalePanoramaInsight from None
+        if expected_batch != publication.batch_ref:
+            raise StalePanoramaInsight
     periods = [payload.filters.periodo]
 
     previous = comparison_period(payload.filters.periodo, payload.filters.comparacao)
@@ -200,7 +219,9 @@ def read_gold_panorama_insight(
     # Metadados operacionais não concedem acesso quantitativo ao executor.
     with operational_engine.connect() as connection:
         try:
-            metadata = load_gold_context(connection, payload.loteVersao)
+            metadata = load_gold_context(
+                connection, payload.loteVersao, payload.fingerprint
+            )
         except AnalyticsAPIError as exc:
             if exc.status_code == 409:
                 raise StalePanoramaInsight from None

@@ -4,7 +4,7 @@ Lê o registro operacional da carga, o mesmo que identifica `lote`/`fingerprint`
 leituras analíticas, e devolve a referência exata que o planejamento deve capturar.
 """
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.engine import Engine
 
 from app.models.gold_load import BATCH
@@ -22,18 +22,21 @@ class ExpectedPublicationMismatch(Exception):
 def resolve_expected_batch_ref(engine: Engine, expected: AIExpectedPublication) -> str:
     """Devolve o `batch_ref` atual se coincidir com a publicação exibida."""
     with engine.connect() as connection:
-        row = connection.execute(
-            select(
-                BATCH.c.schema_version,
-                BATCH.c.lote,
-                BATCH.c.fingerprint,
-                BATCH.c.publication_id,
-            ).where(
-                BATCH.c.id == 1,
-                BATCH.c.origem.is_not(None),
-                BATCH.c.publication_id.is_not(None),
+        statement = select(
+            BATCH.c.schema_version,
+            BATCH.c.lote,
+            BATCH.c.fingerprint,
+            BATCH.c.publication_id,
+        ).where(
+            BATCH.c.id == 1,
+            BATCH.c.origem.is_not(None),
+            BATCH.c.publication_id.is_not(None),
+        )
+        if connection.dialect.name == "postgresql":
+            statement = text(
+                "SELECT schema_version, lote, fingerprint, publication_id FROM gold.publicacao_contexto"
             )
-        ).mappings().one_or_none()
+        row = connection.execute(statement).mappings().one_or_none()
     if row is None or row["schema_version"] != GOLD_V2_SCHEMA_VERSION:
         raise GoldPublicationInvalid("Nenhuma publicação Gold v2 validada disponível.")
     if (row["lote"], row["fingerprint"]) != (expected.lote, expected.fingerprint):
@@ -45,5 +48,7 @@ def resolve_expected_batch_ref(engine: Engine, expected: AIExpectedPublication) 
             publication_id=row["publication_id"],
         )
     except ValueError:
-        raise GoldPublicationInvalid("Referência da publicação Gold inválida.") from None
+        raise GoldPublicationInvalid(
+            "Referência da publicação Gold inválida."
+        ) from None
     return reference.batch_ref

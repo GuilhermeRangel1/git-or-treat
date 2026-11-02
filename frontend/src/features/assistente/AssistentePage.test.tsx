@@ -1,3 +1,4 @@
+import { resetGoldPublication } from "@/shared/analytics/goldPublication";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import {
   act,
@@ -47,7 +48,10 @@ function renderPage() {
   return render(<AssistentePage />, { wrapper: TestProviders });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetGoldPublication();
+});
 
 describe("Assistente Grid 360", () => {
   it("mostra os rótulos do catálogo preservando os identificadores do recorte", async () => {
@@ -579,6 +583,7 @@ it("retira resposta e contexto anteriores após mudança de publicação", async
   ).toBeVisible();
   expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
   expect(input).toHaveValue("E a receita?");
+  act(() => resetGoldPublication());
   await user.clear(input);
   await user.type(input, "Qual o consumo agora?");
   await user.keyboard("{Enter}");
@@ -669,4 +674,82 @@ it("descarta resposta atrasada após sair e voltar à rota do Assistente", async
   expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
   expect(screen.getByText("Resposta da nova conversa.")).toBeVisible();
   expect(JSON.parse(fetchMock.mock.calls[1][1].body).context).toEqual([]);
+});
+
+it("invalidates older answers when a direct chat receives a different batch reference", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...answered,
+          answer: "Resposta do lote anterior.",
+          analysis_context: {
+            ...answered.analysis_context,
+            batch_reference: "batch-a",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...answered,
+          answer: "Resposta do lote atual.",
+          analysis_context: {
+            ...answered.analysis_context,
+            batch_reference: "batch-b",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...answered,
+          answer: "Resposta seguinte.",
+          analysis_context: {
+            ...answered.analysis_context,
+            batch_reference: "batch-b",
+          },
+        }),
+      ),
+  );
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  await user.type(input, "Qual o consumo?");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Resposta do lote anterior.");
+  await user.type(input, "E agora?");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Resposta do lote atual.");
+  expect(
+    screen.queryByText("Resposta do lote anterior."),
+  ).not.toBeInTheDocument();
+  await user.type(input, "Qual a receita?");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Resposta seguinte.");
+  const request = JSON.parse(vi.mocked(fetch).mock.calls[2][1]!.body as string);
+  expect(request.context).toEqual([
+    { role: "user", content: "E agora?" },
+    { role: "assistant", content: "Resposta do lote atual." },
+  ]);
+});
+
+it("removes previously authorized evidence and retries after scope revocation", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(answered))
+      .mockResolvedValueOnce(jsonResponse({}, 403)),
+  );
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  await user.type(input, "Qual o consumo?");
+  await user.keyboard("{Enter}");
+  await screen.findByText(answered.answer);
+  await user.type(input, "E a receita?");
+  await user.keyboard("{Enter}");
+  await screen.findByText(/Seu acesso/);
+  expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
 });

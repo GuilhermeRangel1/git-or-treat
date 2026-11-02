@@ -3187,3 +3187,10 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - A pedido da pessoa usuária e conforme a referência visual enviada, Panorama usa duas colunas em telas a partir de1280px: gráfico flexível e insight de280–320px à direita, com alturas alinhadas. Em telas menores permanece empilhado, gráfico antes do insight.
 - Arquivo: frontend/src/features/panorama/PanoramaPage.tsx, na branch do PR103. Tokens, conteúdo e controles do card preservados.
 - npm run build e npm run format:check passaram. Sem nova prova visual: navegador local segue indisponível; não declarar fidelidade visual validada nesta rodada.
+
+### 01/11/2026 — GENAI-13 — invalidação integrada de Assistente e Panorama
+
+- Continuação na branch `feat/genai-invalidacao-contexto`, base `develop` 15aa037. Assistente vincula consultas à publicação conhecida, invalida histórico/retentativas e descarta erro atrasado; entrada direta confere mudança de batch_reference. Panorama envia/confere fingerprint e distingue desatualização de carregamento.
+- Preflight usa a view de metadados existente; prova local com leitor sem acesso à tabela operacional passou. Nenhuma ampliação de privilégios, carga ou chamada Gemini nesta rodada.
+- Backend: 96 testes passaram/quatro skips de variantes de dialeto; núcleo/cache: 12 passaram. Chromium exercitou portal real com APIs artificiais, sucesso/409, vínculo de publicação e resposta atrasada de rota. Mapa dos dez aceites, comandos e limites em [invalidação integrada](plans/2026-11-01-genai13-invalidacao-integrada.md).
+- Estados oficiais IA-03/04/05/06 preservados. Implementação nos commits 35d3984 (Backend) e 3d1d1ae (portal), com roteiro/evidências na mesma branch; revisão final sem bloqueios após correções. GENAI-13: dez aceites técnicos locais contemplados, sem reduzir os critérios originais. Frontend: 80 passaram e revalidação final dos 19 testes da página; build, formatação, fronteiras e Ruff passaram. Lint sem erros, com aviso preexistente do AuthProvider.

@@ -9,6 +9,7 @@ import Button from "@/shared/ui/Button";
 
 const analyticGroups = new Set([
   "panorama",
+  "panorama-insight",
   "operations",
   "inspection-queue",
   "inspection-suspicion",

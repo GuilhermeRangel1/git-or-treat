@@ -15,7 +15,8 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "format": "prettier --write src scripts *.json *.ts index.html README.md",
     "format:check": "prettier --check src scripts *.json *.ts index.html README.md",
-    "test:panorama-gold": "node scripts/check-panorama-gold.mjs"
+    "test:panorama-gold": "node scripts/check-panorama-gold.mjs",
+    "test:invalidation": "node scripts/check-genai-invalidation.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.4",

@@ -55,6 +55,7 @@ export interface PanoramaInsightEnvelope {
   metric: { id: string; definicao: string; formula: string };
   analysis: PanoramaInsightAnalysis;
   source: {
+    fingerprint?: string | null;
     kind: string;
     loteVersao: string;
     dataAtualizacao: string;
@@ -363,6 +364,10 @@ export function decodePanoramaInsight(
       formula: value.metric.formula,
     },
     source: {
+      fingerprint:
+        typeof value.source.fingerprint === "string"
+          ? value.source.fingerprint
+          : null,
       kind: value.source.kind,
       loteVersao: value.source.loteVersao,
       dataAtualizacao: value.source.dataAtualizacao,

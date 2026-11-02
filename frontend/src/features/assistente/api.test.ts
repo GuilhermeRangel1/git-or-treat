@@ -1,3 +1,9 @@
+import { decodeGoldMetadata } from "@/shared/analytics/goldContract";
+import {
+  acceptGoldPublication,
+  resetGoldPublication,
+  isGoldPublicationStale,
+} from "@/shared/analytics/goldPublication";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { askAIQuestion } from "./api";
 
@@ -17,7 +23,10 @@ const validResponse = {
   limitations: [],
 };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetGoldPublication();
+});
 
 describe("cliente do chat", () => {
   it("envia o contrato v1 ao Backend e valida a resposta", async () => {
@@ -164,4 +173,75 @@ it("interrompe uma consulta que não responde e permite repetição manual", asy
   } finally {
     vi.useRealTimers();
   }
+});
+
+it("pins publication and rejects an in-flight response after refresh", async () => {
+  acceptGoldPublication(
+    decodeGoldMetadata({
+      contract_version: "2.0.0",
+      status: "partial",
+      period: null,
+      temporal_scope: "snapshot",
+      schema_version: "gold-csv-v2",
+      fingerprint: "a".repeat(64),
+      filters: {
+        municipio: null,
+        bairro: null,
+        classe: null,
+        alimentador: null,
+      },
+      source: {
+        kind: "gold",
+        version: "local-test",
+        is_demo: false,
+        updated_at: "2026-11-01T12:00:00Z",
+      },
+      limitations: [],
+    }),
+  );
+  let finish!: (response: Response) => void;
+  const fetchMock = vi.fn().mockReturnValue(
+    new Promise<Response>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const pending = askAIQuestion({
+    contract_version: "v1",
+    question: "Qual a receita?",
+    context: [],
+  });
+  expect(
+    JSON.parse(fetchMock.mock.calls[0][1].body).expected_publication,
+  ).toEqual({ lote: "local-test", fingerprint: "a".repeat(64) });
+  resetGoldPublication();
+  finish(Response.json(validResponse));
+  await expect(pending).rejects.toMatchObject({
+    status: 409,
+    retryable: false,
+  });
+});
+
+it("does not invalidate a newer publication when an older request returns 409", async () => {
+  let finish!: (response: Response) => void;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockReturnValue(
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      }),
+    ),
+  );
+  const pending = askAIQuestion({
+    contract_version: "v1",
+    question: "Qual a receita?",
+    context: [],
+  });
+  resetGoldPublication();
+  finish(Response.json({}, { status: 409 }));
+  await expect(pending).rejects.toMatchObject({
+    code: "superseded_request",
+    retryable: false,
+  });
+  expect(isGoldPublicationStale()).toBe(false);
 });

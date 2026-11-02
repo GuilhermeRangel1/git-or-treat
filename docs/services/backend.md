@@ -270,3 +270,8 @@ opcionais ausentes preservam envelopes/fingerprints existentes. As novas leitura
 locais foram explicitamente autorizadas e estão reproduzíveis no provisionamento;
 escrita, conteúdo de chamados e cadastro continuam fora do leitor. Veja a
 [entrega 10B](../contracts/genai-domain-implementation.md).
+
+
+## GENAI-13 — invalidação integrada
+
+Assistente e insight vinculam a publicação conhecida à consulta; o insight envia/confere fingerprint e o resolvedor lê a view de metadados no PostgreSQL. Mudança de publicação ou acesso retira contexto anterior e retentativas; resposta/erro atrasados não substituem revisão vigente. Evidências e limites da integração em [GENAI-13](../plans/2026-11-01-genai13-invalidacao-integrada.md). Mantida compatibilidade dos campos opcionais e dos modos demonstrativos explícitos.

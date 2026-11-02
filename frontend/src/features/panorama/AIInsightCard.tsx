@@ -7,6 +7,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { isGoldPublicationStale } from "../../shared/analytics/goldPublication";
 import Button from "../../shared/ui/Button";
 import type {
   PanoramaData,
@@ -195,15 +196,20 @@ export default function AIInsightCard({
     : data.metricas.receitaFaturada;
   // A failed refetch can leave TanStack Query's previous response in `data`.
   // Never present that cached interpretation as current after an error.
+  const publicationStale = !isDemo && isGoldPublicationStale();
   const response =
-    query.isError || (!isDemo && query.isFetching) ? undefined : query.data;
+    publicationStale || query.isError || (!isDemo && query.isFetching)
+      ? undefined
+      : query.data;
   const insight = response?.insight;
   const analysis = response?.analysis;
   const pending =
-    data.totalRegistros > 0 && (query.isPending || query.isFetching);
+    !publicationStale &&
+    data.totalRegistros > 0 &&
+    (query.isPending || query.isFetching);
   const apiError =
     query.error instanceof PanoramaInsightApiError ? query.error : null;
-  const isStale = apiError?.code === "invalid_context";
+  const isStale = publicationStale || apiError?.code === "invalid_context";
   const canRetryResponse =
     insight?.status === "recoverable_error" &&
     insight.error?.retryable === true;
@@ -223,7 +229,10 @@ export default function AIInsightCard({
   const uniqueLimitations = [...new Set(limitations)];
 
   let stateMessage = "";
-  if (data.totalRegistros === 0) {
+  if (publicationStale) {
+    stateMessage =
+      "Os dados mudaram. Atualize o Panorama para gerar uma nova interpretação.";
+  } else if (data.totalRegistros === 0) {
     stateMessage = "Não há evidência para interpretar este recorte.";
   } else if (pending) {
     stateMessage = "Gerando uma interpretação para o recorte atual.";
