@@ -7,6 +7,7 @@ WEB-10 etapa 2: a API deriva os escopos da sessão ativa em cada requisição. `
 | Indicadores legados | `GET /api/v1/kpis` | `panorama:read` | Alimenta os mesmos indicadores agregados e filtros da tela Panorama. |
 | Panorama | `GET /api/v1/panorama` | `panorama:read` | Dados, comparação e recortes do Panorama. |
 | Receita | `GET /api/v1/revenue` | `revenue:read` | Série financeira e decomposição preço-volume. |
+| Filtros analíticos compartilhados | `GET /api/v1/analytics/options` | Uma entre `revenue:read`, `ucs:read` ou `inspections:read` | Opções de período/dimensões usadas por Receita, UC 360 e Inspeções. Exige identidade também na fonte sintética, sem depender de Ordens. Operação usa `/operations/options`. |
 | UC 360 | `GET /api/v1/ucs`; `GET /api/v1/ucs/{uc_id}`; `GET /api/v1/ucs/{uc_id}/overview`; `GET /api/v1/ucs/{uc_id}/history/{section}` | `ucs:read` | Busca, resumo, detalhe e históricos acessam dados cadastrais e individuais de UCs. |
 | Fila analítica | `GET /api/v1/inspections/queue`; `GET /api/v1/inspections/queue/{uc_id}` | `inspections:read` | Fila, suspeita e fundamentos são recursos da jornada de perdas, além das ações operacionais de ordens. |
 | Ordens | `GET /api/v1/inspections/orders`; `GET /api/v1/inspections/orders/search`; `GET /api/v1/inspections/orders/{order_id}`; `GET /api/v1/inspections/orders/{order_id}/history` | `orders:read` | Listagem, busca, detalhe e trilha da ordem operacional. |

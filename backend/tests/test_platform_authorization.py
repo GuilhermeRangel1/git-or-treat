@@ -18,6 +18,35 @@ ORIGIN = "http://localhost:5173"
 PASSWORD = "profile authorization test password"
 
 
+@pytest.mark.parametrize("profile,expected", [
+    ("commercial", 200), ("customer_service", 200), ("losses", 200),
+    ("operations", 403), ("admin", 200),
+])
+def test_shared_filter_options_follow_feature_permissions_in_gold(client, monkeypatch, profile, expected):
+    _login(client, profile)
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setitem(app.dependency_overrides, analytics_repository.get_analytics_repository,
+                        lambda: analytics_repository.SyntheticAnalyticsRepository())
+    response = client.get(ROOT + "/analytics/options")
+    assert response.status_code == expected
+    if expected == 200:
+        assert response.json()["data"]["competencias"]
+
+
+def test_commercial_can_read_gold_revenue_without_order_permission(client, monkeypatch):
+    _login(client, "commercial")
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setitem(app.dependency_overrides, analytics_repository.get_analytics_repository,
+                        lambda: analytics_repository.SyntheticAnalyticsRepository())
+    response = client.get(ROOT + "/revenue?competencia_inicio=2025-01&competencia_fim=2025-02")
+    assert response.status_code == 200
+    assert response.json()["data"]
+
+
+def test_shared_filter_options_require_a_session(client):
+    assert client.get(ROOT + "/analytics/options").status_code == 401
+
+
 def _create_user(profile: str) -> None:
     db = TestingSessionLocal()
     try:

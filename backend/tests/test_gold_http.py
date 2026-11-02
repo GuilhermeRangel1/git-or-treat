@@ -74,8 +74,7 @@ def test_revenue_uses_gold_sql_aggregates_and_explicit_absence(gold_client):
 
 def test_gold_legacy_journeys_require_read_identity(gold_client, monkeypatch):
     from pydantic import SecretStr
-    from app.core import analytics_access
-    from app.core.order_access import OrderIdentity
+    from app.core.platform_identity import PlatformIdentity, get_platform_identity
 
     client, _ = gold_client
     app.dependency_overrides.pop(require_gold_analytics_read)
@@ -87,13 +86,16 @@ def test_gold_legacy_journeys_require_read_identity(gold_client, monkeypatch):
         assert client.get(path, headers={"Authorization": "Bearer wrong"}).status_code == 401
         response = client.get(path, headers={"Authorization": "Bearer test-read-token-" + "r" * 40})
         assert response.status_code == 200
-    monkeypatch.setattr(analytics_access, "get_order_identity", lambda *_: OrderIdentity("no-read", frozenset(), "session"))
+    app.dependency_overrides[get_platform_identity] = lambda: PlatformIdentity(
+        "no-analytic-read", None, frozenset({"operations:read"}), "service",
+    )
     for path in ("/api/v1/analytics/options", "/api/v1/revenue"):
         response = client.get(
             path,
             headers={"Authorization": "Bearer test-read-token-" + "r" * 40},
         )
         assert response.status_code == 403
+    app.dependency_overrides.pop(get_platform_identity)
     # A rota de UCs usa a permissÃ£o de plataforma `ucs:read`; o token de leitura
     # a concede mesmo quando a identidade operacional de ordens nÃ£o tem leitura.
     assert client.get(
