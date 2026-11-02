@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/shared/api/client";
+import Button from "@/shared/ui/Button";
 import { decodeGoldMetadata } from "@/shared/analytics/goldContract";
 import { useGoldPublicationKey } from "@/shared/analytics/goldPublication";
 
@@ -102,51 +103,86 @@ export default function GoldOccurrences({
     },
   });
   return (
-    <section className="grid gap-3" aria-label="Ocorrências observadas">
-      <h3 className="font-semibold">Ocorrências observadas</h3>
-      <p className="text-sm text-muted">
-        Registros por UC e data de abertura. Ausência de registros não comprova
-        ausência de interrupções; o alimentador pode refletir o cadastro atual.
-      </p>
-      {query.isPending ? (
-        <p role="status">Carregando ocorrências…</p>
-      ) : query.isError ? (
-        <p role="alert">
-          Não foi possível consultar ocorrências.{" "}
-          <button
-            type="button"
-            className="underline"
-            onClick={() => query.refetch()}
-          >
-            Tentar novamente
-          </button>
+    <section
+      className="grid min-w-0 gap-3 rounded-xl bg-surface p-4"
+      aria-label="Ocorrências observadas"
+    >
+      <div>
+        <h3 className="font-heading text-lg font-semibold">
+          Ocorrências observadas
+        </h3>
+        <p className="mt-1 text-sm text-muted">
+          Registros por UC e data de abertura. Ausência de registros não
+          comprova ausência de interrupções; o alimentador pode refletir o
+          cadastro atual.
         </p>
+      </div>
+      {query.isPending ? (
+        <p role="status" className="text-sm text-muted">
+          Carregando ocorrências…
+        </p>
+      ) : query.isError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">
+          <p>Não foi possível consultar ocorrências.</p>
+          <Button variant="outline" size="sm" onClick={() => query.refetch()}>
+            Tentar novamente
+          </Button>
+        </div>
       ) : query.data.items.length === 0 ? (
-        <p>Não há ocorrências observadas neste recorte.</p>
+        <p role="status" className="text-sm text-muted">
+          Não há ocorrências observadas neste recorte.
+        </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left font-sans text-sm leading-[22px]">
-            <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
-              <tr>
-                <th>Ocorrência</th>
-                <th>UC</th>
-                <th>Abertura</th>
-                <th>Causa</th>
-                <th>Duração</th>
+        <div className="min-w-0 overflow-x-auto rounded-xl bg-surface p-4">
+          <table className="w-full min-w-[680px] table-fixed text-left font-sans">
+            <caption className="sr-only">
+              Ocorrências observadas por unidade consumidora e data de abertura
+            </caption>
+            <colgroup>
+              <col className="w-[20%]" />
+              <col className="w-[16%]" />
+              <col className="w-[17%]" />
+              <col className="w-[29%]" />
+              <col className="w-[18%]" />
+            </colgroup>
+            <thead className="font-mono text-xs leading-[18px] text-muted">
+              <tr className="h-11">
+                <th scope="col" className="pr-2 font-normal">
+                  Ocorrência
+                </th>
+                <th scope="col" className="pr-2 font-normal">
+                  UC
+                </th>
+                <th scope="col" className="pr-2 font-normal">
+                  Abertura
+                </th>
+                <th scope="col" className="pr-2 font-normal">
+                  Causa
+                </th>
+                <th scope="col" className="font-normal">
+                  Duração
+                </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-sm leading-[22px]">
               {query.data.items.map((row) => (
-                <tr key={`${row.event_id}-${row.uc_id}`}>
-                  <td>{row.event_id}</td>
-                  <td>{row.uc_id}</td>
-                  <td>
+                <tr
+                  key={`${row.event_id}-${row.uc_id}`}
+                  className="h-14 border-t border-border/60 align-middle"
+                >
+                  <th scope="row" className="break-words py-3 pr-2 font-medium">
+                    {row.event_id}
+                  </th>
+                  <td className="break-words py-3 pr-2">{row.uc_id}</td>
+                  <td className="py-3 pr-2">
                     {new Date(row.opened_at).toLocaleDateString("pt-BR", {
                       timeZone: "UTC",
                     })}
                   </td>
-                  <td>{row.cause ?? "Não informada"}</td>
-                  <td>
+                  <td className="break-words py-3 pr-2">
+                    {row.cause ?? "Não informada"}
+                  </td>
+                  <td className="py-3">
                     {row.duration_hours === null
                       ? "Indisponível"
                       : `${row.duration_hours.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} h`}
@@ -158,24 +194,26 @@ export default function GoldOccurrences({
         </div>
       )}
       {query.data && query.data.pages > 1 ? (
-        <div className="flex items-center gap-3 text-sm">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => setPage(page - 1)}
-          >
-            Anterior
-          </button>
-          <span>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p className="text-muted">
             Página {page} de {query.data.pages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= query.data.pages}
-            onClick={() => setPage(page + 1)}
-          >
-            Próxima
-          </button>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              disabled={page >= query.data.pages}
+              onClick={() => setPage(page + 1)}
+            >
+              Próxima
+            </Button>
+          </div>
         </div>
       ) : null}
     </section>

@@ -352,9 +352,19 @@ it("abre detalhe mensal, mostra alternativa textual e pagina ocorrências sem pe
   expect(
     screen.getByRole("region", { name: "Série mensal de DEC" }),
   ).toHaveTextContent("Jan/2025");
+  await user.click(
+    screen.getAllByRole("button", { name: "Ver tabela da série →" })[0]!,
+  );
   expect(
-    screen.getByRole("table", { name: "Dados mensais de continuidade" }),
+    await screen.findByRole("table", {
+      name: "Série mensal de DEC simplificado",
+    }),
   ).toHaveTextContent("Fev/2025");
+  await user.click(
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Fechar dados de DEC",
+    }),
+  );
   expect(
     screen.getByRole("table", { name: "Ocorrências de interrupção" }),
   ).toHaveTextContent("EV-01");
@@ -436,9 +446,19 @@ it("mantém ocorrências observadas quando o denominador do alimentador é invá
   expect(
     screen.getByRole("table", { name: "Ocorrências de interrupção" }),
   ).toHaveTextContent("EV-01");
+  await user.click(
+    screen.getAllByRole("button", { name: "Ver tabela da série →" })[0]!,
+  );
   expect(
-    screen.getByRole("table", { name: "Dados mensais de continuidade" }),
+    await screen.findByRole("table", {
+      name: "Série mensal de DEC simplificado",
+    }),
   ).toHaveTextContent("0,5");
+  await user.click(
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Fechar dados de DEC",
+    }),
+  );
   expect(screen.getByText("Denominador informado")).toBeVisible();
   expect(
     screen.queryByRole("region", { name: "Resumo de continuidade" }),
@@ -842,8 +862,11 @@ it("navega do ranking Gold ao detalhe agregado e retorna preservando filtros", a
     screen.queryByText(/Ocorrências individuais indisponíveis/),
   ).not.toBeInTheDocument();
   expect(screen.queryByText(/Página 1 de/)).not.toBeInTheDocument();
-  const monthlyTable = screen.getByRole("table", {
-    name: "Dados mensais de continuidade",
+  await user.click(
+    screen.getAllByRole("button", { name: "Ver tabela da série →" })[0]!,
+  );
+  const monthlyTable = await screen.findByRole("table", {
+    name: "Série mensal de DEC simplificado",
   });
   const missingMonth = within(monthlyTable).getByRole("row", {
     name: /Fev\/2025/,
