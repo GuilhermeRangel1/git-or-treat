@@ -28,6 +28,10 @@ export function useGoldPublicationKey() {
     goldPublicationKey,
   );
 }
+export function useGoldPublicationRevision() {
+  const snapshot = () => `${generation}:${goldPublicationKey()}:${stale}`;
+  return useSyncExternalStore(subscribeGoldPublication, snapshot, snapshot);
+}
 export function resetGoldPublication() {
   publication = null;
   stale = false;

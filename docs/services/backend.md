@@ -3,6 +3,10 @@
 **Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** API FastAPI, SQLAlchemy, ORM e Alembic; demonstração sintética preservada. A DEV-13.1 acrescenta modo Gold explícito para Panorama, fila/Ordens e Operação, com contrato v2 e limitações reais; o aceite integrado do portal permanece pendente. **Stack atual:** Python 3.12 no Docker/CI, FastAPI, SQLAlchemy e PostgreSQL com psycopg 3; testes HTTP sintéticos usam SQLite e os de integração Gold usam PostgreSQL descartável.
 
 
+## GENAI-12 — insight do Panorama Gold v2
+
+O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do KPI. O Backend coordena sessão individual, prontidão, leitor restrito/snapshot, síntese interna e auditoria durável; a GenAI reutiliza o núcleo de insight. O portal distingue Gold de demonstração, preserva recorte/fundamento/limitações e prioriza falhas sobre cache antigo. Migração `genai12000001` publica somente metadados mínimos por view, sem acesso direto à tabela operacional de carga. Contrato, implantação e reprodução: [insight do Panorama](../contracts/panorama-insight-api.md); evidências e limites: [GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Os registros anteriores sobre ausência de insight externo são históricos; a rota pública GenAI demonstrativa permanece separada da entrada interna Gold.
+
 ## Estado vigente da fatia conversacional Gold — 01/11/2026
 
 A rota pública Backend /api/v1/ai/questions já coordena sessão individual → planejamento GenAI → prontidão/SQL restrito → síntese GenAI → confirmação de auditoria. A GenAI usa app.gold_runtime:create_gold_app, com perfil Gold v2 e fonte gold.local; recebe evidências minimizadas, nunca credenciais do banco. Há resposta real reconciliada, replay e matriz integrada de falhas, conforme [evidência GENAI-09](../contracts/genai-first-question.md).
@@ -268,3 +272,40 @@ O resultado contém o envelope contratual, a publicação capturada no servidor 
 A CLI é o chamador de runtime para esta etapa. Configure `GOLD_READINESS_DATABASE_URL` com o login PostgreSQL `venergy_gold_reader`, `AI_AGENT_BASE_URL` para a aplicação externa Gold e `AI_AGENT_SERVICE_API_TOKEN` no ambiente privado. Use `python scripts/plan_gold_question.py --request-file <pergunta.json> --scope-file <escopo-backend.json>`. O primeiro JSON segue `AIQuestionRequest`; o segundo segue `AccessScope`, deve ser administrado localmente pelo Backend e é relido nas reautorizações. Não aceite o segundo arquivo do portal. `GOLD_READINESS_EXPECTED_BATCH_REF` fixa opcionalmente a publicação esperada. A saída contém somente `status` e `plan_admitted`, sem pergunta, filtros, medidas ou identidade privada do lote.
 
 O executor de medidas e a coordenação do endpoint do portal permanecem em GENAI-06/07. A operação acima é integração executável do planejamento, não aceite quantitativo IA-01/IA-03/IA-06 nem autenticação individual do chat. Referência técnica: SQLAlchemy 2.0.52 observado localmente; transações/`execution_options` conferidos via Context7 em 31/10/2026 na [documentação Core 2](https://docs.sqlalchemy.org/en/20/core/connections.html).
+
+
+### GENAI-10B — leitura de atendimento e prontidão acumulada
+
+O escopo de sessão admite as quatro métricas de atendimento do catálogo Gold v2.
+O provisionamento quantitativo concede somente as três colunas de agregação de
+`atendimentos_uc` e o total acumulado da `visao_360_uc`, conforme autorização local
+explícita. Os limites, reautorização e isolamento operacional permanecem aplicados.
+
+A operação de prontidão de domínios admite consulta acumulada sem competências,
+publicando cobertura temporal vazia. A operação mensal original ainda exige um recorte.
+Controles C14/C15 não promovem automaticamente fechamento mensal ou DEC/FEC.
+[Evidência reproduzível, alcance e pendências](../contracts/genai-domain-implementation.md).
+
+
+No ranking explícito com agrupamento, o executor retorna exatamente o limite do plano.
+A linha extra para detectar truncamento é preservada nas consultas completas; não
+converte uma solicitação legítima de top-1 em erro por existir um segundo grupo.
+O teste integrado confere duas classes e mantém a recusa da consulta completa truncada.
+
+
+### GENAI-10B — execução das métricas documentadas v2
+
+O catálogo físico inclui comparação mensal, GD/queda elegível, contagem distinta
+de eventos e decomposição publicada. O executor revalida o filtro intrínseco GD,
+usa SQL parametrizado e classifica os bairros antes de limitar a saída. C08/C09
+confrontam população e medidas; preço/volume exige cobertura dos dois domínios nas
+janelas publicadas, método V3, mesma origem e reconciliação por linha. Campos
+opcionais ausentes preservam envelopes/fingerprints existentes. As novas leituras
+locais foram explicitamente autorizadas e estão reproduzíveis no provisionamento;
+escrita, conteúdo de chamados e cadastro continuam fora do leitor. Veja a
+[entrega 10B](../contracts/genai-domain-implementation.md).
+
+
+## GENAI-13 — invalidação integrada
+
+Assistente e insight vinculam a publicação conhecida à consulta; o insight envia/confere fingerprint e o resolvedor lê a view de metadados no PostgreSQL. Mudança de publicação ou acesso retira contexto anterior e retentativas; resposta/erro atrasados não substituem revisão vigente. Evidências e limites da integração em [GENAI-13](../plans/2026-11-01-genai13-invalidacao-integrada.md). Mantida compatibilidade dos campos opcionais e dos modos demonstrativos explícitos.

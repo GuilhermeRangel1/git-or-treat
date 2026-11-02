@@ -260,7 +260,7 @@ describe("PanoramaPage (WEB-01)", () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          "Insights automáticos não estão disponíveis para esta fonte.",
+          "Não foi possível gerar a interpretação agora. Os indicadores continuam disponíveis para consulta.",
         ),
       ).toBeVisible(),
     );
@@ -269,7 +269,7 @@ describe("PanoramaPage (WEB-01)", () => {
     ).toBeVisible();
     expect(screen.getAllByText("Indisponível").length).toBeGreaterThan(0);
     expect(requests.some((url) => url.pathname === "/api/v1/ai/insights")).toBe(
-      false,
+      true,
     );
     expect(
       requests.some(

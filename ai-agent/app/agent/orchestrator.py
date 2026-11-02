@@ -63,17 +63,55 @@ _Outcome = TypeVar("_Outcome", QuestionResponse, QuestionResponse | PlannedQuest
 
 
 def _describe_observation(
-    observation: dict[str, object], dimension_labels: dict[str, str] | None = None,
+    observation: dict[str, object],
+    dimension_labels: dict[str, str] | None = None,
+    *,
+    human_readable: bool = False,
 ) -> str:
     labels: list[str] = []
     if "period" in observation:
         labels.append(str(observation["period"]))
+    if "label" in observation:
+        labels.append(str(observation["label"]))
     dimensions = observation.get("dimensions", {})
     if isinstance(dimensions, dict):
         for dimension_id, dimension_value in dimensions.items():
             label = (dimension_labels or {}).get(dimension_id, dimension_id)
-            labels.append(f"{label}={dimension_value}")
-    value_with_unit = f"{observation['value']} {observation['unit']}"
+            labels.append(f"{label}: {dimension_value}")
+    value = observation["value"]
+    unit = str(observation["unit"])
+    if unit in {"BRL", "R$"} and isinstance(value, (int, float)) and not isinstance(value, bool):
+        formatted = f"{value:,.2f}".translate(str.maketrans({",": ".", ".": ","}))
+        value_with_unit = f"R$ {formatted}"
+    else:
+        value_with_unit = f"{value} {unit}"
+    if human_readable:
+        period = str(observation.get("period", ""))
+        months = (
+            "janeiro",
+            "fevereiro",
+            "março",
+            "abril",
+            "maio",
+            "junho",
+            "julho",
+            "agosto",
+            "setembro",
+            "outubro",
+            "novembro",
+            "dezembro",
+        )
+        if (
+            len(period) == 7
+            and period[4] == "-"
+            and period[:4].isdigit()
+            and period[5:].isdigit()
+            and 1 <= int(period[5:]) <= 12
+        ):
+            period = f"{months[int(period[5:]) - 1]} de {period[:4]}"
+        details = labels[1:] if "period" in observation else labels
+        suffix = f" ({'; '.join(details)})" if details else ""
+        return f"{value_with_unit}{' em ' + period if period else ''}{suffix}"
     return f"{', '.join(labels)}: {value_with_unit}" if labels else value_with_unit
 
 
@@ -142,9 +180,7 @@ class QuestionOrchestrator:
             lambda budget: self._answer_with_budget(request, access_context, budget, trace),
         )
 
-    async def plan(
-        self, request: QuestionPlanRequest, correlation_id: str
-    ) -> QuestionPlanResponse:
+    async def plan(self, request: QuestionPlanRequest, correlation_id: str) -> QuestionPlanResponse:
         """Operação planejar: guardrail, interpretação e plano aprovado, sem fonte nem modelo."""
 
         access_context = request.access_scope.to_context(correlation_id)
@@ -213,7 +249,9 @@ class QuestionOrchestrator:
         except asyncio.CancelledError:
             with suppress(AuditUnavailable):
                 await trace.emit_async(
-                    EventStage.RESPONSE, EventCode.CANCELLED, EventOutcome.CANCELLED,
+                    EventStage.RESPONSE,
+                    EventCode.CANCELLED,
+                    EventOutcome.CANCELLED,
                 )
             raise
         except ExecutionLimitExceeded:
@@ -338,10 +376,7 @@ class QuestionOrchestrator:
                     else None
                 ),
                 dimension_value_coverage=(
-                    {
-                        item.dimension_id: item.values
-                        for item in request.dimension_value_coverage
-                    }
+                    {item.dimension_id: item.values for item in request.dimension_value_coverage}
                     if isinstance(request, QuestionPlanRequest)
                     and request.access_scope.source_id.startswith("gold.")
                     and request.access_scope.profile_id == "v-energy-grid-360-gold"
@@ -427,13 +462,19 @@ class QuestionOrchestrator:
             if read_plan.window.phrase is not None
             else f"{read_plan.window.start} a {read_plan.window.end}"
         )
+        if evidence.provenance and evidence.provenance.published_windows:
+            period = evidence.provenance.published_windows.describe()
         filters = {
             item.dimension_id: item.values[0] if len(item.values) == 1 else list(item.values)
             for item in read_plan.filters
         }
         filter_operators = {item.dimension_id: item.operator for item in read_plan.filters}
         numeric_mismatch = has_unsupported_claims(
-            generated, observations, metric=read_plan.metric_id, period=period, filters=filters,
+            generated,
+            observations,
+            metric=read_plan.metric_id,
+            period=period,
+            filters=filters,
             filter_operators=filter_operators,
         )
         needs_stronger = (
@@ -470,7 +511,11 @@ class QuestionOrchestrator:
             )
 
         if _is_ungrounded(generated, set(observations)) or has_unsupported_claims(
-            generated, observations, metric=read_plan.metric_id, period=period, filters=filters,
+            generated,
+            observations,
+            metric=read_plan.metric_id,
+            period=period,
+            filters=filters,
             filter_operators=filter_operators,
         ):
             return QuestionResponse(
@@ -487,12 +532,34 @@ class QuestionOrchestrator:
         labels = {item.id: item.label for item in profile.dimensions}
         answer = None
         if generated.status == "answered":
+            answer_observation_ids = (
+                tuple(observations)
+                if read_plan.comparison_periods or evidence.provenance.published_windows is not None
+                else generated.observation_ids
+            )
             values = ", ".join(
-                _describe_observation(observations[item], labels)
-                for item in generated.observation_ids
+                _describe_observation(
+                    observations[item], labels, human_readable=not evidence.reference.is_demo
+                )
+                for item in answer_observation_ids
             )
             prefix = "Demonstração sintética: " if evidence.reference.is_demo else ""
-            answer = f"{prefix}{read_plan.metric_id} — {period}: {values}."
+            title = metric.label or "Resultado da consulta"
+            if evidence.reference.is_demo:
+                answer = f"{prefix}{title} — {period}: {values}."
+            elif len(answer_observation_ids) == 1:
+                answer = f"Para {title.lower()}, o resultado foi de {values}."
+            else:
+                lines = [
+                    _describe_observation(observations[item], labels, human_readable=True)
+                    for item in answer_observation_ids
+                ]
+                answer = f"Resultados de {title.lower()} no período solicitado:\n" + "\n".join(
+                    f"• {line}" for line in lines
+                )
+            if read_plan.comparison_periods and "row_4" not in observations:
+                answer += " Variação percentual indisponível: a base inicial não é positiva."
+
 
         error = (
             map_failure(FailureCode.POLICY_REFUSAL).error if generated.status == "refused" else None
@@ -513,6 +580,7 @@ class QuestionOrchestrator:
             error=error,
             model_tier=tier,
             analysis_context=AppliedQueryContext(
+                batch_reference=(evidence.provenance.batch_ref if evidence.provenance else None),
                 metric=read_plan.metric_id,
                 metric_label=metric.label,
                 metric_definition=metric.definition,

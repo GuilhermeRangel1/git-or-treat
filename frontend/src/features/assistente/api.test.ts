@@ -1,3 +1,9 @@
+import { decodeGoldMetadata } from "@/shared/analytics/goldContract";
+import {
+  acceptGoldPublication,
+  resetGoldPublication,
+  isGoldPublicationStale,
+} from "@/shared/analytics/goldPublication";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { askAIQuestion } from "./api";
 
@@ -17,7 +23,10 @@ const validResponse = {
   limitations: [],
 };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetGoldPublication();
+});
 
 describe("cliente do chat", () => {
   it("envia o contrato v1 ao Backend e valida a resposta", async () => {
@@ -102,7 +111,137 @@ describe("cliente do chat", () => {
         context: [],
       }),
     ).rejects.toThrow(
-      "O serviço retornou uma resposta fora do contrato esperado.",
+      "Não foi possível apresentar a resposta. Tente uma nova pergunta em instantes.",
     );
   });
+});
+
+it.each([401, 403, 409, 422, 429])(
+  "trata HTTP %s sem expor o corpo técnico nem repetir automaticamente",
+  async (status) => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({ detail: "SELECT secret FROM internal" }, { status }),
+        ),
+    );
+    await expect(
+      askAIQuestion({
+        contract_version: "v1",
+        question: "Qual a receita?",
+        context: [],
+      }),
+    ).rejects.toMatchObject({ status, retryable: false });
+    await expect(
+      askAIQuestion({
+        contract_version: "v1",
+        question: "Qual a receita?",
+        context: [],
+      }),
+    ).rejects.not.toHaveProperty("message", expect.stringContaining("SELECT"));
+  },
+);
+
+it("interrompe uma consulta que não responde e permite repetição manual", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url, options: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            options.signal?.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            ),
+          ),
+      ),
+    );
+    const result = expect(
+      askAIQuestion({
+        contract_version: "v1",
+        question: "Qual a receita?",
+        context: [],
+      }),
+    ).rejects.toMatchObject({
+      retryable: true,
+      message: expect.stringContaining("demorou"),
+    });
+    await vi.advanceTimersByTimeAsync(40_000);
+    await result;
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("pins publication and rejects an in-flight response after refresh", async () => {
+  acceptGoldPublication(
+    decodeGoldMetadata({
+      contract_version: "2.0.0",
+      status: "partial",
+      period: null,
+      temporal_scope: "snapshot",
+      schema_version: "gold-csv-v2",
+      fingerprint: "a".repeat(64),
+      filters: {
+        municipio: null,
+        bairro: null,
+        classe: null,
+        alimentador: null,
+      },
+      source: {
+        kind: "gold",
+        version: "local-test",
+        is_demo: false,
+        updated_at: "2026-11-01T12:00:00Z",
+      },
+      limitations: [],
+    }),
+  );
+  let finish!: (response: Response) => void;
+  const fetchMock = vi.fn().mockReturnValue(
+    new Promise<Response>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const pending = askAIQuestion({
+    contract_version: "v1",
+    question: "Qual a receita?",
+    context: [],
+  });
+  expect(
+    JSON.parse(fetchMock.mock.calls[0][1].body).expected_publication,
+  ).toEqual({ lote: "local-test", fingerprint: "a".repeat(64) });
+  resetGoldPublication();
+  finish(Response.json(validResponse));
+  await expect(pending).rejects.toMatchObject({
+    status: 409,
+    retryable: false,
+  });
+});
+
+it("does not invalidate a newer publication when an older request returns 409", async () => {
+  let finish!: (response: Response) => void;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockReturnValue(
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      }),
+    ),
+  );
+  const pending = askAIQuestion({
+    contract_version: "v1",
+    question: "Qual a receita?",
+    context: [],
+  });
+  resetGoldPublication();
+  finish(Response.json({}, { status: 409 }));
+  await expect(pending).rejects.toMatchObject({
+    code: "superseded_request",
+    retryable: false,
+  });
+  expect(isGoldPublicationStale()).toBe(false);
 });

@@ -75,11 +75,13 @@ class AppliedQueryContext(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    batch_reference: QueryContextText | None = None
     metric: QueryContextText | None = None
     metric_label: QueryContextText | None = None
     metric_definition: ResponseLimitation | None = None
     filter_labels: dict[ResponseFilterKey, QueryContextText] = Field(
-        default_factory=dict, max_length=20,
+        default_factory=dict,
+        max_length=20,
     )
     unit: QueryContextText | None = None
     period: QueryContextText | None = None
@@ -101,7 +103,6 @@ class AppliedQueryContext(BaseModel):
 
 
 class QuestionResponse(PublicResponseMetadata):
-
     status: QuestionStatus
     model_tier: Literal["light", "strong"] | None = Field(
         default=None, description="Nível do modelo usado para gerar o resultado da pergunta."

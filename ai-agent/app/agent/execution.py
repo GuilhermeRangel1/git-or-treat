@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import TypeVar
 
 from app.schemas.access import AccessContext
-from app.schemas.read_plan import LogicalReadPlan
+from app.schemas.read_plan import LogicalReadPlan, cache_plan_digest
 
 T = TypeVar("T")
 
@@ -23,7 +23,8 @@ def authorized_cache_scope(context: AccessContext, plan: LogicalReadPlan) -> str
 
     payload = {
         "access": context.model_dump(mode="json", exclude={"correlation_id"}),
-        "plan": plan.fingerprint(),
+        # Filtros normalizados: ordem diferente não separa o mesmo recorte.
+        "plan": cache_plan_digest(plan),
         "catalog_version": plan.catalog_version,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))

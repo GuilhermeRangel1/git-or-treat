@@ -1,6 +1,6 @@
 """Mapeamento físico versionado do catálogo Gold: id lógico -> tabela, coluna e fórmula.
 
-Usado pelo executor do Backend no futuro; o núcleo (interpretação e planejamento) só conhece
+Consumido pelo executor do Backend; o núcleo (interpretação e planejamento) só conhece
 ``GRID360_GOLD_PROFILE``. Não importa a camada SQL de execução: a validação recebe o dicionário
 como ``DictionarySchema``, montado por quem chama a partir de ``dictionary_gold.toml``.
 
@@ -48,7 +48,10 @@ class Aggregation(StrEnum):
     SUM = "sum"
     RATIO_OF_SUMS = "ratio_of_sums"
     KEY_GRAIN_READ = "key_grain_read"
+    COUNT_DISTINCT = "count_distinct"
     COUNT_NON_NULL = "count_non_null"
+    COUNT_GD_DROP = "count_gd_drop"
+    PUBLISHED_DECOMPOSITION = "published_decomposition"
     AVERAGE_NON_NULL = "average_non_null"
 
 
@@ -119,6 +122,7 @@ class MetricMapping(BaseModel):
     metric_id: LogicalIdentifier
     label: OpenPoint
     definition: OpenPoint
+    fixed_filter_values: dict[LogicalIdentifier, str] = Field(default_factory=dict)
     dimension_operators: dict[LogicalIdentifier, tuple[FilterOperator, ...]]
     # Capacidade da fonte padrão (a primeira); cada fonte declara a sua.
     capability_id: LogicalIdentifier
@@ -167,7 +171,10 @@ class MetricMapping(BaseModel):
             Aggregation.SUM: NullRule.SUM_IGNORES_NULL_ALL_NULL_IS_ABSENT,
             Aggregation.RATIO_OF_SUMS: NullRule.RATIO_ABSENT_ON_NULL_OR_ZERO_DENOMINATOR,
             Aggregation.KEY_GRAIN_READ: NullRule.READ_NULL_IS_ABSENT,
+            Aggregation.COUNT_DISTINCT: NullRule.COUNT_REQUIRES_CERTIFIED_ZERO,
             Aggregation.COUNT_NON_NULL: NullRule.COUNT_REQUIRES_CERTIFIED_ZERO,
+            Aggregation.COUNT_GD_DROP: NullRule.COUNT_REQUIRES_CERTIFIED_ZERO,
+            Aggregation.PUBLISHED_DECOMPOSITION: NullRule.READ_NULL_IS_ABSENT,
             Aggregation.AVERAGE_NON_NULL: NullRule.AVERAGE_IGNORES_NULL_ALL_NULL_IS_ABSENT,
         }[self.aggregation]
         if self.null_rule is not expected_null:
@@ -396,7 +403,7 @@ def _source_errors(
         errors.append(f"{where}: grão difere da chave do dicionário")
     if source.temporal_transform == "utc_month":
         if (
-            source.capability_id != "atendimento.mensal"
+            source.capability_id not in {"atendimento.mensal", "interrupcoes.uc_acumulado"}
             or source.temporal_column != "data_abertura"
             or table.columns.get(source.temporal_column) != "timestamp_utc"
             or requirement is None
@@ -580,7 +587,9 @@ def _business_metric(metric_id: str) -> dict:
             if d.id in logical.dimension_ids
         },
         "max_window_days": logical.max_window_days,
+        "fixed_filter_values": logical.fixed_filter_values,
     }
+
 
 GRID360_GOLD_MAPPING = GoldCatalogMapping(
     profile_id="v-energy-grid-360-gold",
@@ -807,17 +816,121 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
                 ),
             ),
         ),
-    ),
-    unavailable=(
-        UnavailableCapability(
+        MetricMapping(
+            **_business_metric("billing.price_volume"),
             capability_id="faturamento.preco_volume",
-            reasons=(ReasonCode.DEFINITION_PENDING,),
-            note=(
-                "Fonte e método de preço observado disponíveis; mapeamento "
-                "consumidor das duas janelas, estados e controles de reconciliação "
-                "ainda não liberado."
+            required_capability_ids=("faturamento.preco_volume",),
+            aggregation=Aggregation.PUBLISHED_DECOMPOSITION,
+            unit="R$",
+            unit_kind=UnitKind.CURRENCY,
+            measure_type=ColumnType.DOUBLE,
+            rounding=Rounding(decimals=2),
+            null_rule=NullRule.READ_NULL_IS_ABSENT,
+            accumulated_period_phrases=next(
+                m for m in GRID360_GOLD_PROFILE.metrics if m.id == "billing.price_volume"
+            ).accumulated_period_phrases,
+            sources=(
+                SourceMapping(
+                    capability_id="faturamento.preco_volume",
+                    table=GoldTable.DECOMPOSICAO_RECEITA,
+                    temporal_column=None,
+                    grain=(
+                        "municipio",
+                        "bairro",
+                        "classe_consumo",
+                        "inicio_p0",
+                        "fim_p0",
+                        "inicio_p1",
+                        "fim_p1",
+                    ),
+                    measure_column="variacao_faturamento_total_reais",
+                    dimension_columns={
+                        "geography.municipality": "municipio",
+                        "geography.neighborhood": "bairro",
+                        "customer.consumption_class": "classe_consumo",
+                    },
+                    nullable_columns=(
+                        "efeito_volume_reais",
+                        "efeito_preco_observado_reais",
+                        "efeito_interacao_reais",
+                        "variacao_entradas_reais",
+                        "variacao_saidas_reais",
+                        "variacao_sem_leitura_fora_base_reais",
+                        "variacao_outros_fora_base_reais",
+                        "faturamento_p0_reais",
+                        "faturamento_p1_reais",
+                        "residuo_reconciliacao_reais",
+                        "qtd_ucs_entrantes", "qtd_ucs_saintes",
+                    "qtd_ucs_base_comum",
+                        "qtd_ucs_observadas",
+                        "metodo",
+                        "estado_decomposicao",
+                        "run_id_silver",
+                        "lote_bronze_silver",
+                    ),
+                ),
             ),
         ),
+        MetricMapping(
+            **_business_metric("network.interruption_events"),
+            capability_id="interrupcoes.uc_acumulado",
+            required_capability_ids=("interrupcoes.uc_acumulado",),
+            aggregation=Aggregation.COUNT_DISTINCT,
+            unit="ocorrências",
+            unit_kind=UnitKind.COUNT,
+            measure_type=ColumnType.STRING,
+            rounding=Rounding(decimals=0),
+            null_rule=NullRule.COUNT_REQUIRES_CERTIFIED_ZERO,
+            granularities=("month",),
+            required_dimension_ids=("network.feeder",),
+            sources=(
+                SourceMapping(
+                    capability_id="interrupcoes.uc_acumulado",
+                    table=GoldTable.OCORRENCIAS_UC,
+                    temporal_column="data_abertura",
+                    temporal_transform="utc_month",
+                    grain=("id_ocorrencia", "id_uc"),
+                    measure_column="id_ocorrencia",
+                    dimension_columns={"network.feeder": "alimentador"},
+                ),
+            ),
+        ),
+        MetricMapping(
+            **_business_metric("energy.gd_consumption_drop"),
+            capability_id="consumo.variacao_uc",
+            required_capability_ids=("consumo.variacao_uc",),
+            aggregation=Aggregation.COUNT_GD_DROP,
+            unit="UCs",
+            unit_kind=UnitKind.COUNT,
+            required_dimension_ids=("generation.distributed",),
+            measure_type=ColumnType.BIGINT,
+            rounding=Rounding(decimals=0),
+            null_rule=NullRule.COUNT_REQUIRES_CERTIFIED_ZERO,
+            accumulated_period_phrases=next(
+                m for m in GRID360_GOLD_PROFILE.metrics if m.id == "energy.gd_consumption_drop"
+            ).accumulated_period_phrases,
+            sources=(
+                SourceMapping(
+                    capability_id="consumo.variacao_uc",
+                    table=GoldTable.VARIACAO_CONSUMO_UC,
+                    temporal_column=None,
+                    grain=("id_uc",),
+                    measure_column="meses_com_leitura_p1",
+                    dimension_columns={
+                        "geography.municipality": "municipio",
+                        "generation.distributed": "possui_gd",
+                    },
+                    nullable_columns=(
+                        "consumo_medio_inicial",
+                        "consumo_medio_final",
+                        "meses_com_leitura_p2",
+                        "queda_consumo_superior_30_pct",
+                    ),
+                ),
+            ),
+        ),
+    ),
+    unavailable=(
         UnavailableCapability(
             capability_id="faturamento.faturas_em_aberto",
             reasons=(ReasonCode.DEFINITION_PENDING,),
@@ -825,22 +938,6 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
                 "Fonte faturas_uc disponível; distinguir valor nominal "
                 "declarado e saldo indicativo. Controles consumidores "
                 "ainda não mapeados; a fonte não prova saldo contábil."
-            ),
-        ),
-        UnavailableCapability(
-            capability_id="consumo.variacao_uc",
-            reasons=(ReasonCode.DEFINITION_PENDING,),
-            note=(
-                "Variação publicada usa janelas fixas da Gold; falta mapear sua "
-                "seleção e limitações no consumidor, sem comparação arbitrária."
-            ),
-        ),
-        UnavailableCapability(
-            capability_id="interrupcoes.uc_acumulado",
-            reasons=(ReasonCode.DEFINITION_PENDING,),
-            note=(
-                "Fontes detalhada e acumulada disponíveis; contagem e duração por "
-                "UC ainda sem mapeamento consumidor e controles próprios."
             ),
         ),
         UnavailableCapability(

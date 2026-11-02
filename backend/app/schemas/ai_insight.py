@@ -62,6 +62,9 @@ class PanoramaInsightRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    fingerprint: (
+        Annotated[StrictStr, StringConstraints(pattern=r"^[a-f0-9]{64}$")] | None
+    ) = None
     filters: PanoramaInsightFilters
     loteVersao: Annotated[
         StrictStr,
@@ -225,6 +228,9 @@ class PanoramaInsightMetric(BaseModel):
 class PanoramaInsightSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    fingerprint: (
+        Annotated[StrictStr, StringConstraints(pattern=r"^[a-f0-9]{64}$")] | None
+    ) = None
     kind: StrictStr
     loteVersao: StrictStr
     dataAtualizacao: StrictStr
@@ -247,9 +253,7 @@ class PanoramaInsightAnalysis(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     direcao: Literal["alta", "queda", "estavel", "indisponivel"]
-    variacaoPercentual: StrictFloat | None = Field(
-        default=None, allow_inf_nan=False
-    )
+    variacaoPercentual: StrictFloat | None = Field(default=None, allow_inf_nan=False)
     principalContribuicao: PanoramaInsightContribution | None = None
     compensacao: PanoramaInsightContribution | None = None
 

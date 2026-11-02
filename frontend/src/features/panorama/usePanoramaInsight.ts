@@ -1,3 +1,7 @@
+import {
+  useGoldPublicationRevision,
+  isGoldPublicationStale,
+} from "../../shared/analytics/goldPublication";
 import { useQuery } from "@tanstack/react-query";
 import type {
   PanoramaData,
@@ -16,15 +20,23 @@ export function usePanoramaInsight(
   data: PanoramaData | undefined,
   enabled: boolean,
 ) {
+  const publicationRevision = useGoldPublicationRevision();
   const hasRows = (data?.totalRegistros ?? 0) > 0;
-  const isSynthetic = data?.origem?.kind !== "gold";
   const matchesCurrentFilters = data ? matchesFilters(data, filters) : false;
 
   return useQuery({
-    queryKey: ["panorama-insight", filters, data?.loteVersao],
+    queryKey: [
+      "panorama-insight",
+      publicationRevision,
+      filters,
+      data?.loteVersao,
+      data?.origem?.fingerprint,
+      data?.dataAtualizacao,
+      data?.origem?.kind,
+    ],
     enabled:
       enabled &&
-      isSynthetic &&
+      !isGoldPublicationStale() &&
       Boolean(data) &&
       hasRows &&
       matchesCurrentFilters,
@@ -33,8 +45,8 @@ export function usePanoramaInsight(
         throw new Error("O recorte atual ainda não está disponível.");
       return requestPanoramaInsight(filters, data, signal);
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: data?.origem?.kind === "gold" ? 0 : 1000 * 60 * 5,
     retry: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: data?.origem?.kind === "gold",
   });
 }

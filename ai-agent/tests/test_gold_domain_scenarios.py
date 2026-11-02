@@ -62,6 +62,8 @@ def test_header_pins_gold_v2_references():
         "documento": "docs/contracts/genai-domain-scenarios.md",
     }
     assert set(MATRIX["dominios_obrigatorios"]) == REQUIRED_DOMAINS
+    dimensions = {dimension.id for dimension in GRID360_GOLD_PROFILE.dimensions}
+    assert set(MATRIX["parametros_por_dimensao"]) <= dimensions
     assert (ROOT / MATRIX["referencias"]["documento"]).is_file()
 
 
@@ -120,8 +122,12 @@ def test_numeric_cases_have_control_unit_and_numeric_tolerance(case):
         assert case["controle"]["ref"] is not None
         assert case["unidade"] and case["fonte_lote"]["tabela"]
         assert MATRIX["tolerancias"][case["tolerancia"]]["absoluta"] is not None
-        runner = case["referencias"].get("consulta_runner", case["controle"]["ref"])
-        assert CONTROLS[runner]["sql"], "o runner precisa de SQL para o número esperado"
+        if _numeric_executed(case):
+            control = CONTROLS[case["controle"]["ref"]]
+            assert control["sql"], "o runner precisa de SQL para o número esperado"
+            mapping = control.get("valor_por_metrica")
+            column = mapping[case["metrica"]] if mapping else "valor"
+            assert column in control["saida"], case["id"]
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
@@ -198,28 +204,42 @@ def test_matrix_contains_no_batch_values_or_observed_results():
         assert not re.search(r"\d+[.,]\d+", question), case["id"]
 
 
+def _numeric_executed(case):
+    return ("numero" in case["tipo_verificacao"] and case["modo_execucao"] == "fluxo_integrado"
+            and case["bloqueio"] is None
+            and case["estado_esperado"] in {"sucesso", "zero", "parcial"})
+
+
 def test_sql_controls_are_read_only_parameterized_and_gold_v2_only():
-    used = set()
-    for case in CASES:
-        used.add(case["controle"]["ref"])
-        used.add(case["referencias"].get("consulta_runner"))
+    used = {case["controle"]["ref"] for case in CASES}
+    numeric_refs = {case["controle"]["ref"] for case in CASES if _numeric_executed(case)}
     for control_id, control in CONTROLS.items():
         if control["tipo"] == "existente":
             assert control_id in EXISTING_CONTROLS
-            assert control["sql"] is None and control["aprovacao_registrada"]
-            continue
-        assert control_id.startswith("CTL-") and control_id in used, control_id
+            assert control["aprovacao_registrada"]
+            if control_id in numeric_refs:
+                assert control["sql"], f"{control_id} usado em caso numérico exige SQL"
+            if control["sql"] is None:
+                continue
+        else:
+            assert control_id.startswith("CTL-") and control_id in used, control_id
+            assert set(control["relacionados"]) <= EXISTING_CONTROLS
         sql = control["sql"]
         assert re.match(r"^(SELECT|WITH)\b", sql)
         assert ";" not in sql
         assert not re.search(r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|GRANT|TRUNCATE|COPY)\b",
                              sql, re.IGNORECASE)
-        tables = set(re.findall(r"\b(?:FROM|JOIN)\s+([a-z_0-9.]+)", sql, re.IGNORECASE))
-        tables -= {"m", "b", "x"}
-        assert tables and all(table.startswith("gold_v2.") for table in tables), control_id
+        from sqlglot import exp, parse_one
+        from sqlglot.optimizer.scope import traverse_scope
+        expression = parse_one(sql, dialect="postgres")
+        tables = [source for scope in traverse_scope(expression)
+                  for source in scope.sources.values() if isinstance(source, exp.Table)]
+        assert tables and all(table.db == "gold_v2" and not table.catalog
+                              for table in tables), control_id
         assert "gold_cadastro" not in sql
         assert set(re.findall(r":([a-z_0-9]+)", sql)) == set(control["parametros"]), control_id
-        assert set(control["relacionados"]) <= EXISTING_CONTROLS
+        mapping = control.get("valor_por_metrica") or {}
+        assert set(mapping.values()) <= set(control["saida"]), control_id
     for rule in [*MATRIX["regras_periodo"].values(), *MATRIX["regras_amostra"].values()]:
         if rule.get("sql"):
             assert re.match(r"^SELECT\b", rule["sql"]) and ";" not in rule["sql"]
@@ -275,7 +295,7 @@ def test_protection_cases_cover_every_refusal_family_of_the_corpus():
 def test_regression_criteria_forbid_hiding_mandatory_failures():
     criteria = MATRIX["criterios_regressao"]
     assert set(criteria["classes_resultado"]) == {
-        "PASS", "FAIL", "FALHA_CONHECIDA", "BLOQUEADO", "SEM_AMOSTRA_NO_LOTE",
+        "PASS", "FAIL", "FALHA_CONHECIDA", "BLOQUEADO", "SEM_AMOSTRA_NO_LOTE", "NAO_EXECUTADO",
     }
     text = " ".join(criteria["regras"])
     assert "taxa global" in text and "skip" in text and "xfail" in text

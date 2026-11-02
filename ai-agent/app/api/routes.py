@@ -1,5 +1,6 @@
 """Rotas públicas do serviço, agrupadas sob o contrato da API v1."""
 
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -10,8 +11,17 @@ from app.api.errors import ServiceAuthenticationError
 from app.readiness.models import PublicationFacts, ReadinessReport
 from app.schemas.access import AccessContext
 from app.schemas.capabilities import CapabilitiesResponse
-from app.schemas.insights import ScreenInsightRequest, ScreenInsightResponse
-from app.schemas.internal import QuestionPlanRequest, QuestionPlanResponse, QuestionSynthesisRequest
+from app.schemas.insights import (
+    GoldScreenInsightRequest,
+    ScreenInsightRequest,
+    ScreenInsightResponse,
+)
+from app.schemas.internal import (
+    QuestionPlanRequest,
+    QuestionPlanResponse,
+    QuestionPlanStatus,
+    QuestionSynthesisRequest,
+)
 from app.schemas.questions import QuestionRequest, QuestionResponse
 from app.schemas.responses import PublicError, PublicErrorCode, PublicErrorResponse
 
@@ -38,8 +48,15 @@ def require_gold_auth(request: Request) -> None:
 )
 async def plan_question(payload: QuestionPlanRequest, request: Request) -> QuestionPlanResponse:
     """Recebe escopo e cobertura do Backend autenticado, sem consultar fonte ou modelo."""
-    return await request.app.state.question_orchestrator.plan(
+    response = await request.app.state.question_orchestrator.plan(
         payload, request.state.correlation_id
+    )
+    catalog = request.app.state.domain_profile.physical_catalog
+    if response.status is not QuestionPlanStatus.PLANNED or catalog is None:
+        return response
+    # O Backend recusa executar plano produzido sob outro catálogo físico.
+    return QuestionPlanResponse.model_validate(
+        {**response.model_dump(mode="json"), "physical_catalog": catalog.model_dump(mode="json")}
     )
 
 
@@ -65,8 +82,11 @@ def require_readiness_auth(request: Request) -> None:
     require_service_auth(request, request.headers.get("authorization"))
 
 
-@router.post("/api/v1/internal/gold-readiness", response_model=ReadinessReport,
-             dependencies=[Depends(require_readiness_auth)])
+@router.post(
+    "/api/v1/internal/gold-readiness",
+    response_model=ReadinessReport,
+    dependencies=[Depends(require_readiness_auth)],
+)
 async def gold_readiness(payload: PublicationFacts, request: Request) -> ReadinessReport:
     handler = request.app.state.readiness_handler
     if handler is None:
@@ -147,4 +167,33 @@ async def generate_screen_insight(
     response = await request.app.state.insight_orchestrator.generate(
         payload.screen, access_context, request.state.correlation_id
     )
+    return response.model_copy(update={"correlation_id": request.state.correlation_id})
+
+
+@router.post(
+    "/api/v1/internal/insight-syntheses",
+    response_model=ScreenInsightResponse,
+    dependencies=[Depends(require_gold_auth)],
+)
+async def synthesize_gold_insight(
+    payload: GoldScreenInsightRequest,
+    request: Request,
+) -> ScreenInsightResponse | JSONResponse:
+    """Interpreta somente contexto recalculado e autorizado pelo Backend."""
+    try:
+        async with asyncio.timeout(payload.remaining_timeout_ms / 1000):
+            response = await request.app.state.insight_orchestrator.generate(
+                payload.screen,
+                payload.access_scope.to_context(request.state.correlation_id),
+                request.state.correlation_id,
+            )
+    except TimeoutError:
+        return JSONResponse(
+            status_code=503,
+            content=PublicErrorResponse(
+                correlation_id=request.state.correlation_id,
+                error=PublicError(code=PublicErrorCode.SERVICE_UNAVAILABLE, retryable=True),
+                message="O prazo da interpretação foi excedido. Tente novamente.",
+            ).model_dump(mode="json"),
+        )
     return response.model_copy(update={"correlation_id": request.state.correlation_id})

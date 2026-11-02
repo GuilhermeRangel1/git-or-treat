@@ -3126,6 +3126,28 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Verificações: GenAI completo 3.721 passaram/4 skips; Backend com PostgreSQL descartável e seleção de executor/plano/metadados/cliente/deadline 109 passaram; fronteira temporal ajustada 9 passaram; Ruff e diff-check passaram. Revisões independentes de padrões/especificação sem bloqueios após os ajustes. [Matriz, comandos, resultados e limites](contracts/genai-consolidation.md).
 - GENAI-02/04/06 concluídos no escopo técnico local. Requisitos oficiais IA preservam seus estados; cobertura e medidas não comprovadas continuam bloqueadas. Alterações desta continuação ainda sem commit/push.
 
+### 2026-11-01 — IA-01/IA-02/IA-03/IA-06 — integração incremental GENAI-10B
+
+- Estados oficiais preservados: esta fatia não conclui os quatro domínios reais.
+- Branch independente `feat/genai-cobertura-dominios`: contribuição de receita por classe,
+  variantes acumuladas de atendimento, qualificação de dimensões, proteção de texto de
+  chamados e leitura mínima autorizada. Reutiliza composição, plano e executor oficiais.
+- Verificações: GenAI 3.970 aprovados/3 skips; Backend 855 aprovados/101 skips; ensaio
+  HTTP/PostgreSQL descartável 1 aprovado; após ajuste do observador, prontidão/acesso
+  61 aprovados/1 skip. Observação real sem modelo confirmou acumulado disponível e
+  atendimento mensal indisponível, sem inventar competência ou certificação.
+- Revisões independentes apontaram perda de ranking no acompanhamento e período
+  acumulado contraditório; correções e regressões incorporadas. Alterações ainda locais.
+- [Arquivos, comandos, autorização de leitura e limites](contracts/genai-domain-implementation.md).
+  Comparações, definições/cobertura insuficientes e aceite integrado restante continuam abertos.
+
+
+- Revalidação adicional desta fatia: 17 cenários numéricos reconciliados na Gold v2
+  pelo fluxo público com modelo controlado; aceite técnico local explicitamente dado
+  pela pessoa usuária, sem homologação de Dados. Corrigido truncamento indevido do
+  ranking top-1; dez testes de executor e HTTP/PostgreSQL aprovados. Os onze bloqueios,
+  sete casos sem amostra e duas regressões separadas mantêm o aceite integral pendente.
+
 ### 01/11/2026 — IA-01 a IA-06 — referência obrigatória Gold v2 no harness
 
 - Por orientação da pessoa usuária, novos desenvolvimentos, cenários e aceites GenAI usam Gold v2, seu dicionário, contrato físico e catálogo aprovados. Regra descoberta pelo AGENTS raiz e aplicada pela skill genai-gold; detalhes em [política de versões](agents/genai-gold.md#referência-obrigatória-gold-v2).
@@ -3138,3 +3160,197 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - UC 360 prioriza o resumo por competência, reduz espaço de cartões e reúne indicadores detalhados em seção expansível. A comparação mensal usa o histórico do ano anterior da mesma publicação e preserva zero, ausência e erros independentes. Inspeções padroniza a fonte da tabela e redistribui espaço; categoria e posição continuam sendo as publicadas, sem atribuir score.
 - Verificações em `frontend`: `npm test -- src/features/receita src/features/uc360 src/features/inspecoes` (112 testes passaram), `npm run build`, `npm run format:check`, `npm run check:boundaries` e `npm run lint` (passou com aviso preexistente em AuthProvider). Navegador local autenticado: Receita, fila de Inspeções e uma UC Gold, incluindo comparação anual e mês sem leitura. A revisão não cobre todas as UCs, recortes, perfis ou telas responsivas; não equivale ao aceite integral.
 - Continuação WEB-03: busca e resultado permanecem visíveis na mesma tela do detalhe da UC; o endereço direto e o contexto da busca são preservados. `npm test -- src/features/uc360` (38 testes passaram), `npm run build` e navegação autenticada local passaram. Estado do requisito preservado.
+
+### 01/11/2026 — IA-03 / IA-04 / IA-05 — GENAI-12: insight do Panorama Gold v2
+
+- Estado oficial preservado: IA-03, IA-04 e IA-05 seguem em validação. GENAI-12 tem os dez critérios técnicos comprovados na entrega local da branch independente `feat/genai-insights-panorama`, base `b804b58`; alterações ainda sem commit/push.
+- Backend recompõe receita comparável pelo mesmo cálculo financeiro do KPI, com sessão individual, prontidão, leitor restrito, snapshot/publicação v2, prazo e auditoria durável. GenAI reutiliza o núcleo de insight por entrada interna autenticada; portal mantém dado observado, hipótese, contexto e fundamento separados e esconde sucesso antigo após erro/409.
+- Evidência Gold: jornada autenticada com Gemini no portal, dois recortes, consulta SQL independente de observações/comparação, referência pública reproduzida e contexto adulterado recusado. Desktop/mobile e claro/escuro, fundamento, Escape e foco conferidos. Conta temporária e sessões removidas; capturas privadas fora dos commits.
+- Verificações: 51 GenAI, 64 Backend (PostgreSQL descartável/migrações incluídos) e 36 frontend passaram; build, fronteiras, formatação, Ruff/compilação e diff-check passaram. Lint sem erros, com aviso preexistente do AuthProvider. Revisão por padrões e especificação corrigiu 409, comparação ausente, v1, timeout e ACL configurável de metadados.
+- Migração `genai12000001` publica metadados mínimos por view, sem conceder a tabela operacional de carga. Comparação descreve valores publicados, não fechamento mensal nem causalidade. [Contrato e reprodução](contracts/panorama-insight-api.md), [evidência e limites GENAI-12](plans/2026-11-01-genai12-panorama-gold.md). Sincronizar os dez itens técnicos no cartão, sem concluir automaticamente os requisitos oficiais.
+
+### 01/11/2026 — IA-03 / IA-05 — início GENAI-11: apresentação da conversa
+
+- Branch `feat/genai-assistente-gold`, base develop `b804b58`: resposta quantitativa usa rótulo de negócio do perfil, com fallback legível para perfis legados sem rótulo; IDs internos continuam nos contratos, não na frase gerada. Números e fundamentação continuam derivados das observações aprovadas.
+- Assistente preserva tokens/layout existentes, destaca a resposta e recolhe a referência auditável em “Como chegamos à resposta”. Origem é apresentada em linguagem de produto; IDs de fonte e chaves de filtro sem rótulo não são renderizados. Aviso de demonstração continua disponível nos fundamentos; limitações continuam visíveis.
+- Verificações: GenAI HTTP/contrato 64 passaram; interface/sessão 14 passaram; build, fronteiras e formatação passaram; lint sem erros, com aviso preexistente no AuthProvider. Testes usam dados controlados; sem nova jornada visual ou aceite Gold real nesta fatia.
+- GENAI-11 em andamento: revisão visual nos dois temas/mobile, jornada real, casos de erro/concorrência e demais critérios ainda precisam ser conferidos. IA-03/IA-05 mantêm seus estados oficiais. Alterações locais sem commit/push.
+
+
+### 01/11/2026 — IA-03 / IA-05 — GENAI-11: resposta legível e robustez do Assistente
+
+- Evolução da fatia anterior: moeda e meses legíveis, séries por observação, lote e definição nos fundamentos, aviso demonstrativo sempre visível e filtros sem rótulo com indicação neutra. Campo opcional `analysis_context.batch_reference` alinhado nos três consumidores e no contrato público.
+- Rascunho preservado em falhas, trava de envio, prazo no cliente, retorno de foco, composição de texto por teclado e movimento reduzido. HTTP 409 descarta respostas, contextos e retentativas anteriores; recusas/erros não autorizam contexto. Conteúdo é renderizado como texto seguro.
+- Verificações: 64 GenAI, 97 Backend e 31 frontend passaram; Ruff, build, formatação e fronteiras passaram. Lint sem erros, com aviso preexistente do AuthProvider. Pergunta real com Gemini e Gold v2 em Docker reconciliada por SQL independente; contas temporárias removidas.
+- GENAI-11: 7/10 critérios técnicos comprovados. Pendentes revisão visual/mobile/acessibilidade e matriz completa de ciclo de vida. Nova tentativa de navegador confirmou uso local desativado no Work; Firefox também não suporta a política de URLs da automação. IA-03/IA-05 mantêm os estados oficiais. [Evidência e limites](plans/2026-11-01-genai11-assistente-gold.md). Alterações sem commit/push.
+
+
+### 01/11/2026 — IA-03 / IA-05 — GENAI-11: jornada visual e isolamento de respostas
+
+- Navegador integrado acessível na nova tentativa. Jornada autenticada com Gemini e Gold v2 conferida em desktop/mobile (390 × 844), nos dois temas: resposta, fundamentos/lote/auditoria, recusa e esclarecimento. Teclado, retorno de foco, rolagem e ausência de transbordamento horizontal observados. Conta temporária desconectada e removida; viewport restaurado.
+- Contraste de recusa no escuro corrigido com token semântico existente; aviso demonstrativo também usa cor própria para texto. Testes da tela comprovam descarte de resposta atrasada após troca de identidade e rota, dupla submissão e contexto limpo na nova conversa.
+- Frontend: 33 testes, build, formatação e fronteiras passaram; lint sem erros, com aviso preexistente AuthProvider. Demais verificações e reconciliação real constam na [evidência GENAI-11](plans/2026-11-01-genai11-assistente-gold.md).
+- GENAI-11 em 9/10: último item de acessibilidade permanece aberto somente pelo exercício de movimento reduzido ativo no navegador. A preferência estava desligada nesta sessão; regra implementada sem declarar aceite dessa prova. IA-03/IA-05 mantêm os estados oficiais; alterações sem commit/push.
+
+
+### 01/11/2026 — IA-03 / IA-05 — commits GENAI-11
+
+- Geração e contratos registrados em `4d0b985`; interface, robustez e testes em `e835d8e`, na branch `feat/genai-assistente-gold`. Evidência documental acompanha a mesma entrega. GENAI-11 mantém 9/10; movimento reduzido ativo continua pendente. Nenhuma credencial ou resultado privado integra os commits.
+
+### 01/11/2026 — IA-03 / IA-05 — GENAI-11: movimento reduzido comprovado
+
+- Chromium headless com Playwright 1.64.1 executou o portal com preferência normal e reduzida. A prova revelou que o spinner do botão compartilhado continuava girando; `Button.tsx` foi corrigido para respeitar a preferência e ocultar o ícone decorativo.
+- `npm run test:motion` passou nas duas configurações: CSS computado dos dois indicadores, envio por Enter, bloqueio durante consulta, requisição única, resposta, retorno de foco, fundamentos por teclado e limitações visíveis. Sessão/resposta artificiais isolam essa prova de apresentação; a integração real Gold v2 permanece sustentada pela jornada anterior. Windows não foi alterado.
+- Os 33 testes do Assistente, build, formatação, fronteiras e `git diff --check` passaram; lint sem erros, com aviso preexistente do AuthProvider. [Reprodução, evidência e limites](plans/2026-11-01-genai11-assistente-gold.md).
+- GENAI-11: 10/10 critérios técnicos comprovados para a entrega local. IA-03/IA-05 mantêm os estados oficiais; complemento ainda sem commit/push.
+
+
+### 2026-11-01 — IA-01/IA-03/IA-06 — correção do relatório de cenários GENAI-10A
+
+- Estado oficial preservado; preparação do runner do PR #99, sem novo aceite Gold.
+- Arquivos: `ai-agent/scripts/run_gold_domain_scenarios.py`, testes focados do runner e
+  `docs/contracts/genai-domain-scenarios.md`. Cobertura exige todos os casos obrigatórios
+  da matriz e aprovação explícita dos controles numéricos por cenário; omissões e controles
+  sem aprovação ficam registrados. Período diferente da janela resolvida reprova o plano.
+- Verificações: 63 testes focados do runner passaram com dados sintéticos e transporte HTTP
+  controlado. Incluem execução parcial, aprovação ausente/presente e número correto no período
+  errado. Nenhuma consulta ao lote privado, chamada Gemini ou validação no portal nesta rodada.
+- Limites: PASS exploratório não encerra domínio; reprodução da auditoria, associação semântica
+  dos números e reconciliação integrada permanecem pendentes. Alterações locais sem commit.
+
+
+### 2026-11-01 — IA-01/IA-03/IA-06 — revalidação da matriz GENAI-10A
+
+- Estados oficiais preservados. PR #99 mantém runner, matriz e evidências de validação;
+  implementação funcional foi separada na branch `feat/genai-cobertura-dominios`, sobre
+  `develop`, sem duplicação dos commits do runner.
+- Casos com município explícito evitam presumir uma dimensão homônima; FAT-10 define
+  maior contribuição absoluta por classe em uma competência com controle independente
+  ordenado e limitado. O resultado observado continua separado do estado esperado.
+- Verificação: 303 testes de matriz/runner aprovados na branch 10A isolada e diff-check
+  aprovado. Rodadas privadas sobre a Gold v2 revelaram falhas e bloqueios, preservados
+  nos relatórios ignorados. Nenhum domínio é certificado por essa preparação.
+- [Contrato e reprodução](contracts/genai-domain-scenarios.md). Aprovação por cenário,
+  cobertura suficiente, divergências remanescentes e jornada final continuam pendentes.
+
+- Revalidação controlada com SQL, sessão e auditoria reais: 37 PASS após corrigir e
+  reexecutar FAT-10, onze bloqueios, sete sem amostra e duas regressões técnicas
+  separadas. A pessoa usuária aprovou o uso dos controles nos 17 casos numéricos
+  reconciliados para esta entrega local; não é homologação de Dados ou fechamento
+  mensal. [Resultados por ID e limites](contracts/genai-domain-validation.md).
+
+
+### 01/11/2026 — IA-01/02/03/06 — revalidação ampliada da matriz GENAI-10A
+
+- Estado: em validação local; sem concluir integralmente os IDs IA.
+- Matriz/runner conferem controles de comparação por mês/tipo, maior perda por
+  bairro e componentes publicados de preço-volume. Valores inicial/final
+  invertidos, parcelas ausentes e grupo incompleto não são aprovados por simples
+  presença dos números na resposta. As pendências de Dados foram confrontadas
+  com o dicionário e notebook; cinco casos de implementação avançaram.
+- Rodada completa no lote Gold v2 com SQL, sessão, leitor restrito e auditoria
+  reais e modelo controlado: 43 PASS, cinco bloqueios, sete sem amostra, duas
+  regressões técnicas separadas; sem falha inesperada. A pessoa usuária aprovou
+  FAT-09/FAT-11/CON-06/CON-07/CON-08 localmente, somando 22 casos numéricos.
+- Verificação conjunta dos arquivos exatos desta branch com o catálogo/núcleo
+  ampliados do 10B: 305 aprovados. Integração do 10B em develop precede a atualização
+  da base do PR #99; nenhum commit funcional foi copiado entre as branches.
+- Evidências em [GENAI-10A](contracts/genai-domain-validation.md). Permanecem
+  pendentes valor recebido, cobertura mensal, amostras ausentes, revisão de Dados
+  e jornada visual final. Alterações locais posteriores a adc5de5, sem novo commit.
+
+### 01/11/2026 — IA-01/02/03/06 — extensão integrada dos domínios GENAI-10B
+
+- Estado: implementação ampliada em validação; os requisitos IA não são marcados
+  Concluídos pela soma de testes ou por êxito parcial da matriz.
+- Caminho existente Portal → Backend autenticado → plano GenAI → executor restrito
+  → evidência → síntese/auditoria estendido para comparar meses, classificar perda
+  por bairro, contar GD elegível e eventos distintos e consumir preço/volume V3.
+- Regras de Dados verificadas no dicionário/notebook; [ADR-0022](decisions/0022-consumo-metricas-documentadas-gold-v2.md)
+  registra decisões, limites e autorização explícita da leitura local necessária.
+- Evidência: 3.979 testes GenAI; 858 Backend; ensaio PostgreSQL com 90 aprovados;
+  305 testes da matriz/runner em integração com o 10A. Rodada real de 57 casos,
+  modelo controlado, resultou em 43 PASS, cinco bloqueios, sete sem amostra e duas
+  regressões técnicas separadas. Nenhuma falha inesperada ou conta temporária
+  remanescente. A pessoa usuária aprovou cinco casos numéricos adicionais (22 no total).
+- Pendências: recebimento sem medida comprovada, certificação mensal de
+  continuidade/atendimento, amostras reais ausentes, revisão de Dados e jornada
+  visual final. A documentação e os parâmetros privados preservam a distinção
+  entre teste artificial, reconciliação local e homologação de negócio.
+- Arquivos/comandos/limites em [GENAI-10B](contracts/genai-domain-implementation.md).
+  Branch `feat/genai-cobertura-dominios`, alterações locais posteriores a a68f484;
+  revisão independente de especificação e padrões incorporada, sem novo commit.
+
+### GENAI-10A/10B — inventário de evidências por caso (01/11/2026)
+
+- Cruzamento dos 57 IDs da matriz com a rodada local já executada, sem duplicatas ou casos ausentes. Registro sanitizado versionado na branch 10A em `docs/contracts/genai-domain-case-evidence.md`; valores privados preservados fora do Git.
+- Trata-se de organização da evidência existente, sem novo aceite numérico ou execução. Continuam abertas revisão de Dados, cobertura mensal, amostras ausentes e jornada visual. Estado dos requisitos preservado.
+
+
+### Revalidação HTTP pública — 01/11/2026
+
+Rodada `20261101T195433_504518Z`: 57 casos avaliados com cliente HTTP externo ao processo do Backend isolado, login e cookies reais, endpoint público `/api/v1/ai/questions`, leitura Gold restrita e auditoria reais. Modelo controlado, sem novas chamadas Gemini. O transporte entre Backend e núcleo usa o adaptador de integração de teste existente; não comprova tráfego HTTP entre esses dois serviços nem qualidade de linguagem do provedor.
+
+Resultado por ID idêntico ao anterior: 43 PASS, cinco BLOQUEADO, sete SEM_AMOSTRA_NO_LOTE e dois NAO_EXECUTADO (SEG-06/07, provas técnicas separadas). Sem divergências ou erros de execução. As duas contas temporárias e suas sessões foram removidas; Backend isolado encerrado.
+
+Comando na worktree 10B: `docker exec --env-file work/genai10/.env.genai10b-backend -w /repo/backend genai10b-tests python /repo/work/genai10/http-acceptance.py`. Script e valores privados permanecem ignorados. A primeira tentativa foi rejeitada no login por Host interno não permitido; o cliente passou a enviar o Host local autorizado, sem mudar a proteção do servidor.
+
+A fronteira HTTP pública foi comprovada; renderização/interação no navegador, revisão de Dados e lacunas de fonte continuam pendentes. Critérios e estados preservados.
+
+### 01/11/2026 — GENAI-10A/10B — encerramento técnico local com escopo revisado
+
+- Por autorização explícita da pessoa usuária, cartões técnicos encerrados em 10/10 no escopo local revisado, com critérios originais remanescentes transferidos e rastreáveis. Isso não conclui integralmente IA-01/02/03/06 nem certifica domínios sem cobertura.
+- Evidência: 57 casos, 43 PASS, cinco bloqueados, sete sem amostra e duas regressões técnicas separadas; rodada HTTP sem falhas inesperadas. Regras confrontadas com dicionário, notebooks e contratos de Dados; aceites locais preservados.
+- Decisão e transferência por critério em `docs/contracts/genai-domain-local-acceptance.md` (branch 10A). Pendências PEND-01 a PEND-05 em https://trello.com/c/4XzZJTsu : recebimento, cobertura mensal, amostras, jornada visual e homologação adicional. Nova tentativa de navegação recusada pela configuração do aplicativo; nenhuma aprovação visual declarada.
+- Estados oficiais IA preservados. Não houve alteração de código, permissões ou fonte nem nova rodada Gemini.
+
+
+
+### 01/11/2026 — integração local da cobertura Gold com invalidação de servidor
+
+- Combinação do código do PR #97 com o PR #102 na própria branch 10B. Schemas de evidência preservam simultaneamente janelas publicadas e catálogo físico; executor mantém linhagem preço/volume e erro seguro de schema incompatível. Nenhum commit funcional foi copiado por cherry-pick.
+- Verificações observadas: GenAI 3.998 passaram/3 skips; Backend 887 passaram/105 skips; PostgreSQL descartável da invalidação 4 passaram. Ruff dos três arquivos resolvidos e git diff --check passaram.
+- Prova curta Gold local com runtime atual e modelo controlado: FAT-09, FAT-11, CON-07 e CON-08 passaram sem divergências; relatório privado 20261101T203108_250684Z, contas temporárias removidas. Não foi repetida a matriz completa nem feita chamada Gemini adicional.
+- Requisitos oficiais e limitações de cobertura preservados. Integração remota da 10B depende do merge #97 e do CI na base final.
+
+### 01/11/2026 — GENAI-13 — invalidação de servidor (PR #97)
+
+- Estado: entrega parcial de servidor para IA-03/04/05/06; estados oficiais preservados. Contrato em `docs/contracts/genai-invalidation.md` (PR #95).
+- Pergunta pública aceita publicação esperada opcional, rejeita divergência antes de planejar e mantém captura de publicação no servidor. Plano/evidência conferem catálogo físico; chaves de cache incluem identidade do catálogo e filtros normalizados. Schema incompatível e publicação inválida falham sem fallback demonstrativo.
+- Arquivos: `backend/app/schemas/ai_question_publication.py`, `backend/app/services/genai_expected_publication.py`, coordenação/planejamento/executor, schemas de catálogo físico dos dois serviços e `ai-agent/app/providers/caching.py`.
+- Evidência observada: CI de qualidade do repositório, execução 41318865890 do commit 5ea20fe, concluída com sucesso. Revisões estáticas de padrões e especificação: registro obrigatório do PRD corrigido; nenhum bloqueio funcional identificado. Não houve nova execução local dos testes nesta revisão.
+- Limites: invalidação no Assistente e Panorama, envio da publicação esperada pela tela e descarte de resposta atrasada ainda dependem da integração GENAI-11/12. O catálogo físico opcional mantém compatibilidade declarada. Esta entrega não conclui o cartão GENAI-13 nem a validação visual.
+
+
+### 01/11/2026 — integração local GENAI-11 com cobertura e invalidação Gold
+
+- Resolução do orquestrador mantém apresentação em linguagem de negócio e todos os componentes de comparação/decomposição, mesmo quando a seleção do modelo é parcial. Metadados e guardas permanecem no fluxo atual.
+- Verificações da combinação: 3.998 testes GenAI/3 skips; 887 Backend/105 skips; 33 testes do Assistente e build frontend passaram. Ruff do orquestrador e diff-check passaram. Revisão de especificação não encontrou bloqueio na resolução.
+- Não houve nova jornada visual nem chamada Gemini nesta integração. Publicação esperada enviada pelo Assistente continua pendência explícita de GENAI-13; requisitos oficiais não são concluídos por este merge.
+
+
+### 01/11/2026 — integração local Panorama, Assistente e contratos Gold
+
+- Rotas combinadas preservam publicação esperada/catálogo físico no chat e a síntese interna autenticada do insight Gold. A versão Playwright permanece fixada em1.64.1 e os scripts de motion e Panorama coexistem.
+- Verificações: GenAI 4.005 passaram/3 skips; Backend 897 passaram/110 skips; 69 testes de Panorama/Assistente, build e formatação passaram. Ruff das rotas resolvidas e diff-check passaram; revisão estática da resolução sem bloqueios.
+- PostgreSQL: tentativa inicial rejeitada por papel de teste privilegiado, sem relaxar as verificações. Reexecução em dois bancos novos descartáveis com papel NOSUPERUSER: 27 testes passaram, incluindo leituras analíticas e ciclo de migração. Bancos e papel temporários removidos ao final.
+- Não houve nova jornada visual ou chamada Gemini. As lacunas de preflight da tela previstas em GENAI-13 permanecem registradas; requisitos oficiais não são concluídos automaticamente por esta integração.
+
+### 01/11/2026 — GENAI-10A — integração com a cobertura entregue
+
+- Branch do PR99 atualizada com a develop após o merge #102, preservando por merge os commits funcionais e os registros de progresso das duas entregas.
+- Matriz, runner e contrato do catálogo: 307 testes passaram na própria worktree atualizada. Classes observadas, pendências e escopo de aceite técnico mantidos; não houve nova chamada Gemini ou validação visual.
+
+
+### 01/11/2026 — IA-04 — insight ao lado do gráfico
+
+- A pedido da pessoa usuária e conforme a referência visual enviada, Panorama usa duas colunas em telas a partir de1280px: gráfico flexível e insight de280–320px à direita, com alturas alinhadas. Em telas menores permanece empilhado, gráfico antes do insight.
+- Arquivo: frontend/src/features/panorama/PanoramaPage.tsx, na branch do PR103. Tokens, conteúdo e controles do card preservados.
+- npm run build e npm run format:check passaram. Sem nova prova visual: navegador local segue indisponível; não declarar fidelidade visual validada nesta rodada.
+
+### 01/11/2026 — GENAI-13 — invalidação integrada de Assistente e Panorama
+
+- Continuação na branch `feat/genai-invalidacao-contexto`, base `develop` 15aa037. Assistente vincula consultas à publicação conhecida, invalida histórico/retentativas e descarta erro atrasado; entrada direta confere mudança de batch_reference. Panorama envia/confere fingerprint e distingue desatualização de carregamento.
+- Preflight usa a view de metadados existente; prova local com leitor sem acesso à tabela operacional passou. Nenhuma ampliação de privilégios, carga ou chamada Gemini nesta rodada.
+- Backend: 96 testes passaram/quatro skips de variantes de dialeto; núcleo/cache: 12 passaram. Chromium exercitou portal real com APIs artificiais, sucesso/409, vínculo de publicação e resposta atrasada de rota. Mapa dos dez aceites, comandos e limites em [invalidação integrada](plans/2026-11-01-genai13-invalidacao-integrada.md).
+- Estados oficiais IA-03/04/05/06 preservados. Implementação nos commits 35d3984 (Backend) e 3d1d1ae (portal), com roteiro/evidências na mesma branch; revisão final sem bloqueios após correções. GENAI-13: dez aceites técnicos locais contemplados, sem reduzir os critérios originais. Frontend: 80 passaram e revalidação final dos 19 testes da página; build, formatação, fronteiras e Ruff passaram. Lint sem erros, com aviso preexistente do AuthProvider.

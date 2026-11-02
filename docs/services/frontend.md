@@ -4,6 +4,10 @@
 
 O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite. As portas são publicadas somente em localhost por segurança; acesso de outro dispositivo exige ingresso configurado deliberadamente. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
 
+## GENAI-12 — insight do Panorama Gold v2
+
+O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do KPI. O Backend coordena sessão individual, prontidão, leitor restrito/snapshot, síntese interna e auditoria durável; a GenAI reutiliza o núcleo de insight. O portal distingue Gold de demonstração, preserva recorte/fundamento/limitações e prioriza falhas sobre cache antigo. Migração `genai12000001` publica somente metadados mínimos por view, sem acesso direto à tabela operacional de carga. Contrato, implantação e reprodução: [insight do Panorama](../contracts/panorama-insight-api.md); evidências e limites: [GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Os registros anteriores sobre ausência de insight externo são históricos; a rota pública GenAI demonstrativa permanece separada da entrada interna Gold.
+
 ## Arquitetura adotada
 
 A revisão DEV-02 de 25/10/2026 validou o checklist sintético do Panorama: filtros e histórico da URL, oito métricas auditáveis, série de receita e estados de carregamento/erro/vazio/parcial/base zero. Base anterior zero, comparação desativada e falta de registros no período comparativo são mensagens distintas. A formatação da atualização é compartilhada entre a página e o painel de estado. Ver [revisão final e controles numéricos](../plans/2026-10-25-dev02-panorama-review.md); WEB-01 e WEB-07 não são concluídos pela validação sintética.
@@ -171,3 +175,8 @@ Os cartões DEC/FEC priorizam indicador, valor e unidade; os fundamentos por ind
 Os filtros usam o padrão de Panorama: rascunho local, Cancelar, Aplicar e Limpar com `RotateCcw`. A tabela do ranking preserva posições globais e pagina em blocos de 20 na apresentação, com estado `ranking_page` na URL separado da paginação legada de ocorrências. No detalhe, a série mensal DEC/FEC inclui gráficos com unidade/eixo e tabela acessível; zeros conhecidos permanecem zeros, lacunas/null continuam indisponíveis. As mensagens repetidas sobre janela do agregado, contagem de competências e ocorrências individuais foram removidas do corpo principal.
 
 Validação sem escrita na base local: Playwright conferiu filtros/modal, ranking e detalhe, tema escuro e viewport mobile 390 px sem overflow do documento. Em uma amostra do detalhe, 18 competências Jan/2025–Jun/2026 conferiram entre a série e a tabela da API; nenhuma lacuna foi encontrada na amostra ao vivo, enquanto testes cobrem zero e período sem ponto. A suíte frontend completa passou (344 testes, 1 ignorado); a suíte backend completa passou (779 testes, 99 ignorados e um aviso preexistente) sob configuração de teste sintética/service. WEB-06 permanece `Em validação`, WEB-07 permanece `Pendente`; esta fatia não declara conformidade regulatória nem aceite integral. Plano e relatório local ignorado: [ajustes de Operação Gold v2](../plans/2026-10-31-operacao-gold-v2-ajustes.md), `work/operacao-gold-v2-implementation-report.md`.
+
+
+## GENAI-13 — invalidação integrada
+
+Assistente e insight vinculam a publicação conhecida à consulta; o insight envia/confere fingerprint e o resolvedor lê a view de metadados no PostgreSQL. Mudança de publicação ou acesso retira contexto anterior e retentativas; resposta/erro atrasados não substituem revisão vigente. Evidências e limites da integração em [GENAI-13](../plans/2026-11-01-genai13-invalidacao-integrada.md). Mantida compatibilidade dos campos opcionais e dos modos demonstrativos explícitos.

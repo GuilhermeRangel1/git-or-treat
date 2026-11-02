@@ -12,7 +12,7 @@ from sqlalchemy import and_, case, func, or_, select
 from app.models.gold_v2_load import TABLES
 
 ANALYTICAL_CONTROLS = frozenset(
-    {"C01", "C02", "C03", "C04", "C10", "C11", "C12", "C13"}
+    {"C01", "C02", "C03", "C04", "C08", "C09", "C10", "C11", "C12", "C13"}
 )
 
 
@@ -78,7 +78,8 @@ def _observe(connection, read_rows, periods, origin, batch_ref):
     enriched = monthly
     fields = ("consumo_kwh", "receita_reais")
     aggregates = ("consumo_total_kwh", "receita_total_reais")
-    passed = {}
+    from app.services.gold_variation_controls import observe_variation_controls
+    passed = observe_variation_controls(read_rows, population=population)
     for control, dimensions in (
         ("C01", ("competencia",)),
         ("C02", ("competencia", "classe_consumo")),
@@ -176,6 +177,16 @@ def _observe(connection, read_rows, periods, origin, batch_ref):
             & set(part["zero_confirmed_periods"])
         )
         global_coverage["has_undated_records"] |= part["has_undated_records"]
+    revenue = coverage["faturamento.receita"]
+    consumption = coverage["consumo.mensal_uc"]
+    coverage["faturamento.preco_volume"] = {
+        **revenue,
+        "closed_periods": sorted(set(revenue["closed_periods"]) & set(consumption["closed_periods"])),
+        "observed_periods": sorted(set(revenue["observed_periods"]) & set(consumption["observed_periods"])),
+        "zero_confirmed_periods": sorted(set(revenue["zero_confirmed_periods"]) & set(consumption["zero_confirmed_periods"])),
+        "has_undated_records": revenue["has_undated_records"] or consumption["has_undated_records"],
+    }
+    coverage["interrupcoes.uc_acumulado"] = dict(coverage["interrupcoes.dec_fec"])
     return passed, coverage
 
 

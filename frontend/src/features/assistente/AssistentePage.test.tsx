@@ -1,4 +1,13 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { resetGoldPublication } from "@/shared/analytics/goldPublication";
+import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TestProviders from "@/shared/test/TestProviders";
@@ -20,9 +29,11 @@ const answered = {
   limitations: ["Os valores não representam dados reais da V-Energy."],
   analysis_context: {
     metric: "Consumo",
+    metric_label: "Consumo",
     unit: "kWh fictícios",
     period: "2025-01 a 2025-02",
     filters: { municipio: "Exemplo" },
+    filter_labels: { municipio: "Município" },
   },
 };
 
@@ -37,7 +48,10 @@ function renderPage() {
   return render(<AssistentePage />, { wrapper: TestProviders });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetGoldPublication();
+});
 
 describe("Assistente Grid 360", () => {
   it("mostra os rótulos do catálogo preservando os identificadores do recorte", async () => {
@@ -102,10 +116,18 @@ describe("Assistente Grid 360", () => {
       "Qual a receita no período?",
     );
     await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+    await screen.findByText(
+      "A receita no recorte informado está fundamentada na Gold.",
+    );
     expect(
-      await screen.findByText(`Referência para conferência: ${reference}`),
+      screen.getByText(`Referência para conferência: ${reference}`),
+    ).not.toBeVisible();
+    await user.click(screen.getByText("Como chegamos à resposta"));
+    expect(
+      screen.getByText(`Referência para conferência: ${reference}`),
     ).toBeVisible();
-    expect(screen.getByText("gold.local")).toBeVisible();
+    expect(screen.getByText("Dados da distribuidora")).toBeVisible();
+    expect(screen.queryByText("gold.local")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Demonstração sintética"),
     ).not.toBeInTheDocument();
@@ -136,6 +158,7 @@ describe("Assistente Grid 360", () => {
     expect(textbox).toBeDisabled();
     resolveResponse(jsonResponse(answered));
     expect(await screen.findByText(answered.answer)).toBeVisible();
+    await user.click(screen.getByText("Como chegamos à resposta"));
   });
 
   it("envia a pergunta ao Backend e mostra resposta, recorte e evidência demonstrativa", async () => {
@@ -151,15 +174,16 @@ describe("Assistente Grid 360", () => {
     await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
 
     expect(await screen.findByText(answered.answer)).toBeVisible();
+    await user.click(screen.getByText("Como chegamos à resposta"));
     expect(screen.getByText("Resposta fundamentada")).toBeVisible();
     expect(screen.getByText(/Demonstração sintética/)).toBeVisible();
-    expect(screen.getByText(/Cenário artificial de consumo/)).toBeVisible();
+    expect(screen.getByText("Dados de demonstração")).toBeVisible();
     expect(screen.getByText(/2025-01 a 2025-02/)).toBeVisible();
     expect(
       screen.getByText(/Os valores não representam dados reais/),
     ).toBeVisible();
     const analysisContext = screen.getByLabelText("Recorte analisado");
-    expect(within(analysisContext).getByText("Métrica")).toBeVisible();
+    expect(within(analysisContext).getByText("Indicador")).toBeVisible();
     expect(within(analysisContext).getByText("Unidade")).toBeVisible();
     expect(within(analysisContext).getByText("Período")).toBeVisible();
     expect(within(analysisContext).getAllByRole("term")).toHaveLength(4);
@@ -267,13 +291,13 @@ describe("Assistente Grid 360", () => {
     ],
     [
       "no_evidence",
-      "Sem evidência para esse recorte",
+      "Não encontrei dados suficientes",
       "Não há dados para esse recorte.",
       null,
     ],
     [
       "recoverable_error",
-      "Erro recuperável",
+      "Não consegui concluir a consulta",
       "A fonte está temporariamente indisponível.",
       { code: "service_unavailable", retryable: true },
     ],
@@ -328,6 +352,9 @@ describe("Assistente Grid 360", () => {
         /Não foi possível conectar ao serviço de resposta/,
       ),
     ).toBeVisible();
+    expect(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+    ).toHaveValue("Como variou o consumo?");
     await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
     expect(await screen.findByText(answered.answer)).toBeVisible();
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -517,4 +544,212 @@ describe("Assistente Grid 360", () => {
     expect(await screen.findByText(answered.answer)).toBeVisible();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+});
+
+it("renderiza conteúdo externo como texto sem executar HTML ou links", async () => {
+  const text = '<img src=x onerror="alert(1)"> [Abrir](javascript:alert(1))';
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(jsonResponse({ ...answered, answer: text })),
+  );
+  const user = userEvent.setup();
+  const { container } = renderPage();
+  await user.type(
+    screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+    "Qual a receita?",
+  );
+  await user.keyboard("{Enter}");
+  expect(await screen.findByText(text)).toBeVisible();
+  expect(container.querySelector("img, a[href^='javascript:']")).toBeNull();
+});
+
+it("retira resposta e contexto anteriores após mudança de publicação", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse(answered))
+    .mockResolvedValueOnce(jsonResponse({ detail: "private" }, 409))
+    .mockResolvedValueOnce(jsonResponse(answered));
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  await user.type(input, "Qual o consumo?");
+  await user.keyboard("{Enter}");
+  expect(await screen.findByText(answered.answer)).toBeVisible();
+  await user.type(input, "E a receita?");
+  await user.keyboard("{Enter}");
+  expect(
+    await screen.findByText(/Os dados mudaram. Faça uma nova consulta/),
+  ).toBeVisible();
+  expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
+  expect(input).toHaveValue("E a receita?");
+  act(() => resetGoldPublication());
+  await user.clear(input);
+  await user.type(input, "Qual o consumo agora?");
+  await user.keyboard("{Enter}");
+  await screen.findByText(answered.answer);
+  expect(JSON.parse(fetchMock.mock.calls[2][1].body).context).toEqual([]);
+});
+
+it("remove retentativas antigas ao invalidar o lote", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockRejectedValueOnce(new TypeError("network"))
+    .mockResolvedValueOnce(jsonResponse({}, 409));
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  await user.type(input, "Qual o consumo?");
+  await user.keyboard("{Enter}");
+  expect(
+    await screen.findByRole("button", { name: "Tentar novamente" }),
+  ).toBeVisible();
+  await user.clear(input);
+  await user.type(input, "Qual a receita?");
+  await user.keyboard("{Enter}");
+  await screen.findByText(/Os dados disponíveis mudaram/);
+  expect(
+    screen.queryByRole("button", { name: "Tentar novamente" }),
+  ).not.toBeInTheDocument();
+});
+
+it("descarta resposta atrasada após sair e voltar à rota do Assistente", async () => {
+  let settle: (value: Response) => void = () => {};
+  const pending = new Promise<Response>((resolve) => {
+    settle = resolve;
+  });
+  const fetchMock = vi
+    .fn()
+    .mockReturnValueOnce(pending)
+    .mockResolvedValueOnce(
+      jsonResponse({ ...answered, answer: "Resposta da nova conversa." }),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  render(
+    <MemoryRouter initialEntries={["/assistente"]}>
+      <Routes>
+        <Route
+          path="/assistente"
+          element={
+            <>
+              <Link to="/outra">Sair do chat</Link>
+              <AssistentePage />
+            </>
+          }
+        />
+        <Route
+          path="/outra"
+          element={<Link to="/assistente">Voltar ao chat</Link>}
+        />
+      </Routes>
+    </MemoryRouter>,
+    { wrapper: TestProviders },
+  );
+  const user = userEvent.setup();
+  await user.type(
+    screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+    "Qual o consumo anterior?",
+  );
+  const form = screen
+    .getByRole("textbox", { name: "Escreva sua pergunta" })
+    .closest("form")!;
+  act(() => {
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+  });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  await user.click(screen.getByRole("link", { name: "Sair do chat" }));
+  await user.click(screen.getByRole("link", { name: "Voltar ao chat" }));
+  await user.type(
+    screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+    "Qual a receita agora?",
+  );
+  await user.keyboard("{Enter}");
+  expect(await screen.findByText("Resposta da nova conversa.")).toBeVisible();
+  await act(async () => {
+    settle(jsonResponse(answered));
+    await pending;
+  });
+  expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
+  expect(screen.getByText("Resposta da nova conversa.")).toBeVisible();
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body).context).toEqual([]);
+});
+
+it("invalidates older answers when a direct chat receives a different batch reference", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...answered,
+          answer: "Resposta do lote anterior.",
+          analysis_context: {
+            ...answered.analysis_context,
+            batch_reference: "batch-a",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...answered,
+          answer: "Resposta do lote atual.",
+          analysis_context: {
+            ...answered.analysis_context,
+            batch_reference: "batch-b",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...answered,
+          answer: "Resposta seguinte.",
+          analysis_context: {
+            ...answered.analysis_context,
+            batch_reference: "batch-b",
+          },
+        }),
+      ),
+  );
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  await user.type(input, "Qual o consumo?");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Resposta do lote anterior.");
+  await user.type(input, "E agora?");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Resposta do lote atual.");
+  expect(
+    screen.queryByText("Resposta do lote anterior."),
+  ).not.toBeInTheDocument();
+  await user.type(input, "Qual a receita?");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Resposta seguinte.");
+  const request = JSON.parse(vi.mocked(fetch).mock.calls[2][1]!.body as string);
+  expect(request.context).toEqual([
+    { role: "user", content: "E agora?" },
+    { role: "assistant", content: "Resposta do lote atual." },
+  ]);
+});
+
+it("removes previously authorized evidence and retries after scope revocation", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(answered))
+      .mockResolvedValueOnce(jsonResponse({}, 403)),
+  );
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  await user.type(input, "Qual o consumo?");
+  await user.keyboard("{Enter}");
+  await screen.findByText(answered.answer);
+  await user.type(input, "E a receita?");
+  await user.keyboard("{Enter}");
+  await screen.findByText(/Seu acesso/);
+  expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
 });

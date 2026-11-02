@@ -1,6 +1,6 @@
 # Contrato v1 — insight contextual do Panorama
 
-**Estado:** contrato provisório da etapa sintética, referente a IA-04. A tela consome apenas o Backend; o Backend monta a evidência a partir dos filtros e do lote do Panorama e chama o endpoint de insight já existente na GenAI.
+**Estado:** contrato público v1 para demonstração explícita e integração Gold v2, referente a IA-04. A tela consome apenas o Backend; o Backend monta a evidência a partir dos filtros e do lote do Panorama e chama o endpoint de insight já existente na GenAI.
 
 ## Portal → Backend
 
@@ -20,9 +20,19 @@ O portal envia somente o recorte aplicado e a versão que carregou:
 }
 ```
 
-Campos extras são recusados. Em especial, o navegador não pode fornecer `observations`, valores numéricos, fórmula, fonte ou evidência. O Backend valida novamente os filtros com o serviço do Panorama, recalcula a métrica de energia faturada e monta `screen` com período, filtros efetivos, observações, referência e limitações.
+Campos extras são recusados. Em especial, o navegador não pode fornecer `observations`, valores numéricos, fórmula, fonte ou evidência. O Backend valida novamente os filtros com o serviço do Panorama, recalcula energia faturada na demonstração ou receita comparável na Gold v2 e monta `screen` com período, filtros efetivos, observações, referência e limitações.
 
 ## Backend → GenAI
+
+Em `ANALYTICS_SOURCE=gold`, a sessão individual deve manter `orders:read`. O resolvedor da aplicação produz o escopo; cabeçalhos livres e filtros não concedem acesso. O Backend usa o mesmo pool de leitura restrita e `GoldPublicationContext` do chat, com snapshot PostgreSQL somente leitura. `read_gold_panorama_financials` e `gold_panorama_revenue_metric` são compartilhados com o KPI: soma de `gold_v2.diagnostico_receita.receita_base_comparavel_reais`, não receita total nem paga. Não consulta cadastro individual para gerar insight.
+
+A Gold usa `POST /api/v1/internal/insight-syntheses`, protegido por token de serviço e composição Gold externa. Recebe `screen`, `access_scope`, `batch_ref` exclusivamente v2 e `remaining_timeout_ms` (saldo do prazo original de 35 s). A rota pública GenAI `/api/v1/insights` mantém o contrato demonstrativo e recusa referência real. O núcleo `ScreenInsightOrchestrator` é o mesmo; recebe números estruturados, valida escopo, minimiza filtros e escolhe observações autorizadas. O texto livre do modelo não é publicado.
+
+Prontidão deve liberar `faturamento.receita` na mesma publicação, com controles aprovados na configuração do servidor. Competência comparativa ausente não invalida a observação atual; comparação e contribuição ficam indisponíveis. A decomposição exige grupos completos nas duas competências e reconciliação dos agregados. Usa soma Decimal, valores em reais com precisão de centavos e participação com uma casa decimal sobre movimentos do mesmo sinal. Grupos incompletos ou acima do limite produzem limitação explícita.
+
+A sessão e a publicação são revalidadas antes da leitura, antes do modelo e antes da entrega, inclusive após confirmar auditoria. Revogação recusa a resposta; mudança de publicação produz 409. O orçamento SQL compartilhado é de 5 s; o cancelamento da coroutine não comprova cancelamento imediato de trabalho em thread. Não há fallback Gold → demonstração.
+
+O caminho demonstrativo permanece:
 
 O Backend chama `POST /api/v1/insights`, encaminhando Bearer de serviço e `X-Correlation-ID`. A chamada usa o contrato `screen` publicado pela GenAI. O portal não recebe a credencial nem acessa diretamente a GenAI.
 
@@ -55,6 +65,20 @@ HTTP 503 recebido da GenAI é tratado como indisponibilidade. Um envelope v1 vá
 
 Erros públicos usam o envelope v1 com `message`, `error.code`, `error.retryable` e `correlation_id`. Nenhum detalhe interno, token, SQL ou conteúdo do modelo que não passe pelo contrato deve ser exposto.
 
-## Limites desta versão
+## Auditoria, implantação e reprodução Gold
 
-A fonte atual é a fixture sintética do Panorama e a rota falha fechada quando a fonte configurada não permite construir o contexto. A demonstração não comprova reconciliação com Gold, autorização de pessoa usuária, auditoria persistida ou resposta ao vivo de provedor. A integração com Gold deve preservar a construção de contexto no servidor e revisar o dicionário de métrica antes de liberar uma fonte real.
+A migração `genai12000001` cria `gold.publicacao_contexto` com somente schema, lote, UUID de publicação, fingerprint e data de importação. Replica os grants SELECT explícitos da view de publicação anterior, exceto PUBLIC; não concede leitura da tabela operacional de carga. Os scripts de provisionamento incluem a nova view para leitores criados depois da migração. Execute migrações antes de atualizar o consumidor.
+
+Eventos Backend de fluxo `insight` guardam referência de publicação, identidade opaca e SHA-256 do contexto canônico; não guardam os filtros em claro, números ou SQL. A referência pública é emitida após confirmação durável. Para reproduzir na publicação ainda corrente, o operador da trilha usa sua credencial separada, a sessão individual atual da pessoa dona da referência e um arquivo privado com o pedido original (filtros/lote, sem observações):
+
+```powershell
+python scripts/genai_audit.py --verify-insight-reference <referencia> --insight-request-file <pedido-privado.json>
+```
+
+O cookie é solicitado sem eco. A reprodução recalcula o contexto pelo leitor restrito e confronta o digest; escopo diferente, publicação alterada ou filtros adulterados não recebem confirmação. Não reconstruir uma publicação antiga a partir de uma Gold sobrescrita.
+
+No portal, cache Gold inclui origem, lote, fingerprint e atualização, com revalidação na montagem e retorno à janela. Resposta de outro KPI/recorte é rejeitada; atualização em curso, erro e 409 prevalecem sobre sucesso antigo. O cartão usa a receita comparável, moeda brasileira e origem real; hipóteses, fundamento e limitações ficam separados. Demonstração conserva sua marca explícita.
+
+## Evidência e limites
+
+A prova local de 01/11/2026 usa Gold v2, sessão individual e Gemini, com controle SQL independente e referência reproduzida. Testes controlados complementam comparação, contribuições, zero/ausência/parcial, revogação, falha de auditoria, timeout e concorrência do consumidor. Veja o [registro GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Esse aceite local não certifica produção, fechamento mensal ou causalidade e não conclui automaticamente IA-03/IA-04/IA-05.

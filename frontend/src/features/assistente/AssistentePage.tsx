@@ -20,6 +20,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { useGoldPublicationRevision } from "@/shared/analytics/goldPublication";
 import Button from "@/shared/ui/Button";
 import { AIChatApiError, askAIQuestion } from "./api";
 import type {
@@ -40,12 +41,13 @@ type ChatMessage = {
   error?: AIChatApiError;
   retryRequest?: RetryRequest;
   contextEligible: boolean;
+  outdated?: boolean;
 };
 
 const SUGGESTIONS = [
-  "Qual é o indicador sintético de consumo no cenário de demonstração?",
-  "Compare o indicador fictício de receita entre dois períodos de demonstração.",
-  "Quantas interrupções existem no cenário de demonstração?",
+  "Qual foi a receita no mês passado?",
+  "Qual foi o consumo no mês passado?",
+  "Quantas interrupções ocorreram no mês passado?",
 ];
 
 const RESPONSE_STATES: Record<
@@ -57,14 +59,17 @@ const RESPONSE_STATES: Record<
     label: "Preciso de um esclarecimento",
     appearance: "text-brand",
   },
-  refused: { label: "Solicitação recusada", appearance: "text-danger" },
+  refused: {
+    label: "Solicitação recusada",
+    appearance: "text-[var(--action-danger-text)]",
+  },
   no_evidence: {
-    label: "Sem evidência para esse recorte",
+    label: "Não encontrei dados suficientes",
     appearance: "text-muted",
   },
   recoverable_error: {
-    label: "Erro recuperável",
-    appearance: "text-danger",
+    label: "Não consegui concluir a consulta",
+    appearance: "text-[var(--action-danger-text)]",
   },
 };
 
@@ -124,11 +129,11 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   const context = response.analysis_context;
   if (!context) return null;
   const details = [
-    context.metric && ["Métrica", context.metric_label ?? context.metric],
+    context.metric_label && ["Indicador", context.metric_label],
     context.unit && ["Unidade", context.unit],
     context.period && ["Período", context.period],
     ...Object.entries(context.filters).map(([key, value]) => [
-      context.filter_labels?.[key] ?? key,
+      context.filter_labels?.[key] ?? "Filtro aplicado",
       formatFilterValue(value),
     ]),
   ].filter((detail): detail is [string, string] => Boolean(detail));
@@ -160,28 +165,37 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
       <p className={`text-xs font-semibold ${state.appearance}`}>
         {state.label}
       </p>
-      <p className="whitespace-pre-wrap text-sm leading-6 text-content">
+      <p className="whitespace-pre-wrap text-[15px] leading-7 text-content">
         {responseContent(response)}
       </p>
+      {response.evidence.some((item) => item.is_demo) && (
+        <p className="flex items-center gap-2 text-xs font-medium text-[var(--status-warning-text)]">
+          <Info aria-hidden="true" className="size-4" />
+          Exemplo com dados fictícios
+        </p>
+      )}
       {answered && response.evidence.length > 0 && (
-        <section
+        <details
           aria-label="Fundamento da resposta"
           className="rounded-xl border border-divider bg-canvas/70 p-3"
         >
-          <div className="flex items-center gap-2 text-xs font-semibold text-content">
-            <Database aria-hidden="true" className="size-4" />
-            Evidências
-          </div>
+          <summary className="cursor-pointer text-xs font-semibold text-content focus-visible:outline-2 focus-visible:outline-brand">
+            <Database aria-hidden="true" className="mr-2 inline-block size-4" />
+            Como chegamos à resposta
+          </summary>
           <ul className="mt-2 space-y-2">
             {response.evidence.map((item, index) => (
               <li
                 key={`${item.source}-${index}`}
                 className="flex flex-wrap items-start gap-x-2 gap-y-1 text-xs leading-5 text-muted"
               >
-                <span className="font-mono text-content">{item.source}</span>
-                <span>{item.description}</span>
+                <span>
+                  {item.is_demo
+                    ? "Dados de demonstração"
+                    : "Dados da distribuidora"}
+                </span>
                 {item.is_demo && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)]/10 px-2 py-0.5 font-medium text-[var(--status-warning)]">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)]/10 px-2 py-0.5 font-medium text-[var(--status-warning-text)]">
                     <Info aria-hidden="true" className="size-3" />
                     Demonstração sintética
                   </span>
@@ -189,14 +203,24 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
               </li>
             ))}
           </ul>
-        </section>
+          {response.analysis_context?.batch_reference && (
+            <p className="mt-3 break-all text-xs text-muted">
+              Lote consultado: {response.analysis_context.batch_reference}
+            </p>
+          )}
+          {response.analysis_context?.metric_definition && (
+            <p className="mt-3 text-xs leading-5 text-muted">
+              {response.analysis_context.metric_definition}
+            </p>
+          )}
+          {response.audit_reference && (
+            <p className="mt-3 break-all text-xs text-muted">
+              Referência para conferência: {response.audit_reference}
+            </p>
+          )}
+        </details>
       )}
       <AnalysisContext response={response} />
-      {response.audit_reference && (
-        <p className="break-all text-xs text-muted">
-          Referência para conferência: {response.audit_reference}
-        </p>
-      )}
       {response.limitations.length > 0 && (
         <ul
           aria-label="Limitações"
@@ -225,6 +249,14 @@ function MessageCard({
     return (
       <article className="ml-auto max-w-[min(85%,680px)] rounded-2xl rounded-br-sm bg-selected px-4 py-3 text-sm leading-6 text-content">
         <p className="whitespace-pre-wrap">{message.content}</p>
+      </article>
+    );
+  }
+
+  if (message.outdated) {
+    return (
+      <article className="rounded-xl border border-divider p-4 text-sm text-muted">
+        Os dados mudaram. Faça uma nova consulta para atualizar esta resposta.
       </article>
     );
   }
@@ -287,11 +319,26 @@ function MessageCard({
 }
 
 export default function AssistentePage() {
+  const publicationRevision = useGoldPublicationRevision();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const nextMessageId = useRef(0);
+  const sendingRef = useRef(false);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const mutation = useMutation({ mutationFn: askAIQuestion, retry: false });
+  // Publication changes invalidate interpretation history, including saved retries.
+  useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
+    setMessages((current) =>
+      current.map((message) => ({
+        ...message,
+        contextEligible: false,
+        retryRequest: undefined,
+        outdated: message.role === "assistant" && Boolean(message.response),
+      })),
+    );
+  }, [publicationRevision]);
   const hasMessages = messages.length > 0;
   const conversationContext = useMemo(() => makeContext(messages), [messages]);
 
@@ -307,7 +354,7 @@ export default function AssistentePage() {
     retryAttempt?: RetryRequest,
   ) {
     const question = questionText.trim();
-    if (!question || question.length > 1000 || mutation.isPending) return;
+    if (!question || question.length > 1000 || sendingRef.current) return;
     const userMessageId = addUserMessage
       ? nextMessageId.current++
       : retryAttempt?.userMessageId;
@@ -315,6 +362,7 @@ export default function AssistentePage() {
       ? nextMessageId.current++
       : retryAttempt?.assistantMessageId;
     if (userMessageId === undefined || assistantMessageId === undefined) return;
+    sendingRef.current = true;
     const retryRequest = retryAttempt ?? {
       question,
       context,
@@ -331,7 +379,6 @@ export default function AssistentePage() {
           contextEligible: true,
         },
       ]);
-      setDraft("");
     }
 
     try {
@@ -340,6 +387,8 @@ export default function AssistentePage() {
         question,
         context: context.slice(-3),
       });
+      if (addUserMessage && response.status !== "recoverable_error")
+        setDraft("");
       const assistantMessage: ChatMessage = {
         id: assistantMessageId,
         role: "assistant",
@@ -353,15 +402,37 @@ export default function AssistentePage() {
           response.status,
         ),
       };
-      setMessages((current) =>
-        updateConversationInteraction(
-          current,
+      setMessages((current) => {
+        const received = response.analysis_context?.batch_reference;
+        const changed =
+          received &&
+          current.some((turn) => {
+            const previous = turn.response?.analysis_context?.batch_reference;
+            return turn.contextEligible && previous && previous !== received;
+          });
+        return updateConversationInteraction(
+          current.map((message) =>
+            !changed || message.id === userMessageId
+              ? message
+              : {
+                  ...message,
+                  contextEligible: false,
+                  retryRequest: undefined,
+                  outdated:
+                    message.role === "assistant" && Boolean(message.response),
+                },
+          ),
           userMessageId,
           assistantMessage,
           retryAttempt !== undefined,
-        ),
-      );
+        );
+      });
     } catch (error) {
+      if (
+        error instanceof AIChatApiError &&
+        error.code === "superseded_request"
+      )
+        return;
       const safeError =
         error instanceof AIChatApiError
           ? error
@@ -379,12 +450,23 @@ export default function AssistentePage() {
       };
       setMessages((current) =>
         updateConversationInteraction(
-          current,
+          [401, 403, 409].includes(safeError.status ?? 0)
+            ? current.map((message) => ({
+                ...message,
+                contextEligible: false,
+                retryRequest: undefined,
+                outdated:
+                  message.role === "assistant" && Boolean(message.response),
+              }))
+            : current,
           userMessageId,
           assistantMessage,
           retryAttempt !== undefined,
         ),
       );
+    } finally {
+      sendingRef.current = false;
+      requestAnimationFrame(() => composerRef.current?.focus());
     }
   }
 
@@ -394,7 +476,11 @@ export default function AssistentePage() {
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.nativeEvent.isComposing
+    ) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
     }
@@ -422,7 +508,7 @@ export default function AssistentePage() {
               Assistente Grid 360
             </p>
             <p className="text-xs text-muted">
-              Perguntas sobre os cenários disponíveis
+              Respostas com base nos dados disponíveis
             </p>
           </div>
         </div>
@@ -485,9 +571,9 @@ export default function AssistentePage() {
             </div>
             <p className="flex items-start justify-center gap-2 text-center text-xs leading-5 text-muted">
               <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-              Os exemplos acima são demonstrativos. A fonte e as limitações
-              aparecem em cada resposta. A conversa fica apenas nesta tela e não
-              é salva.
+              Informe o período e o local para uma resposta mais precisa. A
+              disponibilidade dos dados é conferida a cada pergunta. A conversa
+              fica apenas nesta tela e não é salva.
             </p>
           </div>
         ) : (
@@ -511,7 +597,7 @@ export default function AssistentePage() {
               >
                 <LoaderCircle
                   aria-hidden="true"
-                  className="size-4 animate-spin"
+                  className="size-4 animate-spin motion-reduce:animate-none"
                 />
                 Analisando a pergunta e consultando evidências…
               </div>
@@ -529,6 +615,7 @@ export default function AssistentePage() {
         </label>
         <div className="flex items-end gap-2 rounded-2xl border border-control bg-canvas p-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
           <textarea
+            ref={composerRef}
             id="assistant-question"
             name="question"
             rows={2}

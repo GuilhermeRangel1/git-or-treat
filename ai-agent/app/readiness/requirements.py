@@ -176,15 +176,16 @@ CAPABILITY_REQUIREMENTS: tuple[CapabilityRequirement, ...] = (
 def _v2_requirements() -> tuple[CapabilityRequirement, ...]:
     """Adapta fontes documentadas sem homologar medidas ou controles inexistentes."""
     updates = {
+        "consumo.variacao_uc": {"definition_approved": True},
         "faturamento.preco_volume": {"tables": (GoldTable.DECOMPOSICAO_RECEITA,),
-                                     "temporal_column": None},
+                                     "temporal_column": None, "definition_approved": True},
         "faturamento.faturas_em_aberto": {"tables": (GoldTable.FATURAS_UC,),
                                          "source_not_in_gold": False},
         "apoio.medidor_uc": {"tables": (GoldTable.MEDIDOR_UC,), "source_not_in_gold": False},
         "apoio.energia_recuperavel": {"tables": (GoldTable.FILA_INSPECAO,),
                                       "source_not_in_gold": False},
-        "interrupcoes.uc_acumulado": {"tables": (GoldTable.VISAO_360_UC,
-                                                  GoldTable.OCORRENCIAS_UC)},
+        "interrupcoes.uc_acumulado": {"tables": (GoldTable.OCORRENCIAS_UC,),
+                                      "definition_approved": True, "required_controls": ("C11",)},
         "atendimento.uc_acumulado": {"tables": (GoldTable.VISAO_360_UC,
                                                 GoldTable.ATENDIMENTOS_UC),
                                      "required_controls": ("C14",), "definition_approved": True},
@@ -193,7 +194,10 @@ def _v2_requirements() -> tuple[CapabilityRequirement, ...]:
     for requirement in CAPABILITY_REQUIREMENTS:
         data = requirement.model_dump()
         data.update(updates.get(requirement.id, {}))
-        data["requires_coverage"] = data["temporal_column"] is not None
+        data["requires_coverage"] = (data["temporal_column"] is not None
+                                     or requirement.id in {
+                                         "interrupcoes.uc_acumulado", "faturamento.preco_volume",
+                                     })
         result.append(CapabilityRequirement.model_validate(data))
     result.append(CapabilityRequirement(
         id="atendimento.mensal", domain=CaseDomain.ATENDIMENTO,

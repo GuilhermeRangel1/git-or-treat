@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 from typing import Annotated
 
@@ -9,6 +10,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
@@ -20,7 +22,6 @@ from app.schemas.ai import (
     AIQueryRequest,
     AIQuestionError,
     AIQuestionErrorResponse,
-    AIQuestionRequest,
     AIQuestionResponse,
 )
 from app.schemas.ai_insight import (
@@ -28,6 +29,7 @@ from app.schemas.ai_insight import (
     PanoramaInsightEnvelope,
     PanoramaInsightRequest,
 )
+from app.schemas.ai_question_publication import AIQuestionPublicRequest
 from app.schemas.genai_internal import AccessScope
 from app.services.analytics import AnalyticsAPIError
 from app.services.genai_audit import AuditStore
@@ -40,6 +42,13 @@ from app.services.genai_client import (
 )
 from app.services.genai_coordination import answer_gold_question
 from app.services.genai_executor import GoldExecutionDenied
+from app.services.gold_panorama_coordination import generate_gold_panorama_insight
+
+from app.services.genai_expected_publication import (
+    ExpectedPublicationMismatch,
+    resolve_expected_batch_ref,
+)
+from app.services.gold_catalog import GoldCatalogIncompatible
 from app.services.panorama_insights import (
     StalePanoramaInsight,
     UnsupportedPanoramaInsight,
@@ -174,7 +183,7 @@ def query_analytical_data(
     summary="Envia uma pergunta conversacional ao serviço GenAI",
 )
 async def ask_genai_question(
-    payload: AIQuestionRequest,
+    payload: AIQuestionPublicRequest,
     request: Request,
     genai: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
     gold_resources: Annotated[
@@ -185,19 +194,41 @@ async def ask_genai_question(
 ) -> AIQuestionResponse | JSONResponse:
     """Encaminha pergunta e contexto transitório sem acessar banco ou persistir sessão."""
 
+    question = payload.without_publication()
     try:
         if gold_resources is not None:
             engine, resolve_scope = gold_resources
+            expected_batch_ref = None
+            if payload.expected_publication is not None:
+                expected_batch_ref = await asyncio.to_thread(
+                    resolve_expected_batch_ref, db.get_bind(), payload.expected_publication,
+                )
             result = await answer_gold_question(
-                engine, genai, payload, resolve_scope=resolve_scope,
+                engine, genai, question, resolve_scope=resolve_scope,
                 correlation_id=request.state.correlation_id,
                 readiness_gate=readiness_gate,
                 audit_store=AuditStore(db.get_bind()),
+                expected_batch_ref=expected_batch_ref,
             )
         else:
+            if payload.expected_publication is not None:
+                return _question_error(
+                    request, status_code=422, code="invalid_request", retryable=False,
+                    message="A publicação esperada só se aplica à fonte Gold.",
+                )
             result = await genai.ask(
-                payload, correlation_id=request.state.correlation_id,
+                question, correlation_id=request.state.correlation_id,
             )
+    except ExpectedPublicationMismatch:
+        return _question_error(
+            request, status_code=409, code="invalid_context", retryable=False,
+            message="Os dados da tela foram atualizados. Recarregue a tela antes de perguntar.",
+        )
+    except GoldCatalogIncompatible:
+        return _question_error(
+            request, status_code=503, code="service_unavailable", retryable=False,
+            message="O catálogo Gold dos serviços não é compatível; a consulta não foi executada.",
+        )
     except GoldExecutionDenied:
         return _question_error(
             request, status_code=403, code="access_denied", retryable=False,
@@ -246,6 +277,12 @@ async def ask_genai_question(
     return result
 
 
+def get_panorama_insight_repository() -> PanoramaRepository | None:
+    if settings.ANALYTICS_SOURCE == "gold":
+        return None
+    return get_panorama_repository()
+
+
 @insights_router.post(
     "/insights",
     response_model=PanoramaInsightEnvelope,
@@ -254,15 +291,43 @@ async def ask_genai_question(
 async def generate_panorama_insight(
     payload: PanoramaInsightRequest,
     request: Request,
-    repository: Annotated[PanoramaRepository, Depends(get_panorama_repository)],
+    repository: Annotated[PanoramaRepository | None, Depends(get_panorama_insight_repository)],
     genai: Annotated[GenAIInsightClient, Depends(get_genai_insight_client)],
+    gold_resources: Annotated[
+        tuple[Engine, Callable[[], AccessScope]] | None, Depends(get_question_gold_resources)
+    ],
+    readiness_client: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> PanoramaInsightEnvelope | JSONResponse:
     """Monta os números no servidor e os envia pelo contrato de insight v1."""
 
     try:
+        if gold_resources is not None:
+            engine, resolve_scope = gold_resources
+            return await generate_gold_panorama_insight(
+                engine, db.get_bind(), genai, readiness_client, payload,
+                resolve_scope=resolve_scope, correlation_id=request.state.correlation_id,
+                audit_store=AuditStore(db.get_bind()),
+                approved_controls=settings.GENAI_GOLD_APPROVED_CONTROLS,
+            )
         insight_request, metric, source, analysis = build_panorama_insight(
             repository, payload
         )
+    except GoldExecutionDenied:
+        return _question_error(request, status_code=403, code="access_denied", retryable=False,
+            message="A interpretação não está autorizada com o acesso atual.")
+    except GoldPublicationChanged:
+        return _question_error(request, status_code=409, code="invalid_context", retryable=False,
+            message="O lote mudou. Atualize o Panorama antes de gerar o insight.")
+    except (GoldPublicationUnavailable, SQLAlchemyError, GenAIServiceUnavailable):
+        return _question_error(request, status_code=503, code="service_unavailable", retryable=False,
+            message="A interpretação Gold está temporariamente indisponível.")
+    except GenAITimeout:
+        return _question_error(request, status_code=504, code="service_unavailable", retryable=True,
+            message="A interpretação excedeu o tempo limite.")
+    except GenAIResponseInvalid:
+        return _question_error(request, status_code=502, code="invalid_upstream_response", retryable=False,
+            message="A interpretação não corresponde ao recorte solicitado.")
     except StalePanoramaInsight:
         return _question_error(
             request,
