@@ -26,6 +26,7 @@ _PROPER_NAME_AFTER_DE = re.compile(
     r"(?<!\w)(?i:de|do|da|dos|das)\s+([A-ZÀ-Ý][a-zà-ÿ]+)(?![\w-])"
 )
 _ENDS_WITH_EM = re.compile(r"(?:^|\W)em\s+$")
+_QUESTION_START = re.compile(r"^(?:qual|quais|quanto|quanta|quantos|quantas|como|onde)\b")
 _EXCLUDED_VALUE_PREFIX = re.compile(
     r"\b(?:exceto|menos|excluindo|excluir|exclua|"
     r"(?:sem|nao)(?:\s+(?:ser|seja|sejam|e|incluir|inclua|considerar|apenas|somente|so))?|"
@@ -166,10 +167,7 @@ class QuestionInterpreter:
             )
             # Uma nova pergunta completa não é uma resposta ao esclarecimento
             # anterior: juntar os textos criaria métricas e recortes indevidos.
-            starts_new_question = re.match(
-                r"^(?:qual|quais|quanto|quanta|quantos|quantas|como|onde)\b",
-                _normalize(question).strip(),
-            )
+            starts_new_question = _QUESTION_START.match(_normalize(question).strip())
             if pending is not None and not starts_new_question:
                 original = turns[-2].content
                 for start, end, _ in reversed(_find_phrases(original, pending.phrases)):
@@ -232,6 +230,12 @@ class QuestionInterpreter:
         geography = self._dimension_value_matches(question, self._geography_dimensions)
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
         metric_hits = self._metric_matches(question)
+        if (
+            self._profile.structured_dimension_filters
+            and metric_hits
+            and _QUESTION_START.match(normalized)
+        ):
+            return False
         explicit_domains = {
             metric.domain_id
             for metric, alias in self._metric_aliases

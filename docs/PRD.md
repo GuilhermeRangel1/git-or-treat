@@ -3267,6 +3267,12 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Estados oficiais preservados. Aprovação de um exemplo no planejamento não homologa cobertura; essa prova de cópia pela API não é nova reconciliação SQL independente nem jornada visual.
 
 
+### 2026-11-02 — IA-02 / IA-03 — revisão do isolamento de nova pergunta
+
+- Corrigida herança silenciosa de classe/período ao iniciar pergunta interrogativa com métrica explícita após uma consulta anterior. Acompanhamento explícito e respostas curtas a esclarecimentos continuam cobertos pelos testes do núcleo Gold v2 existente.
+- Três regressões HTTP; 157 testes dirigidos e 4.184 da suíte GenAI completa passaram, com 5 skips e smoke remoto desligado. Ruff dos arquivos alterados e diff-check passaram. Revisão estática sem bloqueios após a correção; evidência e observação de manutenção em [perguntas da tela](plans/2026-11-02-genai-perguntas-da-tela.md#revisão-para-entrega--isolamento-de-nova-pergunta).
+- Validação visual continua bloqueada pelo navegador local desativado no Work; CI de PR não verificado, nenhum PR aberto localizado para esta branch. Sem nova rodada pública Gold/Gemini ou alteração de estados oficiais. Correção local ainda sem commit/push.
+
 ### 2026-11-02 — IA-01 / IA-02 / IA-03 / IA-06 — amostras nulas e provas técnicas
 
 - Corrigido o runner da matriz Gold v2: quatro casos de zero/nulo/base zero procuram a competência mais recente que contém a amostra, em toda a publicação, preservando mês, município e classe. A seleção de tarifa exige denominador observado igual a zero; nulo não é substituído por zero. Sem alteração de métricas, catálogo físico, permissões ou cobertura.

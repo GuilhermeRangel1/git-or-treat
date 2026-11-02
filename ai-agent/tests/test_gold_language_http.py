@@ -380,6 +380,34 @@ def test_full_revenue_growth_question_after_solar_asks_only_for_missing_period()
 
 
 @pytest.mark.parametrize("question", [
+    "Qual foi a receita em Olinda?",
+    "Quanto foi o consumo em Recife?",
+])
+def test_new_complete_question_does_not_inherit_period_or_class(question):
+    previous = "Receita residencial em Olinda no último trimestre?"
+    result = _plan(question, [
+        {"role": "user", "content": previous},
+        {"role": "assistant", "content": "Resultado do trimestre residencial."},
+    ])
+    assert result == _plan(question)
+    assert result["status"] == "needs_clarification"
+    assert "Qual período" in result["response"]["message"]
+
+
+def test_explicit_follow_up_still_preserves_period_and_class():
+    result = _plan("E em Recife?", [
+        {"role": "user", "content": "Receita residencial em Olinda em março de 2025?"},
+        {"role": "assistant", "content": "Resultado residencial de março."},
+    ])
+    assert result["status"] == "planned", result
+    assert result["plan"]["window"]["start"] == "2025-03-01"
+    assert {item["dimension_id"]: item["values"] for item in result["plan"]["filters"]} == {
+        "customer.consumption_class": ["RESIDENCIAL"],
+        "geography.municipality": ["Recife"],
+    }
+
+
+@pytest.mark.parametrize("question", [
     "Receita e consumo em março de 2025?",
     "Qual foi a receita?",
     "Qual bairro mais perdeu volume residencial no último ano?",

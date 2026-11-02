@@ -50,3 +50,11 @@ Suíte final: **4.176 passaram, 5 skips**; Ruff e `git diff --check` passaram. H
 - Receita comercial em Jaboatão: crescimento entre maio e junho/2026 — 19,84 s.
 
 Conta e sessões temporárias removidas. Essa prova verifica a usabilidade dos exemplos pela API e a conclusão do modelo; não acrescenta uma rodada de reconciliação SQL independente ou uma jornada visual à matriz anterior. Não houve nova carga, ampliação de permissões ou conclusão de domínios.
+
+## Revisão para entrega — isolamento de nova pergunta
+
+A revisão estática de `bf4fb83...d5923e5` encontrou uma lacuna de contexto preexistente: após “Receita residencial em Olinda no último trimestre?”, a pergunta completa “Qual foi a receita em Olinda?” herdava classe e período omitidos. No perfil estruturado Gold, perguntas interrogativas com métrica explícita agora iniciam uma consulta independente; acompanhamentos explícitos, como “E em Recife?”, continuam preservando classe e período. A mesma identificação de início interrogativo é reutilizada no tratamento de ambiguidades pendentes.
+
+Três regressões HTTP cobrem perguntas novas de receita/consumo e acompanhamento explícito. Verificações desta revisão: 157 testes dirigidos passaram; suíte GenAI completa, com smoke remoto desligado, 4.184 passaram e 5 foram ignorados em 49,63 s; Ruff dos dois arquivos Python e `git diff --check` passaram. Reavaliação do eixo requisitos não encontrou bloqueio restante no diff; eixo padrões não encontrou violação confirmada, com observação não bloqueante sobre apresentação específica de atendimento no orquestrador.
+
+A nova tentativa de navegador informou `Local browser use is disabled in Work settings`; a inspeção anterior do Firefox foi encerrada pela política de URLs da ferramenta. A jornada visual desta revisão permanece pendente. As provas reais de API descritas acima são históricas e não foram repetidas nesta correção. Não foi localizado PR aberto para a branch na consulta ao GitHub; CI de PR e revisão visual não são declarados aprovados. Correção local ainda sem commit/push; estados oficiais preservados.
