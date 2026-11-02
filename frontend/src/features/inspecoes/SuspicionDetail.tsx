@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { DetailEnvelope, Metadata } from "./contract";
 import { energy } from "./format";
 import { signedValueTone } from "@/shared/ui/signedValue";
@@ -25,9 +26,11 @@ function periodLabel(value: string) {
 export default function SuspicionDetail({
   data,
   metadata,
+  action,
 }: {
   data: DetailEnvelope["data"];
   metadata: Metadata;
+  action?: ReactNode;
 }) {
   if ("category" in data) {
     const evidence = data.evidence;
@@ -44,6 +47,7 @@ export default function SuspicionDetail({
         className="space-y-5 lg:space-y-6"
         aria-labelledby="suspicion-title"
       >
+        {action}
         <section
           className="rounded-xl bg-surface p-4 sm:p-6"
           aria-labelledby="suspicion-title"
@@ -316,6 +320,7 @@ export default function SuspicionDetail({
       className="space-y-5 lg:space-y-6"
       aria-labelledby="suspicion-title"
     >
+      {action}
       <section
         className="rounded-xl bg-surface p-4 sm:p-6"
         aria-labelledby="suspicion-title"

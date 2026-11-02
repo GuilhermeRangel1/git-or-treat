@@ -257,7 +257,14 @@ it("restringe bairros ao município na fila Gold atual", async () => {
     name: "Posição / UC / categoria",
   });
   await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  expect(screen.getByLabelText("Bairro")).toBeDisabled();
+  expect(
+    screen.getByRole("option", {
+      name: "Selecione um município primeiro",
+    }),
+  ).toBeInTheDocument();
   await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+  expect(screen.getByLabelText("Bairro")).toBeEnabled();
   expect(
     screen.getByRole("option", { name: "Bairro Novo" }),
   ).toBeInTheDocument();
@@ -321,12 +328,21 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(
     screen.queryByText("Prioridade demonstrativa"),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
   expect(screen.getByLabelText("Ordenar por")).toHaveValue("queue_position");
-  expect(screen.getByLabelText("Direção")).toHaveValue("asc");
+  expect(screen.getByLabelText("Direção da ordenação")).toHaveValue("asc");
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  const filterDialog = screen.getByRole("dialog", { name: "Ajustar filtros" });
+  expect(within(filterDialog).getByLabelText("Município")).toBeVisible();
+  expect(within(filterDialog).getByLabelText("Bairro")).toBeVisible();
+  expect(within(filterDialog).getByLabelText("Classe")).toBeVisible();
+  expect(within(filterDialog).getByLabelText("Alimentador")).toBeVisible();
+  expect(within(filterDialog).queryByLabelText("Ordenar por")).toBeNull();
+  expect(within(filterDialog).queryByLabelText("UCs por página")).toBeNull();
   expect(
-    screen.getByRole("option", { name: "Posição oficial da fila" }),
-  ).toBeInTheDocument();
+    within(filterDialog).queryByRole("option", {
+      name: "Posição oficial da fila",
+    }),
+  ).not.toBeInTheDocument();
   await user.keyboard("{Escape}");
   await user.click(
     screen.getAllByRole("link", { name: "Ver evidência de UC-GOLD" })[0],
@@ -808,20 +824,29 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   const user = userEvent.setup();
   mount();
   await firstEvidenceLink();
-  expect(screen.getByText("jan/2025 – fev/2025")).toBeVisible();
-  expect(screen.getByText("Não aplicada")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
-  await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
+  expect(screen.queryByText("Competência")).not.toBeInTheDocument();
+  expect(screen.queryByText("Comparar com")).not.toBeInTheDocument();
   await user.selectOptions(
     screen.getByLabelText("Ordenar por"),
     "potential_recoverable_energy_kwh",
   );
   await user.selectOptions(screen.getByLabelText("Ordenar por"), "uc_id");
-  await user.selectOptions(screen.getByLabelText("Direção"), "asc");
-  await user.selectOptions(screen.getByLabelText("Direção"), "desc");
-  await user.selectOptions(screen.getByLabelText("Direção"), "asc");
+  await user.selectOptions(
+    screen.getByLabelText("Direção da ordenação"),
+    "asc",
+  );
+  await user.selectOptions(
+    screen.getByLabelText("Direção da ordenação"),
+    "desc",
+  );
+  await user.selectOptions(
+    screen.getByLabelText("Direção da ordenação"),
+    "asc",
+  );
   await user.selectOptions(screen.getByLabelText("UCs por página"), "20");
   await user.selectOptions(screen.getByLabelText("UCs por página"), "50");
+  await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+  await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
   await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
   expect(
     await screen.findByText(
@@ -847,7 +872,11 @@ it("mostra e remove o alimentador ativo no resumo e na consulta", async () => {
   await user.selectOptions(screen.getByLabelText("Alimentador"), "AL-03");
   await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
-  expect(await screen.findByText("Alimentador: AL-03")).toBeVisible();
+  expect(
+    await within(
+      screen.getByRole("region", { name: "Filtros aplicados" }),
+    ).findByText("AL-03"),
+  ).toBeVisible();
   await waitFor(() => {
     const request = new URL(
       fetch.mock.calls.at(-1)![0],
@@ -866,7 +895,11 @@ it("mostra e remove o alimentador ativo no resumo e na consulta", async () => {
       "alimentador=",
     );
   });
-  expect(screen.queryByText("Alimentador: AL-03")).not.toBeInTheDocument();
+  expect(
+    within(
+      screen.getByRole("region", { name: "Filtros aplicados" }),
+    ).queryByText("AL-03"),
+  ).not.toBeInTheDocument();
 });
 
 it("pagina pelo servidor e mantém estimativa ausente distinta de zero", async () => {

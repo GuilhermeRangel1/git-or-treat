@@ -8,7 +8,11 @@ import {
 import { Link } from "react-router-dom";
 import type { GoldInspectionItem, QueueEnvelope, QueueItem } from "./contract";
 import { energy, formatNumber } from "./format";
-import { inspectionAction, inspectionPrimary } from "./inspection-ui";
+import {
+  inspectionAction,
+  inspectionControl,
+  inspectionPrimary,
+} from "./inspection-ui";
 
 function evidenceUrl(params: URLSearchParams, uc: string) {
   const next = new URLSearchParams(params);
@@ -181,6 +185,13 @@ export default function InspectionQueue({
     onChange(next);
   }
 
+  function updateQueueOption(key: string, value: string) {
+    const next = new URLSearchParams(params);
+    next.set(key, value);
+    next.set("page", "1");
+    onChange(next);
+  }
+
   return (
     <section
       aria-label="Fila de inspeção"
@@ -189,6 +200,82 @@ export default function InspectionQueue({
       <h2 className="sr-only">
         {gold ? "Fila de triagem" : "Fila priorizada"}
       </h2>
+      <div
+        aria-label="Controles da fila"
+        className="grid gap-3 rounded-xl bg-surface p-4 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        <label className="space-y-2 text-sm">
+          <span>Ordenar por</span>
+          <select
+            aria-label="Ordenar por"
+            className={inspectionControl}
+            value={field}
+            onChange={(event) =>
+              updateQueueOption("order_by", event.target.value)
+            }
+          >
+            {gold ? (
+              <>
+                <option value="queue_position">Posição oficial da fila</option>
+                <option value="uc_id">Número da UC</option>
+                <option value="category">Categoria</option>
+              </>
+            ) : (
+              <>
+                <option value="priority">Prioridade demonstrativa</option>
+                <option
+                  value="potential_recoverable_energy_kwh"
+                  disabled={legacyGold}
+                >
+                  Energia estimada{legacyGold ? " (indisponível)" : ""}
+                </option>
+                <option value="uc_id">Número da UC</option>
+              </>
+            )}
+          </select>
+        </label>
+        <label className="space-y-2 text-sm">
+          <span>Direção</span>
+          <select
+            aria-label="Direção da ordenação"
+            className={inspectionControl}
+            value={direction}
+            onChange={(event) =>
+              updateQueueOption("direction", event.target.value)
+            }
+          >
+            <option value="desc">Decrescente</option>
+            <option value="asc">Crescente</option>
+          </select>
+        </label>
+        <label className="space-y-2 text-sm">
+          <span>UCs por página</span>
+          <select
+            aria-label="UCs por página"
+            className={inspectionControl}
+            value={params.get("page_size") ?? String(page.page_size)}
+            onChange={(event) =>
+              updateQueueOption("page_size", event.target.value)
+            }
+          >
+            {Array.from(
+              new Set([
+                1,
+                10,
+                20,
+                50,
+                Number(params.get("page_size") ?? page.page_size),
+              ]),
+            )
+              .sort((left, right) => left - right)
+              .map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+          </select>
+        </label>
+      </div>
       {items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-2 py-10 text-center">
           <Search size={28} className="text-muted" aria-hidden="true" />
@@ -217,14 +304,16 @@ export default function InspectionQueue({
         <>
           {gold ? (
             <>
-              <p className="rounded-lg bg-surface p-4 text-sm text-muted">
-                Energia recuperável individual indisponível. Consulte o detalhe
-                para conhecer a limitação de cada UC.
-              </p>
               <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
-                <table className="w-full table-fixed text-left text-sm">
-                  <caption className="sr-only">
-                    Categorias, motivos, evidências e acesso ao detalhe
+                <table className="w-full table-fixed text-left">
+                  <caption className="caption-top pb-4 text-left text-sm font-normal text-muted">
+                    <span>
+                      Energia recuperável individual indisponível. Consulte o
+                      detalhe para conhecer a limitação de cada UC.
+                    </span>
+                    <span className="sr-only">
+                      Categorias, motivos, evidências e acesso ao detalhe
+                    </span>
                   </caption>
                   <colgroup>
                     <col className="w-[21%]" />
@@ -232,8 +321,8 @@ export default function InspectionQueue({
                     <col className="w-[38%]" />
                     <col className="w-[16%]" />
                   </colgroup>
-                  <thead className="text-xs leading-[18px] text-muted">
-                    <tr>
+                  <thead className="font-mono text-xs leading-[18px] text-muted">
+                    <tr className="h-11">
                       {[
                         "Posição / UC / categoria",
                         "Motivo",
@@ -242,7 +331,7 @@ export default function InspectionQueue({
                       ].map((label) => (
                         <th
                           scope="col"
-                          className="px-3 pb-3 text-left font-normal"
+                          className="pr-2 text-left font-normal"
                           key={label}
                         >
                           {label}
@@ -250,15 +339,15 @@ export default function InspectionQueue({
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="text-sm leading-[22px]">
                     {(items as GoldInspectionItem[]).map((item) => (
                       <tr
                         key={item.uc_id}
-                        className="border-t border-border/60 align-middle transition-colors hover:bg-surface-hover"
+                        className="h-14 border-t border-border/60 align-middle transition-colors hover:bg-surface-hover"
                       >
                         <th
                           scope="row"
-                          className="break-words px-3 py-3 text-left font-normal"
+                          className="break-words py-3 pr-2 text-left font-medium"
                         >
                           <p className="mb-1 text-xs text-muted">
                             Posição oficial na fila: {item.queue_position}
@@ -266,14 +355,14 @@ export default function InspectionQueue({
                           <p>{item.uc_id}</p>
                           <p>{item.category ?? "Sem categoria"}</p>
                         </th>
-                        <td className="px-3 py-3 leading-5">
+                        <td className="py-3 pr-2">
                           {item.reason ?? "Não informado"}
                         </td>
-                        <td className="px-3 py-3 text-sm leading-5 text-muted">
+                        <td className="py-3 pr-2 text-muted">
                           {goldEvidence(item).join(" · ") ||
                             "Sem evidências disponíveis"}
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="py-1">
                           <EvidenceLink item={item} params={params} />
                         </td>
                       </tr>
@@ -282,6 +371,10 @@ export default function InspectionQueue({
                 </table>
               </div>
               <div className="space-y-3 md:hidden">
+                <p className="px-1 text-sm text-muted">
+                  Estimativa individual indisponível. Consulte o detalhe da UC
+                  para conhecer os dados e limites disponíveis.
+                </p>
                 {(items as GoldInspectionItem[]).map((item) => (
                   <GoldItemCard key={item.uc_id} item={item} params={params} />
                 ))}

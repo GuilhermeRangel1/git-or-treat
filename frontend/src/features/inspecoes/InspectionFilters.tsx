@@ -1,58 +1,29 @@
 import { useRef, useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { ChevronDown, RotateCcw, SlidersHorizontal } from "lucide-react";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
 import { filterLabels } from "./queue-query";
-import { inspectionControl } from "./inspection-ui";
-import type { Metadata } from "./contract";
 
-function territory(params: URLSearchParams) {
-  const neighborhood = params.get("bairro");
-  const municipality = params.get("municipio");
-  if (neighborhood)
-    return municipality ? `${neighborhood} · ${municipality}` : neighborhood;
-  return municipality ?? "Todos os municípios";
-}
-
-function periodLabel(start?: string, end?: string) {
-  if (!start || !end) return "Consultando…";
-  const formatMonth = (value: string) => {
-    const [year, month] = value.split("-");
-    const names = [
-      "jan",
-      "fev",
-      "mar",
-      "abr",
-      "mai",
-      "jun",
-      "jul",
-      "ago",
-      "set",
-      "out",
-      "nov",
-      "dez",
-    ];
-    return `${names[Number(month) - 1] ?? month}/${year}`;
-  };
-  return `${formatMonth(start)} – ${formatMonth(end)}`;
-}
+const filterControl =
+  "min-h-11 w-full appearance-none rounded-lg border border-control bg-canvas px-3 pr-10 text-sm text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 export default function InspectionFilters({
   params,
   options,
-  metadata,
   neighborhoods,
   onChange,
 }: {
   params: URLSearchParams;
-  request: string;
   options: Record<string, string[]>;
-  metadata?: Metadata;
   neighborhoods: { municipio: string; bairro: string }[];
   onChange: (next: URLSearchParams) => void;
 }) {
-  const gold = metadata?.contract_version === "2.0.0";
-  const legacyGold = metadata?.source.kind === "gold_csv";
+  const emptyFilterLabels: Record<string, string> = {
+    municipio: "Todos os municípios",
+    bairro: "Todos os bairros",
+    classe: "Todas as classes",
+    alimentador: "Todos os alimentadores",
+  };
   const searchKey = params.toString();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => new URLSearchParams(params));
@@ -74,47 +45,27 @@ export default function InspectionFilters({
     close();
   }
 
-  function updateDraft(key: string, value: string) {
+  function clearDraft() {
     const next = new URLSearchParams(draft);
-    if (value) next.set(key, value);
-    else next.delete(key);
+    Object.keys(filterLabels).forEach((key) => next.delete(key));
     setDraft(next);
   }
 
   return (
     <>
       <section
-        className="flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"
         aria-label="Filtros aplicados"
       >
-        <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-4">
-          <div>
-            <p className="text-xs text-muted">Competência</p>
-            <p className="mt-1 font-medium">
-              {gold
-                ? "Cadastro atual · sem competência"
-                : periodLabel(metadata?.period?.start, metadata?.period?.end)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted">Comparar com</p>
-            <p className="mt-1 font-medium">Não aplicada</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted">Território</p>
-            <p className="mt-1 truncate font-medium">{territory(params)}</p>
-            {params.get("alimentador") ? (
-              <p className="mt-1 break-words text-xs font-medium text-muted">
-                Alimentador: {params.get("alimentador")}
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-3 text-sm md:grid-cols-4">
+          {Object.entries(filterLabels).map(([key, label]) => (
+            <div className="min-w-0" key={key}>
+              <p className="text-xs text-muted">{label}</p>
+              <p className="mt-1 truncate font-medium">
+                {params.get(key) ?? emptyFilterLabels[key]}
               </p>
-            ) : null}
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted">Classe</p>
-            <p className="mt-1 truncate font-medium">
-              {params.get("classe") ?? "Todas as classes"}
-            </p>
-          </div>
+            </div>
+          ))}
         </div>
         <Button
           ref={triggerRef}
@@ -137,7 +88,7 @@ export default function InspectionFilters({
         onClose={close}
         triggerRef={triggerRef}
         title="Ajustar filtros"
-        description="Escolha o recorte, a ordenação e o tamanho da página da fila."
+        description="Escolha município, bairro, classe e alimentador para filtrar a fila."
         closeLabel="Fechar filtros"
         size="md"
         header="inline"
@@ -145,11 +96,12 @@ export default function InspectionFilters({
         <form
           key={open ? searchKey : "closed"}
           aria-label="Filtros da fila"
-          className="grid gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3"
+          className="grid gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-2"
           onSubmit={(event) => {
             event.preventDefault();
             const fields = new FormData(event.currentTarget);
-            const next = new URLSearchParams();
+            const next = new URLSearchParams(params);
+            Object.keys(filterLabels).forEach((key) => next.delete(key));
             for (const [key, value] of fields.entries()) {
               if (typeof value === "string" && value) next.set(key, value);
             }
@@ -157,116 +109,81 @@ export default function InspectionFilters({
           }}
         >
           {Object.entries(filterLabels).map(([key, label]) => (
-            <label key={key} className="space-y-2 text-sm">
-              <span>{label}</span>
-              <select
-                name={key}
-                className={inspectionControl}
-                value={draft.get(key) ?? ""}
-                onChange={(event) => {
-                  const next = new URLSearchParams(draft);
-                  if (event.target.value) next.set(key, event.target.value);
-                  else next.delete(key);
-                  if (key === "municipio") next.delete("bairro");
-                  setDraft(next);
-                }}
-              >
-                <option value="">Todos</option>
-                {Array.from(
-                  new Set([
-                    ...(key === "bairro" &&
-                    draft.get("municipio") &&
-                    neighborhoods.length
-                      ? neighborhoods
-                          .filter(
-                            (item) => item.municipio === draft.get("municipio"),
-                          )
-                          .map((item) => item.bairro)
-                      : (options[key] ?? [])),
-                    ...(draft.get(key) ? [draft.get(key)!] : []),
-                  ]),
-                ).map((value) => (
-                  <option key={value} value={value}>
-                    {value}
+            <label
+              key={key}
+              className="grid gap-1.5 text-sm font-medium text-content"
+            >
+              {label}
+              <span className="relative">
+                <select
+                  name={key}
+                  className={`${filterControl} ${key === "bairro" ? "disabled:cursor-not-allowed disabled:opacity-50" : ""}`}
+                  value={draft.get(key) ?? ""}
+                  onChange={(event) => {
+                    const next = new URLSearchParams(draft);
+                    if (event.target.value) next.set(key, event.target.value);
+                    else next.delete(key);
+                    if (key === "municipio") next.delete("bairro");
+                    setDraft(next);
+                  }}
+                  disabled={key === "bairro" && !draft.get("municipio")}
+                >
+                  <option value="">
+                    {key === "bairro" && !draft.get("municipio")
+                      ? "Selecione um município primeiro"
+                      : key === "municipio"
+                        ? "Todos os municípios"
+                        : key === "bairro"
+                          ? "Todos os bairros"
+                          : key === "classe"
+                            ? "Todas as classes"
+                            : "Todos os alimentadores"}
                   </option>
-                ))}
-              </select>
+                  {Array.from(
+                    new Set([
+                      ...(key === "bairro" &&
+                      draft.get("municipio") &&
+                      neighborhoods.length
+                        ? neighborhoods
+                            .filter(
+                              (item) =>
+                                item.municipio === draft.get("municipio"),
+                            )
+                            .map((item) => item.bairro)
+                        : (options[key] ?? [])),
+                      ...(draft.get(key) ? [draft.get(key)!] : []),
+                    ]),
+                  ).map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+                />
+              </span>
             </label>
           ))}
-          <label className="space-y-2 text-sm">
-            <span>Ordenar por</span>
-            <select
-              name="order_by"
-              className={inspectionControl}
-              value={
-                draft.get("order_by") ?? (gold ? "queue_position" : "priority")
-              }
-              onChange={(event) => updateDraft("order_by", event.target.value)}
-            >
-              {gold ? (
-                <>
-                  <option value="queue_position">
-                    Posição oficial da fila
-                  </option>
-                  <option value="uc_id">Número da UC</option>
-                  <option value="category">Categoria</option>
-                </>
-              ) : (
-                <>
-                  <option value="priority">Prioridade demonstrativa</option>
-                  <option
-                    value="potential_recoverable_energy_kwh"
-                    disabled={legacyGold}
-                  >
-                    Energia estimada{legacyGold ? " (indisponível)" : ""}
-                  </option>
-                  <option value="uc_id">Número da UC</option>
-                </>
-              )}
-            </select>
-          </label>
-          <label className="space-y-2 text-sm">
-            <span>Direção</span>
-            <select
-              name="direction"
-              className={inspectionControl}
-              value={draft.get("direction") ?? (gold ? "asc" : "desc")}
-              onChange={(event) => updateDraft("direction", event.target.value)}
-            >
-              <option value="desc">Decrescente</option>
-              <option value="asc">Crescente</option>
-            </select>
-          </label>
-          <label className="space-y-2 text-sm">
-            <span>UCs por página</span>
-            <select
-              name="page_size"
-              className={inspectionControl}
-              value={draft.get("page_size") ?? "10"}
-              onChange={(event) => updateDraft("page_size", event.target.value)}
-            >
-              {Array.from(
-                new Set([1, 10, 20, 50, Number(draft.get("page_size") ?? 10)]),
-              )
-                .sort((a, b) => a - b)
-                .map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
-            <Button type="submit" variant="accent" size="wide">
-              Aplicar filtros
-            </Button>
+          <div className="flex flex-col-reverse justify-between gap-3 border-t border-divider pt-4 sm:col-span-2 sm:flex-row sm:items-center">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => apply(new URLSearchParams())}
+              variant="ghost"
+              size="sm"
+              onClick={clearDraft}
+              leftIcon={<RotateCcw className="size-3.5" aria-hidden="true" />}
             >
               Limpar filtros
             </Button>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={close}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary">
+                Aplicar filtros
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

@@ -91,6 +91,34 @@ export default function InspecoesPage() {
   );
   const metadata = active.data?.metadata;
   const goldDetail = detail.data && "category" in detail.data.data;
+  const canCreateOrder =
+    !session.configured ||
+    access.data?.canWrite ||
+    access.lastConfirmedAccess?.access.canWrite;
+  const createOrderAction =
+    parsed?.detail && detail.data && canCreateOrder ? (
+      <CreateOrder
+        key={parsed.detail}
+        uc={parsed.detail}
+        sourceVersion={detail.data.metadata.source.version}
+        sourceFingerprint={
+          "fingerprint" in detail.data.metadata
+            ? detail.data.metadata.fingerprint
+            : undefined
+        }
+        requireSourceFingerprint={
+          detail.data.metadata.contract_version === "2.0.0"
+        }
+        ruleVersion={detail.data.data.rule_version}
+        disabled={
+          detail.isFetching ||
+          detail.isError ||
+          (session.configured &&
+            (access.isFetching || session.needsReauthentication))
+        }
+        onRefresh={() => void detail.refetch()}
+      />
+    ) : null;
   const back = new URLSearchParams(params);
   back.delete("uc");
 
@@ -135,14 +163,12 @@ export default function InspecoesPage() {
       {!invalid && !parsed?.detail ? (
         <InspectionFilters
           params={params}
-          request={parsed?.request ?? ""}
           options={queue.data?.data.filter_options ?? {}}
           neighborhoods={
             queue.data && "neighborhoods" in queue.data.data
               ? queue.data.data.neighborhoods
               : []
           }
-          metadata={metadata}
           onChange={setParams}
         />
       ) : null}
@@ -208,7 +234,11 @@ export default function InspecoesPage() {
         <>
           {parsed?.detail && detail.data ? (
             <>
-              <SuspicionDetail data={detail.data.data} metadata={metadata} />
+              <SuspicionDetail
+                data={detail.data.data}
+                metadata={metadata}
+                action={createOrderAction}
+              />
               <Link className={inspectionAction} to={`?${back}`}>
                 <ArrowLeft size={16} aria-hidden="true" />
                 Voltar à fila
@@ -276,34 +306,6 @@ export default function InspecoesPage() {
             ? "Verificando permissão para criar ordens…"
             : "Sua conta tem acesso somente para consulta de ordens."}
         </p>
-      ) : null}
-      {!invalid &&
-      parsed?.detail &&
-      (!session.configured ||
-        access.data?.canWrite ||
-        access.lastConfirmedAccess?.access.canWrite) ? (
-        <CreateOrder
-          key={parsed.detail}
-          uc={parsed.detail}
-          sourceVersion={detail.data?.metadata.source.version}
-          sourceFingerprint={
-            detail.data && "fingerprint" in detail.data.metadata
-              ? detail.data.metadata.fingerprint
-              : undefined
-          }
-          requireSourceFingerprint={
-            detail.data?.metadata.contract_version === "2.0.0"
-          }
-          ruleVersion={detail.data?.data.rule_version}
-          disabled={
-            !detail.data ||
-            detail.isFetching ||
-            detail.isError ||
-            (session.configured &&
-              (access.isFetching || session.needsReauthentication))
-          }
-          onRefresh={() => void detail.refetch()}
-        />
       ) : null}
     </div>
   );

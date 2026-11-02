@@ -226,19 +226,9 @@ export default function PanoramaFoundations({ data }: { data: PanoramaData }) {
 
           <details className="rounded-xl border border-border bg-surface p-4 text-sm">
             <summary className="min-h-9 cursor-pointer font-semibold">
-              Proveniência
+              Atualização e período
             </summary>
             <dl className="mt-2 grid gap-2 text-xs text-muted sm:grid-cols-2">
-              <div>
-                <dt className="inline font-medium text-content">Fonte: </dt>
-                <dd className="inline">
-                  {data.origem?.kind === "gold" ? "Gold" : "Sintética"}
-                </dd>
-              </div>
-              <div>
-                <dt className="inline font-medium text-content">Lote: </dt>
-                <dd className="inline break-all">{data.loteVersao}</dd>
-              </div>
               <div>
                 <dt className="inline font-medium text-content">
                   Atualizado em:{" "}
@@ -254,30 +244,10 @@ export default function PanoramaFoundations({ data }: { data: PanoramaData }) {
                 <dd className="inline">
                   {formatCompetenciaLabel(data.filtros.periodo)}
                   {isGold && !data.fechamentoMensalDeclarado
-                    ? " · fechamento não declarado"
+                    ? " · fechamento mensal não informado"
                     : ""}
                 </dd>
               </div>
-              {data.origem?.fingerprint && (
-                <div>
-                  <dt className="inline font-medium text-content">
-                    Fingerprint:{" "}
-                  </dt>
-                  <dd className="inline break-all font-mono">
-                    {data.origem.fingerprint}
-                  </dd>
-                </div>
-              )}
-              {data.origem?.schemaVersion && (
-                <div>
-                  <dt className="inline font-medium text-content">
-                    Esquema/contrato:{" "}
-                  </dt>
-                  <dd className="inline">
-                    {data.origem.schemaVersion} · {data.origem.contractVersion}
-                  </dd>
-                </div>
-              )}
             </dl>
           </details>
         </div>
