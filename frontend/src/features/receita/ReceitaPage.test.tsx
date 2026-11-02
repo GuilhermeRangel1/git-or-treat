@@ -41,8 +41,8 @@ const response = {
         competencia: "2025-02",
         billed_amount: 76500,
         paid_amount: 75000,
-        measured_energy_kwh: 92000,
         billed_energy_kwh: 90000,
+        measured_energy_kwh: 92000,
       },
     ],
     comparison: {
@@ -50,6 +50,7 @@ const response = {
         competencia: "2025-01",
         billed_amount: 80000,
         billed_energy_kwh: 100000,
+        measured_energy_kwh: 101000,
         observed_price_brl_per_kwh: 0.8,
         billed_uc_count: 20,
         status: "available",
@@ -59,6 +60,7 @@ const response = {
         competencia: "2025-02",
         billed_amount: 76500,
         billed_energy_kwh: 90000,
+        measured_energy_kwh: 92000,
         observed_price_brl_per_kwh: 0.85,
         billed_uc_count: 20,
         status: "available",
@@ -488,7 +490,10 @@ describe("Receita", () => {
     expect(screen.getAllByText("R$ 76.500,00")).toHaveLength(1);
     expect(screen.getAllByText("R$ 80.000,00")).not.toHaveLength(0);
     expect(screen.getAllByText("−R$ 3.500,00")).toHaveLength(2);
-    expect(within(summary).getByText("90.000,00 kWh")).toBeVisible();
+    expect(within(summary).getByText("92.000,00 kWh")).toBeVisible();
+    expect(
+      within(summary).getByRole("heading", { name: "Consumo medido" }),
+    ).toBeVisible();
     expect(screen.getByText(/Dados sintéticos/i)).toBeVisible();
     expect(
       screen.queryByText("Ver método, cobertura e limitações"),

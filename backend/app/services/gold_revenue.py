@@ -23,9 +23,11 @@ def observed_price(rows):
 
 def snapshot(month, rows):
     amounts = [row["amount"] for row in rows if row["amount"] is not None]
+    energies = [row["energy"] for row in rows if row.get("energy") is not None]
     return {
         "competencia": month, "billed_amount": number(sum(amounts)) if amounts else None,
-        "billed_energy_kwh": None, "observed_price_brl_per_kwh": observed_price(rows),
+        "billed_energy_kwh": None, "measured_energy_kwh": number(sum(energies)) if energies else None,
+        "observed_price_brl_per_kwh": observed_price(rows),
         "billed_uc_count": sum(row["uc_count"] for row in rows) if rows else None,
         "status": "partial" if amounts else "unavailable",
         "limitations": ["Faturamento publicado; preço observado usa apenas a base comparável, não tarifa homologada. Energia faturada separada indisponível."],
@@ -39,7 +41,8 @@ def comparison(start, end, rows):
     change = None if first is None or last is None else float(Decimal(str(last)) - Decimal(str(first)))
     return {
         "initial": initial, "final": final, "billed_amount_change_brl": change,
-        "billed_energy_change_kwh": None, "measured_energy_change_kwh": None,
+        "billed_energy_change_kwh": None,
+        "measured_energy_change_kwh": None if initial["measured_energy_kwh"] is None or final["measured_energy_kwh"] is None else final["measured_energy_kwh"] - initial["measured_energy_kwh"],
         "billed_amount_change_percent": None,
     }
 

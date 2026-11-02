@@ -339,6 +339,8 @@ def _comparison_summary(
     )
     first_measured = _number(_round(first_measured, MONEY_QUANTUM)) if first_measured is not None else None
     last_measured = _number(_round(last_measured, MONEY_QUANTUM)) if last_measured is not None else None
+    initial["measured_energy_kwh"] = first_measured
+    final["measured_energy_kwh"] = last_measured
     if context.start != context.end and first_measured is not None and last_measured is not None:
         measured_change = _round(_decimal(last_measured) - _decimal(first_measured), MONEY_QUANTUM)
 

@@ -11,6 +11,7 @@ export type RevenueSnapshot = {
   competencia: string;
   billed_amount: number | null;
   billed_energy_kwh: number | null;
+  measured_energy_kwh: number | null;
   observed_price_brl_per_kwh: number | null;
   billed_uc_count: number | null;
   status: RevenueStatus;
@@ -249,6 +250,10 @@ function snapshot(value: unknown, path: string): RevenueSnapshot {
     billed_energy_kwh: nullableNumber(
       input.billed_energy_kwh,
       `${path}.billed_energy_kwh`,
+    ),
+    measured_energy_kwh: nullableNumber(
+      input.measured_energy_kwh ?? null,
+      `${path}.measured_energy_kwh`,
     ),
     observed_price_brl_per_kwh: nullableNumber(
       input.observed_price_brl_per_kwh,

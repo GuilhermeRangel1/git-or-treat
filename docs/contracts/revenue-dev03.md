@@ -20,6 +20,7 @@ type Snapshot = {
   competencia: string; // YYYY-MM
   billed_amount: number | null; // BRL
   billed_energy_kwh: number | null;
+  measured_energy_kwh: number | null; // consumo medido observado, independente de fatura
   observed_price_brl_per_kwh: number | null;
   billed_uc_count: number | null; // UCs distintas com fatura nesse extremo
   status: Status;

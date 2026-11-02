@@ -119,9 +119,9 @@ export default function RevenueSummary({
           competence={competenceLabel(final.competencia)}
         />
         <MetricCard
-          label="Energia faturada"
-          value={energy(final.billed_energy_kwh)}
-          before={energy(initial.billed_energy_kwh)}
+          label="Consumo medido"
+          value={energy(final.measured_energy_kwh)}
+          before={energy(initial.measured_energy_kwh)}
           competence={competenceLabel(final.competencia)}
         />
         <MetricCard
@@ -150,6 +150,11 @@ export default function RevenueSummary({
           </p>
         </article>
       </div>
+      {data.coverage.measured_energy_kwh.status === "partial" ? (
+        <p className="mt-2 text-xs text-muted">
+          Consumo medido com cobertura parcial no período.
+        </p>
+      ) : null}
     </section>
   );
 }

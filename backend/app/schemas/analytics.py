@@ -104,6 +104,7 @@ class RevenueSnapshot(BaseModel):
     competencia: str
     billed_amount: float | None
     billed_energy_kwh: float | None
+    measured_energy_kwh: float | None = None
     observed_price_brl_per_kwh: float | None
     billed_uc_count: int | None
     status: AnalyticsStatus

@@ -25,3 +25,20 @@ def test_null_measure_and_zero_are_distinct_in_coverage_and_comparison():
     assert data["coverage"]["measured_energy_kwh"]["missing_months"] == ["2025-01", "2025-02"]
     assert data["total_paid_amount"] is None
     assert data["total_billed_energy_kwh"] is None
+
+
+def test_gold_snapshot_reports_measured_energy_independently_of_billed_energy():
+    rows = [
+        {"competencia": "2025-01", "municipio": "A", "amount": Decimal("10"), "energy": Decimal("120"), "uc_count": 1},
+        {"competencia": "2025-02", "municipio": "A", "amount": None, "energy": Decimal("90"), "uc_count": 0},
+    ]
+    repo = SimpleNamespace(
+        revenue_groups=lambda *args: rows,
+        source_limitations=[],
+        options=lambda: {"municipio": ["A"], "bairros": [], "classe": []},
+    )
+    data = build_gold_revenue(repo, "2025-01", "2025-02", AnalyticsFilters(), "municipio")
+    assert data["comparison"]["initial"]["measured_energy_kwh"] == 120
+    assert data["comparison"]["final"]["measured_energy_kwh"] == 90
+    assert data["comparison"]["measured_energy_change_kwh"] == -30
+    assert data["comparison"]["final"]["billed_energy_kwh"] is None

@@ -475,7 +475,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ### 01/11/2026 — WEB-02 / WEB-03 — apresentação contextual das ausências
 
-- Na UC 360, o valor pago só aparece como cartão ou coluna quando há valor observado em uma das competências; sem valor, a limitação é apresentada uma vez. A energia faturada continua identificada por ser necessária ao diagnóstico, sem confundi-la com consumo medido.
+- Na UC 360, o valor pago só aparece como cartão ou coluna quando há valor observado em uma das competências; sem valor, a limitação é apresentada uma vez. Em Receita, o cartão de energia faturada indisponível foi substituído por consumo medido observado. A medida não equivale a energia faturada; a pergunta inicial do case continua exigindo que a limitação seja exposta no diagnóstico.
 - A série de Receita oculta colunas inteiramente nulas de valor pago e energia faturada, informa suas limitações junto à tabela e preserva a apresentação de zero conhecido. O Backend distingue cadastro de GD observado de ausência de linha, sem afirmar que a UC não possui geração.
 - Verificações: 19 testes backend e 72 testes frontend passaram; build, lint, formatação e fronteiras passaram, com aviso preexistente no lint. Navegador conferiu uma UC Gold sem registro de GD. Estados dos requisitos permanecem inalterados; as ausências de energia faturada e estimativa individual continuam pendentes de fonte/regra adequada.
 
@@ -497,7 +497,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ### 2026-11-01 — WEB-02 / WEB-03 / WEB-04 / WEB-07 — hierarquia das jornadas Gold
 
-- Estados preservados. Receita apresenta o resumo antes da proveniência, preserva energia faturada indisponível com explicação e reúne uma vez as limitações comuns a todos os recortes; avisos específicos permanecem nas linhas. UC 360 prioriza resultados, período e comparação, informa ausência do titular e mantém a tabela duplicada acessível por expansão. Inspeções prioriza a fila e explica a ausência de estimativa individual uma vez; o detalhe conserva o campo indispensável. Proveniência completa permanece ao final das consultas.
+- Registro histórico de 01/11: Receita preservava energia faturada indisponível com explicação. Em 02/11, após conferência do PDF e do dicionário, a pessoa usuária aprovou substituí-la por consumo medido; veja a entrada de progresso abaixo.
 - Revisão no navegador com a publicação Gold local: Receita, busca/detalhe de uma UC e fila de Inspeções carregaram. Identificada e reduzida quebra de valores longos em cartões de Receita. Não houve auditoria responsiva integral nem homologação humana. Os critérios de aceite oficiais e dependências de autenticação permanecem abertos.
 - Verificações: 60 testes dirigidos das três jornadas passaram; build, lint, fronteiras (151 arquivos) e formatação passaram. Na primeira suíte completa, 302 testes passaram e uma expectativa de texto anterior falhou; após atualizar a expectativa para o cartão correto, a suíte dirigida passou. Trello não conectado.
 
@@ -3446,3 +3446,9 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - SEG-06/07 revalidados separadamente: 1.751 testes de runtime/gate passaram; prova Backend com PostgreSQL 16 descartável passou em 102,35 s, incluindo fonte/modelo/auditoria indisponíveis, revogação, recuperação e ACL. Ajustadas duas expectativas antigas do texto de atendimento, mantendo unidade técnica conferida. Configuração privada foi mascarada nos testes, sem novas chamadas Gemini.
 - Runner/matriz: 274 testes dirigidos passaram; dry-run dos 57 IDs e Ruff por módulo passaram. Evidências e limites em [amostras e provas técnicas](plans/2026-11-02-genai-amostras-e-provas-tecnicas.md). Alterações locais ainda sem commit/push na branch `fix/genai-prontidao-gold-local`.
 - Estados oficiais preservados. Cinco casos ainda dependem de amostra/cobertura da fonte; provas técnicas aprovadas não viram respostas Gold do runner. Não declara nova rodada completa dos 57 casos ou jornada visual.
+
+### 2026-11-02 — WEB-02 — Receita apresenta consumo medido
+
+- O cartão antes nomeado “Energia faturada” agora mostra consumo medido (`consumo_total_kwh`/agregado mensal observado), com unidade kWh e comparação entre mês inicial e final. A API publica `measured_energy_kwh` nos snapshots; zero, nulo e cobertura parcial permanecem distintos.
+- Preço observado e decomposição preço × volume continuam usando os pares da base comparável. A troca não afirma energia faturada nem comprova a premissa de queda citada na abertura do case; essa limitação permanece para o diagnóstico ENT-01. Estado oficial de WEB-02 não é alterado por esta mudança isolada.
+- Verificações: pytest dirigido Backend 39 passou/1 ignorado; Vitest Receita 38 passou; fronteiras passaram em 187 arquivos; build TypeScript/Vite passou. Oxlint passou com aviso preexistente em `AuthProvider.tsx`; `git diff --check` passou.
