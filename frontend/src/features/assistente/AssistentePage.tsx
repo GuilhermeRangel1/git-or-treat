@@ -146,7 +146,9 @@ const PERIOD_MONTHS = [
 ];
 
 function formatPeriod(value: string) {
-  const dates = [...value.matchAll(/\b(\d{4})-(0[1-9]|1[0-2])(?:-(\d{2}))?\b/g)];
+  const dates = [
+    ...value.matchAll(/\b(\d{4})-(0[1-9]|1[0-2])(?:-(\d{2}))?\b/g),
+  ];
   if (dates.length === 0) return value;
 
   const formatMonth = (year: string, month: string) =>
@@ -159,10 +161,7 @@ function formatPeriod(value: string) {
       date.getUTCDate() === day
     );
   };
-  const isCompleteMonth = (
-    date: RegExpMatchArray,
-    edge: "start" | "end",
-  ) => {
+  const isCompleteMonth = (date: RegExpMatchArray, edge: "start" | "end") => {
     const [, yearValue, monthValue, dayValue] = date;
     if (!dayValue) return true;
     const year = Number(yearValue);
@@ -622,21 +621,21 @@ export default function AssistentePage() {
                   Perguntas comuns
                 </h2>
                 <div className="grid gap-2 sm:grid-cols-2">
-                {SUGGESTIONS.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => void send(suggestion, [], true)}
-                    disabled={mutation.isPending}
-                    className="group flex min-h-16 items-start gap-3 rounded-xl border border-divider bg-canvas/50 p-3 text-left text-base leading-6 text-content transition-colors hover:border-brand/50 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
-                  >
-                    <CircleHelp
-                      aria-hidden="true"
-                      className="mt-0.5 size-4 shrink-0 text-brand"
-                    />
-                    <span>{suggestion}</span>
-                  </button>
-                ))}
+                  {SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => void send(suggestion, [], true)}
+                      disabled={mutation.isPending}
+                      className="group flex min-h-16 items-start gap-3 rounded-xl border border-divider bg-canvas/50 p-3 text-left text-base leading-6 text-content transition-colors hover:border-brand/50 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
+                    >
+                      <CircleHelp
+                        aria-hidden="true"
+                        className="mt-0.5 size-4 shrink-0 text-brand"
+                      />
+                      <span>{suggestion}</span>
+                    </button>
+                  ))}
                 </div>
               </section>
               <p className="flex items-start justify-center gap-2 text-center text-sm leading-5 text-muted">

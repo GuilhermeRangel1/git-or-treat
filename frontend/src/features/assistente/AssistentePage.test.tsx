@@ -90,7 +90,7 @@ describe("Assistente Grid 360", () => {
     expect(context).not.toHaveTextContent("billing.revenue");
     expect(context).not.toHaveTextContent("geography.municipality");
   });
-  it("mostra a referência de conferência da evidência real sem aviso sintético", async () => {
+  it("oculta referências técnicas e mantém a procedência compreensível", async () => {
     const reference = "abcdef0123456789abcdef0123456789";
     vi.stubGlobal(
       "fetch",
@@ -126,8 +126,8 @@ describe("Assistente Grid 360", () => {
       "A receita no recorte informado está fundamentada na Gold.",
     );
     expect(
-      screen.getByText(`Referência para conferência: ${reference}`),
-    ).not.toBeVisible();
+      screen.queryByText(`Referência para conferência: ${reference}`),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByText("Como chegamos à resposta"));
     expect(screen.getByText("Fonte de dados interna")).toBeVisible();
     expect(screen.getByText(": Mai/2026")).toBeVisible();
@@ -208,7 +208,7 @@ describe("Assistente Grid 360", () => {
     expect(screen.getByText("Resposta fundamentada")).toBeVisible();
     expect(screen.getByText(/Demonstração sintética/)).toBeVisible();
     expect(screen.getByText("Dados de demonstração")).toBeVisible();
-    expect(screen.getByText(/2025-01 a 2025-02/)).toBeVisible();
+    expect(screen.getByText(/Jan\/2025 – Fev\/2025/)).toBeVisible();
     expect(
       screen.getByText(/Os valores não representam dados reais/),
     ).toBeVisible();
@@ -226,7 +226,7 @@ describe("Assistente Grid 360", () => {
     ).toHaveTextContent(": kWh fictícios");
     expect(
       within(analysisContext).getAllByRole("definition")[2],
-    ).toHaveTextContent(": 2025-01 a 2025-02");
+    ).toHaveTextContent(": Jan/2025 – Fev/2025");
     expect(
       within(analysisContext).getAllByRole("definition")[3],
     ).toHaveTextContent(": Exemplo");

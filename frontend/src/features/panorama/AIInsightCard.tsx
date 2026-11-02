@@ -100,10 +100,16 @@ function describeTrend(
 ) {
   if (analysis.composicaoAtual) {
     const item = analysis.composicaoAtual;
-    const scope = item.dimension === "municipio" ? "entre os municípios" : item.dimension === "classe" ? "entre as classes de consumo" : "entre os bairros";
-    const concentration = item.participacaoPercentual > 50
-      ? "Esse segmento reúne mais da metade do valor observado neste recorte."
-      : "Esse é o maior segmento do recorte; o restante da receita está distribuído entre os demais grupos.";
+    const scope =
+      item.dimension === "municipio"
+        ? "entre os municípios"
+        : item.dimension === "classe"
+          ? "entre as classes de consumo"
+          : "entre os bairros";
+    const concentration =
+      item.participacaoPercentual > 50
+        ? "Esse segmento reúne mais da metade do valor observado neste recorte."
+        : "Esse é o maior segmento do recorte; o restante da receita está distribuído entre os demais grupos.";
     return `${item.segmento} concentra ${formatPercentage(item.participacaoPercentual)} da receita observada em ${periodLabel(filters.periodo)} (${formatValue(item.valor, metric.unidade)}), liderando ${scope}. ${concentration}`;
   }
   if (metric.valorAtual === 0 && analysis.direcao === "indisponivel")
@@ -656,7 +662,8 @@ export default function AIInsightCard({
                 )}
 
               {insight?.status === "answered" &&
-                analysis && metric.valorAtual !== 0 && (
+                analysis &&
+                metric.valorAtual !== 0 && (
                   <section className="rounded-xl border border-[var(--line)] bg-[var(--accent-pistache-subtle)]/60 p-4">
                     <h3 className="flex items-center gap-2 text-sm font-semibold">
                       <Info
