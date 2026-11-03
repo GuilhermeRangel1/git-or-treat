@@ -90,7 +90,9 @@ def test_non_period_answer_after_coverage_clarification_repeats_clarification():
         ConversationTurn(role="assistant", content=clarification),
     ]
 
-    result = interpreter.interpret("Recife", context)
+    result = interpreter.interpret(
+        "Recife", context, pending_temporal_intent=interpreter.interpret(original).intent,
+    )
 
     assert result.status.value == "needs_clarification"
     assert result.clarification_question == clarification

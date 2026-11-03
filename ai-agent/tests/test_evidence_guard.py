@@ -28,6 +28,17 @@ LIMITATION = (
 )
 
 
+@pytest.mark.parametrize("unit, expected", [
+    ("protocolos", "1 chamado de atendimento"),
+    ("UCs", "1 UC"),
+    ("ocorrências", "1 ocorrência"),
+])
+def test_human_readable_integer_counts_use_singular_labels(unit, expected):
+    assert _describe_observation(
+        {"value": 1.0, "unit": unit}, human_readable=True,
+    ) == expected
+
+
 def _plan():
     interpreted = QuestionInterpreter(GRID360_DEMO_PROFILE).interpret(
         "Qual foi o consumo no período de demonstração?"

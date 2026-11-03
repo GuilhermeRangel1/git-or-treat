@@ -17,6 +17,7 @@ from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
     get_question_gold_resources,
 )
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.repositories.gold_publication import (
     GoldPublicationChanged,
     GoldPublicationUnavailable,
@@ -44,10 +45,17 @@ from app.services.genai_client import (
     GenAIServiceUnavailable,
     GenAITimeout,
 )
+from app.services.genai_continuation import (
+    InvalidContinuation,
+    issue_context_continuation,
+    issue_continuation,
+    restore_continuation,
+)
 from app.services.genai_coordination import (
     GoldCoverageUnavailable,
     answer_gold_question,
 )
+from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied
 from app.services.genai_expected_publication import (
     ExpectedPublicationMismatch,
@@ -114,6 +122,10 @@ class AIQuestionRoute(APIRoute):
                     retryable=False,
                     message="A solicitação não segue o contrato v1.",
                 )
+
+            except SQLAlchemyError:
+                return _question_error(request, status_code=503, code="service_unavailable",
+                    retryable=True, message="O serviço está temporariamente indisponível.")
 
             except HTTPException as exc:
                 if exc.status_code in {401, 403}:
@@ -207,25 +219,65 @@ async def ask_genai_question(
     readiness_gate: Annotated[Callable | None, Depends(get_question_gold_readiness_gate)],
     db: Annotated[Session, Depends(get_db)],
 ) -> AIQuestionResponse | JSONResponse:
-    """Encaminha pergunta e contexto transitório sem acessar banco ou persistir sessão."""
+    """Coordena consulta e contexto curto autenticado, sem persistir histórico."""
 
     question = payload.without_publication()
+    deadline = GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS)
     try:
         if gold_resources is not None:
             engine, resolve_scope = gold_resources
             expected_batch_ref = None
-            if payload.expected_publication is not None:
-                expected_batch_ref = await asyncio.to_thread(
-                    resolve_expected_batch_ref, db.get_bind(), payload.expected_publication,
+            secret = (settings.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()
+                      if settings.AI_AGENT_SERVICE_API_TOKEN is not None else None)
+            session = request.cookies.get("grid360_session", "")
+            if payload.continuation_token is not None:
+                if not secret or not session or not payload.conversation_id:
+                    raise InvalidContinuation
+                scope = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope))
+                expected_batch_ref, restored = restore_continuation(
+                    payload.continuation_token, scope, session=session,
+                    conversation=payload.conversation_id, secret=secret,
+                    context=question.context,
                 )
+                question = question.model_copy(update={"context": restored})
+            if payload.expected_publication is not None:
+                displayed_batch = await deadline.run(
+                    GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(
+                        resolve_expected_batch_ref, db.get_bind(), payload.expected_publication,
+                    ),
+                )
+                if expected_batch_ref is not None and expected_batch_ref != displayed_batch:
+                    raise InvalidContinuation
+                expected_batch_ref = displayed_batch
+
+            def continuation(planned, response):
+                if not secret or not session or not payload.conversation_id:
+                    return None
+                if planned.response.pending_question is not None:
+                    return issue_context_continuation(
+                        planned.response.pending_question, planned.access_scope,
+                        planned.publication.batch_ref, session=session,
+                        conversation=payload.conversation_id, secret=secret, kind="pending",
+                        response_text=response.message or "",
+                    )
+                return issue_continuation(
+                    planned.response.plan, planned.access_scope, planned.publication.batch_ref,
+                    session=session, conversation=payload.conversation_id, secret=secret,
+                    response_text=response.answer or response.message or "",
+                )
+
             result = await answer_gold_question(
                 engine, genai, question, resolve_scope=resolve_scope,
                 correlation_id=request.state.correlation_id,
                 readiness_gate=readiness_gate,
                 audit_store=AuditStore(db.get_bind()),
                 expected_batch_ref=expected_batch_ref,
+                continuation=continuation,
+                request_deadline=deadline,
             )
         else:
+            if payload.continuation_token is not None:
+                raise InvalidContinuation
             if payload.expected_publication is not None:
                 return _question_error(
                     request, status_code=422, code="invalid_request", retryable=False,
@@ -234,6 +286,11 @@ async def ask_genai_question(
             result = await genai.ask(
                 question, correlation_id=request.state.correlation_id,
             )
+    except InvalidContinuation:
+        return _question_error(
+            request, status_code=409, code="invalid_continuation", retryable=False,
+            message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
+        )
     except ExpectedPublicationMismatch:
         return _question_error(
             request, status_code=409, code="invalid_context", retryable=False,

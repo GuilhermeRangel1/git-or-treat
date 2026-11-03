@@ -253,7 +253,7 @@ Para GenAI Gold v2, Comercial tem as cinco métricas de faturamento/energia e Op
 | IA-04 | Obrigatório | Em validação | **Insights dentro do portal.** Ao menos uma tela apresenta insight contextual gerado por IA para interpretar o dado exibido, com sinalização de base temporal e possibilidade de verificar os números. |
 | IA-05 | Obrigatório | Em validação | **Agente acessível no portal.** Pessoa usuária conversa com a IA sem trocar de ferramenta; erros e indisponibilidade são comunicados. |
 | IA-06 | Obrigatório | Pendente | **Somente leitura e limites.** IA não altera dados, não executa SQL arbitrário fora do esquema autorizado e responde “não sei”/explica insuficiência quando a evidência falta. Testes demonstram bloqueio de escrita e de perguntas fora do escopo. |
-| IA-07 | Diferencial | Pendente | **Follow-up com contexto.** Usuário faz pergunta complementar e o agente mantém período, métrica e filtros relevantes sem confundir conversas. |
+| IA-07 | Diferencial | Concluído | **Follow-up com contexto.** Usuário faz pergunta complementar e o agente mantém período, métrica e filtros relevantes sem confundir conversas. |
 | IA-08 | Diferencial | Pendente | **Avaliação automática.** Conjunto versionado de perguntas e resultados esperados mede correção numérica, fundamentação e recusa adequada, com relatório de regressão. |
 
 ### 6.4 Diagnóstico, documentação e entrega — ENT
@@ -471,6 +471,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Corrigidos contraste negativo escuro, semântica da decomposição, nome acessível da ajuda e foco/rolagem por teclado dos filtros. Testes da ajuda ajustados ao nome responsivo. [Procedimentos, resultados e limites](validation/2026-11-03-dev15-resumo.md).
 - Evidências observadas em 02–03/11: 135 verificações de estrutura, 44 funcionais, 24 casos axe sem violações após correções, 228 controles CSV/banco, 500 comparações SQL/API, ciclo de ordens em cópia isolada e 72 testes dirigidos de estados de borda. Três validadores somente leitura acompanham a entrega; resultados JSON, capturas, credenciais e ferramentas auxiliares permanecem locais por orientação da pessoa usuária.
 - DEV-15 permanece em validação: WEB-04 sem estimativa individual de energia a recuperar. Próximo passo: implementar/publicar a estimativa e reconciliar Gold/banco/API/portal antes do aceite integral. Estados WEB/IA não foram promovidos automaticamente. Trello sem acesso para sincronização.
+
+### 03/11/2026 — DEV-15 — integração da develop sobre a base WEB-10
+
+- Branch `dev15` criada de `feat/web10-perfis` (`4ee933a`); entrega própria em `881de63`, com quatro correções, dois testes ajustados, documentação resumida e três validadores de leitura. JSONs, capturas, preparadores de banco, runners de navegador e configurações locais ficaram fora do commit.
+- Integração de `origin/develop` (`36166bd`) preserva perfis/autorização WEB-10 e continuidade/histórico do Assistente. Conflitos de documentação foram combinados; sessão e requisições atrasadas continuam isoladas por identidade/revisão. Histórico privado passa a usar `ai:ask`, conforme a matriz de perfis, em vez de exigir acesso a ordens. Testes das novas funcionalidades foram adaptados a sessões e perfis válidos.
+- Verificações de integração: seleção backend 78 testes e seleção de invalidação 20 testes passaram, com aviso Starlette/httpx; testes dirigidos do Assistente 28 passaram. Build, formatação e fronteiras em 200 arquivos passaram; lint sem erros e dois avisos. Isso é prova técnica de integração, sem ampliar o aceite Gold/GenAI da DEV-15.
+- Resultado final após as resoluções: suíte frontend completa sequencial aprovada, **449 testes em 61 arquivos**, com `npm.cmd test -- --maxWorkers=1`. `git diff --check` sem erros e nenhum conflito pendente. Branch preparada localmente, sem push nesta sessão.
 
 ### 02/11/2026 — WEB-03 — identidade do cadastro restrito pelos manifestos
 
@@ -3573,3 +3580,60 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Continuação do FAQ: a pedido da pessoa usuária, seleção ampliada para 18 exemplos adicionais sem repetir os textos da tela inicial, em quatro grupos (receita/preços, consumo/GD, comparação e atendimento). Base: cenários positivos da matriz Gold v2. Verificação dirigida final: 25 testes de ajuda/Assistente passaram; build, lint, formatação e jornada Chromium passaram novamente. Sem nova rodada quantitativa/Gemini dos 18 exemplos; revisão humana do cartão preservada.
 
 - Aceite final local do FAQ em 02/11/2026: após avaliar a interface e a seleção ampliada de perguntas, a pessoa usuária confirmou “já tá bom pra mim” e autorizou concluir o último item do cartão. Registrado aceite da experiência e dos textos derivados das definições existentes, substituindo a pendência de revisão humana deste adicional. Cartão 10/10 na entrega local, sem atribuir aprovação a terceiros ou homologar outros requisitos IA/WEB. Alterações permanecem locais em `feat/genai-assistente-evolucao`, sem commit/push/PR nesta rodada.
+
+
+### 2026-11-02 — IA-07: acompanhamento natural, início da evolução
+
+- Branch `feat/genai-perguntas-acompanhamento-contexto`, base develop `24c867e`. Cartão [Perguntas de acompanhamento com contexto](https://trello.com/c/06GnuDtQ). Requisito e cartão permanecem não concluídos.
+- Interpretador existente reconhece correção explícita de período sem repetir a métrica, preservando município e classe. Testes incluem ausência de antecedente; não ampliam autorização ou cobertura.
+- Inspeção identificou que o portal limita o histórico a três mensagens, podendo perder o antecedente após continuações sucessivas. A resolução confiável desse encadeamento e a prova Gold/API/portal continuam pendentes. Sem commit/push e sem nova chamada ao provedor nesta rodada.
+
+
+### 2026-11-02 — IA-07: acompanhamento natural integrado à Gold v2
+
+- IA-07 `Pendente` → `Concluído` na entrega local, critérios do cartão “Perguntas de acompanhamento com contexto” atendidos. Branch `feat/genai-perguntas-acompanhamento-contexto`, base develop `24c867e`; integração à develop ainda depende de PR e merge. O registro de início acima é histórico. Contrato e reprodução em [acompanhamento com contexto](contracts/genai-follow-up.md).
+- O Backend mantém uma referência assinada do último recorte válido, limitada por sessão, conversa, permissões, catálogo e publicação, com expiração de 30 minutos; a GenAI recebe uma pergunta normalizada e reaprova o novo plano no núcleo existente. Sem armazenamento de respostas/linhas, novo executor ou ampliação do leitor. O portal preserva contexto após falha/recusa, renova ao abrir conversa e não recupera token antigo quando uma consulta válida não é representável.
+- Linguagem natural: município/classe, correção de mês/ano, troca de indicador, comparação com mês anterior e nova pergunta completa. Mês isolado herda ano apenas de competência inequívoca; falta de antecedente, ambiguidade, fonte sem cobertura e filtro não suportado continuam exigindo esclarecimento/erro coerente.
+- Verificações: núcleo 146 testes dirigidos e 56 testes HTTP passaram; Backend 111 testes de referência/rota/plano/fluxo/invalidação e 16 de prazo passaram; frontend 38 passaram. Build, lint (aviso AuthProvider preexistente), fronteiras e checagem dos arquivos alterados conferidos. A execução HTTP no Windows foi interrompida por travamento do host e repetida em Linux, sem credenciais de runtime no subprocesso de teste.
+- Gold/Gemini reais: seis respostas encadeadas na API e duas no Chromium, todas reconciliadas com SQL independente e oito referências de auditoria na mesma publicação. Chromium sem interceptação: teclado, nova conversa e temas em 390/1440 px, sem overflow horizontal. HTTP real: 401 sem sessão, 403 sem leitura/revogação, 409 outra sessão, 422 campo extra. Expiração/adulteração, outra conversa, catálogo alterado, histórico malicioso e orçamento compartilhado cobertos na fronteira apropriada. Artefatos privados ficam em `work/followup-validation`, ignorado; segredos fora do Git.
+- Limites: suporte de continuação mantém as capacidades do catálogo e a representação declarada no contrato; não entrega histórico persistido, memória longa ou cobertura nova de Dados. Tentativas anteriores com perda de âncora e timeout do provedor foram registradas e corrigidas/revalidadas, sem transformar falha em sucesso. O Trello foi sincronizado com dez critérios concluídos desta entrega local; a incorporação à develop permanece pendente de PR e merge.
+
+### 2026-11-02 — adicional: histórico privado de conversas iniciado
+
+- Branch `feat/genai-historico-conversas`, criada da develop `10135a7` após o merge do PR #110. Política específica aprovada pela pessoa usuária: propriedade individual, 30 dias após a última mensagem, exclusão imediata e auditoria separada sem texto. Decisão e contrato em [histórico de conversas](contracts/genai-conversation-history.md).
+- Contratos Backend de criação por ID idempotente, renomeação com revisão e resumo de listagem; cliente não define proprietário ou expiração. Onze testes de fronteira passaram no container, com aviso Starlette/httpx preexistente. Ainda sem persistência, API de histórico ou interface integradas; cartão não concluído e estados dos requisitos existentes preservados.
+- Configuração Gemini local preservada e chave preenchida conferida sem impressão do segredo. Sem chamada ao provedor, commit ou push nesta etapa.
+
+### 2026-11-02 — adicional: histórico privado de conversas integrado
+
+- Continuação local na branch `feat/genai-historico-conversas`, da base `develop` `10135a7`. O adicional não tem ID próprio no PRD; os estados de IA-01 a IA-07 permanecem inalterados. Implementação e revisão técnica concluídas nesta branch; integração à develop pendente de PR e merge.
+- Backend adiciona migração `genaihistory01`, tabelas operacionais separadas da Gold, rotas autenticadas por proprietário, IDs estáveis/idempotência, replay seguro, expiração de 30 dias, exclusão física e expurgo periódico. Frontend integra listar, abrir, renomear, excluir e atualizar respostas salvas com consulta atual; respostas antigas são identificadas. Política aprovada e contrato estão em [histórico de conversas](contracts/genai-conversation-history.md).
+- Evidência: Backend completo, **997 passaram e 117 ignorados**; frontend completo, **425 passaram e 1 ignorado**; build passou; lint sem erros com aviso preexistente em `AuthProvider.tsx:108`. Migração PostgreSQL descartável subiu de base a `genaihistory01` e reverteu a base; teste concorrente confirmou criação/replay idempotentes e que exclusão impede resposta atrasada de ressuscitar conteúdo.
+- Duas respostas Gold v2/Gemini reais (Receita em Olinda, junho e maio/2026) foram reconciliadas por SQL somente leitura na mesma publicação. Chromium sem interceptação confirmou envio, refresh, restauração marcada como histórica, retenção visível, renomeação, exclusão e larguras de 390/1440 px. Troca de identidade com resposta atrasada e logout/revogação também têm testes dirigidos. Contas, sessões, conversas e banco temporário foram removidos; nenhum segredo foi incluído nos artefatos versionados.
+- Limites: cópia de validação local tinha marcador Alembic divergente e não foi alterada para simular uma migração; a cadeia foi provada em banco descartável limpo. O papel `v_energy_app` da cópia de teste é superusuário, portanto não comprova privilégio mínimo efetivo; o provisionamento versionado concede apenas as tabelas operacionais, e o leitor Gold foi confirmado sem `SELECT` no histórico. Revisão técnica do consumidor/Backend concluída por Codex e aceita pela pessoa usuária para encerrar o cartão; integração por PR permanece pendente.
+
+### Revisão técnica final — 02/11/2026
+
+Revisão automatizada independente dos eixos de requisitos e padrões encontrou dois defeitos, corrigidos antes da entrega: pergunta persistida inválida agora torna apenas a troca indisponível; abrir uma tentativa interrompida não vincula perguntas novas ao ID antigo. Retry conhecido em memória preserva o envio original; após refresh, nova pergunta usa novo ID e respeita o lease da execução anterior.
+
+Verificações após as correções: `docker exec followup-validation-backend-1 python -m pytest -q tests/test_ai_history_store.py tests/test_ai_history_http.py tests/test_ai_conversations_contract.py`: 25 passaram; testes frontend de sessão/histórico: 11 passaram; build passou; lint sem erros, com aviso preexistente; `git diff --check` passou. As suítes completas acima precedem estas duas correções. A pessoa usuária autorizou aceitar a revisão técnica de Codex como revisão do consumidor para esta entrega. Os dois achados foram corrigidos e revalidados; cartão concluído em 10/10. Isso não declara uma revisão humana externa nem integração à develop.
+
+
+### 2026-11-03 — IA-01 / IA-02 / IA-03 / IA-07: entendimento e recuperação de perguntas
+
+- Cartão adicional [Melhorar entendimento e qualidade](https://trello.com/c/yQ45h0tk), branch `feat/genai-entendimento-perguntas`, base develop `29c2eb2`. Adicional concluído na entrega técnica local, com 48 critérios revisados e decisões condicionais documentadas; sem commit/PR/merge nesta rodada. Estados oficiais dos requisitos preservados. Critérios, arquivos, comandos, reconciliação e rollback em [evidência de entendimento](plans/2026-11-03-genai-entendimento-perguntas.md).
+- Núcleo existente ampliado com flexões, classes no plural, formatos mensais e top N tipado. Esclarecimentos têm razões estáveis, alternativas pertinentes, sugestões de digitação confirmáveis e rascunho cumulativo. Backend assina contexto pendente e restaura pelo histórico existente; portal conserva a referência entre escolhas sucessivas. Nenhuma nova fonte, fórmula, permissão, retenção ou migração.
+- Harness Gold: baseline 22/32 planos/esclarecimentos integrais corretos → 32/32; conjunto separado de 16 formulações: 15/16 na primeira execução → 16/16 após corrigir voz passiva. Ambos agora são regressão; não estimam compreensão universal. Experimento isolado Gemini com seis entradas artificiais: 6/6, mesmo resultado do planejador corrigido; nenhuma proposta executada, sem ganho incremental observado para outra etapa em produção.
+- Gold v2 real: 19 respostas API/Chromium reconciliadas por SQL independente e auditoria na mesma publicação; jornada final de duas respostas repetida após revisão. Cobriu escolha de indicador/ano, ranking/classe, confirmação, restauração, troca de período sem cobertura e mudança de assunto. Contas temporárias removidas. Fonte sem cobertura continua bloqueada; prova local não homologa Dados.
+- Verificações finais: GenAI 4.276 passaram / 4 skips; Backend dirigido 332 passaram / 29 skips; frontend 428 passaram / 1 skip; build, fronteiras, formatação e Ruff dos arquivos alterados passaram. Avisos preexistentes Starlette/httpx e AuthProvider. Revisões de padrões e requisitos corrigiram perda de recorte e Top N indevido em comparação; sem achados concretos restantes nos percursos revisados. Implantar Backend antes da GenAI e depois portal; rollback inverso.
+
+
+#### 03/11/2026 — ajuste do esclarecimento observado pela pessoa usuária
+
+Após confirmar faturamento em uma comparação com dois meses sem ano, o Assistente
+agora pede somente o ano dos meses já informados, sem exemplo que troque a pergunta.
+Continuidade usa o rascunho cumulativo. 168 testes dirigidos passaram, Ruff e diff
+passaram; Chromium real confirmou Sim → ano, restauração e mudança de assunto.
+Duas respostas reconciliadas por SQL independente e quatro eventos de auditoria
+confirmados; conta temporária removida. Evidência no complemento do registro de
+entendimento acima; mesma branch, sem commit/push, estados oficiais preservados.

@@ -14,7 +14,12 @@ from pydantic import (
 )
 
 from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_MS
-from app.schemas.ai import AICorrelationId, AIQuestionRequest, AIQuestionResponse
+from app.schemas.ai import (
+    AICorrelationId,
+    AIQuestionRequest,
+    AIQuestionResponse,
+    AIQuestionText,
+)
 from app.schemas.genai_evidence import EvidenceLookupResult, GoldBatchRef
 from app.schemas.genai_physical_catalog import PhysicalCatalogRef
 from app.schemas.genai_plan import (
@@ -138,6 +143,7 @@ class QuestionPlanResponse(BaseModel):
     plan: LogicalReadPlan | None = None
     plan_fingerprint: PlanFingerprint | None = None
     response: AIQuestionResponse | None = None
+    pending_question: AIQuestionText | None = None
     # Catálogo físico sob o qual o plano foi produzido; opcional para compatibilidade.
     physical_catalog: PhysicalCatalogRef | None = None
 
@@ -147,10 +153,15 @@ class QuestionPlanResponse(BaseModel):
         data = handler(self)
         if self.physical_catalog is None and isinstance(data, dict):
             data.pop("physical_catalog", None)
+        if self.pending_question is None and isinstance(data, dict):
+            data.pop("pending_question", None)
         return data
 
     @model_validator(mode="after")
     def validate_content_for_status(self) -> Self:
+        if (self.pending_question is not None
+                and self.status is not QuestionPlanStatus.NEEDS_CLARIFICATION):
+            raise ValueError("rascunho só acompanha esclarecimento")
         if self.physical_catalog is not None and self.status is not QuestionPlanStatus.PLANNED:
             raise ValueError("catálogo físico só acompanha plano pronto")
         if self.status is QuestionPlanStatus.PLANNED:

@@ -1,5 +1,17 @@
 # Serviço: backend e banco local
 
+Continuidade de esclarecimentos (03/11/2026): o planejamento interno pode devolver
+`pending_question`, aceito apenas em `needs_clarification`. O Backend assina esse
+rascunho como contexto pendente; autorização e publicação são revalidadas antes
+de qualquer SQL. O histórico reutiliza `anchor`, sem token persistido, migração,
+nova retenção ou privilégio. Implantação Backend → GenAI → portal e rollback
+inverso, descritos em [entendimento e recuperação](../plans/2026-11-03-genai-entendimento-perguntas.md).
+
+GENAI-15: execução Gold v2 usa `GOLD_LOADER_DATABASE_URL` exclusiva de carga no overlay; `DATABASE_URL` operacional e `GENAI_GOLD_DATABASE_URL` quantitativa permanecem separadas. Diagnóstico em `scripts/check_genai_runtime.py`, carga em `scripts/benchmark_genai.py` e resumo sanitizado em `scripts/summarize_genai_benchmark.py`. [Runbook e evidência local](../plans/2026-11-02-genai15-operacao-gold.md). O diagnóstico persiste um evento operacional e não certifica cobertura de domínio nem disponibilidade externa do provedor.
+
+> Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
+
+
 **Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** API FastAPI, SQLAlchemy, ORM e Alembic; demonstração sintética preservada. A DEV-13.1 acrescenta modo Gold explícito para Panorama, fila/Ordens e Operação, com contrato v2 e limitações reais; o aceite integrado do portal permanece pendente. **Stack atual:** Python 3.12 no Docker/CI, FastAPI, SQLAlchemy e PostgreSQL com psycopg 3; testes HTTP sintéticos usam SQLite e os de integração Gold usam PostgreSQL descartável.
 
 
@@ -276,3 +288,8 @@ Detalhamento por bairro requer a dimensão `geography.neighborhood` no escopo va
 # Atualização de Receita — 02/11/2026
 
 Os snapshots comparativos incluem `measured_energy_kwh`, agregado do consumo medido por competência, independente de faturas. `billed_energy_kwh` continua distinto e nulo quando não publicado. Preço observado e decomposição preço × volume mantêm receita e consumo da base comparável.
+
+
+## IA-07 — acompanhamento natural
+
+O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).

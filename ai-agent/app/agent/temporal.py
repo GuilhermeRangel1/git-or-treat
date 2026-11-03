@@ -49,6 +49,22 @@ def normalize_calendar_phrases(text: str) -> str:
     Notação mês/ano exige ano completo e não é extraída de uma data com dia.
     """
     text = " ".join(unicodedata.normalize("NFC", text).split())
+    # Somente abreviações acompanhadas de ano: não altera nomes de locais nem
+    # completa mês/ano ausente. A resolução posterior continua validando cobertura.
+    abbreviations = dict(zip(
+        ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"),
+        _MONTH_NAMES, strict=True,
+    ))
+    text = re.sub(
+        r"\b(" + "|".join(abbreviations) + r")\.?\s*(?:/|\s+(?:de\s+)?)"
+        r"([0-9]{4})(?![\w/-])",
+        lambda match: f"{abbreviations[match[1].lower()]} de {match[2]}",
+        text, flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\b(?:no\s+)?m[eê]s\s+(0?[1-9]|1[0-2])\s+de\s+([0-9]{4})(?!\w)",
+        lambda match: f"em {match[2]}-{int(match[1]):02d}", text, flags=re.IGNORECASE,
+    )
     text = _SHARED_YEAR.sub(
         lambda match: (
             f"{match['first']} de {match['year']}{match['link']}"
@@ -63,6 +79,47 @@ def normalize_calendar_phrases(text: str) -> str:
         return f"{match['year']}-{month:02d}"
 
     return _MONTHLY_PREFIX.sub("em ", _SLASH_MONTH.sub(slash_month, text))
+
+
+def complete_contextual_period(text: str, context: list) -> str:
+    """Completa só continuações curtas a partir de um único mês explícito.
+
+    Um intervalo ou comparação anterior não escolhe silenciosamente um ano.
+    Calendário/cobertura continuam sendo aprovados pelo resolvedor de janela.
+    """
+    normalized = _normalize(text).strip(" ?!.")
+    month = re.fullmatch(
+        r"(?:(?:e|agora|na verdade|corrigindo)[,:]?\s+)?"
+        r"(?:(?:em|no mes de|mes de)\s+)?(" + _SHARED_MONTH_NAME + r")",
+        normalized,
+    )
+    comparison = re.fullmatch(
+        r"(?:e\s+)?compar(?:e|ar)\s+com\s+(?:o\s+)?(?:mes|periodo)\s+anterior",
+        normalized,
+    )
+    year_correction = re.fullmatch(
+        r"(?:na verdade|corrigindo)[,:]?\s+(?:em\s+)?([0-9]{4})", normalized,
+    )
+    if month is None and comparison is None and year_correction is None:
+        return text
+    for turn in reversed(context):
+        if turn.role != "user":
+            continue
+        phrases = explicit_monthly_phrases(normalize_calendar_phrases(turn.content))
+        if not phrases:
+            return text
+        bounds = _explicit_bounds(phrases[0])
+        if len(phrases) != 1 or bounds is None or bounds[0] != bounds[1]:
+            return text
+        year, number = bounds[0]
+        if year_correction is not None:
+            return f"E em {int(year_correction[1]):04d}-{number:02d}?"
+        if month is not None:
+            return f"E em {year:04d}-{_MONTH_NUMBERS[_normalize(month[1])]:02d}?"
+        previous_year, previous_month = (year - 1, 12) if number == 1 else (year, number - 1)
+        return (f"E compare entre {previous_year:04d}-{previous_month:02d} "
+                f"e {year:04d}-{number:02d}.")
+    return text
 
 
 _NAMED_MONTH = r"(?:" + "|".join(_MONTH_NUMBERS) + r")\s+(?:de\s+)?[0-9]{4}"
@@ -82,6 +139,38 @@ def explicit_monthly_phrases(text: str) -> tuple[str, ...]:
     """
     normalized = _normalize(text)
     return tuple(match.group() for match in _EXPLICIT_PERIOD.finditer(normalized))
+
+
+def complete_yearless_months(text: str, year: str) -> str | None:
+    """Aplica o ano explicitamente respondido a meses que ainda não têm ano."""
+    if re.search(r"\b[0-9]{4}\b", text):
+        return None
+    pattern = r"\b(?:" + _SHARED_MONTH_NAME + r")\b"
+    if not re.search(pattern, text, flags=re.IGNORECASE):
+        return None
+    return re.sub(pattern, lambda m: f"{m[0]} de {year}", text, flags=re.IGNORECASE)
+
+
+def yearless_month_spans(text: str) -> tuple[tuple[int, int], ...]:
+    """Localiza meses escritos sem presumir ano nem convertê-los em janela válida."""
+    if re.search(r"\b[0-9]{4}\b", text):
+        return ()
+    return tuple(match.span() for match in re.finditer(
+        r"\b(?:" + _SHARED_MONTH_NAME + r")\b", text, re.IGNORECASE,
+    ))
+
+
+def missing_year_question(text: str, *, comparison: bool) -> str | None:
+    """Pede só o ano de meses nomeados, sem inferir o ano da publicação."""
+    months = [text[start:end] for start, end in yearless_month_spans(text)]
+    if not months or len(months) > 2:
+        return None
+    label = " e ".join(month.lower() for month in months)
+    if len(months) == 2:
+        operation = "comparar" if comparison else "consultar"
+        return (f"De qual ano você quer {operation} {label}? "
+                "Se forem anos diferentes, informe o ano de cada mês.")
+    return f"De qual ano você quer consultar {label}?"
 
 
 def has_incomplete_calendar_period(text: str) -> bool:
