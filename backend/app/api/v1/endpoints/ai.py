@@ -10,6 +10,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.api.progressive import progressive_handler
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.genai_gold_database import (
@@ -141,7 +142,7 @@ class AIQuestionRoute(APIRoute):
                     message="O serviço de resposta está temporariamente indisponível.",
                 )
 
-        return ai_question_handler
+        return progressive_handler(ai_question_handler)
 
 
 questions_router = APIRouter(route_class=AIQuestionRoute)
@@ -264,6 +265,7 @@ async def ask_genai_question(
                 expected_batch_ref=expected_batch_ref,
                 continuation=continuation,
                 request_deadline=deadline,
+                on_visual=getattr(request.state, "publish_visual", None),
             )
         else:
             if payload.continuation_token is not None:

@@ -132,6 +132,23 @@ def test_response_cannot_relabel_authorized_points_as_another_period(scenario):
         build_chat_visualization(plan, lookup, response)
 
 
+def test_sanitized_core_reference_is_bound_to_original_source(scenario):
+    from hashlib import sha256
+
+    plan, lookup, response = scenario
+    response.evidence[0].source = "gold.local:" + sha256(b"gold.local").hexdigest()
+    visual = build_chat_visualization(plan, lookup, response)
+    assert (
+        AIQuestionResponse.model_validate(
+            {**response.model_dump(), "visualization": visual.model_dump()}
+        ).visualization
+        is not None
+    )
+    response.evidence[0].source = "gold.local:" + "a" * 64
+    with pytest.raises(GenAIResponseInvalid):
+        build_chat_visualization(plan, lookup, response)
+
+
 def test_altered_context_or_plot_ids_are_refused(scenario):
     plan, lookup, response = scenario
     visual = build_chat_visualization(plan, lookup, response).model_dump()

@@ -1,3 +1,4 @@
+import re
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
@@ -180,7 +181,7 @@ class AIQuestionResponse(BaseModel):
             if (self.status != "answered" or context is None or not context.batch_reference
                 or not context.batch_reference.startswith("gold-csv-v2:")
                 or (context.metric, context.unit, context.period) != (self.visualization.metric, self.visualization.unit, self.visualization.period)
-                or not self.evidence or any(e.is_demo or e.source != "gold.local" for e in self.evidence)):
+                or not self.evidence or any(e.is_demo or re.fullmatch(r"gold\.local(?::[a-f0-9]{64})?", e.source) is None for e in self.evidence)):
                 raise ValueError("visualização exige evidência Gold v2 e recorte correspondente")
         if self.status == "answered":
             if self.answer is None or self.message is not None or not self.evidence:

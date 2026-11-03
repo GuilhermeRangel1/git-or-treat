@@ -6,11 +6,13 @@ from collections.abc import Mapping, Sequence
 from decimal import ROUND_HALF_UP, Decimal, localcontext
 from typing import TYPE_CHECKING, Any, Literal
 
+from app.schemas.chat_visualization import ChatVisualPoint
 from app.schemas.panorama import (
     PanoramaDistribution,
     PanoramaDistributionPoint,
     PanoramaMetric,
 )
+from app.services.visual_reading import build_visual_reading
 
 if TYPE_CHECKING:
     from app.repositories.panorama import GoldPanoramaRepository
@@ -121,7 +123,20 @@ def distribution_from_groups(
             )
         ]
 
-    return PanoramaDistribution(
+    result = PanoramaDistribution(
+        reading=build_visual_reading(
+            [
+                ChatVisualPoint(
+                    observation_id=f"row_{i}", label=p.segmento, value=p.valor
+                )
+                for i, p in enumerate(visual, 1)
+            ],
+            kind="donut" if partition and len(visual) <= 6 else "horizontal",
+            unit=unit,
+            precision=2,
+        )
+        if all(p.valor is not None for p in visual)
+        else None,
         dimension=dimension,
         periodo=period,
         metricId=metric_id,
@@ -132,6 +147,7 @@ def distribution_from_groups(
         visual=visual,
         agrupados=grouped,
     )
+    return result if len(result.model_dump_json().encode("utf-8")) <= 262144 else None
 
 
 def gold_distribution(

@@ -1,15 +1,17 @@
 """Monta pontos de negócio sem extrair números da prosa ou executar consultas."""
 
 from datetime import datetime
+from hashlib import sha256
 from itertools import pairwise
 from math import isfinite
 
-from app.schemas.ai import AIQuestionResponse
+from app.schemas.ai import AIAnalysisContext, AIQuestionResponse
 from app.schemas.chat_visualization import ChatVisualization, ChatVisualPoint
 from app.schemas.genai_evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.schemas.genai_plan import LogicalReadPlan
 from app.services.genai_client import GenAIResponseInvalid
 from app.services.gold_catalog import load_gold_catalog
+from app.services.visual_reading import build_visual_reading
 
 _FIELDS = {
     "geography.municipality": ("municipality", "Município"),
@@ -19,6 +21,53 @@ _FIELDS = {
     "tariff.flag": ("tariff_flag", "Bandeira"),
     "network.feeder": ("feeder", "Alimentador"),
 }
+
+
+def build_visual_preview(
+    plan: LogicalReadPlan, lookup: EvidenceLookupResult
+) -> AIQuestionResponse | None:
+    """Dados já consultados; esta prévia nunca é uma interpretação do modelo."""
+    if lookup.status != EvidenceLookupStatus.AVAILABLE or lookup.evidence is None:
+        return None
+    origin = lookup.evidence.provenance
+    if origin is None or origin.published_windows is not None:
+        return None
+    metric = next(
+        (m for m in load_gold_catalog().metrics if m.metric_id == plan.metric_id), None
+    )
+    if metric is None:
+        raise GenAIResponseInvalid
+    response = AIQuestionResponse(
+        status="answered",
+        answer="Dados da consulta disponíveis. Preparando a interpretação.",
+        evidence=[lookup.evidence.reference],
+        limitations=lookup.limitations,
+        analysis_context=AIAnalysisContext(
+            metric=plan.metric_id,
+            metric_label=metric.label,
+            metric_definition=metric.definition,
+            unit=plan.unit,
+            period=plan.window.phrase or f"{plan.window.start} a {plan.window.end}",
+            batch_reference=origin.batch_ref,
+            filters={
+                f.dimension_id: f.values[0]
+                if len(f.values) == 1
+                else ", ".join(str(v) for v in f.values)
+                for f in plan.filters
+            },
+            filter_labels={
+                f.dimension_id: _FIELDS[f.dimension_id][1]
+                for f in plan.filters
+                if f.dimension_id in _FIELDS
+            },
+        ),
+    )
+    visual = build_chat_visualization(plan, lookup, response)
+    return (
+        response.model_copy(update={"visualization": visual})
+        if visual is not None
+        else None
+    )
 
 
 def build_chat_visualization(
@@ -50,7 +99,16 @@ def build_chat_visualization(
         context is None
         or evidence.reference.is_demo
         or evidence.reference.source != "gold.local"
-        or any(e.source != "gold.local" or e.is_demo for e in response.evidence)
+        or any(
+            e.source
+            not in {
+                "gold.local",
+                "gold.local:"
+                + sha256(evidence.reference.source.encode("utf-8")).hexdigest(),
+            }
+            or e.is_demo
+            for e in response.evidence
+        )
         or origin.plan_fingerprint != plan.fingerprint()
         or origin.window != plan.window
         or origin.filters != plan.filters
@@ -155,5 +213,8 @@ def build_chat_visualization(
         note=note,
         points=points,
         plot_points=plotted,
+        reading=build_visual_reading(
+            plotted, kind=kind, unit=plan.unit, precision=metric.rounding.decimals
+        ),
     )
     return result if len(result.model_dump_json().encode("utf-8")) <= 32768 else None

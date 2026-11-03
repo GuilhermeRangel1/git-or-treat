@@ -1,10 +1,11 @@
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.common import AnalyticalMetadata
 from app.schemas.analytics import AnalyticsStatus
 from app.schemas.gold import GoldMetadata
+from app.schemas.visual_reading import VisualReading
 
 
 class PanoramaMetric(BaseModel):
@@ -50,12 +51,15 @@ class PanoramaFilterOptions(BaseModel):
 
 
 class PanoramaDistributionPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     segmento: str
     valor: float | None
     percentual: float | None = None
 
 
 class PanoramaDistribution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reading: VisualReading | None = None
     dimension: Literal["municipio", "classe"]
     periodo: str
     metricId: str

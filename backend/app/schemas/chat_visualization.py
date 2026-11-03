@@ -5,6 +5,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, model_validator
 
 from app.schemas.genai_plan import LogicalIdentifier
+from app.schemas.visual_reading import VisualReading
 
 
 class ChatVisualPoint(BaseModel):
@@ -28,6 +29,7 @@ class ChatVisualization(BaseModel):
     note: str = Field(min_length=1, max_length=300)
     points: list[ChatVisualPoint] = Field(min_length=1, max_length=100)
     plot_points: list[ChatVisualPoint] = Field(min_length=1, max_length=24)
+    reading: VisualReading | None = None
 
     @model_validator(mode="after")
     def references_are_exact(self) -> Self:
@@ -42,4 +44,6 @@ class ChatVisualization(BaseModel):
             raise ValueError("observação visual repetida")
         if any(points.get(p.observation_id) != p for p in self.plot_points):
             raise ValueError("ponto visual fora da evidência publicada")
+        if self.reading and (len(set(self.reading.observation_ids)) != len(self.reading.observation_ids) or not set(self.reading.observation_ids) <= {p.observation_id for p in self.plot_points}):
+            raise ValueError("leitura fora das observações exibidas")
         return self

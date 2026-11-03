@@ -16,12 +16,16 @@ from app.schemas.genai_evidence import GoldEvidenceQuality
 from app.schemas.genai_internal import AccessScope, QuestionSynthesisRequest
 from app.schemas.genai_plan import QuestionPlanStatus
 from app.schemas.gold_readiness import GoldReadinessReport
-from app.services.chat_visualization import build_chat_visualization
+from app.services.chat_visualization import (
+    build_chat_visualization,
+    build_visual_preview,
+)
 from app.services.genai_audit import AuditStore
 from app.services.genai_client import (
     GenAIQuestionClient,
     GenAIResponseInvalid,
     GenAIServiceUnavailable,
+    GenAITimeout,
 )
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
@@ -50,6 +54,7 @@ async def answer_gold_question(
     expected_batch_ref: str | None = None,
     continuation: Callable[[GoldPlanningResult, AIQuestionResponse], str | None] | None = None,
     request_deadline: GenAIRequestDeadline | None = None,
+    on_visual: Callable[[AIQuestionResponse], Awaitable[None]] | None = None,
 ) -> AIQuestionResponse:
     """Mantém plano, identidade, publicação e prazo entre as duas operações HTTP.
 
@@ -157,6 +162,17 @@ async def answer_gold_question(
     await planned.deadline.run(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
+    if on_visual is not None:
+        preview = await planned.deadline.run(
+            GOLD_REQUEST_TIMEOUT_SECONDS,
+            lambda: asyncio.to_thread(build_visual_preview, planned.response.plan, lookup),
+        )
+        if preview is not None:
+            # A montagem também consome prazo: conferir novamente antes de publicar.
+            if await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope)) != planned.access_scope:
+                raise GoldExecutionDenied
+            await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine))
+            await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: on_visual(preview))
     payload = QuestionSynthesisRequest(
         **request.model_dump(), access_scope=planned.access_scope,
         dimension_value_coverage=planned.dimension_value_coverage,
@@ -165,9 +181,17 @@ async def answer_gold_question(
         plan_fingerprint=planned.response.plan_fingerprint,
         lookup=lookup, expected_batch_ref=planned.publication.batch_ref,
     )
-    result = await planned.deadline.run(
-        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: client.synthesize(payload, correlation_id=correlation_id),
-    )
+    try:
+        result = await planned.deadline.run(
+            GOLD_REQUEST_TIMEOUT_SECONDS, lambda: client.synthesize(payload, correlation_id=correlation_id),
+        )
+    except (GenAIServiceUnavailable, GenAIResponseInvalid, GenAITimeout):
+        # Uma falha do modelo não pode ocultar revogação/troca após a prévia.
+        if on_visual is not None:
+            if await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope)) != planned.access_scope:
+                raise GoldExecutionDenied from None
+            await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine))
+        raise
     current_scope = await planned.deadline.run(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope),
     )
