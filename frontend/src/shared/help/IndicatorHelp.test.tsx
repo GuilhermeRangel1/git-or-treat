@@ -22,7 +22,7 @@ describe("Ajuda contextual de indicadores", () => {
     vi.stubGlobal("fetch", fetcher);
     render(<IndicatorHelp screen="assistente" />);
     await user.click(
-      screen.getByRole("button", { name: "Entenda os indicadores" }),
+      screen.getByRole("button", { name: /Entenda os indicadores|Ajuda/ }),
     );
     await user.click(
       screen.getByText("Perguntas prontas para usar no Assistente"),
@@ -52,7 +52,7 @@ describe("Ajuda contextual de indicadores", () => {
     const user = userEvent.setup();
     render(<IndicatorHelp screen="receita" />);
     const trigger = screen.getByRole("button", {
-      name: "Entenda os indicadores",
+      name: /Entenda os indicadores|Ajuda/,
     });
     await user.click(trigger);
     const dialog = screen.getByRole("dialog", {
@@ -78,7 +78,7 @@ describe("Ajuda contextual de indicadores", () => {
     const user = userEvent.setup();
     render(<IndicatorHelp screen="assistente" />);
     await user.click(
-      screen.getByRole("button", { name: "Entenda os indicadores" }),
+      screen.getByRole("button", { name: /Entenda os indicadores|Ajuda/ }),
     );
     await user.type(
       screen.getByRole("searchbox"),

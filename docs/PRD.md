@@ -465,6 +465,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 03/11/2026 — DEV-15 — validação web e correções de acessibilidade
+
+- Escopo aprovado: WEB-01 a WEB-07 nas seis jornadas Panorama, Receita, UC 360, Inspeções, Ordens e Operação; dependências DEV-13/DEV-14. GenAI fica com o time responsável; troca real de lote excluída porque só há uma publicação disponível. [Decisão](decisions/registro-escopo-dev15.md).
+- Corrigidos contraste negativo escuro, semântica da decomposição, nome acessível da ajuda e foco/rolagem por teclado dos filtros. Testes da ajuda ajustados ao nome responsivo. [Procedimentos, resultados e limites](validation/2026-11-03-dev15-resumo.md).
+- Evidências observadas em 02–03/11: 135 verificações de estrutura, 44 funcionais, 24 casos axe sem violações após correções, 228 controles CSV/banco, 500 comparações SQL/API, ciclo de ordens em cópia isolada e 72 testes dirigidos de estados de borda. Três validadores somente leitura acompanham a entrega; resultados JSON, capturas, credenciais e ferramentas auxiliares permanecem locais por orientação da pessoa usuária.
+- DEV-15 permanece em validação: WEB-04 sem estimativa individual de energia a recuperar. Próximo passo: implementar/publicar a estimativa e reconciliar Gold/banco/API/portal antes do aceite integral. Estados WEB/IA não foram promovidos automaticamente. Trello sem acesso para sincronização.
+
 ### 02/11/2026 — WEB-03 — identidade do cadastro restrito pelos manifestos
 
 - A pessoa usuária aprovou aceitar timestamp por linha anterior ao manifesto cadastral. A identidade da publicação continua protegida pela igualdade de run, linhagem, `data_processamento_gold` e IDs cruzados entre os manifestos analítico/cadastral. O timestamp das linhas deve ser válido, fuso-horário explícito e uniforme no pacote; sua divergência do manifesto deixa de bloquear a carga. Decisão: [ADR-0023](decisions/0023-timestamps-cadastro-restrito.md).

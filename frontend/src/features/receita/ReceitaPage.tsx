@@ -214,7 +214,23 @@ export default function ReceitaPage() {
         className="mt-2 flex min-w-0 flex-nowrap items-center gap-4 overflow-x-auto rounded-xl bg-surface px-4 py-4"
       >
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <dl className="flex min-w-0 flex-nowrap items-center gap-x-5 overflow-x-auto whitespace-nowrap text-sm">
+          <dl
+            tabIndex={0}
+            aria-label="Filtros aplicados; use as setas para ver todos os filtros"
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+                return;
+              event.preventDefault();
+              event.currentTarget.scrollBy({
+                left:
+                  event.key === "ArrowRight"
+                    ? Math.max(80, event.currentTarget.clientWidth / 4)
+                    : -Math.max(80, event.currentTarget.clientWidth / 4),
+                behavior: "auto",
+              });
+            }}
+            className="flex min-w-0 flex-nowrap items-center gap-x-5 overflow-x-auto whitespace-nowrap text-sm focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+          >
             <div className="w-24 shrink-0">
               <dt className="text-xs text-muted">Mês inicial</dt>
               <dd className="mt-1 truncate font-medium text-content">
