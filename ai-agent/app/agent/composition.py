@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from app.agent.access import ReadAccessPolicy
+from app.agent.documentation import DocumentationResponder
 from app.agent.execution import ExecutionController
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.interpreter import QuestionInterpreter
@@ -35,6 +36,7 @@ def compose_core(
     require_durable_audit: bool = False,
     max_rows: int = 100,
     max_evidence_bytes: int = 16_384,
+    documentation_responder: DocumentationResponder | None = None,
 ) -> CoreServices:
     """Usa um perfil, uma política, uma fonte e um modelo em ambos os fluxos."""
 
@@ -59,6 +61,7 @@ def compose_core(
             execution_controller=execution_controller,
             event_sink=sink,
             require_durable_audit=require_durable_audit,
+            documentation_responder=documentation_responder,
         ),
         insight=ScreenInsightOrchestrator(
             model_adapter,
