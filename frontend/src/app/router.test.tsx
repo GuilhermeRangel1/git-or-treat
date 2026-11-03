@@ -1,5 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import {
@@ -59,15 +65,21 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
     ["Inspeções", "Priorize a próxima inspeção."],
     ["Ordens", "Acompanhe o trabalho de campo."],
     ["Operação", "Continuidade, onde importa."],
+    ["Mapa da RMR", "Faturamento e consumo por município."],
     ["Assistente", "O que você quer investigar?"],
     ["Panorama", "Sua rede, em perspectiva."],
   ]) {
     await user.click(screen.getByRole("link", { name }));
+
     expect(
-      await screen.findByRole("heading", {
-        level: 1,
-        name: title,
-      }),
+      await screen.findByRole(
+        "heading",
+        {
+          level: 1,
+          name: title,
+        },
+        { timeout: 7000 },
+      ),
     ).toBeVisible();
     expect(screen.getByLabelText("Menu lateral principal")).toBe(sidebar);
     expect(screen.getByRole("link", { name })).toHaveAttribute(
@@ -124,10 +136,12 @@ it("mantém a estrutura e o tema ao navegar e consulta dados nas jornadas implem
       "/api/v1/operations/summary",
       "/api/v1/operations/ranking",
       "/api/v1/operations/options",
+      "/api/v1/analytics/options",
+      "/geography/rmr.geojson",
     ]).toContain(path);
   }
   expect(screen.queryByText("FastAPI Online")).not.toBeInTheDocument();
-}, 15000);
+}, 30000);
 
 it("inicia e permite alternar o tema quando o armazenamento está indisponível", async () => {
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
@@ -251,6 +265,52 @@ it("hides cross-links that the current profile cannot open", async () => {
   expect(screen.getByRole("link", { name: "Assistente" })).toBeVisible();
   expect(screen.queryByRole("link", { name: "OperaÃ§Ã£o" })).toBeNull();
   expect(screen.queryByRole("link", { name: "Abrir operaÃ§Ã£o" })).toBeNull();
+});
+
+it("shows Mapa da RMR immediately before Assistente for Comercial and Admin", async () => {
+  renderForProfile("/panorama", "commercial", [
+    "panorama:read",
+    "revenue:read",
+    "ai:ask",
+  ]);
+  await screen.findByRole("heading", { name: "Sua rede, em perspectiva." });
+  const commercialLinks = within(
+    screen.getByLabelText("Menu lateral principal"),
+  )
+    .getAllByRole("link")
+    .map((link) => link.textContent?.trim());
+  expect(commercialLinks.slice(-2)).toEqual(["Mapa da RMR", "Assistente"]);
+
+  cleanup();
+  renderForProfile("/panorama", "admin", [
+    "panorama:read",
+    "revenue:read",
+    "ucs:read",
+    "inspections:read",
+    "orders:read",
+    "orders:write",
+    "operations:read",
+    "ai:ask",
+  ]);
+  await screen.findByRole("heading", { name: "Sua rede, em perspectiva." });
+  const adminLinks = within(screen.getByLabelText("Menu lateral principal"))
+    .getAllByRole("link")
+    .map((link) => link.textContent?.trim());
+  expect(adminLinks.slice(-2)).toEqual(["Mapa da RMR", "Assistente"]);
+  expect(adminLinks.at(-3)).toContain("Opera");
+});
+
+it("denies direct Mapa access for profiles without revenue permission before querying", async () => {
+  const fetchSpy = renderForProfile("/mapa", "customer_service", [
+    "ucs:read",
+    "ai:ask",
+  ]);
+  expect(await screen.findByRole("alert")).toHaveTextContent(/acesso a esta/);
+  expect(
+    fetchSpy.mock.calls.some((call) =>
+      /\/api\/v1\/(analytics\/options|revenue)/.test(String(call[0])),
+    ),
+  ).toBe(false);
 });
 
 it("reserva o diagnostico de contratos para admin com sessao configurada", async () => {

@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   LayoutDashboard,
+  Map,
 } from "lucide-react";
 import type { NavItem } from "@/layouts/navigation";
 import PanoramaPage from "@/features/panorama/PanoramaPage";
@@ -16,6 +17,7 @@ export const UC360Page = lazy(() => import("@/features/uc360/UC360Page"));
 const InspecoesPage = lazy(() => import("@/features/inspecoes/InspecoesPage"));
 const OrdensPage = lazy(() => import("@/features/ordens/OrdensPage"));
 const OperacaoPage = lazy(() => import("@/features/operacao/OperacaoPage"));
+const MapaPage = lazy(() => import("@/features/mapa/MapaPage"));
 const AssistentePage = lazy(
   () => import("@/features/assistente/AssistentePage"),
 );
@@ -92,6 +94,16 @@ export const routes = [
     requiredPermission: "operations:read",
     icon: Activity,
     Component: OperacaoPage,
+  },
+  {
+    path: "/mapa",
+    label: "Mapa da RMR",
+    title: "Faturamento e consumo por município.",
+    subtitle:
+      "Localize variações na Região Metropolitana do Recife e continue a análise em Receita.",
+    requiredPermission: "revenue:read",
+    icon: Map,
+    Component: MapaPage,
   },
   {
     path: "/assistente",

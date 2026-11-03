@@ -273,6 +273,12 @@ O insight do Panorama pode incluir `analysis.composicaoAtual` (opcional): maior 
 
 Detalhamento por bairro requer a dimensão `geography.neighborhood` no escopo validado e reconciliação da projeção de bairros com o total do KPI. A mesma decisão de autorização é aplicada na consulta e na recomputação da auditoria; sem permissão ou reconciliação, a composição não é publicada.
 
+## Adicional Mapa da RMR — contrato de Receita (03/11/2026)
+
+O mapa reutiliza `GET /api/v1/revenue` com agrupamento municipal e, no detalhe selecionado, por bairro; não foi criado endpoint nem alterada regra de produção. A suíte direcionada com fixture Gold v2 artificial passou: `.venv/Scripts/python.exe -m pytest -q tests/test_territory_map_revenue.py tests/test_revenue_dev03.py tests/test_platform_authorization.py` em `backend/` — 76 passaram, 1 aviso de depreciação Starlette/httpx. A fixture cobre séries, meses extremos/deltas absolutos, classe, bairros, zero versus ausência, percentual inelegível, parâmetros/períodos inválidos e autorização.
+
+A suíte completa passou com `ANALYTICS_SOURCE=synthetic`: 1.033 passaram, 114 ignorados e 1 aviso. Em Postgres descartável, oito recortes da publicação Gold v2 foram reconciliados entre CSV, banco e `GET /api/v1/revenue`, sem divergências. Comercial/Admin receberam 200 no catálogo e Operação recebeu 403. No navegador do servidor local existente, Comercial registrou 403 em `analytics/options`; a diferença de sessão/runtime não foi diagnosticada. O acesso financeiro continua sob `revenue:read`. Consulte o [contrato territorial](../contracts/territory-map.md) e o [relatório do adicional](../plans/2026-11-03-mapa-rmr-evidencias.md).
+
 # Atualização de Receita — 02/11/2026
 
 Os snapshots comparativos incluem `measured_energy_kwh`, agregado do consumo medido por competência, independente de faturas. `billed_energy_kwh` continua distinto e nulo quando não publicado. Preço observado e decomposição preço × volume mantêm receita e consumo da base comparável.
