@@ -62,7 +62,7 @@ export default function DistributionGraphic({
         aria-describedby={`${id}-distribution-description`}
         viewBox={donut ? "60 0 280 180" : `0 0 400 ${height}`}
         data-export-viewbox={donut ? `0 0 400 ${height}` : undefined}
-        className={`mx-auto w-full text-content ${donut ? "max-w-[260px]" : "min-w-[260px] max-w-[340px]"}`}
+        className={`w-full text-content ${donut ? "mx-auto max-w-[260px]" : "min-w-[260px] max-w-[420px]"}`}
       >
         <title id={`${id}-distribution-title`}>{data.title}</title>
         <desc id={`${id}-distribution-description`}>

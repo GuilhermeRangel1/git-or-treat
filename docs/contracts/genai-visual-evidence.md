@@ -17,18 +17,21 @@ Não se extraem números da prosa nem se executa código de gráfico do modelo. 
 | Campo | Regra |
 | --- | --- |
 | contract_version | `v1`; independente da versão física Gold v2 |
-| kind | bars, horizontal ou line |
+| kind | bars, horizontal, line ou donut |
 | metric / dimension_ids | identificadores lógicos autorizados do plano, nunca colunas físicas |
 | title / unit / precision | rótulo, unidade e 0–6 casas decimais do catálogo aprovado |
 | period | período canônico do plano; deve coincidir com o contexto da resposta |
 | points | 1–100 observações com ID `row_N`, rótulo de negócio e número finito |
-| plot_points | subconjunto exato de até 24 pontos (dez para categorias); tabela/CSV preservam a lista retornada |
+| plot_points | subconjunto exato de até 24 pontos (dez para barras de categorias); rosca conserva até 100 pontos autorizados, agrupados pelo Backend para apresentação; tabela/CSV preservam a lista retornada |
 | category_label / note | dimensão legível e alcance do resultado, incluindo ranking/top N |
+| total / sectors | somente rosca: total observado positivo, até seis setores com valor/percentual e IDs exatos das parcelas; soma e participação conferidas no servidor e decoder |
 | reading | leitura determinística opcional: resumo, próximo passo e IDs exatos das observações exibidas |
 
 O mapper confere plano, proveniência, filtros, publicação, unidade e período; IDs e valores do subconjunto precisam coincidir exatamente. Payload visual acima de 32 KiB é omitido. Fontes sem proveniência, decomposição publicada e múltiplas dimensões de agrupamento mantêm a resposta textual, sem inventar gráfico.
 
-Uma observação permanece indicador. Categorias usam barras horizontais. Série temporal com pelo menos três competências consecutivas e ordenadas usa linha; duas competências ou lacunas usam barras. Nenhuma linha atravessa ausência como continuidade comprovada. Métricas não aditivas não são somadas nem convertidas em participação.
+Uma observação permanece indicador. Rankings usam barras horizontais. Agrupamentos de receita faturada ou consumo medido, em uma única competência, sem ordenação/ranking, com rótulos únicos, valores não negativos, soma positiva finita e quantidade inferior ao limite da consulta usam rosca. O total descreve os valores observados; não certifica fechamento mensal. Backend calcula total, percentuais e até seis setores ou cinco maiores + Demais sobre os mesmos agregados; schema e decoder conferem soma e IDs sem sobreposição. A apresentação reutiliza o componente do Panorama, com tabela/CSV completos. As demais categorias usam barras horizontais. Leitura opcional com mais de 24 referências é omitida para preservar seu limite, mantendo resposta, rosca e tabela. Série temporal com pelo menos três competências consecutivas e ordenadas usa linha; duas competências ou lacunas usam barras. Nenhuma linha atravessa ausência como continuidade comprovada. Métricas não aditivas não são somadas nem convertidas em participação.
+
+Quando não há ordenação explícita no plano, as barras de categorias exibem os dez maiores valores, com desempate pelo rótulo; tabela/CSV mantêm todos os pontos retornados na ordem original. Ordenação explícita (inclusive menores primeiro) é preservada. O alcance aparece na nota e a leitura só usa os IDs exibidos. Barras horizontais e verticais alinham-se à esquerda do cartão, preservando rolagem local e escala a partir de zero.
 
 Expressões como “entre as classes” e “entre os municípios” designam agrupamento; elas não acionam a exigência de dois períodos. Intervalos temporais incompletos continuam pedindo esclarecimento.
 

@@ -1,3 +1,4 @@
+import { chatChartPoints } from "./visualization";
 import { verifyVisualExport } from "@/shared/analytics/verifyVisualExport";
 import VisualEvidence from "@/shared/analytics/VisualEvidence";
 import { isGoldPublicationStale } from "@/shared/analytics/goldPublication";
@@ -302,14 +303,7 @@ function AssistantResult({
             ].join(" · "),
             categoryLabel: response.visualization.category_label,
             note: response.visualization.note,
-            points: response.visualization.plot_points.map((p) => ({
-              label: formatVisualLabel(p.label),
-              value: p.value,
-            })),
-            tablePoints: response.visualization.points.map((p) => ({
-              label: formatVisualLabel(p.label),
-              value: p.value,
-            })),
+            ...chatChartPoints(response.visualization, formatVisualLabel),
           }}
         />
       )}

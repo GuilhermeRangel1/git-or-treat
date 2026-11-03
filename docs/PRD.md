@@ -3803,6 +3803,20 @@ passaram; Ruff passou. Sem chamada externa.
 
 Os complementos locais acima foram preparados para publicação na mesma branch do PR #116: `ee77230` (reuso de síntese), `33a030c` (concentração antecipada) e `80ac907` (consumidor estável e recorte). As referências anteriores a ausência de commit descrevem o estado durante as validações. Esta atualização documental integra o quarto commit autorizado; segredos, credenciais, scripts privados de navegação e artefatos locais permanecem fora do Git. O push não equivale a merge nem a aprovação da CI remota.
 
+### 2026-11-03 — IA-01 / IA-02 / IA-03 / IA-05 — perguntas e apresentação dos gráficos
+
+- Correção executável local na mesma branch dos gráficos, ainda sem novo commit/push: removido bloqueio legado de “mês a mês”; consumo medido admite agrupamento por município/classe/bairro nas fontes já autorizadas. Datas, cobertura, permissões, comparação agrupada e limites permanecem validados no núcleo e no Backend, sem nova credencial ou concessão.
+- Respostas por categoria resumem os agregados consultados; comparação usa números pt-BR e meses legíveis, sem rótulos técnicos de observações derivadas. Runner de aceites atualizado para o formato, mantendo teste de meses trocados. Gráficos categóricos mostram os dez maiores valores por padrão, respeitam ordenação explícita e preservam todos os grupos na tabela/CSV. Barras alinhadas à esquerda.
+- Cinco perguntas reportadas repetidas na API pública com Gold v2 e Gemini reais: série de seis meses, receita por classe, ranking municipal de consumo, distribuição municipal da receita e comparação de dois meses. Todas `answered` com `data → complete`; os 41 pontos retornados, inclusive prévia/final, bateram com SQL independente no leitor restrito. Tempos completos observados: 15,8–18,8 s; amostra exploratória, sem SLA.
+- Chromium no portal real confirmou a resposta final do ranking, alinhamento em 320/390/1440 px e dois temas, tabela de 14 municípios e PNG/CSV; zero erros JS. Uma reprodução adicional do retorno já reconciliado gerou captura, sem nova chamada de modelo. Conversas criadas nos testes removidas; demais conversas e dados preservados.
+- Verificações: 349 regressões GenAI, 36 do runner, 30 Backend e 44 frontend aprovadas; build, fronteiras (218 arquivos), Ruff direcionado e `git diff --check` passaram. Lint frontend mantém só aviso anterior do AuthProvider. Docker local reconstruído com o código final; contratos/guia/evidência atualizados. Estados oficiais IA e cobertura de Dados preservados.
+
+### 2026-11-03 — IA-07 — escolha de gráficos no Assistente
+
+- Correção local: o chat aceitava somente barras e linha, embora a rosca já existisse no Panorama. Backend e decoder passam a aceitar rosca nas distribuições de receita/consumo de uma competência, sem ranking, com valores não negativos, soma positiva e resultado inferior ao limite do plano. Ranking permanece em barras e evolução contínua em linha.
+- Portal reaproveita a rosca existente, agrupa cinco maiores + Demais quando há mais de seis categorias e conserva todos os valores na tabela/CSV. Sem nova chamada ao modelo para desenhar ou selecionar gráfico; estados oficiais e cobertura de Dados preservados.
+- Verificações: 36 testes Backend e 47 frontend passaram; build, fronteiras, Ruff e diff passaram; lint somente com aviso preexistente de AuthProvider. Cinco consultas Gold v2/Gemini reais geraram linha, duas roscas, ranking horizontal e comparação vertical; 41 pontos reconciliados com SQL independente. Chromium repetiu a resposta real reconciliada em 320/390/1440 px, claro/escuro, seis setores/14 linhas, PNG/CSV e sem erros JS; conversa do teste removida. Detalhes no plano de gráficos. Sem commit/push nesta fatia.
+
 ### 2026-11-03 — IA-01 / IA-07 — divisão entre classes sem falso intervalo temporal
 
 - Interpretador reconhece “entre as classes”/“entre os municípios” como agrupamento pelas dimensões autorizadas e retira apenas essa referência da checagem de intervalo temporal. Um intervalo realmente incompleto ainda pede esclarecimento. Sem alteração no escopo, evidência, SQL ou permissões.

@@ -1,5 +1,4 @@
 import pytest
-
 from app.schemas.ai import AIQuestionResponse
 from app.schemas.genai_evidence import EvidenceLookupResult
 from app.schemas.genai_plan import LogicalReadPlan
@@ -125,6 +124,100 @@ def test_broken_series_is_not_connected_as_continuous(scenario):
     assert build_chat_visualization(plan, lookup, response).kind == "bars"
 
 
+@pytest.mark.parametrize("direction", [None, "asc"])
+@pytest.mark.parametrize("count", [14, 30])
+def test_category_plot_keeps_largest_values_unless_explicitly_ordered(
+    scenario, direction, count
+):
+    from datetime import date
+
+    from app.schemas.genai_plan import ReadOrder
+
+    plan, lookup, response = scenario
+    plan = plan.model_copy(
+        update={
+            "filters": (),
+            "group_by_dimension_ids": ("geography.municipality",),
+            "window": plan.window.model_copy(update={"end": date(2026, 6, 30)}),
+            "order": ReadOrder(field_id=plan.metric_id, direction=direction)
+            if direction
+            else None,
+        }
+    )
+    lookup.evidence = lookup.evidence.model_copy(
+        update={
+            "provenance": lookup.evidence.provenance.model_copy(
+                update={
+                    "plan_fingerprint": plan.fingerprint(),
+                    "window": plan.window,
+                    "filters": (),
+                }
+            ),
+        }
+    )
+    lookup.evidence.records = [
+        {"municipality": f"Grupo {i:02}", "period": "2026-06", "unit": "R$", "value": i}
+        for i in range(1, count + 1)
+    ]
+    response.analysis_context.filters = {}
+    response.analysis_context.period = "2026-06-01 a 2026-06-30"
+    visual = build_chat_visualization(plan, lookup, response)
+    assert [p.value for p in visual.points] == list(range(1, count + 1))
+    expected = list(range(1, 11)) if direction else list(range(1, count + 1))
+    assert visual.kind == ("horizontal" if direction else "donut")
+    assert [p.value for p in visual.plot_points] == expected
+    if count <= 24 or direction:
+        assert set(visual.reading.observation_ids) == {
+            p.observation_id for p in visual.plot_points
+        }
+    else:
+        assert visual.reading is None
+    if direction:
+        assert f"todas as {count}" in visual.note
+    else:
+        assert "total observado" in visual.note
+        assert visual.total == sum(range(1, count + 1))
+        assert len(visual.sectors) == 6
+        assert sum(s.value for s in visual.sectors) == visual.total
+        assert sum(s.percentage for s in visual.sectors) == pytest.approx(100)
+        changed = visual.model_dump()
+        changed["sectors"][0]["value"] += 1
+        with pytest.raises(ValueError):
+            type(visual).model_validate(changed)
+
+
+@pytest.mark.parametrize("reason", ["negative", "zero", "limit", "periods"])
+def test_unsafe_partition_keeps_bars(scenario, reason):
+    plan, lookup, response = scenario
+    plan = plan.model_copy(
+        update={
+            "group_by_dimension_ids": ("geography.municipality",),
+            "limit": 2 if reason == "limit" else 100,
+        }
+    )
+    lookup.evidence.provenance = lookup.evidence.provenance.model_copy(
+        update={
+            "plan_fingerprint": plan.fingerprint(),
+        }
+    )
+    lookup.evidence.records = [
+        {
+            "municipality": "Recife",
+            "period": "2026-06",
+            "unit": "R$",
+            "value": 0 if reason == "zero" else 100,
+        },
+        {
+            "municipality": "Olinda",
+            "period": "2026-07" if reason == "periods" else "2026-06",
+            "unit": "R$",
+            "value": -5 if reason == "negative" else 0,
+        },
+    ]
+    visual = build_chat_visualization(plan, lookup, response)
+    assert visual.kind == "horizontal"
+
+
 def test_response_cannot_relabel_authorized_points_as_another_period(scenario):
     plan, lookup, response = scenario
     response.analysis_context.period = "2025-01-01 a 2025-03-31"
@@ -166,7 +259,6 @@ def test_upstream_cannot_supply_public_chart(scenario):
     import asyncio
 
     import httpx
-
     from app.schemas.ai import AIQuestionRequest
     from app.services.genai_client import GenAIQuestionClient
 
@@ -213,6 +305,7 @@ def test_coordinator_attaches_points_after_existing_synthesis(scenario, monkeypa
     from app.services.genai_deadline import GenAIRequestDeadline
     from app.services.genai_planning import GoldPlanningResult
     from app.services.gold_catalog import load_gold_catalog
+
     from tests.test_genai_continuation import SCOPE
 
     plan, lookup, response = scenario

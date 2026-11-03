@@ -169,6 +169,7 @@ export default function VisualEvidence({
                 aria-labelledby={`${id}-chart-title`}
                 aria-describedby={`${id}-chart-desc`}
                 viewBox={`0 0 ${width} 270`}
+                preserveAspectRatio="xMinYMin meet"
                 style={{
                   minWidth: Math.max(260, data.points.length * cellWidth),
                 }}

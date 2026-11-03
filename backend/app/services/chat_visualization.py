@@ -1,12 +1,17 @@
 """Monta pontos de negócio sem extrair números da prosa ou executar consultas."""
 
 from datetime import datetime
+from decimal import Decimal
 from hashlib import sha256
 from itertools import pairwise
 from math import isfinite
 
 from app.schemas.ai import AIAnalysisContext, AIQuestionResponse
-from app.schemas.chat_visualization import ChatVisualization, ChatVisualPoint
+from app.schemas.chat_visualization import (
+    ChatVisualization,
+    ChatVisualPoint,
+    ChatVisualSector,
+)
 from app.schemas.genai_evidence import EvidenceLookupResult, EvidenceLookupStatus
 from app.schemas.genai_plan import LogicalReadPlan
 from app.services.genai_client import GenAIResponseInvalid
@@ -194,13 +199,67 @@ def build_chat_visualization(
     kind = (
         "horizontal" if category else "line" if not category and continuous else "bars"
     )
-    maximum = 10 if kind == "horizontal" else 24
-    plotted = points[:maximum] if kind == "horizontal" else points[-maximum:]
+    # Participação do total observado só para somas de uma única competência,
+    # sem ranking nem resultado possivelmente cortado pelo limite da consulta.
+    if (
+        category
+        and len(periods) == 1
+        and plan.order is None
+        and plan.metric_id in {"billing.revenue", "energy.consumption"}
+        and 1 < len(points) < plan.limit
+        and len({p.label for p in points}) == len(points)
+        and all(p.value >= 0 for p in points)
+        and 0 < sum(Decimal(str(p.value)) for p in points) < Decimal("1e308")
+    ):
+        kind = "donut"
+    maximum = 100 if kind == "donut" else 10 if kind == "horizontal" else 24
+    # Sem ranking explícito, os maiores grupos dão uma visão útil do recorte;
+    # a tabela/CSV preservam todos os pontos e sua ordem original.
+    display_points = (
+        sorted(points, key=lambda point: (-point.value, point.label))
+        if kind == "horizontal" and plan.order is None
+        else points
+    )
+    plotted = display_points[:maximum] if kind == "horizontal" else points[-maximum:]
     note = f"{len(points)} observações retornadas pela consulta autorizada."
+    if kind == "donut":
+        note += " Participação no total observado; até seis setores, com grupos excedentes reunidos em Demais."
     if plan.order is not None and plan.group_by_dimension_ids:
         note += " O resultado pode ser um ranking, não uma distribuição completa."
     if len(plotted) != len(points):
-        note += f" Gráfico: {len(plotted)} observações; tabela e CSV: todas as {len(points)}."
+        subset = (
+            "maiores valores"
+            if kind == "horizontal" and plan.order is None
+            else "observações"
+        )
+        note += (
+            f" Gráfico: {len(plotted)} {subset}; tabela e CSV: todas as {len(points)}."
+        )
+    total, sectors = None, None
+    if kind == "donut":
+        ranked = sorted(points, key=lambda p: (-p.value, p.label))
+        total = sum(Decimal(str(p.value)) for p in ranked)
+        groups = (
+            [[p] for p in ranked]
+            if len(ranked) <= 6
+            else [
+                *[[p] for p in ranked[:5]],
+                ranked[5:],
+            ]
+        )
+        sectors = []
+        for group in groups:
+            value = sum(Decimal(str(p.value)) for p in group)
+            sectors.append(
+                ChatVisualSector(
+                    label=group[0].label
+                    if len(group) == 1
+                    else f"Demais grupos ({len(group)})",
+                    value=float(value),
+                    percentage=float(value / total * 100),
+                    observation_ids=tuple(p.observation_id for p in group),
+                )
+            )
     result = ChatVisualization(
         kind=kind,
         metric=plan.metric_id,
@@ -213,8 +272,14 @@ def build_chat_visualization(
         note=note,
         points=points,
         plot_points=plotted,
-        reading=build_visual_reading(
-            plotted, kind=kind, unit=plan.unit, precision=metric.rounding.decimals
+        total=float(total) if total is not None else None,
+        sectors=sectors,
+        reading=(
+            build_visual_reading(
+                plotted, kind=kind, unit=plan.unit, precision=metric.rounding.decimals
+            )
+            if len(plotted) <= 24
+            else None
         ),
     )
     return result if len(result.model_dump_json().encode("utf-8")) <= 32768 else None

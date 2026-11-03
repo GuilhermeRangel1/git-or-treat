@@ -185,6 +185,51 @@ Verificação na árvore integrada:186 testes Backend passaram na imagem Docker 
 
 Os complementos locais acima foram preparados para publicação na mesma branch do PR #116: `ee77230` (reuso de síntese), `33a030c` (concentração antecipada) e `80ac907` (consumidor estável e recorte). As referências anteriores a ausência de commit descrevem o estado durante as validações. Esta atualização documental integra o quarto commit autorizado; segredos, credenciais, scripts privados de navegação e artefatos locais permanecem fora do Git. O push não equivale a merge nem a aprovação da CI remota.
 
+### Correções após perguntas no portal — 03/11/2026
+
+As imagens reportadas mostraram restrições legadas de linguagem/capacidade e apresentação inadequada. A extensão usa o mesmo perfil Gold v2, o orquestrador, executor e renderer compartilhado; não adiciona SQL, fonte, permissão ou chamada Gemini para desenhar. Cadência mensal explícita deixa de ser recusada; município/classe/bairro de consumo usam agrupamentos autorizados. Datas incompletas, ausência de cobertura e comparação de bairro continuam sujeitas aos controles existentes. Categorias sem ordem explícita mostram os dez maiores valores e informam o alcance; todas as observações permanecem na tabela/CSV. Ordens explícitas são preservadas. Resposta resumida e comparação pt-BR derivam das observações verificadas; o runner mantém vínculo mês/valor no novo formato.
+
+Reprodução privada no localhost, com sessão existente e agregados minimizados autorizados:
+
+| Pergunta | Resultado final | Pontos reconciliados com SQL |
+| --- | --- | --- |
+| Como evoluiu o consumo medido em Recife, mês a mês, de janeiro a junho de 2026? | `answered`, linha | 6 |
+| Mostre a receita faturada por classe em Recife em junho de 2026. | `answered`, barras horizontais | 5 |
+| Quais municípios tiveram maior consumo medido em junho de 2026? | `answered`, barras horizontais | 14 |
+| Distribua a receita faturada por município em junho de 2026. | `answered`, barras horizontais | 14 |
+| Compare o consumo medido em Recife entre janeiro e junho de 2026. | `answered`, barras verticais | 2 |
+
+Os cinco fluxos emitiram `data → complete`; prévia, pontos finais e SQL independente reconciliados. Tempos completos 16,910 / 18,761 / 15,830 / 16,265 / 17,247 s, respectivamente; não são SLA. Fonte de conferência: somas independentes da projeção Gold v2 autorizada, sem reutilizar o builder SQL nem extrair números do texto. Scripts/payloads/sessões/capturas ficam ignorados em `frontend/visual.local`, sem dados privados no Git.
+
+Chromium com sessão real e nova pergunta de ranking confirmou resposta final, barras à esquerda, ausência de overflow em 320/390/1440 px e ambos os temas, 14 linhas na tabela e downloads PNG/CSV. Captura adicional por repetição do retorno autorizado, sem nova geração; zero erros JavaScript. Conversas de teste removidas, inclusive a primeira rodada interrompida por espera inadequada no script; conversas anteriores preservadas. O roteiro passou a esperar a mensagem final exibida, e a medição geométrica usa o SVG do gráfico em vez do ícone do botão.
+
+Comandos de regressão executados no Docker (GenAI com cópias de testes e contratos do repositório; Backend com bind da worktree):
+
+- GenAI `python -m pytest -q tests/test_gold_visual_questions.py tests/test_gold_planning_http.py tests/test_core_plan_synthesis.py tests/test_interpreter.py tests/test_interpreter_rules.py tests/test_gold_question_filters.py tests/test_gold_receptivity.py`: 349 passaram.
+- Runner `python -m pytest -q tests/test_gold_domain_runner_integration.py`: 36 passaram, incluindo rejeição dos meses trocados no formato novo e antigo.
+- Backend `python -m pytest -q tests/test_chat_visualization.py tests/test_chat_visualization_history.py tests/test_visual_reading.py tests/test_visual_export.py`: 30 passaram.
+- Frontend `npm test -- src/shared/analytics/VisualEvidence.test.tsx src/features/assistente/visualization.test.ts src/features/assistente/AssistentePage.test.tsx`: 44 passaram. `npm run build`, `npm run check:boundaries` (218 arquivos) e Ruff direcionado passaram; `npm run lint` mantém aviso preexistente do AuthProvider.
+
+Backend reiniciado e imagem final do ai-agent reconstruída sem reexecutar loader ou alterar o volume Gold. Nova fatia local ainda sem commit/push; estados oficiais e homologação de cobertura permanecem os anteriores.
+
+## Correção da seleção de gráfico no chat — 03/11/2026
+
+O tipo donut existia somente no componente/Panorama. O chat restringia schema e decoder a bars/horizontal/line; a pergunta de distribuição por município sempre virava barras. A afirmação anterior de setorial no chat era incorreta.
+
+Agora o mapper considera rosca para billing.revenue e energy.consumption agrupados em uma competência, sem order, com 2–99 categorias únicas, valores não negativos e total positivo finito. Resultado que atinge o limit do plano permanece barras; médias, índices e múltiplos períodos também. O total é dos valores observados, sem inferir cobertura mensal. Schema/decoder validam parcela e conjunto exato; até 100 referências visuais permitem representar grupos reais antes de condensar a legenda. Backend monta total e setores com valor, percentual e IDs das parcelas; schema e decoder conferem soma, participação e cobertura exata do conjunto sem repetição. O portal apenas formata/renderiza os setores recebidos. A leitura opcional conserva seu limite de 24 IDs e é omitida para conjuntos maiores. Tabela/CSV mantêm a lista individual completa e a rosca reutiliza o renderer/PNG do Panorama com até seis setores ou cinco maiores + Demais.
+
+Verificações executadas nesta fatia:
+
+- `docker exec dev131-gold-backend-1 python -m pytest -q tests/test_chat_visualization.py tests/test_chat_visualization_history.py tests/test_visual_reading.py tests/test_visual_export.py`: 36 passaram. Inclui 14/30 categorias, ranking ascendente, negativos, soma zero, limite da consulta e múltiplos períodos.
+- `npm test -- --run src/features/assistente/visualization.test.ts src/shared/analytics/VisualEvidence.test.tsx src/features/assistente/AssistentePage.test.tsx`: 47 passaram. Rosca soma 105 no controle de 14 grupos, cinco maiores + Demais de 45, tabela completa, percentuais somando aproximadamente 100%; parcelas negativas e total zero recusados.
+- Build TypeScript/Vite, fronteiras (218 arquivos), Ruff e diff passaram; lint somente com aviso preexistente em AuthProvider. Arquivos TypeScript formatados com Prettier.
+- Cinco perguntas pela API pública, mesma Gold v2 local e Gemini real: série mensal line (6 pontos, 17,067s), classe donut (5, 15,813s), ranking horizontal (14, 15,590s), distribuição municipal donut (14, 15,920s), comparação bars (2, 15,620s). Todas answered, com data e complete. Os 41 pontos de prévia/final foram reconciliados com SQL independente somente leitura pelo leitor existente.
+- Chromium com repetição da resposta Gold real anterior, sessão real e conta existente: rosca com seis setores/14 linhas em 320/390/1440, dois temas, PNG/CSV e zero erros JS. Provas locais ignoradas em frontend/visual.local; conversa criada foi removida. O teste inicial teve seletor ambíguo entre legenda SVG de exportação e legenda visível; corrigido no probe privado para consultar apenas a lista visível, sem alteração do produto.
+
+Backend reiniciado para aplicar o seletor; frontend recebe a alteração pelo bind mount/HMR. Conversas salvas anteriormente mantêm seu gráfico antigo. Nova pergunta usa a seleção nova. Nenhum commit/push nesta fatia.
+
+- Complemento do contrato final: total e percentuais dos setores foram movidos para o Backend, conforme o cartão. A distribuição municipal foi repetida pela API/Gold/Gemini real (16,569s); os 14 pontos continuaram reconciliados com SQL independente. Chromium repetiu esse retorno final e aprovou seis setores, 14 linhas, PNG/CSV, dois temas e três larguras; a conversa foi removida. Os mesmos 36 testes Backend e 47 frontend passaram após a mudança do contrato, assim como build, lint/fronteiras e Ruff. As cinco consultas anteriores não devem ser contadas como cinco rodadas adicionais do contrato final de setores.
+
 ## Correção de “entre as classes” — 03/11/2026
 
 A validação de calendário tratava qualquer “entre” restante após remover as datas como um intervalo incompleto. O interpretador agora reconhece “entre [as/os] <dimensão>” no mesmo ponto de agrupamento existente e mascara essa referência antes de verificar extremos temporais. Valores específicos após a dimensão continuam filtros; janelas reais incompletas continuam bloqueadas. Há regressões para a pergunta exata de Olinda/junho2026, consumo entre municípios e intervalo desde março sem extremo final.
