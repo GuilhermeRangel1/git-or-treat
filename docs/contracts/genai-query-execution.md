@@ -2,6 +2,17 @@
 
 **Versão vigente:** envelopes internos v1, catálogo lógico v1 e mapeamento Gold v2.
 
+## Respostas documentais conceituais — 03/11/2026
+
+O planejamento interno admite `answered`/`no_evidence` sem plano para a busca
+documental autorizada. `answered` exige `documentation_reference` (ID/versão).
+O núcleo pode fazer uma seleção semântica limitada para conceitos; planos
+quantitativos continuam determinísticos. Backend confere texto e citação no corpus
+aprovado, reautoriza e audita antes de publicar. Não executa SQL para a explicação.
+[Contrato, implantação e limites](genai-documentation-search.md).
+Os estados públicos v1 existentes são preservados. Os trechos históricos abaixo
+sobre modelo somente na síntese descrevem o fluxo quantitativo anterior.
+
 ## Recuperação de esclarecimentos — 03/11/2026
 
 `QuestionPlanResponse` pode incluir `pending_question` (texto de até 1.000 caracteres)
