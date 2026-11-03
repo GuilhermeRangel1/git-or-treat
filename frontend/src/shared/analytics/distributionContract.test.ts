@@ -94,3 +94,26 @@ it("valida Demais municípios contra toda a lista e recusa resumo adulterado", (
     ),
   ).toThrow();
 });
+
+it("confere concentração contra todos os grupos do período antes de antecipar a leitura", () => {
+  const composition = {
+    dimension: "municipio",
+    segmento: "B",
+    valor: 70,
+    participacaoPercentual: 70,
+  };
+  const value = { ...partition, composicaoReceita: composition };
+  expect(decodeDistribution(value, filters, metric)?.composicaoReceita).toEqual(
+    composition,
+  );
+  for (const wrong of [
+    { periodo: "2026-05" },
+    { composicaoReceita: { ...composition, participacaoPercentual: 71 } },
+    { composicaoReceita: { ...composition, segmento: "A" } },
+    { composicaoReceita: { ...composition, dimension: "classe" } },
+  ]) {
+    expect(() =>
+      decodeDistribution({ ...value, ...wrong }, filters, metric),
+    ).toThrow();
+  }
+});

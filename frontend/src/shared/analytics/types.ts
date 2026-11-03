@@ -83,6 +83,12 @@ export interface PanoramaData {
 }
 
 export interface PanoramaDistribution {
+  composicaoReceita?: {
+    dimension: "municipio" | "classe";
+    segmento: string;
+    valor: number;
+    participacaoPercentual: number;
+  } | null;
   reading?: import("./visualReading").VisualReading | null;
   dimension: "municipio" | "classe";
   periodo: string;

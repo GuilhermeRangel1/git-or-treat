@@ -231,9 +231,15 @@ export default function AIInsightCard({
   const metric = isDemo
     ? data.metricas.energiaFaturada
     : data.metricas.receitaFaturada;
-  // A failed refetch can leave TanStack Query's previous response in `data`.
-  // Never present that cached interpretation as current after an error.
   const publicationStale = !isDemo && isGoldPublicationStale();
+  const apiError =
+    query.error instanceof PanoramaInsightApiError ? query.error : null;
+  const keepLastAnalysis =
+    query.isError &&
+    apiError?.retryable === true &&
+    ![401, 403, 409].includes(apiError.status ?? 0) &&
+    apiError.code !== "invalid_context" &&
+    query.data?.insight?.status === "answered";
   function canExportChart() {
     if (isDemo) return true;
     if (publicationStale || !data.origem?.fingerprint) return false;
@@ -247,7 +253,7 @@ export default function AIInsightCard({
     });
   }
   const response =
-    publicationStale || query.isError || (!isDemo && query.isFetching)
+    publicationStale || (query.isError && !keepLastAnalysis)
       ? undefined
       : query.data;
   const insight = response?.insight;
@@ -255,9 +261,8 @@ export default function AIInsightCard({
   const pending =
     !publicationStale &&
     data.totalRegistros > 0 &&
+    insight?.status !== "answered" &&
     (query.isPending || query.isFetching);
-  const apiError =
-    query.error instanceof PanoramaInsightApiError ? query.error : null;
   const isStale = publicationStale || apiError?.code === "invalid_context";
   const canRetryResponse =
     insight?.status === "recoverable_error" &&
@@ -284,6 +289,28 @@ export default function AIInsightCard({
       ].map(businessLanguage),
     ),
   ];
+
+  const observedAnalysis: PanoramaInsightAnalysis = {
+    direcao:
+      metric.variacaoAbsoluta == null
+        ? "indisponivel"
+        : metric.variacaoAbsoluta > 0
+          ? "alta"
+          : metric.variacaoAbsoluta < 0
+            ? "queda"
+            : "estavel",
+    variacaoPercentual: metric.variacaoPercentual ?? null,
+    principalContribuicao: null,
+    compensacao: null,
+    composicaoAtual:
+      metric.variacaoAbsoluta == null
+        ? data.distribuicao?.composicaoReceita
+        : null,
+  };
+  const observedReading =
+    metric.valorAtual == null
+      ? "Não há valor disponível para interpretar este recorte."
+      : describeTrend(observedAnalysis, metric, filters);
 
   let stateMessage = "";
   if (publicationStale) {
@@ -331,6 +358,12 @@ export default function AIInsightCard({
     if (insight?.status !== "answered") return null;
     return (
       <div className="space-y-3 text-sm leading-6 text-content">
+        {keepLastAnalysis && (
+          <p role="status" className="text-xs text-muted">
+            Última análise disponível. A conferência de atualização está
+            pendente.
+          </p>
+        )}
         <p className="font-medium">
           {analysis
             ? describeTrend(analysis, metric, filters)
@@ -357,7 +390,7 @@ export default function AIInsightCard({
   return (
     <section
       aria-label="Insight contextual do Panorama"
-      className={`flex w-full min-w-0 flex-col gap-4 rounded-xl border p-4 shadow-sm ${data.totalRegistros === 0 || query.isError || (insight && insight.status !== "answered") ? "border-[var(--status-warning)] bg-[var(--accent-goiaba-subtle)]" : "border-border bg-[var(--accent-pistache-subtle)]"}`}
+      className={`flex w-full min-w-0 flex-col gap-4 rounded-xl border p-4 shadow-sm ${data.totalRegistros === 0 || (query.isError && !keepLastAnalysis) || (insight && insight.status !== "answered") ? "border-[var(--status-warning)] bg-[var(--accent-goiaba-subtle)]" : "border-border bg-[var(--accent-pistache-subtle)]"}`}
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
@@ -405,7 +438,7 @@ export default function AIInsightCard({
                 {metric.valorAnterior == null
                   ? filters.comparacao === "nenhuma"
                     ? "Sem comparação selecionada"
-                    : "Leitura dos valores observados no período"
+                    : `${comparisonLabel(filters)}: comparação indisponível neste recorte`
                   : `${comparisonLabel(filters)}: ${formatValue(metric.valorAnterior, metric.unidade)}${metric.variacaoAbsoluta == null ? "" : ` · variação ${formatValue(metric.variacaoAbsoluta, metric.unidade)}`}`}
               </p>
             </>
@@ -418,14 +451,23 @@ export default function AIInsightCard({
           Leitura do recorte
         </p>
         {pending ? (
-          <p
-            role="status"
-            aria-live="polite"
-            className="mt-2 text-sm leading-6 text-content"
-          >
-            <span className="mr-2 inline-block size-3 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent-pistache)] align-[-2px]" />
-            Recorte alterado · atualizando a interpretação.
-          </p>
+          <div className="mt-2 space-y-2">
+            <p className="text-sm font-medium leading-6 text-content">
+              {observedReading}
+            </p>
+            <p className="border-l-2 border-[var(--accent-pistache)] pl-3 text-xs leading-5 text-muted">
+              <span className="font-semibold text-content">Próximo passo:</span>{" "}
+              {compactNextStep(observedAnalysis)}
+            </p>
+            <p
+              role="status"
+              aria-live="polite"
+              className="mt-2 text-sm leading-6 text-content"
+            >
+              <span className="mr-2 inline-block size-3 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent-pistache)] align-[-2px]" />
+              Preparando a interpretação da IA…
+            </p>
+          </div>
         ) : insight?.status === "answered" ? (
           <div className="mt-2 space-y-1.5 text-sm leading-5 text-content">
             <p className="font-medium">
@@ -472,6 +514,11 @@ export default function AIInsightCard({
                 Sem evidência suficiente
               </p>
             )}
+            {!isStale && (apiError?.retryable || canRetryResponse) && (
+              <p className="mb-2 text-sm font-medium leading-6 text-content">
+                {observedReading}
+              </p>
+            )}
             {!isStale && query.isError && (
               <p className="mb-1 text-xs font-semibold text-[var(--status-danger)]">
                 O insight não está disponível agora.
@@ -490,6 +537,12 @@ export default function AIInsightCard({
               {stateMessage}
             </p>
           </div>
+        )}
+        {keepLastAnalysis && (
+          <p role="status" className="mt-2 text-xs leading-5 text-muted">
+            Exibindo a última análise deste recorte. A conferência de
+            atualização está pendente.
+          </p>
         )}
         {((query.isError && (apiError?.retryable || isStale)) ||
           canRetryResponse) && (
@@ -600,7 +653,7 @@ export default function AIInsightCard({
                       {metric.valorAnterior == null
                         ? filters.comparacao === "nenhuma"
                           ? "Sem comparação selecionada"
-                          : "Leitura dos valores observados no período"
+                          : `${comparisonLabel(filters)}: comparação indisponível neste recorte`
                         : `${comparisonLabel(filters)}: ${formatValue(metric.valorAnterior, metric.unidade)}${metric.variacaoAbsoluta == null ? "" : ` · variação ${formatSignedValue(metric.variacaoAbsoluta, metric.unidade)}`}`}
                     </p>
                   </>
@@ -701,9 +754,16 @@ export default function AIInsightCard({
                 </h3>
                 <div className="mt-3">
                   {pending ? (
-                    <p role="status" className="text-sm leading-6 text-muted">
-                      Atualizando a interpretação para o recorte atual.
-                    </p>
+                    <div className="space-y-3 text-sm leading-6">
+                      <p className="font-medium">{observedReading}</p>
+                      <p>
+                        <span className="font-semibold">Próximo passo:</span>{" "}
+                        {compactNextStep(observedAnalysis)}
+                      </p>
+                      <p role="status" className="text-muted">
+                        Preparando a análise complementar…
+                      </p>
+                    </div>
                   ) : insight?.status === "answered" ? (
                     renderAnalysis()
                   ) : (

@@ -26,6 +26,7 @@ export function decodeDistribution(
           "visual",
           "agrupados",
           "reading",
+          "composicaoReceita",
         ].includes(k),
     )
   )
@@ -149,6 +150,35 @@ export function decodeDistribution(
         return fail();
     }
   } else if (v.pontos.length > 24) return fail();
+  const composition = v.composicaoReceita;
+  if (composition != null) {
+    const point = v.pontos.find((p) => p.segmento === composition.segmento);
+    if (
+      typeof composition !== "object" ||
+      Array.isArray(composition) ||
+      Object.keys(composition).some(
+        (k) =>
+          ![
+            "dimension",
+            "segmento",
+            "valor",
+            "participacaoPercentual",
+          ].includes(k),
+      ) ||
+      composition.dimension !== dimension ||
+      v.total <= 0 ||
+      !point ||
+      point.valor !== composition.valor ||
+      v.pontos.some((p) => p.valor !== null && p.valor < 0) ||
+      v.pontos.some((p) => p.valor !== null && p.valor > composition.valor) ||
+      !Number.isFinite(composition.participacaoPercentual) ||
+      Math.abs(
+        composition.participacaoPercentual -
+          (composition.valor / v.total) * 100,
+      ) > 0.051
+    )
+      return fail();
+  }
   return {
     ...v,
     reading: decodeVisualReading(
