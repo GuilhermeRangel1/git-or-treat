@@ -5,10 +5,11 @@ from datetime import date
 import pytest
 from app.schemas.ai import AIConversationTurn
 from app.schemas.genai_internal import AccessScope
-from app.schemas.genai_plan import LogicalReadPlan, ReadFilter, ReadWindow
+from app.schemas.genai_plan import LogicalReadPlan, ReadFilter, ReadOrder, ReadWindow
 from app.services.genai_continuation import (
     InvalidContinuation,
     canonical_question,
+    issue_context_continuation,
     issue_continuation,
     restore_continuation,
 )
@@ -66,6 +67,62 @@ def test_context_contains_only_normalized_query_and_survives_roundtrip():
         == "Qual foi receita faturada no município RECIFE em 2026-06?"
     )
     assert context[0].role == "user"
+
+
+@pytest.mark.parametrize("dimension,plural", [
+    ("geography.municipality", "municípios"), ("customer.consumption_class", "classes"),
+])
+def test_ranked_context_retains_the_requested_count(dimension, plural):
+    ranked = plan().model_copy(update={
+        "limit": 3, "filters": (), "dimension_ids": (dimension,),
+        "group_by_dimension_ids": (dimension,),
+        "order": ReadOrder(field_id="billing.revenue", direction="desc"),
+    })
+    assert canonical_question(ranked) == (
+        f"Top 3 {plural} com maior receita faturada em 2026-06?"
+    )
+
+
+def test_grouped_comparison_context_does_not_turn_the_row_cap_into_top_n():
+    compared = plan().model_copy(update={
+        "metric_id": "energy.consumption", "unit": "kWh",
+        "filters": (), "dimension_ids": ("geography.neighborhood",),
+        "group_by_dimension_ids": ("geography.neighborhood",),
+        "comparison_periods": ("2026-05", "2026-06"),
+        "order": ReadOrder(field_id="energy.consumption", direction="asc"),
+    })
+    assert canonical_question(compared) == (
+        "Compare Qual bairro teve menor consumo medido entre 2026-05 e 2026-06?"
+    )
+
+
+def test_pending_context_is_signed_and_restores_the_unresolved_question():
+    question = "Receita de janeiro e março em Recife?"
+    token = issue_context_continuation(
+        question, SCOPE, "batch-v2", session="one", conversation="chat", secret=SECRET,
+        kind="pending", response_text="Qual ano?",
+    )
+    batch, context = restore_continuation(
+        token, SCOPE, session="one", conversation="chat", secret=SECRET,
+        context=[AIConversationTurn(role="assistant", content="Qual ano?")],
+    )
+    assert batch == "batch-v2"
+    assert [turn.role for turn in context] == ["user", "assistant"]
+    assert context[0].content == question
+    with pytest.raises(InvalidContinuation):
+        restore_continuation(token, SCOPE, session="other", conversation="chat", secret=SECRET,
+                             context=[])
+
+
+def test_executed_tokens_keep_the_previous_wire_shape():
+    import base64
+    import json
+
+    token = issue_continuation(
+        plan(), SCOPE, "batch-v2", session="one", conversation="chat", secret=SECRET,
+    )
+    payload = json.loads(base64.urlsafe_b64decode(token.split(".")[0]))
+    assert "kind" not in payload
 
 
 @pytest.mark.parametrize(

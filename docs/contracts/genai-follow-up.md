@@ -1,5 +1,21 @@
 # Perguntas de acompanhamento com contexto
 
+## Evolução vigente — 03/11/2026
+
+A referência também pode preservar esclarecimentos com um rascunho interno
+`pending_question`. Nesse caso, o Backend assina `kind=pending`; a informação
+não autoriza SQL e é replanejada no escopo/publicação atuais. Consultas executadas
+omitem `kind`, mantendo a forma anterior. O histórico privado, integrado depois
+da entrega original abaixo, reutiliza `anchor` e reemite a referência na sessão;
+não persiste o token. Escolha de indicador seguida de escolha de ano não perde
+município/classe. Top N conserva a quantidade; comparação agrupada não transforma
+o teto de linhas em Top N. Detalhes, limites, implantação e rollback em
+[entendimento e recuperação](../plans/2026-11-03-genai-entendimento-perguntas.md).
+
+O registro de 02/11 abaixo descreve a entrega anterior à integração do histórico
+e à continuidade de esclarecimentos; suas afirmações de ausência de persistência
+se limitam àquela etapa.
+
 Cartão: [Perguntas de acompanhamento com contexto](https://trello.com/c/06GnuDtQ). Requisito IA-07. Entrega local Gold v2, branch `feat/genai-perguntas-acompanhamento-contexto`, base develop `24c867e`. Não altera a cobertura dos domínios, os controles aprovados ou o papel leitor.
 
 ## Experiência e composição

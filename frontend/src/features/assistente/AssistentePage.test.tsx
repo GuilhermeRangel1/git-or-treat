@@ -53,6 +53,45 @@ afterEach(() => {
   resetGoldPublication();
 });
 
+it("envia a referência pendente mais recente entre dois esclarecimentos", async () => {
+  const clarification = (message: string, token: string) => ({
+    contract_version: "v1",
+    status: "needs_clarification",
+    message,
+    evidence: [],
+    limitations: [],
+    continuation_token: token,
+  });
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      jsonResponse(clarification("Faturado ou recebido?", "pending-first")),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse(clarification("Qual ano?", "pending-second")),
+    )
+    .mockResolvedValueOnce(jsonResponse(answered));
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  await user.type(input, "Receita paga em Recife em maio e junho?");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Faturado ou recebido?");
+  await user.type(input, "faturado");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Qual ano?");
+  await user.type(input, "2026");
+  await user.keyboard("{Enter}");
+  await screen.findByText(answered.answer);
+  expect(
+    JSON.parse(String(fetchMock.mock.calls[1][1]?.body)).continuation_token,
+  ).toBe("pending-first");
+  expect(
+    JSON.parse(String(fetchMock.mock.calls[2][1]?.body)).continuation_token,
+  ).toBe("pending-second");
+});
+
 it("mantém a referência válida em continuações e erros e renova a conversa", async () => {
   const fetchMock = vi
     .fn()

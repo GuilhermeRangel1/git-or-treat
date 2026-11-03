@@ -3563,3 +3563,23 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 Revisão automatizada independente dos eixos de requisitos e padrões encontrou dois defeitos, corrigidos antes da entrega: pergunta persistida inválida agora torna apenas a troca indisponível; abrir uma tentativa interrompida não vincula perguntas novas ao ID antigo. Retry conhecido em memória preserva o envio original; após refresh, nova pergunta usa novo ID e respeita o lease da execução anterior.
 
 Verificações após as correções: `docker exec followup-validation-backend-1 python -m pytest -q tests/test_ai_history_store.py tests/test_ai_history_http.py tests/test_ai_conversations_contract.py`: 25 passaram; testes frontend de sessão/histórico: 11 passaram; build passou; lint sem erros, com aviso preexistente; `git diff --check` passou. As suítes completas acima precedem estas duas correções. A pessoa usuária autorizou aceitar a revisão técnica de Codex como revisão do consumidor para esta entrega. Os dois achados foram corrigidos e revalidados; cartão concluído em 10/10. Isso não declara uma revisão humana externa nem integração à develop.
+
+
+### 2026-11-03 — IA-01 / IA-02 / IA-03 / IA-07: entendimento e recuperação de perguntas
+
+- Cartão adicional [Melhorar entendimento e qualidade](https://trello.com/c/yQ45h0tk), branch `feat/genai-entendimento-perguntas`, base develop `29c2eb2`. Adicional concluído na entrega técnica local, com 48 critérios revisados e decisões condicionais documentadas; sem commit/PR/merge nesta rodada. Estados oficiais dos requisitos preservados. Critérios, arquivos, comandos, reconciliação e rollback em [evidência de entendimento](plans/2026-11-03-genai-entendimento-perguntas.md).
+- Núcleo existente ampliado com flexões, classes no plural, formatos mensais e top N tipado. Esclarecimentos têm razões estáveis, alternativas pertinentes, sugestões de digitação confirmáveis e rascunho cumulativo. Backend assina contexto pendente e restaura pelo histórico existente; portal conserva a referência entre escolhas sucessivas. Nenhuma nova fonte, fórmula, permissão, retenção ou migração.
+- Harness Gold: baseline 22/32 planos/esclarecimentos integrais corretos → 32/32; conjunto separado de 16 formulações: 15/16 na primeira execução → 16/16 após corrigir voz passiva. Ambos agora são regressão; não estimam compreensão universal. Experimento isolado Gemini com seis entradas artificiais: 6/6, mesmo resultado do planejador corrigido; nenhuma proposta executada, sem ganho incremental observado para outra etapa em produção.
+- Gold v2 real: 19 respostas API/Chromium reconciliadas por SQL independente e auditoria na mesma publicação; jornada final de duas respostas repetida após revisão. Cobriu escolha de indicador/ano, ranking/classe, confirmação, restauração, troca de período sem cobertura e mudança de assunto. Contas temporárias removidas. Fonte sem cobertura continua bloqueada; prova local não homologa Dados.
+- Verificações finais: GenAI 4.276 passaram / 4 skips; Backend dirigido 332 passaram / 29 skips; frontend 428 passaram / 1 skip; build, fronteiras, formatação e Ruff dos arquivos alterados passaram. Avisos preexistentes Starlette/httpx e AuthProvider. Revisões de padrões e requisitos corrigiram perda de recorte e Top N indevido em comparação; sem achados concretos restantes nos percursos revisados. Implantar Backend antes da GenAI e depois portal; rollback inverso.
+
+
+#### 03/11/2026 — ajuste do esclarecimento observado pela pessoa usuária
+
+Após confirmar faturamento em uma comparação com dois meses sem ano, o Assistente
+agora pede somente o ano dos meses já informados, sem exemplo que troque a pergunta.
+Continuidade usa o rascunho cumulativo. 168 testes dirigidos passaram, Ruff e diff
+passaram; Chromium real confirmou Sim → ano, restauração e mudança de assunto.
+Duas respostas reconciliadas por SQL independente e quatro eventos de auditoria
+confirmados; conta temporária removida. Evidência no complemento do registro de
+entendimento acima; mesma branch, sem commit/push, estados oficiais preservados.

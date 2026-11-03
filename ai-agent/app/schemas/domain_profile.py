@@ -310,6 +310,8 @@ class DetailRule(BaseModel):
 
 class AmbiguityRule(BaseModel):
     resolved_metric_ids: tuple[LogicalIdentifier, ...] = ()
+    alternative_metric_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=10)
+    confirmation_phrase: CatalogPhrase | None = None
     examples: tuple[CatalogText, ...] = Field(default=(), max_length=5)
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -424,6 +426,17 @@ class DomainProfile(BaseModel):
         ambiguity_phrases = [
             _normalize(phrase) for rule in self.ambiguities for phrase in rule.phrases
         ]
+        confirmation_aliases = set(metric_aliases) | {
+            _normalize(alias) for dimension in self.dimensions
+            for value in dimension.values for alias in value.aliases
+        }
+        for rule in self.ambiguities:
+            _require_unique(list(rule.alternative_metric_ids), "alternativa de métrica duplicada")
+            if set(rule.alternative_metric_ids) - set(metric_ids):
+                raise ValueError("alternativa de esclarecimento referencia métrica inexistente")
+            if (rule.confirmation_phrase is not None
+                    and _normalize(rule.confirmation_phrase) not in confirmation_aliases):
+                raise ValueError("confirmação exige frase aprovada no catálogo")
         if len(ambiguity_phrases) != len(set(ambiguity_phrases)):
             raise ValueError("frase de ambiguidade duplicada")
         if set(metric_aliases) & set(ambiguity_phrases):

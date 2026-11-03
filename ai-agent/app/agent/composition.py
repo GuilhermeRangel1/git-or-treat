@@ -47,7 +47,7 @@ def compose_core(
     return CoreServices(
         question=QuestionOrchestrator(
             analysis_planner=QuestionAnalysisPlanner(
-                interpreter=QuestionInterpreter(profile=profile),
+                interpreter=QuestionInterpreter(profile=profile, max_rows=max_rows),
                 evidence_source=evidence_source,
                 access_policy=policy,
                 max_rows=max_rows,

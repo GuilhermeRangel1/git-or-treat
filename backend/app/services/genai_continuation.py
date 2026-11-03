@@ -30,6 +30,7 @@ class ContinuationState(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     v: Literal[1] = 1
+    kind: Literal["executed", "pending"] = "executed"
     expires: int = Field(strict=True, gt=0)
     session: Digest
     conversation: str = Field(min_length=1, max_length=36)
@@ -59,6 +60,10 @@ def canonical_question(plan: LogicalReadPlan) -> str | None:
         if plan.order is not None:
             direction = "maior" if plan.order.direction == "desc" else "menor"
             question = f"Qual {dimension} teve {direction} {metric.label.lower()}"
+            if plan.limit > 1 and plan.comparison_periods is None:
+                plural = {"município": "municípios", "bairro": "bairros",
+                          "classe": "classes", "alimentador": "alimentadores"}[dimension]
+                question = f"Top {plan.limit} {plural} com {direction} {metric.label.lower()}"
         else:
             question += f" por {dimension}"
     elif plan.order is not None:
@@ -127,9 +132,12 @@ def issue_continuation(
         conversation=conversation, secret=secret, response_text=response_text)
 
 
-def issue_context_continuation(question, scope, batch_ref, *, session, conversation, secret, response_text=""):
+def issue_context_continuation(
+    question, scope, batch_ref, *, session, conversation, secret, response_text="", kind="executed",
+):
     """Renova uma âncora capturada pelo servidor, nunca um texto fornecido como autoridade pelo cliente."""
     payload = ContinuationState(
+        kind=kind,
         expires=int(time.time()) + TTL_SECONDS,
         session=_digest(session),
         conversation=conversation,
@@ -139,7 +147,8 @@ def issue_context_continuation(question, scope, batch_ref, *, session, conversat
         question=question,
         response_digest=_digest(response_text[:1000]),
     )
-    data = base64.urlsafe_b64encode(payload.model_dump_json().encode()).decode()
+    serialized = payload.model_dump_json(exclude={"kind"} if kind == "executed" else set())
+    data = base64.urlsafe_b64encode(serialized.encode()).decode()
     token = data + "." + hmac.digest(_key(secret), data.encode(), "sha256").hex()
     return token if len(token) <= MAX_TOKEN_LENGTH else None
 
@@ -172,6 +181,14 @@ def restore_continuation(
         ):
             raise ValueError
         anchor = AIConversationTurn(role="user", content=payload.question)
+        if payload.kind == "pending" and (
+            not context or context[-1].role == "assistant"
+            and _digest(context[-1].content) == payload.response_digest
+        ):
+            # O estado vem da assinatura; o texto não é um marcador a interpretar.
+            return payload.batch, [anchor, AIConversationTurn(
+                role="assistant", content="Há um esclarecimento pendente para esta pergunta.",
+            )]
         if (
             context
             and context[-1].role == "assistant"
