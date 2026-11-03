@@ -1,0 +1,660 @@
+{
+  "dataset_version": "1.0.0",
+  "scope": "Gold v2 planning; artificial coverage; no provider or SQL",
+  "limitations": [
+    "32 perguntas autorais; baseline develop 22/32, primeira implementação 30/32 e após correções 32/32.",
+    "Após revelar duas falhas e orientar correções, o conjunto virou regressão; não é avaliação intocada ou taxa geral de acerto.",
+    "Mede planos e esclarecimentos, não disponibilidade de dados ou correção de respostas numéricas."
+  ],
+  "cases": [
+    {
+      "id": "REV-01",
+      "category": "canonical",
+      "question": "Qual foi a receita faturada em Recife em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "REV-02",
+      "category": "passive",
+      "question": "Preciso saber o valor que foi faturado em Recife no mês 03 de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "REV-03",
+      "category": "politeness",
+      "question": "Por favor, queria saber quanto faturamos em Olinda em mar/2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "REV-04",
+      "category": "order",
+      "question": "Em março de 2025, Olinda: qual foi o faturamento comercial?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "COMERCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "ENE-01",
+      "category": "canonical",
+      "question": "Qual foi o consumo em Olinda em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "ENE-02",
+      "category": "passive",
+      "question": "Me mostra quanta energia foi consumida em Olinda em março de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "ENE-03",
+      "category": "plural",
+      "question": "Os clientes comerciais em Recife consumiram quanto em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "COMERCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "ENE-04",
+      "category": "order",
+      "question": "Quanto consumimos em Recife em MAR. de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "RANK-01",
+      "category": "canonical",
+      "question": "Qual município teve a maior receita em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "comparison_periods": null,
+        "limit": 1
+      }
+    },
+    {
+      "id": "RANK-02",
+      "category": "plural",
+      "question": "Quais cidades tiveram menos faturamento em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "asc"
+        },
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "RANK-03",
+      "category": "count",
+      "question": "Mostre os cinco municípios com mais receita residencial em março de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          }
+        ],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "comparison_periods": null,
+        "limit": 5
+      }
+    },
+    {
+      "id": "RANK-04",
+      "category": "count",
+      "question": "Top 2 cidades por faturamento em março de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "comparison_periods": null,
+        "limit": 2
+      }
+    },
+    {
+      "id": "ATE-01",
+      "category": "service",
+      "question": "Por favor, quantos protocolos foram abertos em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "service.attendance",
+        "unit": "protocolos",
+        "dimension_ids": [],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "ATE-02",
+      "category": "service",
+      "question": "Quero saber a nota de satisfação em março de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "service.satisfaction",
+        "unit": "pontos",
+        "dimension_ids": [],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "DEC-01",
+      "category": "network",
+      "question": "Pode mostrar o DEC do alimentador AL-01 em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "network.equivalent_interruption_duration",
+        "unit": "horas por UC",
+        "dimension_ids": [
+          "network.feeder"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "network.feeder",
+            "operator": "eq",
+            "values": [
+              "AL-01"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "FEC-01",
+      "category": "network",
+      "question": "Em março de 2025, qual foi o FEC do alimentador AL-01?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "network.equivalent_interruption_frequency",
+        "unit": "interrupções por UC",
+        "dimension_ids": [
+          "network.feeder"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "network.feeder",
+            "operator": "eq",
+            "values": [
+              "AL-01"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "GUARD-01",
+      "category": "unknown_entity",
+      "question": "Qual foi o consumo em Reciffe em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-02",
+      "category": "missing_period",
+      "question": "Quero saber quanto foi faturado em Recife.",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-03",
+      "category": "missing_metric",
+      "question": "Pode me ajudar com os dados de Recife em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-04",
+      "category": "payment",
+      "question": "Quanto faturamos e recebemos em Recife em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-05",
+      "category": "payment",
+      "question": "Qual foi o valor recebido em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-06",
+      "category": "ambiguous_unit",
+      "question": "Quanto foi o gasto na conta de luz em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-07",
+      "category": "solar",
+      "question": "Consumo das UCs com solar em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-08",
+      "category": "multiple_metrics",
+      "question": "Receita e consumo em Recife em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-09",
+      "category": "exclusion",
+      "question": "Receita exceto residencial em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-10",
+      "category": "unknown_entity",
+      "question": "Consumo em Recife e Atlantis em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-11",
+      "category": "unsupported_limit",
+      "question": "Receita acima de R$ 100 em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-12",
+      "category": "missing_filter",
+      "question": "DEC em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-13",
+      "category": "invalid_calendar",
+      "question": "Receita em 31 de março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-14",
+      "category": "invalid_calendar",
+      "question": "Receita em 13/2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-15",
+      "category": "unknown_operation",
+      "question": "Qual bairro tem a maior receita e o menor consumo em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    },
+    {
+      "id": "GUARD-16",
+      "category": "unit_mismatch",
+      "question": "Quanto foi faturado em kWh em Recife em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      }
+    }
+  ]
+}

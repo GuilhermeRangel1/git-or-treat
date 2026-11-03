@@ -282,14 +282,56 @@ def main() -> None:
         type=Path,
         default=Path("reports/synthetic-regression-report.json"),
     )
+    parser.add_argument("--gold-language", action="store_true",
+                        help="Avalia interpretação Gold v2 com cobertura artificial, sem provedor.")
+    parser.add_argument("--language-holdout", action="store_true",
+                        help="Usa as 16 formulações separadas; requer --gold-language.")
     args = parser.parse_args()
-    report = build_report()
+    if args.language_holdout and not args.gold_language:
+        parser.error("--language-holdout requer --gold-language")
+    dataset = "gold_language_holdout.json" if args.language_holdout else "gold_language_eval.json"
+    report = build_gold_language_report(dataset) if args.gold_language else build_report()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     report_json = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     args.output.write_text(report_json, encoding="utf-8")
     print(json.dumps(report["summary"], ensure_ascii=False))
     if any(result["outcome"] not in ACCEPTED_OUTCOMES for result in report["cases"]):
         raise SystemExit(1)
+
+
+def build_gold_language_report(dataset_name: str = "gold_language_eval.json") -> dict:
+    """Usa a mesma borda HTTP Gold da regressão; expectativas vêm da fixture versionada."""
+    from .test_gold_language_http import _plan
+
+    if dataset_name not in {"gold_language_eval.json", "gold_language_holdout.json"}:
+        raise ValueError("conjunto de avaliação desconhecido")
+    dataset = json.loads((ROOT / "fixtures" / dataset_name).read_text(encoding="utf-8"))
+    results = []
+    categories = {}
+    for case in dataset["cases"]:
+        response = _plan(case["question"])
+        actual = {"status": response["status"]}
+        if response.get("plan"):
+            plan = response["plan"]
+            actual.update({key: plan.get(key) for key in case["expected"] if key != "status"})
+            assert plan["operation"] == "read"
+            assert plan["profile_id"] == "v-energy-grid-360-gold"
+            assert plan["source_id"] == "gold.local"
+        failures = sorted(key for key, value in case["expected"].items()
+                          if actual.get(key) != value)
+        passed = not failures
+        results.append({"id": case["id"], "category": case["category"], "passed": passed,
+                        "outcome": PASSED if passed else UNEXPECTED_FAILURE,
+                        "actual_status": response["status"], "failing_checks": failures})
+        group = categories.setdefault(case["category"], {"total": 0, "passed": 0})
+        group["total"] += 1
+        group["passed"] += int(passed)
+    passed = sum(case["passed"] for case in results)
+    return {"report_type": "gold_language_planning", "synthetic": True,
+            "dataset_version": dataset["dataset_version"], "scenario_scope": dataset["scope"],
+            "provider": "none; interpretation only", "limitations": dataset["limitations"],
+            "summary": {"total": len(results), "passed": passed, "failed": len(results)-passed},
+            "categories": categories, "cases": results}
 
 
 if __name__ == "__main__":

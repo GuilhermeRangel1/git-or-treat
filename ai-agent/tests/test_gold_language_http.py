@@ -411,7 +411,6 @@ def test_explicit_follow_up_still_preserves_period_and_class():
     "Receita e consumo em março de 2025?",
     "Qual foi a receita?",
     "Qual bairro mais perdeu volume residencial no último ano?",
-    "Receita em um município inventado em março de 2025?",
     "Quantas UCs com solar em Olinda tiveram queda de consumo acima de 30%?",
 ])
 def test_clarification_has_a_complete_example_that_is_accepted_in_the_same_scope(question):

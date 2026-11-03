@@ -86,6 +86,9 @@ def _describe_observation(
     elif (human_readable and unit == "protocolos" and isinstance(value, (int, float))
           and not isinstance(value, bool) and float(value).is_integer()):
         value_with_unit = f"{value:,.0f} chamados de atendimento".replace(",", ".")
+    elif (human_readable and unit in {"UCs", "ocorrências"} and isinstance(value, (int, float))
+          and not isinstance(value, bool) and float(value).is_integer()):
+        value_with_unit = f"{value:,.0f} {unit}".replace(",", ".")
     else:
         value_with_unit = f"{value} {unit}"
     if human_readable:
@@ -190,12 +193,23 @@ class QuestionOrchestrator:
         trace = self._trace(correlation_id)
 
         async def plan_only(_budget: RequestBudget) -> QuestionResponse | PlannedQuestion:
-            return await asyncio.to_thread(self._plan_step, request, access_context, trace)
+            return await asyncio.to_thread(
+                self._plan_step, request, access_context, trace, preserve_clarification=True,
+            )
 
         outcome = await self._run(
             trace, plan_only, timeout_seconds=request.remaining_timeout_ms / 1000
         )
         if isinstance(outcome, PlannedQuestion):
+            if outcome.read_plan is None:
+                message = (outcome.clarification.message if outcome.clarification
+                           else outcome.interpretation.clarification_question)
+                return QuestionPlanResponse(
+                    correlation_id=correlation_id, status=QuestionPlanStatus.NEEDS_CLARIFICATION,
+                    pending_question=outcome.pending_question,
+                    response=QuestionResponse(status=QuestionStatus.NEEDS_CLARIFICATION,
+                                              correlation_id=correlation_id, message=message),
+                )
             assert outcome.read_plan is not None
             return QuestionPlanResponse(
                 correlation_id=correlation_id,
@@ -261,7 +275,11 @@ class QuestionOrchestrator:
             response = self._recoverable_error(FailureCode.EXECUTION_LIMIT)
         try:
             if isinstance(response, PlannedQuestion):
-                await trace.emit_async(EventStage.RESPONSE, EventCode.READY, EventOutcome.SUCCESS)
+                await trace.emit_async(
+                    EventStage.RESPONSE,
+                    EventCode.READY if response.read_plan else EventCode.CLARIFICATION,
+                    EventOutcome.SUCCESS,
+                )
                 return response
             await trace.emit_async(
                 EventStage.RESPONSE,
@@ -352,6 +370,8 @@ class QuestionOrchestrator:
         request: QuestionRequest,
         access_context: AccessContext | None,
         trace: EventTrace,
+        *,
+        preserve_clarification: bool = False,
     ) -> QuestionResponse | PlannedQuestion:
         """Plano aprovado ou a resposta final de recusa ou esclarecimento; sem fonte."""
 
@@ -389,6 +409,8 @@ class QuestionOrchestrator:
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)
         if planned.read_plan is None:
+            if preserve_clarification:
+                return planned
             question = planned.interpretation.clarification_question
             if planned.clarification is not None:
                 question = planned.clarification.message
