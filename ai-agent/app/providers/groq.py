@@ -17,7 +17,7 @@ from app.providers.protocols import (
     ModelProviderUnavailable,
 )
 from app.schemas.questions import ConversationTurn
-from app.telemetry import record_usage
+from app.telemetry import record_provider_failure, record_usage
 
 if TYPE_CHECKING:
     from app.schemas.evidence import EvidenceResult
@@ -79,16 +79,22 @@ class GroqModelAdapter:
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
             if status == 429 or status >= 500:
+                kind = "quota" if status == 429 else "overloaded"
+                record_provider_failure("groq", self._model_name, kind, status)
                 raise ModelProviderUnavailable(
                     "O provedor de modelo está temporariamente indisponível."
                 ) from None
+            kind = "model_not_found" if status == 404 else "rejected"
+            record_provider_failure("groq", self._model_name, kind, status)
             raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
         except httpx.TransportError:
             # Inclui timeouts e falhas de rede.
+            record_provider_failure("groq", self._model_name, "timeout_or_network")
             raise ModelProviderUnavailable(
                 "O provedor de modelo está temporariamente indisponível."
             ) from None
         except httpx.HTTPError:
+            record_provider_failure("groq", self._model_name, "rejected")
             raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
 
         try:
@@ -105,6 +111,7 @@ class GroqModelAdapter:
                 raise ValueError("resposta vazia")
             return parse_answer(response_text, evidence)
         except (KeyError, IndexError, TypeError, ValueError, ValidationError):
+            record_provider_failure("groq", self._model_name, "invalid_response")
             raise ModelProviderInvalidResponse(
                 "O provedor retornou uma resposta inválida."
             ) from None
