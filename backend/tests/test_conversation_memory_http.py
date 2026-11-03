@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from tests.test_ai_history_http import ORIGIN, client, create  # noqa: F401
 from tests.test_ai_history_store import storage  # noqa: F401
-from tests.test_conversation_memory import BATCH, remember
+from tests.test_conversation_memory import BATCH, remember, remember_document
 from tests.test_genai_continuation import SCOPE, SECRET
 
 
@@ -80,3 +80,30 @@ def test_disabling_memory_preserves_previous_request_contract(memory_client, mon
         json={"request_id": str(uuid4()), "question": "Retome a primeira consulta"}, headers=ORIGIN)
     assert response.status_code == 200
     assert calls[-1].question == "Retome a primeira consulta"
+
+
+def test_document_recall_executes_original_question_and_survives_repeated_recalls(
+    memory_client, monkeypatch,
+):
+    from tests.test_genai_documentation import envelope
+
+    web, db, calls = memory_client
+    conversation = create(web)
+    owner = ConversationStore(db, "one")
+    remember(owner, conversation, "Receita em Recife em janeiro de 2025?", routes.history_scope(SCOPE))
+    question = remember_document(owner, conversation, routes.history_scope(SCOPE))
+
+    async def answer(payload, *_):
+        calls.append(payload)
+        return envelope().response
+
+    monkeypatch.setattr(routes, "ask_genai_question", answer)
+    for ordinal in ["2", "3"]:
+        response = web.post(f"/api/v1/ai/conversations/{conversation}/questions",
+            json={"request_id": str(uuid4()), "question": f"Retome a consulta {ordinal}"},
+            headers=ORIGIN)
+        assert response.status_code == 200, response.text
+        assert calls[-1].question == question
+        assert calls[-1].continuation_token is None and calls[-1].context == []
+        row = db.execute(select(E).order_by(E.c.sequence.desc())).mappings().first()
+        assert row["anchor"] == question and row["batch"] is None

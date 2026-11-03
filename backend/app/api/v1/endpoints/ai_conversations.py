@@ -206,13 +206,15 @@ async def question(
                     raise MemoryUnavailable
                 remembered = store.memory(identity, history_scope(scope), reference)
                 db.commit()  # Não manter snapshot/lock durante consulta ou modelo.
-                token = issue_context_continuation(
-                    remembered.question, scope, remembered.batch,
-                    session=request.cookies.get("grid360_session", ""),
-                    conversation=identity, secret=secret.get_secret_value(),
-                )
-                if token is None:
-                    raise MemoryUnavailable
+                token = None
+                if remembered.kind == "gold":
+                    token = issue_context_continuation(
+                        remembered.question, scope, remembered.batch,
+                        session=request.cookies.get("grid360_session", ""),
+                        conversation=identity, secret=secret.get_secret_value(),
+                    )
+                    if token is None:
+                        raise MemoryUnavailable
                 context = []
                 question_text = reference.follow_up or remembered.question
                 logger.info("Memória: versão %s, sequência de origem %s.",
@@ -251,6 +253,10 @@ async def question(
                 context=[],
             )
             normalized = restored[0].content
+        elif any(item.source == "documentation.indicators" for item in result.evidence):
+            # Conserva a pergunta executada, inclusive após retomadas sucessivas.
+            # A resposta antiga nunca é usada para reconstruir a intenção.
+            normalized = question_text
         store.finish(
             identity,
             str(payload.request_id),

@@ -6,10 +6,11 @@ from collections.abc import Mapping, Sequence
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.ai import AIQuestionResponse, AIQuestionText
 from app.schemas.gold_publication import PublicationReference
+from app.services.genai_documentation import document_response_is_current
 
 MEMORY_VERSION = 1
 MAX_MEMORY_BYTES = 4096  # limite de texto; sem chamada de sumarização
@@ -29,15 +30,19 @@ class ConversationMemory(BaseModel):
     source_request_id: UUID
     source_sequence: int = Field(strict=True, ge=1)
     author: Literal["user"] = "user"
+    kind: Literal["gold", "documentation"] = "gold"
     question: AIQuestionText
-    batch: str = Field(min_length=1, max_length=200)
+    batch: str | None = Field(default=None, min_length=1, max_length=200)
 
-    @field_validator("batch")
-    @classmethod
-    def require_gold_v2_reference(cls, value: str) -> str:
-        if PublicationReference.parse(value).schema_version != "gold-csv-v2":
+    @model_validator(mode="after")
+    def require_reference_for_kind(self):
+        if self.kind == "documentation":
+            if self.batch is not None:
+                raise ValueError("Memória documental não é uma medição do lote.")
+            return self
+        if self.batch is None or PublicationReference.parse(self.batch).schema_version != "gold-csv-v2":
             raise ValueError("Memória exige publicação Gold v2 válida.")
-        return value
+        return self
 
 
 class MemoryUnavailable(ValueError):
@@ -92,6 +97,17 @@ def select_memory(
         source = eligible[index]
         if source["scope_digest"] != scope or source["format_version"] != 1:
             raise MemoryUnavailable
+        response = AIQuestionResponse.model_validate(source["response"])
+        if any(item.source == "documentation.indicators" for item in response.evidence):
+            if not document_response_is_current(response) or reference.follow_up:
+                raise MemoryUnavailable
+            question = source["anchor"] if source["anchor"] is not None else source["question"]
+            if not isinstance(question, str) or memory_request(question) is not None:
+                raise MemoryUnavailable
+            return ConversationMemory(
+                source_request_id=source["request_id"], source_sequence=source["sequence"],
+                question=question, kind="documentation",
+            )
         if (not isinstance(source["anchor"], str)
                 or len(source["anchor"].encode("utf-8")) > MAX_MEMORY_BYTES):
             raise MemoryUnavailable

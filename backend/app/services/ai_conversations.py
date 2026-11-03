@@ -312,10 +312,16 @@ class ConversationStore:
                 break
             valid.append({**row, "response": response.model_dump(mode="json")})
 
+        # Uma explicação conceitual não deve deixar a consulta numérica anterior
+        # ativa como se fosse o assunto atual. Retomadas explícitas ainda a encontram.
+        latest_document = next((index for index, row in enumerate(valid)
+                                if any(item["source"] == "documentation.indicators"
+                                       for item in row["response"]["evidence"])), None)
+        anchor_rows = valid if latest_document is None else valid[:latest_document]
         anchor = next(
             (
                 row
-                for row in valid
+                for row in anchor_rows
                 if row["response"]["status"] in {"answered", "no_evidence", "needs_clarification"}
                 and isinstance(row["anchor"], str)
                 and 0 < len(row["anchor"]) <= 1000
@@ -335,7 +341,7 @@ class ConversationStore:
         # poderia recuperar outra consulta no lugar daquela solicitada.
         rows = self.db.execute(
             select(E.c.request_id, E.c.sequence, E.c.format_version, E.c.scope_digest,
-                   E.c.response, E.c.anchor, E.c.batch)
+                   E.c.response, E.c.question, E.c.anchor, E.c.batch)
             .where(E.c.conversation_id == conversation, E.c.state == "completed")
             .order_by(E.c.sequence.desc()).limit(200)
         ).mappings().all()

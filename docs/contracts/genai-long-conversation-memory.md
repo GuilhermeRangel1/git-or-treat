@@ -77,3 +77,30 @@ e o comportamento anterior. Rollback do código não requer alteração de dados
 O frontend já consome a rota e os estados usados nesta entrega; não há novo layout.
 
 Evidência, comparação e limites: [validação de memória](../plans/2026-11-03-genai-memoria-conversas-longas.md).
+
+
+## Integração com busca documental — PR #114
+
+A branch recebeu a develop `ef3a625` por merge `5a2dc82`, preservando os commits
+originais e as duas documentações. A memória interna distingue `gold` de
+`documentation`; isso não altera o envelope público nem exige migração.
+
+Perguntas documentais respondidas contam na mesma ordem das consultas concluídas.
+Ao retomar uma delas, o Backend confere o escopo e a vigência da citação e envia
+somente a pergunta original para nova execução no núcleo. Limpa token/contexto
+numéricos herdados. A resposta antiga nunca é usada como definição. A intenção
+efetivamente executada fica em `anchor`, com `batch=None`, para que uma segunda
+retomada recupere o conceito e não o comando “retome a consulta 2”.
+
+Uma explicação documental encerra a âncora numérica implícita anterior: a próxima
+pergunta curta não assume que o usuário ainda fala daquela consulta Gold. A
+consulta numérica antiga continua recuperável por sua posição explícita. Retirada,
+versão desatualizada ou escopo alterado tornam a origem documental indisponível,
+sem renumerar as demais perguntas. `no_evidence` sem citação não é promovido a
+memória documental. Complementos de recorte em retomada documental são recusados
+nesta fatia; formule uma pergunta completa para iniciar uma medição Gold.
+
+A seleção continua explícita e ordinal. Busca semântica sobre documentação não
+significa busca semântica em mensagens antigas, nem resolve automaticamente toda
+referência como “dele” após uma explicação. Consultas de números continuam exigindo
+indicador/recorte e evidência Gold atuais.

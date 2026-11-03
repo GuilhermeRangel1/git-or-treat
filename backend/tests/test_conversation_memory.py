@@ -26,6 +26,48 @@ def remember(owner, conversation, question, scope="scope"):
     return request
 
 
+def remember_document(owner, conversation, scope="scope"):
+    from tests.test_genai_documentation import envelope
+
+    question = "Receita faturada é o valor pago?"
+    request = str(uuid4())
+    _, _, attempt = owner.reserve(conversation, request, question, scope)
+    owner.finish(conversation, request, attempt, question, envelope().response)
+    return question
+
+
+def test_documents_preserve_order_and_reset_implicit_numeric_context(storage):
+    _, owner, _ = storage
+    conversation = owner.create(str(uuid4()))["id"]
+    initial = "Receita em Recife em janeiro de 2025?"
+    remember(owner, conversation, initial)
+    question = remember_document(owner, conversation)
+    assert owner.context(conversation, "scope")[0] is None
+    document = owner.memory(conversation, "scope", memory_request("Retome a consulta 2"))
+    assert document.kind == "documentation" and document.question == question
+    assert document.batch is None and "answer" not in document.model_dump()
+    numeric = owner.memory(conversation, "scope", memory_request("Retome a primeira consulta"))
+    assert numeric.kind == "gold" and numeric.question == initial and numeric.batch == BATCH
+    with pytest.raises(MemoryUnavailable):
+        owner.memory(conversation, "scope", memory_request("Retome a consulta 2, agora em Olinda"))
+
+
+def test_removed_document_and_changed_scope_cannot_be_recalled(storage, monkeypatch, tmp_path):
+    from app.services import genai_documentation as documentation
+
+    _, owner, _ = storage
+    conversation = owner.create(str(uuid4()))["id"]
+    remember_document(owner, conversation)
+    reference = memory_request("Retome a primeira consulta")
+    with pytest.raises(MemoryUnavailable):
+        owner.memory(conversation, "changed-scope", reference)
+    path = tmp_path / "removed.json"
+    path.write_text('{"entries": []}', encoding="utf-8")
+    monkeypatch.setattr(documentation, "CORPUS", path)
+    with pytest.raises(MemoryUnavailable):
+        owner.memory(conversation, "scope", reference)
+
+
 @pytest.mark.parametrize("text,position,suffix", [
     ("Retome a primeira consulta", 1, ""),
     ("Volte à consulta 12, mas agora em Olinda", 12, "mas agora em Olinda"),

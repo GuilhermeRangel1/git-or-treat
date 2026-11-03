@@ -3641,3 +3641,10 @@ e o modelo quantitativo é injetado. Seleção documental agora carrega o SDK ap
 na primeira chamada remota; falta do SDK resulta em erro documental sanitizado,
 sem impedir composição ou definições canônicas. Doze testes do seletor e runtime
 passaram; Ruff passou. Sem chamada externa.
+
+
+### 03/11/2026 — memória atualizada após busca documental
+
+- PR #114 integrado à develop por Create a merge commit `ef3a625`, após cinco checks GitHub aprovados. Seis commits individuais preservados, incluindo correções de vigência e SDK opcional; sem squash/rebase.
+- Branch `feat/genai-memoria-conversas-longas` / PR #113 recebeu develop via merge `5a2dc82`, com os três conflitos resolvidos preservando imports e progresso das duas entregas. Ajuste de integração distingue memória Gold e documental, reexecuta pergunta conceitual vigente, preserva ordinais, descarta contexto numérico implícito após conceito e mantém retomadas sucessivas. Sem migração, novas fontes ou retenção.
+- Backend dirigido 95 passaram; GenAI dirigido 192 passaram; Ruff, corpus --check e diff passaram. Prova entre processos com fonte/modelo controlados percorreu rota, histórico, coordenação e núcleo em três respostas documentais auditadas. Não houve nova rodada Gemini/portal nem nova homologação Gold real. Contrato e resultados em [memória](contracts/genai-long-conversation-memory.md) e [evidência](plans/2026-11-03-genai-memoria-conversas-longas.md). Estados oficiais IA preservados.
