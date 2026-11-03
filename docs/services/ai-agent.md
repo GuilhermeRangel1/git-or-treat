@@ -532,6 +532,10 @@ fiel, não se sugere um total mais amplo. Fonte ausente continua indisponível.
 Contrato, medições, comparação isolada com Gemini e evidências reais em
 [entendimento e recuperação](../plans/2026-11-03-genai-entendimento-perguntas.md).
 
+## Perguntas para gráficos — 03/11/2026
+
+O perfil Gold v2 aceita “mês a mês” e “por mês” nas janelas mensais resolvidas com cobertura. Consumo medido pode ser agrupado por município, classe e bairro usando as dimensões/fontes já aprovadas; comparação agrupada continua restrita à capacidade de bairro. Recortes diários/semanais e cobertura ausente mantêm esclarecimento. Exemplos, contrato visual e limites em [evidência visual](../contracts/genai-visual-evidence.md). Respostas numéricas reais usam formatação pt-BR; a comparação liga valores aos meses solicitados, e o resumo de grupos não depende do subconjunto de IDs escolhido pelo modelo.
+
 ## IA-07 — acompanhamento natural
 
 O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).

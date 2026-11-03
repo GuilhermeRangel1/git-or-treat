@@ -280,8 +280,7 @@ def test_language_normalization_survives_plan_revalidation_and_synthesis(follow_
     assert "março de 2025" in response["answer"]
     if follow_up:
         assert "janeiro de 2025" in response["answer"]
-        assert "20.0 kWh" in response["answer"]
-        assert "25.0 %" in response["answer"]
+        assert "Variação absoluta: 20 kWh (25%)." in response["answer"]
     else:
         assert "R$ 120,00" in response["answer"]
 

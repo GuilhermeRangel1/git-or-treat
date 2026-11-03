@@ -411,7 +411,13 @@ class QuestionInterpreter:
                 "no topo do Assistente. Para buscar valores, informe o indicador, o período "
                 "e o recorte desejados."
             )
-        if self._profile.structured_dimension_filters and has_incomplete_calendar_period(question):
+        temporal_question = question
+        if self._profile.structured_dimension_filters:
+            grouping = self._requested_breakdown(question)
+            if grouping is not None:
+                temporal_question = self._without_grouping_reference(question, grouping)
+        if (self._profile.structured_dimension_filters
+                and has_incomplete_calendar_period(temporal_question)):
             return self._clarify(
                 "Informe o mês e o ano de ambos os extremos do intervalo; "
                 "preciso dos dois períodos para fazer essa consulta."
@@ -792,7 +798,8 @@ class QuestionInterpreter:
         for start, end, _ in reversed(_find_phrases(question, dimension.aliases)):
             prefix = re.search(
                 r"\b(?:(?:em\s+)?qual\s+(?:(?:foi|é|e)\s+)?(?:(?:o|a)\s+)?"
-                r"|por\s+(?:cada\s+)?)$", question[:start], re.IGNORECASE,
+                r"|por\s+(?:cada\s+)?|entre\s+(?:(?:as?|os?)\s+)?)$",
+                question[:start], re.IGNORECASE,
             )
             tail = _normalize(question[end:]).lstrip()
             tail = re.sub(r"^(?:a|o)\s+", "", tail)
@@ -925,7 +932,7 @@ class QuestionInterpreter:
         return selected
 
     def _requested_breakdown(self, question: str) -> DimensionDefinition | None:
-        """Dimensão pedida em "por <alias>", exceto quando um valor dela vem logo depois."""
+        """Agrupamento por/entre dimensões, exceto quando um valor vem logo depois."""
 
         normalized = _normalize(question)
         for dimension in self._profile.dimensions:
@@ -933,7 +940,8 @@ class QuestionInterpreter:
                 {_normalize(item) for item in dimension.aliases}, key=len, reverse=True
             )
             alternatives = "|".join(re.escape(alias) for alias in aliases)
-            pattern = rf"(?<!\w)por\s+(?:cada\s+)?(?:{alternatives})(?!\w)"
+            pattern = (rf"(?<!\w)(?:por\s+(?:cada\s+)?|entre\s+(?:(?:as?|os?)\s+)?)"
+                       rf"(?:{alternatives})(?!\w)")
             values = {_normalize(item) for value in dimension.values for item in value.aliases}
             for match in re.finditer(pattern, normalized):
                 # "por classe residencial" e "por município de Olinda" são filtros.

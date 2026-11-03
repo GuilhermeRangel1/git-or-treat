@@ -78,5 +78,29 @@ export interface PanoramaData {
     continuidadeFec: KpiMetric;
     ucsFaturadasNoMes?: KpiMetric;
   };
+  distribuicao?: PanoramaDistribution | null;
   serieMensal: MonthlyDataPoint[];
+}
+
+export interface PanoramaDistribution {
+  composicaoReceita?: {
+    dimension: "municipio" | "classe";
+    segmento: string;
+    valor: number;
+    participacaoPercentual: number;
+  } | null;
+  reading?: import("./visualReading").VisualReading | null;
+  dimension: "municipio" | "classe";
+  periodo: string;
+  metricId: string;
+  unidade: string;
+  total: number;
+  completo: boolean;
+  visual?: PanoramaDistribution["pontos"];
+  agrupados?: number;
+  pontos: {
+    segmento: string;
+    valor: number | null;
+    percentual: number | null;
+  }[];
 }

@@ -227,7 +227,7 @@ export default function PanoramaSeriesChart({
         className="mt-4 flex flex-wrap items-center gap-2"
         aria-label="Janela da série"
       >
-        <span className="text-xs text-muted">Exibir:</span>
+        <span className="text-xs text-muted">Janela do gráfico:</span>
         {([12, 24, "all"] as const).map((size) => (
           <button
             key={size}

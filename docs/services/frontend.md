@@ -8,7 +8,7 @@ O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente
 
 ## GENAI-12 — insight do Panorama Gold v2
 
-O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do KPI. O Backend coordena sessão individual, prontidão, leitor restrito/snapshot, síntese interna e auditoria durável; a GenAI reutiliza o núcleo de insight. O portal distingue Gold de demonstração, preserva recorte/fundamento/limitações e prioriza falhas sobre cache antigo. Migração `genai12000001` publica somente metadados mínimos por view, sem acesso direto à tabela operacional de carga. Contrato, implantação e reprodução: [insight do Panorama](../contracts/panorama-insight-api.md); evidências e limites: [GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Os registros anteriores sobre ausência de insight externo são históricos; a rota pública GenAI demonstrativa permanece separada da entrada interna Gold.
+O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do KPI. O Backend coordena sessão individual, prontidão, leitor restrito/snapshot, síntese interna e auditoria durável; a GenAI reutiliza o núcleo de insight. O portal distingue Gold de demonstração, preserva recorte/fundamento/limitações e invalida interpretações após mudança de contexto/acesso; preserva a última análise do mesmo recorte durante falha transitória de revalidação, com indicação de atualização pendente. Migração `genai12000001` publica somente metadados mínimos por view, sem acesso direto à tabela operacional de carga. Contrato, implantação e reprodução: [insight do Panorama](../contracts/panorama-insight-api.md); evidências e limites: [GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Os registros anteriores sobre ausência de insight externo são históricos; a rota pública GenAI demonstrativa permanece separada da entrada interna Gold.
 
 ## Arquitetura adotada
 
@@ -197,3 +197,13 @@ Assistente, Panorama, Receita, Operação e UC 360 oferecem a ajuda “Entenda o
 ## IA-07 — acompanhamento natural
 
 O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).
+
+
+## Gráficos GenAI — integração em desenvolvimento (03/11/2026)
+
+`VisualEvidence` é compartilhado pelo chat e pelo modal existente do Panorama. Recebe valores estruturados validados, sem analisar números da prosa ou calcular métricas. Chat apresenta indicador, barras/ranking, linha ou rosca conforme o resultado autorizado. O modal do Panorama apresenta total/comparação e distribuição com tabela/download, sem o resumo superior duplicado. A distribuição usa rosca quando a partição permite participação e barras horizontais nos demais casos, mantendo a interpretação contextual e sem inventar percentuais. Tabela equivalente, lista paginada e PNG/CSV preservam pontos, precisão, metadados e alcance. Fonte/definição do chat aparecem junto aos metadados; citações e limites permanecem visíveis.
+
+Distribuição por município/classe segue os filtros. Top5+Demais vem do Backend; tabela/CSV mantêm a lista completa. Downloads revalidam sessão, métrica/dimensões e publicação pelo servidor, além do estado local. Histórico só restaura gráficos com publicação/escopo atuais; retomadas consultam novamente. O modal já mostra dados antes da interpretação; o chat agora negocia apresentação progressiva e leitura ampliada por observações identificadas, sem segunda chamada de modelo. [Contrato](../contracts/genai-visual-evidence.md) e [evidências/limites](../plans/2026-11-03-genai-graficos-insights-visuais.md). Estados oficiais IA preservados.
+
+
+Continuação de 03/11: negociação opcional NDJSON preserva os clientes JSON e o histórico. Dados auditados/revalidados aparecem antes da síntese; desconexão antes/depois da prévia cancela o coordenador. A leitura local calcula diferenças/destaques sem causa presumida. Falha do modelo mantém dados somente após nova conferência de acesso/publicação; falha de desenho preserva tabela/CSV. Prova Gold/Gemini e portal, limites e matriz 18/18 em [evidências](../plans/2026-11-03-genai-graficos-insights-visuais.md); publicação concluída no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), sem merge.

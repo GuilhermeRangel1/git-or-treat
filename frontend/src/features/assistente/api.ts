@@ -37,6 +37,8 @@ export class AIChatApiError extends Error {
 
 export async function askAIQuestion(
   request: AIQuestionRequest,
+  onData?: (response: AIQuestionResponse) => void,
+  signal?: AbortSignal,
 ): Promise<AIQuestionResponse> {
   const generation = getGoldGeneration();
   const publicationKey = goldPublicationKey();
@@ -64,17 +66,42 @@ export async function askAIQuestion(
   };
   let rawResponse: unknown;
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  if (signal?.aborted) controller.abort();
   let timedOut = false;
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
   }, 70_000);
   try {
-    rawResponse = await apiClient<unknown>(path, {
-      method: "POST",
-      signal: controller.signal,
-      body: JSON.stringify(payload),
-    });
+    rawResponse = await apiClient<unknown>(
+      path,
+      {
+        method: "POST",
+        signal: controller.signal,
+        body: JSON.stringify(payload),
+        ...(onData ? { headers: { Accept: "application/x-ndjson" } } : {}),
+      },
+      onData
+        ? (value) => {
+            if (
+              generation !== getGoldGeneration() ||
+              publicationKey !== goldPublicationKey() ||
+              isGoldPublicationStale()
+            )
+              throw new ApiError("Os dados mudaram durante a consulta.", 409);
+            const preview = decodeAIQuestionResponse(value);
+            if (
+              preview.status !== "answered" ||
+              !preview.visualization ||
+              preview.continuation_token
+            )
+              throw new ApiError("Dados progressivos inválidos.", 502);
+            onData(preview);
+          }
+        : undefined,
+    );
   } catch (error) {
     if (
       generation !== getGoldGeneration() ||
@@ -150,6 +177,7 @@ export async function askAIQuestion(
     );
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
   }
 
   if (
