@@ -260,6 +260,17 @@ def get_order(order_id: int = Path(ge=1, le=9223372036854775807), db: Session = 
     return order
 
 
+@router.delete("/orders/{order_id}", status_code=204, summary="Excluir ordem do portal preservando auditoria")
+def delete_inspection_order(payload: OrderCancelRequest, order_id: int = Path(ge=1, le=9223372036854775807),
+                            db: Session = Depends(get_db), actor: str = Depends(require_orders_write)):
+    try:
+        if not inspection_service.delete_order(db, order_id, payload.version, payload.confirmed_order_id, actor):
+            raise HTTPException(404, "Ordem não encontrada ou já excluída.")
+    except inspection_service.OrderConflictError as exc:
+        return order_conflict_response(exc)
+    return Response(status_code=204)
+
+
 @router.get(
     "/orders",
     response_model=list[OrderResponse],

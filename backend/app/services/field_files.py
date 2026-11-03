@@ -56,7 +56,7 @@ def read_xlsx(content: str) -> str:
 
 def field_template(db: Session, format: str = "xlsx") -> dict:
     from app.models.operational import InspectionOrder, OrderStatus
-    orders = db.query(InspectionOrder).filter(InspectionOrder.status == OrderStatus.IN_PROGRESS).order_by(InspectionOrder.id).limit(501).all()
+    orders = inspections.visible_orders(db).filter(InspectionOrder.status == OrderStatus.IN_PROGRESS).order_by(InspectionOrder.id).limit(501).all()
     if len(orders) > 500:
         raise ValueError("Há mais de 500 ordens em andamento. Reduza o lote antes de baixar o modelo.")
     if not orders:

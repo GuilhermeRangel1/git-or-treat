@@ -325,6 +325,16 @@ export default function OrdensPage() {
             onClose={() => setActionsOpen(false)}
             triggerRef={actionTriggerRef}
             onSaved={handleSaved}
+            onDeleted={() => {
+              setActionsOpen(false);
+              setSelectedOrder(null);
+              setSavedFeedback(
+                "Ordem excluída. Histórico preservado para auditoria.",
+              );
+              const next = new URLSearchParams(params);
+              next.delete("order_id");
+              setParams(next, { replace: true });
+            }}
           />
           <OrderFoundationsDialog
             key={`foundations-${selectedOrder.id}`}

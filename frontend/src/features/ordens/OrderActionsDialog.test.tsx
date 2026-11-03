@@ -270,7 +270,7 @@ describe("OrderActionsDialog", () => {
         screen.queryByRole("button", { name: "Iniciar ordem" }),
       ).toBeNull();
       expect(
-        screen.queryByRole("button", { name: "Cancelar ordem…" }),
+        screen.queryByRole("button", { name: "Cancelar ordem" }),
       ).toBeNull();
     });
     expect(saved).not.toHaveBeenCalled();
@@ -337,7 +337,7 @@ describe("OrderActionsDialog", () => {
       await screen.findByRole("textbox", { name: "Resultado de campo" }),
       "Rascunho preservado",
     );
-    await user.click(screen.getByRole("button", { name: "Cancelar ordem…" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar ordem" }));
 
     expect(
       await screen.findByRole("heading", { name: "Cancelar OS-000009?" }),
@@ -355,7 +355,7 @@ describe("OrderActionsDialog", () => {
     ).toHaveValue("Rascunho preservado");
     expect(api.cancelOrder).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Cancelar ordem…" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar ordem" }));
     expect(
       screen.getByRole("textbox", {
         name: "Motivo do cancelamento (opcional)",
@@ -393,7 +393,7 @@ describe("OrderActionsDialog", () => {
         }),
       ).toBeNull();
       expect(
-        screen.queryByRole("button", { name: "Cancelar ordem…" }),
+        screen.queryByRole("button", { name: "Cancelar ordem" }),
       ).toBeNull();
       expect(screen.getByText("Status inicial: Pendente")).toBeInTheDocument();
       expect(screen.queryByText(/Ator:|Versão:/)).not.toBeInTheDocument();
@@ -470,7 +470,7 @@ describe("OrderActionsDialog", () => {
     );
     renderDialog(running);
     await screen.findByRole("textbox", { name: "Resultado de campo" });
-    await user.click(screen.getByRole("button", { name: "Cancelar ordem…" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar ordem" }));
     await user.click(
       screen.getByRole("button", { name: "Confirmar cancelamento" }),
     );
@@ -486,7 +486,7 @@ describe("OrderActionsDialog", () => {
       screen.getByText(/Estado confirmado: Em andamento/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Cancelar ordem…" }),
+      screen.getByRole("button", { name: "Cancelar ordem" }),
     ).toBeEnabled();
     expect(api.cancelOrder).toHaveBeenCalledTimes(1);
   });
