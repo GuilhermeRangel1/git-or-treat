@@ -179,10 +179,6 @@ export default function PanoramaPage() {
 
       {isValid && data && !isEmpty && !isLoading && (
         <>
-          <p className="text-sm text-muted">
-            Competência dos indicadores:{" "}
-            {formatCompetenciaLabel(filters.periodo)}
-          </p>
           <section
             aria-label="Indicadores principais do Panorama"
             className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4"
