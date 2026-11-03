@@ -1,10 +1,15 @@
 import type { AIAnalysisContext } from "./contract";
+import {
+  decodeVisualReading,
+  type VisualReading,
+} from "@/shared/analytics/visualReading";
 export interface ChatVisualPoint {
   observation_id: string;
   label: string;
   value: number;
 }
 export interface ChatVisualization {
+  reading?: VisualReading | null;
   contract_version: "v1";
   kind: "bars" | "horizontal" | "line";
   metric: string;
@@ -41,6 +46,7 @@ export function decodeChatVisualization(
     "note",
     "points",
     "plot_points",
+    "reading",
   ];
   if (
     Object.keys(v).some((k) => !allowed.includes(k)) ||
@@ -111,5 +117,13 @@ export function decodeChatVisualization(
     )
   )
     return fail();
-  return { ...v, points: all, plot_points: plot };
+  return {
+    ...v,
+    points: all,
+    plot_points: plot,
+    reading: decodeVisualReading(
+      v.reading,
+      plot.map((p) => p.observation_id),
+    ),
+  };
 }

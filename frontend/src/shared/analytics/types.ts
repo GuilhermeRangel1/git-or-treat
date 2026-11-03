@@ -83,6 +83,7 @@ export interface PanoramaData {
 }
 
 export interface PanoramaDistribution {
+  reading?: import("./visualReading").VisualReading | null;
   dimension: "municipio" | "classe";
   periodo: string;
   metricId: string;

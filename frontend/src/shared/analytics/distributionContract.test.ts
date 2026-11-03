@@ -30,6 +30,13 @@ describe("distribuição do Panorama", () => {
     expect(decodeDistribution(partition, filters, metric)).toEqual(partition);
   });
   it.each([
+    { html: "<script>ignorar</script>" },
+    {
+      pontos: [
+        { ...partition.pontos[0], sql: "SELECT 1" },
+        partition.pontos[1],
+      ],
+    },
     { periodo: "2026-05" },
     { unidade: "kWh" },
     { dimension: "classe" },

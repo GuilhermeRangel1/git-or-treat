@@ -261,7 +261,9 @@ export function decodeAIQuestionResponse(value: unknown): AIQuestionResponse {
   if (
     visualization &&
     (status !== "answered" ||
-      evidence.some((e) => e.is_demo || e.source !== "gold.local"))
+      evidence.some(
+        (e) => e.is_demo || !/^gold\.local(?::[a-f0-9]{64})?$/.test(e.source),
+      ))
   )
     throw new Error("Visualização sem evidência autorizada.");
   const auditReference = value.audit_reference;

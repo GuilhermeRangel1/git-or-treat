@@ -1,4 +1,5 @@
 import type { KpiMetric, PanoramaDistribution, PanoramaFilters } from "./types";
+import { decodeVisualReading } from "./visualReading";
 
 export function decodeDistribution(
   value: unknown,
@@ -11,6 +12,24 @@ export function decodeDistribution(
   };
   if (typeof value !== "object" || Array.isArray(value)) return fail();
   const v = value as PanoramaDistribution;
+  if (
+    Object.keys(v).some(
+      (k) =>
+        ![
+          "dimension",
+          "periodo",
+          "metricId",
+          "unidade",
+          "total",
+          "completo",
+          "pontos",
+          "visual",
+          "agrupados",
+          "reading",
+        ].includes(k),
+    )
+  )
+    return fail();
   const dimension =
     filters.municipio === "todos"
       ? "municipio"
@@ -36,6 +55,9 @@ export function decodeDistribution(
     v.pontos.some(
       (p) =>
         !p ||
+        Object.keys(p).some(
+          (k) => !["segmento", "valor", "percentual"].includes(k),
+        ) ||
         typeof p.segmento !== "string" ||
         !p.segmento.trim() ||
         p.segmento.length > 120 ||
@@ -127,5 +149,11 @@ export function decodeDistribution(
         return fail();
     }
   } else if (v.pontos.length > 24) return fail();
-  return v;
+  return {
+    ...v,
+    reading: decodeVisualReading(
+      v.reading,
+      (v.visual ?? v.pontos).map((_, i) => `row_${i + 1}`),
+    ),
+  };
 }

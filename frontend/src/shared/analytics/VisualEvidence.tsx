@@ -5,8 +5,11 @@ import { visualValue } from "./visual-format";
 import { useEffect, useId, useRef, useState } from "react";
 import { Download, Table2 } from "lucide-react";
 import { exportChartPng, exportChartCsv } from "./visual-export";
+import type { VisualReading } from "./visualReading";
+import ChartBoundary from "./ChartBoundary";
 
 export interface VisualEvidenceData {
+  reading?: VisualReading | null;
   kind?: "bars" | "horizontal" | "donut" | "line";
   total?: number;
   note?: string;
@@ -100,7 +103,8 @@ export default function VisualEvidence({
         exportChartCsv(data);
       } else if (svg.current) {
         await exportChartPng(svg.current, data, allowed);
-      }
+      } else
+        throw new Error("Gráfico indisponível; consulte a tabela ou o CSV.");
     } catch {
       if (active.current)
         setError(
@@ -146,163 +150,186 @@ export default function VisualEvidence({
               : "Ver tabela"}
         </button>
       </div>
-      {comparable ? (
-        <div
-          className={`mt-3 overflow-x-auto ${data.kind === "horizontal" ? "max-h-[320px] overflow-y-auto" : ""}`}
-          role={data.kind === "horizontal" ? "region" : undefined}
-          aria-label={
-            data.kind === "horizontal" ? "Gráfico com rolagem" : undefined
-          }
-          tabIndex={data.kind === "horizontal" ? 0 : undefined}
-        >
-          {data.kind === "horizontal" || data.kind === "donut" ? (
-            <DistributionGraphic data={data} svgRef={svg} id={id} />
-          ) : (
-            <svg
-              ref={svg}
-              role="img"
-              aria-labelledby={`${id}-chart-title`}
-              aria-describedby={`${id}-chart-desc`}
-              viewBox={`0 0 ${width} 270`}
-              style={{
-                minWidth: Math.max(260, data.points.length * cellWidth),
-              }}
-              className="w-full min-w-[260px] max-h-[210px] text-content"
-            >
-              <title id={`${id}-chart-title`}>{data.title}</title>
-              <desc id={`${id}-chart-desc`}>
-                {data.points
-                  .map(
-                    (p) =>
-                      `${p.label}: ${visualValue(p.value, data.unit, data.precision)}`,
-                  )
-                  .join("; ")}
-              </desc>
-              <text x="40" y="20" fill="currentColor" fontSize="12">
-                {data.unit}
-              </text>
-              {[0, 0.5, 1].map((t) => (
+      <ChartBoundary>
+        {comparable ? (
+          <div
+            className={`mt-3 overflow-x-auto ${data.kind === "horizontal" ? "max-h-[320px] overflow-y-auto" : ""}`}
+            role={data.kind === "horizontal" ? "region" : undefined}
+            aria-label={
+              data.kind === "horizontal" ? "Gráfico com rolagem" : undefined
+            }
+            tabIndex={data.kind === "horizontal" ? 0 : undefined}
+          >
+            {data.kind === "horizontal" || data.kind === "donut" ? (
+              <DistributionGraphic data={data} svgRef={svg} id={id} />
+            ) : (
+              <svg
+                ref={svg}
+                role="img"
+                aria-labelledby={`${id}-chart-title`}
+                aria-describedby={`${id}-chart-desc`}
+                viewBox={`0 0 ${width} 270`}
+                style={{
+                  minWidth: Math.max(260, data.points.length * cellWidth),
+                }}
+                className="w-full min-w-[260px] max-h-[210px] text-content"
+              >
+                <title id={`${id}-chart-title`}>{data.title}</title>
+                <desc id={`${id}-chart-desc`}>
+                  {data.points
+                    .map(
+                      (p) =>
+                        `${p.label}: ${visualValue(p.value, data.unit, data.precision)}`,
+                    )
+                    .join("; ")}
+                </desc>
+                <text x="40" y="20" fill="currentColor" fontSize="12">
+                  {data.unit}
+                </text>
+                {[0, 0.5, 1].map((t) => (
+                  <line
+                    key={t}
+                    x1="40"
+                    x2={width - 40}
+                    y1={50 + t * 160}
+                    y2={50 + t * 160}
+                    stroke="var(--line)"
+                    strokeDasharray="4 5"
+                  />
+                ))}
                 <line
-                  key={t}
                   x1="40"
                   x2={width - 40}
-                  y1={50 + t * 160}
-                  y2={50 + t * 160}
+                  y1={y(0)}
+                  y2={y(0)}
                   stroke="var(--line)"
-                  strokeDasharray="4 5"
                 />
-              ))}
-              <line
-                x1="40"
-                x2={width - 40}
-                y1={y(0)}
-                y2={y(0)}
-                stroke="var(--line)"
-              />
-              {data.kind === "line" && (
-                <polyline
-                  fill="none"
-                  stroke="var(--accent-goiaba)"
-                  strokeWidth="2.5"
-                  points={
-                    data.points.every((p) => p.value !== null)
-                      ? data.points
-                          .map(
-                            (p, i) =>
-                              `${40 + i * cell + cell / 2},${y(p.value!)}`,
-                          )
-                          .join(" ")
-                      : ""
-                  }
-                />
-              )}
-              {data.points.map((point, i) => {
-                const x = 40 + i * cell + cell / 2;
-                const valueY = y(point.value ?? 0);
-                return (
-                  <g key={`${i}-${point.label}`}>
-                    {point.value !== null && data.kind === "line" && (
-                      <circle
-                        cx={x}
-                        cy={valueY}
-                        r="4"
-                        fill="var(--accent-goiaba)"
-                      >
-                        <title>
-                          {point.label}:{" "}
-                          {visualValue(point.value, data.unit, data.precision)}
-                        </title>
-                      </circle>
-                    )}
-                    {point.value !== null && data.kind !== "line" && (
-                      <rect
-                        x={x - Math.min(cell * 0.3, 42)}
-                        y={Math.min(y(0), valueY)}
-                        width={Math.min(cell * 0.6, 84)}
-                        height={Math.abs(y(0) - valueY)}
-                        rx="5"
-                        fill={
-                          i === data.points.length - 1
-                            ? "var(--accent-goiaba)"
-                            : "var(--accent-pistache)"
-                        }
-                      >
-                        <title>
-                          {point.label}:{" "}
-                          {visualValue(point.value, data.unit, data.precision)}
-                        </title>
-                      </rect>
-                    )}
-                    <text
-                      x={x}
-                      y={Math.max(
-                        36,
-                        Math.min(
-                          230,
-                          valueY +
-                            (point.value !== null && point.value < 0
-                              ? 22
-                              : -10),
-                        ),
+                {data.kind === "line" && (
+                  <polyline
+                    fill="none"
+                    stroke="var(--accent-goiaba)"
+                    strokeWidth="2.5"
+                    points={
+                      data.points.every((p) => p.value !== null)
+                        ? data.points
+                            .map(
+                              (p, i) =>
+                                `${40 + i * cell + cell / 2},${y(p.value!)}`,
+                            )
+                            .join(" ")
+                        : ""
+                    }
+                  />
+                )}
+                {data.points.map((point, i) => {
+                  const x = 40 + i * cell + cell / 2;
+                  const valueY = y(point.value ?? 0);
+                  return (
+                    <g key={`${i}-${point.label}`}>
+                      {point.value !== null && data.kind === "line" && (
+                        <circle
+                          cx={x}
+                          cy={valueY}
+                          r="4"
+                          fill="var(--accent-goiaba)"
+                        >
+                          <title>
+                            {point.label}:{" "}
+                            {visualValue(
+                              point.value,
+                              data.unit,
+                              data.precision,
+                            )}
+                          </title>
+                        </circle>
                       )}
-                      textAnchor="middle"
-                      fill="currentColor"
-                      fontSize="16"
-                      fontWeight="600"
-                    >
-                      {point.value === null
-                        ? "N/D"
-                        : visualValue(point.value, data.unit, data.precision)}
-                    </text>
-                    <text
-                      x={x}
-                      y="244"
-                      textAnchor="middle"
-                      fill="currentColor"
-                      fontSize="16"
-                    >
-                      {point.label}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-          )}
-        </div>
-      ) : (
-        <div className="mt-5 space-y-1 border-l-4 border-[var(--accent-goiaba)] pl-4">
-          {data.points.map((point, i) => (
-            <div key={`${i}-${point.label}`} className="py-1">
-              <p className="font-heading text-2xl font-semibold text-content">
-                {visualValue(point.value, data.unit, data.precision)}
-              </p>
-              <p className="text-sm text-muted">{point.label}</p>
-            </div>
-          ))}
-        </div>
-      )}
+                      {point.value !== null && data.kind !== "line" && (
+                        <rect
+                          x={x - Math.min(cell * 0.3, 42)}
+                          y={Math.min(y(0), valueY)}
+                          width={Math.min(cell * 0.6, 84)}
+                          height={Math.abs(y(0) - valueY)}
+                          rx="5"
+                          fill={
+                            i === data.points.length - 1
+                              ? "var(--accent-goiaba)"
+                              : "var(--accent-pistache)"
+                          }
+                        >
+                          <title>
+                            {point.label}:{" "}
+                            {visualValue(
+                              point.value,
+                              data.unit,
+                              data.precision,
+                            )}
+                          </title>
+                        </rect>
+                      )}
+                      <text
+                        x={x}
+                        y={Math.max(
+                          36,
+                          Math.min(
+                            230,
+                            valueY +
+                              (point.value !== null && point.value < 0
+                                ? 22
+                                : -10),
+                          ),
+                        )}
+                        textAnchor="middle"
+                        fill="currentColor"
+                        fontSize="16"
+                        fontWeight="600"
+                      >
+                        {point.value === null
+                          ? "N/D"
+                          : visualValue(point.value, data.unit, data.precision)}
+                      </text>
+                      <text
+                        x={x}
+                        y="244"
+                        textAnchor="middle"
+                        fill="currentColor"
+                        fontSize="16"
+                      >
+                        {point.label}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            )}
+          </div>
+        ) : (
+          <div className="mt-5 space-y-1 border-l-4 border-[var(--accent-goiaba)] pl-4">
+            {data.points.map((point, i) => (
+              <div key={`${i}-${point.label}`} className="py-1">
+                <p className="font-heading text-2xl font-semibold text-content">
+                  {visualValue(point.value, data.unit, data.precision)}
+                </p>
+                <p className="text-sm text-muted">{point.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </ChartBoundary>
       {data.note && (
         <p className="mt-3 text-xs leading-5 text-muted">{data.note}</p>
+      )}
+      {data.reading && (
+        <div
+          className="mt-4 space-y-2 border-l-2 border-[var(--accent-pistache)] pl-3 text-sm leading-6 text-content"
+          aria-label="Leitura do gráfico"
+        >
+          <p className="font-semibold">Leitura do gráfico</p>
+          <p>{data.reading.summary}</p>
+          <p className="text-muted">
+            <strong className="font-medium">Próximo passo: </strong>
+            {data.reading.next_step}
+          </p>
+        </div>
       )}
       {table && (
         <div

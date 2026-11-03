@@ -647,6 +647,7 @@ export default function AIInsightCard({
                     key={`distribution-${data.loteVersao}-${data.dataAtualizacao}-${JSON.stringify(filters)}`}
                     canExport={canExportChart}
                     data={{
+                      reading: data.distribuicao.reading,
                       kind:
                         data.distribuicao.completo &&
                         (data.distribuicao.visual ?? data.distribuicao.pontos)

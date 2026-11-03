@@ -54,6 +54,99 @@ afterEach(() => {
   resetGoldPublication();
 });
 
+it.each(["success", "model_failure", "denied"])(
+  "mostra dados antes da síntese e trata o final %s",
+  async (finish) => {
+    let stream!: ReadableStreamDefaultController<Uint8Array>;
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        stream = controller;
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url) =>
+        String(url).endsWith("/visualizations/verify")
+          ? Promise.resolve(jsonResponse({ authorized: true }))
+          : Promise.resolve(
+              new Response(body, {
+                headers: { "Content-Type": "application/x-ndjson" },
+              }),
+            ),
+      ),
+    );
+    renderPage();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "Receita de junho a agosto em Recife?",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Enviar pergunta" }),
+    );
+    act(() =>
+      stream.enqueue(
+        encoder.encode(
+          JSON.stringify({ type: "data", status: 200, data: visualResponse }) +
+            "\n",
+        ),
+      ),
+    );
+    const chart = await screen.findByRole("region", {
+      name: "Receita faturada",
+    });
+    expect(chart).toBeVisible();
+    expect(
+      screen.getByText(
+        "Os dados já estão disponíveis. Preparando a interpretação.",
+      ),
+    ).toBeVisible();
+    const failed = finish !== "success";
+    const status = finish === "denied" ? 403 : 503;
+    const frame = failed
+      ? {
+          type: "error",
+          status,
+          data: {
+            contract_version: "v1",
+            status: "error",
+            correlation_id: "a".repeat(32),
+            message: "Interpretação indisponível.",
+            error: {
+              code: status === 403 ? "access_denied" : "service_unavailable",
+              retryable: status === 503,
+            },
+          },
+        }
+      : { type: "complete", status: 200, data: visualResponse };
+    act(() => {
+      stream.enqueue(encoder.encode(JSON.stringify(frame) + "\n"));
+      stream.close();
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "Os dados já estão disponíveis. Preparando a interpretação.",
+        ),
+      ).toBeNull(),
+    );
+    if (finish === "denied")
+      expect(
+        screen.queryByRole("region", { name: "Receita faturada" }),
+      ).toBeNull();
+    else
+      expect(
+        screen.getAllByRole("region", {
+          name: "Receita faturada",
+        }),
+      ).toHaveLength(1);
+    if (finish === "model_failure")
+      expect(
+        screen.getByText(/A interpretação não pôde ser concluída/),
+      ).toBeVisible();
+  },
+);
+
 it("envia a referência pendente mais recente entre dois esclarecimentos", async () => {
   const clarification = (message: string, token: string) => ({
     contract_version: "v1",

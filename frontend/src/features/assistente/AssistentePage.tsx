@@ -60,6 +60,7 @@ type ChatMessage = {
   contextEligible: boolean;
   outdated?: boolean;
   historical?: boolean;
+  preliminary?: boolean;
 };
 
 const SUGGESTIONS = ASSISTANT_HOME_SUGGESTIONS;
@@ -252,16 +253,28 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   );
 }
 
-function AssistantResult({ response }: { response: AIQuestionResponse }) {
+function AssistantResult({
+  response,
+  preliminary = false,
+  interpretationFailed = false,
+}: {
+  response: AIQuestionResponse;
+  preliminary?: boolean;
+  interpretationFailed?: boolean;
+}) {
   const answered = response.status === "answered";
   const state = RESPONSE_STATES[response.status];
   return (
     <div className="mt-3 space-y-3">
       <p className={`text-sm font-semibold ${state.appearance}`}>
-        {state.label}
+        {preliminary ? "Dados da consulta" : state.label}
       </p>
       <p className="whitespace-pre-wrap text-base sm:text-[17px] leading-7 text-content">
-        {responseContent(response)}
+        {interpretationFailed
+          ? "A interpretação não pôde ser concluída. Os dados da consulta continuam disponíveis."
+          : preliminary
+            ? "Os dados já estão disponíveis. Preparando a interpretação."
+            : responseContent(response)}
       </p>
       {answered && response.visualization && (
         <VisualEvidence
@@ -276,6 +289,7 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
           }
           data={{
             kind: response.visualization.kind,
+            reading: response.visualization.reading,
             title: response.visualization.title,
             unit: response.visualization.unit,
             precision: response.visualization.precision,
@@ -384,6 +398,13 @@ function MessageCard({
         />
         <div className="min-w-0">
           <p className="text-base leading-6 text-content">{message.content}</p>
+          {message.response && (
+            <AssistantResult
+              response={message.response}
+              preliminary
+              interpretationFailed
+            />
+          )}
           {message.error.correlationId && (
             <p className="mt-1 break-all font-mono text-xs text-muted">
               Referência: {message.error.correlationId}
@@ -417,7 +438,12 @@ function MessageCard({
         </p>
       )}
       {!message.response && <p className="mt-2">{message.content}</p>}
-      {message.response && <AssistantResult response={message.response} />}
+      {message.response && (
+        <AssistantResult
+          response={message.response}
+          preliminary={message.preliminary}
+        />
+      )}
       {message.response?.status === "recoverable_error" &&
         message.response.error?.retryable &&
         message.retryRequest && (
@@ -457,15 +483,25 @@ export default function AssistentePage() {
   const sendingRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
-  const mutation = useMutation({ mutationFn: askAIQuestion, retry: false });
+  const requestAbort = useRef<AbortController | null>(null);
+  const mutation = useMutation({
+    mutationFn: (input: {
+      request: Parameters<typeof askAIQuestion>[0];
+      onData: (response: AIQuestionResponse) => void;
+      signal: AbortSignal;
+    }) => askAIQuestion(input.request, input.onData, input.signal),
+    retry: false,
+  });
   useEffect(
     () => () => {
       interactionRevision.current++;
+      requestAbort.current?.abort();
     },
     [],
   );
   // Publication changes invalidate interpretation history, including saved retries.
   useEffect(() => {
+    requestAbort.current?.abort();
     // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
     setMessages((current) =>
       current.map((message) => ({
@@ -547,6 +583,9 @@ export default function AssistentePage() {
       ]);
     }
 
+    let preview: AIQuestionResponse | undefined;
+    const abortController = new AbortController();
+    requestAbort.current = abortController;
     try {
       if (historyEnabled && !savedIdRef.current) {
         const created = await createConversation(conversationId);
@@ -557,19 +596,46 @@ export default function AssistentePage() {
       }
       if (historyEnabled) retryRequest.conversation_id = savedIdRef.current!;
       const response = await mutation.mutateAsync({
-        contract_version: "v1",
-        question,
-        context: context.slice(-3),
-        conversation_id: retryRequest.conversation_id,
-        continuation_token: retryRequest.continuation_token,
-        ...(historyEnabled
-          ? {
-              history_request_id: retryRequest.history_request_id,
-              refresh_context: retryRequest.refresh_context,
-            }
-          : {}),
+        request: {
+          contract_version: "v1",
+          question,
+          context: context.slice(-3),
+          conversation_id: retryRequest.conversation_id,
+          continuation_token: retryRequest.continuation_token,
+          ...(historyEnabled
+            ? {
+                history_request_id: retryRequest.history_request_id,
+                refresh_context: retryRequest.refresh_context,
+              }
+            : {}),
+        },
+        signal: abortController.signal,
+        onData: (data) => {
+          if (!current()) return;
+          preview = data;
+          setMessages((messages) =>
+            updateConversationInteraction(
+              messages,
+              userMessageId,
+              {
+                id: assistantMessageId,
+                role: "assistant",
+                content: "Dados da consulta disponíveis.",
+                response: data,
+                preliminary: true,
+                contextEligible: false,
+              },
+              true,
+            ),
+          );
+        },
       });
       if (!current()) return;
+      if (preview && response.status === "recoverable_error")
+        throw new AIChatApiError(
+          response.message ?? "Não foi possível concluir a interpretação.",
+          response.error?.retryable ?? false,
+        );
       setHasInterruptedSend(false);
       setRefreshContext(false);
       void queryClient.invalidateQueries({
@@ -631,11 +697,24 @@ export default function AssistentePage() {
               "Não foi possível concluir a pergunta. Tente novamente mais tarde.",
               false,
             );
+      const retained =
+        preview &&
+        ![401, 403, 409, 422].includes(safeError.status ?? 0) &&
+        (await verifyVisualExport({
+          metric: preview.visualization!.metric,
+          dimension_ids: preview.visualization!.dimension_ids,
+          batch_reference: preview.analysis_context!.batch_reference!,
+        }))
+          ? preview
+          : undefined;
+      if (!current()) return;
       const assistantMessage: ChatMessage = {
         id: assistantMessageId,
         role: "assistant",
         content: safeError.message,
         error: safeError,
+        response: retained,
+        preliminary: Boolean(preview),
         retryRequest: safeError.retryable ? retryRequest : undefined,
         contextEligible: false,
       };
@@ -654,7 +733,7 @@ export default function AssistentePage() {
             : current,
           userMessageId,
           assistantMessage,
-          retryAttempt !== undefined,
+          retryAttempt !== undefined || Boolean(preview),
         ),
       );
     } finally {
@@ -682,6 +761,7 @@ export default function AssistentePage() {
   }
 
   function startNewConversation() {
+    requestAbort.current?.abort();
     drafts.current.set(savedIdRef.current ?? conversationId, draft);
     interactionRevision.current++;
     sendingRef.current = false;
@@ -699,6 +779,7 @@ export default function AssistentePage() {
   }
 
   async function openSaved(id: string) {
+    requestAbort.current?.abort();
     drafts.current.set(savedIdRef.current ?? conversationId, draft);
     const revision = ++interactionRevision.current;
     const authorization = currentAuthorizationGeneration();
