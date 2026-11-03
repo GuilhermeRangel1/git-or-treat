@@ -12,8 +12,8 @@ Corte em 03/11/2026, um dia antes da entrega final (04/11). Cobre a camada de da
 | --- | --- | --- |
 | Workflow de seis tarefas, run limpo de ponta a ponta | Executado | [registro do run](../data-engineering/evidencias/workflow/run-limpo-250327107715287.md) |
 | Silver com validação automatizada (32 de 32 verificações) | Executado | [evidência Silver](../data-engineering/evidencias/silver/evidencia-silver-c738405b.md) e registro do run |
-| Gold com quinze tabelas analíticas, conferida contra a Silver (64 verificações, 0 falhas) | Executado | registro do run |
-| Exportação CSV v2 conferida (41 verificações, 0 falhas) | Executado | registro do run |
+| Gold com quinze tabelas analíticas, conferida pela bateria de 03/11 (chaves, órfãos, DEC/FEC recalculados, decomposição fechando e reprodução dos percentuais do diagnóstico) | Executado | registro do run |
+| Exportação CSV v2 concluída; o validador da exportação aceitou o lote (manifesto publicado) | Executado | registro do run |
 | Cadastro restrito separado, sem CPF nem endereço | Gerado e entregue ao backend por canal privado | registro do run |
 | Dicionário da Gold | Publicado | [dicionário](dicionario_gold.md) |
 | Diagnóstico da receita com decomposição preço × volume | Escrito; revisão da equipe pendente | [diagnóstico](revenue-diagnosis.md) |
