@@ -48,9 +48,12 @@ class GoldInspectionRepository:
                 predicates.append(getattr(self.queue.c, column_name) == value)
         return predicates
 
-    def count(self, filters: AnalyticsFilters) -> int:
+    def count(self, filters: AnalyticsFilters, category: str | None = None) -> int:
+        predicates = self._predicates(filters)
+        if category is not None:
+            predicates.append(self.queue.c.prioridade_inspecao == category)
         return self.connection.execute(
-            select(func.count()).select_from(self.queue).where(*self._predicates(filters))
+            select(func.count()).select_from(self.queue).where(*predicates)
         ).scalar_one()
 
     def category_counts(self, filters: AnalyticsFilters) -> dict[str | None, int]:
@@ -69,7 +72,7 @@ class GoldInspectionRepository:
             )
         ).scalar_one() > 0
 
-    def list_page(self, filters: AnalyticsFilters, page: int, page_size: int, order_by: str, direction: str) -> list[dict]:
+    def list_page(self, filters: AnalyticsFilters, page: int, page_size: int, order_by: str, direction: str, category: str | None = None) -> list[dict]:
         q, v, p = self.queue, self.variation, self.profile
         columns = [
             q.c.id_uc, q.c.municipio, q.c.bairro, q.c.classe, q.c.alimentador,
@@ -97,6 +100,8 @@ class GoldInspectionRepository:
         statement = select(*columns).select_from(
             q.outerjoin(v, q.c.id_uc == v.c.id_uc).outerjoin(p, q.c.id_uc == p.c.id_uc)
         ).where(*self._predicates(filters))
+        if category is not None:
+            statement = statement.where(q.c.prioridade_inspecao == category)
         if order_by == "queue_position":
             position = q.c.posicao_fila_inspecao.desc() if direction == "desc" else q.c.posicao_fila_inspecao.asc()
             statement = statement.order_by(position, q.c.id_uc.asc())

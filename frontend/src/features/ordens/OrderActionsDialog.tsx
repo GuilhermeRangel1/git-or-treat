@@ -18,6 +18,7 @@ import {
 } from "./order-actions";
 import { formatOrderCode } from "./ordens-query";
 import OrderHistory from "./OrderHistory";
+import DeleteOrder from "./DeleteOrder";
 
 type OrderActionsDialogProps = {
   order: Order | null;
@@ -26,6 +27,7 @@ type OrderActionsDialogProps = {
   triggerRef: RefObject<HTMLElement | null>;
   onSaved: (order: Order, message: string) => void;
   canEdit?: boolean;
+  onDeleted?: () => void;
 };
 
 type MutationVariables =
@@ -40,6 +42,7 @@ export default function OrderActionsDialog({
   triggerRef,
   onSaved,
   canEdit = true,
+  onDeleted,
 }: OrderActionsDialogProps) {
   const queryClient = useQueryClient();
   const orderId = order?.id;
@@ -448,14 +451,17 @@ export default function OrderActionsDialog({
                     setConfirmCancellation(true);
                   }}
                 >
-                  Cancelar ordem…
+                  Cancelar ordem
                 </Button>
               ) : finalOrder ? (
                 <p role="status" className="text-sm text-muted">
-                  Esta ordem está encerrada e disponível somente para consulta.
+                  Esta ordem está encerrada e não aceita novos resultados.
                 </p>
               ) : null}
               <OrderHistory orderId={current.id} />
+              {canEdit && !mutation.isPending && !detail.isFetching ? (
+                <DeleteOrder order={current} onDeleted={onDeleted ?? onClose} />
+              ) : null}
             </>
           ) : null}
         </div>

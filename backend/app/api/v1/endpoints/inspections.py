@@ -81,6 +81,98 @@ def get_suspicion_detail(
 router.include_router(analytics_router)
 
 
+from app.services.field_files import FieldUpload, import_results, read_xlsx, field_template
+
+
+@router.post("/field-results/import", summary="Importar CSV de resultados de campo")
+def import_field_results(payload: FieldUpload, db: Session = Depends(get_db),
+                         actor: str = Depends(require_orders_write)):
+    if payload.xlsx is not None:
+        try:
+            content = read_xlsx(payload.xlsx)
+        except Exception:
+            return {"imported": 0, "errors": [{"line": 1, "message": "XLSX inválido. Use a aba Resultados do modelo, até 500 ordens, sem fórmulas."}]}
+    else:
+        content = payload.csv
+    return import_results(db, content, actor)
+
+
+@router.get("/field-results/template", summary="Modelo Excel das ordens em andamento")
+def download_field_template(response: Response, format: Literal["xlsx", "csv"] = "xlsx", actor: str = Depends(require_orders_write), db: Session = Depends(get_db)):
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        return field_template(db, format)
+    except ModuleNotFoundError:
+        raise HTTPException(503, "O serviço de planilhas Excel está indisponível. Baixe o modelo CSV ou solicite a atualização do backend.") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.get("/field-queue/export", summary="Exportar a página filtrada da fila")
+def export_field_queue(actor: str = Depends(require_orders_read),
+                       municipio: str | None = Query(None, max_length=100),
+                       bairro: str | None = Query(None, max_length=100),
+                       classe: str | None = Query(None, max_length=100),
+                       categoria: str | None = Query(None, max_length=100),
+                       options_only: bool = False,
+                       count_only: bool = False,
+                       order_by: Literal["priority", "uc_id", "potential_recoverable_energy_kwh", "category", "queue_position"] | None = None,
+                       direction: Literal["asc", "desc"] | None = None,
+                       gold_context: GoldContext | None = Depends(get_optional_gold_context),
+                       repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider)):
+    import csv
+    import io
+    import json
+    if count_only and gold_context is not None:
+        count = GoldInspectionRepository(gold_context).count(filters_model(municipio, bairro, classe, None), categoria)
+        return {"count": count}
+    queue = get_inspection_queue(
+        page=1, page_size=1 if options_only or count_only else 50001,
+        order_by=order_by, direction=direction, municipio=municipio,
+        bairro=bairro, classe=classe, alimentador=None,
+        expected_lote=None, expected_fingerprint=None,
+        gold_context=gold_context, repository_provider=repository_provider,
+    )
+    if options_only:
+        categories = getattr(queue.data.summary, "categories", {})
+        if gold_context is not None:
+            neighborhoods = queue.data.neighborhoods
+        else:
+            neighborhoods = [dict(municipio=municipality, bairro=neighborhood) for municipality, neighborhood in sorted({
+                (unit["municipio"], unit["bairro"]) for unit in repository_provider().units
+                if unit.get("municipio") and unit.get("bairro")
+            })]
+        return {"options": {**queue.data.filter_options, "categoria": sorted(categories)}, "neighborhoods": neighborhoods}
+    if gold_context is not None and categoria is not None:
+        queue = build_gold_queue_response(
+            GoldInspectionRepository(gold_context), filters_model(municipio, bairro, classe, None),
+            1, 50001, order_by or "queue_position", direction or "asc", categoria,
+        )
+    if count_only:
+        if categoria is not None:
+            raise HTTPException(422, "Esta fonte não publica categorias para filtrar a fila.")
+        return {"count": queue.pagination.total}
+    if queue.pagination.total > 50000:
+        raise HTTPException(422, "O recorte excede 50.000 UCs. Aplique filtros para exportar.")
+    rows = [item.model_dump(mode="json") for item in queue.data.items]
+    if categoria is not None:
+        categories = getattr(queue.data.summary, "categories", {})
+        if categoria not in categories:
+            raise HTTPException(422, "Categoria indisponível neste recorte.")
+        rows = [row for row in rows if row.get("category") == categoria]
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+    columns = list(rows[0]) if rows else ["uc_id"]
+    writer.writerow([*columns, "fonte", "filtros"])
+    filters = json.dumps({"municipio": municipio, "bairro": bairro, "classe": classe, "categoria": categoria, "order_by": order_by, "direction": direction}, ensure_ascii=False)
+    def safe(value):
+        value = "" if value is None else json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+        return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) else value
+    for row in rows:
+        writer.writerow([*[safe(row.get(key)) for key in columns], safe(queue.metadata.source.version), safe(filters)])
+    return {"csv": output.getvalue(), "count": len(rows)}
+
+
 @router.get("/access", response_model=OrderAccessResponse, summary="Identidade e permissões das ordens")
 def get_order_access(response: Response, identity: OrderIdentity = Depends(get_order_identity)):
     response.headers["Cache-Control"] = "no-store"
@@ -166,6 +258,17 @@ def get_order(order_id: int = Path(ge=1, le=9223372036854775807), db: Session = 
     if order is None:
         raise HTTPException(404, "Ordem de inspeção não encontrada.")
     return order
+
+
+@router.delete("/orders/{order_id}", status_code=204, summary="Excluir ordem do portal preservando auditoria")
+def delete_inspection_order(payload: OrderCancelRequest, order_id: int = Path(ge=1, le=9223372036854775807),
+                            db: Session = Depends(get_db), actor: str = Depends(require_orders_write)):
+    try:
+        if not inspection_service.delete_order(db, order_id, payload.version, payload.confirmed_order_id, actor):
+            raise HTTPException(404, "Ordem não encontrada ou já excluída.")
+    except inspection_service.OrderConflictError as exc:
+        return order_conflict_response(exc)
+    return Response(status_code=204)
 
 
 @router.get(
