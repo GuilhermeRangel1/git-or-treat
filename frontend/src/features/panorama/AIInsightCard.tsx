@@ -1,3 +1,5 @@
+import { verifyVisualExport } from "../../shared/analytics/verifyVisualExport";
+import VisualEvidence from "../../shared/analytics/VisualEvidence";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -232,6 +234,18 @@ export default function AIInsightCard({
   // A failed refetch can leave TanStack Query's previous response in `data`.
   // Never present that cached interpretation as current after an error.
   const publicationStale = !isDemo && isGoldPublicationStale();
+  function canExportChart() {
+    if (isDemo) return true;
+    if (publicationStale || !data.origem?.fingerprint) return false;
+    return verifyVisualExport({
+      metric: "billing.revenue",
+      dimension_ids: ["geography.municipality", "customer.consumption_class"],
+      expected_publication: {
+        lote: data.loteVersao,
+        fingerprint: data.origem.fingerprint,
+      },
+    });
+  }
   const response =
     publicationStale || query.isError || (!isDemo && query.isFetching)
       ? undefined
@@ -511,7 +525,7 @@ export default function AIInsightCard({
           id="panorama-insight-details"
           aria-labelledby="panorama-insight-title"
           aria-modal="true"
-          className="fixed inset-y-0 right-0 m-0 h-dvh w-[min(460px,calc(100vw-1rem))] max-h-none max-w-none overflow-hidden border-l border-border bg-surface p-0 text-content shadow-2xl backdrop:bg-black/45"
+          className="fixed inset-y-0 right-0 m-0 h-dvh w-[min(760px,100vw)] max-h-none max-w-none overflow-hidden border-l border-border bg-surface p-0 text-content shadow-2xl backdrop:bg-black/45"
           style={{
             position: "fixed",
             top: 0,
@@ -592,6 +606,90 @@ export default function AIInsightCard({
                   </>
                 )}
               </section>
+
+              {!publicationStale &&
+                data.totalRegistros > 0 &&
+                metric.valorAtual !== null && (
+                  <VisualEvidence
+                    key={`${data.loteVersao}-${data.dataAtualizacao}-${JSON.stringify(filters)}`}
+                    canExport={canExportChart}
+                    data={{
+                      isDemo,
+                      title: metric.nome,
+                      unit: metric.unidade,
+                      note:
+                        metric.limitacoes?.map(businessLanguage).join(" ") ||
+                        undefined,
+                      scope: `${filterLabel(filters.municipio, "Todos os municípios")} · ${filterLabel(filters.classe, "Todas as classes")}`,
+                      points: [
+                        ...(filters.comparacao !== "nenhuma" &&
+                        metric.valorAnterior != null
+                          ? [
+                              {
+                                label: comparisonLabel(filters),
+                                value: metric.valorAnterior,
+                              },
+                            ]
+                          : []),
+                        {
+                          label: periodLabel(filters.periodo),
+                          value: metric.valorAtual,
+                        },
+                      ],
+                    }}
+                  />
+                )}
+
+              {!publicationStale &&
+                data.distribuicao &&
+                data.totalRegistros > 0 && (
+                  <VisualEvidence
+                    key={`distribution-${data.loteVersao}-${data.dataAtualizacao}-${JSON.stringify(filters)}`}
+                    canExport={canExportChart}
+                    data={{
+                      kind:
+                        data.distribuicao.completo &&
+                        (data.distribuicao.visual ?? data.distribuicao.pontos)
+                          .length <= 6
+                          ? "donut"
+                          : "horizontal",
+                      isDemo,
+                      total: data.distribuicao.total,
+                      title: `${metric.nome} por ${data.distribuicao.dimension === "municipio" ? "município" : "classe"}`,
+                      categoryLabel:
+                        data.distribuicao.dimension === "municipio"
+                          ? "Município"
+                          : "Classe",
+                      unit: data.distribuicao.unidade,
+                      scope: `${periodLabel(filters.periodo)} · ${filterLabel(filters.municipio, "Todos os municípios")} · ${filterLabel(filters.classe, "Todas as classes")}`,
+                      note:
+                        [
+                          data.distribuicao.agrupados
+                            ? `${data.distribuicao.pontos.length} grupos no recorte. Gráfico: 5 maiores e ${data.distribuicao.agrupados} agrupados. Tabela e CSV: lista completa.`
+                            : data.distribuicao.pontos.length > 10
+                              ? `${data.distribuicao.pontos.length} grupos no recorte. Gráfico: 10 maiores valores observados. Tabela e CSV: lista completa.`
+                              : undefined,
+                          !data.distribuicao.completo
+                            ? "Valores observados; a base não permite calcular participações neste recorte."
+                            : undefined,
+                        ]
+                          .filter(Boolean)
+                          .join(" ") || undefined,
+                      tablePoints: data.distribuicao.pontos.map((p) => ({
+                        label: p.segmento,
+                        value: p.valor,
+                        percentage: p.percentual,
+                      })),
+                      points: (
+                        data.distribuicao.visual ?? data.distribuicao.pontos
+                      ).map((p) => ({
+                        label: p.segmento,
+                        value: p.valor,
+                        percentage: p.percentual,
+                      })),
+                    }}
+                  />
+                )}
 
               <section aria-labelledby="panorama-insight-points-title">
                 <h3

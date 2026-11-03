@@ -1,3 +1,6 @@
+import { verifyVisualExport } from "@/shared/analytics/verifyVisualExport";
+import VisualEvidence from "@/shared/analytics/VisualEvidence";
+import { isGoldPublicationStale } from "@/shared/analytics/goldPublication";
 import { ASSISTANT_HOME_SUGGESTIONS } from "@/shared/help/assistantExamples";
 import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +12,6 @@ import {
   AlertCircle,
   Check,
   CircleHelp,
-  Database,
   Info,
   MessageCircle,
   Plus,
@@ -204,12 +206,26 @@ function formatPeriod(value: string) {
   );
 }
 
+function formatVisualLabel(value: string) {
+  // Category names are literal business labels, even when they contain a date.
+  const separator = value.lastIndexOf(" · ");
+  if (separator >= 0)
+    return `${value.slice(0, separator)} · ${formatPeriod(value.slice(separator + 3))}`;
+  return /^\d{4}(?:-\d{2}(?:-\d{2})?)?$/.test(value)
+    ? formatPeriod(value)
+    : value;
+}
+
 function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   const context = response.analysis_context;
   if (!context) return null;
   const details = [
     context.metric_label && ["Indicador", context.metric_label],
     context.unit && ["Unidade", context.unit],
+    context.metric_definition && [
+      "Definição do indicador",
+      context.metric_definition,
+    ],
     context.period && ["Período", formatPeriod(context.period)],
     ...Object.entries(context.filters).map(([key, value]) => [
       context.filter_labels?.[key] ?? "Filtro aplicado",
@@ -247,6 +263,42 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
       <p className="whitespace-pre-wrap text-base sm:text-[17px] leading-7 text-content">
         {responseContent(response)}
       </p>
+      {answered && response.visualization && (
+        <VisualEvidence
+          key={`${response.analysis_context?.batch_reference}-${response.visualization.metric}-${response.visualization.period}-${JSON.stringify(response.analysis_context?.filters)}`}
+          canExport={() =>
+            !isGoldPublicationStale() &&
+            verifyVisualExport({
+              metric: response.visualization!.metric,
+              dimension_ids: response.visualization!.dimension_ids,
+              batch_reference: response.analysis_context!.batch_reference!,
+            })
+          }
+          data={{
+            kind: response.visualization.kind,
+            title: response.visualization.title,
+            unit: response.visualization.unit,
+            precision: response.visualization.precision,
+            scope: [
+              formatPeriod(response.visualization.period),
+              ...Object.entries(response.analysis_context?.filters ?? {}).map(
+                ([key, value]) =>
+                  `${response.analysis_context?.filter_labels?.[key] ?? "Filtro aplicado"}: ${formatFilterValue(value)}`,
+              ),
+            ].join(" · "),
+            categoryLabel: response.visualization.category_label,
+            note: response.visualization.note,
+            points: response.visualization.plot_points.map((p) => ({
+              label: formatVisualLabel(p.label),
+              value: p.value,
+            })),
+            tablePoints: response.visualization.points.map((p) => ({
+              label: formatVisualLabel(p.label),
+              value: p.value,
+            })),
+          }}
+        />
+      )}
       {response.evidence.some((item) => item.is_demo) && (
         <p className="flex items-center gap-2 text-sm font-medium text-[var(--status-warning-text)]">
           <Info aria-hidden="true" className="size-4" />
@@ -254,48 +306,30 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
         </p>
       )}
       {answered && response.evidence.length > 0 && (
-        <details
+        <div
           aria-label="Fundamento da resposta"
-          className="rounded-xl border border-divider bg-canvas/70 p-3"
+          className="space-y-2 text-sm leading-6 text-muted"
         >
-          <summary className="cursor-pointer text-sm font-semibold text-content focus-visible:outline-2 focus-visible:outline-brand">
-            <Database aria-hidden="true" className="mr-2 inline-block size-4" />
-            Como chegamos à resposta
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {response.evidence.map((item, index) => (
-              <li
-                key={`${item.source}-${index}`}
-                className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-5 text-muted"
-              >
-                <span>
-                  {item.is_demo
-                    ? "Dados de demonstração"
-                    : item.source === "documentation.indicators"
-                      ? "Documentação interna"
-                      : "Fonte de dados interna"}
-                </span>
-                {item.source === "documentation.indicators" &&
-                  !item.is_demo && (
-                    <p className="w-full break-words leading-6">
-                      {item.description}
-                    </p>
-                  )}
-                {item.is_demo && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)]/10 px-2 py-0.5 font-medium text-[var(--status-warning-text)]">
-                    <Info aria-hidden="true" className="size-3" />
-                    Demonstração sintética
-                  </span>
-                )}
-              </li>
+          <p>
+            {response.evidence.some((item) => item.is_demo)
+              ? "Dados de demonstração"
+              : response.evidence.some(
+                    (item) => item.source === "documentation.indicators",
+                  )
+                ? "Documentação interna"
+                : "Fonte de dados interna"}
+          </p>
+          {response.evidence
+            .filter(
+              (item) =>
+                item.source === "documentation.indicators" && !item.is_demo,
+            )
+            .map((item, index) => (
+              <p key={index} className="break-words">
+                {item.description}
+              </p>
             ))}
-          </ul>
-          {response.analysis_context?.metric_definition && (
-            <p className="mt-3 text-sm leading-5 text-muted">
-              {response.analysis_context.metric_definition}
-            </p>
-          )}
-        </details>
+        </div>
       )}
       <AnalysisContext response={response} />
       {response.limitations.length > 0 && (

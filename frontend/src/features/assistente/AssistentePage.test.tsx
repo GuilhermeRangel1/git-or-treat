@@ -1,3 +1,4 @@
+import { visualResponse } from "./visualization.test-support";
 import { resetGoldPublication } from "@/shared/analytics/goldPublication";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import {
@@ -182,7 +183,6 @@ describe("Assistente Grid 360", () => {
     );
     await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
     await screen.findByText("Receita faturada não representa valor pago.");
-    await user.click(screen.getByText("Como chegamos à resposta"));
     expect(screen.getByText("Documentação interna")).toBeVisible();
     expect(screen.getByText(citation)).toBeVisible();
     expect(
@@ -263,7 +263,6 @@ describe("Assistente Grid 360", () => {
     expect(
       screen.queryByText(`Referência para conferência: ${reference}`),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByText("Como chegamos à resposta"));
     expect(screen.getByText("Fonte de dados interna")).toBeVisible();
     expect(screen.getByText(": Mai/2026")).toBeVisible();
     expect(screen.queryByText(/Referência para conferência/)).toBeNull();
@@ -334,7 +333,6 @@ describe("Assistente Grid 360", () => {
     expect(textbox).toBeDisabled();
     resolveResponse(jsonResponse(answered));
     expect(await screen.findByText(answered.answer)).toBeVisible();
-    await user.click(screen.getByText("Como chegamos à resposta"));
   });
 
   it("envia a pergunta ao Backend e mostra resposta, recorte e evidência demonstrativa", async () => {
@@ -350,9 +348,8 @@ describe("Assistente Grid 360", () => {
     await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
 
     expect(await screen.findByText(answered.answer)).toBeVisible();
-    await user.click(screen.getByText("Como chegamos à resposta"));
     expect(screen.getByText("Resposta fundamentada")).toBeVisible();
-    expect(screen.getByText(/Demonstração sintética/)).toBeVisible();
+    expect(screen.getByText(/Exemplo com dados fictícios/)).toBeVisible();
     expect(screen.getByText("Dados de demonstração")).toBeVisible();
     expect(screen.getByText(/Jan\/2025 – Fev\/2025/)).toBeVisible();
     expect(
@@ -947,4 +944,24 @@ it("removes previously authorized evidence and retries after scope revocation", 
   await user.keyboard("{Enter}");
   await screen.findByText(/Seu acesso/);
   expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
+});
+
+it("apresenta gráfico de pontos autorizados e tabela junto à resposta", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(jsonResponse(visualResponse)),
+  );
+  renderPage();
+  const user = userEvent.setup();
+  await user.type(
+    screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+    "Compare a receita de junho a agosto em Recife.",
+  );
+  await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+  const chart = await screen.findByRole("img", { name: "Receita faturada" });
+  expect(chart).toHaveAccessibleDescription(/2026|Jun/);
+  await user.click(screen.getByRole("button", { name: "Ver tabela" }));
+  expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(4);
+  expect(screen.getByRole("button", { name: /PNG/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: /CSV/ })).toBeVisible();
 });
