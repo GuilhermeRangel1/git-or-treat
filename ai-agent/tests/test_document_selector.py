@@ -1,6 +1,7 @@
 """A saída do provedor é uma seleção fechada, nunca texto pronto para o usuário."""
 
 import asyncio
+import builtins
 from datetime import date
 from types import SimpleNamespace
 
@@ -9,6 +10,23 @@ import pytest
 from app.providers.document_selector import DocumentSelectionUnavailable, GeminiDocumentSelector
 from app.tools.documentation import IndicatorDocumentation
 from tests.test_documentation_source import access
+
+
+def test_optional_sdk_is_required_only_for_remote_selection(monkeypatch):
+    original = builtins.__import__
+
+    def without_google(name, *args, **kwargs):
+        if name == "google":
+            raise ImportError("SDK opcional ausente")
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_google)
+    service = GeminiDocumentSelector(api_key="fake", model="fake")
+    chunks = IndicatorDocumentation().authorized_chunks(
+        access({"billing.revenue"}), date(2026, 11, 3)
+    )
+    with pytest.raises(DocumentSelectionUnavailable):
+        asyncio.run(service.select("O que é receita?", chunks))
 
 
 @pytest.mark.parametrize(

@@ -3625,3 +3625,12 @@ uma métrica ao catálogo não a publica automaticamente na busca. Corpus
 regenerado nos dois serviços. 115 testes GenAI dirigidos passaram; Ruff, gerador
 --check e diff passaram. Falha inicial na cópia Linux foi ausência do diretório
 temporário scripts, corrigida sem alterar a regressão. Sem novas chamadas externas.
+
+
+### PR #114 — compatibilidade do SDK opcional
+
+CI detectou três falhas na composição Gold quando o SDK Gemini não está instalado
+e o modelo quantitativo é injetado. Seleção documental agora carrega o SDK apenas
+na primeira chamada remota; falta do SDK resulta em erro documental sanitizado,
+sem impedir composição ou definições canônicas. Doze testes do seletor e runtime
+passaram; Ruff passou. Sem chamada externa.

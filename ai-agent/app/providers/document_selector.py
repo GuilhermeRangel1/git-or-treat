@@ -9,16 +9,7 @@ from app.telemetry import record_usage
 
 class GeminiDocumentSelector:
     def __init__(self, *, api_key: str, model: str, client=None):
-        if client is None:
-            from google import genai
-
-            client = genai.Client(
-                api_key=api_key,
-                http_options={
-                    "timeout": 20000,
-                    "retry_options": {"attempts": 1},
-                },
-            )
+        self._api_key = api_key
         self.client, self.model = client, model
 
     async def select(self, question: str, chunks: tuple[DocumentChunk, ...]) -> DocumentSelection:
@@ -36,6 +27,14 @@ class GeminiDocumentSelector:
             )
             if not chunks or len(chunks) > 24 or len(contents.encode("utf-8")) > 32768:
                 raise ValueError("seleção acima do limite de payload")
+            # O SDK é opcional: composição e conceitos canônicos não fazem chamada remota.
+            if self.client is None:
+                from google import genai
+
+                self.client = genai.Client(
+                    api_key=self._api_key,
+                    http_options={"timeout": 20000, "retry_options": {"attempts": 1}},
+                )
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=contents,
