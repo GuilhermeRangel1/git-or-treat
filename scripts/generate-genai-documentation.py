@@ -9,6 +9,15 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "frontend/src/shared/help/indicatorFaq.generated.json"
 TARGET = ROOT / "ai-agent/app/corpora/indicators.json"
 BACKEND_TARGET = ROOT / "backend/app/corpora/indicators.json"
+INDIVIDUAL_METRICS = (
+    "energy.average_consumption_per_uc",
+    "network.equivalent_interruption_duration",
+    "network.equivalent_interruption_frequency",
+    "service.attendance",
+    "service.satisfaction",
+    "service.accumulated_attendance",
+    "service.accumulated_satisfaction",
+)
 
 
 def build() -> str:
@@ -34,15 +43,17 @@ def build() -> str:
         for entry in source["entries"]
         if len(entry["definitions"]) == 1
     }
-    template = source["entries"][0]
-    for metric in catalog["metrics"]:
-        if metric["metric_id"] in standalone:
+    for metric_id in INDIVIDUAL_METRICS:
+        if metric_id in standalone:
             continue
+        metric = metrics[metric_id]
         source["entries"].append(
             {
-                **{key: template[key] for key in (
-                    "status", "validFrom", "validUntil", "audience", "owner"
-                )},
+                "status": "active",
+                "validFrom": "2026-11-03",
+                "validUntil": None,
+                "audience": "Pessoas usuárias do portal interno",
+                "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
                 "id": "metric-" + metric["metric_id"].replace(".", "-").replace("_", "-"),
                 "question": f"O que significa {metric['label']}?",
                 "keywords": metric["label"].casefold().split(),

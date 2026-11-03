@@ -1,5 +1,5 @@
 {
-  "version": "695553f20d5e",
+  "version": "b238e549f9c8",
   "catalogVersion": "gold-catalog-v2",
   "source": "Dicionário de indicadores da distribuidora",
   "entries": [
@@ -256,7 +256,7 @@
     },
     {
       "status": "active",
-      "validFrom": "2026-11-02",
+      "validFrom": "2026-11-03",
       "validUntil": null,
       "audience": "Pessoas usuárias do portal interno",
       "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
@@ -285,7 +285,7 @@
     },
     {
       "status": "active",
-      "validFrom": "2026-11-02",
+      "validFrom": "2026-11-03",
       "validUntil": null,
       "audience": "Pessoas usuárias do portal interno",
       "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
@@ -311,7 +311,7 @@
     },
     {
       "status": "active",
-      "validFrom": "2026-11-02",
+      "validFrom": "2026-11-03",
       "validUntil": null,
       "audience": "Pessoas usuárias do portal interno",
       "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
@@ -337,7 +337,7 @@
     },
     {
       "status": "active",
-      "validFrom": "2026-11-02",
+      "validFrom": "2026-11-03",
       "validUntil": null,
       "audience": "Pessoas usuárias do portal interno",
       "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
@@ -361,7 +361,7 @@
     },
     {
       "status": "active",
-      "validFrom": "2026-11-02",
+      "validFrom": "2026-11-03",
       "validUntil": null,
       "audience": "Pessoas usuárias do portal interno",
       "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
@@ -387,7 +387,7 @@
     },
     {
       "status": "active",
-      "validFrom": "2026-11-02",
+      "validFrom": "2026-11-03",
       "validUntil": null,
       "audience": "Pessoas usuárias do portal interno",
       "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
@@ -412,7 +412,7 @@
     },
     {
       "status": "active",
-      "validFrom": "2026-11-02",
+      "validFrom": "2026-11-03",
       "validUntil": null,
       "audience": "Pessoas usuárias do portal interno",
       "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",

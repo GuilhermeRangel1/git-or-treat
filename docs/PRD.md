@@ -3614,3 +3614,14 @@ entendimento acima; mesma branch, sem commit/push, estados oficiais preservados.
 - Por solicitação da pessoa usuária, corpus ampliado de nove para 16 verbetes, cobrindo as definições dos 14 indicadores do catálogo Gold v2. Sete explicações individuais extraídas literalmente, incluindo consumo médio por UC e satisfação. Comparativos preservados; definições individuais usam apenas a permissão da própria métrica.
 - Reconhece “me explica”, “pode me explicar” e “o que quer dizer”; datas e localidades conservam o caminho quantitativo. Corpus versionado independentemente do FAQ; geração reproduzível para Backend/GenAI.
 - Verificações locais: 114 testes GenAI dirigidos e sete Backend passaram; Ruff, gerador e diff passaram. Prova Gemini/portal anterior corresponde aos nove verbetes iniciais e não estima qualidade semântica do corpus ampliado. Detalhes e falha de IDs corrigida em [evidência](plans/2026-11-03-genai-busca-documental.md). Sem commit/push.
+
+
+### Revisão do PR #114 — ciclo de vida documental
+
+A revisão de padrões identificou herança indevida da vigência do primeiro FAQ
+para as definições individuais. Corrigido com seleção explícita dos sete IDs e
+metadados próprios: retirar receita não retira DEC/FEC ou satisfação, e adicionar
+uma métrica ao catálogo não a publica automaticamente na busca. Corpus
+regenerado nos dois serviços. 115 testes GenAI dirigidos passaram; Ruff, gerador
+--check e diff passaram. Falha inicial na cópia Linux foi ausência do diretório
+temporário scripts, corrigida sem alterar a regressão. Sem novas chamadas externas.

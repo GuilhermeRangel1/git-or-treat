@@ -109,3 +109,8 @@ históricas anteriores conforme o contrato existente.
 
 Expressões “me explica”, “pode me explicar” e “o que quer dizer” entram no caminho
 conceitual. Datas e localidades explícitas continuam no caminho quantitativo.
+
+A seleção de definições individuais é explícita em `INDIVIDUAL_METRICS` no
+gerador, com status e vigência próprios. Retirar ou expirar o FAQ de receita
+não altera esses verbetes. Incluir uma métrica nova no catálogo não autoriza sua
+publicação automática: revisar seleção, responsável e vigência antes da geração.

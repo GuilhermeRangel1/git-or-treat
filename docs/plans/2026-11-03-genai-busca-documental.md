@@ -187,3 +187,14 @@ hífens e repetidos os testes. A rodada Gemini e a jornada de navegador descrita
 acima pertencem ao corpus anterior de nove verbetes; não foram repetidas nesta
 ampliação. Os resultados comparativos 3/11 e 10/11 não medem o corpus ampliado.
 Sem novas chamadas externas, commit ou push nesta rodada.
+
+
+### Revisão do PR #114 — ciclo de vida documental
+
+A revisão de padrões identificou herança indevida da vigência do primeiro FAQ
+para as definições individuais. Corrigido com seleção explícita dos sete IDs e
+metadados próprios: retirar receita não retira DEC/FEC ou satisfação, e adicionar
+uma métrica ao catálogo não a publica automaticamente na busca. Corpus
+regenerado nos dois serviços. 115 testes GenAI dirigidos passaram; Ruff, gerador
+--check e diff passaram. Falha inicial na cópia Linux foi ausência do diretório
+temporário scripts, corrigida sem alterar a regressão. Sem novas chamadas externas.
