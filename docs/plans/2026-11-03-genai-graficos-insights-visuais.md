@@ -139,3 +139,10 @@ docker compose --env-file .env.gold-v2 -p dev131-gold -f docker-compose.yml -f d
 ```
 
 Build/recriação passaram. Frontend5173 e health Backend8000 responderam200; GenAI saudável, Gold ativa e chave configurada (somente presença conferida). Mounts apontam a worktree genai-graficos. Volume PostgreSQL e lote preservados, sem executar loader ou migração. Smoke autenticado real na composição reconstruída: comparação maio/junho, data→complete e dois pontos iniciais/finais iguais; conta temporária removida. Usuários/sessões existentes não foram redefinidos. Docker permanece ativo para a pessoa usuária conferir no navegador.
+
+
+## Sincronização do PR com a develop atual
+
+Após abrir o PR116, a develop estava em6fc93de, com as entregas do PR115 de Inspeções/Ordens e ajustes visuais. A integração nesta branch foi preparada por merge normal, sem squash, cherry-pick ou reescrever commits. Não houve conflitos de conteúdo; históricos e documentos dos dois lados foram preservados. Não é merge deste PR na develop.
+
+Verificação na árvore integrada:186 testes Backend passaram na imagem Docker limpa (162 da fatia e regressões de field_files/order_lifecycle);153 testes frontend passaram (95 da fatia e regressões de Inspeções/Ordens/Receita), build e fronteiras passaram. Os testes adicionais validam os pontos recebidos da develop, sem introduzir novos cenários na feature. Backend recebeu as dependências já versionadas pela develop (openpyxl/defusedxml); sua imagem foi reconstruída e Backend/frontend recriados, sem tocar no volume Gold. localhost5173 e health8000 continuaram200, IA saudável. Os186 testes da imagem registraram somente aviso de descontinuação do TestClient/httpx da versão instalada; nenhum teste falhou.

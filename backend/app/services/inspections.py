@@ -34,6 +34,41 @@ class OrderResultRequiredError(ValueError):
 
 
 logger = logging.getLogger(__name__)
+DELETED_ORDER_DETAIL = "Ordem excluída do portal. Histórico preservado para auditoria."
+
+
+def visible_orders(db: Session):
+    deleted = db.query(OperationalOrderHistory.id).filter(
+        OperationalOrderHistory.order_id == InspectionOrder.id,
+        OperationalOrderHistory.details == DELETED_ORDER_DETAIL,
+    ).exists()
+    return db.query(InspectionOrder).filter(~deleted)
+
+
+def delete_order(db: Session, order_id: int, version: int, confirmed_order_id: int, actor: str):
+    if confirmed_order_id != order_id:
+        raise OrderConflictError("Confirme o ID da ordem para excluir.", "confirmation_mismatch", order_id)
+    order = get_order(db, order_id)
+    if order is None:
+        return False
+    if order.version != version:
+        raise OrderConflictError("Ordem alterada. Atualize antes de excluir.", "version_conflict", order_id)
+    previous = order.status
+    # Closing active work releases the existing unique active-UC constraint.
+    if previous in {OrderStatus.PENDING, OrderStatus.IN_PROGRESS}:
+        order.status = OrderStatus.CANCELLED
+    order.version += 1
+    try:
+        db.flush()
+        _record(db, order, previous, OrderAction.STATUS_UPDATED, actor, DELETED_ORDER_DETAIL)
+        db.commit()
+    except StaleDataError:
+        db.rollback()
+        raise OrderConflictError("Ordem alterada. Atualize antes de excluir.", "version_conflict", order_id) from None
+    except Exception:
+        db.rollback()
+        raise
+    return True
 TRANSITIONS = {
     OrderStatus.PENDING: {OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED},
     OrderStatus.IN_PROGRESS: {OrderStatus.COMPLETED, OrderStatus.CANCELLED},
@@ -43,14 +78,14 @@ TRANSITIONS = {
 
 
 def list_orders(db: Session, status_filter: Optional[OrderStatus] = None) -> list[InspectionOrder]:
-    query = db.query(InspectionOrder)
+    query = visible_orders(db)
     if status_filter:
         query = query.filter(InspectionOrder.status == status_filter)
     return query.all()
 
 
 def get_order(db: Session, order_id: int) -> InspectionOrder | None:
-    return db.get(InspectionOrder, order_id)
+    return visible_orders(db).filter(InspectionOrder.id == order_id).first()
 
 
 def _active_order(db: Session, uc_id: str) -> InspectionOrder | None:
@@ -99,6 +134,8 @@ def _fingerprint(value: dict) -> str:
 
 def _replay(db: Session, key: str, fingerprint: str) -> InspectionOrder | None:
     existing = db.query(InspectionOrder).filter_by(idempotency_key=key).first()
+    if existing is not None and get_order(db, existing.id) is None:
+        raise OrderConflictError("Esta intenção corresponde a uma ordem excluída. Inicie uma nova ordem.", "deleted_order", existing.id)
     if existing and existing.request_fingerprint != fingerprint:
         raise OrderConflictError("Chave de idempotência já usada com outra solicitação.", "idempotency_key_reused", existing.id)
     return existing
@@ -204,7 +241,7 @@ def create_from_queue(
 def search_orders(db: Session, status_filter: OrderStatus | None, uc_id: str | None,
                   priority: str | None, page: int, page_size: int, *,
                   has_result: bool | None = None) -> OrderPage:
-    query = db.query(InspectionOrder)
+    query = visible_orders(db)
     if status_filter:
         query = query.filter(InspectionOrder.status == status_filter)
     if uc_id:
@@ -265,7 +302,7 @@ def update_order(db: Session, order_id: int, payload: OrderUpdateRequest,
 
 def _apply_update(db: Session, order_id: int, changes: dict, version: int,
                   *, actor: str, cancellation_reason: str | None = None) -> Optional[InspectionOrder]:
-    order = db.get(InspectionOrder, order_id)
+    order = get_order(db, order_id)
     if not order:
         return None
     if version != order.version:

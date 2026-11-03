@@ -339,6 +339,9 @@ Detalhamento por bairro requer a dimensão `geography.neighborhood` no escopo va
 # Atualização de Receita — 02/11/2026
 
 Os snapshots comparativos incluem `measured_energy_kwh`, agregado do consumo medido por competência, independente de faturas. `billed_energy_kwh` continua distinto e nulo quando não publicado. Preço observado e decomposição preço × volume mantêm receita e consumo da base comparável.
+Exportação WEB-08: GET /inspections/field-queue/export exige leitura de ordens e exporta o recorte completo (até 50.000 UCs), por municipio/bairro/classe/categoria; options_only retorna opções da fonte. Resultado JSON contém csv e count. CSV usa UTF-8, ponto e vírgula, fonte e filtros, com neutralização de fórmulas. Importação WEB-09 atual aceita CSV operacional por linha; XLSX permanece pendente.
+WEB-09 Excel: GET /inspections/field-results/template exige escrita e retorna XLSX em base64 e count, com até 500 ordens em andamento. POST /inspections/field-results/import recebe exclusivamente csv ou xlsx (base64), confere versão e UC, registra resultados por linha e retorna imported/errors. Limite 1 MB, 500 ordens; fórmulas recusadas. Usa openpyxl 3.1.5 e defusedxml; atualizar requirements antes de iniciar a API.
+WEB-05 exclusão: DELETE /inspections/orders/{id} recebe version e confirmed_order_id e exige orders:write. Retorna 204 após exclusão lógica transacional, 404 quando ausente/excluída e 409 em conflito. Auditoria preservada no histórico com marcador fixo do serviço; consultas e modelos omitem ordens marcadas. Estados ativos são encerrados para liberar a UC; histórico e resultado não são apagados.
 
 
 ## IA-07 — acompanhamento natural

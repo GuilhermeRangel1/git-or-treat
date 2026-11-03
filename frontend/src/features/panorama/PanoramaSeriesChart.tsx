@@ -488,7 +488,7 @@ export default function PanoramaSeriesChart({
       >
         <div className="panorama-series-chart__table-wrap">
           <table className="panorama-series-chart__table font-sans">
-            <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+            <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
               <tr>
                 <th scope="col">Competência</th>
                 <th scope="col">Receita faturada</th>

@@ -231,7 +231,7 @@ Cada time deve responder à pergunta sobre a evolução da receita residencial (
 | WEB-06 | Obrigatório | Em validação | **Operação DEC/FEC.** Gerente visualiza evolução por alimentador e identifica piores regiões; números remetem à mesma definição Gold e a ausência de denominador adequado é tratada. |
 | WEB-07 | Obrigatório | Em andamento | **Filtro e recorte.** Usuário filtra informações conforme necessidade, mantém contexto visível e entende quais filtros afetam cada gráfico/tabela. |
 | WEB-08 | Diferencial | Pendente | **Exportar fila de inspeção.** O arquivo reflete ordem, filtros e dados exibidos, com proteção de acesso e formato documentado. |
-| WEB-09 | Diferencial | Pendente | **Importar planilha de campo.** Upload valida colunas/linhas, apresenta erros, evita duplicação e grava resultados em formato digital auditável. |
+| WEB-09 | Diferencial | Em validação | **Importar planilha de campo.** Upload valida colunas/linhas, apresenta erros, evita duplicação e grava resultados em formato digital auditável. |
 | WEB-10 | Diferencial | Pendente | **Perfis.** Entrada e autorização por cargo restringem telas e ações; perfis e permissões estão documentados e testados. |
 | WEB-11 | Diferencial | Pendente | **Testes automatizados no backend.** Cobrem contratos, validação, filtros, autenticação se adotada, estados de ordens e casos de erro; execução repetível. |
 
@@ -3478,6 +3478,68 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Verificações: GenAI completo 4.189 passaram/5 skips; Backend completo 1.012 passaram/11 skips em cinco bancos descartáveis, incluindo contenção/cancelamento 57014, recuperação e limite real de conexões. Rechecagens finais: 60 GenAI, 24 Backend e três de resumo de métricas passaram; Ruff, compilação, Compose config e diff passaram. Skips/aviso preexistente detalhados no relatório.
 - Revisão Standards/Spec corrigiu associação de correlação nula, privilégio CREATE herdado e SELECT ausente. Revogação de coluna requerida reprovou readiness; restauração recuperou. Concessão CREATE de teste foi rejeitada pelo provisionamento. Contas/sessões de teste, quatro containers descartáveis, rede isolada e arquivos de senhas temporárias removidos. Sem ampliação de grants no banco principal; alterações ainda sem commit/push.
 
+### 02/11/2026 — WEB-08/WEB-09: primeira fatia de arquivos de campo
+
+- Implementadas ações em Inspeções para exportar a página atual autenticada em CSV e importar resultados por CSV UTF-8 separado por ponto e vírgula. Colunas de entrada: ordem_id;versao;resultado. Limites: 1 MB e 500 linhas. Cada linha válida confirma sua própria transação; erros são apresentados por linha. Reenvio obsoleto não duplica resultados ou histórico.
+- Arquivos: backend/app/services/field_files.py, endpoints/inspections.py e frontend/src/features/inspecoes/FieldFiles.tsx. Gold não é alterada. Resultado usa autorização, versão e histórico operacional existentes.
+- Verificações: build/tipos frontend, lint e fronteiras passaram (lint com aviso preexistente em AuthProvider); git diff --check passou. Testes backend cobrem importação, persistência, auditoria, reenvio e acesso.
+- Estados mantidos pendentes: exportação integral do recorte, XLSX, modelo preenchido com IDs/versões, revisão de publicação Gold, testes de interface e jornada no navegador ainda necessários. Esta fatia não conclui os diferenciais.
+### 02/11/2026 — WEB-08: exportação integral com seleção de recorte
+
+- O portal pergunta se deve exportar toda a fila ou um recorte combinando categoria, município, bairro e classe. As opções vêm da fonte; categorias são as publicadas pela Gold, sem lista inventada. Fonte sintética sem categorias informa indisponibilidade.
+- O endpoint autenticado gera CSV de todas as UCs selecionadas, independentemente da página aberta, preservando a ordenação e incluindo fonte/filtros. Limite explícito de 50.000 UCs, sem truncamento silencioso; valores que podem ser interpretados como fórmulas são neutralizados.
+- Evidências: três testes backend passaram, incluindo exportação além da página, filtro municipal, opções reais, categoria inválida, acesso, importação e auditoria. Build/tipos frontend, fronteiras e lint passaram, com aviso preexistente de AuthProvider. Falta validação visual/Gold real, XLSX e modelo operacional preenchido; WEB-08/WEB-09 não estão concluídos.
+### 02/11/2026 — WEB-09: modelo Excel e upload de resultados
+
+- Inspeções oferece modelo XLSX com ID, versão e UC das ordens EM_ANDAMENTO; a equipe preenche resultado e importa no portal. CSV segue compatível. Cada linha válida conclui a ordem por meio do serviço operacional existente, com controle de versão, autor e histórico; erros são exibidos por linha. A UC do modelo é conferida com a ordem e os caches de Ordens são invalidados após sucesso.
+- Limites: 1 MB e 500 ordens; a aba Resultados e o cabeçalho do modelo são obrigatórios no XLSX. Fórmulas e arquivos inválidos são recusados antes das gravações. Falhas de linha não desfazem linhas já confirmadas; reenvios obsoletos retornam conflito sem duplicar auditoria. Modelo com mais de 500 ordens em andamento é recusado explicitamente.
+- Arquivos: backend/app/services/field_files.py, backend/app/api/v1/endpoints/inspections.py, backend/tests/test_field_files.py e frontend/src/features/inspecoes/FieldFiles.tsx e FieldFiles.test.tsx. Dependências: openpyxl 3.1.5 e defusedxml 0.7.1; leitura otimizada, sem links externos e fechamento explícito, conforme documentação oficial openpyxl consultada via Context7 (https://openpyxl.readthedocs.io/en/stable/optimized.html).
+- Verificações: pytest tests/test_field_files.py tests/test_order_lifecycle_dev07.py -q -p no:cacheprovider --tb=short: 19 passaram; após conferência adicional de UC, os 4 testes de arquivos passaram novamente. Vitest FieldFiles.test.tsx e InspecoesPage.test.tsx: 20 passaram. Build/tipos, lint e fronteiras passaram; lint mantém aviso preexistente em AuthProvider. Testes usam dados artificiais e HTTP real de teste, incluindo baixar/preencher/importar XLSX, persistência, reenvio e auditoria.
+- Estado Em validação: falta revisão visual no navegador e aceite humano. Trello não conectado; sincronização pendente. Não houve alteração da Gold ou de dados reais.
+### 02/11/2026 — WEB-08/WEB-09: apresentação dos arquivos de campo
+
+- FieldFiles.tsx organiza envio da fila e retorno de resultados em dois blocos, com botões compartilhados, ícones, cabeçalho, limites próximos ao upload e mensagens de processamento/retorno em área própria. O seletor nativo fica associado a um botão acessível. Desktop usa duas colunas; telas menores empilham os blocos.
+- Diálogo de exportação usa opções em cartões, campos de filtro em grade responsiva e rodapé com cancelar/baixar. Tokens existentes preservam claro/escuro; comportamento operacional permanece igual.
+- Verificações: 20 testes de FieldFiles/InspecoesPage passaram; build/tipos, lint e fronteiras passaram (aviso preexistente em AuthProvider). Sem inspeção visual no navegador nesta revisão; estados dos requisitos preservados.
+### 02/11/2026 — WEB-08: contagem do recorte e mensagens de exportação
+
+- O diálogo consulta count_only a cada mudança de escopo/filtros, incluindo categoria. Na Gold, COUNT usa os mesmos predicados da exportação e o snapshot autenticado; categoria passa a ser aplicada antes do limite/paginação. Respostas de seleções antigas não substituem a contagem da chave atual; download fica desabilitado durante consulta, com zero, erro ou mais de 50.000 UCs.
+- Recortes vazios mostram explicação em português. Erros de filtros, sessão, publicação e indisponibilidade recebem mensagens de produto, sem expor Falha HTTP 422. A contagem não gera CSV nem carrega as linhas Gold.
+- Verificações: 22 testes de interface passaram (incluindo alteração de filtro, zero e 422); 8 testes backend de arquivos/fila/repositório passaram. Build/tipos, lint, fronteiras e diff passaram; aviso preexistente de AuthProvider mantido. Sem nova validação visual ou aceite integral; estados preservados.
+### 02/11/2026 — WEB-08: bairros vinculados ao município na exportação
+
+- Opções de exportação incluem pares reais municipio/bairro da fonte. Bairro fica desabilitado sem município, mostra somente bairros correspondentes e é limpo ao trocar a cidade. Os filtros principais da fila já possuem esse comportamento e foram preservados.
+- Arquivos: endpoint de inspeções, FieldFiles.tsx e teste de interação com dois municípios e bairros distintos. Build/tipos passou. Estados dos requisitos preservados; sem aceite visual novo.
+### 02/11/2026 — WEB-09: correção do ambiente e modelo CSV
+
+- Logs do backend Docker confirmaram ModuleNotFoundError de openpyxl ao gerar modelo Excel. Serviço reconstruído com requirements e reiniciado sem alterar o banco; openpyxl 3.1.5 confirmado no container. A consulta operacional encontrou zero ordens EM_ANDAMENTO.
+- Modelo sem ordens passa a explicar a necessidade de criar/iniciar uma inspeção. GET /inspections/field-results/template aceita format=csv além de xlsx; portal oferece modelo CSV e mensagem explicativa se o serviço Excel estiver indisponível. Ausência da biblioteca passa a 503 controlado, sem stack na resposta.
+- CSV mínimo: ordem_id;versao;uc_id;resultado, preenchido pelo servidor com ordens existentes. Não inventar IDs nem resultados de inspeção para teste no banco operacional. Modelo de referência vazio foi entregue fora do repositório.
+- Verificações: 5 testes backend e 5 testes de interface passaram; build/tipos passou. Container confirmou dependência e mensagem de ausência. Não houve gravação de resultados reais nem aceite integral do requisito; estado preservado.
+### 02/11/2026 — correção operacional da fonte após reconstrução do backend
+
+- A reconstrução para instalar openpyxl foi iniciada apenas com docker-compose.yml e recriou o backend com ANALYTICS_SOURCE=synthetic. A pessoa usuária reportou redução da fila de 45.000 para 2 UCs. Configuração efetiva confirmou fonte sintética e ausência do overlay, enquanto o ai-agent preservava os dois arquivos Compose.
+- Restaurado somente backend com docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml up -d --no-deps backend. Loader não executado; banco e demais serviços não foram recriados.
+- Verificação no container: ANALYTICS_SOURCE=gold, openpyxl=3.1.5 e COUNT da fila pelo GoldInspectionRepository = 45.000 UCs. Não foram consultados registros individuais nem alterados dados. A configuração Compose Gold completa deve ser preservada em futuras recriações.
+### 02/11/2026 — WEB-09: escolha do formato do modelo
+
+- O botão único Baixar modelo de resultados abre diálogo com escolha Excel (XLSX) ou CSV antes da solicitação. Cancelar não baixa arquivo; erros permanecem no diálogo e sucesso fecha o modal. Seleção de ordens e backend preservados.
+- FieldFiles.tsx e FieldFiles.test.tsx: seis testes de interface passaram, incluindo solicitação somente após confirmação e envio de format=csv. Build/tipos passou; sem nova inspeção visual. Estado do requisito preservado.
+### 02/11/2026 — WEB-08/WEB-09: separar envio da fila e retorno operacional
+
+- Inspeções mostra apenas envio/exportação da fila. Ordens recebe o registro de resultados por planilha e o download do modelo com escolha CSV/XLSX, condicionado à permissão de escrita. A mensagem após upload explicita a quantidade de ordens concluídas e preserva os erros por linha; cache operacional continua invalidado.
+- Componente compartilhado em frontend/src/shared/inspections/FieldFiles.tsx permite compor as duas jornadas sem imports entre features. Não houve alteração de banco, transições ou configuração de execução.
+- Verificações: 42 testes de FieldFiles, InspecoesPage e OrdensPage passaram; build/tipos, lint e fronteiras passaram (aviso preexistente em AuthProvider). Sem nova inspeção visual no navegador; estados dos requisitos preservados.
+### 02/11/2026 — WEB-05: exclusão de ordens e ajuste de cancelamento
+
+- A pessoa usuária autorizou excluir ordens em qualquer estado, inclusive concluídas. O diálogo oferece Excluir ordem com confirmação digitando o ID. DELETE /inspections/orders/{id} exige escrita, versão atual e confirmed_order_id; a exclusão é lógica, registrada no histórico existente sem migração ou apagamento da auditoria.
+- A ordem excluída deixa de aparecer em consultas, buscas e modelos e não recebe novas alterações. Ordens ativas são encerradas na mesma transação para liberar a restrição de uma ordem ativa por UC; resultados e histórico anteriores permanecem. Reenvio da intenção de criação excluída retorna conflito, sem ressuscitar a ordem. Cancelar ordem perde apenas as reticências no rótulo.
+- Arquivos: serviços inspections/field_files, endpoint de inspeções, DeleteOrder.tsx e diálogo/página de Ordens. Verificações: 24 testes backend passaram, incluindo exclusão dos quatro estados, confirmação incorreta, preservação da auditoria e nova ordem na mesma UC; 30 testes das telas de Ordens e 1 teste de confirmação da exclusão passaram. Build/tipos, lint e fronteiras passaram, com aviso preexistente em AuthProvider. Sem teste PostgreSQL/inspeção visual novo; estados dos requisitos preservados.
+### 03/11/2026 — WEB-01/WEB-02/WEB-04: simplificação visual e tipografia
+
+- Panorama remove a linha duplicada de competência junto aos indicadores, mantendo o período nos filtros. Receita adota a disposição dos filtros de Inspeções, com resumo em grade e botão lateral (em largura completa no celular), remove Antes/Mês/Período e setas dos cartões e adota a escala tipográfica dos indicadores do Panorama. Valores, filtros e cálculos permanecem iguais.
+- Cabeçalhos das tabelas de produto usam a fonte de interface (font-sans), em lugar da monoespaçada, em Panorama, Receita, Inspeções, Ordens, UC 360 e Operação. Inspeções remove os dois avisos repetidos de ordenação solicitados; controles de campo e direção continuam disponíveis.
+- Verificações: 56 testes dirigidos de Receita/Inspeções e sinais passaram; 26 testes do Panorama e série passaram. Build/tipos, lint e fronteiras passaram, com aviso preexistente em AuthProvider. Não houve alteração de backend/banco nem nova inspeção visual; estados dos requisitos preservados.
 
 ### 2026-11-02 — IA-04 / WEB-01 — linguagem do insight no Panorama
 
@@ -3696,3 +3758,9 @@ passaram; Ruff passou. Sem chamada externa.
 - Evidências de implementação/validação publicadas no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), para develop, preservando os commits e sem merge. Matriz técnica local18/18; o último critério exigia registrar as evidências no PR, agora atendido. Estados oficiais IA e homologação de Dados preservados.
 - Complementos de Backend6772a10 e frontend399fdb5 publicados após revisão. Relatório/contratos/guias atualizados com os162/95testes, reconciliação Gold/Gemini, portal real, histórico/memória, limites de cobertura e benchmark exploratório.
 - Docker reconstruído desta worktree para localhost5173: IA saudável, Backend/portal200, Gold e chave configuradas sem expor segredos. Nova consulta autenticada na composição reconstruída confirmou dados antes da síntese e dois pontos iguais ao final; conta temporária removida. Volume Gold preservado e loader não reexecutado. .dockerignore exclui configuração privada e artefatos locais.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — sincronização do PR116
+
+- Branch de gráficos sincronizada por merge normal com develop6fc93de, preservando os commits do PR115 e da GenAI, sem squash/reescrita. Integração sem conflitos de conteúdo; PR116 continua aberto, sem merge na develop.
+- Árvore integrada:186 testes Backend na imagem Docker limpa e153 frontend passaram, incluindo regressões dos módulos recebidos; build/fronteiras passaram. Backend reconstruído com as dependências já versionadas na develop; localhost5173/health8000 continuaram200, IA saudável e volume Gold intacto. Evidência e limites permanecem no relatório dos gráficos.

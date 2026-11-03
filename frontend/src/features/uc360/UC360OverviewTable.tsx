@@ -125,7 +125,7 @@ export default function UC360OverviewTable({
           <caption className="sr-only">
             Comparação de consumo medido e valores por competência
           </caption>
-          <thead className="font-mono text-xs leading-[18px] text-muted">
+          <thead className="font-sans text-xs leading-[18px] text-muted">
             <tr className="h-8">
               <th className="pb-2 font-normal" scope="col">
                 Competência
