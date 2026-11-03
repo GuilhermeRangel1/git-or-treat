@@ -1,0 +1,66 @@
+# Perguntas de acompanhamento com contexto
+
+## Evolução vigente — 03/11/2026
+
+A referência também pode preservar esclarecimentos com um rascunho interno
+`pending_question`. Nesse caso, o Backend assina `kind=pending`; a informação
+não autoriza SQL e é replanejada no escopo/publicação atuais. Consultas executadas
+omitem `kind`, mantendo a forma anterior. O histórico privado, integrado depois
+da entrega original abaixo, reutiliza `anchor` e reemite a referência na sessão;
+não persiste o token. Escolha de indicador seguida de escolha de ano não perde
+município/classe. Top N conserva a quantidade; comparação agrupada não transforma
+o teto de linhas em Top N. Detalhes, limites, implantação e rollback em
+[entendimento e recuperação](../plans/2026-11-03-genai-entendimento-perguntas.md).
+
+O registro de 02/11 abaixo descreve a entrega anterior à integração do histórico
+e à continuidade de esclarecimentos; suas afirmações de ausência de persistência
+se limitam àquela etapa.
+
+Cartão: [Perguntas de acompanhamento com contexto](https://trello.com/c/06GnuDtQ). Requisito IA-07. Entrega local Gold v2, branch `feat/genai-perguntas-acompanhamento-contexto`, base develop `24c867e`. Não altera a cobertura dos domínios, os controles aprovados ou o papel leitor.
+
+## Experiência e composição
+
+A conversa admite frases como “e em Olinda?”, “só residencial”, “na verdade, maio”, “e o consumo?” e “compare com o mês anterior”. A resposta mantém o fundamento e mostra o recorte realmente consultado. Uma pergunta completa sobre outro assunto deixa de herdar os filtros. Sem antecedente ou com calendário ambíguo, pede esclarecimento. Uma resposta curta como “município” resolve uma pergunta anterior cujo nome também existe como bairro.
+
+Caminho: Assistente → `POST /api/v1/ai/questions` → `restore_continuation` → `answer_gold_question` → planejamento do núcleo → prontidão/SQL restrito → síntese/auditoria → `issue_continuation` → consumidor existente. Os números são obtidos novamente; a resposta antiga não é fonte de valores. Não há novo executor, histórico persistido, resumo de conversa ou consulta privilegiada.
+
+## Contrato e confiança
+
+O envelope público v1 aceita `conversation_id` (identificador local de 36 caracteres) e `continuation_token` opcionais. A resposta acrescenta `continuation_token` apenas quando há um plano executado com estado `answered` ou `no_evidence` e sessão/conversa identificadas. A rota retira ambos os campos antes de encaminhar a pergunta à GenAI. Chamadores antigos continuam aceitos; ausência do token mantém o contexto transitório anterior.
+
+O token carrega uma pergunta normalizada derivada do plano, a publicação, digest do catálogo e das permissões, vínculo com a sessão/conversa, expiração e digest da resposta. Não contém linhas, valores da resposta, credenciais, SQL ou identificadores pessoais. É assinado com HMAC-SHA256 e chave derivada por domínio da credencial entre Backend/GenAI. Não é criptografia: seu conteúdo equivale ao recorte analítico já acessível à sessão; não registrar o token em logs ou evidências públicas. A rotação da credencial invalida referências anteriores.
+
+Validade: 30 minutos, até 16.000 caracteres, pergunta normalizada de até 1.000 caracteres e os mesmos três turnos do contrato interno. Não há armazenamento servidor da conversa. O token não concede autorização: o escopo é resolvido novamente, o catálogo é conferido e o lote é fixado no planejamento e revalidado antes/depois de executar e sintetizar. Outra sessão/conversa, catálogo diferente, adulteração ou expiração retornam 409 `invalid_continuation` sem executar. O portal encerra o contexto sem marcar a publicação analítica como alterada, porque expiração de conversa não é mudança dos dados. Revogação mantém 401/403 conforme a sessão/acesso atual.
+
+Quando a última resposta corresponde à consulta assinada, o próximo pedido usa sua pergunta normalizada, evitando perder o antecedente após uma correção curta. Um esclarecimento recente continua disponível como conteúdo não confiável e sujeito à política. Erro ou recusa não substituem a última referência válida. Nova conversa e mudança de publicação removem o contexto no consumidor; envio duplicado e resposta superada seguem os controles existentes.
+
+A representação normalizada suporta filtros escalares de igualdade em município, bairro, classe e alimentador, mês/intervalo mensal, comparação e abertura simples por uma dessas dimensões. Um filtro não representável impede a emissão da referência: nunca é removido para fabricar um contexto mais amplo. Não se promete continuação arbitrária de consultas fora dessas capacidades; o caminho sem referência mantém os limites anteriores e pede esclarecimento quando necessário.
+
+A linguagem de mês curto herda o ano apenas de uma competência anterior inequívoca. “Compare com o mês anterior” usa o mês imediatamente anterior ao recorte, incluindo virada do ano; a cobertura atual precisa admitir os dois meses. Uma comparação ou janela com mais de uma competência não inventa o ano de um mês isolado. “Corrigindo, 2025” conserva o mês anterior e muda o ano, sujeito à cobertura. A referência temporal geral da ADR-0018 permanece vigente para perguntas relativas independentes.
+
+O orçamento total Gold de 60 segundos começa na rota, abrange a restauração do contexto e é compartilhado com o coordenador; SQL mantém seu teto próprio. Nenhum erro do provedor é convertido em resposta vazia ou sucesso. Implantar Backend e núcleo antes do frontend; no rollback, retirar primeiro o consumidor dos campos novos, depois a rota. Não há migração ou dado persistido a reverter.
+
+## Validação local de 02/11/2026
+
+- Núcleo: 146 testes de interpretação/períodos/desambiguação passaram; 56 testes HTTP de planejamento Gold, acompanhamentos e regressões sintéticas passaram em Linux. A tentativa HTTP no Windows ficou presa e foi encerrada; não conta como aprovação. Testes no container exigiram remover as variáveis de runtime apenas do subprocesso de teste; manter o token real provocava 401 nos cenários sintéticos.
+- Backend: 111 testes dirigidos de contexto assinado, rota, invalidação, fluxo e plano passaram; mais 16 testes de prazo passaram; um aviso preexistente de Starlette/httpx. Cobrem alteração de escopo, sessão/conversa, catálogo, assinatura e expiração, além de restauração antes da coordenação e descarte de filtros não representáveis.
+- Frontend: 38 testes passaram, incluindo preservação após recusa e renovação de identidade ao abrir conversa. Build, lint (somente aviso preexistente AuthProvider) e fronteiras em 194 arquivos passaram.
+- Gold v2 + Gemini real: sequência de seis respostas concluídas: receita/Recife/junho → Olinda → residencial → maio → consumo → comparação abril/maio. As mudanças de município, classe, período, métrica e comparação conservaram os demais filtros. Mais duas respostas reais no Chromium: receita/junho → “e em maio?”. As oito respostas e oito referências de auditoria foram reconciliadas por agregações SQL independentes, somente leitura, na mesma publicação.
+- HTTP real: anônimo 401; sem leitura 403; token de outra sessão 409; campo extra 422; acesso revogado no usuário temporário 403, com permissão restaurada ao final. Depois das provas, as três contas temporárias e suas sessões foram removidas e o arquivo privado de credenciais foi apagado. Não foram concedidos privilégios adicionais ao leitor Gold.
+- Chromium, sem interceptação: duas respostas reais, teclado, reinício da conversa, claro/escuro em 390 e 1440 pixels; sem overflow horizontal. Capturas e relatórios privados ficam em `work/followup-validation`, ignorado pelo Git. Segredos continuam exclusivamente nos `.env` locais ignorados, referenciados pela composição de validação.
+- As primeiras rodadas detectaram perda de contexto ao reprocessar uma correção curta e timeouts de síntese com a configuração local anterior de 35 segundos. Corrigido o uso da âncora normalizada; a configuração privada foi alinhada ao orçamento vigente de até 60 segundos. A rodada final passou sem mudar a fonte ou inventar cobertura. Falhas anteriores permanecem registradas como falhas de tentativa.
+
+## Perguntas novas por etapa
+
+[CoQA](https://aclanthology.org/Q19-1016/) e [QuAC](https://aclanthology.org/D18-1241/) estudam perguntas que dependem do diálogo, incluindo referências e casos sem resposta. [CheckList](https://aclanthology.org/2020.acl-main.442/) propõe testar capacidades linguísticas e tipos de comportamento, em vez de depender apenas da acurácia agregada.
+
+Aplicação ao projeto (decisão de engenharia): acrescentar casos por comportamento novo — substituição de filtro, correção de período, troca de assunto, ausência de antecedente e falha — com recorte esperado independente. Isso melhora a avaliação e orienta correções; adicionar perguntas à suíte não treina automaticamente o modelo. Não criar listas extensas de paráfrases nem acoplar a experiência a frases decoradas. Os exemplos desta entrega são verificações de capacidades, não uma lista fechada de perguntas permitidas.
+
+
+## Reprodução
+
+No ambiente autorizado, configurar a composição Gold e executar `python scripts/check_genai_runtime.py` no Backend; todos os componentes devem estar prontos e a geração configurada. Não imprimir os `.env`. Pela API pública autenticada, a primeira requisição inclui `question`, `context: []` e um `conversation_id` novo; as seguintes repetem esse identificador e enviam o `continuation_token` recebido, conservando apenas o contexto curto permitido. No portal isso é automático. Executar as seis falas da validação e conferir, nesta ordem: Recife/junho; Olinda/junho; Olinda/residencial/junho; Olinda/residencial/maio; consumo no mesmo recorte; comparação abril/maio no mesmo recorte.
+
+Verificações sem provedor: em `ai-agent/`, `python -m pytest -q tests/test_contextual_period.py tests/test_follow_up_disambiguation.py tests/test_interpreter.py tests/test_interpreter_rules.py`; em subprocesso isolado das variáveis de runtime, `python -m pytest -q tests/test_gold_follow_up_http.py tests/test_gold_planning_http.py tests/test_interpreter_review_e2e.py`. Em `backend/`, `python -m pytest -q tests/test_genai_continuation.py tests/test_genai_invalidation.py tests/test_genai_flow.py tests/test_genai_plan.py tests/test_genai_deadline.py`. Em `frontend/`, `npx vitest run src/features/assistente/AssistentePage.test.tsx src/features/assistente/contract.test.ts src/features/assistente/api.test.ts`, `npm run build`, `npm run lint`, `npm run check:boundaries` e `npm run format:check`.
+
+Controle independente: na mesma publicação e transação somente leitura, agregar `SUM(receita_total_reais)` e `SUM(consumo_total_kwh)` de `gold_v2.diagnostico_receita`, agrupando por `competencia` e aplicando município/classe explicitamente esperados de cada caso. Conferir receita monetária com precisão decimal; para consumo comparado, conferir ambos os extremos, diferença e percentual com arredondamento half-even em duas casas. Ausência não vira zero. Conferir oito IDs de auditoria e a identidade da publicação. O teste não usa valores do próprio compilador como resultado esperado.

@@ -47,6 +47,8 @@ async def answer_gold_question(
     readiness_gate: Callable[[GoldPlanningResult], Awaitable[GoldReadinessReport]] | None = None,
     audit_store: AuditStore | None = None,
     expected_batch_ref: str | None = None,
+    continuation: Callable[[GoldPlanningResult, AIQuestionResponse], str | None] | None = None,
+    request_deadline: GenAIRequestDeadline | None = None,
 ) -> AIQuestionResponse:
     """Mantém plano, identidade, publicação e prazo entre as duas operações HTTP.
 
@@ -56,7 +58,7 @@ async def answer_gold_question(
     if audit_store is None:
         raise GenAIServiceUnavailable(retryable=False)
     started = monotonic()
-    deadline = GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS)
+    deadline = request_deadline or GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS)
 
     async def audit(stage, code, outcome, **metadata):
         event = BackendAuditEvent(
@@ -83,7 +85,10 @@ async def answer_gold_question(
             "refused" if response.status == "refused" else "success"
         )
         reference = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit("response", "completed", outcome))
-        return planned.response.response.model_copy(update={"audit_reference": reference})
+        token = (continuation(planned, response) if continuation is not None
+                 and response.status == "needs_clarification"
+                 and planned.response.pending_question is not None else None)
+        return response.model_copy(update={"audit_reference": reference, "continuation_token": token})
     if planned.deadline is None or planned.access_scope is None or planned.source is None:
         raise GenAIResponseInvalid
     if readiness_gate is None:
@@ -186,7 +191,9 @@ async def answer_gold_question(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
     planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
-    return result.model_copy(update={"audit_reference": reference})
+    token = continuation(planned, result) if continuation is not None and result.status in {"answered", "no_evidence"} else None
+    planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
+    return result.model_copy(update={"audit_reference": reference, "continuation_token": token})
 
 
 def build_readiness_gate(engine: Engine, client: GenAIQuestionClient, approved_controls):

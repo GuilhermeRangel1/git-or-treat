@@ -9,6 +9,7 @@ from typing import TypeVar
 
 from pydantic import ValidationError
 
+from app.agent.documentation import DocumentationResponder, conceptual_question
 from app.agent.execution import (
     ExecutionController,
     ExecutionLimitExceeded,
@@ -83,9 +84,21 @@ def _describe_observation(
     if unit in {"BRL", "R$"} and isinstance(value, (int, float)) and not isinstance(value, bool):
         formatted = f"{value:,.2f}".translate(str.maketrans({",": ".", ".": ","}))
         value_with_unit = f"R$ {formatted}"
-    elif (human_readable and unit == "protocolos" and isinstance(value, (int, float))
-          and not isinstance(value, bool) and float(value).is_integer()):
-        value_with_unit = f"{value:,.0f} chamados de atendimento".replace(",", ".")
+    elif (
+        human_readable
+        and unit in {"protocolos", "UCs", "ocorrências"}
+        and isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and float(value).is_integer()
+    ):
+        count = f"{value:,.0f}".replace(",", ".")
+        singular = float(value) == 1
+        label = {
+            "protocolos": "chamado de atendimento" if singular else "chamados de atendimento",
+            "UCs": "UC" if singular else "UCs",
+            "ocorrências": "ocorrência" if singular else "ocorrências",
+        }[unit]
+        value_with_unit = f"{count} {label}"
     else:
         value_with_unit = f"{value} {unit}"
     if human_readable:
@@ -151,6 +164,7 @@ class QuestionOrchestrator:
         event_sink: EventSink | None = None,
         require_durable_audit: bool = False,
         model_router: ModelRouter | None = None,
+        documentation_responder: DocumentationResponder | None = None,
     ) -> None:
         if (model_adapter is None) == (model_router is None):
             raise ValueError("Informe exatamente um entre model_adapter e model_router.")
@@ -168,6 +182,7 @@ class QuestionOrchestrator:
             )
         self._events = event_sink or NoopEventSink()
         self._require_durable_audit = require_durable_audit
+        self._documentation = documentation_responder
 
     async def answer(
         self,
@@ -184,18 +199,44 @@ class QuestionOrchestrator:
         )
 
     async def plan(self, request: QuestionPlanRequest, correlation_id: str) -> QuestionPlanResponse:
-        """Operação planejar: guardrail, interpretação e plano aprovado, sem fonte nem modelo."""
+        """Planeja números sem SQL/modelo; conceitos podem recuperar documentação autorizada."""
 
         access_context = request.access_scope.to_context(correlation_id)
         trace = self._trace(correlation_id)
+        documentation_reference = None
 
         async def plan_only(_budget: RequestBudget) -> QuestionResponse | PlannedQuestion:
-            return await asyncio.to_thread(self._plan_step, request, access_context, trace)
+            nonlocal documentation_reference
+            if self._documentation is not None and conceptual_question(request.question):
+                refusal = await asyncio.to_thread(self._safety_refusal, request, trace)
+                if refusal is not None:
+                    return refusal
+                result = await self._documentation.respond(
+                    request.question, access_context, _budget, trace
+                )
+                documentation_reference = result.reference
+                return result.response
+            return await asyncio.to_thread(
+                self._plan_step,
+                request,
+                access_context,
+                trace,
+                preserve_clarification=True,
+            )
 
         outcome = await self._run(
             trace, plan_only, timeout_seconds=request.remaining_timeout_ms / 1000
         )
         if isinstance(outcome, PlannedQuestion):
+            if outcome.read_plan is None:
+                message = (outcome.clarification.message if outcome.clarification
+                           else outcome.interpretation.clarification_question)
+                return QuestionPlanResponse(
+                    correlation_id=correlation_id, status=QuestionPlanStatus.NEEDS_CLARIFICATION,
+                    pending_question=outcome.pending_question,
+                    response=QuestionResponse(status=QuestionStatus.NEEDS_CLARIFICATION,
+                                              correlation_id=correlation_id, message=message),
+                )
             assert outcome.read_plan is not None
             return QuestionPlanResponse(
                 correlation_id=correlation_id,
@@ -207,6 +248,8 @@ class QuestionOrchestrator:
             correlation_id=correlation_id,
             status=QuestionPlanStatus(outcome.status.value),
             response=outcome.model_copy(update={"correlation_id": correlation_id}),
+            documentation_reference=(documentation_reference
+                                     if outcome.status is QuestionStatus.ANSWERED else None),
         )
 
     async def synthesize(
@@ -261,7 +304,11 @@ class QuestionOrchestrator:
             response = self._recoverable_error(FailureCode.EXECUTION_LIMIT)
         try:
             if isinstance(response, PlannedQuestion):
-                await trace.emit_async(EventStage.RESPONSE, EventCode.READY, EventOutcome.SUCCESS)
+                await trace.emit_async(
+                    EventStage.RESPONSE,
+                    EventCode.READY if response.read_plan else EventCode.CLARIFICATION,
+                    EventOutcome.SUCCESS,
+                )
                 return response
             await trace.emit_async(
                 EventStage.RESPONSE,
@@ -295,6 +342,18 @@ class QuestionOrchestrator:
         budget: RequestBudget,
         trace: EventTrace,
     ) -> QuestionResponse:
+        if (
+            self._documentation is not None
+            and access_context is not None
+            and conceptual_question(request.question)
+        ):
+            refusal = await asyncio.to_thread(self._safety_refusal, request, trace)
+            if refusal is not None:
+                return refusal
+            result = await self._documentation.respond(
+                request.question, access_context, budget, trace
+            )
+            return result.response
         planned = await asyncio.to_thread(self._plan_step, request, access_context, trace)
         if isinstance(planned, QuestionResponse):
             return planned
@@ -352,6 +411,8 @@ class QuestionOrchestrator:
         request: QuestionRequest,
         access_context: AccessContext | None,
         trace: EventTrace,
+        *,
+        preserve_clarification: bool = False,
     ) -> QuestionResponse | PlannedQuestion:
         """Plano aprovado ou a resposta final de recusa ou esclarecimento; sem fonte."""
 
@@ -389,6 +450,8 @@ class QuestionOrchestrator:
         except EvidenceAccessDenied:
             return self._refused(FailureCode.ACCESS_DENIED)
         if planned.read_plan is None:
+            if preserve_clarification:
+                return planned
             question = planned.interpretation.clarification_question
             if planned.clarification is not None:
                 question = planned.clarification.message
@@ -544,7 +607,7 @@ class QuestionOrchestrator:
                 _describe_observation(
                     {key: value for key, value in observations[item].items()
                      if key != "period" or not metric.accumulated_period_phrases},
-                    labels, human_readable=not evidence.reference.is_demo
+                    labels, human_readable=not evidence.reference.is_demo,
                 )
                 for item in answer_observation_ids
             )
@@ -567,8 +630,6 @@ class QuestionOrchestrator:
                 )
             if read_plan.comparison_periods and "row_4" not in observations:
                 answer += " Variação percentual indisponível: a base inicial não é positiva."
-
-
         error = (
             map_failure(FailureCode.POLICY_REFUSAL).error if generated.status == "refused" else None
         )

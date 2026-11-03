@@ -1,3 +1,4 @@
+import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
@@ -205,6 +206,9 @@ export default function ReceitaPage() {
         </section>
       ) : null}
 
+      <div className="flex justify-end">
+        <IndicatorHelp screen="receita" />
+      </div>
       <section
         aria-label="Filtros aplicados"
         className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"

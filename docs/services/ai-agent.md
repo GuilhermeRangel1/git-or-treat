@@ -1,5 +1,16 @@
 # Serviço: agente de inteligência artificial
 
+## Busca conceitual autorizada — 03/11/2026
+
+O Assistente também explica as nove definições aprovadas do FAQ Gold v2.
+`DocumentationSource`/`DocumentSelector` são compostos no núcleo: seleção por
+escopo e vigência precede a chamada opcional Gemini, que escolhe um ID e distingue
+relevância de suporte suficiente. Texto final é extraído e conferido no Backend;
+perguntas quantitativas continuam no fluxo Gold existente.
+[Contrato](../contracts/genai-documentation-search.md) e
+[evidência local](../plans/2026-11-03-genai-busca-documental.md).
+Integração à develop pendente de commit/PR/merge; estados oficiais do PRD preservados.
+
 > Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
 
 
@@ -507,3 +518,20 @@ No perfil Gold, “em <nome>” usa o município quando esse valor também apare
 No esclarecimento de uma ambiguidade, uma nova pergunta interrogativa completa é interpretada independentemente; uma resposta curta de refinamento ainda pode preservar o recorte original. Isso evita que a pergunta de volume residencial herde a métrica da pergunta anterior sobre solar. O indicador é reconhecido, e a ausência de base comparativa pede o período de referência. A mensagem de GD usa termos de negócio e não expõe a versão física da Gold.
 
 As mensagens de esclarecimento Gold podem anexar um exemplo completo, montado com competências publicadas e validado pelo planejador no mesmo escopo. A geração é determinística, sem banco ou modelo, e não promete cobertura. A borda do planejamento separa o sufixo do motivo original ao interpretar o histórico, preservando respostas curtas. Sem candidato aprovado, não inventa mês ou métrica disponível. Ver [exemplos e validação](../plans/2026-11-02-genai-perguntas-da-tela.md#continuação--exemplos-nas-mensagens-de-esclarecimento).
+
+
+## Entendimento e esclarecimentos cumulativos — 03/11/2026
+
+O perfil Gold v2 aceita flexões de faturamento/consumo, classes no plural e meses
+abreviados/numéricos. `AnalysisIntent.ranking_limit` conserva top N de 1 a 100,
+sujeito ao teto configurado. Razões tipadas separam lacunas; `pending_question`
+opcional no planejamento expressa o rascunho cumulativo sem autorizar leitura.
+Confirmações de ambiguidades e sugestões de digitação não alteram silenciosamente
+entidades. Exemplos continuam sujeitos ao mesmo recorte e política; sem candidato
+fiel, não se sugere um total mais amplo. Fonte ausente continua indisponível.
+Contrato, medições, comparação isolada com Gemini e evidências reais em
+[entendimento e recuperação](../plans/2026-11-03-genai-entendimento-perguntas.md).
+
+## IA-07 — acompanhamento natural
+
+O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).

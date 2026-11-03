@@ -245,7 +245,7 @@ Cada time deve responder à pergunta sobre a evolução da receita residencial (
 | IA-04 | Obrigatório | Em validação | **Insights dentro do portal.** Ao menos uma tela apresenta insight contextual gerado por IA para interpretar o dado exibido, com sinalização de base temporal e possibilidade de verificar os números. |
 | IA-05 | Obrigatório | Em validação | **Agente acessível no portal.** Pessoa usuária conversa com a IA sem trocar de ferramenta; erros e indisponibilidade são comunicados. |
 | IA-06 | Obrigatório | Pendente | **Somente leitura e limites.** IA não altera dados, não executa SQL arbitrário fora do esquema autorizado e responde “não sei”/explica insuficiência quando a evidência falta. Testes demonstram bloqueio de escrita e de perguntas fora do escopo. |
-| IA-07 | Diferencial | Pendente | **Follow-up com contexto.** Usuário faz pergunta complementar e o agente mantém período, métrica e filtros relevantes sem confundir conversas. |
+| IA-07 | Diferencial | Concluído | **Follow-up com contexto.** Usuário faz pergunta complementar e o agente mantém período, métrica e filtros relevantes sem confundir conversas. |
 | IA-08 | Diferencial | Pendente | **Avaliação automática.** Conjunto versionado de perguntas e resultados esperados mede correção numérica, fundamentação e recusa adequada, com relatório de regressão. |
 
 ### 6.4 Diagnóstico, documentação e entrega — ENT
@@ -3540,3 +3540,159 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Panorama remove a linha duplicada de competência junto aos indicadores, mantendo o período nos filtros. Receita adota a disposição dos filtros de Inspeções, com resumo em grade e botão lateral (em largura completa no celular), remove Antes/Mês/Período e setas dos cartões e adota a escala tipográfica dos indicadores do Panorama. Valores, filtros e cálculos permanecem iguais.
 - Cabeçalhos das tabelas de produto usam a fonte de interface (font-sans), em lugar da monoespaçada, em Panorama, Receita, Inspeções, Ordens, UC 360 e Operação. Inspeções remove os dois avisos repetidos de ordenação solicitados; controles de campo e direção continuam disponíveis.
 - Verificações: 56 testes dirigidos de Receita/Inspeções e sinais passaram; 26 testes do Panorama e série passaram. Build/tipos, lint e fronteiras passaram, com aviso preexistente em AuthProvider. Não houve alteração de backend/banco nem nova inspeção visual; estados dos requisitos preservados.
+
+### 2026-11-02 — IA-04 / WEB-01 — linguagem do insight no Panorama
+
+- Branch `feat/frontend-linguagem-panorama`, baseada na `develop` em `a01c053`. O cartão e o fundamento usam “fonte de dados interna”, cálculo em linguagem de negócio e atualização legível; identificadores de lote, fonte técnica e nomes de colunas permanecem nos contratos, fora da apresentação deste insight. Demonstração segue identificada.
+- Comparação solicitada permanece visível mesmo com valor anterior ausente. O texto distingue comparação desativada de ausência de valor comparável e orienta conferir os dois períodos. Caminho conferido: filtros do Panorama → `usePanoramaInsight`/`requestPanoramaInsight` → coordenação Backend → observações/consumidor; nenhum cálculo ou filtro foi alterado.
+- Verificações no container frontend: cinco testes direcionados passaram, lint sem erros (aviso preexistente em AuthProvider), fronteiras e build passaram; `git diff --check` passou. Conferência SQL somente leitura no lote local: junho/2026 soma R$ 9.990.077,89 com 98/161 grupos preenchidos; maio/2026 soma R$ 11.727.990,33 com 98/153 preenchidos. A regra de produção confirmou status parcial e comparação indisponível. Apresentação identifica total parcial e não afirma ausência do valor de maio. Cinco testes dirigidos e build passaram após a correção. Não houve chamada Gemini. Conferência visual manual pendente; estados oficiais preservados.
+
+
+
+- Evolução para leitura do mês observado: sem comparativo válido, o Backend calcula concentração municipal ou por classe, reconcilia os grupos com a mesma soma do KPI e envia o destaque monetário ao núcleo de insight existente. Campo opcional `composicaoAtual` mantém valor/participação separados da variação; denominador é somente a receita observada. Casos com soma divergente, valores negativos, zero ou grupos truncados não publicam concentração.
+- O cartão prioriza concentração do mês e usa “receita observada”; ressalvas e comparação ficam no fundamento. Removida a suspensão da geração: a IA recebe o contexto do mês; hipótese genérica de variação não é exibida nesse cenário. Conferência SQL local junho/2026: Recife R$ 3.970.482,49, 39,7% da soma observada de R$ 9.990.077,89. Não declara receita total certificada ou queda entre meses.
+- Verificações desta evolução: 21 testes Backend, cinco frontend, lint/fronteiras/build frontend e diff-check passaram (avisos preexistentes registrados). Composição real reconciliada em READ ONLY; sem nova chamada Gemini ou medição da latência nesta rodada. Branch permanece sem commit/push.
+
+- Cobertura dos recortes do insight: município global → concentração municipal; município selecionado → classe; município+classe → bairro somente com `geography.neighborhood` no escopo. A recomputação de auditoria usa a mesma autorização. Soma por bairro precisa reconciliar com o KPI, caso contrário não publica concentração; não houve concessão nova no banco. Zero, vazio, comparação válida e comparação indisponível permanecem distintos. Cliente confere dimensão, valor observado e percentual contra o recorte, além da proteção de resposta atrasada existente.
+- Provas: 30 testes dirigidos Backend (incluindo consultas SQLite nos níveis/filtros, permissão de bairro, soma divergente, zero/nulo/vazio e comparação) e cinco frontend passaram; lint/fronteiras/build e diff-check passaram. Leitor PostgreSQL local somente leitura: global Recife 39,7%; Recife/classe INDUSTRIAL 38,9%; Recife/RESIDENCIAL/bairro BRASÍLIA TEIMOSA 11,9%, reconciliados com respectivos totais. Não houve nova chamada Gemini ou medição de latência do provedor nesta rodada. Alterações sem commit/push.
+
+- Conferência adicional do vínculo com a tela: dez testes frontend passaram, incluindo mês, comparação, município, classe e mudança combinada; o hook não envia insight enquanto os indicadores ainda pertencem ao recorte anterior. A borda rejeita resposta com qualquer um dos quatro filtros divergente, lote/fingerprint ou valor diferentes; teste de resposta atrasada preserva o novo recorte. Build passou. Não declara nova jornada visual ou chamada Gemini nesta conferência.
+
+- Varredura adicional do lote real em snapshot PostgreSQL REPEATABLE READ / READ ONLY com o leitor existente: 48 competências, 14 municípios e cinco classes; 4.320 agregados/recortes de composição (288 municipais, 672 por classe e 3.360 por bairro), 12.960 combinações temporais. Controle independente pré-agregou as duas projeções por competência/município/classe/bairro e comparou soma, contagens, segmento líder e participação; nenhuma divergência. 4.310 recortes sustentaram concentração; dez ficaram sem destaque por não satisfazer as condições da fonte. Não são 12.960 chamadas HTTP/Gemini ou jornadas visuais.
+- Regressões adicionais: limite de 1.000/1.001 grupos, desempate, nenhum acesso ao bairro sem permissão, virada de ano/fevereiro/ano anterior. Frontend rejeita participação, valor, dimensão ou nome de segmento sem correspondência com a observação monetária. 36 testes Backend e dez frontend passaram; build e diff-check passaram. Teste de recorte incompatível e resposta antiga mantido. Alterações sem commit/push.
+
+
+### 2026-11-02 — IA-05 — interface do Assistente Grid 360
+
+- Branch `feat/genai-frontend`: chat ampliado com identidade em goiaba/pistache, entrada do nome e flutuação discreta, sugestões em cartões, consulta pendente com pulsos sequenciais e índice das perguntas da conversa em telas largas. Preferência por movimento reduzido desliga as animações.
+- O índice navega até a pergunta e transfere foco; permanece temporário e não persiste conteúdo em storage. Histórico salvo não foi implementado. Indicador representa espera da chamada, sem simular etapas concluídas do servidor. Integração e invalidação por identidade/publicação permanecem nos pontos existentes.
+- Verificações no container frontend: 21 testes de conversa/sessão passaram, incluindo navegação pelo índice; build passou; lint sem erros (aviso preexistente AuthProvider) e fronteiras passaram. Navegador local recusado pela ferramenta por estar desativado nas configurações; validação visual, animação real e responsividade no navegador permanecem pendentes. Sem nova chamada Gemini, commit ou push nesta rodada; estado oficial preservado.
+
+- Refinamento visual desta rodada: corpo das mensagens 16–17 px, auxiliares 14 px e marca 28 px no desktop. Símbolo com entrada em camadas, estrela, aura, órbitas de pontos e maior atividade durante consulta; media query reduzida desliga também as novas animações. Build passou após o refinamento; sem nova prova visual ou nova execução dos testes funcionais, pois a mudança posterior foi de apresentação.
+
+
+- Após avaliação visual da pessoa usuária, o último experimento de SVG com 12 partículas foi desfeito. Restaurada a animação anterior em camadas e órbitas discretas; mantidas a tipografia ampliada e a interface do chat.
+
+
+### 2026-11-02 — FAQ contextual no portal
+
+- Adicional [FAQ contextual](https://trello.com/c/gnODdgCZ), apoiando IA-03/IA-05 e WEB-01/02/03/06. Estados oficiais preservados. Integração executável local em `feat/genai-assistente-evolucao`, base `67db692`; alterações sem commit/push.
+- Assistente, Panorama, Receita, Operação e UC 360 oferecem “Entenda os indicadores”/“Ajuda”. Nove perguntas canônicas usam `label`/`definition` do catálogo Gold v2, com metadados de versão, vigência, público e manutenção; o pacote não inclui schema físico, grants ou dados de consultas. Busca ambígua oferece escolhas, perguntas quantitativas orientam ao fluxo existente e ausência tem mensagem própria.
+- `generate-indicator-faq.mjs` gera o artefato conceitual; `check:faq` no CI Frontend impede divergência entre ele e o catálogo. Build do frontend continua independente do checkout do Backend. Validade/tela/estado/conflito filtram verbetes; React apresenta texto sem executar conteúdo. Fonte e versão ficam acessíveis. Ajuda estática funciona com APIs/provedor indisponíveis e não usa cache remoto ou fallback antigo.
+- Verificações finais da implementação: 103 testes passaram em seis arquivos de componentes/páginas. Chromium confirmou cinco telas em 1440 e 390 px, claro/escuro, teclado, Escape/foco, rascunho preservado e ausência de overflow no modal; envio quantitativo permaneceu na API pública existente. Sessão e APIs foram interceptadas para esta prova de interface; nenhuma chamada Gemini. Corrigido Escape consumido pelo campo search no Chromium. Inspeção das capturas nos dois temas realizada pelo agente.
+- Conferência de catálogo, build, lint, fronteiras (194 arquivos), formatação e diff passaram; lint mantém aviso preexistente em `AuthProvider.tsx:108`. Processo de manutenção e mapa dos dez critérios em [contrato do FAQ](contracts/indicator-faq.md).
+- Nove critérios técnicos contemplados. O décimo pede compreensão por pessoa não técnica/revisão responsável; implementação está pronta para avaliação da pessoa usuária no portal. A prova automatizada não atribui esse aceite a terceiros e o cartão permanece em validação.
+
+- Ajuste solicitado pela pessoa usuária: fonte exibida apenas como referência interna, sem link para GitHub. FAQ ganhou quatro exemplos selecionáveis/copiáveis reaproveitados das perguntas comuns do Assistente, com orientação para editar datas/município e seleção manual se o clipboard falhar. Cópia não envia consulta nem altera o rascunho. Novos cenários de cópia e ausência de links passaram, e o Chromium confirmou a apresentação nos dois temas e larguras.
+
+- Continuação do FAQ: a pedido da pessoa usuária, seleção ampliada para 18 exemplos adicionais sem repetir os textos da tela inicial, em quatro grupos (receita/preços, consumo/GD, comparação e atendimento). Base: cenários positivos da matriz Gold v2. Verificação dirigida final: 25 testes de ajuda/Assistente passaram; build, lint, formatação e jornada Chromium passaram novamente. Sem nova rodada quantitativa/Gemini dos 18 exemplos; revisão humana do cartão preservada.
+
+- Aceite final local do FAQ em 02/11/2026: após avaliar a interface e a seleção ampliada de perguntas, a pessoa usuária confirmou “já tá bom pra mim” e autorizou concluir o último item do cartão. Registrado aceite da experiência e dos textos derivados das definições existentes, substituindo a pendência de revisão humana deste adicional. Cartão 10/10 na entrega local, sem atribuir aprovação a terceiros ou homologar outros requisitos IA/WEB. Alterações permanecem locais em `feat/genai-assistente-evolucao`, sem commit/push/PR nesta rodada.
+
+
+### 2026-11-02 — IA-07: acompanhamento natural, início da evolução
+
+- Branch `feat/genai-perguntas-acompanhamento-contexto`, base develop `24c867e`. Cartão [Perguntas de acompanhamento com contexto](https://trello.com/c/06GnuDtQ). Requisito e cartão permanecem não concluídos.
+- Interpretador existente reconhece correção explícita de período sem repetir a métrica, preservando município e classe. Testes incluem ausência de antecedente; não ampliam autorização ou cobertura.
+- Inspeção identificou que o portal limita o histórico a três mensagens, podendo perder o antecedente após continuações sucessivas. A resolução confiável desse encadeamento e a prova Gold/API/portal continuam pendentes. Sem commit/push e sem nova chamada ao provedor nesta rodada.
+
+
+### 2026-11-02 — IA-07: acompanhamento natural integrado à Gold v2
+
+- IA-07 `Pendente` → `Concluído` na entrega local, critérios do cartão “Perguntas de acompanhamento com contexto” atendidos. Branch `feat/genai-perguntas-acompanhamento-contexto`, base develop `24c867e`; integração à develop ainda depende de PR e merge. O registro de início acima é histórico. Contrato e reprodução em [acompanhamento com contexto](contracts/genai-follow-up.md).
+- O Backend mantém uma referência assinada do último recorte válido, limitada por sessão, conversa, permissões, catálogo e publicação, com expiração de 30 minutos; a GenAI recebe uma pergunta normalizada e reaprova o novo plano no núcleo existente. Sem armazenamento de respostas/linhas, novo executor ou ampliação do leitor. O portal preserva contexto após falha/recusa, renova ao abrir conversa e não recupera token antigo quando uma consulta válida não é representável.
+- Linguagem natural: município/classe, correção de mês/ano, troca de indicador, comparação com mês anterior e nova pergunta completa. Mês isolado herda ano apenas de competência inequívoca; falta de antecedente, ambiguidade, fonte sem cobertura e filtro não suportado continuam exigindo esclarecimento/erro coerente.
+- Verificações: núcleo 146 testes dirigidos e 56 testes HTTP passaram; Backend 111 testes de referência/rota/plano/fluxo/invalidação e 16 de prazo passaram; frontend 38 passaram. Build, lint (aviso AuthProvider preexistente), fronteiras e checagem dos arquivos alterados conferidos. A execução HTTP no Windows foi interrompida por travamento do host e repetida em Linux, sem credenciais de runtime no subprocesso de teste.
+- Gold/Gemini reais: seis respostas encadeadas na API e duas no Chromium, todas reconciliadas com SQL independente e oito referências de auditoria na mesma publicação. Chromium sem interceptação: teclado, nova conversa e temas em 390/1440 px, sem overflow horizontal. HTTP real: 401 sem sessão, 403 sem leitura/revogação, 409 outra sessão, 422 campo extra. Expiração/adulteração, outra conversa, catálogo alterado, histórico malicioso e orçamento compartilhado cobertos na fronteira apropriada. Artefatos privados ficam em `work/followup-validation`, ignorado; segredos fora do Git.
+- Limites: suporte de continuação mantém as capacidades do catálogo e a representação declarada no contrato; não entrega histórico persistido, memória longa ou cobertura nova de Dados. Tentativas anteriores com perda de âncora e timeout do provedor foram registradas e corrigidas/revalidadas, sem transformar falha em sucesso. O Trello foi sincronizado com dez critérios concluídos desta entrega local; a incorporação à develop permanece pendente de PR e merge.
+
+### 2026-11-02 — adicional: histórico privado de conversas iniciado
+
+- Branch `feat/genai-historico-conversas`, criada da develop `10135a7` após o merge do PR #110. Política específica aprovada pela pessoa usuária: propriedade individual, 30 dias após a última mensagem, exclusão imediata e auditoria separada sem texto. Decisão e contrato em [histórico de conversas](contracts/genai-conversation-history.md).
+- Contratos Backend de criação por ID idempotente, renomeação com revisão e resumo de listagem; cliente não define proprietário ou expiração. Onze testes de fronteira passaram no container, com aviso Starlette/httpx preexistente. Ainda sem persistência, API de histórico ou interface integradas; cartão não concluído e estados dos requisitos existentes preservados.
+- Configuração Gemini local preservada e chave preenchida conferida sem impressão do segredo. Sem chamada ao provedor, commit ou push nesta etapa.
+
+### 2026-11-02 — adicional: histórico privado de conversas integrado
+
+- Continuação local na branch `feat/genai-historico-conversas`, da base `develop` `10135a7`. O adicional não tem ID próprio no PRD; os estados de IA-01 a IA-07 permanecem inalterados. Implementação e revisão técnica concluídas nesta branch; integração à develop pendente de PR e merge.
+- Backend adiciona migração `genaihistory01`, tabelas operacionais separadas da Gold, rotas autenticadas por proprietário, IDs estáveis/idempotência, replay seguro, expiração de 30 dias, exclusão física e expurgo periódico. Frontend integra listar, abrir, renomear, excluir e atualizar respostas salvas com consulta atual; respostas antigas são identificadas. Política aprovada e contrato estão em [histórico de conversas](contracts/genai-conversation-history.md).
+- Evidência: Backend completo, **997 passaram e 117 ignorados**; frontend completo, **425 passaram e 1 ignorado**; build passou; lint sem erros com aviso preexistente em `AuthProvider.tsx:108`. Migração PostgreSQL descartável subiu de base a `genaihistory01` e reverteu a base; teste concorrente confirmou criação/replay idempotentes e que exclusão impede resposta atrasada de ressuscitar conteúdo.
+- Duas respostas Gold v2/Gemini reais (Receita em Olinda, junho e maio/2026) foram reconciliadas por SQL somente leitura na mesma publicação. Chromium sem interceptação confirmou envio, refresh, restauração marcada como histórica, retenção visível, renomeação, exclusão e larguras de 390/1440 px. Troca de identidade com resposta atrasada e logout/revogação também têm testes dirigidos. Contas, sessões, conversas e banco temporário foram removidos; nenhum segredo foi incluído nos artefatos versionados.
+- Limites: cópia de validação local tinha marcador Alembic divergente e não foi alterada para simular uma migração; a cadeia foi provada em banco descartável limpo. O papel `v_energy_app` da cópia de teste é superusuário, portanto não comprova privilégio mínimo efetivo; o provisionamento versionado concede apenas as tabelas operacionais, e o leitor Gold foi confirmado sem `SELECT` no histórico. Revisão técnica do consumidor/Backend concluída por Codex e aceita pela pessoa usuária para encerrar o cartão; integração por PR permanece pendente.
+
+### Revisão técnica final — 02/11/2026
+
+Revisão automatizada independente dos eixos de requisitos e padrões encontrou dois defeitos, corrigidos antes da entrega: pergunta persistida inválida agora torna apenas a troca indisponível; abrir uma tentativa interrompida não vincula perguntas novas ao ID antigo. Retry conhecido em memória preserva o envio original; após refresh, nova pergunta usa novo ID e respeita o lease da execução anterior.
+
+Verificações após as correções: `docker exec followup-validation-backend-1 python -m pytest -q tests/test_ai_history_store.py tests/test_ai_history_http.py tests/test_ai_conversations_contract.py`: 25 passaram; testes frontend de sessão/histórico: 11 passaram; build passou; lint sem erros, com aviso preexistente; `git diff --check` passou. As suítes completas acima precedem estas duas correções. A pessoa usuária autorizou aceitar a revisão técnica de Codex como revisão do consumidor para esta entrega. Os dois achados foram corrigidos e revalidados; cartão concluído em 10/10. Isso não declara uma revisão humana externa nem integração à develop.
+
+
+### 2026-11-03 — IA-01 / IA-02 / IA-03 / IA-07: entendimento e recuperação de perguntas
+
+- Cartão adicional [Melhorar entendimento e qualidade](https://trello.com/c/yQ45h0tk), branch `feat/genai-entendimento-perguntas`, base develop `29c2eb2`. Adicional concluído na entrega técnica local, com 48 critérios revisados e decisões condicionais documentadas; sem commit/PR/merge nesta rodada. Estados oficiais dos requisitos preservados. Critérios, arquivos, comandos, reconciliação e rollback em [evidência de entendimento](plans/2026-11-03-genai-entendimento-perguntas.md).
+- Núcleo existente ampliado com flexões, classes no plural, formatos mensais e top N tipado. Esclarecimentos têm razões estáveis, alternativas pertinentes, sugestões de digitação confirmáveis e rascunho cumulativo. Backend assina contexto pendente e restaura pelo histórico existente; portal conserva a referência entre escolhas sucessivas. Nenhuma nova fonte, fórmula, permissão, retenção ou migração.
+- Harness Gold: baseline 22/32 planos/esclarecimentos integrais corretos → 32/32; conjunto separado de 16 formulações: 15/16 na primeira execução → 16/16 após corrigir voz passiva. Ambos agora são regressão; não estimam compreensão universal. Experimento isolado Gemini com seis entradas artificiais: 6/6, mesmo resultado do planejador corrigido; nenhuma proposta executada, sem ganho incremental observado para outra etapa em produção.
+- Gold v2 real: 19 respostas API/Chromium reconciliadas por SQL independente e auditoria na mesma publicação; jornada final de duas respostas repetida após revisão. Cobriu escolha de indicador/ano, ranking/classe, confirmação, restauração, troca de período sem cobertura e mudança de assunto. Contas temporárias removidas. Fonte sem cobertura continua bloqueada; prova local não homologa Dados.
+- Verificações finais: GenAI 4.276 passaram / 4 skips; Backend dirigido 332 passaram / 29 skips; frontend 428 passaram / 1 skip; build, fronteiras, formatação e Ruff dos arquivos alterados passaram. Avisos preexistentes Starlette/httpx e AuthProvider. Revisões de padrões e requisitos corrigiram perda de recorte e Top N indevido em comparação; sem achados concretos restantes nos percursos revisados. Implantar Backend antes da GenAI e depois portal; rollback inverso.
+
+
+#### 03/11/2026 — ajuste do esclarecimento observado pela pessoa usuária
+
+Após confirmar faturamento em uma comparação com dois meses sem ano, o Assistente
+agora pede somente o ano dos meses já informados, sem exemplo que troque a pergunta.
+Continuidade usa o rascunho cumulativo. 168 testes dirigidos passaram, Ruff e diff
+passaram; Chromium real confirmou Sim → ano, restauração e mudança de assunto.
+Duas respostas reconciliadas por SQL independente e quatro eventos de auditoria
+confirmados; conta temporária removida. Evidência no complemento do registro de
+entendimento acima; mesma branch, sem commit/push, estados oficiais preservados.
+
+### 03/11/2026 — adicional: início da busca documental autorizada
+
+- Branch `feat/genai-busca-semantica-documentacao`, base develop `36166bd`; cartão [busca semântica em documentação autorizada](https://trello.com/c/gctQzTDV). Preparação, sem entrega integrada ou alteração dos estados oficiais IA.
+- Corpus inicial reutiliza literalmente as nove definições aprovadas do FAQ. `scripts/generate-genai-documentation.py` confere rótulos/definições contra o catálogo Gold v2 e empacota apenas conteúdo conceitual em `ai-agent/app/corpora/indicators.json`.
+- Porta textual e adaptador `IndicatorDocumentation` limitam acesso por perfil/fonte/operação/métricas antes de expor trechos. Vigência, conflito de IDs e remoção são reavaliados sem cache derivado persistido. Sem dataset, consulta SQL ou nova retenção.
+- Verificações: geração e `--check` passaram; Ruff e `git diff --check` passaram; dois testes em cópia temporária Linux passaram, cobrindo escopo, conflito, expiração e retirada. Sem chamada externa nesta fatia.
+- Pendências: recuperação lexical/semântica comparada, composição e consumidor de runtime, respostas com citação, orçamento, injeção indireta e prova integrada. Dez critérios do cartão permanecem abertos; sem commit/push/PR.
+
+### 03/11/2026 — busca documental: integração e achados da avaliação
+
+- Integração local no núcleo composto e no planejamento HTTP, com resposta literal e referência documental tipada. Backend reconfere texto, citação, versão, vigência e métricas autorizadas antes da publicação; página mostra documentação interna e seção no fundamento. Sem commit/push.
+- Verificações anteriores à calibração: 109 testes GenAI passaram nas fronteiras de documentação, planejamento, composição, follow-up e autenticação; 13 Backend passaram, incluindo coordenação com Gold v2 artificial; 23 testes da página passaram. Última rodada dirigida após restrição lexical: 9 passaram. Corpus --check e compilação passaram.
+- Rodada real autorizada com onze perguntas artificiais e nove definições do FAQ revelou esclarecimentos/ausências excessivos e uma seleção lexical indevida (decomposição → preço). Seleção lexical foi restringida; não declarar ganho geral. Segunda rodada com consulta/documento separados apresentou falhas do provedor e não comprova aceite. Não inferir a causa dessas falhas sem diagnóstico sanitizado.
+- Pendentes: medir e calibrar a recuperação com resultado independente, revalidar chamadas reais, limites de chamadas adicionais, gates finais, jornada visual e revisão completa. Cartão permanece em andamento; não concluído.
+
+
+### 03/11/2026 — adicional: busca documental autorizada concluída localmente
+
+- Cartão [busca semântica em documentação autorizada](https://trello.com/c/gctQzTDV): dez critérios revisados e atendidos na primeira fatia de nove definições aprovadas do FAQ. Branch `feat/genai-busca-semantica-documentacao`, base `36166bd`; sem commit, push ou PR nesta rodada. Estados oficiais IA preservados.
+- Porta/adaptador no núcleo existente, corpus gerado e conferido no catálogo Gold v2, seleção estruturada Gemini restrita ao escopo, resposta literal e citação validada novamente pelo Backend. Quantitativos seguem SQL no Backend. Versão, vigência, retirada, revogação, histórico, auditoria, limites e rollback cobertos. Sem índice vetorial persistido, novos dados ou permissões.
+- Rodada real autorizada: nove respostas integralmente sustentadas, um esclarecimento por suporte parcial e uma ausência correta; dez IDs esperados de onze, versus três correspondências lexicais. Avaliação usada para calibração, sem alegação de precisão geral. Nove definições pela API pública: HTTP 200, texto literal e auditoria. Chromium real: desktop/celular, teclado, citação, dois temas e ausência de overflow/erros JavaScript.
+- Verificações: GenAI completo 4.318 passaram / 4 skips; Backend dirigido 176 passaram; página 23 passaram. Build/tipos, lint, fronteiras, formatação, Ruff, geração reproduzível e diff passaram; avisos preexistentes AuthProvider e Starlette/httpx. Revisão em requisitos e padrões corrigiu quatro defeitos, com regressões.
+- Contrato, comandos, critérios, limitações e evidências em [busca documental](contracts/genai-documentation-search.md) e [validação](plans/2026-11-03-genai-busca-documental.md). PR #113 de conversas longas permanece separado; integração posterior pela develop.
+
+
+### 03/11/2026 — ampliação da busca documental
+
+- Por solicitação da pessoa usuária, corpus ampliado de nove para 16 verbetes, cobrindo as definições dos 14 indicadores do catálogo Gold v2. Sete explicações individuais extraídas literalmente, incluindo consumo médio por UC e satisfação. Comparativos preservados; definições individuais usam apenas a permissão da própria métrica.
+- Reconhece “me explica”, “pode me explicar” e “o que quer dizer”; datas e localidades conservam o caminho quantitativo. Corpus versionado independentemente do FAQ; geração reproduzível para Backend/GenAI.
+- Verificações locais: 114 testes GenAI dirigidos e sete Backend passaram; Ruff, gerador e diff passaram. Prova Gemini/portal anterior corresponde aos nove verbetes iniciais e não estima qualidade semântica do corpus ampliado. Detalhes e falha de IDs corrigida em [evidência](plans/2026-11-03-genai-busca-documental.md). Sem commit/push.
+
+
+### Revisão do PR #114 — ciclo de vida documental
+
+A revisão de padrões identificou herança indevida da vigência do primeiro FAQ
+para as definições individuais. Corrigido com seleção explícita dos sete IDs e
+metadados próprios: retirar receita não retira DEC/FEC ou satisfação, e adicionar
+uma métrica ao catálogo não a publica automaticamente na busca. Corpus
+regenerado nos dois serviços. 115 testes GenAI dirigidos passaram; Ruff, gerador
+--check e diff passaram. Falha inicial na cópia Linux foi ausência do diretório
+temporário scripts, corrigida sem alterar a regressão. Sem novas chamadas externas.
+
+
+### PR #114 — compatibilidade do SDK opcional
+
+CI detectou três falhas na composição Gold quando o SDK Gemini não está instalado
+e o modelo quantitativo é injetado. Seleção documental agora carrega o SDK apenas
+na primeira chamada remota; falta do SDK resulta em erro documental sanitizado,
+sem impedir composição ou definições canônicas. Doze testes do seletor e runtime
+passaram; Ruff passou. Sem chamada externa.

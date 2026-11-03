@@ -53,7 +53,142 @@ afterEach(() => {
   resetGoldPublication();
 });
 
+it("envia a referência pendente mais recente entre dois esclarecimentos", async () => {
+  const clarification = (message: string, token: string) => ({
+    contract_version: "v1",
+    status: "needs_clarification",
+    message,
+    evidence: [],
+    limitations: [],
+    continuation_token: token,
+  });
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      jsonResponse(clarification("Faturado ou recebido?", "pending-first")),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse(clarification("Qual ano?", "pending-second")),
+    )
+    .mockResolvedValueOnce(jsonResponse(answered));
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  await user.type(input, "Receita paga em Recife em maio e junho?");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Faturado ou recebido?");
+  await user.type(input, "faturado");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Qual ano?");
+  await user.type(input, "2026");
+  await user.keyboard("{Enter}");
+  await screen.findByText(answered.answer);
+  expect(
+    JSON.parse(String(fetchMock.mock.calls[1][1]?.body)).continuation_token,
+  ).toBe("pending-first");
+  expect(
+    JSON.parse(String(fetchMock.mock.calls[2][1]?.body)).continuation_token,
+  ).toBe("pending-second");
+});
+
+it("mantém a referência válida em continuações e erros e renova a conversa", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      jsonResponse({ ...answered, continuation_token: "valid-first" }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({ ...answered, continuation_token: "valid-second" }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({
+        ...answered,
+        status: "refused",
+        answer: null,
+        message: "Não autorizado.",
+        error: { code: "access_denied", retryable: false },
+        continuation_token: null,
+      }),
+    )
+    .mockResolvedValueOnce(jsonResponse(answered))
+    .mockResolvedValue(
+      jsonResponse({ ...answered, continuation_token: "valid-third" }),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  for (const question of [
+    "Qual a receita em Recife?",
+    "E Olinda?",
+    "Pedido recusado",
+    "Só residencial",
+    "Só comercial",
+  ]) {
+    await user.type(input, question);
+    await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+    await waitFor(() => expect(input).toHaveValue(""));
+  }
+  const payloads = fetchMock.mock.calls.map(([, options]) =>
+    JSON.parse(options.body),
+  );
+  expect(payloads.map((payload) => payload.continuation_token)).toEqual([
+    undefined,
+    "valid-first",
+    "valid-second",
+    "valid-second",
+    undefined,
+  ]);
+  expect(new Set(payloads.map((payload) => payload.conversation_id)).size).toBe(
+    1,
+  );
+  await user.click(screen.getByRole("button", { name: /Nova conversa/ }));
+  await user.type(input, "Outra consulta");
+  await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6));
+  const last = JSON.parse(fetchMock.mock.calls[5][1].body);
+  expect(last.continuation_token).toBeUndefined();
+  expect(last.conversation_id).not.toBe(payloads[0].conversation_id);
+});
+
 describe("Assistente Grid 360", () => {
+  it("apresenta a seção e versão da documentação no fundamento", async () => {
+    const citation =
+      "Dicionário de indicadores · Receita faturada · versão 30a032e4e4f5 · trecho revenue.";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          ...answered,
+          answer: "Receita faturada não representa valor pago.",
+          analysis_context: null,
+          limitations: [],
+          evidence: [
+            {
+              source: "documentation.indicators",
+              description: citation,
+              is_demo: false,
+            },
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "O que significa receita faturada?",
+    );
+    await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+    await screen.findByText("Receita faturada não representa valor pago.");
+    await user.click(screen.getByText("Como chegamos à resposta"));
+    expect(screen.getByText("Documentação interna")).toBeVisible();
+    expect(screen.getByText(citation)).toBeVisible();
+    expect(
+      screen.queryByLabelText("Recorte analisado"),
+    ).not.toBeInTheDocument();
+  });
   it("mostra os rótulos do catálogo preservando os identificadores do recorte", async () => {
     vi.stubGlobal(
       "fetch",
@@ -82,6 +217,7 @@ describe("Assistente Grid 360", () => {
     const context = await screen.findByLabelText("Recorte analisado");
     expect(within(context).getByText(": Receita faturada")).toBeVisible();
     expect(within(context).getByText("Município")).toBeVisible();
+    expect(within(context).getByText(": Jan/2025 – Fev/2025")).toBeVisible();
     expect(context).toHaveAttribute(
       "title",
       "Faturamento observado; não representa valor pago.",
@@ -89,7 +225,7 @@ describe("Assistente Grid 360", () => {
     expect(context).not.toHaveTextContent("billing.revenue");
     expect(context).not.toHaveTextContent("geography.municipality");
   });
-  it("mostra a referência de conferência da evidência real sem aviso sintético", async () => {
+  it("oculta referências técnicas e mantém a procedência compreensível", async () => {
     const reference = "abcdef0123456789abcdef0123456789";
     vi.stubGlobal(
       "fetch",
@@ -98,6 +234,11 @@ describe("Assistente Grid 360", () => {
           ...answered,
           audit_reference: reference,
           answer: "A receita no recorte informado está fundamentada na Gold.",
+          analysis_context: {
+            ...answered.analysis_context,
+            period: "2026-05-01 a 2026-05-31",
+            batch_reference: "gold-csv-v2:LOTE_INTERNO:HASH_INTERNO",
+          },
           evidence: [
             {
               source: "gold.local",
@@ -120,16 +261,51 @@ describe("Assistente Grid 360", () => {
       "A receita no recorte informado está fundamentada na Gold.",
     );
     expect(
-      screen.getByText(`Referência para conferência: ${reference}`),
-    ).not.toBeVisible();
+      screen.queryByText(`Referência para conferência: ${reference}`),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByText("Como chegamos à resposta"));
-    expect(
-      screen.getByText(`Referência para conferência: ${reference}`),
-    ).toBeVisible();
-    expect(screen.getByText("Dados da distribuidora")).toBeVisible();
+    expect(screen.getByText("Fonte de dados interna")).toBeVisible();
+    expect(screen.getByText(": Mai/2026")).toBeVisible();
+    expect(screen.queryByText(/Referência para conferência/)).toBeNull();
+    expect(screen.queryByText(/Lote consultado/)).toBeNull();
+    expect(screen.queryByText(/LOTE_INTERNO|HASH_INTERNO/)).toBeNull();
+    expect(screen.queryByText(reference)).toBeNull();
     expect(screen.queryByText("gold.local")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Demonstração sintética"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("oferece perguntas comuns alinhadas aos recortes do case", () => {
+    renderPage();
+    const suggestions = screen.getByRole("region", {
+      name: "Perguntas comuns",
+    });
+    expect(within(suggestions).getAllByRole("button")).toHaveLength(4);
+    expect(
+      within(suggestions).getByRole("button", {
+        name: "Qual foi a receita faturada em Olinda em junho de 2026?",
+      }),
+    ).toBeVisible();
+    expect(
+      within(suggestions).getByRole("button", {
+        name: "Qual foi o consumo de energia em Recife em junho de 2026?",
+      }),
+    ).toBeVisible();
+    expect(
+      within(suggestions).getByRole("button", {
+        name: "Quantos chamados de atendimento existem no histórico acumulado?",
+      }),
+    ).toBeVisible();
+    expect(
+      within(suggestions).getByRole("button", {
+        name: "Qual foi a receita em Olinda, não, em Jaboatão dos Guararapes, em junho de 2026?",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(
+        /Informe o período e o local para uma resposta mais precisa/,
+      ),
     ).not.toBeInTheDocument();
   });
 
@@ -149,7 +325,7 @@ describe("Assistente Grid 360", () => {
     await user.keyboard("{Enter}");
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Analisando a pergunta e consultando evidências",
+      "Consultando os dados",
     );
     const sendButton = screen.getByRole("button", { name: "Enviar pergunta" });
     expect(sendButton).toBeVisible();
@@ -178,7 +354,7 @@ describe("Assistente Grid 360", () => {
     expect(screen.getByText("Resposta fundamentada")).toBeVisible();
     expect(screen.getByText(/Demonstração sintética/)).toBeVisible();
     expect(screen.getByText("Dados de demonstração")).toBeVisible();
-    expect(screen.getByText(/2025-01 a 2025-02/)).toBeVisible();
+    expect(screen.getByText(/Jan\/2025 – Fev\/2025/)).toBeVisible();
     expect(
       screen.getByText(/Os valores não representam dados reais/),
     ).toBeVisible();
@@ -196,10 +372,22 @@ describe("Assistente Grid 360", () => {
     ).toHaveTextContent(": kWh fictícios");
     expect(
       within(analysisContext).getAllByRole("definition")[2],
-    ).toHaveTextContent(": 2025-01 a 2025-02");
+    ).toHaveTextContent(": Jan/2025 – Fev/2025");
     expect(
       within(analysisContext).getAllByRole("definition")[3],
     ).toHaveTextContent(": Exemplo");
+
+    const conversationSidebar = screen.getByRole("complementary", {
+      name: "Conversas salvas",
+    });
+    expect(
+      within(conversationSidebar).getByText(
+        "Entre na sua conta para salvar e gerenciar conversas. Esta conversa fica somente nesta tela.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Conversas" }),
+    ).not.toBeInTheDocument();
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(options.method).toBe("POST");
@@ -207,6 +395,7 @@ describe("Assistente Grid 360", () => {
       contract_version: "v1",
       question: "Como variou o consumo?",
       context: [],
+      conversation_id: expect.any(String),
     });
     expect(String(fetchMock.mock.calls[0][0])).toBe("/api/v1/ai/questions");
   });
@@ -278,7 +467,11 @@ describe("Assistente Grid 360", () => {
       String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
     );
     expect(secondRequest.context).toEqual([]);
-    expect(screen.getByText("Me passe uma receita de bolo.")).toBeVisible();
+    expect(
+      within(screen.getByRole("log")).getByText(
+        "Me passe uma receita de bolo.",
+      ),
+    ).toBeVisible();
     expect(screen.getByText(refusal)).toBeVisible();
   });
 
@@ -506,7 +699,9 @@ describe("Assistente Grid 360", () => {
 
     await user.click(screen.getByRole("button", { name: /Nova conversa/ }));
     expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
-    expect(screen.getByText(/fica apenas nesta tela/)).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "O que você quer investigar?" }),
+    ).toBeVisible();
   });
 
   it("oferece repetição manual somente quando o erro diz que é recuperável", async () => {

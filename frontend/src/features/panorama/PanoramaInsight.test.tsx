@@ -272,10 +272,10 @@ describe("IA-04 contextual insight on Panorama", () => {
       name: "Fundamento do insight",
     });
     expect(foundation).toHaveAttribute("tabindex", "0");
-    expect(within(foundation).getByText("Fórmula aplicada")).toBeVisible();
-    expect(foundation).toHaveTextContent(
-      "Dados sintéticos · panorama-sintetico-2024.04-v1",
-    );
+    expect(
+      within(foundation).getByText("Como o valor é calculado"),
+    ).toBeVisible();
+    expect(foundation).toHaveTextContent("Dados demonstrativos");
     expect(foundation).not.toHaveTextContent("Lote Gold");
     expect(
       within(drawer).getAllByText(

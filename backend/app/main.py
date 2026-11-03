@@ -22,6 +22,7 @@ from app.repositories.analytics import AnalyticsSourceUnavailable
 from app.services.analytics import AnalyticsAPIError
 from app.services.genai_audit import AuditStore
 from app.services.genai_audit_retention import maintain_audit_retention
+from app.services.ai_history_retention import maintain_history_retention
 from app.services.genai_client import GenAIInsightClient, GenAIQuestionClient
 
 
@@ -59,11 +60,16 @@ async def lifespan(app: FastAPI):
             service_token=token,
         )
         retention = None
+        history_retention = asyncio.create_task(maintain_history_retention(engine)) if settings.ORDERS_AUTH_MODE == "session" else None
         if settings.GENAI_AUDIT_WRITE_TOKEN is not None or settings.ANALYTICS_SOURCE == "gold":
             retention = asyncio.create_task(maintain_audit_retention(AuditStore(engine)))
         try:
             yield
         finally:
+            if history_retention is not None:
+                history_retention.cancel()
+                with suppress(asyncio.CancelledError):
+                    await history_retention
             if retention is not None:
                 retention.cancel()
                 with suppress(asyncio.CancelledError):

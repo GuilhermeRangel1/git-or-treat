@@ -1,3 +1,4 @@
+import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useEffect, useMemo } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import Button from "@/shared/ui/Button";
@@ -206,6 +207,9 @@ export default function OperacaoPage() {
           {pageTitle}
         </h1>
         <p className="text-sm leading-[22px] text-muted">{pageSubtitle}</p>
+        <div className="flex justify-end">
+          <IndicatorHelp screen="operacao" />
+        </div>
       </header>
       {options.data?.kind === "synthetic" ? (
         <OperationSource source={pageSource} />

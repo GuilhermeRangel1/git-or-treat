@@ -1,0 +1,179 @@
+{
+  "version": "30a032e4e4f5",
+  "catalogVersion": "gold-catalog-v2",
+  "source": "Dicionário de indicadores da distribuidora",
+  "entries": [
+    {
+      "id": "revenue",
+      "question": "Receita faturada é o valor pago?",
+      "keywords": ["receita", "faturamento", "pago", "fatura"],
+      "screens": ["assistente", "panorama", "receita", "uc360"],
+      "status": "active",
+      "validFrom": "2026-11-02",
+      "validUntil": null,
+      "audience": "Pessoas usuárias do portal interno",
+      "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
+      "definitions": [
+        {
+          "metricId": "billing.revenue",
+          "label": "Receita faturada",
+          "text": "Total das faturas do recorte, incluindo faturas sem leitura; não representa valor pago."
+        }
+      ]
+    },
+    {
+      "id": "consumption",
+      "question": "Consumo medido é energia faturada?",
+      "keywords": ["energia", "consumo", "leitura", "kwh"],
+      "screens": ["assistente", "panorama", "receita", "uc360"],
+      "status": "active",
+      "validFrom": "2026-11-02",
+      "validUntil": null,
+      "audience": "Pessoas usuárias do portal interno",
+      "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
+      "definitions": [
+        {
+          "metricId": "energy.consumption",
+          "label": "Consumo medido",
+          "text": "Total medido nas leituras do recorte, incluindo leituras sem fatura; não é energia faturada."
+        }
+      ]
+    },
+    {
+      "id": "price",
+      "question": "Preço médio observado é a tarifa homologada?",
+      "keywords": ["preco", "tarifa", "comparavel"],
+      "screens": ["assistente", "panorama", "receita"],
+      "status": "active",
+      "validFrom": "2026-11-02",
+      "validUntil": null,
+      "audience": "Pessoas usuárias do portal interno",
+      "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
+      "definitions": [
+        {
+          "metricId": "billing.effective_tariff",
+          "label": "Preço médio observado por kWh",
+          "text": "Receita dividida pelo consumo da mesma base com fatura e leituras integralmente válidas; não é tarifa homologada."
+        }
+      ]
+    },
+    {
+      "id": "ticket",
+      "question": "O que significa ticket médio?",
+      "keywords": ["ticket", "media", "faturada"],
+      "screens": ["assistente", "panorama", "receita"],
+      "status": "active",
+      "validFrom": "2026-11-02",
+      "validUntil": null,
+      "audience": "Pessoas usuárias do portal interno",
+      "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
+      "definitions": [
+        {
+          "metricId": "billing.average_ticket",
+          "label": "Ticket médio por UC faturada no mês",
+          "text": "Razão entre a soma da receita faturada e a soma das UCs faturadas de cada mês do recorte."
+        }
+      ]
+    },
+    {
+      "id": "continuity",
+      "question": "Qual a diferença entre DEC e FEC?",
+      "keywords": ["dec", "fec", "continuidade", "duracao", "frequencia"],
+      "screens": ["assistente", "panorama", "operacao"],
+      "status": "active",
+      "validFrom": "2026-11-02",
+      "validUntil": null,
+      "audience": "Pessoas usuárias do portal interno",
+      "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
+      "definitions": [
+        {
+          "metricId": "network.equivalent_interruption_duration",
+          "label": "Duração equivalente de interrupção (DEC)",
+          "text": "Horas de interrupção por UC do alimentador no mês; indicador simplificado com cadastro atual, sem agregação entre meses ou alimentadores."
+        },
+        {
+          "metricId": "network.equivalent_interruption_frequency",
+          "label": "Frequência equivalente de interrupção (FEC)",
+          "text": "Pares UC–ocorrência por UC do alimentador no mês; indicador simplificado com cadastro atual, sem agregação entre meses ou alimentadores."
+        }
+      ]
+    },
+    {
+      "id": "events",
+      "question": "Interrupções registradas são o mesmo que FEC?",
+      "keywords": ["interrupcao", "interrupcoes", "ocorrencia", "evento"],
+      "screens": ["assistente", "operacao"],
+      "status": "active",
+      "validFrom": "2026-11-02",
+      "validUntil": null,
+      "audience": "Pessoas usuárias do portal interno",
+      "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
+      "definitions": [
+        {
+          "metricId": "network.interruption_events",
+          "label": "Ocorrências distintas de interrupção",
+          "text": "Conta eventos distintos no alimentador registrado na ocorrência e mês de abertura UTC; um evento associado a várias UCs conta uma vez. Não é DEC nem FEC."
+        }
+      ]
+    },
+    {
+      "id": "attendance",
+      "question": "Chamados acumulados representam um mês?",
+      "keywords": ["chamados", "atendimento", "acumulado", "historico"],
+      "screens": ["assistente", "panorama", "uc360"],
+      "status": "active",
+      "validFrom": "2026-11-02",
+      "validUntil": null,
+      "audience": "Pessoas usuárias do portal interno",
+      "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
+      "definitions": [
+        {
+          "metricId": "service.accumulated_attendance",
+          "label": "Chamados no histórico acumulado",
+          "text": "Total de protocolos do histórico publicado, sem intervalo de datas conhecido ou certificação de completude histórica."
+        },
+        {
+          "metricId": "service.attendance",
+          "label": "Chamados por abertura",
+          "text": "Contagem de protocolos abertos no recorte em UTC, sem contar tratativas; zero exige cobertura certificada."
+        }
+      ]
+    },
+    {
+      "id": "decomposition",
+      "question": "A decomposição da receita explica a causa da variação?",
+      "keywords": ["decomposicao", "variacao", "causa", "volume"],
+      "screens": ["assistente", "receita"],
+      "status": "active",
+      "validFrom": "2026-11-02",
+      "validUntil": null,
+      "audience": "Pessoas usuárias do portal interno",
+      "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
+      "definitions": [
+        {
+          "metricId": "billing.price_volume",
+          "label": "Decomposição da variação da receita",
+          "text": "Decomposição publicada em preço observado, volume, interação e composição da base; não comprova causalidade nem tarifa homologada."
+        }
+      ]
+    },
+    {
+      "id": "gd",
+      "question": "Geração distribuída comprova a causa de uma queda de consumo?",
+      "keywords": ["gd", "geracao", "solar", "queda"],
+      "screens": ["assistente", "uc360"],
+      "status": "active",
+      "validFrom": "2026-11-02",
+      "validUntil": null,
+      "audience": "Pessoas usuárias do portal interno",
+      "owner": "Dados/negócio (definição); Frontend/GenAI (publicação)",
+      "definitions": [
+        {
+          "metricId": "energy.gd_consumption_drop",
+          "label": "UCs elegíveis com GD e queda de consumo superior a 30%",
+          "text": "Conta UCs com GD e queda bruta superior a 30%, com ao menos seis meses com leitura em cada janela fixa; não demonstra causa nem origem solar."
+        }
+      ]
+    }
+  ]
+}

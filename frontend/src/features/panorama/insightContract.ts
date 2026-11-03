@@ -26,6 +26,12 @@ export interface PanoramaInsightContribution {
 }
 
 export interface PanoramaInsightAnalysis {
+  composicaoAtual?: {
+    dimension: "municipio" | "classe" | "bairro";
+    segmento: string;
+    valor: number;
+    participacaoPercentual: number;
+  } | null;
   direcao: "alta" | "queda" | "estavel" | "indisponivel";
   variacaoPercentual: number | null;
   principalContribuicao: PanoramaInsightContribution | null;
@@ -183,7 +189,25 @@ export function decodePanoramaInsight(
   ) {
     throw new Error("Resposta inválida do serviço de insight.");
   }
+  const composition = analysis.composicaoAtual;
+  if (
+    composition != null &&
+    (!isRecord(composition) ||
+      !["municipio", "classe", "bairro"].includes(
+        String(composition.dimension),
+      ) ||
+      !isText(composition.segmento, 120) ||
+      typeof composition.valor !== "number" ||
+      !Number.isFinite(composition.valor) ||
+      composition.valor < 0 ||
+      typeof composition.participacaoPercentual !== "number" ||
+      !Number.isFinite(composition.participacaoPercentual) ||
+      composition.participacaoPercentual < 0 ||
+      composition.participacaoPercentual > 100)
+  )
+    throw new Error("Composição inválida do insight.");
   const decodedAnalysis: PanoramaInsightAnalysis = {
+    composicaoAtual: composition as PanoramaInsightAnalysis["composicaoAtual"],
     direcao: analysis.direcao as PanoramaInsightAnalysis["direcao"],
     variacaoPercentual: analysis.variacaoPercentual,
     principalContribuicao: decodeContribution(analysis.principalContribuicao),

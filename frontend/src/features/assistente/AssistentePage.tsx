@@ -1,11 +1,16 @@
-import { useMutation } from "@tanstack/react-query";
+import { ASSISTANT_HOME_SUGGESTIONS } from "@/shared/help/assistantExamples";
+import IndicatorHelp from "@/shared/help/IndicatorHelp";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/shared/auth/useSession";
+import { currentAuthorizationGeneration } from "@/shared/auth/authorization";
+import ConversationHistory from "./ConversationHistory";
+import { createConversation, openConversation } from "./history";
 import {
   AlertCircle,
   Check,
   CircleHelp,
   Database,
   Info,
-  LoaderCircle,
   MessageCircle,
   Plus,
   RotateCcw,
@@ -23,13 +28,23 @@ import {
 import { useGoldPublicationRevision } from "@/shared/analytics/goldPublication";
 import Button from "@/shared/ui/Button";
 import { AIChatApiError, askAIQuestion } from "./api";
+import { AssistantIdentity, ProcessingIndicator } from "./AssistantIdentity";
+import "./assistant.css";
 import type {
   AIConversationTurn,
   AIQuestionRequest,
   AIQuestionResponse,
 } from "./contract";
 
-type RetryRequest = Pick<AIQuestionRequest, "question" | "context"> & {
+type RetryRequest = Pick<
+  AIQuestionRequest,
+  | "question"
+  | "context"
+  | "continuation_token"
+  | "conversation_id"
+  | "history_request_id"
+  | "refresh_context"
+> & {
   userMessageId: number;
   assistantMessageId: number;
 };
@@ -42,13 +57,10 @@ type ChatMessage = {
   retryRequest?: RetryRequest;
   contextEligible: boolean;
   outdated?: boolean;
+  historical?: boolean;
 };
 
-const SUGGESTIONS = [
-  "Qual foi a receita no mês passado?",
-  "Qual foi o consumo no mês passado?",
-  "Quantas interrupções ocorreram no mês passado?",
-];
+const SUGGESTIONS = ASSISTANT_HOME_SUGGESTIONS;
 
 const RESPONSE_STATES: Record<
   AIQuestionResponse["status"],
@@ -125,13 +137,80 @@ function formatFilterValue(value: string | number | boolean) {
   return typeof value === "boolean" ? (value ? "Sim" : "Não") : String(value);
 }
 
+const PERIOD_MONTHS = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
+
+function formatPeriod(value: string) {
+  const dates = [
+    ...value.matchAll(/\b(\d{4})-(0[1-9]|1[0-2])(?:-(\d{2}))?\b/g),
+  ];
+  if (dates.length === 0) return value;
+
+  const formatMonth = (year: string, month: string) =>
+    `${PERIOD_MONTHS[Number(month) - 1]}/${year}`;
+  const isValidDate = (year: number, month: number, day: number) => {
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    );
+  };
+  const isCompleteMonth = (date: RegExpMatchArray, edge: "start" | "end") => {
+    const [, yearValue, monthValue, dayValue] = date;
+    if (!dayValue) return true;
+    const year = Number(yearValue);
+    const month = Number(monthValue);
+    const day = Number(dayValue);
+    if (!isValidDate(year, month, day)) return false;
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return edge === "start" ? day === 1 : day === lastDay;
+  };
+
+  if (
+    dates.length === 2 &&
+    isCompleteMonth(dates[0], "start") &&
+    isCompleteMonth(dates[1], "end")
+  ) {
+    const [, firstYear, firstMonth] = dates[0];
+    const [, lastYear, lastMonth] = dates[1];
+    return firstYear === lastYear && firstMonth === lastMonth
+      ? formatMonth(firstYear, firstMonth)
+      : `${formatMonth(firstYear, firstMonth)} – ${formatMonth(lastYear, lastMonth)}`;
+  }
+
+  return value.replace(
+    /\b(\d{4})-(0[1-9]|1[0-2])(?:-(\d{2}))?\b/g,
+    (match, year: string, month: string, day?: string) => {
+      if (!day) return formatMonth(year, month);
+      const numericYear = Number(year);
+      const numericMonth = Number(month);
+      const numericDay = Number(day);
+      if (!isValidDate(numericYear, numericMonth, numericDay)) return match;
+      return `${day}/${month}/${year}`;
+    },
+  );
+}
+
 function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   const context = response.analysis_context;
   if (!context) return null;
   const details = [
     context.metric_label && ["Indicador", context.metric_label],
     context.unit && ["Unidade", context.unit],
-    context.period && ["Período", context.period],
+    context.period && ["Período", formatPeriod(context.period)],
     ...Object.entries(context.filters).map(([key, value]) => [
       context.filter_labels?.[key] ?? "Filtro aplicado",
       formatFilterValue(value),
@@ -147,7 +226,7 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
       {details.map(([label, value]) => (
         <div
           key={label}
-          className="rounded-md border border-divider bg-surface px-2.5 py-1 text-xs text-muted"
+          className="rounded-md border border-divider bg-surface px-2.5 py-1 text-sm text-muted"
         >
           <dt className="inline font-medium">{label}</dt>
           <dd className="inline">: {value}</dd>
@@ -162,14 +241,14 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
   const state = RESPONSE_STATES[response.status];
   return (
     <div className="mt-3 space-y-3">
-      <p className={`text-xs font-semibold ${state.appearance}`}>
+      <p className={`text-sm font-semibold ${state.appearance}`}>
         {state.label}
       </p>
-      <p className="whitespace-pre-wrap text-[15px] leading-7 text-content">
+      <p className="whitespace-pre-wrap text-base sm:text-[17px] leading-7 text-content">
         {responseContent(response)}
       </p>
       {response.evidence.some((item) => item.is_demo) && (
-        <p className="flex items-center gap-2 text-xs font-medium text-[var(--status-warning-text)]">
+        <p className="flex items-center gap-2 text-sm font-medium text-[var(--status-warning-text)]">
           <Info aria-hidden="true" className="size-4" />
           Exemplo com dados fictícios
         </p>
@@ -179,7 +258,7 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
           aria-label="Fundamento da resposta"
           className="rounded-xl border border-divider bg-canvas/70 p-3"
         >
-          <summary className="cursor-pointer text-xs font-semibold text-content focus-visible:outline-2 focus-visible:outline-brand">
+          <summary className="cursor-pointer text-sm font-semibold text-content focus-visible:outline-2 focus-visible:outline-brand">
             <Database aria-hidden="true" className="mr-2 inline-block size-4" />
             Como chegamos à resposta
           </summary>
@@ -187,13 +266,21 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
             {response.evidence.map((item, index) => (
               <li
                 key={`${item.source}-${index}`}
-                className="flex flex-wrap items-start gap-x-2 gap-y-1 text-xs leading-5 text-muted"
+                className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-5 text-muted"
               >
                 <span>
                   {item.is_demo
                     ? "Dados de demonstração"
-                    : "Dados da distribuidora"}
+                    : item.source === "documentation.indicators"
+                      ? "Documentação interna"
+                      : "Fonte de dados interna"}
                 </span>
+                {item.source === "documentation.indicators" &&
+                  !item.is_demo && (
+                    <p className="w-full break-words leading-6">
+                      {item.description}
+                    </p>
+                  )}
                 {item.is_demo && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)]/10 px-2 py-0.5 font-medium text-[var(--status-warning-text)]">
                     <Info aria-hidden="true" className="size-3" />
@@ -203,19 +290,9 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
               </li>
             ))}
           </ul>
-          {response.analysis_context?.batch_reference && (
-            <p className="mt-3 break-all text-xs text-muted">
-              Lote consultado: {response.analysis_context.batch_reference}
-            </p>
-          )}
           {response.analysis_context?.metric_definition && (
-            <p className="mt-3 text-xs leading-5 text-muted">
+            <p className="mt-3 text-sm leading-5 text-muted">
               {response.analysis_context.metric_definition}
-            </p>
-          )}
-          {response.audit_reference && (
-            <p className="mt-3 break-all text-xs text-muted">
-              Referência para conferência: {response.audit_reference}
             </p>
           )}
         </details>
@@ -224,7 +301,7 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
       {response.limitations.length > 0 && (
         <ul
           aria-label="Limitações"
-          className="space-y-1 text-xs leading-5 text-muted"
+          className="space-y-1 text-sm leading-5 text-muted"
         >
           {response.limitations.map((limitation) => (
             <li key={limitation} className="flex gap-2">
@@ -247,7 +324,7 @@ function MessageCard({
 }) {
   if (message.role === "user") {
     return (
-      <article className="ml-auto max-w-[min(85%,680px)] rounded-2xl rounded-br-sm bg-selected px-4 py-3 text-sm leading-6 text-content">
+      <article className="ml-auto w-fit max-w-[min(85%,680px)] rounded-2xl rounded-br-sm bg-selected px-4 py-3 text-base leading-6 text-content">
         <p className="whitespace-pre-wrap">{message.content}</p>
       </article>
     );
@@ -255,7 +332,7 @@ function MessageCard({
 
   if (message.outdated) {
     return (
-      <article className="rounded-xl border border-divider p-4 text-sm text-muted">
+      <article className="rounded-xl border border-divider p-4 text-base text-muted">
         Os dados mudaram. Faça uma nova consulta para atualizar esta resposta.
       </article>
     );
@@ -272,9 +349,9 @@ function MessageCard({
           className="mt-0.5 size-4 shrink-0 text-[var(--status-danger)]"
         />
         <div className="min-w-0">
-          <p className="text-sm leading-6 text-content">{message.content}</p>
+          <p className="text-base leading-6 text-content">{message.content}</p>
           {message.error.correlationId && (
-            <p className="mt-1 break-all font-mono text-[11px] text-muted">
+            <p className="mt-1 break-all font-mono text-xs text-muted">
               Referência: {message.error.correlationId}
             </p>
           )}
@@ -296,10 +373,16 @@ function MessageCard({
 
   return (
     <article className="max-w-[min(95%,720px)] rounded-2xl rounded-bl-sm border border-divider bg-surface px-4 py-3">
-      <div className="flex items-center gap-2 text-xs font-semibold text-content">
+      <div className="flex items-center gap-2 text-sm font-semibold text-content">
         <Sparkles aria-hidden="true" className="size-4 text-brand" />
         Assistente Grid 360
       </div>
+      {message.historical && (
+        <p className="mt-2 text-sm text-muted">
+          Resposta salva · consulte novamente para obter dados atuais.
+        </p>
+      )}
+      {!message.response && <p className="mt-2">{message.content}</p>}
       {message.response && <AssistantResult response={message.response} />}
       {message.response?.status === "recoverable_error" &&
         message.response.error?.retryable &&
@@ -319,14 +402,34 @@ function MessageCard({
 }
 
 export default function AssistentePage() {
+  const session = useSession();
+  const historyEnabled = session.configured && Boolean(session.user);
+  const queryClient = useQueryClient();
+  const savedIdRef = useRef<string | null>(null);
+  const interactionRevision = useRef(0);
+  const drafts = useRef(new Map<string, string>());
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [restoredHistory, setRestoredHistory] = useState(false);
+  const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
+  const [refreshContext, setRefreshContext] = useState(false);
+  const [hasInterruptedSend, setHasInterruptedSend] = useState(false);
   const publicationRevision = useGoldPublicationRevision();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [conversationId, setConversationId] = useState<string>(() =>
+    crypto.randomUUID(),
+  );
   const nextMessageId = useRef(0);
   const sendingRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const mutation = useMutation({ mutationFn: askAIQuestion, retry: false });
+  useEffect(
+    () => () => {
+      interactionRevision.current++;
+    },
+    [],
+  );
   // Publication changes invalidate interpretation history, including saved retries.
   useEffect(() => {
     // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
@@ -354,7 +457,18 @@ export default function AssistentePage() {
     retryAttempt?: RetryRequest,
   ) {
     const question = questionText.trim();
-    if (!question || question.length > 1000 || sendingRef.current) return;
+    if (
+      !question ||
+      question.length > 1000 ||
+      sendingRef.current ||
+      loadingHistory
+    )
+      return;
+    const revision = interactionRevision.current;
+    const authorization = currentAuthorizationGeneration();
+    const current = () =>
+      revision === interactionRevision.current &&
+      authorization === currentAuthorizationGeneration();
     const userMessageId = addUserMessage
       ? nextMessageId.current++
       : retryAttempt?.userMessageId;
@@ -363,9 +477,27 @@ export default function AssistentePage() {
       : retryAttempt?.assistantMessageId;
     if (userMessageId === undefined || assistantMessageId === undefined) return;
     sendingRef.current = true;
-    const retryRequest = retryAttempt ?? {
+    const retryRequest: RetryRequest = retryAttempt ?? {
       question,
       context,
+      conversation_id: conversationId,
+      ...(historyEnabled
+        ? {
+            history_request_id: crypto.randomUUID(),
+            refresh_context: refreshContext,
+          }
+        : {}),
+      continuation_token:
+        [...messages]
+          .reverse()
+          .find(
+            (message) =>
+              message.contextEligible &&
+              message.response != null &&
+              (["answered", "no_evidence"].includes(message.response.status) ||
+                (message.response.status === "needs_clarification" &&
+                  message.response.continuation_token != null)),
+          )?.response?.continuation_token ?? undefined,
       userMessageId,
       assistantMessageId,
     };
@@ -382,13 +514,37 @@ export default function AssistentePage() {
     }
 
     try {
+      if (historyEnabled && !savedIdRef.current) {
+        const created = await createConversation(conversationId);
+        if (!current()) return;
+        savedIdRef.current = created.id;
+        setActiveSavedId(created.id);
+        setConversationId(created.id);
+      }
+      if (historyEnabled) retryRequest.conversation_id = savedIdRef.current!;
       const response = await mutation.mutateAsync({
         contract_version: "v1",
         question,
         context: context.slice(-3),
+        conversation_id: retryRequest.conversation_id,
+        continuation_token: retryRequest.continuation_token,
+        ...(historyEnabled
+          ? {
+              history_request_id: retryRequest.history_request_id,
+              refresh_context: retryRequest.refresh_context,
+            }
+          : {}),
       });
-      if (addUserMessage && response.status !== "recoverable_error")
+      if (!current()) return;
+      setHasInterruptedSend(false);
+      setRefreshContext(false);
+      void queryClient.invalidateQueries({
+        queryKey: ["ai-conversations", session.user?.id],
+      });
+      if (addUserMessage && response.status !== "recoverable_error") {
         setDraft("");
+        if (composerRef.current) composerRef.current.style.height = "";
+      }
       const assistantMessage: ChatMessage = {
         id: assistantMessageId,
         role: "assistant",
@@ -428,6 +584,7 @@ export default function AssistentePage() {
         );
       });
     } catch (error) {
+      if (!current()) return;
       if (
         error instanceof AIChatApiError &&
         error.code === "superseded_request"
@@ -456,7 +613,9 @@ export default function AssistentePage() {
                 contextEligible: false,
                 retryRequest: undefined,
                 outdated:
-                  message.role === "assistant" && Boolean(message.response),
+                  safeError.code !== "invalid_continuation" &&
+                  message.role === "assistant" &&
+                  Boolean(message.response),
               }))
             : current,
           userMessageId,
@@ -465,8 +624,10 @@ export default function AssistentePage() {
         ),
       );
     } finally {
-      sendingRef.current = false;
-      requestAnimationFrame(() => composerRef.current?.focus());
+      if (current()) {
+        sendingRef.current = false;
+        requestAnimationFrame(() => composerRef.current?.focus());
+      }
     }
   }
 
@@ -487,18 +648,77 @@ export default function AssistentePage() {
   }
 
   function startNewConversation() {
-    if (mutation.isPending) return;
+    drafts.current.set(savedIdRef.current ?? conversationId, draft);
+    interactionRevision.current++;
+    sendingRef.current = false;
+    savedIdRef.current = null;
+    setActiveSavedId(null);
+    setRestoredHistory(false);
+    setRefreshContext(false);
+    setHasInterruptedSend(false);
+    setLoadingHistory(false);
     setMessages([]);
+    setConversationId(crypto.randomUUID());
     setDraft("");
+    if (composerRef.current) composerRef.current.style.height = "";
     mutation.reset();
+  }
+
+  async function openSaved(id: string) {
+    drafts.current.set(savedIdRef.current ?? conversationId, draft);
+    const revision = ++interactionRevision.current;
+    const authorization = currentAuthorizationGeneration();
+    setLoadingHistory(true);
+    mutation.reset();
+    sendingRef.current = false;
+    try {
+      const saved = await openConversation(id);
+      if (
+        revision !== interactionRevision.current ||
+        authorization !== currentAuthorizationGeneration()
+      )
+        return;
+      savedIdRef.current = id;
+      setActiveSavedId(id);
+      setConversationId(id);
+      const restored: ChatMessage[] = [];
+      for (const entry of saved.exchanges) {
+        restored.push({
+          id: nextMessageId.current++,
+          role: "user",
+          content: entry.question ?? "Envio sem conteúdo armazenado.",
+          contextEligible: false,
+        });
+        restored.push({
+          id: nextMessageId.current++,
+          role: "assistant",
+          content: entry.response
+            ? responseContent(entry.response)
+            : "Envio interrompido ou indisponível. Você pode enviar uma nova pergunta.",
+          response: entry.response ?? undefined,
+          historical: true,
+          contextEligible: false,
+        });
+      }
+      setMessages(restored);
+      setDraft(drafts.current.get(id) ?? "");
+      setRestoredHistory(true);
+      setRefreshContext(false);
+      const last = saved.exchanges.at(-1);
+      setHasInterruptedSend(
+        Boolean(last && ["pending", "interrupted"].includes(last.state)),
+      );
+    } finally {
+      if (revision === interactionRevision.current) setLoadingHistory(false);
+    }
   }
 
   return (
     <section
       aria-labelledby="assistant-heading"
-      className="mx-auto flex h-full min-h-0 w-full max-w-[960px] flex-col gap-3 rounded-[20px] border border-divider bg-surface p-3 lg:max-h-[800px] lg:gap-4 lg:p-6"
+      className="assistant-workspace mx-auto h-full min-h-0 w-full rounded-[20px] border border-divider bg-surface"
     >
-      <header className="flex min-h-12 shrink-0 items-center justify-between gap-3 lg:-mr-0.5 [@media(max-height:480px)]:min-h-0">
+      <header className="assistant-toolbar flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-divider px-4 py-3">
         <div className="flex items-center gap-2.5">
           <span className="flex size-9 items-center justify-center rounded-full bg-brand/10 text-brand">
             <MessageCircle aria-hidden="true" className="size-4" />
@@ -507,156 +727,214 @@ export default function AssistentePage() {
             <p className="font-heading text-base leading-6 font-semibold lg:text-lg">
               Assistente Grid 360
             </p>
-            <p className="text-xs text-muted">
+            <p className="text-sm text-muted">
               Respostas com base nos dados disponíveis
             </p>
           </div>
         </div>
-        {hasMessages && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={startNewConversation}
-            disabled={mutation.isPending}
-            leftIcon={<Plus aria-hidden="true" className="size-4" />}
-          >
-            <span className="hidden sm:inline">Nova conversa</span>
-            <span className="sm:hidden">Nova</span>
-          </Button>
-        )}
+        <div className="flex shrink-0 items-center justify-end gap-1">
+          <IndicatorHelp screen="assistente" />
+          {hasMessages && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={startNewConversation}
+              leftIcon={<Plus aria-hidden="true" className="size-4" />}
+            >
+              <span className="hidden sm:inline">Nova conversa</span>
+              <span className="sm:hidden">Nova</span>
+            </Button>
+          )}
+        </div>
       </header>
 
-      <div
-        ref={historyRef}
-        role="log"
-        aria-label="Histórico da conversa"
-        aria-live="polite"
-        aria-relevant="additions text"
-        tabIndex={0}
-        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:-mr-0.5 lg:p-4"
-      >
-        {!hasMessages ? (
-          <div className="m-auto flex w-full max-w-[680px] flex-col gap-5 py-5">
-            <div className="space-y-3 text-center">
-              <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-                <Sparkles aria-hidden="true" className="size-6" />
-              </span>
-              <h1
-                id="assistant-heading"
-                className="font-heading text-[26px] leading-[34px] font-semibold lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]"
-              >
-                O que você quer investigar?
-              </h1>
-              <p className="mx-auto max-w-[560px] text-sm leading-[22px] text-muted">
-                Explore consumo, receita e continuidade. Cada resposta informa a
-                fonte, o período, o recorte e o fundamento disponível.
-              </p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {SUGGESTIONS.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => void send(suggestion, [], true)}
-                  disabled={mutation.isPending}
-                  className="group flex min-h-16 items-start gap-3 rounded-xl border border-divider bg-canvas/50 p-3 text-left text-sm leading-5 text-content transition-colors hover:border-brand/50 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
-                >
-                  <CircleHelp
-                    aria-hidden="true"
-                    className="mt-0.5 size-4 shrink-0 text-brand"
-                  />
-                  <span>{suggestion}</span>
-                </button>
-              ))}
-            </div>
-            <p className="flex items-start justify-center gap-2 text-center text-xs leading-5 text-muted">
-              <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-              Informe o período e o local para uma resposta mais precisa. A
-              disponibilidade dos dados é conferida a cada pergunta. A conversa
-              fica apenas nesta tela e não é salva.
+      <AssistantIdentity pending={mutation.isPending} />
+      <div className="assistant-conversation flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 lg:p-5">
+        {loadingHistory && <p role="status">Abrindo conversa…</p>}
+        {restoredHistory && (
+          <div className="rounded-xl border border-divider p-3 text-sm">
+            <p>
+              Você está vendo respostas salvas. Elas mantêm o recorte e a fonte
+              da consulta original.
             </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRefreshContext(true)}
+              disabled={refreshContext}
+            >
+              {refreshContext
+                ? "Pronto para consultar dados atuais"
+                : "Retomar com dados atuais"}
+            </Button>
+            {hasInterruptedSend && (
+              <p>
+                Há um envio sem resposta salva. Se ele ainda estiver em
+                processamento, aguarde antes de enviar uma nova pergunta.
+              </p>
+            )}
           </div>
-        ) : (
-          <>
-            <h1 id="assistant-heading" className="sr-only">
-              Conversa com o Assistente Grid 360
-            </h1>
-            {messages.map((message) => (
-              <MessageCard
-                key={message.id}
-                message={message}
-                onRetry={(request) =>
-                  void send(request.question, request.context, false, request)
-                }
-              />
-            ))}
-            {mutation.isPending && (
-              <div
-                role="status"
-                className="flex w-fit items-center gap-2 rounded-xl border border-divider px-4 py-3 text-sm text-muted"
-              >
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="size-4 animate-spin motion-reduce:animate-none"
-                />
-                Analisando a pergunta e consultando evidências…
-              </div>
-            )}
-          </>
         )}
-      </div>
+        <div
+          ref={historyRef}
+          role="log"
+          aria-label="Histórico da conversa"
+          aria-live="polite"
+          aria-relevant="additions text"
+          tabIndex={0}
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:-mr-0.5 lg:p-4"
+        >
+          {!hasMessages ? (
+            <div className="m-auto flex w-full max-w-[680px] flex-col gap-5 py-5 lg:-translate-y-2">
+              <div className="space-y-3 text-center">
+                <h1
+                  id="assistant-heading"
+                  className="font-heading text-[30px] leading-[38px] font-semibold lg:text-[36px] lg:leading-[44px] lg:tracking-[-0.64px]"
+                >
+                  O que você quer investigar?
+                </h1>
+                <p className="mx-auto max-w-[560px] text-base leading-[22px] text-muted">
+                  Explore consumo, receita e continuidade. Cada resposta informa
+                  a fonte, o período, o recorte e o fundamento disponível.
+                </p>
+              </div>
+              <section aria-label="Perguntas comuns">
+                <h2 className="mb-2 text-center text-sm font-semibold text-muted">
+                  Perguntas comuns
+                </h2>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => void send(suggestion, [], true)}
+                      disabled={mutation.isPending}
+                      className="group flex min-h-16 items-start gap-3 rounded-xl border border-divider bg-canvas/50 p-3 text-left text-base leading-6 text-content transition-colors hover:border-brand/50 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
+                    >
+                      <CircleHelp
+                        aria-hidden="true"
+                        className="mt-0.5 size-4 shrink-0 text-brand"
+                      />
+                      <span>{suggestion}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </div>
+          ) : (
+            <>
+              <h1 id="assistant-heading" className="sr-only">
+                Conversa com o Assistente Grid 360
+              </h1>
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  id={`assistant-message-${message.id}`}
+                  tabIndex={-1}
+                  className="outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                >
+                  <MessageCard
+                    message={message}
+                    onRetry={(request) =>
+                      void send(
+                        request.question,
+                        request.context,
+                        false,
+                        request,
+                      )
+                    }
+                  />
+                </div>
+              ))}
+              {mutation.isPending && <ProcessingIndicator />}
+            </>
+          )}
+        </div>
 
-      <form
-        onSubmit={submit}
-        className="shrink-0 border-t border-divider pt-3 lg:pt-4"
+        <form
+          onSubmit={submit}
+          className="shrink-0 border-t border-divider pt-3 lg:pt-4"
+        >
+          <label htmlFor="assistant-question" className="sr-only">
+            Escreva sua pergunta
+          </label>
+          <div className="flex items-end gap-2 rounded-2xl border border-control bg-canvas p-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
+            <textarea
+              ref={composerRef}
+              id="assistant-question"
+              name="question"
+              rows={1}
+              maxLength={1000}
+              placeholder="Pergunte sobre consumo, receita ou continuidade…"
+              value={draft}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                event.currentTarget.style.height = "auto";
+                event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 144)}px`;
+              }}
+              onKeyDown={handleComposerKeyDown}
+              disabled={mutation.isPending}
+              className="max-h-36 min-h-12 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-base leading-6 text-content outline-none placeholder:text-muted disabled:opacity-60"
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              aria-label="Enviar pergunta"
+              title="Enviar pergunta"
+              disabled={!draft.trim() || mutation.isPending}
+              isLoading={mutation.isPending}
+              loadingLabel={null}
+              className="size-12 rounded-xl !p-0"
+            >
+              {!mutation.isPending && (
+                <Send aria-hidden="true" className="size-6" />
+              )}
+            </Button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs leading-4 text-muted">
+            <span>Enter envia · Shift + Enter quebra linha</span>
+            <span className="inline-flex items-center gap-1.5">
+              {draft.length}/1000
+              {hasMessages && !mutation.isPending && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <Check aria-hidden="true" className="size-3.5" />
+                  {historyEnabled ? "histórico privado" : "conversa temporária"}
+                </>
+              )}
+            </span>
+          </div>
+        </form>
+      </div>
+      <aside
+        aria-label="Conversas salvas"
+        className="assistant-history-sidebar min-h-0 overflow-hidden p-3 sm:p-4"
       >
-        <label htmlFor="assistant-question" className="sr-only">
-          Escreva sua pergunta
-        </label>
-        <div className="flex items-end gap-2 rounded-2xl border border-control bg-canvas p-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
-          <textarea
-            ref={composerRef}
-            id="assistant-question"
-            name="question"
-            rows={2}
-            maxLength={1000}
-            placeholder="Pergunte sobre consumo, receita ou continuidade…"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={handleComposerKeyDown}
-            disabled={mutation.isPending}
-            className="max-h-36 min-h-12 flex-1 resize-y bg-transparent px-2 py-2 text-sm leading-5 text-content outline-none placeholder:text-muted disabled:opacity-60"
+        {historyEnabled ? (
+          <ConversationHistory
+            actor={session.user!.id}
+            activeId={activeSavedId}
+            onOpen={openSaved}
+            onDeleted={(id) => {
+              if (savedIdRef.current === id) startNewConversation();
+            }}
           />
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            aria-label="Enviar pergunta"
-            title="Enviar pergunta"
-            disabled={!draft.trim() || mutation.isPending}
-            isLoading={mutation.isPending}
-            loadingLabel={null}
-            className="size-12 rounded-xl !p-0"
-          >
-            {!mutation.isPending && (
-              <Send aria-hidden="true" className="size-6" />
-            )}
-          </Button>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-[11px] leading-4 text-muted">
-          <span>Enter envia · Shift + Enter quebra linha</span>
-          <span className="inline-flex items-center gap-1.5">
-            {draft.length}/1000
-            {hasMessages && !mutation.isPending && (
-              <>
-                <span aria-hidden="true">·</span>
-                <Check aria-hidden="true" className="size-3.5" />
-                conversa temporária
-              </>
-            )}
-          </span>
-        </div>
-      </form>
+        ) : (
+          <section aria-labelledby="assistant-conversations-heading">
+            <h2
+              id="assistant-conversations-heading"
+              className="text-sm font-semibold uppercase tracking-wider text-muted"
+            >
+              Conversas
+            </h2>
+            <p className="mt-3 text-sm leading-5 text-muted">
+              Entre na sua conta para salvar e gerenciar conversas. Esta
+              conversa fica somente nesta tela.
+            </p>
+          </section>
+        )}
+      </aside>
     </section>
   );
 }

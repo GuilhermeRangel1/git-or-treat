@@ -24,9 +24,11 @@ class AIQuestionPublicRequest(AIQuestionRequest):
     """Pergunta pública v1 com publicação esperada opcional e retrocompatível."""
 
     expected_publication: AIExpectedPublication | None = None
+    conversation_id: Annotated[str, StringConstraints(pattern=r"^[a-f0-9-]{36}$")] | None = None
+    continuation_token: Annotated[str, StringConstraints(min_length=1, max_length=16000)] | None = None
 
     def without_publication(self) -> AIQuestionRequest:
         """Envelope encaminhado ao núcleo, idêntico ao contrato anterior."""
         return AIQuestionRequest.model_validate(
-            self.model_dump(exclude={"expected_publication"})
+            self.model_dump(exclude={"expected_publication", "conversation_id", "continuation_token"})
         )

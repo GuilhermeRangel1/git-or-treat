@@ -1,5 +1,17 @@
 # Serviço: backend e banco local
 
+O planejamento GenAI também pode devolver uma definição com referência documental,
+sem plano SQL. O Backend confere texto/citação/versão e escopo no corpus aprovado,
+reautoriza e audita antes da resposta. Histórico e replay não republicam uma
+definição retirada. [Contrato de busca documental](../contracts/genai-documentation-search.md).
+
+Continuidade de esclarecimentos (03/11/2026): o planejamento interno pode devolver
+`pending_question`, aceito apenas em `needs_clarification`. O Backend assina esse
+rascunho como contexto pendente; autorização e publicação são revalidadas antes
+de qualquer SQL. O histórico reutiliza `anchor`, sem token persistido, migração,
+nova retenção ou privilégio. Implantação Backend → GenAI → portal e rollback
+inverso, descritos em [entendimento e recuperação](../plans/2026-11-03-genai-entendimento-perguntas.md).
+
 GENAI-15: execução Gold v2 usa `GOLD_LOADER_DATABASE_URL` exclusiva de carga no overlay; `DATABASE_URL` operacional e `GENAI_GOLD_DATABASE_URL` quantitativa permanecem separadas. Diagnóstico em `scripts/check_genai_runtime.py`, carga em `scripts/benchmark_genai.py` e resumo sanitizado em `scripts/summarize_genai_benchmark.py`. [Runbook e evidência local](../plans/2026-11-02-genai15-operacao-gold.md). O diagnóstico persiste um evento operacional e não certifica cobertura de domínio nem disponibilidade externa do provedor.
 
 > Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
@@ -314,9 +326,18 @@ escrita, conteúdo de chamados e cadastro continuam fora do leitor. Veja a
 ## GENAI-13 — invalidação integrada
 
 Assistente e insight vinculam a publicação conhecida à consulta; o insight envia/confere fingerprint e o resolvedor lê a view de metadados no PostgreSQL. Mudança de publicação ou acesso retira contexto anterior e retentativas; resposta/erro atrasados não substituem revisão vigente. Evidências e limites da integração em [GENAI-13](../plans/2026-11-01-genai13-invalidacao-integrada.md). Mantida compatibilidade dos campos opcionais e dos modos demonstrativos explícitos.
+O insight do Panorama pode incluir `analysis.composicaoAtual` (opcional): maior receita observada por município/classe/bairro autorizado e participação na soma observada do mês, quando a comparação temporal não estiver disponível. O cálculo reconcilia os grupos com o KPI e não estima valores ausentes; participação não é variação temporal.
+
+Detalhamento por bairro requer a dimensão `geography.neighborhood` no escopo validado e reconciliação da projeção de bairros com o total do KPI. A mesma decisão de autorização é aplicada na consulta e na recomputação da auditoria; sem permissão ou reconciliação, a composição não é publicada.
+
 # Atualização de Receita — 02/11/2026
 
 Os snapshots comparativos incluem `measured_energy_kwh`, agregado do consumo medido por competência, independente de faturas. `billed_energy_kwh` continua distinto e nulo quando não publicado. Preço observado e decomposição preço × volume mantêm receita e consumo da base comparável.
 Exportação WEB-08: GET /inspections/field-queue/export exige leitura de ordens e exporta o recorte completo (até 50.000 UCs), por municipio/bairro/classe/categoria; options_only retorna opções da fonte. Resultado JSON contém csv e count. CSV usa UTF-8, ponto e vírgula, fonte e filtros, com neutralização de fórmulas. Importação WEB-09 atual aceita CSV operacional por linha; XLSX permanece pendente.
 WEB-09 Excel: GET /inspections/field-results/template exige escrita e retorna XLSX em base64 e count, com até 500 ordens em andamento. POST /inspections/field-results/import recebe exclusivamente csv ou xlsx (base64), confere versão e UC, registra resultados por linha e retorna imported/errors. Limite 1 MB, 500 ordens; fórmulas recusadas. Usa openpyxl 3.1.5 e defusedxml; atualizar requirements antes de iniciar a API.
 WEB-05 exclusão: DELETE /inspections/orders/{id} recebe version e confirmed_order_id e exige orders:write. Retorna 204 após exclusão lógica transacional, 404 quando ausente/excluída e 409 em conflito. Auditoria preservada no histórico com marcador fixo do serviço; consultas e modelos omitem ordens marcadas. Estados ativos são encerrados para liberar a UC; histórico e resultado não são apagados.
+
+
+## IA-07 — acompanhamento natural
+
+O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).

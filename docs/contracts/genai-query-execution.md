@@ -2,6 +2,28 @@
 
 **Versão vigente:** envelopes internos v1, catálogo lógico v1 e mapeamento Gold v2.
 
+## Respostas documentais conceituais — 03/11/2026
+
+O planejamento interno admite `answered`/`no_evidence` sem plano para a busca
+documental autorizada. `answered` exige `documentation_reference` (ID/versão).
+O núcleo pode fazer uma seleção semântica limitada para conceitos; planos
+quantitativos continuam determinísticos. Backend confere texto e citação no corpus
+aprovado, reautoriza e audita antes de publicar. Não executa SQL para a explicação.
+[Contrato, implantação e limites](genai-documentation-search.md).
+Os estados públicos v1 existentes são preservados. Os trechos históricos abaixo
+sobre modelo somente na síntese descrevem o fluxo quantitativo anterior.
+
+## Recuperação de esclarecimentos — 03/11/2026
+
+`QuestionPlanResponse` pode incluir `pending_question` (texto de até 1.000 caracteres)
+somente em `needs_clarification`; quando ausente, o campo é omitido. É rascunho
+lexical, sem aprovação de leitura. O Backend pode vinculá-lo à continuidade assinada
+e ao histórico existente; nunca o executa diretamente nem o expõe como autorização.
+Toda continuação volta ao planejamento, escopo e validação de publicação vigentes.
+Não altera o plano lógico nem o contrato público v1. Implantar Backend que aceita
+o campo antes da GenAI que o emite; rollback em ordem inversa. Ver
+[entendimento e evidências](../plans/2026-11-03-genai-entendimento-perguntas.md).
+
 ## Estado vigente — GENAI-09, 01/11/2026
 
 O Backend autentica por sessão individual e coordena planejar → prontidão → SQL parametrizado com leitor restrito → sintetizar. As rotas internas question-plans/question-syntheses estão ligadas ao núcleo existente; não há callback público circular nem fallback Gold para demonstração. O schema físico é Gold CSV v2 e o perfil é v-energy-grid-360-gold, fonte gold.local. Versão lógica v1 não significa uso da Gold v1.

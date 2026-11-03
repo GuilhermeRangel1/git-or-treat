@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.composition import compose_core
+from app.agent.documentation import DocumentationResponder
 from app.agent.execution import ExecutionController, ExecutionLimits
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.orchestrator import QuestionOrchestrator
@@ -14,6 +15,7 @@ from app.ports.events import EventSink
 from app.ports.evidence import EvidenceSource
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.profiles.grid360_sql_demo import GRID360_SQL_DEMO_PROFILE
+from app.providers.document_selector import GeminiDocumentSelector
 from app.providers.factory import build_model_adapter, build_model_router
 from app.providers.protocols import ModelAdapter
 from app.providers.routing import ModelRouter, ModelTier
@@ -21,6 +23,7 @@ from app.readiness import evaluate_readiness
 from app.scenarios import SYNTHETIC_SCENARIOS
 from app.schemas.domain_profile import DomainProfile
 from app.sql.demo import SQL_DEMO_SOURCE_ID, build_sql_demo_source
+from app.tools.documentation import IndicatorDocumentation
 from app.tools.synthetic_analytics import SyntheticScenarioTool
 
 
@@ -38,6 +41,7 @@ def create_app(
     source_id: str = SYNTHETIC_SOURCE_ID,
     source_mode: SourceMode = "demo",
     access_context_resolver: AccessContextResolver | None = None,
+    documentation_responder: DocumentationResponder | None = None,
 ) -> FastAPI:
     """Compõe a demonstração ou uma fonte externa explicitamente autorizada."""
 
@@ -117,6 +121,17 @@ def create_app(
     )
 
     core = None
+    if (documentation_responder is None and active_settings.documentation_search_enabled
+            and source_id == "gold.local"
+            and active_domain_profile.profile_id == "v-energy-grid-360-gold"):
+        selector = None
+        if (active_settings.model_provider == "gemini"
+                and active_settings.gemini_api_key is not None):
+            selector = GeminiDocumentSelector(
+                api_key=active_settings.gemini_api_key.get_secret_value(),
+                model=active_settings.gemini_model,
+            )
+        documentation_responder = DocumentationResponder(IndicatorDocumentation(), selector)
     if question_orchestrator is None or insight_orchestrator is None:
         active_model_adapter = model_adapter
         if active_model_adapter is None:
@@ -145,6 +160,7 @@ def create_app(
             require_durable_audit=require_durable_audit,
             max_rows=active_settings.evidence_max_rows,
             max_evidence_bytes=active_settings.evidence_max_bytes,
+            documentation_responder=documentation_responder,
         )
     return create_api_application(
         settings=active_settings,

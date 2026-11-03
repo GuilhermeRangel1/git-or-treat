@@ -25,6 +25,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public, gold, gold_v2 FROM v_energy_app;
 GRANT USAGE ON SCHEMA public, gold, gold_v2 TO v_energy_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
     public.auth_users, public.auth_sessions, public.genai_audit_events,
+    public.ai_conversations, public.ai_conversation_exchanges,
     public.operational_inspection_orders, public.operational_order_history TO v_energy_app;
 GRANT USAGE, SELECT ON SEQUENCE public.operational_inspection_orders_id_seq,
     public.operational_order_history_id_seq TO v_energy_app;
