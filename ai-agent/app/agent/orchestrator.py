@@ -61,6 +61,20 @@ from app.schemas.responses import FailureCode, map_failure
 
 logger = logging.getLogger(__name__)
 _Outcome = TypeVar("_Outcome", QuestionResponse, QuestionResponse | PlannedQuestion)
+_PT_BR_SEPARATORS = str.maketrans({",": ".", ".": ","})
+
+
+def _format_pt_br_number(value: int | float) -> str:
+    """Usa milhar com ponto e decimal com vírgula, preservando até quatro casas."""
+
+    formatted = f"{value:,.4f}".rstrip("0").rstrip(".")
+    return ("0" if formatted == "-0" else formatted).translate(_PT_BR_SEPARATORS)
+
+
+def _lowercase_title(title: str) -> str:
+    """Minusculiza só a primeira letra, preservando siglas como UC e kWh."""
+
+    return title[:1].lower() + title[1:]
 
 
 def _describe_observation(
@@ -81,9 +95,11 @@ def _describe_observation(
             labels.append(f"{label}: {dimension_value}")
     value = observation["value"]
     unit = str(observation["unit"])
-    if unit in {"BRL", "R$"} and isinstance(value, (int, float)) and not isinstance(value, bool):
-        formatted = f"{value:,.2f}".translate(str.maketrans({",": ".", ".": ","}))
-        value_with_unit = f"R$ {formatted}"
+    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+    if unit in {"BRL", "R$"} and is_number:
+        formatted = f"{abs(value):,.2f}".translate(_PT_BR_SEPARATORS)
+        sign = "-" if value < 0 and formatted != "0,00" else ""
+        value_with_unit = f"{sign}R$ {formatted}"
     elif (
         human_readable
         and unit in {"protocolos", "UCs", "ocorrências"}
@@ -99,6 +115,8 @@ def _describe_observation(
             "ocorrências": "ocorrência" if singular else "ocorrências",
         }[unit]
         value_with_unit = f"{count} {label}"
+    elif human_readable and is_number:
+        value_with_unit = f"{_format_pt_br_number(value)} {unit}"
     else:
         value_with_unit = f"{value} {unit}"
     if human_readable:
@@ -619,14 +637,15 @@ class QuestionOrchestrator:
                   and read_plan.metric_id == "service.accumulated_attendance"):
                 answer = f"No histórico acumulado, foram registrados {values}."
             elif len(answer_observation_ids) == 1:
-                answer = f"Para {title.lower()}, o resultado foi de {values}."
+                answer = f"Para {_lowercase_title(title)}, o resultado foi de {values}."
             else:
                 lines = [
                     _describe_observation(observations[item], labels, human_readable=True)
                     for item in answer_observation_ids
                 ]
-                answer = f"Resultados de {title.lower()} no período solicitado:\n" + "\n".join(
-                    f"• {line}" for line in lines
+                answer = (
+                    f"Resultados de {_lowercase_title(title)} no período solicitado:\n"
+                    + "\n".join(f"• {line}" for line in lines)
                 )
             if read_plan.comparison_periods and "row_4" not in observations:
                 answer += " Variação percentual indisponível: a base inicial não é positiva."

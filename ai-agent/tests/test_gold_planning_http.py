@@ -93,7 +93,7 @@ def test_municipality_revenue_ranking_uses_grouped_evidence_and_enforces_scope()
     ("receita", "billing.revenue"), ("consumo", "energy.consumption"),
 ])
 @pytest.mark.parametrize("initial,final,expected", [
-    (100, 120, "20.0 %"), (0, 120, "percentual indisponível"),
+    (100, 120, "20 %"), (0, 120, "percentual indisponível"),
 ])
 def test_fat09_con06_compare_only_the_two_requested_months(label, metric, initial, final, expected):
     core, request = _setup(f"Compare {label} entre janeiro de 2025 e março de 2025.")
@@ -164,7 +164,7 @@ def test_con07_ranks_neighborhoods_by_change_instead_of_final_consumption():
             SYNTHESIS_PATH, json=synthesis.model_dump(mode="json"), headers=HEADERS,
         ).json()
         assert result["status"] == "answered", result
-        assert "-50.0 kWh" in result["answer"]
+        assert "-50 kWh" in result["answer"]
         assert "Casa Caiada" in result["answer"]
         assert "Bairro Alto" not in result["answer"]
         # Uma ausência de grupo não pode ser convertida em base zero para ganhar o ranking.
