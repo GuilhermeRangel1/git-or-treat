@@ -61,6 +61,13 @@ def _normalize(value: str) -> str:
     return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
+def _join_labels(items: list[str], conjunction: str) -> str:
+    """Lista legível: "A", "A e B", "A, B e C"."""
+    if len(items) < 2:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} {conjunction} {items[-1]}"
+
+
 def _find_phrases(text: str, phrases: tuple[str, ...]) -> list[tuple[int, int, str]]:
     normalized_chars: list[str] = []
     original_positions: list[int] = []
@@ -417,7 +424,16 @@ class QuestionInterpreter:
                 "no topo do Assistente. Para buscar valores, informe o indicador, o período "
                 "e o recorte desejados."
             )
-        if self._profile.structured_dimension_filters and has_incomplete_calendar_period(question):
+        # "entre Recife, Olinda e ..." introduz locais, não um intervalo de meses.
+        calendar_question = question
+        for start, _, _ in self._dimension_value_matches(question, self._profile.dimensions):
+            between = re.search(r"\bentre\s+$", question[:start], flags=re.IGNORECASE)
+            if between is not None:
+                calendar_question = (calendar_question[:between.start()]
+                                     + " " * (start - between.start())
+                                     + calendar_question[start:])
+        if (self._profile.structured_dimension_filters
+                and has_incomplete_calendar_period(calendar_question)):
             return self._clarify(
                 "Informe o mês e o ano de ambos os extremos do intervalo; "
                 "preciso dos dois períodos para fazer essa consulta."
@@ -541,15 +557,37 @@ class QuestionInterpreter:
                     and (start, end) != match[:2]
                     for start, end, _ in known_spans
                 )]
+                label = dimension.label[:1].lower() + dimension.label[1:]
                 if self._has_unresolved_dimension_reference(filter_question, dimension, matches):
+                    groupable = {
+                        dimension_id for metric in self._profile.metrics
+                        for dimension_id in metric.grouping_dimension_ids or ()
+                    }
+                    if dimension.id not in groupable and re.search(
+                        r"\b(?:quais|liste|listar|lista)\b", _normalize(filter_question)
+                    ):
+                        # Registro individual não é recorte publicado: oferece os totais.
+                        totals = [item.label[:1].lower() + item.label[1:]
+                                  for item in self._profile.dimensions if item.id in groupable]
+                        offer = (f" Posso mostrar totais por {_join_labels(totals, 'ou')}."
+                                 if totals else "")
+                        return self._clarify(
+                            f"Não apresento resultados individuais por {label}.{offer}"
+                        )
                     return self._clarify(
-                        f"Há um valor não reconhecido de {dimension.label.lower()}. "
+                        f"Há um valor não reconhecido de {label}. "
                         "Informe somente os valores autorizados que deseja consultar."
                     )
                 if self._has_unresolved_multiple_values(question, matches):
+                    if any(_EXCLUDED_VALUE_PREFIX.search(_normalize(question[:start]))
+                           for start, _, _ in matches):
+                        return self._clarify(
+                            "Este recorte pede exclusão; informe o valor que deseja incluir."
+                        )
+                    cited = list(dict.fromkeys(surface for _, _, surface in matches))
                     return self._clarify(
-                        f"Informe um único valor de {dimension.label.lower()} "
-                        "ou uma correção explícita."
+                        f"Consulto um valor de {label} por vez; você citou "
+                        f"{_join_labels(cited, 'e')}. Qual quer primeiro?"
                     )
                 if matches:
                     prefix = _normalize(question[:matches[-1][0]])
@@ -789,7 +827,7 @@ class QuestionInterpreter:
         if ranking is not None:
             tail = normalized[ranking.end:].lstrip()
             if not tail or re.match(
-                r"^(?:[?.,;:]|(?:por|que|em|no|na|nos|nas|com|sem|de|do|da|teve|tiveram|tem|"
+                r"^(?:[?.,;:]|(?:por|que|entre|em|no|na|nos|nas|com|sem|de|do|da|teve|tiveram|tem|"
                 r"foi|foram|e|mais|menos|maior|menor|cresceu|caiu|perdeu|reduziu|aumentou)\b)",
                 tail,
             ):

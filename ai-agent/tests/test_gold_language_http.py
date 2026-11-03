@@ -86,6 +86,48 @@ def test_clarification_example_is_fluent_or_absent(question, expected):
         assert _plan(example)["status"] == "planned"
 
 
+MUNICIPALITIES = [{
+    "dimension_id": "geography.municipality",
+    "values": ["Recife", "Olinda", "Jaboatão dos Guararapes"],
+}]
+ONE_AT_A_TIME = (
+    "Consulto um valor de município por vez; você citou Recife, Olinda e "
+    "Jaboatão dos Guararapes. Qual quer primeiro?"
+)
+BOTH_BOUNDS = "Informe o mês e o ano de ambos os extremos do intervalo"
+
+
+@pytest.mark.parametrize("question,expected", [
+    # "entre" introduz uma lista de locais, não um intervalo de meses incompleto.
+    ("Em março de 2025, qual município entre Recife, Olinda e Jaboatão dos Guararapes "
+     "teve a maior receita faturada?", ONE_AT_A_TIME),
+    ("Qual foi a receita faturada em março de 2025 em Recife, em Olinda e em "
+     "Jaboatão dos Guararapes?", ONE_AT_A_TIME),
+    # "Um valor de" evita errar o gênero de dimensões femininas.
+    ("Qual foi a receita residencial e comercial em Recife em junho de 2026?",
+     "Consulto um valor de classe de consumo por vez; você citou residencial e comercial. "
+     "Qual quer primeiro?"),
+    ("Qual foi a receita faturada em março de 2025 em Recife, excluindo Olinda?",
+     "Este recorte pede exclusão; informe o valor que deseja incluir."),
+    ("Quais UCs com GD em Olinda tiveram queda de consumo superior a 30%?",
+     "Não apresento resultados individuais por unidade consumidora (UC). "
+     "Posso mostrar totais por município, bairro ou classe de consumo."),
+    ("Qual foi a receita faturada entre janeiro e março?",
+     "De qual ano você quer consultar janeiro e março? "
+     "Se forem anos diferentes, informe o ano de cada mês."),
+])
+def test_limit_clarifications_name_the_real_problem(question, expected):
+    result = _plan(question, dimension_values=MUNICIPALITIES)
+    assert result["status"] == "needs_clarification", result
+    assert result["response"]["message"].split("\n\n")[0] == expected
+
+
+def test_incomplete_month_interval_still_asks_for_both_bounds():
+    result = _plan("Qual foi a receita faturada entre janeiro de 2025 e março?")
+    assert result["status"] == "needs_clarification", result
+    assert result["response"]["message"].startswith(BOTH_BOUNDS)
+
+
 def test_unknown_place_after_preposition_still_asks_for_geography():
     result = _plan("Qual foi a receita faturada em Atlantis em junho de 2026?")
     assert result["status"] == "needs_clarification", result
