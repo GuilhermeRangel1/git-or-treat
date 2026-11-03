@@ -1,4 +1,4 @@
-import { ASSISTANT_EXAMPLES } from "@/shared/help/assistantExamples";
+import { ASSISTANT_HOME_SUGGESTIONS } from "@/shared/help/assistantExamples";
 import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/shared/auth/useSession";
@@ -60,7 +60,7 @@ type ChatMessage = {
   historical?: boolean;
 };
 
-const SUGGESTIONS = ASSISTANT_EXAMPLES;
+const SUGGESTIONS = ASSISTANT_HOME_SUGGESTIONS;
 
 const RESPONSE_STATES: Record<
   AIQuestionResponse["status"],
@@ -402,6 +402,7 @@ export default function AssistentePage() {
   const drafts = useRef(new Map<string, string>());
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [restoredHistory, setRestoredHistory] = useState(false);
+  const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
   const [refreshContext, setRefreshContext] = useState(false);
   const [hasInterruptedSend, setHasInterruptedSend] = useState(false);
   const publicationRevision = useGoldPublicationRevision();
@@ -507,6 +508,7 @@ export default function AssistentePage() {
         const created = await createConversation(conversationId);
         if (!current()) return;
         savedIdRef.current = created.id;
+        setActiveSavedId(created.id);
         setConversationId(created.id);
       }
       if (historyEnabled) retryRequest.conversation_id = savedIdRef.current!;
@@ -640,6 +642,7 @@ export default function AssistentePage() {
     interactionRevision.current++;
     sendingRef.current = false;
     savedIdRef.current = null;
+    setActiveSavedId(null);
     setRestoredHistory(false);
     setRefreshContext(false);
     setHasInterruptedSend(false);
@@ -666,6 +669,7 @@ export default function AssistentePage() {
       )
         return;
       savedIdRef.current = id;
+      setActiveSavedId(id);
       setConversationId(id);
       const restored: ChatMessage[] = [];
       for (const entry of saved.exchanges) {
@@ -720,15 +724,6 @@ export default function AssistentePage() {
         </div>
         <div className="flex shrink-0 items-center justify-end gap-1">
           <IndicatorHelp screen="assistente" />
-          {historyEnabled && (
-            <ConversationHistory
-              actor={session.user!.id}
-              onOpen={openSaved}
-              onDeleted={(id) => {
-                if (savedIdRef.current === id) startNewConversation();
-              }}
-            />
-          )}
           {hasMessages && (
             <Button
               variant="ghost"
@@ -780,7 +775,7 @@ export default function AssistentePage() {
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:-mr-0.5 lg:p-4"
         >
           {!hasMessages ? (
-            <div className="m-auto flex w-full max-w-[680px] flex-col gap-5 py-5">
+            <div className="m-auto flex w-full max-w-[680px] flex-col gap-5 py-5 lg:-translate-y-2">
               <div className="space-y-3 text-center">
                 <h1
                   id="assistant-heading"
@@ -794,7 +789,7 @@ export default function AssistentePage() {
                 </p>
               </div>
               <section aria-label="Perguntas comuns">
-                <h2 className="mb-2 text-sm font-semibold text-muted">
+                <h2 className="mb-2 text-center text-sm font-semibold text-muted">
                   Perguntas comuns
                 </h2>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -815,14 +810,6 @@ export default function AssistentePage() {
                   ))}
                 </div>
               </section>
-              <p className="flex items-start justify-center gap-2 text-center text-sm leading-5 text-muted">
-                <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                Informe o período e o local para uma resposta mais precisa. A
-                disponibilidade dos dados é conferida a cada pergunta.{" "}
-                {historyEnabled
-                  ? "Suas conversas ficam salvas nesta conta por até 30 dias após a última mensagem e podem ser apagadas em Conversas."
-                  : "A conversa fica apenas nesta tela e não é salva."}
-              </p>
             </div>
           ) : (
             <>
@@ -911,49 +898,31 @@ export default function AssistentePage() {
         </form>
       </div>
       <aside
-        aria-label="Perguntas desta conversa"
-        className="assistant-question-index min-h-0 overflow-y-auto border-l border-divider p-4"
+        aria-label="Conversas salvas"
+        className="assistant-history-sidebar min-h-0 overflow-hidden p-3 sm:p-4"
       >
-        <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted">
-          <MessageCircle aria-hidden="true" className="size-3.5" /> Suas
-          perguntas{" "}
-          <span className="ml-auto">
-            {messages.filter((message) => message.role === "user").length}
-          </span>
-        </p>
-        <p className="mt-2 text-sm leading-5 text-muted">
-          Nesta conversa ·{" "}
-          {historyEnabled ? "histórico privado" : "histórico temporário"}
-        </p>
-        <ol className="mt-4 space-y-2">
-          {messages
-            .filter((message) => message.role === "user")
-            .map((message, index) => (
-              <li key={message.id}>
-                <button
-                  type="button"
-                  className="w-full rounded-xl border border-divider bg-canvas/50 p-3 text-left text-sm leading-5 text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-brand"
-                  onClick={() => {
-                    const target = document.getElementById(
-                      `assistant-message-${message.id}`,
-                    );
-                    target?.scrollIntoView({ block: "nearest" });
-                    target?.focus({ preventScroll: true });
-                  }}
-                >
-                  <span className="mr-2 text-brand">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  {message.content}
-                </button>
-              </li>
-            ))}
-        </ol>
-        {!hasMessages && (
-          <p className="mt-6 text-sm leading-5 text-muted">
-            Suas perguntas aparecerão aqui para você voltar a elas durante a
-            conversa.
-          </p>
+        {historyEnabled ? (
+          <ConversationHistory
+            actor={session.user!.id}
+            activeId={activeSavedId}
+            onOpen={openSaved}
+            onDeleted={(id) => {
+              if (savedIdRef.current === id) startNewConversation();
+            }}
+          />
+        ) : (
+          <section aria-labelledby="assistant-conversations-heading">
+            <h2
+              id="assistant-conversations-heading"
+              className="text-sm font-semibold uppercase tracking-wider text-muted"
+            >
+              Conversas
+            </h2>
+            <p className="mt-3 text-sm leading-5 text-muted">
+              Entre na sua conta para salvar e gerenciar conversas. Esta
+              conversa fica somente nesta tela.
+            </p>
+          </section>
         )}
       </aside>
     </section>

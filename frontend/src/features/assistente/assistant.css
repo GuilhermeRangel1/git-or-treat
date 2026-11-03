@@ -238,8 +238,16 @@
 .assistant-processing-rail {
   display: none;
 }
-.assistant-question-index {
-  display: none;
+.assistant-history-sidebar {
+  display: flex;
+  flex: 0 1 14rem;
+  flex-direction: column;
+  min-height: 8rem;
+  max-height: 14rem;
+  border-top: 1px solid var(--line);
+}
+.assistant-conversation-list {
+  flex: 1 1 auto;
 }
 .assistant-processing-icon {
   display: grid;
@@ -291,7 +299,7 @@
   .assistant-workspace {
     display: grid;
     grid-template-columns: 170px minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
   }
   .assistant-toolbar {
     grid-column: 1/-1;
@@ -315,16 +323,29 @@
   .assistant-processing-rail {
     margin-top: 20px;
   }
+  .assistant-history-sidebar {
+    grid-column: 1/-1;
+    grid-row: 3;
+    max-height: 13rem;
+  }
 }
 @media (min-width: 1280px) {
   .assistant-workspace {
-    grid-template-columns: 196px minmax(0, 1fr) 230px;
+    grid-template-columns: 196px minmax(0, 1fr) 280px;
+    grid-template-rows: auto minmax(0, 1fr);
   }
-  .assistant-question-index {
-    display: block;
+  .assistant-history-sidebar {
+    grid-column: 3;
+    grid-row: 2;
+    max-height: none;
+    border-top: 0;
+    border-left: 1px solid var(--line);
   }
 }
 @media (max-width: 639px) {
+  .assistant-history-sidebar {
+    max-height: min(14rem, 35dvh);
+  }
   .assistant-presence {
     margin-left: auto;
     font-size: 11px;

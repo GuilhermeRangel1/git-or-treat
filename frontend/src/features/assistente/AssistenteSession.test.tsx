@@ -116,7 +116,6 @@ it.each([false, true])(
       </QueryClientProvider>,
     );
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Conversas" }));
     await user.click(
       await screen.findByRole("button", { name: "Conversa interrompida" }),
     );
