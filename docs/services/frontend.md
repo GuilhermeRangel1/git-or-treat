@@ -193,3 +193,10 @@ Assistente, Panorama, Receita, Operação e UC 360 oferecem a ajuda “Entenda o
 ## IA-07 — acompanhamento natural
 
 O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).
+
+
+## Gráficos GenAI — integração em desenvolvimento (03/11/2026)
+
+`VisualEvidence` é compartilhado pelo chat e pelo modal existente do Panorama. Recebe valores estruturados validados, sem analisar números da prosa ou calcular métricas. Chat apresenta indicador, barras/ranking ou linha; Panorama acrescenta rosca quando a partição observada permite participação, ou barras. Tabela equivalente, lista paginada e PNG/CSV preservam pontos, precisão, metadados e alcance. Fonte/definição do chat aparecem junto aos metadados; citações e limites permanecem visíveis.
+
+Distribuição por município/classe segue os filtros. Top5+Demais vem do Backend; tabela/CSV mantêm a lista completa. Downloads revalidam sessão, métrica/dimensões e publicação pelo servidor, além do estado local. Histórico só restaura gráficos com publicação/escopo atuais; retomadas consultam novamente. O modal já mostra dados antes da interpretação; apresentação progressiva no chat e leitura ampliada continuam pendentes. [Contrato](../contracts/genai-visual-evidence.md) e [evidências/limites](../plans/2026-11-03-genai-graficos-insights-visuais.md). Estados oficiais IA preservados.

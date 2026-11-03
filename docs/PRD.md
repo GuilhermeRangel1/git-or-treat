@@ -3648,3 +3648,34 @@ passaram; Ruff passou. Sem chamada externa.
 - PR #114 integrado à develop por Create a merge commit `ef3a625`, após cinco checks GitHub aprovados. Seis commits individuais preservados, incluindo correções de vigência e SDK opcional; sem squash/rebase.
 - Branch `feat/genai-memoria-conversas-longas` / PR #113 recebeu develop via merge `5a2dc82`, com os três conflitos resolvidos preservando imports e progresso das duas entregas. Ajuste de integração distingue memória Gold e documental, reexecuta pergunta conceitual vigente, preserva ordinais, descarta contexto numérico implícito após conceito e mantém retomadas sucessivas. Sem migração, novas fontes ou retenção.
 - Backend dirigido 95 passaram; GenAI dirigido 192 passaram; Ruff, corpus --check e diff passaram. Prova entre processos com fonte/modelo controlados percorreu rota, histórico, coordenação e núcleo em três respostas documentais auditadas. Não houve nova rodada Gemini/portal nem nova homologação Gold real. Contrato e resultados em [memória](contracts/genai-long-conversation-memory.md) e [evidência](plans/2026-11-03-genai-memoria-conversas-longas.md). Estados oficiais IA preservados.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — início dos gráficos e insights visuais
+
+- Estados oficiais preservados. Adicional em desenvolvimento na branch feat/genai-graficos-insights-visuais, base develop 77fa425; primeira fatia para feedback, sem aceite integral do cartão.
+- Modal do Panorama apresenta comparação em barras e tabela com os valores já carregados, antes da síntese; PNG/CSV usam os mesmos pontos. Chat troca acordeão por metadados visíveis, preservando citações.
+- Verificação: 32 testes dirigidos, build, lint (aviso anterior AuthProvider), fronteiras e Chromium com dados artificiais em 320/390/1440 px e ambos os temas passaram; downloads exercitados. Sem chamada Gemini ou reconciliação Gold nova.
+- Pendentes: contrato de pontos do chat, demais tipos, interpretação ampliada, latência, histórico/cache/autorização integrados e aceite Gold. [Plano e evidência](plans/2026-11-03-genai-graficos-insights-visuais.md). Sem commit/push nesta rodada.
+
+
+### 2026-11-03 — IA-04 — distribuição visual do recorte do Panorama
+
+- Adicional em desenvolvimento: Backend publica distribuição opcional por município/classe na mesma fonte e filtros. Modal exibe rosca quando as parcelas observadas fecham com total positivo; demais casos usam barras. Sem certificar cobertura mensal ou ampliar permissões.
+- 50 testes Backend (HTTP sintético e snapshot SQL), 23 frontend, build/lint/fronteiras e Chromium com snapshots artificiais e downloads em 320/390/1440 px e dois temas passaram. Sem benchmark ou reconciliação privada desta fatia.
+- Estados oficiais preservados. Chat quantitativo, demais formatos, memória/cache e aceite integrado pendentes. [Contrato](contracts/genai-visual-evidence.md). Branch feat/genai-graficos-insights-visuais, sem commit/push.
+
+
+### 2026-11-03 — IA-04 — volume e legibilidade dos gráficos adicionais
+
+- Feedback visual aplicado: gráficos compactados, legenda com rolagem no celular e visual top 5 + Demais calculado no Backend. Lista completa preservada (até 1000 grupos), tabela de 20 linhas/página e CSV completo.
+- Gold local: contagem somente leitura confirmou 14 municípios no diagnóstico e no mês mais recente. Validação visual usa fontes artificiais de 14/200 grupos; 52 testes Backend e 25 frontend, build/lint/fronteiras e Chromium em três larguras e dois temas passaram, com downloads e paginação. Sem chamada Gemini ou benchmark/reconciliação privada dessa fatia.
+- Estados oficiais e aceites integrais permanecem inalterados. [Contrato e evidência](contracts/genai-visual-evidence.md). Sem commit/push.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — gráficos do chat e downloads verificados
+
+- Campo opcional versionado do chat deriva pontos da evidência autorizada, com período/unidade/filtros/publicação/precisão conferidos; gráfico fornecido pela GenAI é recusado. Componente compartilhado apresenta barras, ranking, linhas e distribuição válida do Panorama; escalar, zero/nulo e lacunas conservam significado. Metadados do chat ficam visíveis, sem SQL/infraestrutura.
+- PNG/CSV nos dois consumidores revalidam sessão, permissão e publicação no servidor; estado local também impede exportação após troca de conta/lote ou desmontagem. CSV inclui alcance/ranking; PNG de série extensa usa até 3600px e metadados em linhas. Histórico confere origem/escopo antes de restaurar gráfico.
+- Verificação: 154 testes Backend e 59 frontend passaram; build, Ruff dos arquivos novos, fronteiras e diff limpo. Lint sem erro, aviso anterior AuthProvider. Chromium: chat/modal/tabelas/downloads,14/200 grupos, série de 24 pontos, até quatro larguras e dois temas, acesso negado, movimento reduzido e Escape/foco. Revisões de padrões/especificação encontraram período divergente, alcance ausente no CSV e PNG estreito; corrigidos/revalidados.
+- Reconciliação independente somente leitura com Gold local: três distribuições (14/14/5 grupos) e recorte específico sem expansão passaram. Participação indisponível nesses recortes não vira rosca. Não houve nova chamada Gemini nem jornada do novo chat com modelo/Gold reais. Serviços existentes não foram reconstruídos. [Contrato](contracts/genai-visual-evidence.md), [comandos, evidências e limites](plans/2026-11-03-genai-graficos-insights-visuais.md).
+- Quatro dos 18 critérios têm aceite técnico local (metadados, PNG, CSV e pt-BR); cartão continua em desenvolvimento. Pendentes apresentação progressiva do chat, leitura ampliada, benchmark e aceite integrado restante. Estados oficiais IA preservados; sem commit/push. Correções de DEC503/avisos de consumo da colega não foram incluídas.
