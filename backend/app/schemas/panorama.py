@@ -2,8 +2,9 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.common import AnalyticalMetadata
+from app.schemas.ai_insight import PanoramaCurrentComposition
 from app.schemas.analytics import AnalyticsStatus
+from app.schemas.common import AnalyticalMetadata
 from app.schemas.gold import GoldMetadata
 from app.schemas.visual_reading import VisualReading
 
@@ -60,6 +61,7 @@ class PanoramaDistributionPoint(BaseModel):
 class PanoramaDistribution(BaseModel):
     model_config = ConfigDict(extra="forbid")
     reading: VisualReading | None = None
+    composicaoReceita: PanoramaCurrentComposition | None = None
     dimension: Literal["municipio", "classe"]
     periodo: str
     metricId: str

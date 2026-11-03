@@ -15,8 +15,8 @@ from app.schemas.ai_insight import (
     AIInsightRequest,
     AIInsightResponse,
     AIInsightScreenContext,
-    PanoramaInsightAnalysis,
     PanoramaCurrentComposition,
+    PanoramaInsightAnalysis,
     PanoramaInsightContribution,
     PanoramaInsightMetric,
     PanoramaInsightRequest,
@@ -29,6 +29,7 @@ from app.services.panorama import (
     period_label,
     read_gold_panorama_financials,
 )
+from app.services.panorama_composition import revenue_composition_from_groups
 from app.services.panorama_insights import StalePanoramaInsight
 
 GoldPanoramaInsightPreparation: TypeAlias = tuple[
@@ -286,16 +287,7 @@ def current_revenue_composition(repository, filters, actual, *, allow_neighborho
     rows = repository.revenue_groups(period, period, dimension,
         None if filters["municipio"] == "todos" else filters["municipio"],
         None if filters["classe"] == "todas" else filters["classe"])
-    if len(rows) > 1000:
-        return None
-    values = {r["segment"]: r["revenue"] for r in rows if r["period"] == period and r["revenue"] is not None}
-    if not values or any(v < 0 for v in values.values()):
-        return None
-    with localcontext() as context:
-        context.prec = 100
-        if sum(values.values()) != actual["revenue"]:
-            return None
-        name = min(values, key=lambda key: (-values[key], key))
-        return PanoramaCurrentComposition(dimension=dimension, segmento=name,
-            valor=float(values[name].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-            participacaoPercentual=float((values[name] / actual["revenue"] * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)))
+    return revenue_composition_from_groups(
+        [row for row in rows if row["period"] == period],
+        total=actual["revenue"], dimension=dimension,
+    )

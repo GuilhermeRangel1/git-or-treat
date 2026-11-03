@@ -12,6 +12,7 @@ from app.schemas.panorama import (
     PanoramaDistributionPoint,
     PanoramaMetric,
 )
+from app.services.panorama_composition import revenue_composition_from_groups
 from app.services.visual_reading import build_visual_reading
 
 if TYPE_CHECKING:
@@ -175,7 +176,7 @@ def gold_distribution(
         financials.selected_class,
     )
 
-    return distribution_from_groups(
+    result = distribution_from_groups(
         rows,
         dimension=dimension,
         period=financials.period,
@@ -185,6 +186,11 @@ def gold_distribution(
         complete=metric.status == "available"
         and all(row["rows"] == row["values"] for row in rows),
     )
+    if result is not None:
+        result.composicaoReceita = revenue_composition_from_groups(
+            rows, total=Decimal(str(financials.actual["revenue"])), dimension=dimension,
+        )
+    return result if result is None or len(result.model_dump_json().encode("utf-8")) <= 262144 else None
 
 
 def synthetic_distribution(

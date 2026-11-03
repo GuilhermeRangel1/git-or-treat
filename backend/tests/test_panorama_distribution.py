@@ -36,6 +36,12 @@ def test_partition_uses_same_snapshot_and_keeps_applied_filters(
     assert {point.segmento: point.valor for point in result.pontos} == expected
     assert result.total == sum(expected.values()) == metric.valorAtual
     assert result.completo is complete
+    from app.services.gold_panorama_insights import current_revenue_composition
+    assert result.composicaoReceita == current_revenue_composition(
+        snapshot_repository,
+        {"periodo": "2026-06", "municipio": municipality, "classe": consumption_class},
+        financials.actual,
+    )
     if complete:
         assert all(
             point.percentual == round(point.valor / result.total * 100, 2)
