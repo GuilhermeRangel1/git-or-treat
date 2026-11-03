@@ -42,6 +42,7 @@ from app.schemas.ai_conversations import (
 from app.schemas.ai_question_publication import AIQuestionPublicRequest
 from app.schemas.genai_internal import AccessScope
 from app.services.ai_conversations import ConversationStore
+from app.services.conversation_memory import MemoryUnavailable, memory_request
 from app.services.genai_client import GenAIQuestionClient
 from app.services.genai_continuation import (
     _catalog_digest,
@@ -196,8 +197,35 @@ async def question(
                 role="assistant", content=recent["response"]["message"][:1000]
             ),
         ]
+    question_text = payload.question
+    if settings.GENAI_CONVERSATION_MEMORY_ENABLED:
+        try:
+            reference = memory_request(payload.question)
+            if reference is not None:
+                if secret is None or gold_resources is None:
+                    raise MemoryUnavailable
+                remembered = store.memory(identity, history_scope(scope), reference)
+                db.commit()  # Não manter snapshot/lock durante consulta ou modelo.
+                token = issue_context_continuation(
+                    remembered.question, scope, remembered.batch,
+                    session=request.cookies.get("grid360_session", ""),
+                    conversation=identity, secret=secret.get_secret_value(),
+                )
+                if token is None:
+                    raise MemoryUnavailable
+                context = []
+                question_text = reference.follow_up or remembered.question
+                logger.info("Memória: versão %s, sequência de origem %s.",
+                            remembered.version, remembered.source_sequence)
+        except MemoryUnavailable:
+            store.interrupt(identity, str(payload.request_id), attempt)
+            return _question_error(
+                request, status_code=409, code="conversation_conflict", retryable=False,
+                message="Não foi possível retomar essa consulta com o acesso atual. "
+                        "Informe novamente o indicador, o período e o local desejados.",
+            )
     question_payload = AIQuestionPublicRequest(
-        question=payload.question,
+        question=question_text,
         context=context,
         conversation_id=identity,
         continuation_token=token,
