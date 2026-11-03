@@ -509,6 +509,18 @@ No esclarecimento de uma ambiguidade, uma nova pergunta interrogativa completa �
 As mensagens de esclarecimento Gold podem anexar um exemplo completo, montado com competências publicadas e validado pelo planejador no mesmo escopo. A geração é determinística, sem banco ou modelo, e não promete cobertura. A borda do planejamento separa o sufixo do motivo original ao interpretar o histórico, preservando respostas curtas. Sem candidato aprovado, não inventa mês ou métrica disponível. Ver [exemplos e validação](../plans/2026-11-02-genai-perguntas-da-tela.md#continuação--exemplos-nas-mensagens-de-esclarecimento).
 
 
+## Entendimento e esclarecimentos cumulativos — 03/11/2026
+
+O perfil Gold v2 aceita flexões de faturamento/consumo, classes no plural e meses
+abreviados/numéricos. `AnalysisIntent.ranking_limit` conserva top N de 1 a 100,
+sujeito ao teto configurado. Razões tipadas separam lacunas; `pending_question`
+opcional no planejamento expressa o rascunho cumulativo sem autorizar leitura.
+Confirmações de ambiguidades e sugestões de digitação não alteram silenciosamente
+entidades. Exemplos continuam sujeitos ao mesmo recorte e política; sem candidato
+fiel, não se sugere um total mais amplo. Fonte ausente continua indisponível.
+Contrato, medições, comparação isolada com Gemini e evidências reais em
+[entendimento e recuperação](../plans/2026-11-03-genai-entendimento-perguntas.md).
+
 ## IA-07 — acompanhamento natural
 
 O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).

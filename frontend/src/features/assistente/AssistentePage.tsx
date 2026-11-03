@@ -486,7 +486,9 @@ export default function AssistentePage() {
             (message) =>
               message.contextEligible &&
               message.response != null &&
-              ["answered", "no_evidence"].includes(message.response.status),
+              (["answered", "no_evidence"].includes(message.response.status) ||
+                (message.response.status === "needs_clarification" &&
+                  message.response.continuation_token != null)),
           )?.response?.continuation_token ?? undefined,
       userMessageId,
       assistantMessageId,
