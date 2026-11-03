@@ -6,7 +6,6 @@ from typing import Any
 
 import httpx
 import pytest
-
 from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
 from app.schemas.ai_insight import AIInsightRequest, AIInsightResponse
 from app.services.genai_client import (
@@ -346,3 +345,51 @@ def test_genai_clients_reject_correlation_mismatch(
 
     with pytest.raises(GenAIResponseInvalid):
         asyncio.run(run())
+
+
+@pytest.mark.parametrize("change", ["none", "scope", "batch", "observation", "filters", "expired"])
+def test_gold_insight_reuses_only_same_authorized_context(monkeypatch, change):
+    from app.services import genai_client as module
+    now = [100.0]
+    monkeypatch.setattr(module, "monotonic", lambda: now[0])
+    calls = []
+    response = _insight_response()
+    response["evidence"][0].update(source="gold.local", is_demo=False)
+    screen = {
+        **response["context"], "observations": response["observation"]["values"],
+        "reference": response["evidence"][0], "limitations": response["limitations"],
+    }
+    payload = {"screen": screen, "access_scope": {"caller_ref": "reader.one"},
+               "batch_ref": "batch.one", "remaining_timeout_ms": 60000}
+
+    async def transport(**kwargs):
+        import copy
+        calls.append(kwargs["payload"])
+        result = copy.deepcopy(response)
+        result["correlation_id"] = kwargs["correlation_id"]
+        result["observation"]["values"] = kwargs["payload"]["screen"]["observations"]
+        result["context"] = {k: v for k, v in kwargs["payload"]["screen"].items()
+                             if k not in {"observations", "reference", "limitations"}}
+        return result
+    monkeypatch.setattr(module, "_post_genai_json", transport)
+
+    async def run():
+        import copy
+        async with httpx.AsyncClient() as http:
+            client = GenAIInsightClient(http_client=http, base_url="http://genai", service_token=SERVICE_TOKEN)
+            first = await client.synthesize_gold(payload, correlation_id=CORRELATION_ID)
+            # Consuming code must not mutate the cached copy.
+            first.hypothesis = "modified locally"
+            newer = copy.deepcopy(payload)
+            newer["remaining_timeout_ms"] = 40000
+            if change == "scope": newer["access_scope"]["caller_ref"] = "reader.two"
+            if change == "batch": newer["batch_ref"] = "batch.two"
+            if change == "filters": newer["screen"]["filters"]["comparacao"] = "ano_anterior"
+            if change == "observation": newer["screen"]["observations"][0]["value"] = 123
+            if change == "expired": now[0] += 121
+            second = await client.synthesize_gold(newer, correlation_id="b" * 32)
+            assert second.correlation_id == "b" * 32
+            assert second.hypothesis != "modified locally"
+            assert second.audit_reference is None
+        assert len(calls) == (1 if change == "none" else 2)
+    asyncio.run(run())

@@ -1,5 +1,9 @@
 """Cliente interno do serviço GenAI para o contrato conversacional v1."""
 
+import hashlib
+import json
+from collections import OrderedDict
+from time import monotonic
 from typing import Any
 
 import httpx
@@ -210,6 +214,7 @@ class GenAIInsightClient:
         self._http_client = http_client
         self._base_url = base_url.rstrip("/") if base_url else None
         self._service_token = service_token
+        self._gold_insights: OrderedDict[str, tuple[float, AIInsightResponse]] = OrderedDict()
 
     async def generate(
         self,
@@ -238,6 +243,19 @@ class GenAIInsightClient:
 
     async def synthesize_gold(self, payload: dict[str, Any], *, correlation_id: str) -> AIInsightResponse:
         """Usa a borda interna; o contexto nunca vem diretamente do navegador."""
+        # O coordenador sempre refaz autorização, prontidão e leitura antes daqui.
+        # O conteúdo completo (incluindo escopo e lote) isola a síntese reutilizada.
+        key = hashlib.sha256(json.dumps(
+            {k: v for k, v in payload.items() if k != "remaining_timeout_ms"},
+            sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        ).encode()).hexdigest()
+        cached = self._gold_insights.get(key)
+        if cached and cached[0] > monotonic():
+            self._gold_insights.move_to_end(key)
+            return cached[1].model_copy(deep=True, update={
+                "correlation_id": correlation_id, "audit_reference": None,
+            })
+        self._gold_insights.pop(key, None)
         response = await _post_genai_json(
             http_client=self._http_client, base_url=self._base_url,
             service_token=self._service_token,
@@ -250,4 +268,20 @@ class GenAIInsightClient:
             raise GenAIResponseInvalid from exc
         if result.correlation_id != correlation_id:
             raise GenAIResponseInvalid
+        # Armazena somente síntese respondida e vinculada ao contexto recebido.
+        screen = payload["screen"]
+        if result.status == "answered" and (
+            result.context.model_dump(mode="json") == {
+                k: v for k, v in screen.items()
+                if k not in {"observations", "reference", "limitations"}
+            }
+            and [v.model_dump(mode="json") for v in result.observation.values]
+            == screen["observations"]
+            and result.evidence
+            and all(not v.is_demo and v.source == "gold.local" for v in result.evidence)
+            and set(screen["limitations"]) <= set(result.limitations)
+        ):
+            self._gold_insights[key] = (monotonic() + 120, result.model_copy(deep=True))
+            while len(self._gold_insights) > 64:
+                self._gold_insights.popitem(last=False)
         return result
