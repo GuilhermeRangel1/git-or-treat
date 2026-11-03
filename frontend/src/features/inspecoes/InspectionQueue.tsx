@@ -177,7 +177,6 @@ export default function InspectionQueue({
   const field =
     params.get("order_by") ?? (gold ? "queue_position" : "priority");
   const direction = params.get("direction") ?? (gold ? "asc" : "desc");
-  const sortDescription = `${gold ? (field === "category" ? "Categoria" : field === "uc_id" ? "Número da UC" : "Posição oficial da fila") : field === "priority" ? "Prioridade demonstrativa" : field === "uc_id" ? "Número da UC" : "Energia estimada"} ${direction === "desc" ? "decrescente" : "crescente"}`;
 
   function goTo(number: number) {
     const next = new URLSearchParams(params);
@@ -321,7 +320,7 @@ export default function InspectionQueue({
                     <col className="w-[38%]" />
                     <col className="w-[16%]" />
                   </colgroup>
-                  <thead className="font-mono text-xs leading-[18px] text-muted">
+                  <thead className="font-sans text-xs leading-[18px] text-muted">
                     <tr className="h-11">
                       {[
                         "Posição / UC / categoria",
@@ -379,16 +378,6 @@ export default function InspectionQueue({
                   <GoldItemCard key={item.uc_id} item={item} params={params} />
                 ))}
               </div>
-              <p className="text-xs leading-5 text-muted">
-                Ordenação por{" "}
-                {field === "category"
-                  ? "texto da categoria"
-                  : field === "queue_position"
-                    ? "posição oficial da fila"
-                    : "UC"}{" "}
-                {direction === "desc" ? "decrescente" : "crescente"}. Ela não
-                define prioridade de despacho.
-              </p>
             </>
           ) : (
             <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
@@ -404,7 +393,7 @@ export default function InspectionQueue({
                   {!legacyGold && <col className="w-[19%]" />}
                   <col className="w-[24%]" />
                 </colgroup>
-                <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+                <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
                   <tr>
                     {[
                       "UC / prioridade",
@@ -489,12 +478,6 @@ export default function InspectionQueue({
               Investigar {items[0].uc_id}
               <ArrowUpRight size={16} aria-hidden="true" />
             </Link>
-            <p className="text-xs leading-5 text-muted">
-              Ordenação: {sortDescription}.
-              {gold
-                ? " Categoria textual não equivale a prioridade de despacho."
-                : " Empates seguem energia disponível e número da UC; indisponibilidade permanece explícita."}
-            </p>
           </div>
         </>
       )}

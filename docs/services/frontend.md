@@ -185,6 +185,10 @@ O Assistente tem uma identidade visual animada em `AssistantIdentity.tsx` e esti
 # Atualização de Receita — 02/11/2026
 
 O cartão de Receita apresenta “Consumo medido” em kWh nos mesmos extremos mensais usados pelos demais cartões. Quando a cobertura da medida é parcial, a tela informa isso junto ao cartão; ausência continua distinta de zero. A métrica não é chamada de energia faturada.
+Arquivos de campo: Inspeções oferece diálogo de exportação integral ou filtrada por categoria, município, bairro e classe, com opções carregadas da API. Paginação da tela não limita o arquivo. Importação atual usa CSV e apresenta erros por linha; XLSX e validação visual continuam pendentes.
+WEB-09: Baixar modelo de resultados gera Excel das ordens em andamento; preencher resultado na aba Resultados e importar XLSX ou CSV. Portal apresenta contagem de resultados e erros por linha e atualiza o cache de Ordens. Cada linha válida é confirmada separadamente; revisão visual permanece pendente.
+Organização WEB-08/WEB-09: Inspeções mantém somente exportação da fila; Ordens concentra modelo e upload de resultados, para usuários com escrita. Feedback informa ordens concluídas e erros por linha; componente compartilhado em shared/inspections respeita os limites entre features.
+Ordens permite excluir qualquer estado com confirmação digitando o ID. A interface aguarda 204, atualiza as consultas e informa a exclusão; o histórico permanece para auditoria. Cancelar ordem usa rótulo sem reticências.
 
 ## FAQ contextual de indicadores
 

@@ -211,11 +211,11 @@ export default function ReceitaPage() {
       </div>
       <section
         aria-label="Filtros aplicados"
-        className="mt-2 flex min-w-0 flex-nowrap items-center gap-4 overflow-x-auto rounded-xl bg-surface px-4 py-4"
+        className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"
       >
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <dl className="flex min-w-0 flex-nowrap items-center gap-x-5 overflow-x-auto whitespace-nowrap text-sm">
-            <div className="w-24 shrink-0">
+          <dl className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-3 text-sm md:grid-cols-3 xl:grid-cols-6">
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Mês inicial</dt>
               <dd className="mt-1 truncate font-medium text-content">
                 {competenceLabel(
@@ -224,7 +224,7 @@ export default function ReceitaPage() {
                 )}
               </dd>
             </div>
-            <div className="w-24 shrink-0">
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Mês final</dt>
               <dd className="mt-1 truncate font-medium text-content">
                 {competenceLabel(
@@ -232,25 +232,25 @@ export default function ReceitaPage() {
                 )}
               </dd>
             </div>
-            <div className="w-36 shrink-0">
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Município</dt>
               <dd className="mt-1 truncate font-medium text-content">
                 {filterLabel(appliedFilters.municipio, "Todos os municípios")}
               </dd>
             </div>
-            <div className="w-36 shrink-0">
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Bairro</dt>
               <dd className="mt-1 truncate font-medium text-content">
                 {filterLabel(appliedFilters.bairro, "Todos os bairros")}
               </dd>
             </div>
-            <div className="w-36 shrink-0">
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Classe</dt>
               <dd className="mt-1 truncate font-medium text-content">
                 {filterLabel(appliedFilters.classe, "Todas as classes")}
               </dd>
             </div>
-            <div className="w-36 shrink-0">
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Alimentador</dt>
               <dd className="mt-1 truncate font-medium text-content">
                 {filterLabel(
@@ -344,7 +344,7 @@ export default function ReceitaPage() {
           ref={filtersTriggerRef}
           type="button"
           variant="control"
-          className="shrink-0"
+          className="w-full lg:w-auto"
           onClick={() => setFiltersOpen(true)}
           leftIcon={
             <svg
