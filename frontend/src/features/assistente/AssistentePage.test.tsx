@@ -385,22 +385,22 @@ describe("Assistente Grid 360", () => {
     expect(within(suggestions).getAllByRole("button")).toHaveLength(4);
     expect(
       within(suggestions).getByRole("button", {
-        name: "Qual foi a receita faturada em Olinda em junho de 2026?",
+        name: "Distribua a receita faturada por município em junho de 2026.",
       }),
     ).toBeVisible();
     expect(
       within(suggestions).getByRole("button", {
-        name: "Qual foi o consumo de energia em Recife em junho de 2026?",
+        name: "Quais municípios tiveram maior consumo medido em junho de 2026?",
       }),
     ).toBeVisible();
     expect(
       within(suggestions).getByRole("button", {
-        name: "Quantos chamados de atendimento existem no histórico acumulado?",
+        name: "Compare o consumo medido em Recife entre janeiro e junho de 2026.",
       }),
     ).toBeVisible();
     expect(
       within(suggestions).getByRole("button", {
-        name: "Qual foi a receita em Olinda, não, em Jaboatão dos Guararapes, em junho de 2026?",
+        name: "Como evoluiu o consumo medido em Recife, mês a mês, de janeiro a junho de 2026?",
       }),
     ).toBeVisible();
     expect(
