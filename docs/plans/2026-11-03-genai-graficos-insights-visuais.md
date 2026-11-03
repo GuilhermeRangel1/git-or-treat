@@ -261,3 +261,29 @@ A validação de calendário tratava qualquer “entre” restante após remover
 ### 2026-11-03 — publicação das correções de perguntas, gráficos e histórico
 
 Os três grupos autorizados foram commitados na mesma branch do PR #116: 440b249 fix(ai-agent): interpreta agrupamentos e séries nas consultas Gold; fae2d53 feat(assistente): apresenta distribuições autorizadas em rosca; 8bcc982 fix(assistente): sincroniza progresso e simplifica o histórico. Este registro acompanha a correção documental da ADR-0005. As notas anteriores de ausência de commit descrevem as etapas de validação; os quatro commits estão preparados para push, com verificações observadas registradas nos respectivos corpos. Arquivos privados e segredos permanecem fora do Git. CI remota e merge continuam posteriores à publicação.
+
+
+### 2026-11-03 — IA-04 / IA-07 — composição setorial e leitura contextual do Panorama
+
+- Ajuste de apresentação na branch `feat/genai-graficos-insights-visuais`: o modal deixa de repetir o total/comparação temporal como gráfico. Prioriza principais pontos e conserva apenas rosca de composição válida por município/classe, com tabela e exportações existentes. Recortes sem partição positiva válida não ganham percentuais artificiais.
+- Cartão e modal apresentam valores inicial/final e diferença, além do percentual fornecido pela API. A leitura distingue base zero, estabilidade, ausência de comparação e concentração; composição não oculta a tendência quando ambas existem. Recomendações consideram os filtros já selecionados. Usa os mesmos indicadores/análise autorizados, sem nova chamada ao modelo ou cálculo de métrica no navegador.
+- Verificações: 26 testes passaram em `InsightPresentation.test.tsx`, `GoldInsight.test.tsx`, `PanoramaInsight.test.tsx` e `VisualEvidence.test.tsx`; build, fronteiras em 219 arquivos e lint passaram (lint mantém o aviso anterior em AuthProvider.tsx:108). Chromium: três recortes Gold reais, com competência/comparação/filtros distintos, em 1440/390/320px, sem transbordamento ou erros JS; esses recortes não forneceram partição elegível e mantiveram texto sem gráfico. Rosca e tabela conferidas separadamente com fixture demonstrativa nos dois temas e três larguras. Os erros iniciais de preâmbulo/import React pertenciam ao probe isolado; corrigidos sem mudança de produção.
+- Estados oficiais IA preservados; conferência de UI não homologa cobertura da fonte. Arquivos privados de captura/probe ignorados. Alteração local, sem commit/push nesta rodada; evidência vinculada ao cartão de gráficos.
+
+
+### 2026-11-03 — IA-05 / IA-07 — quatro sugestões para explorar gráficos
+
+- As quatro perguntas iniciais do Assistente passam a oferecer distribuição de receita por município (rosca), ranking municipal de consumo (barras horizontais), comparação de consumo entre janeiro/junho (barras verticais) e evolução mensal de janeiro a junho (linha). São as mesmas formulações exercitadas com Gold v2/Gemini e reconciliadas anteriormente nesta branch; o tipo continua condicionado ao resultado autorizado, sem forçar visualizações.
+- Mantidos quatro botões, envio existente e FAQ sem repetição das sugestões iniciais. Testes existentes da página atualizados: página/FAQ tiveram 32 testes aprovados. Alteração local, sem commit/push.
+
+
+### 2026-11-03 — IA-04 / IA-07 — blocos exportáveis sem resumo duplicado
+
+- Por refinamento solicitado, restaurados os blocos de total/comparação e distribuição com tabela/download no modal. Removido somente o resumo superior “Dado observado”, que repetia o total. Distribuição volta a usar rosca ou barras conforme os dados autorizados; a restrição anterior a somente rosca está superada. Textos aprimorados, recomendações e quatro sugestões de gráficos do chat preservados.
+- 26 testes de apresentação/insight/visualização passaram após atualizar as expectativas do modal; build e fronteiras (219 arquivos) passaram, lint conserva somente o aviso anterior em AuthProvider.tsx:108. `git diff --check` passou. Sem commit/push nesta rodada; estados oficiais preservados.
+
+- Conferência final no Chromium: recortes Gold em 1440/390/320px mostraram blocos exportáveis, ausência do resumo superior duplicado e nenhuma falha temporária ou transbordamento horizontal. Distribuição em barras reapareceu nos recortes elegíveis; município/classe específicos conservaram somente o total exportável, sem fabricar grupos.
+
+### 2026-11-03 — publicação dos refinamentos do modal e das sugestões
+
+Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leitura) e a92d85b (sugestões de gráficos). As notas anteriores de ausência de commit descrevem etapas históricas. Este registro documental acompanha o terceiro commit, com publicação no PR #116 e CI posterior ao push.

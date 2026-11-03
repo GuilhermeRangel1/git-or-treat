@@ -6,7 +6,7 @@ Estado: integração em desenvolvimento na branch `feat/genai-graficos-insights-
 
 Chat: rota pública existente → planejamento e catálogo → executor SQL restrito do Backend → síntese e guardas existentes → montagem determinística de `visualization` → resposta/auditoria/histórico → decoder → `VisualEvidence`.
 
-Panorama: repositório/snapshot existente → KPIs e distribuição opcional → decoder → modal existente → mesmo componente de gráfico, tabela e exportação. Os gráficos do modal usam dados dos indicadores, sem esperar a síntese. No chat, o consumidor pode negociar dados progressivos com Accept: application/x-ndjson; a prévia é publicada após consulta, auditoria e revalidação, antes da síntese. Clientes JSON anteriores continuam recebendo o envelope integral.
+Panorama: repositório/snapshot existente → KPIs e distribuição opcional → decoder → modal existente → mesmo componente de gráfico, tabela e exportação. O modal apresenta total/comparação e distribuição em blocos com tabela/download. O resumo superior que duplicava o dado foi removido. A distribuição usa rosca quando a partição permite percentuais e barras horizontais nos demais casos, preservando a lista de valores observados sem percentuais artificiais. A leitura contextual permanece disponível. No chat, o consumidor pode negociar dados progressivos com Accept: application/x-ndjson; a prévia é publicada após consulta, auditoria e revalidação, antes da síntese. Clientes JSON anteriores continuam recebendo o envelope integral.
 
 Não se extraem números da prosa nem se executa código de gráfico do modelo. Os clientes recusam `visualization` fornecida pelo serviço GenAI; somente o Backend monta esse campo. Não há nova chamada de modelo para selecionar/desenhar gráficos nem consulta extra no chat.
 
@@ -47,7 +47,7 @@ Todos os municípios: agrupar por município, preservando a classe. Município e
 
 Lista completa: 2–1000 grupos, rótulos válidos/únicos e soma reconciliada com o total. Fora dessas condições, omitir a distribuição e preservar os KPIs. Soma e percentuais usam Decimal. Nulo não vira zero. `completo` significa partição numérica dos valores observados, não mês certificado nem homologação de Dados. Participação exige total positivo, valores não negativos e ausência de medidas nulas. Arredondamento de percentuais não força soma 100.
 
-Partição válida: até seis setores, ou cinco maiores + Demais calculado no Backend, com lista completa separada. Demais casos: até dez barras, sem porcentagem indevida. Lista/tabela/CSV preservam todos os grupos retornados; tabela de vinte linhas por página. Legenda no celular tem rolagem; PNG inclui legenda completa.
+Partição válida: até seis setores, ou cinco maiores + Demais calculado no Backend, com lista completa separada. O modal usa rosca para partição válida com total positivo e até seis setores já preparados pelo Backend; nos demais casos, apresenta barras horizontais com os valores observados, sem forçar percentuais. Lista/tabela/CSV preservam todos os grupos retornados; tabela de vinte linhas por página. Legenda no celular tem rolagem; PNG inclui legenda completa.
 
 ## Exportação e apresentação
 
@@ -89,3 +89,7 @@ Distribuição do Panorama conferida em três recortes (14/14/5 grupos), sem exp
 Benchmark exploratório da mesma comparação, três requisições por modo, mesmos serviços/publicação: JSON primeiro resultado/completo p50=15,792s e p95 empírico=19,213s; progressivo primeiro dado p50=14,153s/p95=14,653s, completo p50=16,069s/p95=16,917s. P95 por nearest rank, equivalente ao máximo nessa amostra pequena. Não é SLA nem prova de ganho geral no tempo total. Em14 correlações reais do serviço isolado houve uma chamada ao modelo por correlação; fallback/retentativas existentes não são eliminados.
 
 Estados oficiais IA e homologação de Dados preservados. DEC503 e avisos de consumo permanecem fora desta mudança. Os18critérios técnicos locais estão contemplados com evidências publicadas no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), sem alterar o aceite oficial IA ou realizar merge.
+
+## Apresentação do modal e interpretação — 03/11/2026
+
+O cartão e o modal apresentam os valores inicial/final junto da variação disponível, sem calcular novas métricas. Base zero explica a ausência de percentual; estabilidade não implica estabilidade de todos os segmentos; ausência de comparação não vira tendência. No modal, composição atual e movimento temporal aparecem como leituras distintas quando ambos estão disponíveis. Recomendações consideram município/classe já selecionados. A distribuição aparece após os principais pontos e mantém tabela/PNG/CSV e a revalidação existente. O bloco exportável de total/comparação aparece no início, substituindo o resumo superior redundante. Não há chamada adicional ao modelo.
