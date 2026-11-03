@@ -287,3 +287,11 @@ Os três grupos autorizados foram commitados na mesma branch do PR #116: 440b249
 ### 2026-11-03 — publicação dos refinamentos do modal e das sugestões
 
 Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leitura) e a92d85b (sugestões de gráficos). As notas anteriores de ausência de commit descrevem etapas históricas. Este registro documental acompanha o terceiro commit, com publicação no PR #116 e CI posterior ao push.
+
+
+### 2026-11-03 — correção das expectativas numéricas do CI
+
+- O run 41713380946 do PR #116 falhou em GenAI e Backend porque as expectativas ainda usavam casas decimais e espaços do formato antigo. Alinhadas as verificações de comparação, consumo, ranking e satisfação à apresentação vigente em português; preservados os valores esperados, unidades, períodos e sinais. Nenhuma alteração no comportamento do portal ou no cache dos insights.
+- GenAI em cópia Linux isolada: `python -m pytest -q` — 4.344 passaram, 4 skips; `python -m ruff check .` e compilação passaram.
+- Backend completo antes do último alinhamento: 1.210 passaram, 14 skips e uma falha de formatação no teste de sessão. Após alinhar as demais expectativas do mesmo teste: `python -m pytest -q tests/test_genai_session_postgres.py --tb=short` — 1 passou com PostgreSQL 16 descartável, atravessando sessão, plano, execução, síntese e negação de privilégios; aviso preexistente Starlette/httpx.
+- Lint dirigido Backend passou desconsiderando somente EXE002, causado pelo bit executável da cópia Docker; `pip check` passou. Nenhum dado Gold real, segredo ou chamada Gemini nesta correção. CI remoto deve ser reconferido após o push.

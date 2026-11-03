@@ -3869,3 +3869,8 @@ Os três grupos autorizados foram commitados na mesma branch do PR #116: 440b249
 ### 2026-11-03 — publicação dos refinamentos do modal e das sugestões
 
 Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leitura) e a92d85b (sugestões de gráficos). As notas anteriores de ausência de commit descrevem etapas históricas. Este registro documental acompanha o terceiro commit, com publicação no PR #116 e CI posterior ao push.
+
+
+### 2026-11-03 — IA-03 / IA-04 — expectativas de apresentação no CI dos gráficos
+
+- Ajustados somente testes de síntese e sessão PostgreSQL ao formato numérico vigente; valores, unidades e sinais continuam conferidos. GenAI completo: 4.344 passaram, 4 skips; prova integrada PostgreSQL corrigida: 1 passou. Estados dos requisitos preservados. Detalhes e limites em [evidências dos gráficos](plans/2026-11-03-genai-graficos-insights-visuais.md).
