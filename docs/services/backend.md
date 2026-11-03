@@ -1,5 +1,11 @@
 # Serviço: backend e banco local
 
+Memória de conversas longas (03/11/2026): a rota existente de histórico recupera,
+sob referência explícita, uma intenção antiga da mesma conversa e a replaneja com
+acesso/publicação atuais. Reutiliza âncoras e retenção existentes, sem migração ou
+sumarizador remoto. Contrato, limites e desativação em
+[memória de investigações](../contracts/genai-long-conversation-memory.md).
+
 Continuidade de esclarecimentos (03/11/2026): o planejamento interno pode devolver
 `pending_question`, aceito apenas em `needs_clarification`. O Backend assina esse
 rascunho como contexto pendente; autorização e publicação são revalidadas antes
