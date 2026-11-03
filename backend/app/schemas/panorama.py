@@ -49,6 +49,24 @@ class PanoramaFilterOptions(BaseModel):
     classes: list[str] = Field(default_factory=list)
 
 
+class PanoramaDistributionPoint(BaseModel):
+    segmento: str
+    valor: float | None
+    percentual: float | None = None
+
+
+class PanoramaDistribution(BaseModel):
+    dimension: Literal["municipio", "classe"]
+    periodo: str
+    metricId: str
+    unidade: str
+    total: float
+    completo: bool
+    pontos: list[PanoramaDistributionPoint] = Field(max_length=1000)
+    visual: list[PanoramaDistributionPoint] = Field(max_length=10)
+    agrupados: int = Field(default=0, ge=0, le=1000)
+
+
 class PanoramaData(BaseModel):
     filtros: dict[str, Any]
     periodoIncompleto: bool
@@ -57,6 +75,7 @@ class PanoramaData(BaseModel):
     dataAtualizacao: str
     loteVersao: str
     metricas: dict[str, PanoramaMetric]
+    distribuicao: PanoramaDistribution | None = None
     serieMensal: list[PanoramaSeriesPoint] = Field(default_factory=list)
     opcoesFiltros: PanoramaFilterOptions | None = None
 

@@ -136,6 +136,8 @@ class GenAIQuestionClient:
         except (ValueError, ValidationError) as exc:
             raise GenAIResponseInvalid from exc
 
+        if getattr(result, "visualization", None) is not None:
+            raise GenAIResponseInvalid
         if result.correlation_id != correlation_id:
             raise GenAIResponseInvalid
         return result
@@ -156,6 +158,8 @@ class GenAIQuestionClient:
             result = QuestionPlanResponse.model_validate(response_payload)
         except ValueError as exc:
             raise GenAIResponseInvalid from exc
+        if result.response is not None and result.response.visualization is not None:
+            raise GenAIResponseInvalid
         if result.correlation_id != correlation_id:
             raise GenAIResponseInvalid
         return result
@@ -186,6 +190,8 @@ class GenAIQuestionClient:
             result = AIQuestionResponse.model_validate(response_payload)
         except ValueError as exc:
             raise GenAIResponseInvalid from exc
+        if getattr(result, "visualization", None) is not None:
+            raise GenAIResponseInvalid
         if result.correlation_id != correlation_id:
             raise GenAIResponseInvalid
         return result

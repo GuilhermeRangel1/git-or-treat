@@ -16,6 +16,7 @@ from app.schemas.genai_evidence import GoldEvidenceQuality
 from app.schemas.genai_internal import AccessScope, QuestionSynthesisRequest
 from app.schemas.genai_plan import QuestionPlanStatus
 from app.schemas.gold_readiness import GoldReadinessReport
+from app.services.chat_visualization import build_chat_visualization
 from app.services.genai_audit import AuditStore
 from app.services.genai_client import (
     GenAIQuestionClient,
@@ -176,6 +177,10 @@ async def answer_gold_question(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
     planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
+    visual = await planned.deadline.run(
+        GOLD_REQUEST_TIMEOUT_SECONDS,
+        lambda: asyncio.to_thread(build_chat_visualization, planned.response.plan, lookup, result),
+    )
     outcome = "error" if result.status == "recoverable_error" else (
         "refused" if result.status == "refused" else "success"
     )
@@ -193,7 +198,7 @@ async def answer_gold_question(
     planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     token = continuation(planned, result) if continuation is not None and result.status in {"answered", "no_evidence"} else None
     planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
-    return result.model_copy(update={"audit_reference": reference, "continuation_token": token})
+    return result.model_copy(update={"audit_reference": reference, "continuation_token": token, "visualization": visual})
 
 
 def build_readiness_gate(engine: Engine, client: GenAIQuestionClient, approved_controls):
