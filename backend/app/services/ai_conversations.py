@@ -307,7 +307,7 @@ class ConversationStore:
             (
                 row
                 for row in valid
-                if row["response"]["status"] in {"answered", "no_evidence"}
+                if row["response"]["status"] in {"answered", "no_evidence", "needs_clarification"}
                 and isinstance(row["anchor"], str)
                 and 0 < len(row["anchor"]) <= 1000
                 and isinstance(row["batch"], str)

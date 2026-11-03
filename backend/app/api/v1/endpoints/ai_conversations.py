@@ -179,6 +179,10 @@ async def question(
                 session=request.cookies.get("grid360_session", ""),
                 conversation=identity,
                 secret=secret.get_secret_value(),
+                kind=("pending" if anchor["response"]["status"] == "needs_clarification"
+                      else "executed"),
+                response_text=anchor["response"].get("answer")
+                or anchor["response"].get("message", ""),
             )
             context = []
     if (
@@ -187,7 +191,7 @@ async def question(
         and recent["response"].get("status") == "needs_clarification"
     ):
         context += [
-            AIConversationTurn(role="user", content=recent["question"]),
+            AIConversationTurn(role="user", content=recent["anchor"] or recent["question"]),
             AIConversationTurn(
                 role="assistant", content=recent["response"]["message"][:1000]
             ),

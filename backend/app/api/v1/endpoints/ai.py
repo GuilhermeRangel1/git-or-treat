@@ -46,6 +46,7 @@ from app.services.genai_client import (
 )
 from app.services.genai_continuation import (
     InvalidContinuation,
+    issue_context_continuation,
     issue_continuation,
     restore_continuation,
 )
@@ -242,6 +243,13 @@ async def ask_genai_question(
             def continuation(planned, response):
                 if not secret or not session or not payload.conversation_id:
                     return None
+                if planned.response.pending_question is not None:
+                    return issue_context_continuation(
+                        planned.response.pending_question, planned.access_scope,
+                        planned.publication.batch_ref, session=session,
+                        conversation=payload.conversation_id, secret=secret, kind="pending",
+                        response_text=response.message or "",
+                    )
                 return issue_continuation(
                     planned.response.plan, planned.access_scope, planned.publication.batch_ref,
                     session=session, conversation=payload.conversation_id, secret=secret,

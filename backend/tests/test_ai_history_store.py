@@ -61,6 +61,21 @@ def response():
     )
 
 
+def test_unresolved_draft_survives_multiple_short_answers(storage):
+    _db, owner, _other = storage
+    conversation = owner.create(str(uuid4()))["id"]
+    for raw, draft in [
+        ("Receita paga em Recife em maio e junho?", "Receita paga em Recife em maio e junho?"),
+        ("faturado", "Faturamento em Recife em maio e junho?"),
+    ]:
+        request = str(uuid4())
+        _, _, attempt = owner.reserve(conversation, request, raw, "scope")
+        owner.finish(conversation, request, attempt, raw, response(), draft, "batch-v2")
+    _, (anchor, recent), _ = owner.reserve(conversation, str(uuid4()), "2026", "scope")
+    assert anchor["anchor"] == "Faturamento em Recife em maio e junho?"
+    assert recent["question"] == "faturado"
+
+
 def test_owner_is_required_for_every_storage_operation(storage):
     _db, owner, other = storage
     conversation = owner.create(str(uuid4()))["id"]
