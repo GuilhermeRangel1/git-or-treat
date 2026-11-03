@@ -212,11 +212,16 @@ Comandos de regressão executados no Docker (GenAI com cópias de testes e contr
 
 Backend reiniciado e imagem final do ai-agent reconstruída sem reexecutar loader ou alterar o volume Gold. Nova fatia local ainda sem commit/push; estados oficiais e homologação de cobertura permanecem os anteriores.
 
+### Correção do CI documental — 03/11/2026
+
+O [job documental do PR116](https://github.com/GuilhermeRangel1/git-or-treat/actions/runs/41689965234/job/126105642480), head `9822087`, falhou somente no link `docs/services/backend.md → ../decisions/0005-backend-python=312-alpine.md`. Os outros quatro checks passaram. O guia agora aponta para a ADR existente `0005-backend-python312-alpine.md`; nenhuma regra do workflow foi afrouxada. Reprodução do próprio bloco Python de `.github/workflows/quality.yml` em cópia de `git archive HEAD` com overlay dos arquivos locais alterados: configurações válidas, seis imports presentes, 167 documentos sem links quebrados. `git diff --check` passou. Correção ainda local, sem commit/push ou nova CI remota.
+
 ### Indicador de andamento — 03/11/2026
 
 O envio corrente mantém uma fase explícita na página: consulta antes de `data`, interpretação após a prévia e repouso ao concluir resposta/erro. A fase também governa lateral/compositor, inclui criação de conversa e é limpa na troca de conversa/histórico; revisões antigas continuam descartadas. Não depende somente de `mutation.isPending`, evitando um aviso de consulta junto de conteúdo já encerrado.
 
 `npm test -- src/features/assistente/AssistentePage.test.tsx src/features/assistente/AssistenteSession.test.tsx`: 33 passaram, incluindo os três desfechos do stream (sucesso, falha do modelo e acesso negado). Build, fronteiras (218 arquivos), formatação dos arquivos alterados e diff-check passaram; lint mantém aviso anterior do AuthProvider. Chromium com retorno Gold já reconciliado repetido na rota de perguntas confirmou final sem “Consultando os dados…”/“Preparando a análise…”, lateral pronta, tabela e PNG/CSV; zero erros JS. Conversa de teste removida. Nenhuma chamada Gemini nova foi necessária; HMR do Docker local já apresenta a alteração. Mudança ainda sem commit/push.
+
 
 ## Correção da seleção de gráfico no chat — 03/11/2026
 
@@ -236,11 +241,13 @@ Backend reiniciado para aplicar o seletor; frontend recebe a alteração pelo bi
 
 - Complemento do contrato final: total e percentuais dos setores foram movidos para o Backend, conforme o cartão. A distribuição municipal foi repetida pela API/Gold/Gemini real (16,569s); os 14 pontos continuaram reconciliados com SQL independente. Chromium repetiu esse retorno final e aprovou seis setores, 14 linhas, PNG/CSV, dois temas e três larguras; a conversa foi removida. Os mesmos 36 testes Backend e 47 frontend passaram após a mudança do contrato, assim como build, lint/fronteiras e Ruff. As cinco consultas anteriores não devem ser contadas como cinco rodadas adicionais do contrato final de setores.
 
+
 ## Simplificação do histórico salvo — 03/11/2026
 
 Removidos, por solicitação da pessoa usuária, o banner “Você está vendo respostas salvas” e a ação “Retomar com dados atuais”. A interface não ativa mais refresh_context por botão; novas perguntas conservam o envio normal com false. Estados exclusivos da ação foram removidos. O aviso de requisição interrompida permanece específico ao envio pendente e o teste verifica a ausência da opção removida, a criação de nova tentativa e o envio normal.
 
 `npm test -- --run src/features/assistente/AssistenteSession.test.tsx src/features/assistente/AssistentePage.test.tsx`: 32 testes passaram. Prettier e diff passaram. Alteração disponível no bind mount do frontend, sem commit/push.
+
 
 ## Correção de “entre as classes” — 03/11/2026
 
@@ -250,3 +257,7 @@ A validação de calendário tratava qualquer “entre” restante após remover
 - Ruff nos dois arquivos alterados e `git diff --check` passaram. A imagem ai-agent foi reconstruída pelo Compose Gold existente (`up -d --build --no-deps ai-agent`), preservando .env, usuários e volume Gold.
 - API pública, sessão operator existente e Gemini real: pergunta exata da captura retornou HTTP200/answered, data→complete, tipo donut e cinco classes (15,186s). Cinco pontos da prévia/final conferidos por SQL independente: soma de receita_total_reais em diagnostico_receita, municipio=OLINDA, competencia=2026-06, agrupado por classe_consumo. Nenhuma nova conta, ampliação de permissões ou alteração da publicação.
 - Probes e respostas privados em frontend/visual.local, ignorados. Sem commit/push.
+
+### 2026-11-03 — publicação das correções de perguntas, gráficos e histórico
+
+Os três grupos autorizados foram commitados na mesma branch do PR #116: 440b249 fix(ai-agent): interpreta agrupamentos e séries nas consultas Gold; fae2d53 feat(assistente): apresenta distribuições autorizadas em rosca; 8bcc982 fix(assistente): sincroniza progresso e simplifica o histórico. Este registro acompanha a correção documental da ADR-0005. As notas anteriores de ausência de commit descrevem as etapas de validação; os quatro commits estão preparados para push, com verificações observadas registradas nos respectivos corpos. Arquivos privados e segredos permanecem fora do Git. CI remota e merge continuam posteriores à publicação.

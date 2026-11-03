@@ -3811,10 +3811,16 @@ Os complementos locais acima foram preparados para publicação na mesma branch 
 - Chromium no portal real confirmou a resposta final do ranking, alinhamento em 320/390/1440 px e dois temas, tabela de 14 municípios e PNG/CSV; zero erros JS. Uma reprodução adicional do retorno já reconciliado gerou captura, sem nova chamada de modelo. Conversas criadas nos testes removidas; demais conversas e dados preservados.
 - Verificações: 349 regressões GenAI, 36 do runner, 30 Backend e 44 frontend aprovadas; build, fronteiras (218 arquivos), Ruff direcionado e `git diff --check` passaram. Lint frontend mantém só aviso anterior do AuthProvider. Docker local reconstruído com o código final; contratos/guia/evidência atualizados. Estados oficiais IA e cobertura de Dados preservados.
 
+### 2026-11-03 — correção da validação documental do PR116
+
+- No head publicado `9822087`, GenAI, Backend, Frontend e Docker Compose passaram; “CI Documentação e configuração” falhou por um link do guia Backend para `0005-backend-python=312-alpine.md`, introduzido em `86d2975`. Caminho corrigido para o arquivo existente `0005-backend-python312-alpine.md`.
+- O mesmo bloco Python do workflow foi executado em cópia limpa dos arquivos versionados com as alterações locais: configurações válidas, seis imports de instruções presentes e links conferidos em 167 documentos. Correção local ainda sem commit/push; não afirma nova execução remota aprovada nem altera estados funcionais.
+
 ### 2026-11-03 — IA-05 — indicador de consulta e interpretação
 
 - O aviso do Assistente agora distingue consulta dos dados e preparação da análise pela chegada da prévia. Ao encerrar a interação, resposta/erro final e indicador usam o mesmo ciclo de envio; lateral acompanha essa fase. Nova conversa e abertura do histórico limpam o estado, preservando o descarte de callbacks antigos e o bloqueio de envios simultâneos.
 - `AssistentePage` e `AssistenteSession`: 33 testes passaram, com transição consulta → interpretação → final e erro/recusa. Chromium no portal local, repetindo o retorno Gold já reconciliado sem nova chamada Gemini, confirmou resposta final sem avisos pendentes, lateral pronta, tabela/PNG/CSV e zero erros JS. Build/fronteiras passaram; lint só com aviso preexistente do AuthProvider. Mudança local ainda sem commit/push; estados oficiais preservados.
+
 
 ### 2026-11-03 — IA-07 — escolha de gráficos no Assistente
 
@@ -3822,12 +3828,18 @@ Os complementos locais acima foram preparados para publicação na mesma branch 
 - Portal reaproveita a rosca existente, agrupa cinco maiores + Demais quando há mais de seis categorias e conserva todos os valores na tabela/CSV. Sem nova chamada ao modelo para desenhar ou selecionar gráfico; estados oficiais e cobertura de Dados preservados.
 - Verificações: 36 testes Backend e 47 frontend passaram; build, fronteiras, Ruff e diff passaram; lint somente com aviso preexistente de AuthProvider. Cinco consultas Gold v2/Gemini reais geraram linha, duas roscas, ranking horizontal e comparação vertical; 41 pontos reconciliados com SQL independente. Chromium repetiu a resposta real reconciliada em 320/390/1440 px, claro/escuro, seis setores/14 linhas, PNG/CSV e sem erros JS; conversa do teste removida. Detalhes no plano de gráficos. Sem commit/push nesta fatia.
 
+
 ### 2026-11-03 — IA-05 / histórico — simplificação da conversa salva
 
 - Por solicitação da pessoa usuária, removidos o aviso de respostas salvas e a opção “Retomar com dados atuais” ao abrir histórico. O envio normal segue disponível, sem ativar atualização explícita de contexto. O aviso específico de envio interrompido continua quando aplicável.
 - Removido o estado de interface exclusivo da opção e atualizado o teste de restauração/novo envio. Mudança local na mesma branch de gráficos; sem commit/push.
 
+
 ### 2026-11-03 — IA-01 / IA-07 — divisão entre classes sem falso intervalo temporal
 
 - Interpretador reconhece “entre as classes”/“entre os municípios” como agrupamento pelas dimensões autorizadas e retira apenas essa referência da checagem de intervalo temporal. Um intervalo realmente incompleto ainda pede esclarecimento. Sem alteração no escopo, evidência, SQL ou permissões.
 - 334 regressões de interpretação, filtros, períodos, receptividade e planejamento passaram. A pergunta exata “Como a receita faturada de Olinda se divide entre as classes em junho de 2026?” retornou answered com rosca e cinco pontos pela API pública com Gold v2/Gemini reais; todos reconciliados com SQL independente somente leitura. Imagem GenAI reconstruída e aplicada no Docker local; Ruff e diff passaram. Sem commit/push.
+
+### 2026-11-03 — publicação das correções de perguntas, gráficos e histórico
+
+Os três grupos autorizados foram commitados na mesma branch do PR #116: 440b249 fix(ai-agent): interpreta agrupamentos e séries nas consultas Gold; fae2d53 feat(assistente): apresenta distribuições autorizadas em rosca; 8bcc982 fix(assistente): sincroniza progresso e simplifica o histórico. Este registro acompanha a correção documental da ADR-0005. As notas anteriores de ausência de commit descrevem as etapas de validação; os quatro commits estão preparados para push, com verificações observadas registradas nos respectivos corpos. Arquivos privados e segredos permanecem fora do Git. CI remota e merge continuam posteriores à publicação.
