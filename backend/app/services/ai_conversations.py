@@ -13,6 +13,11 @@ from sqlalchemy.orm import Session
 from app.models.ai_conversations import CONVERSATIONS as C
 from app.models.ai_conversations import EXCHANGES as E
 from app.schemas.ai import AIQuestionResponse, AIQuestionText
+from app.services.conversation_memory import (
+    ConversationMemory,
+    MemoryRequest,
+    select_memory,
+)
 from app.services.genai_documentation import document_response_is_current
 
 QUESTION_TEXT = TypeAdapter(AIQuestionText)
@@ -307,10 +312,16 @@ class ConversationStore:
                 break
             valid.append({**row, "response": response.model_dump(mode="json")})
 
+        # Uma explicação conceitual não deve deixar a consulta numérica anterior
+        # ativa como se fosse o assunto atual. Retomadas explícitas ainda a encontram.
+        latest_document = next((index for index, row in enumerate(valid)
+                                if any(item["source"] == "documentation.indicators"
+                                       for item in row["response"]["evidence"])), None)
+        anchor_rows = valid if latest_document is None else valid[:latest_document]
         anchor = next(
             (
                 row
-                for row in valid
+                for row in anchor_rows
                 if row["response"]["status"] in {"answered", "no_evidence", "needs_clarification"}
                 and isinstance(row["anchor"], str)
                 and 0 < len(row["anchor"]) <= 1000
@@ -321,6 +332,20 @@ class ConversationStore:
         )
         recent = valid[0] if valid else None
         return anchor, recent
+
+    def memory(
+        self, conversation: str, scope: str, reference: MemoryRequest,
+    ) -> ConversationMemory:
+        self.owned(conversation)
+        # Não filtrar por escopo antes da seleção: isso trocaria a numeração e
+        # poderia recuperar outra consulta no lugar daquela solicitada.
+        rows = self.db.execute(
+            select(E.c.request_id, E.c.sequence, E.c.format_version, E.c.scope_digest,
+                   E.c.response, E.c.question, E.c.anchor, E.c.batch)
+            .where(E.c.conversation_id == conversation, E.c.state == "completed")
+            .order_by(E.c.sequence.desc()).limit(200)
+        ).mappings().all()
+        return select_memory(rows, reference, scope)
 
     def finish(
         self,

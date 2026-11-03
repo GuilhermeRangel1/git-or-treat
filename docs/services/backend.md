@@ -1,5 +1,11 @@
 # Serviço: backend e banco local
 
+Memória de conversas longas (03/11/2026): a rota existente de histórico recupera,
+sob referência explícita, uma intenção antiga da mesma conversa e a replaneja com
+acesso/publicação atuais. Reutiliza âncoras e retenção existentes, sem migração ou
+sumarizador remoto. Contrato, limites e desativação em
+[memória de investigações](../contracts/genai-long-conversation-memory.md).
+
 O planejamento GenAI também pode devolver uma definição com referência documental,
 sem plano SQL. O Backend confere texto/citação/versão e escopo no corpus aprovado,
 reautoriza e audita antes da resposta. Histórico e replay não republicam uma

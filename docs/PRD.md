@@ -3646,6 +3646,13 @@ Duas respostas reconciliadas por SQL independente e quatro eventos de auditoria
 confirmados; conta temporária removida. Evidência no complemento do registro de
 entendimento acima; mesma branch, sem commit/push, estados oficiais preservados.
 
+### 2026-11-03 — IA-07: memória de consultas em conversas longas
+
+- Adicional [Memória para conversas mais longas](https://trello.com/c/Wen9zrG0), branch `feat/genai-memoria-conversas-longas`, base develop `36166bd`. Concluído na entrega técnica local, dez critérios revisados; integração à develop pendente de commit/PR/merge. Integração executável e prova local Gold v2; estados oficiais IA-01 a IA-07 preservados. Escopo: retomar explicitamente consultas anteriores da mesma conversa, por ordem; sem resumo livre ou memória entre conversas. Contrato e reprodução em [memória de investigações](contracts/genai-long-conversation-memory.md) e [evidência](plans/2026-11-03-genai-memoria-conversas-longas.md).
+- Backend recupera uma âncora tipada com autoria, UUID/sequência de origem e publicação v2, mantendo a ordem antes de conferir o escopo. Reutiliza assinatura, autorização, replanejamento, SQL restrito e auditoria. Uma âncora por pedido, até 1.000 caracteres/4.096 bytes e 200 trocas; nenhuma chamada de modelo para selecionar/sumarizar. Reutiliza retenção aprovada de 30 dias e exclusão existentes, sem migração ou novo estado derivado. Desativação por `GENAI_CONVERSATION_MEMORY_ENABLED=false`.
+- Baseline controlado de quatro retomadas: contexto curto 0/4 planos corretos (quatro esclarecimentos) → recuperação 4/4 planos integrais corretos. Correção posterior do filtro e troca de assunto verificadas. Prova pública com sessão/conta de leitura temporária: receita, consumo como troca de assunto, doze esclarecimentos e retomada da primeira consulta; 15 respostas auditadas. Receita inicial e retomada reconciliadas com SQL independente na mesma publicação. Acesso revogado 403, publicação antiga 409, injeção recusada e exclusão 204/404 confirmados; contas e processos temporários removidos/encerrados.
+- Verificações e revisão dos dez critérios estão na evidência. Na jornada principal, retomada usou 1.531 tokens de entrada e 29 de saída, contra 1.488/29 na primeira pergunta, sem resumo remoto; latência de 14,816 s, sem atribuir ganho de desempenho à memória. Uma referência malformada detectada na prova foi bloqueada antes da coordenação após a correção. Limites de Dados continuam aplicáveis. Sem commit/push/PR nesta rodada.
+
 ### 03/11/2026 — adicional: início da busca documental autorizada
 
 - Branch `feat/genai-busca-semantica-documentacao`, base develop `36166bd`; cartão [busca semântica em documentação autorizada](https://trello.com/c/gctQzTDV). Preparação, sem entrega integrada ou alteração dos estados oficiais IA.
@@ -3696,3 +3703,10 @@ e o modelo quantitativo é injetado. Seleção documental agora carrega o SDK ap
 na primeira chamada remota; falta do SDK resulta em erro documental sanitizado,
 sem impedir composição ou definições canônicas. Doze testes do seletor e runtime
 passaram; Ruff passou. Sem chamada externa.
+
+
+### 03/11/2026 — memória atualizada após busca documental
+
+- PR #114 integrado à develop por Create a merge commit `ef3a625`, após cinco checks GitHub aprovados. Seis commits individuais preservados, incluindo correções de vigência e SDK opcional; sem squash/rebase.
+- Branch `feat/genai-memoria-conversas-longas` / PR #113 recebeu develop via merge `5a2dc82`, com os três conflitos resolvidos preservando imports e progresso das duas entregas. Ajuste de integração distingue memória Gold e documental, reexecuta pergunta conceitual vigente, preserva ordinais, descarta contexto numérico implícito após conceito e mantém retomadas sucessivas. Sem migração, novas fontes ou retenção.
+- Backend dirigido 95 passaram; GenAI dirigido 192 passaram; Ruff, corpus --check e diff passaram. Prova entre processos com fonte/modelo controlados percorreu rota, histórico, coordenação e núcleo em três respostas documentais auditadas. Não houve nova rodada Gemini/portal nem nova homologação Gold real. Contrato e resultados em [memória](contracts/genai-long-conversation-memory.md) e [evidência](plans/2026-11-03-genai-memoria-conversas-longas.md). Estados oficiais IA preservados.
