@@ -63,11 +63,21 @@ def _response_for(status: QuestionPlanStatus) -> dict:
         response["error"] = map_failure(FailureCode.SECURITY_VIOLATION).error.model_dump()
     elif status is QuestionPlanStatus.RECOVERABLE_ERROR:
         response["error"] = map_failure(FailureCode.INVALID_SOURCE_RESPONSE).error.model_dump()
+    elif status is QuestionPlanStatus.ANSWERED:
+        response.pop("message")
+        response["answer"] = "Definição documental artificial."
+        response["evidence"] = [
+            {
+                "source": "documentation.indicators",
+                "description": "Fonte artificial.",
+                "is_demo": True,
+            }
+        ]
     return response
 
 
 def _not_planned(status: QuestionPlanStatus) -> dict:
-    return {
+    envelope = {
         "contract_version": "v1",
         "correlation_id": CORRELATION_ID,
         "status": status.value,
@@ -75,6 +85,9 @@ def _not_planned(status: QuestionPlanStatus) -> dict:
         "plan_fingerprint": None,
         "response": _response_for(status),
     }
+    if status is QuestionPlanStatus.ANSWERED:
+        envelope["documentation_reference"] = {"id": "test", "version": "a" * 12}
+    return envelope
 
 
 def _tampered_plan() -> dict:
@@ -291,14 +304,17 @@ def test_gold_envelopes_reject_invalid_publication(value, synthesis) -> None:
         model.model_validate(payload)
 
 
-@pytest.mark.parametrize("coverage", [
-    {"kind": "monthly", "competencies": ["2025-13"]},
-    {"kind": "monthly", "competencies": ["0000-01"]},
-    {"kind": "monthly", "competencies": ["2025-03", "2025-01"]},
-    {"kind": "monthly", "competencies": ["2025-03", "2025-03"]},
-    {"kind": "none", "competencies": ["2025-03"]},
-    {"kind": "monthly", "competencies": [202503]},
-])
+@pytest.mark.parametrize(
+    "coverage",
+    [
+        {"kind": "monthly", "competencies": ["2025-13"]},
+        {"kind": "monthly", "competencies": ["0000-01"]},
+        {"kind": "monthly", "competencies": ["2025-03", "2025-01"]},
+        {"kind": "monthly", "competencies": ["2025-03", "2025-03"]},
+        {"kind": "none", "competencies": ["2025-03"]},
+        {"kind": "monthly", "competencies": [202503]},
+    ],
+)
 def test_planning_rejects_invalid_temporal_coverage(coverage) -> None:
     payload = _plan_request()
     payload["temporal_coverage"] = [{"metric_id": "energia_faturada", **coverage}]
@@ -306,9 +322,14 @@ def test_planning_rejects_invalid_temporal_coverage(coverage) -> None:
         QuestionPlanRequest.model_validate(payload)
 
 
-@pytest.mark.parametrize("kind,competencies", [
-    ("none", []), ("monthly", []), ("monthly", ["2025-01", "2025-03"]),
-])
+@pytest.mark.parametrize(
+    "kind,competencies",
+    [
+        ("none", []),
+        ("monthly", []),
+        ("monthly", ["2025-01", "2025-03"]),
+    ],
+)
 def test_planning_preserves_absence_and_gaps(kind, competencies) -> None:
     payload = _plan_request()
     payload["temporal_coverage"] = [
@@ -326,9 +347,7 @@ def test_planning_rejects_duplicate_or_unauthorized_metric_coverage() -> None:
     payload["temporal_coverage"] *= 2
     with pytest.raises(ValidationError):
         QuestionPlanRequest.model_validate(payload)
-    payload["temporal_coverage"] = [
-        {"metric_id": "forbidden.metric", "kind": "none"}
-    ]
+    payload["temporal_coverage"] = [{"metric_id": "forbidden.metric", "kind": "none"}]
     with pytest.raises(ValidationError):
         QuestionPlanRequest.model_validate(payload)
 
@@ -367,7 +386,8 @@ def test_dimension_value_coverage_is_scoped_and_excludes_consumer_unit_ids() -> 
 def test_synthesis_preserves_expected_publication_independently_of_lookup() -> None:
     payload = _synthesis()
     payload["lookup"] = {
-        "status": "no_evidence", "message": "Sem registros na publicação consultada."
+        "status": "no_evidence",
+        "message": "Sem registros na publicação consultada.",
     }
     result = QuestionSynthesisRequest.model_validate(payload)
     assert result.expected_batch_ref == _plan_request()["batch_ref"]

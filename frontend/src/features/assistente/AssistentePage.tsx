@@ -271,8 +271,16 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
                 <span>
                   {item.is_demo
                     ? "Dados de demonstração"
-                    : "Fonte de dados interna"}
+                    : item.source === "documentation.indicators"
+                      ? "Documentação interna"
+                      : "Fonte de dados interna"}
                 </span>
+                {item.source === "documentation.indicators" &&
+                  !item.is_demo && (
+                    <p className="w-full break-words leading-6">
+                      {item.description}
+                    </p>
+                  )}
                 {item.is_demo && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)]/10 px-2 py-0.5 font-medium text-[var(--status-warning-text)]">
                     <Info aria-hidden="true" className="size-3" />

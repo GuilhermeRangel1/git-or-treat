@@ -153,6 +153,42 @@ it("mantém a referência válida em continuações e erros e renova a conversa"
 });
 
 describe("Assistente Grid 360", () => {
+  it("apresenta a seção e versão da documentação no fundamento", async () => {
+    const citation =
+      "Dicionário de indicadores · Receita faturada · versão 30a032e4e4f5 · trecho revenue.";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          ...answered,
+          answer: "Receita faturada não representa valor pago.",
+          analysis_context: null,
+          limitations: [],
+          evidence: [
+            {
+              source: "documentation.indicators",
+              description: citation,
+              is_demo: false,
+            },
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "O que significa receita faturada?",
+    );
+    await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+    await screen.findByText("Receita faturada não representa valor pago.");
+    await user.click(screen.getByText("Como chegamos à resposta"));
+    expect(screen.getByText("Documentação interna")).toBeVisible();
+    expect(screen.getByText(citation)).toBeVisible();
+    expect(
+      screen.queryByLabelText("Recorte analisado"),
+    ).not.toBeInTheDocument();
+  });
   it("mostra os rótulos do catálogo preservando os identificadores do recorte", async () => {
     vi.stubGlobal(
       "fetch",

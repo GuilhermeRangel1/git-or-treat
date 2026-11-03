@@ -232,6 +232,18 @@ async def plan_gold_question(
             "As permissões mudaram. Refaça a pergunta com o acesso atual.", correlation_id,
         ), publication, access_scope=scope)
     if response.status != QuestionPlanStatus.PLANNED:
+        if response.status is QuestionPlanStatus.ANSWERED:
+            from app.services.genai_documentation import validate_documentation_response
+            await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(
+                validate_documentation_response, response, current_scope,
+            ))
+            if await deadline.run(
+                GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope),
+            ) != current_scope:
+                return GoldPlanningResult(_stop(
+                    QuestionPlanStatus.REFUSED,
+                    "As permissões mudaram. Refaça a pergunta com o acesso atual.", correlation_id,
+                ), publication, access_scope=scope)
         return GoldPlanningResult(response, publication, access_scope=scope)
     if (
         response.physical_catalog is not None
