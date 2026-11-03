@@ -116,7 +116,8 @@ def _describe_observation(
         }[unit]
         value_with_unit = f"{count} {label}"
     elif human_readable and is_number:
-        value_with_unit = f"{_format_pt_br_number(value)} {unit}"
+        separator = "" if unit == "%" else " "
+        value_with_unit = f"{_format_pt_br_number(value)}{separator}{unit}"
     else:
         value_with_unit = f"{value} {unit}"
     if human_readable:
@@ -618,7 +619,8 @@ class QuestionOrchestrator:
         if generated.status == "answered":
             answer_observation_ids = (
                 tuple(observations)
-                if read_plan.comparison_periods or evidence.provenance.published_windows is not None
+                if read_plan.comparison_periods or read_plan.group_by_dimension_ids
+                or evidence.provenance.published_windows is not None
                 else generated.observation_ids
             )
             values = ", ".join(
@@ -638,6 +640,30 @@ class QuestionOrchestrator:
                 answer = f"No histórico acumulado, foram registrados {values}."
             elif len(answer_observation_ids) == 1:
                 answer = f"Para {_lowercase_title(title)}, o resultado foi de {values}."
+            elif read_plan.comparison_periods:
+                first = _describe_observation(observations["row_1"], labels, human_readable=True)
+                last = _describe_observation(observations["row_2"], labels, human_readable=True)
+                delta = _describe_observation(
+                    {key: value for key, value in observations["row_3"].items()
+                     if key not in {"period", "dimensions"}}, human_readable=True,
+                )
+                answer = f"{title}: {first}; {last}. Variação absoluta: {delta}"
+                if "row_4" in observations:
+                    percentage = _describe_observation(
+                        {"value": observations["row_4"]["value"], "unit": "%"},
+                        human_readable=True,
+                    )
+                    answer += f" ({percentage})"
+                answer += "."
+            elif read_plan.group_by_dimension_ids and not read_plan.comparison_periods:
+                rows = list(observations.values())
+                smallest = read_plan.order is not None and read_plan.order.direction.value == "asc"
+                extreme = (min if smallest else max)(rows, key=lambda row: row["value"])
+                described = _describe_observation(extreme, labels, human_readable=True)
+                answer = (
+                    f"Entre os {len(rows)} grupos retornados, o {'menor' if smallest else 'maior'} "
+                    f"valor de {_lowercase_title(title)} foi de {described}."
+                )
             else:
                 lines = [
                     _describe_observation(observations[item], labels, human_readable=True)

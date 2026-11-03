@@ -93,7 +93,7 @@ def test_municipality_revenue_ranking_uses_grouped_evidence_and_enforces_scope()
     ("receita", "billing.revenue"), ("consumo", "energy.consumption"),
 ])
 @pytest.mark.parametrize("initial,final,expected", [
-    (100, 120, "20 %"), (0, 120, "percentual indisponível"),
+    (100, 120, "20%"), (0, 120, "percentual indisponível"),
 ])
 def test_fat09_con06_compare_only_the_two_requested_months(label, metric, initial, final, expected):
     core, request = _setup(f"Compare {label} entre janeiro de 2025 e março de 2025.")

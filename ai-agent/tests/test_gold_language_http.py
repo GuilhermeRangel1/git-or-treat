@@ -103,6 +103,9 @@ BOTH_BOUNDS = "Informe o mês e o ano de ambos os extremos do intervalo"
      "teve a maior receita faturada?", ONE_AT_A_TIME),
     ("Qual foi a receita faturada em março de 2025 em Recife, em Olinda e em "
      "Jaboatão dos Guararapes?", ONE_AT_A_TIME),
+    # A lista de locais não vira intervalo nem some ao lado de um agrupamento.
+    ("Mostre a receita por classe entre Recife, Olinda e Jaboatão dos Guararapes "
+     "em março de 2025.", ONE_AT_A_TIME),
     # "Um valor de" evita errar o gênero de dimensões femininas.
     ("Qual foi a receita residencial e comercial em Recife em junho de 2026?",
      "Consulto um valor de classe de consumo por vez; você citou residencial e comercial. "
@@ -392,6 +395,35 @@ def test_synthesized_answer_uses_pt_br_numbers_and_keeps_acronyms(question, valu
     assert response["answer"] == expected
 
 
+def test_comparison_keeps_sign_before_currency_and_percent_without_space():
+    question = "Compare a receita em Recife entre janeiro e março de 2025."
+    core, request = _setup(question)
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+        assert result["status"] == "planned", result
+        plan = LogicalReadPlan.model_validate(result["plan"])
+        lookup = _lookup(plan, batch_ref=request.batch_ref)
+        lookup.evidence.records = [
+            {"period": "2025-01", "value": 2000, "unit": "R$"},
+            {"period": "2025-03", "value": 979.5, "unit": "R$"},
+        ]
+        synthesis = QuestionSynthesisRequest(
+            question=question, access_scope=request.access_scope,
+            remaining_timeout_ms=35000, plan=plan, plan_fingerprint=plan.fingerprint(),
+            lookup=lookup, expected_batch_ref=request.batch_ref,
+        )
+        response = client.post(
+            SYNTHESIS_PATH, json=synthesis.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+    assert response["status"] == "answered", response
+    assert response["answer"] == (
+        "Receita faturada: R$ 2.000,00 em janeiro de 2025; R$ 979,50 em março de 2025. "
+        "Variação absoluta: -R$ 1.020,50 (-51,02%)."
+    )
+
+
 @pytest.mark.parametrize("follow_up", [False, True])
 def test_language_normalization_survives_plan_revalidation_and_synthesis(follow_up):
     question = "Receita da classe de consumo residencial em Olinda em 03/2025?"
@@ -429,8 +461,7 @@ def test_language_normalization_survives_plan_revalidation_and_synthesis(follow_
     assert "março de 2025" in response["answer"]
     if follow_up:
         assert "janeiro de 2025" in response["answer"]
-        assert "20 kWh" in response["answer"]
-        assert "25 %" in response["answer"]
+        assert "Variação absoluta: 20 kWh (25%)." in response["answer"]
     else:
         assert "R$ 120,00" in response["answer"]
 

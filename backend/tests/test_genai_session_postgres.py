@@ -758,7 +758,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert compared_body["status"] == "answered", compared_body
                     assert "R$ 12,00" in compared_body["answer"]
                     assert "R$ 24,00" in compared_body["answer"]
-                    assert "100 %" in compared_body["answer"]
+                    assert "100%" in compared_body["answer"]
                     assert "9999" not in compared_body["answer"]
                     consumption = public_client.post("/api/v1/ai/questions", headers=origin, json={
                         "question": "O consumo residencial em Lumenia caiu entre janeiro de 2001 e abril de 2001?",
@@ -767,7 +767,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert "30 kWh" in consumption["answer"]
                     assert "24 kWh" in consumption["answer"]
                     assert "-6 kWh" in consumption["answer"]
-                    assert "-20 %" in consumption["answer"]
+                    assert "-20%" in consumption["answer"]
                     with owner.begin() as ranking_write:
                         ranking_write.execute(TABLES["consumo_receita_bairro"].insert(), [
                             {"competencia": month, "municipio": "Luz Clara", "bairro": name,

@@ -44,7 +44,7 @@ def test_human_readable_integer_counts_use_singular_labels(unit, expected):
     (322.46, "kWh", "322,46 kWh"),
     (260.78, "R$ por UC faturada no mês", "260,78 R$ por UC faturada no mês"),
     (0.7557, "R$/kWh", "0,7557 R$/kWh"),
-    (-29.91, "%", "-29,91 %"),
+    (-29.91, "%", "-29,91%"),
     (-189630.15, "R$", "-R$ 189.630,15"),
     (-189630.15, "BRL", "-R$ 189.630,15"),
 ])

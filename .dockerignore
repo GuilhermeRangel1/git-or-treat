@@ -1,6 +1,9 @@
 **/node_modules
 **/dist
 **/.env
+**/.env.*
+!**/.env.example
+!**/.env.gold-v2.example
 **/venv
 **/.venv
 **/__pycache__
@@ -9,3 +12,5 @@
 **/.mypy_cache
 **/.ruff_cache
 .git
+work/
+frontend/visual.local/

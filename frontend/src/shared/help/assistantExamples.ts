@@ -1,11 +1,11 @@
 // Perguntas já exercitadas no fluxo Gold local. Datas são exemplos editáveis.
 const assistantExamples = {
-  cityRevenue: "Qual foi a receita faturada em Olinda em junho de 2026?",
-  cityConsumption: "Qual foi o consumo de energia em Recife em junho de 2026?",
-  serviceCalls:
-    "Quantos chamados de atendimento existem no histórico acumulado?",
-  naturalCorrection:
-    "Qual foi a receita em Olinda, não, em Jaboatão dos Guararapes, em junho de 2026?",
+  distribution: "Distribua a receita faturada por município em junho de 2026.",
+  ranking: "Quais municípios tiveram maior consumo medido em junho de 2026?",
+  comparison:
+    "Compare o consumo medido em Recife entre janeiro e junho de 2026.",
+  monthlySeries:
+    "Como evoluiu o consumo medido em Recife, mês a mês, de janeiro a junho de 2026?",
 } as const;
 
 export const ASSISTANT_EXAMPLES: string[] = Object.values(assistantExamples);
