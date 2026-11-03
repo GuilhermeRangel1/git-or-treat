@@ -50,6 +50,38 @@ from app.schemas.interpretation import (
 from app.schemas.questions import ConversationTurn
 from app.schemas.read_plan import LogicalReadPlan
 
+# Calendário que o interpretador não reconheceu como período ("em jun/26", "em 2026"):
+# sai do exemplo junto com a preposição para não ficar ao lado do período sugerido.
+_UNRECOGNIZED_CALENDAR = re.compile(
+    r"\b(?:em|no|na|de)\s+(?:(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)"
+    r"\.?/(?:[0-9]{4}|[0-9]{2})|(?:19|20)[0-9]{2})(?![\w/-])(?!\s*(?:%|kwh|mwh|r\$|reais))",
+    re.IGNORECASE,
+)
+# Uma troca ao lado destes conectores deixaria a comparação pela metade.
+_DANGLING_CONNECTORS = {"versus", "vs", "e", "ou"}
+
+
+def _replace_in_place(question: str, phrases: tuple[str, ...], replacement: str) -> str | None:
+    """Troca o único trecho ambíguo no lugar; sem exemplo se a frase ficar quebrada."""
+    matches = _find_phrases(question, phrases)
+    if len(matches) != 1:
+        return None
+    start, end, _ = matches[0]
+    before = re.search(r"([\w.]+)\s*$", question[:start])
+    after = re.match(r"\s*([\w.]+)", question[end:])
+    if any(match is not None and _normalize(match[1]).rstrip(".") in _DANGLING_CONNECTORS
+           for match in (before, after)):
+        return None
+    if before is not None and _normalize(before[1]) in {"o", "a", "os", "as"}:
+        # O artigo acompanha a substituição: "a energia faturada" vira "o consumo".
+        word = _normalize(replacement.split()[0])
+        article = "a" if re.search(r"(?:a|cao|dade|agem)s?$", word) else "o"
+        if word.endswith("s"):
+            article += "s"
+        start = before.start(1)
+        replacement = (article.upper() if before[1][0].isupper() else article) + " " + replacement
+    return question[:start] + replacement + question[end:]
+
 
 class AnalysisPlanStatus(StrEnum):
     READY = "ready"
@@ -235,14 +267,18 @@ class QuestionAnalysisPlanner:
             if not any(_normalize(phrase) in normalized for phrase in rule.phrases):
                 continue
             replacement = rule.confirmation_phrase
+            alternative = None
             if replacement is None and len(rule.alternative_metric_ids) == 1:
-                replacement = next(m.aliases[0] for m in self.profile.metrics
+                alternative = next(m for m in self.profile.metrics
                                    if m.id == rule.alternative_metric_ids[0])
-            if replacement:
-                candidate = question
-                for start, end, _ in reversed(_find_phrases(candidate, rule.phrases)):
-                    candidate = candidate[:start] + " " * (end-start) + candidate[end:]
-                yield f"{candidate} {replacement}"
+                replacement = alternative.aliases[0]
+            candidate = (_replace_in_place(question, rule.phrases, replacement)
+                         if replacement else None)
+            # O mesmo indicador duas vezes ("receita faturada versus receita") não é exemplo.
+            if candidate is not None and (
+                alternative is None or len(_find_phrases(candidate, alternative.aliases)) == 1
+            ):
+                yield candidate
         recognized_metrics = [metric for metric in self.profile.metrics
                               if _find_phrases(question, metric.aliases)]
         metrics = recognized_metrics or self.profile.metrics
@@ -257,6 +293,7 @@ class QuestionAnalysisPlanner:
             temporal_phrases = (*self.profile.period_phrases, *explicit_monthly_phrases(original))
             for start, end, _ in reversed(_find_phrases(original, temporal_phrases)):
                 original = original[:start] + " " * (end - start) + original[end:]
+            original = _UNRECOGNIZED_CALENDAR.sub(" ", original)
             original = " ".join(original.split()).rstrip(" ?.")
             original = re.sub(
                 r"\b(?:entre\s+e|de\s+(?:a|para)|em|no|na|nos|nas|de)\s*$",

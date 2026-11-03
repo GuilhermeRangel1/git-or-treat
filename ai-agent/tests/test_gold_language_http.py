@@ -63,6 +63,29 @@ def test_variation_between_two_explicit_months_still_plans_the_comparison():
     assert result["plan"]["comparison_periods"] == ["2025-02", "2025-03"]
 
 
+@pytest.mark.parametrize("question,expected", [
+    ("Qual foi a receita faturada em Recife em jun/26?",
+     "Qual foi a receita faturada em Recife em março de 2025?"),
+    ("Qual foi a receita faturada em Recife em 2026?",
+     "Qual foi a receita faturada em Recife em março de 2025?"),
+    ("Qual foi a energia faturada de clientes residenciais com GD em Recife em março de 2025?",
+     "Qual foi o consumo de clientes residenciais com GD em Recife em março de 2025?"),
+    # A troca ao lado de "versus" deixaria a comparação pela metade: sem exemplo.
+    ("Qual a receita faturada versus paga em Olinda em março de 2025?", None),
+    ("Qual foi a receita faturada em Recife?",
+     "Qual foi a receita faturada em Recife em março de 2025?"),
+])
+def test_clarification_example_is_fluent_or_absent(question, expected):
+    result = _plan(question)
+    assert result["status"] == "needs_clarification", result
+    parts = result["response"]["message"].split("\n\nExemplo de pergunta: “", 1)
+    example = parts[1].removesuffix("”") if len(parts) == 2 else None
+    assert example == expected
+    if example is not None:
+        assert "  " not in example and example.endswith("?")
+        assert _plan(example)["status"] == "planned"
+
+
 def test_unknown_place_after_preposition_still_asks_for_geography():
     result = _plan("Qual foi a receita faturada em Atlantis em junho de 2026?")
     assert result["status"] == "needs_clarification", result
