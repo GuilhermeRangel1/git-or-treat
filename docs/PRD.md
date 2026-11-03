@@ -3764,3 +3764,41 @@ passaram; Ruff passou. Sem chamada externa.
 
 - Branch de gráficos sincronizada por merge normal com develop6fc93de, preservando os commits do PR115 e da GenAI, sem squash/reescrita. Integração sem conflitos de conteúdo; PR116 continua aberto, sem merge na develop.
 - Árvore integrada:186 testes Backend na imagem Docker limpa e153 frontend passaram, incluindo regressões dos módulos recebidos; build/fronteiras passaram. Backend reconstruído com as dependências já versionadas na develop; localhost5173/health8000 continuaram200, IA saudável e volume Gold intacto. Evidência e limites permanecem no relatório dos gráficos.
+
+
+### 2026-11-03 — IA-04 — leitura imediata e estabilidade do insight
+
+- Integração executável local na branch `feat/genai-graficos-insights-visuais`, ainda sem novo commit: leitura calculada dos indicadores/distribuição assim que o Panorama chega. A hipótese continua identificada como geração da IA e chega depois; falha recuperável preserva leitura e nova tentativa. Contexto inválido não reapresenta interpretação antiga.
+- Sínteses respondidas vinculadas ao contexto são reutilizadas por 120 s, até 64 entradas em memória por processo. Chave: tela, evidência, limitações, lote e escopo/identidade completos; só o saldo transitório de prazo é excluído. Cada requisição mantém prontidão, autorização, leitura e publicação atuais e nova auditoria; falhas não entram no cache. Reiniciar o Backend limpa o cache. Navegador cancela em 70 s e na troca de recorte, com limpeza de timer/listener.
+- Antes: respostas reais em 44,540 s e 40,824 s. Perfil separado: total 49,565 s, prontidão 14,353 s, snapshot 0,020 s, síntese 35,060 s. Depois, reutilizações em 13,060 s e 13,630 s, `answered`, com observações/hipótese iguais e auditorias distintas. A rodada inicial pós-alteração teve falha recuperável em 29,512 s e resposta em 36,765 s; o provedor continua variável. Amostra exploratória, sem alegação de SLA.
+- Chromium no localhost: leitura visível com IA deliberadamente pendente em 4.967 ms (390 px) e 2.224 ms (1440 px); zero erros JavaScript. Interceptação controlada prova apresentação; medições API acima usaram Gold/Gemini reais, sem publicar payloads ou segredos.
+- Verificações: Backend `test_genai_client.py`, `test_gold_panorama_coordination.py`, `test_ai_insights.py`: 71 aprovados; frontend `GoldInsight`, `InsightInvalidation`, `PanoramaInsight`, `InsightFilterScope`: 14 aprovados. Build, fronteiras (218 arquivos), Ruff direcionado e `git diff --check` passaram; lint mantém aviso preexistente do AuthProvider. Estados obrigatórios do PRD preservados.
+
+
+### 2026-11-03 — IA-04 — competência e comparação explícitas no insight
+
+- A inspeção do fluxo não reproduziu envio de outra competência: filtros da URL, chave da consulta e contexto validado acompanham mês/comparação. A ambiguidade visual existia: comparação sem valor anterior não mostrava o mês solicitado; a leitura durante a espera priorizava distribuição territorial, mesmo com variação temporal válida.
+- O cartão e o modal agora identificam o mês solicitado na comparação indisponível. A leitura imediata prioriza variação temporal quando calculada. O consumidor confere também o valor do período anterior contra o KPI antes de aceitar a síntese; datas/filtros continuam sujeitos às guardas existentes. O gráfico recebe explicitamente a origem Gold e seus botões são identificados como janela do gráfico (a síntese mensal segue os filtros da página).
+- Chromium no portal real, usando Ajustar filtros → Aplicar: maio/2026 com abril, junho com junho/2025, junho sem comparação e junho com maio. Payload do insight e rótulo visível coincidiram nos quatro casos; zero erros JavaScript. A síntese foi mantida pendente por interceptação para provar atualização imediata, sem novas chamadas Gemini nesta verificação.
+- Regressões: 72 testes Backend (transporte/cache/coordenação/insights) e 21 frontend (cartão, invalidação, filtros e série) aprovados; build, Ruff direcionado e diff-check passaram. Cache testado também com comparação diferente. Alterações locais sem commit/push; estados obrigatórios preservados.
+
+
+### 2026-11-03 — IA-04 — concentração e próximo passo sem espera pelo modelo
+
+- O trecho “segmento concentra X% da receita observada” e o próximo passo ainda dependiam de a síntese terminar para aparecer nesse formato. A resposta inicial do Panorama agora inclui `distribuicao.composicaoReceita`, calculada no Backend sobre os mesmos grupos já lidos, sem nova consulta SQL nem chamada Gemini. `revenue_composition_from_groups` é compartilhado com a síntese; o consumidor valida dimensão, maior segmento, valor e percentual contra o conjunto reconciliado e usa os mesmos formatadores do cartão final.
+- Durante a espera, cartão e modal apresentam essa leitura e o próximo passo. A hipótese complementar continua separada e depende da IA. Zero, valores negativos, soma incompatível e grupos fora do limite não produzem concentração. A condição de cobertura mensal e as regras de comparação permanecem as existentes.
+- Chromium no localhost com Gold real e chamada IA interceptada: texto de concentração e próximo passo visíveis em 2.280 ms (390 px) e 2.237 ms (1440 px), ambos com IA ainda pendente; zero erros JavaScript. Isso comprova a antecipação do trecho apontado, sem afirmar redução da latência do provedor.
+- Verificações: 59 testes Backend (`test_panorama_current_composition`, `test_panorama_distribution`, `test_gold_panorama_coordination`, `test_panorama`) e 26 frontend (`GoldInsight`, `distributionContract`, `panoramaContract`, `PanoramaInsight`, `InsightInvalidation`) aprovados; build/fronteiras e Ruff dos serviços passaram. O schema Panorama mantém quatro avisos UP045 anteriores, sem novo problema funcional. Complemento local sem commit/push.
+
+
+### 2026-11-03 — IA-04 — insight pronto permanece durante revalidação
+
+- Retorno à janela/refetch do mesmo insight Gold respondido confere acesso/publicação pelo endpoint existente de verificação e reutiliza a análise em memória, sem repetir Gemini. A chave agora também inclui valores atual/anterior e unidade. A verificação tem limite de 8 s, cancelamento e escopo de bairro quando utilizado; troca de recorte/identidade/publicação mantém as invalidações existentes.
+- O cartão e o modal mantêm a análise durante essa conferência. Falha de transporte/5xx preserva a última análise com aviso discreto de atualização pendente; 401/403/409 e contexto inválido continuam ocultando-a. A leitura calculada dos indicadores continua independente da primeira geração. Cache não é persistido em navegador/banco.
+- Chromium com sessão local e insight Gold/Gemini real: uma geração, três conferências (200 real, 503 e 403 controladas). Conteúdo permaneceu nos dois primeiros casos e foi ocultado na recusa; nenhum segundo POST de geração ocorreu. Sem publicar números, mensagens, credenciais ou payloads.
+- Frontend: 16 testes direcionados (`GoldInsight`, `InsightInvalidation`, `PanoramaInsight`, `InsightFilterScope`) e build passaram; fronteiras (218 arquivos) e diff-check passaram; lint mantém só o aviso preexistente do AuthProvider. TanStack Query v5: comportamento de revalidação/erro conferido via Context7 na documentação/código oficial (`tanstack/query`, query.ts), preservando os controles de negócio no consumidor. Complemento local sem commit/push.
+
+
+### 2026-11-03 — publicação dos complementos de latência e estabilidade
+
+Os complementos locais acima foram preparados para publicação na mesma branch do PR #116: `ee77230` (reuso de síntese), `33a030c` (concentração antecipada) e `80ac907` (consumidor estável e recorte). As referências anteriores a ausência de commit descrevem o estado durante as validações. Esta atualização documental integra o quarto commit autorizado; segredos, credenciais, scripts privados de navegação e artefatos locais permanecem fora do Git. O push não equivale a merge nem a aprovação da CI remota.
