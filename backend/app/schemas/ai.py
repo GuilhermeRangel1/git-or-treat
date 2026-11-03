@@ -86,6 +86,7 @@ class AIQuestionError(BaseModel):
         "ungrounded_response",
         "invalid_context",
         "invalid_continuation",
+        "conversation_conflict",
         "internal_error",
     ]
     retryable: StrictBool

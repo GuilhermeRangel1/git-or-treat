@@ -123,6 +123,12 @@ def issue_continuation(
     question = canonical_question(plan)
     if question is None or not session or not conversation:
         return None
+    return issue_context_continuation(question, scope, batch_ref, session=session,
+        conversation=conversation, secret=secret, response_text=response_text)
+
+
+def issue_context_continuation(question, scope, batch_ref, *, session, conversation, secret, response_text=""):
+    """Renova uma âncora capturada pelo servidor, nunca um texto fornecido como autoridade pelo cliente."""
     payload = ContinuationState(
         expires=int(time.time()) + TTL_SECONDS,
         session=_digest(session),
