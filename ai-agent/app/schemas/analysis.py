@@ -39,6 +39,7 @@ class AnalysisIntent(BaseModel):
     group_by_dimension_ids: list[LogicalIdentifier] = Field(default_factory=list, max_length=10)
     comparison_period_phrases: tuple[str, str] | None = None
     ranking_direction: Literal["asc", "desc"] | None = None
+    ranking_limit: StrictInt | None = Field(default=None, ge=1, le=100)
     metric_phrase: str | None = Field(default=None, min_length=1, max_length=160)
     period_phrase: str | None = Field(default=None, min_length=1, max_length=160)
     geography_phrase: str | None = Field(default=None, min_length=1, max_length=160)

@@ -29,6 +29,31 @@ afterEach(() => {
 });
 
 describe("cliente do chat", () => {
+  it("expiração do contexto não invalida os dados do portal", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            contract_version: "v1",
+            status: "error",
+            correlation_id: "a".repeat(32),
+            message: "Contexto inválido.",
+            error: { code: "invalid_continuation", retryable: false },
+          }),
+          { status: 409, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    await expect(
+      askAIQuestion({
+        contract_version: "v1",
+        question: "E em Olinda?",
+        context: [],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_continuation", retryable: false });
+    expect(isGoldPublicationStale()).toBe(false);
+  });
   it("envia o contrato v1 ao Backend e valida a resposta", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(validResponse), {
@@ -94,19 +119,23 @@ describe("cliente do chat", () => {
   });
 
   it("encaminha sinal de cancelamento para a pergunta em voo", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(validResponse), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+    const fetchMock = vi.fn().mockImplementation(
+      (_path, init) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
     );
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
-    await askAIQuestion(
+    const request = askAIQuestion(
       { contract_version: "v1", question: "Pergunta", context: [] },
       controller.signal,
     );
-    expect(fetchMock.mock.calls[0][1]?.signal).toBe(controller.signal);
+    controller.abort();
+    await expect(request).rejects.toBeDefined();
+    expect(fetchMock.mock.calls[0][1]?.signal.aborted).toBe(true);
   });
 
   it("rejeita JSON de sucesso fora do contrato v1", async () => {

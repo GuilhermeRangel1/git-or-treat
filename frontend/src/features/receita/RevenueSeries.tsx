@@ -435,7 +435,7 @@ export default function RevenueSeries({
             <caption className="sr-only">
               Série mensal de faturamento e energia
             </caption>
-            <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+            <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
               <tr>
                 <th scope="col" className="font-medium">
                   Mês

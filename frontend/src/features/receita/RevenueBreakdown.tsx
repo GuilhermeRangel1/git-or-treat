@@ -96,7 +96,7 @@ export default function RevenueBreakdown({
                   "pt-BR",
                 )}
               </caption>
-              <thead className="h-11 border-b border-border font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+              <thead className="h-11 border-b border-border font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
                 <tr>
                   <th scope="col" className="px-3 py-2 font-medium">
                     <label className="flex items-center gap-2">

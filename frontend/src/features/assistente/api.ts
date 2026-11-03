@@ -48,21 +48,35 @@ export async function askAIQuestion(
       false,
       409,
     );
+  const { history_request_id, refresh_context, ...publicRequest } = request;
+  const saved = Boolean(history_request_id && request.conversation_id);
+  const path = saved
+    ? `/api/v1/ai/conversations/${encodeURIComponent(request.conversation_id!)}/questions`
+    : "/api/v1/ai/questions";
   const payload = {
-    ...request,
+    ...(saved
+      ? {
+          request_id: history_request_id,
+          question: request.question,
+          refresh_context: refresh_context ?? false,
+        }
+      : publicRequest),
     ...(expected ? { expected_publication: expected } : {}),
   };
   let rawResponse: unknown;
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", abortFromCaller, { once: true });
   let timedOut = false;
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
   }, 70_000);
   try {
-    rawResponse = await apiClient<unknown>("/api/v1/ai/questions", {
+    rawResponse = await apiClient<unknown>(path, {
       method: "POST",
-      signal: signal ?? controller.signal,
+      signal: controller.signal,
       body: JSON.stringify(payload),
     });
   } catch (error) {
@@ -84,6 +98,25 @@ export async function askAIQuestion(
     }
     if (!(error instanceof ApiError)) throw error;
 
+    const publicError = decodeAIQuestionErrorResponse(error.data);
+    if (publicError?.error.code === "conversation_conflict") {
+      throw new AIChatApiError(
+        publicError.message,
+        publicError.error.retryable,
+        error.status,
+        publicError.error.code,
+        publicError.correlation_id,
+      );
+    }
+    if (publicError?.error.code === "invalid_continuation") {
+      throw new AIChatApiError(
+        "O contexto anterior não é mais válido. Inicie uma nova conversa.",
+        false,
+        error.status,
+        publicError.error.code,
+        publicError.correlation_id,
+      );
+    }
     if (error.status === 409) markGoldPublicationStale();
     const accessMessages: Record<number, string> = {
       401: "Sua sessão expirou. Entre novamente para continuar.",
@@ -97,7 +130,6 @@ export async function askAIQuestion(
       throw new AIChatApiError(accessMessage, false, error.status);
     }
 
-    const publicError = decodeAIQuestionErrorResponse(error.data);
     if (publicError) {
       throw new AIChatApiError(
         publicError.message,
@@ -122,6 +154,7 @@ export async function askAIQuestion(
     );
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
 
   if (

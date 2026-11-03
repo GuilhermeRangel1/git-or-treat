@@ -2,7 +2,6 @@
 
 > Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
 
-
 **Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros na URL, 4 KPIs principais, oito métricas auditáveis nos fundamentos, série mensal e API sintética em `GET /api/v1/panorama`. O Assistente envia perguntas ao Backend pelo contrato v1 e mostra evidências e limitações sintéticas. Receita mantém a exploração DEV-03; Inspeções mantém fila e detalhe auditável DEV-05. As demais jornadas seguem seus estados no PRD. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos, sem substituir o contrato do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
 
 O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite. As portas são publicadas somente em localhost por segurança; acesso de outro dispositivo exige ingresso configurado deliberadamente. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
@@ -102,7 +101,7 @@ Antes de declarar WEB-01 a WEB-07 concluídos, guardar evidência de uma execuç
 
 ### Assistente — integração conversacional demonstrativa
 
-A rota `/assistente` envia `contract_version=v1`, a pergunta e até três turnos recentes a `POST /api/v1/ai/questions`. O navegador chama somente o Backend; a chave e a configuração do Gemini permanecem no serviço GenAI. A tela valida o envelope recebido em execução e distingue resposta fundamentada, esclarecimento, recusa, ausência de evidência e falha recuperável, com um rótulo visível para cada estado. Respostas mostram referência, descrição, marcação sintética, limitações e recorte declarado. O histórico é uma região rolável independente; o formulário fica fora dela, acessível enquanto as mensagens rolam, e o estado de processamento é anunciado à tecnologia assistiva. A conversa e seu contexto ficam apenas na memória do componente e podem ser apagados com “Nova conversa”. Erros HTTP não são repetidos automaticamente; a falha de rede tem mensagem recuperável e o botão manual só aparece quando o envelope válido permite retry.
+A rota `/assistente` envia `contract_version=v1`, a pergunta e até três turnos recentes a `POST /api/v1/ai/questions`. O navegador chama somente o Backend; a chave e a configuração do Gemini permanecem no serviço GenAI. A tela valida o envelope recebido em execução e distingue resposta fundamentada, esclarecimento, recusa, ausência de evidência e falha recuperável, com um rótulo visível para cada estado. Respostas mostram referência, descrição, marcação sintética, limitações e recorte declarado. O histórico aberto é uma região rolável independente; o formulário fica fora dela, acessível enquanto as mensagens rolam, e o estado de processamento é anunciado à tecnologia assistiva. Com sessão autenticada, a lista de conversas privadas é carregada na lateral; o item abre o histórico e seu menu de três pontos permite renomear ou excluir. Em telas menores, a lista aparece abaixo da conversa. A política aprovada mantém as conversas por até 30 dias após a última mensagem; apagar remove o conteúdo. Sem sessão, a conversa e seu contexto existem apenas na memória do componente e podem ser descartados com “Nova conversa”. Erros HTTP não são repetidos automaticamente; a falha de rede tem mensagem recuperável e o botão manual só aparece quando o envelope válido permite retry.
 
 O `docker-compose.yml` inicia o serviço GenAI sem publicar sua porta no host e aguarda o health check antes do Backend. Para uma chamada de modelo, as configurações privadas de Backend e GenAI precisam ser preenchidas; os arquivos `.env` seguem ignorados pelo Git. O CI usa o `.env.example` e verifica saúde do conjunto sem chave Gemini, sem chamada faturável e sem habilitar acesso demonstrativo no GenAI. A prova automática da tela usa transporte falso; a integração real depende de configuração local e continua sem acesso à Gold. Veja [contrato de chat](../contracts/genai-chat-api.md) e os READMEs de Backend e GenAI.
 
@@ -141,7 +140,6 @@ Filtros aplicados de competência inicial/final e alimentador, métrica do ranki
 O detalhe consome `GET /operations/feeders/{id}` 1.1.0, com resumo independente da página de ocorrências. As séries DEC/FEC são mensais, com unidade, escala a partir de zero e alternativa textual; os valores e períodos ilustrativos do Figma não substituem a API. Alimentadores excluídos do ranking continuam investigáveis, e a indisponibilidade dos indicadores não transforma ocorrências observadas em ausência. Fórmula, universo, denominador, numeradores, janela observada, referência, origem e limitações permanecem consultáveis.
 
 Decoders validam o JSON e seu contexto antes de apresentar dados; filtros inválidos na URL suspendem consultas até correção/restauração. Erros de cada consulta têm recuperação manual e não apagam respostas válidas das demais. Carregamento, atualização, vazio, parcial, indisponível e zero conhecido são estados distintos. A integração é demonstrativa, sem carga ou reconciliação Gold, e não declara conformidade regulatória. Evidências finais e limites ficam no Registro de progresso do PRD.
-
 
 ## Integração provisória Gold v1 — 27/10/2026
 
@@ -185,10 +183,10 @@ Os filtros usam o padrão de Panorama: rascunho local, Cancelar, Aplicar e Limpa
 
 Validação sem escrita na base local: Playwright conferiu filtros/modal, ranking e detalhe, tema escuro e viewport mobile 390 px sem overflow do documento. Em uma amostra do detalhe, 18 competências Jan/2025–Jun/2026 conferiram entre a série e a tabela da API; nenhuma lacuna foi encontrada na amostra ao vivo, enquanto testes cobrem zero e período sem ponto. A suíte frontend completa passou (344 testes, 1 ignorado); a suíte backend completa passou (779 testes, 99 ignorados e um aviso preexistente) sob configuração de teste sintética/service. WEB-06 permanece `Em validação`, WEB-07 permanece `Pendente`; esta fatia não declara conformidade regulatória nem aceite integral. Plano e relatório local ignorado: [ajustes de Operação Gold v2](../plans/2026-10-31-operacao-gold-v2-ajustes.md), `work/operacao-gold-v2-implementation-report.md`.
 
-
 ## GENAI-13 — invalidação integrada
 
 Assistente e insight vinculam a publicação conhecida à consulta; o insight envia/confere fingerprint e o resolvedor lê a view de metadados no PostgreSQL. Mudança de publicação ou acesso retira contexto anterior e retentativas; resposta/erro atrasados não substituem revisão vigente. Evidências e limites da integração em [GENAI-13](../plans/2026-11-01-genai13-invalidacao-integrada.md). Mantida compatibilidade dos campos opcionais e dos modos demonstrativos explícitos.
+O Assistente tem uma identidade visual animada em `AssistantIdentity.tsx` e estilos locais em `assistant.css`, com movimento reduzido via media query. Em telas largas, a conversa divide espaço com a lista privada de históricos; em telas menores, essa lista aparece abaixo do chat. Os itens abrem conversas anteriores e concentram renomear e excluir no menu de três pontos. A conversa aberta mantém rolagem independente do compositor. Os pulsos de consulta indicam espera da requisição, sem afirmar progresso de etapas do servidor.
 
 ### UC 360 — nome de titular cadastral restrito
 
@@ -198,7 +196,15 @@ O Assistente tem uma identidade visual animada em `AssistantIdentity.tsx` e esti
 # Atualização de Receita — 02/11/2026
 
 O cartão de Receita apresenta “Consumo medido” em kWh nos mesmos extremos mensais usados pelos demais cartões. Quando a cobertura da medida é parcial, a tela informa isso junto ao cartão; ausência continua distinta de zero. A métrica não é chamada de energia faturada.
+Arquivos de campo: Inspeções oferece diálogo de exportação integral ou filtrada por categoria, município, bairro e classe, com opções carregadas da API. Paginação da tela não limita o arquivo. Importação atual usa CSV e apresenta erros por linha; XLSX e validação visual continuam pendentes.
+WEB-09: Baixar modelo de resultados gera Excel das ordens em andamento; preencher resultado na aba Resultados e importar XLSX ou CSV. Portal apresenta contagem de resultados e erros por linha e atualiza o cache de Ordens. Cada linha válida é confirmada separadamente; revisão visual permanece pendente.
+Organização WEB-08/WEB-09: Inspeções mantém somente exportação da fila; Ordens concentra modelo e upload de resultados, para usuários com escrita. Feedback informa ordens concluídas e erros por linha; componente compartilhado em shared/inspections respeita os limites entre features.
+Ordens permite excluir qualquer estado com confirmação digitando o ID. A interface aguarda 204, atualiza as consultas e informa a exclusão; o histórico permanece para auditoria. Cancelar ordem usa rótulo sem reticências.
 
 ## FAQ contextual de indicadores
 
 Assistente, Panorama, Receita, Operação e UC 360 oferecem a ajuda “Entenda os indicadores”, pelo componente `shared/help/IndicatorHelp`. As nove perguntas usam definições geradas do catálogo Gold v2; a ajuda estática funciona sem IA ou API de dados e distingue conceito de consulta numérica. Vigência, fonte, versão, retirada de verbetes, manutenção e evidências estão no [contrato do FAQ](../contracts/indicator-faq.md). `npm run check:faq` integra o CI Frontend; após alterar o catálogo, gerar novamente e revisar os textos. A fonte aparece como referência interna sem link para GitHub; a ajuda inclui exemplos de perguntas com cópia e seleção manual, reaproveitados das perguntas comuns do Assistente. A pessoa usuária aprovou a experiência e os textos do FAQ em 02/11/2026, concluindo os dez critérios na entrega local; integração por commit/PR permanece pendente.
+
+## IA-07 — acompanhamento natural
+
+O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).

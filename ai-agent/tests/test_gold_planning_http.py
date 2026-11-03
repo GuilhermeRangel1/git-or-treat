@@ -335,7 +335,9 @@ def test_ate03_ate04_select_accumulated_metric_without_inventing_calendar(questi
 
 
 @pytest.mark.parametrize("value,formatted", [
-    (5, "5 chamados de atendimento"), (318871.0, "318.871 chamados de atendimento"),
+    (1, "1 chamado de atendimento"),
+    (5, "5 chamados de atendimento"),
+    (318871.0, "318.871 chamados de atendimento"),
 ])
 def test_ate03_accumulated_observation_survives_synthesis_without_inventing_date(value, formatted):
     core, request = _setup("Quantos chamados de atendimento existem no histórico acumulado?")

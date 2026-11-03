@@ -14,6 +14,29 @@ from tests.support.migrations import alembic_config
 ROOT = "/api/v1/inspections/orders"
 
 
+@pytest.mark.parametrize("state", ["PENDENTE", "EM_ANDAMENTO", "CONCLUIDA", "CANCELADA"])
+def test_delete_any_status_preserves_audit_and_hides_order(writer, state):
+    order = create(writer)
+    oid = order['id']
+    if state in {'EM_ANDAMENTO', 'CONCLUIDA'}:
+        order = writer.patch(f'{ROOT}/{oid}', json={'version': 1, 'status': 'EM_ANDAMENTO'}).json()
+    if state == 'CONCLUIDA':
+        order = writer.post(f'{ROOT}/{oid}/result', json={'version': order['version'], 'result': 'Sem irregularidade'}).json()
+    if state == 'CANCELADA':
+        order = writer.post(f'{ROOT}/{oid}/cancel', json={'version': 1, 'confirmed_order_id': oid}).json()
+    payload = {'version': order['version'], 'confirmed_order_id': oid}
+    assert writer.request('DELETE', f'{ROOT}/{oid}', json={**payload, 'confirmed_order_id': oid + 1}).status_code == 409
+    assert writer.request('DELETE', f'{ROOT}/{oid}', json=payload).status_code == 204
+    assert writer.get(f'{ROOT}/{oid}').status_code == 404
+    assert writer.get(ROOT).json() == []
+    assert writer.get(ROOT + '/search').json()['pagination']['total'] == 0
+    assert writer.patch(f'{ROOT}/{oid}', json={'version': order['version'] + 1, 'notes': 'alterar'}).status_code == 404
+    with TestingSessionLocal() as db:
+        assert db.get(InspectionOrder, oid) is not None
+        assert db.query(OperationalOrderHistory).filter_by(order_id=oid, details=service.DELETED_ORDER_DETAIL).count() == 1
+    assert writer.post(ROOT, json={'uc_id': order['uc_id'], 'reason': 'Nova ordem'}).status_code == 201
+
+
 @pytest.fixture
 def writer(client, monkeypatch):
     token = "dev07-test-" + "w" * 32

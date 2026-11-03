@@ -96,13 +96,13 @@ _DIMENSIONS = (
         "customer.consumption_class",
         "Classe de consumo",
         "classification",
-        ("classe", "classe de consumo"),
+        ("classe", "classe de consumo", "classes", "classes de consumo"),
         (
-            {"value": "RESIDENCIAL", "aliases": ("residencial",)},
-            {"value": "COMERCIAL", "aliases": ("comercial",)},
-            {"value": "INDUSTRIAL", "aliases": ("industrial",)},
+            {"value": "RESIDENCIAL", "aliases": ("residencial", "residenciais")},
+            {"value": "COMERCIAL", "aliases": ("comercial", "comerciais")},
+            {"value": "INDUSTRIAL", "aliases": ("industrial", "industriais")},
             {"value": "PODER PUBLICO", "aliases": ("poder público",)},
-            {"value": "RURAL", "aliases": ("rural",)},
+            {"value": "RURAL", "aliases": ("rural", "rurais")},
         ),
     ),
     _dimension(
@@ -306,6 +306,7 @@ _METRICS = (
             "faturou",
             "faturaram",
             "faturei",
+            "faturado", "faturada", "faturados", "faturadas", "faturamentos",
         ),
         "R$",
         ("currency",),
@@ -316,7 +317,10 @@ _METRICS = (
         "energy.consumption",
         "consumption",
         ("consumo", "consumo de energia", "energia consumida", "volume residencial",
-         "volume comercial", "volume de consumo"),
+         "volume comercial", "volume de consumo", "consumiu", "consumiram",
+         "consumimos", "consumido", "consumida", "consumidos", "consumidas",
+         "energia gasta", "energia utilizada", "energia usada", "energia foi utilizada",
+         "energia foi usada", "energia foi gasta"),
         "kWh",
         ("energy",),
         _COMMERCIAL_WITH_UC,
@@ -596,13 +600,24 @@ def _build_profile() -> DomainProfile:
         *values["ambiguities"],
         {
             "phrases": (
-                "valor pago", "valores pagos", "quanto foi pago", "receita recebida",
-                "receita paga", "valor recebido", "arrecadação", "arrecadado",
-                "pagamento", "pagamentos", "faturas pagas",
-                "receita arrecadada", "receitas arrecadadas", "valores arrecadados",
-                "faturamento arrecadado", "faturamento recebido", "faturamento pago",
-                "valores recebidos", "receitas recebidas", "receitas pagas",
+                "pago", "pagos", "paga", "pagas", "arrecadação", "arrecadado", "arrecadada",
+                "arrecadados", "arrecadadas", "pagamento", "pagamentos",
+                "grana que entrou", "dinheiro que entrou",
+                "pagou", "pagaram", "pagamos", "arrecadou", "arrecadamos", "arrecadaram",
             ),
+            "alternative_metric_ids": ("billing.revenue",),
+            "clarification": (
+                "Receita faturada não comprova pagamento ou arrecadação. "
+                "Você quer consultar a receita faturada?"
+            ),
+        },
+        {
+            "phrases": ("recebido", "recebidos", "recebida", "recebidas",
+                        "recebemos", "receberam", "recebeu", "recebi"),
+            # Receber um chamado não significa receber receita. O mesmo verbo
+            # precisa respeitar o assunto explicitamente mencionado.
+            "resolved_metric_ids": ("service.attendance", "service.accumulated_attendance"),
+            "alternative_metric_ids": ("billing.revenue",),
             "clarification": (
                 "Receita faturada não comprova pagamento ou arrecadação. "
                 "Você quer consultar a receita faturada?"
@@ -610,6 +625,7 @@ def _build_profile() -> DomainProfile:
         },
         {
             "phrases": ("energia faturada", "kwh faturados", "kwh faturado"),
+            "alternative_metric_ids": ("energy.consumption",),
             "clarification": (
                 "A Gold v2 publica consumo medido em kWh, não energia faturada. "
                 "Quer consultar o consumo medido?"
@@ -620,6 +636,7 @@ def _build_profile() -> DomainProfile:
                 "energia injetada", "energia compensada", "energia entregue",
                 "consumo injetado", "consumo compensado",
             ),
+            "alternative_metric_ids": ("energy.consumption",),
             "clarification": (
                 "Consumo medido não representa energia injetada, compensada ou entregue. "
                 "Você quer consultar o consumo medido?"
@@ -627,11 +644,12 @@ def _build_profile() -> DomainProfile:
         },
         {
             "phrases": ("solar", "energia solar", "painel solar", "painéis solares"),
+            "confirmation_phrase": "com GD",
             "examples": ("Quantas UCs com GD em {geography.municipality} "
                          "tiveram queda de consumo acima de 30%?",),
             "clarification": (
                 "Os dados identificam geração distribuída (GD), mas não confirmam que a fonte "
-                "seja solar. Posso filtrar UCs com ou sem GD registrada?"
+                "seja solar. Quer consultar UCs com GD registrada?"
             ),
         },
         {

@@ -240,13 +240,13 @@ def _validate_gold_filters(repository: GoldInspectionRepository, filters: Analyt
 
 def build_gold_queue_response(
     repository: GoldInspectionRepository, filters: AnalyticsFilters, page: int, page_size: int,
-    order_by: str, direction: str,
+    order_by: str, direction: str, category: str | None = None,
 ) -> GoldInspectionQueueResponse:
     options = repository.filter_options()
     _validate_gold_filters(repository, filters, options)
-    total = repository.count(filters)
+    total = repository.count(filters, category)
     category_counts = repository.category_counts(filters)
-    rows = repository.list_page(filters, page, page_size, order_by, direction)
+    rows = repository.list_page(filters, page, page_size, order_by, direction, category)
     items = [_gold_item(row) for row in rows]
     state: AnalyticsStatus = "empty" if total == 0 else "available"
     return GoldInspectionQueueResponse(

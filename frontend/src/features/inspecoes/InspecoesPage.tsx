@@ -10,6 +10,7 @@ import InspectionFoundations from "./InspectionFoundations";
 import CreateOrder from "./CreateOrder";
 import InspectionFilters from "./InspectionFilters";
 import InspectionQueue from "./InspectionQueue";
+import FieldFiles from "./FieldFiles";
 import { inspectionAction } from "./inspection-ui";
 import type { Metadata } from "./contract";
 import { useOrderAccess, useSession } from "@/shared/auth/useSession";
@@ -268,6 +269,9 @@ export default function InspecoesPage() {
                 params={params}
                 onChange={setParams}
               />
+              {parsed ? (
+                <FieldFiles mode="export" request={parsed.request} />
+              ) : null}
             </>
           ) : null}
 

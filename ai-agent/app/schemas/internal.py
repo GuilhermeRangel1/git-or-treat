@@ -23,7 +23,7 @@ from app.schemas.analysis import LogicalIdentifier
 from app.schemas.domain_profile import CatalogOperation
 from app.schemas.evidence import EvidenceLookupResult, GoldBatchRef
 from app.schemas.physical_catalog import PhysicalCatalogRef
-from app.schemas.questions import QuestionRequest, QuestionResponse, QuestionStatus
+from app.schemas.questions import QuestionRequest, QuestionResponse, QuestionStatus, QuestionText
 from app.schemas.read_plan import LogicalReadPlan
 from app.schemas.responses import CorrelationId
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
@@ -137,9 +137,17 @@ class QuestionPlanRequest(QuestionRequest):
 
 class QuestionPlanStatus(StrEnum):
     PLANNED = "planned"
+    ANSWERED = "answered"
+    NO_EVIDENCE = "no_evidence"
     NEEDS_CLARIFICATION = "needs_clarification"
     REFUSED = "refused"
     RECOVERABLE_ERROR = "recoverable_error"
+
+
+class DocumentationReference(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    id: str = Field(pattern=r"^[a-z][a-z0-9-]{0,63}$")
+    version: str = Field(pattern=r"^[a-f0-9]{12}$")
 
 
 class QuestionPlanResponse(BaseModel):
@@ -153,8 +161,10 @@ class QuestionPlanResponse(BaseModel):
     plan: LogicalReadPlan | None = None
     plan_fingerprint: str | None = Field(default=None, pattern=_FINGERPRINT_PATTERN)
     response: QuestionResponse | None = None
+    pending_question: QuestionText | None = None
     # Catálogo físico sob o qual o plano foi produzido; opcional para compatibilidade.
     physical_catalog: PhysicalCatalogRef | None = None
+    documentation_reference: DocumentationReference | None = None
 
     @model_serializer(mode="wrap")
     def _omit_absent_physical_catalog(self, handler):
@@ -162,10 +172,21 @@ class QuestionPlanResponse(BaseModel):
         data = handler(self)
         if self.physical_catalog is None and isinstance(data, dict):
             data.pop("physical_catalog", None)
+        if self.pending_question is None and isinstance(data, dict):
+            data.pop("pending_question", None)
+        if self.documentation_reference is None and isinstance(data, dict):
+            data.pop("documentation_reference", None)
         return data
 
     @model_validator(mode="after")
     def validate_content_for_status(self) -> Self:
+        if (self.status is QuestionPlanStatus.ANSWERED) != (
+            self.documentation_reference is not None
+        ):
+            raise ValueError("resposta conceitual exige referência documental")
+        if (self.pending_question is not None
+                and self.status is not QuestionPlanStatus.NEEDS_CLARIFICATION):
+            raise ValueError("rascunho só acompanha esclarecimento")
         if self.physical_catalog is not None and self.status is not QuestionPlanStatus.PLANNED:
             raise ValueError("catálogo físico só acompanha plano pronto")
         if self.status is QuestionPlanStatus.PLANNED:
