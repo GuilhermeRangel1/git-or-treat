@@ -6,7 +6,7 @@ from app.schemas.domain_profile import DimensionValue
 
 VALUES = {
     "geography.municipality": ("Recife",),
-    "geography.neighborhood": ("BARRO", "IPUTINGA"),
+    "geography.neighborhood": ("BAIRO", "LUMENIA"),
 }
 
 
@@ -22,15 +22,15 @@ def _profile():
 
 @pytest.mark.parametrize("question", [
     "Qual bairro de Recife teve a maior queda de consumo entre maio e junho de 2026?",
-    "Qual foi a receita faturada no bairro IPUTINGA em Recife em junho de 2026?",
+    "Qual foi a receita faturada no bairro LUMENIA em Recife em junho de 2026?",
     "Quais bairros de Recife tiveram maior consumo em junho de 2026?",
 ])
 def test_dimension_name_is_never_corrected_to_a_similar_value(question):
-    assert not any("BARRO" in item for item in spelling_suggestions(question, _profile()))
+    assert not any("BAIRO" in item for item in spelling_suggestions(question, _profile()))
 
 
 def test_real_typo_of_a_catalog_value_is_still_suggested():
     assert list(spelling_suggestions(
-        "Qual foi a receita faturada no bairro IPUTINGA em Reciffe em junho de 2026?",
+        "Qual foi a receita faturada no bairro LUMENIA em Reciffe em junho de 2026?",
         _profile(),
-    )) == ["Qual foi a receita faturada no bairro IPUTINGA em Recife em junho de 2026?"]
+    )) == ["Qual foi a receita faturada no bairro LUMENIA em Recife em junho de 2026?"]

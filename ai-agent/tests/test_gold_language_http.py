@@ -109,6 +109,10 @@ BOTH_BOUNDS = "Informe o mês e o ano de ambos os extremos do intervalo"
      "Qual quer primeiro?"),
     ("Qual foi a receita faturada em março de 2025 em Recife, excluindo Olinda?",
      "Este recorte pede exclusão; informe o valor que deseja incluir."),
+    ("Qual foi a receita faturada em março de 2025 em Recife, exceto Olinda?",
+     "Este recorte pede exclusão; informe o valor que deseja incluir."),
+    ("Qual foi a receita faturada em março de 2025 em Recife, menos Olinda?",
+     "Este recorte pede exclusão; informe o valor que deseja incluir."),
     ("Quais UCs com GD em Olinda tiveram queda de consumo superior a 30%?",
      "Não apresento resultados individuais por unidade consumidora (UC). "
      "Posso mostrar totais por município, bairro ou classe de consumo."),
@@ -232,7 +236,7 @@ def test_unknown_or_multiple_grouping_references_do_not_disappear(question):
 
 @pytest.mark.parametrize("period", [
     "no mês de março de 2025", "na competência março de 2025",
-    "em 03/2025", "em 3/2025", "em março/2025",
+    "em 03/2025", "em 3/2025", "em março/2025", "em mar/2025", "em mar. 2025",
 ])
 def test_explicit_month_notation_preserves_the_authorized_slice(period):
     result = _plan(f"Receita residencial em Olinda {period}?")
@@ -351,6 +355,41 @@ def test_lost_revenue_ranking_cannot_be_answered_as_lowest_monthly_total():
     result = _plan("Qual município mais perdeu receita em março de 2025?")
     assert result["status"] == "needs_clarification", result
     assert result.get("plan") is None
+
+
+@pytest.mark.parametrize("question,value,unit,expected", [
+    ("Qual foi o ticket médio em Olinda em março de 2025?", 260.78,
+     "R$ por UC faturada no mês",
+     "Para ticket médio por UC faturada no mês, o resultado foi de "
+     "260,78 R$ por UC faturada no mês em março de 2025."),
+    ("Qual foi a tarifa média efetiva em Olinda em março de 2025?", 0.7557, "R$/kWh",
+     "Para preço médio observado por kWh, o resultado foi de 0,7557 R$/kWh em março de 2025."),
+    ("Qual foi o consumo em Olinda em março de 2025?", 1364362.0, "kWh",
+     "Para consumo medido, o resultado foi de 1.364.362 kWh em março de 2025."),
+    ("Qual foi a receita em Olinda em março de 2025?", -189630.15, "R$",
+     "Para receita faturada, o resultado foi de -R$ 189.630,15 em março de 2025."),
+])
+def test_synthesized_answer_uses_pt_br_numbers_and_keeps_acronyms(question, value, unit, expected):
+    core, request = _setup(question)
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+        assert result["status"] == "planned", result
+        plan = LogicalReadPlan.model_validate(result["plan"])
+        lookup = _lookup(plan, batch_ref=request.batch_ref)
+        lookup.evidence.records = [{"period": "2025-03", "value": value, "unit": unit}]
+        synthesis = QuestionSynthesisRequest(
+            question=question, access_scope=request.access_scope,
+            remaining_timeout_ms=35000, plan=plan, plan_fingerprint=plan.fingerprint(),
+            lookup=lookup, expected_batch_ref=request.batch_ref,
+            dimension_value_coverage=request.dimension_value_coverage,
+        )
+        response = client.post(
+            SYNTHESIS_PATH, json=synthesis.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+    assert response["status"] == "answered", response
+    assert response["answer"] == expected
 
 
 @pytest.mark.parametrize("follow_up", [False, True])

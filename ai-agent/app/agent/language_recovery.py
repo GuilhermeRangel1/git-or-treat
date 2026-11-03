@@ -73,7 +73,7 @@ def spelling_suggestions(question: str, profile: DomainProfile) -> Iterator[str]
         if re.fullmatch(r"[^\W\d_]{5,40}", alias, flags=re.UNICODE)
     }
     # Nomes de dimensões e métricas são palavras válidas, nunca erros de um valor parecido
-    # (ex.: "bairro" não vira o bairro "BARRO"). O plural só acrescenta "s" após vogal.
+    # (ex.: "bairro" não vira o bairro "BAIRO"). O plural só acrescenta "s" após vogal.
     known_words = {
         word
         for alias in (
