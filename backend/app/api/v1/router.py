@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     ai,
+    ai_conversations,
     analytics_options,
     auth,
     genai_audit,
@@ -29,4 +30,5 @@ api_router.include_router(inspections.router, prefix="/inspections", tags=["Insp
 api_router.include_router(operations.router, prefix="/operations", tags=["Operação / Continuidade"])
 api_router.include_router(ai.router, prefix="/ai", tags=["Agente IA"])
 api_router.include_router(ai.questions_router, prefix="/ai", tags=["Agente IA"])
+api_router.include_router(ai_conversations.router, prefix="/ai", tags=["Histórico IA"])
 api_router.include_router(ai.insights_router, prefix="/ai", tags=["Agente IA"])

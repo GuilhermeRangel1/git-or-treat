@@ -121,6 +121,10 @@ class AIQuestionRoute(APIRoute):
                     message="A solicitação não segue o contrato v1.",
                 )
 
+            except SQLAlchemyError:
+                return _question_error(request, status_code=503, code="service_unavailable",
+                    retryable=True, message="O serviço está temporariamente indisponível.")
+
             except HTTPException as exc:
                 if exc.status_code in {401, 403}:
                     return _question_error(

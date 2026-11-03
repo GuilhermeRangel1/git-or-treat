@@ -206,21 +206,32 @@ describe("Assistente Grid 360", () => {
     const suggestions = screen.getByRole("region", {
       name: "Perguntas comuns",
     });
+    expect(within(suggestions).getAllByRole("button")).toHaveLength(4);
     expect(
       within(suggestions).getByRole("button", {
-        name: "Qual foi a receita residencial em junho de 2026?",
+        name: "Qual foi a receita faturada em Olinda em junho de 2026?",
       }),
     ).toBeVisible();
     expect(
       within(suggestions).getByRole("button", {
-        name: "Qual município teve maior receita em junho de 2026?",
+        name: "Qual foi o consumo de energia em Recife em junho de 2026?",
       }),
     ).toBeVisible();
     expect(
       within(suggestions).getByRole("button", {
-        name: "Quantos chamados constam no histórico acumulado?",
+        name: "Quantos chamados de atendimento existem no histórico acumulado?",
       }),
     ).toBeVisible();
+    expect(
+      within(suggestions).getByRole("button", {
+        name: "Qual foi a receita em Olinda, não, em Jaboatão dos Guararapes, em junho de 2026?",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(
+        /Informe o período e o local para uma resposta mais precisa/,
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("mostra carregamento e bloqueia outro envio até a resposta", async () => {
@@ -291,20 +302,17 @@ describe("Assistente Grid 360", () => {
       within(analysisContext).getAllByRole("definition")[3],
     ).toHaveTextContent(": Exemplo");
 
-    const questionIndex = screen.getByRole("complementary", {
-      name: "Perguntas desta conversa",
+    const conversationSidebar = screen.getByRole("complementary", {
+      name: "Conversas salvas",
     });
-    const originalQuestion = document.getElementById("assistant-message-0")!;
-    originalQuestion.scrollIntoView = vi.fn();
-    await user.click(
-      within(questionIndex).getByRole("button", {
-        name: /Como variou o consumo/,
-      }),
-    );
-    expect(originalQuestion).toHaveFocus();
-    expect(originalQuestion.scrollIntoView).toHaveBeenCalledWith({
-      block: "nearest",
-    });
+    expect(
+      within(conversationSidebar).getByText(
+        "Entre na sua conta para salvar e gerenciar conversas. Esta conversa fica somente nesta tela.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Conversas" }),
+    ).not.toBeInTheDocument();
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(options.method).toBe("POST");
@@ -616,7 +624,9 @@ describe("Assistente Grid 360", () => {
 
     await user.click(screen.getByRole("button", { name: /Nova conversa/ }));
     expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
-    expect(screen.getByText(/fica apenas nesta tela/)).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "O que você quer investigar?" }),
+    ).toBeVisible();
   });
 
   it("oferece repetição manual somente quando o erro diz que é recuperável", async () => {

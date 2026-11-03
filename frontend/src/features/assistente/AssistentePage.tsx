@@ -1,6 +1,10 @@
-import { ASSISTANT_EXAMPLES } from "@/shared/help/assistantExamples";
+import { ASSISTANT_HOME_SUGGESTIONS } from "@/shared/help/assistantExamples";
 import IndicatorHelp from "@/shared/help/IndicatorHelp";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/shared/auth/useSession";
+import { currentAuthorizationGeneration } from "@/shared/auth/authorization";
+import ConversationHistory from "./ConversationHistory";
+import { createConversation, openConversation } from "./history";
 import {
   AlertCircle,
   Check,
@@ -34,7 +38,12 @@ import type {
 
 type RetryRequest = Pick<
   AIQuestionRequest,
-  "question" | "context" | "continuation_token" | "conversation_id"
+  | "question"
+  | "context"
+  | "continuation_token"
+  | "conversation_id"
+  | "history_request_id"
+  | "refresh_context"
 > & {
   userMessageId: number;
   assistantMessageId: number;
@@ -48,9 +57,10 @@ type ChatMessage = {
   retryRequest?: RetryRequest;
   contextEligible: boolean;
   outdated?: boolean;
+  historical?: boolean;
 };
 
-const SUGGESTIONS = ASSISTANT_EXAMPLES;
+const SUGGESTIONS = ASSISTANT_HOME_SUGGESTIONS;
 
 const RESPONSE_STATES: Record<
   AIQuestionResponse["status"],
@@ -359,6 +369,12 @@ function MessageCard({
         <Sparkles aria-hidden="true" className="size-4 text-brand" />
         Assistente Grid 360
       </div>
+      {message.historical && (
+        <p className="mt-2 text-sm text-muted">
+          Resposta salva · consulte novamente para obter dados atuais.
+        </p>
+      )}
+      {!message.response && <p className="mt-2">{message.content}</p>}
       {message.response && <AssistantResult response={message.response} />}
       {message.response?.status === "recoverable_error" &&
         message.response.error?.retryable &&
@@ -378,10 +394,21 @@ function MessageCard({
 }
 
 export default function AssistentePage() {
+  const session = useSession();
+  const historyEnabled = session.configured && Boolean(session.user);
+  const queryClient = useQueryClient();
+  const savedIdRef = useRef<string | null>(null);
+  const interactionRevision = useRef(0);
+  const drafts = useRef(new Map<string, string>());
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [restoredHistory, setRestoredHistory] = useState(false);
+  const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
+  const [refreshContext, setRefreshContext] = useState(false);
+  const [hasInterruptedSend, setHasInterruptedSend] = useState(false);
   const publicationRevision = useGoldPublicationRevision();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [conversationId, setConversationId] = useState(() =>
+  const [conversationId, setConversationId] = useState<string>(() =>
     crypto.randomUUID(),
   );
   const nextMessageId = useRef(0);
@@ -389,6 +416,12 @@ export default function AssistentePage() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const mutation = useMutation({ mutationFn: askAIQuestion, retry: false });
+  useEffect(
+    () => () => {
+      interactionRevision.current++;
+    },
+    [],
+  );
   // Publication changes invalidate interpretation history, including saved retries.
   useEffect(() => {
     // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
@@ -416,7 +449,18 @@ export default function AssistentePage() {
     retryAttempt?: RetryRequest,
   ) {
     const question = questionText.trim();
-    if (!question || question.length > 1000 || sendingRef.current) return;
+    if (
+      !question ||
+      question.length > 1000 ||
+      sendingRef.current ||
+      loadingHistory
+    )
+      return;
+    const revision = interactionRevision.current;
+    const authorization = currentAuthorizationGeneration();
+    const current = () =>
+      revision === interactionRevision.current &&
+      authorization === currentAuthorizationGeneration();
     const userMessageId = addUserMessage
       ? nextMessageId.current++
       : retryAttempt?.userMessageId;
@@ -425,10 +469,16 @@ export default function AssistentePage() {
       : retryAttempt?.assistantMessageId;
     if (userMessageId === undefined || assistantMessageId === undefined) return;
     sendingRef.current = true;
-    const retryRequest = retryAttempt ?? {
+    const retryRequest: RetryRequest = retryAttempt ?? {
       question,
       context,
       conversation_id: conversationId,
+      ...(historyEnabled
+        ? {
+            history_request_id: crypto.randomUUID(),
+            refresh_context: refreshContext,
+          }
+        : {}),
       continuation_token:
         [...messages]
           .reverse()
@@ -454,12 +504,32 @@ export default function AssistentePage() {
     }
 
     try {
+      if (historyEnabled && !savedIdRef.current) {
+        const created = await createConversation(conversationId);
+        if (!current()) return;
+        savedIdRef.current = created.id;
+        setActiveSavedId(created.id);
+        setConversationId(created.id);
+      }
+      if (historyEnabled) retryRequest.conversation_id = savedIdRef.current!;
       const response = await mutation.mutateAsync({
         contract_version: "v1",
         question,
         context: context.slice(-3),
         conversation_id: retryRequest.conversation_id,
         continuation_token: retryRequest.continuation_token,
+        ...(historyEnabled
+          ? {
+              history_request_id: retryRequest.history_request_id,
+              refresh_context: retryRequest.refresh_context,
+            }
+          : {}),
+      });
+      if (!current()) return;
+      setHasInterruptedSend(false);
+      setRefreshContext(false);
+      void queryClient.invalidateQueries({
+        queryKey: ["ai-conversations", session.user?.id],
       });
       if (addUserMessage && response.status !== "recoverable_error") {
         setDraft("");
@@ -504,6 +574,7 @@ export default function AssistentePage() {
         );
       });
     } catch (error) {
+      if (!current()) return;
       if (
         error instanceof AIChatApiError &&
         error.code === "superseded_request"
@@ -543,8 +614,10 @@ export default function AssistentePage() {
         ),
       );
     } finally {
-      sendingRef.current = false;
-      requestAnimationFrame(() => composerRef.current?.focus());
+      if (current()) {
+        sendingRef.current = false;
+        requestAnimationFrame(() => composerRef.current?.focus());
+      }
     }
   }
 
@@ -565,12 +638,69 @@ export default function AssistentePage() {
   }
 
   function startNewConversation() {
-    if (mutation.isPending) return;
+    drafts.current.set(savedIdRef.current ?? conversationId, draft);
+    interactionRevision.current++;
+    sendingRef.current = false;
+    savedIdRef.current = null;
+    setActiveSavedId(null);
+    setRestoredHistory(false);
+    setRefreshContext(false);
+    setHasInterruptedSend(false);
+    setLoadingHistory(false);
     setMessages([]);
     setConversationId(crypto.randomUUID());
     setDraft("");
     if (composerRef.current) composerRef.current.style.height = "";
     mutation.reset();
+  }
+
+  async function openSaved(id: string) {
+    drafts.current.set(savedIdRef.current ?? conversationId, draft);
+    const revision = ++interactionRevision.current;
+    const authorization = currentAuthorizationGeneration();
+    setLoadingHistory(true);
+    mutation.reset();
+    sendingRef.current = false;
+    try {
+      const saved = await openConversation(id);
+      if (
+        revision !== interactionRevision.current ||
+        authorization !== currentAuthorizationGeneration()
+      )
+        return;
+      savedIdRef.current = id;
+      setActiveSavedId(id);
+      setConversationId(id);
+      const restored: ChatMessage[] = [];
+      for (const entry of saved.exchanges) {
+        restored.push({
+          id: nextMessageId.current++,
+          role: "user",
+          content: entry.question ?? "Envio sem conteúdo armazenado.",
+          contextEligible: false,
+        });
+        restored.push({
+          id: nextMessageId.current++,
+          role: "assistant",
+          content: entry.response
+            ? responseContent(entry.response)
+            : "Envio interrompido ou indisponível. Você pode enviar uma nova pergunta.",
+          response: entry.response ?? undefined,
+          historical: true,
+          contextEligible: false,
+        });
+      }
+      setMessages(restored);
+      setDraft(drafts.current.get(id) ?? "");
+      setRestoredHistory(true);
+      setRefreshContext(false);
+      const last = saved.exchanges.at(-1);
+      setHasInterruptedSend(
+        Boolean(last && ["pending", "interrupted"].includes(last.state)),
+      );
+    } finally {
+      if (revision === interactionRevision.current) setLoadingHistory(false);
+    }
   }
 
   return (
@@ -599,7 +729,6 @@ export default function AssistentePage() {
               variant="ghost"
               size="sm"
               onClick={startNewConversation}
-              disabled={mutation.isPending}
               leftIcon={<Plus aria-hidden="true" className="size-4" />}
             >
               <span className="hidden sm:inline">Nova conversa</span>
@@ -611,6 +740,31 @@ export default function AssistentePage() {
 
       <AssistantIdentity pending={mutation.isPending} />
       <div className="assistant-conversation flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 lg:p-5">
+        {loadingHistory && <p role="status">Abrindo conversa…</p>}
+        {restoredHistory && (
+          <div className="rounded-xl border border-divider p-3 text-sm">
+            <p>
+              Você está vendo respostas salvas. Elas mantêm o recorte e a fonte
+              da consulta original.
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRefreshContext(true)}
+              disabled={refreshContext}
+            >
+              {refreshContext
+                ? "Pronto para consultar dados atuais"
+                : "Retomar com dados atuais"}
+            </Button>
+            {hasInterruptedSend && (
+              <p>
+                Há um envio sem resposta salva. Se ele ainda estiver em
+                processamento, aguarde antes de enviar uma nova pergunta.
+              </p>
+            )}
+          </div>
+        )}
         <div
           ref={historyRef}
           role="log"
@@ -621,7 +775,7 @@ export default function AssistentePage() {
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:-mr-0.5 lg:p-4"
         >
           {!hasMessages ? (
-            <div className="m-auto flex w-full max-w-[680px] flex-col gap-5 py-5">
+            <div className="m-auto flex w-full max-w-[680px] flex-col gap-5 py-5 lg:-translate-y-2">
               <div className="space-y-3 text-center">
                 <h1
                   id="assistant-heading"
@@ -635,7 +789,7 @@ export default function AssistentePage() {
                 </p>
               </div>
               <section aria-label="Perguntas comuns">
-                <h2 className="mb-2 text-sm font-semibold text-muted">
+                <h2 className="mb-2 text-center text-sm font-semibold text-muted">
                   Perguntas comuns
                 </h2>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -656,12 +810,6 @@ export default function AssistentePage() {
                   ))}
                 </div>
               </section>
-              <p className="flex items-start justify-center gap-2 text-center text-sm leading-5 text-muted">
-                <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                Informe o período e o local para uma resposta mais precisa. A
-                disponibilidade dos dados é conferida a cada pergunta. A
-                conversa fica apenas nesta tela e não é salva.
-              </p>
             </div>
           ) : (
             <>
@@ -742,7 +890,7 @@ export default function AssistentePage() {
                 <>
                   <span aria-hidden="true">·</span>
                   <Check aria-hidden="true" className="size-3.5" />
-                  conversa temporária
+                  {historyEnabled ? "histórico privado" : "conversa temporária"}
                 </>
               )}
             </span>
@@ -750,48 +898,31 @@ export default function AssistentePage() {
         </form>
       </div>
       <aside
-        aria-label="Perguntas desta conversa"
-        className="assistant-question-index min-h-0 overflow-y-auto border-l border-divider p-4"
+        aria-label="Conversas salvas"
+        className="assistant-history-sidebar min-h-0 overflow-hidden p-3 sm:p-4"
       >
-        <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted">
-          <MessageCircle aria-hidden="true" className="size-3.5" /> Suas
-          perguntas{" "}
-          <span className="ml-auto">
-            {messages.filter((message) => message.role === "user").length}
-          </span>
-        </p>
-        <p className="mt-2 text-sm leading-5 text-muted">
-          Nesta conversa · histórico temporário
-        </p>
-        <ol className="mt-4 space-y-2">
-          {messages
-            .filter((message) => message.role === "user")
-            .map((message, index) => (
-              <li key={message.id}>
-                <button
-                  type="button"
-                  className="w-full rounded-xl border border-divider bg-canvas/50 p-3 text-left text-sm leading-5 text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-brand"
-                  onClick={() => {
-                    const target = document.getElementById(
-                      `assistant-message-${message.id}`,
-                    );
-                    target?.scrollIntoView({ block: "nearest" });
-                    target?.focus({ preventScroll: true });
-                  }}
-                >
-                  <span className="mr-2 text-brand">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  {message.content}
-                </button>
-              </li>
-            ))}
-        </ol>
-        {!hasMessages && (
-          <p className="mt-6 text-sm leading-5 text-muted">
-            Suas perguntas aparecerão aqui para você voltar a elas durante a
-            conversa.
-          </p>
+        {historyEnabled ? (
+          <ConversationHistory
+            actor={session.user!.id}
+            activeId={activeSavedId}
+            onOpen={openSaved}
+            onDeleted={(id) => {
+              if (savedIdRef.current === id) startNewConversation();
+            }}
+          />
+        ) : (
+          <section aria-labelledby="assistant-conversations-heading">
+            <h2
+              id="assistant-conversations-heading"
+              className="text-sm font-semibold uppercase tracking-wider text-muted"
+            >
+              Conversas
+            </h2>
+            <p className="mt-3 text-sm leading-5 text-muted">
+              Entre na sua conta para salvar e gerenciar conversas. Esta
+              conversa fica somente nesta tela.
+            </p>
+          </section>
         )}
       </aside>
     </section>

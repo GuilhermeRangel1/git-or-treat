@@ -44,6 +44,8 @@ def test_model_metadata_loads_without_importing_database_engine():
             "auth_users",
             "auth_sessions",
             "genai_audit_events",
+            "ai_conversations",
+            "ai_conversation_exchanges",
         }
         assert "app.core.database" not in sys.modules
 

@@ -10,6 +10,8 @@ export type AIQuestionRequest = {
   context: AIConversationTurn[];
   conversation_id?: string;
   continuation_token?: string;
+  history_request_id?: string;
+  refresh_context?: boolean;
 };
 
 export type AIEvidenceReference = {
