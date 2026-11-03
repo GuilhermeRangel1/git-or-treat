@@ -3802,3 +3802,8 @@ passaram; Ruff passou. Sem chamada externa.
 ### 2026-11-03 — publicação dos complementos de latência e estabilidade
 
 Os complementos locais acima foram preparados para publicação na mesma branch do PR #116: `ee77230` (reuso de síntese), `33a030c` (concentração antecipada) e `80ac907` (consumidor estável e recorte). As referências anteriores a ausência de commit descrevem o estado durante as validações. Esta atualização documental integra o quarto commit autorizado; segredos, credenciais, scripts privados de navegação e artefatos locais permanecem fora do Git. O push não equivale a merge nem a aprovação da CI remota.
+
+### 2026-11-03 — IA-01 / IA-07 — divisão entre classes sem falso intervalo temporal
+
+- Interpretador reconhece “entre as classes”/“entre os municípios” como agrupamento pelas dimensões autorizadas e retira apenas essa referência da checagem de intervalo temporal. Um intervalo realmente incompleto ainda pede esclarecimento. Sem alteração no escopo, evidência, SQL ou permissões.
+- 334 regressões de interpretação, filtros, períodos, receptividade e planejamento passaram. A pergunta exata “Como a receita faturada de Olinda se divide entre as classes em junho de 2026?” retornou answered com rosca e cinco pontos pela API pública com Gold v2/Gemini reais; todos reconciliados com SQL independente somente leitura. Imagem GenAI reconstruída e aplicada no Docker local; Ruff e diff passaram. Sem commit/push.

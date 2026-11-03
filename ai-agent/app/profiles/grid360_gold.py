@@ -276,12 +276,13 @@ def _metric(
         "grouping_dimension_ids": (
             ("customer.consumption_class", "geography.municipality")
             if id_ == "billing.revenue" else
-            ("geography.neighborhood",) if id_ == "energy.consumption" else ()
+            ("geography.neighborhood", "geography.municipality", "customer.consumption_class")
+            if id_ == "energy.consumption" else ()
         ),
         "comparison_grouping_dimension_ids": (
             ("geography.neighborhood",) if id_ == "energy.consumption" else ()
         ),
-        "grouping_requires_comparison": id_ == "energy.consumption",
+        "grouping_requires_comparison": False,
         "required_filter_dimension_ids": (
             ("network.feeder",) if id_.startswith("network.equivalent_interruption_") else ()
         ),
@@ -675,9 +676,13 @@ def _build_profile() -> DomainProfile:
     detail_rules = list(values["detail_rules"])
     detail_rules[0] = {
         **detail_rules[0],
+        "phrases": tuple(
+            phrase for phrase in detail_rules[0]["phrases"]
+            if phrase not in {"mês", "meses", "por mês", "mês a mês", "por ano", "ano a ano"}
+        ),
         "clarification": (
             "Informe uma competência com mês e ano, um intervalo de meses completos "
-            "ou uma janela como ‘último trimestre’. Séries e recortes por dia ainda "
+            "ou uma janela como ‘último trimestre’. Recortes por dia ou semana ainda "
             "não estão disponíveis neste planejamento."
         ),
     }

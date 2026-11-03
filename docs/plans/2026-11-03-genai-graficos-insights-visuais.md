@@ -184,3 +184,12 @@ Verificação na árvore integrada:186 testes Backend passaram na imagem Docker 
 ### 2026-11-03 — publicação dos complementos de latência e estabilidade
 
 Os complementos locais acima foram preparados para publicação na mesma branch do PR #116: `ee77230` (reuso de síntese), `33a030c` (concentração antecipada) e `80ac907` (consumidor estável e recorte). As referências anteriores a ausência de commit descrevem o estado durante as validações. Esta atualização documental integra o quarto commit autorizado; segredos, credenciais, scripts privados de navegação e artefatos locais permanecem fora do Git. O push não equivale a merge nem a aprovação da CI remota.
+
+## Correção de “entre as classes” — 03/11/2026
+
+A validação de calendário tratava qualquer “entre” restante após remover as datas como um intervalo incompleto. O interpretador agora reconhece “entre [as/os] <dimensão>” no mesmo ponto de agrupamento existente e mascara essa referência antes de verificar extremos temporais. Valores específicos após a dimensão continuam filtros; janelas reais incompletas continuam bloqueadas. Há regressões para a pergunta exata de Olinda/junho2026, consumo entre municípios e intervalo desde março sem extremo final.
+
+- `docker exec dev131-gold-ai-agent-1 python -m pytest -q tests/test_gold_visual_questions.py tests/test_gold_question_filters.py tests/test_gold_receptivity.py tests/test_interpreter.py tests/test_interpreter_rules.py tests/test_gold_temporal.py tests/test_gold_planning_http.py`: 334 passaram. A primeira tentativa encontrou os schemas Backend ausentes na pasta auxiliar usada pelo teste entre processos; a cópia foi corrigida e a mesma suíte passou integralmente, sem ignorar casos.
+- Ruff nos dois arquivos alterados e `git diff --check` passaram. A imagem ai-agent foi reconstruída pelo Compose Gold existente (`up -d --build --no-deps ai-agent`), preservando .env, usuários e volume Gold.
+- API pública, sessão operator existente e Gemini real: pergunta exata da captura retornou HTTP200/answered, data→complete, tipo donut e cinco classes (15,186s). Cinco pontos da prévia/final conferidos por SQL independente: soma de receita_total_reais em diagnostico_receita, municipio=OLINDA, competencia=2026-06, agrupado por classe_consumo. Nenhuma nova conta, ampliação de permissões ou alteração da publicação.
+- Probes e respostas privados em frontend/visual.local, ignorados. Sem commit/push.

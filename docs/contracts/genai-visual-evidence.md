@@ -30,6 +30,10 @@ O mapper confere plano, proveniência, filtros, publicação, unidade e período
 
 Uma observação permanece indicador. Categorias usam barras horizontais. Série temporal com pelo menos três competências consecutivas e ordenadas usa linha; duas competências ou lacunas usam barras. Nenhuma linha atravessa ausência como continuidade comprovada. Métricas não aditivas não são somadas nem convertidas em participação.
 
+Expressões como “entre as classes” e “entre os municípios” designam agrupamento; elas não acionam a exigência de dois períodos. Intervalos temporais incompletos continuam pedindo esclarecimento.
+
+O perfil Gold v2 aceita cadência mensal explícita (como “mês a mês”) nas janelas já sustentadas pelo executor. Consumo medido admite agrupamento por município, classe e bairro sobre as fontes/dimensões já autorizadas; comparações agrupadas mantêm a capacidade específica de bairro. Cobertura, filtros, escopo e limites continuam revalidados. A resposta resume grupos usando os agregados consultados; comparações mantêm os valores inicial/final e a variação calculada, com números pt-BR e meses legíveis. O runner da matriz reconhece esse formato sem perder o vínculo entre mês e valor.
+
 ## Distribuição opcional do Panorama
 
 `data.distribuicao` contém dimension (municipio/classe), periodo, metricId, unidade, total, completo, pontos, visual e agrupados. Origem e filtros são os do envelope existente. Não recebe pontos do navegador.
