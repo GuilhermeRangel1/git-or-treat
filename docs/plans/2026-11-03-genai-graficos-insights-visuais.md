@@ -1,14 +1,14 @@
 # Gráficos e insights visuais — evidência da implementação
 
-Branch `feat/genai-graficos-insights-visuais`, base develop `77fa425`. Cartão https://trello.com/c/OGgXnYfa. Estado: em desenvolvimento; sem commit/push. Quatro dos 18 critérios têm aceite técnico local nesta fatia: metadados do chat, PNG, CSV e apresentação pt-BR. Os demais permanecem abertos, mesmo quando parte do código já está implementada.
+Branch `feat/genai-graficos-insights-visuais`, base develop `77fa425`. Cartão https://trello.com/c/OGgXnYfa. Estado atual: **18/18 critérios técnicos locais contemplados**, com evidências publicadas no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), direcionado à develop. Implementação nos commits622755d,403b772,2e6d92a,6772a10 e399fdb5; documentação final acompanha esta publicação. PR aberto para revisão, sem merge.
 
 ## Composição e resultado
 
-O Backend monta o campo opcional versionado do chat depois da consulta e síntese existentes, com pontos exatos da evidência e dados do catálogo. Fonte/plano/filtros/unidade/período/publicação são conferidos; o serviço GenAI não pode fornecer gráficos. O consumidor valida o JSON e usa `VisualEvidence`, compartilhado com o modal do Panorama. Suporta indicador, barras, ranking horizontal, linha temporal e rosca de participação válida.
+O Backend monta a prévia e o campo opcional versionado do chat sobre a consulta existente, com pontos exatos da evidência e dados do catálogo. Fonte/plano/filtros/unidade/período/publicação são conferidos; o serviço GenAI não pode fornecer gráficos. O consumidor valida o JSON e usa `VisualEvidence`, compartilhado com o modal do Panorama. Suporta indicador, barras, ranking horizontal, linha temporal e rosca de participação válida.
 
 Panorama mantém o cartão compacto. Modal responsivo com comparação temporal e distribuição por município/classe; filtros específicos são preservados. Cinco maiores + Demais no servidor; lista completa até 1000, gráfico com até seis setores/dez barras e tabela de vinte linhas por página. Chat conserva até 100 pontos, visualiza até 24/dez conforme tipo e exporta a lista retornada, explicitando o alcance. Sem chamada de modelo adicional.
 
-PNG/CSV revalidam identidade, escopo e publicação no servidor antes de salvar. Troca de conta, permissão, lote ou desmontagem bloqueia o arquivo antigo. Histórico conserva gráfico somente com publicação/escopo atuais; memória e acompanhamento seguem consultando a fonte atual. Os gráficos do modal já aparecem antes da interpretação; o chat ainda aguarda a síntese.
+PNG/CSV revalidam identidade, escopo e publicação no servidor antes de salvar. Troca de conta, permissão, lote ou desmontagem bloqueia o arquivo antigo. Histórico conserva gráfico somente com publicação/escopo atuais; memória e acompanhamento seguem consultando a fonte atual. Os gráficos do modal já aparecem antes da interpretação; o chat negocia dados progressivos antes da síntese, mantendo JSON compatível.
 
 ## Verificações reproduzíveis
 
@@ -58,12 +58,84 @@ Tempos de abertura automatizada de 107–183ms em Vite são observações locais
 | Padrões | Período do contexto não conferido com plano e CSV sem alcance. Corrigidos; revisão confirmou recusa do período adulterado e diff limpo. |
 | Especificação | Mesmos dois pontos e PNG 1200px estreito para 24observações. Corrigidos com validação de período, nota exportada e largura até 3600px, metadados em linhas. Sem outros bloqueios encontrados nessa fatia. |
 
-## O que continua aberto
+## Continuação — fechamento técnico local
 
-- Dados/gráfico antes da síntese no chat, com falha/cancelamento do modelo sem perder os agregados válidos; não simular streaming.
-- Leitura ampliada específica do gráfico, proporcional à evidência e sem inferência causal.
-- Benchmark comparável de dados/primeiro gráfico/insight e número de chamadas.
-- Reconciliação e jornada do novo chat com Gold/modelo real, histórico/retomada/downloads no mesmo ambiente, além dos testes controlados.
-- Revisão integral dos 18 critérios, incluindo zoom/leitor de tela e falhas ainda não exercitadas. Não marcar esses itens pelo número de testes.
+### Implementação
 
-Estados IA-03/IA-04/IA-05 preservados. Nenhuma chamada Gemini nova ou homologação de cobertura. DEC503 e avisos de consumo continuam com a colega, fora desta mudança.
+- Negociação NDJSON nas rotas existentes, inclusive histórico, sem repetir planejamento/SQL/síntese. Dados publicados somente depois de auditoria da fonte, revalidação e conferência do plano. Preview explícita, resultado final a substitui. Clientes anteriores seguem JSON.
+- Fila de um evento; cancelamento antes/depois do primeiro dado e saída da conversa encerra coordenador. Leitor limita 256KiB, UTF-8 e sequência de eventos. Fonte sanitizada do núcleo aceita apenas com hash exato da origem. Falha do modelo conserva dados somente com acesso/publicação revalidados;403/409 removem a prévia. ErrorBoundary preserva tabela/CSV se o desenho falhar.
+- Leitura ampliada local com IDs: diferenças, percentual com base positiva, pico e extremos apropriados ao tipo, sem causa presumida nem participação em ranking. Nenhuma chamada adicional para desenhar/interpretar o gráfico. Distribuição do Panorama também oferece leitura sobre os pontos exibidos.
+
+### Verificações finais
+
+```powershell
+python -m pytest tests/test_progressive_question.py tests/test_visual_reading.py tests/test_chat_visualization.py tests/test_chat_visualization_history.py tests/test_visual_export.py tests/test_panorama_distribution.py tests/test_genai_flow.py tests/test_genai_client.py tests/test_ai_history_http.py tests/test_conversation_memory_http.py tests/test_genai_invalidation.py tests/test_panorama.py tests/test_panorama_current_composition.py tests/test_gold_panorama_money.py -q --tb=short
+npm.cmd test -- --run src/shared/analytics/ChartBoundary.test.tsx src/features/assistente/AssistentePage.test.tsx src/features/assistente/api.test.ts src/shared/api/jsonStream.test.ts src/shared/api/client.test.ts src/shared/analytics/VisualEvidence.test.tsx src/shared/analytics/distributionContract.test.ts src/features/assistente/visualization.test.ts src/features/panorama/PanoramaInsight.test.tsx src/features/panorama/GoldInsight.test.tsx src/shared/analytics/panoramaContract.test.ts
+npm.cmd run build
+npm.cmd run lint
+npm.cmd run check:boundaries
+```
+
+Resultados: 162 Backend e 95 frontend passaram. Build/formatação/fronteiras passaram; lint sem erro, aviso preexistente AuthProvider. Ruff dos novos arquivos e dos demais Python modificados nesta rodada passou, preservados os nove apontamentos anteriores nos dois arquivos legados do Panorama. Diff limpo. Nova revisão de especificação detectou cancelamento antes da prévia; corrigido, teste passou e revisor revalidou. Revisão de padrões não encontrou novo bloqueio.
+
+### Prova Gold/Gemini e portal
+
+Backend temporário 8014 e frontend 5186; GenAI temporária usa o mesmo código da branch e a configuração privada já autorizada. Os serviços principais 5173/8000 não foram alterados. A imagem GenAI principal não continha as últimas mudanças; a rodada final usou o app da branch montado no serviço isolado, evitando confundir versão antiga com falha nova.
+
+Conta temporária somente leitura, senha em memória; cookies e resultados privados só em arquivos ignorados. Perguntas reais: receita faturada de Recife em junho/2026 (um ponto), comparação maio/junho (dois) e série janeiro–junho (seis). Todas `answered`, preview antes de complete. SQL independente `SUM(receita_total_reais)` por competência no diagnóstico Gold v2, transação somente leitura pelo leitor dedicado: todos os pontos e a identidade do conjunto inicial/final conferidos. CSV baixado pelo portal igual aos pontos e SQL.
+
+Histórico real: pergunta inicial, acompanhamento de mês, definição DEC e retomada da primeira pergunta. Quatro respostas `answered`, três gráficos; conceito cita documentação sem gráfico. Restauração de quatro interações/três gráficos passou; filtros do acompanhamento/retomada iguais ao inicial e os valores retomados conferem. Conversa temporária apagada ao final. Portal real: gráfico/tabela/CSV/PNG e recarga passaram, zero erros JavaScript. Restauração também conferida pela API real.
+
+Scripts privados reproduzíveis nesta sessão: `python frontend/visual.local/check-real-progress.py`, `python frontend/visual.local/check-gold-history.py`, `node visual.local/check-real-browser.mjs`, `python frontend/visual.local/benchmark-visual.py`. Dependem da sessão temporária e composição local; arquivos não serão commitados. Roteiro portátil: iniciar composição Gold desta branch; autenticar leitor autorizado; enviar as três perguntas acima com Accept JSON/NDJSON; comparar pontos com SQL independente na mesma publicação; conferir tabela/CSV/PNG e histórico; remover conta/conversas de teste. Nunca registrar cookie, senha, chave ou números privados no relatório público.
+
+### Latência exploratória
+
+Mesma comparação, mesmos serviços/Gold, três requisições por modo; sequência JSON seguida de progressivo, sem carga controlada. Valores em segundos:
+
+| Modo | Primeiro dado p50 | Primeiro dado p95 empírico | Completo p50 | Completo p95 empírico |
+| --- | --- | --- | --- | --- |
+| JSON |15,792|19,213|15,792|19,213|
+| Progressivo |14,153|14,653|16,069|16,917|
+
+P95 nearest rank = máximo com n=3. Amostra apenas local, sem SLA/garantia de melhora total. O ganho observado é antecipar os dados; a síntese continua variável. Os logs sanitizados da GenAI isolada registraram 14 correlações com uma chamada real por correlação. Não há chamada para gerar gráfico; retentativas já existentes continuam possíveis. O middleware HTTP mede cabeçalhos no stream; os tempos acima vêm do consumidor até cada evento/final, não desse log parcial.
+
+### Acessibilidade e falhas
+
+Chromium:320/390/768/1440, claro/escuro, zoom de 200%, movimento reduzido, abertura/fechamento por teclado, Escape/foco e títulos/descrições SVG passaram. Árvore ARIA da tabela contém cabeçalhos de coluna/linha e alternativa completa dos valores. Isso é conferência da árvore usada por tecnologia assistiva; não houve sessão manual com NVDA. Não depende apenas de cor. Teste automatizado de renderer com erro preservou tabela/CSV. Série de 24pontos exporta PNG 3600px. Cenários controlados continuam cobrindo tipos, escalar, nulo/zero/base zero/parcial, nomes extensos, payload adulterado/excessivo e falhas. Conteúdo real não entrou nas capturas públicas.
+
+### Matriz dos 18critérios
+
+| Critério | Evidência | Estado local |
+| --- | --- | --- |
+| Contrato versionado e limites |schemas/decoders, IDs,32KiBchat/256KiBPanorama/stream, rejeição de extras|Atendido|
+| Executor e pontos autorizados |consulta existente, SQL real independente, filtros mantidos|Atendido|
+| Escolha dos quatro tipos |barras/linha/ranking/rosca válida, testes zero/nulo/parcial|Atendido|
+| Renderer/tabela/acessibilidade |Chromium quatro larguras/dois temas/zoom/ARIA/teclado|Atendido|
+| Vínculo de consulta e publicação |mapper, decoder, testes adulteração e invalidação|Atendido|
+| Caso de uso/HTTP/tela e Gold |162/95 testes, portal real, SQL independente|Atendido|
+| Composição realmente usada |Backend+GenAI da branch, sessão e leitor dedicados|Atendido|
+| Identidade/cache/histórico/exportação |revogação, origem inválida, restauração real e testes|Atendido|
+| Timeout/cancelamento/modelo/download |fluxos controlados, cancel antes/depois, prévia revalidada, boundary|Atendido|
+| Registro no PR e documentos/cartão |[PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), relatório e contratos publicados|Atendido|
+| Modal com gráficos/análise |distribuição e leitura ampliada, componentes compartilhados|Atendido|
+| Leitura proporcional fundamentada |VisualReading local/IDs/base positiva/extremos, sem causa|Atendido|
+| Metadados legíveis sem acordeão |interface e regressões conceituais|Atendido|
+| PNG |chat/modal, real/controlado,24pontos, metadados/temas|Atendido|
+| CSV |precisão/escape/nulo/zero, alcance, real=SQL|Atendido|
+| Latência/chamadas |comparação local 3+3, eventos reais,14 correlações|Atendido|
+| Histórico/acompanhamento/memória |quatro interações reais, três gráficos, conceito/retomada|Atendido|
+| pt-BR |catálogo/precisão, datas/moedas/contagens/tabela/exportações|Atendido|
+
+Não há outra pendência de implementação identificada nesta revisão. O último critério foi atendido pela publicação das alterações e evidências no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116); a conclusão técnica local não decorre apenas deste arquivo. Estados oficiais IA/homologação de Dados preservados; recortes sem cobertura continuam indisponíveis. DEC503 e avisos de consumo da colega não foram alterados. Revisão/CI/merge do PR são etapas de integração posteriores, sem merge automático.
+
+
+## Disponibilização no Docker para conferência
+
+Em03/11, imagens de IA, Backend e frontend foram reconstruídas desta branch. Configuração privada foi copiada somente para os arquivos .env ignorados; nenhum segredo foi exibido ou commitado. .dockerignore exclui também variações .env, work/ e a prévia artificial do contexto de build.
+
+```powershell
+docker compose --env-file .env.gold-v2 -p dev131-gold -f docker-compose.yml -f docker-compose.gold-v2.yml build ai-agent backend frontend
+docker compose --env-file .env.gold-v2 -p dev131-gold -f docker-compose.yml -f docker-compose.gold-v2.yml up -d --no-deps --force-recreate ai-agent backend frontend
+```
+
+Build/recriação passaram. Frontend5173 e health Backend8000 responderam200; GenAI saudável, Gold ativa e chave configurada (somente presença conferida). Mounts apontam a worktree genai-graficos. Volume PostgreSQL e lote preservados, sem executar loader ou migração. Smoke autenticado real na composição reconstruída: comparação maio/junho, data→complete e dois pontos iniciais/finais iguais; conta temporária removida. Usuários/sessões existentes não foram redefinidos. Docker permanece ativo para a pessoa usuária conferir no navegador.

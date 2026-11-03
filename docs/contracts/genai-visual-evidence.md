@@ -6,7 +6,7 @@ Estado: integração em desenvolvimento na branch `feat/genai-graficos-insights-
 
 Chat: rota pública existente → planejamento e catálogo → executor SQL restrito do Backend → síntese e guardas existentes → montagem determinística de `visualization` → resposta/auditoria/histórico → decoder → `VisualEvidence`.
 
-Panorama: repositório/snapshot existente → KPIs e distribuição opcional → decoder → modal existente → mesmo componente de gráfico, tabela e exportação. Os gráficos do modal usam dados dos indicadores, sem esperar a síntese. No chat, a resposta ainda chega depois da síntese: apresentação progressiva permanece pendente.
+Panorama: repositório/snapshot existente → KPIs e distribuição opcional → decoder → modal existente → mesmo componente de gráfico, tabela e exportação. Os gráficos do modal usam dados dos indicadores, sem esperar a síntese. No chat, o consumidor pode negociar dados progressivos com Accept: application/x-ndjson; a prévia é publicada após consulta, auditoria e revalidação, antes da síntese. Clientes JSON anteriores continuam recebendo o envelope integral.
 
 Não se extraem números da prosa nem se executa código de gráfico do modelo. Os clientes recusam `visualization` fornecida pelo serviço GenAI; somente o Backend monta esse campo. Não há nova chamada de modelo para selecionar/desenhar gráficos nem consulta extra no chat.
 
@@ -24,6 +24,7 @@ Não se extraem números da prosa nem se executa código de gráfico do modelo. 
 | points | 1–100 observações com ID `row_N`, rótulo de negócio e número finito |
 | plot_points | subconjunto exato de até 24 pontos (dez para categorias); tabela/CSV preservam a lista retornada |
 | category_label / note | dimensão legível e alcance do resultado, incluindo ranking/top N |
+| reading | leitura determinística opcional: resumo, próximo passo e IDs exatos das observações exibidas |
 
 O mapper confere plano, proveniência, filtros, publicação, unidade e período; IDs e valores do subconjunto precisam coincidir exatamente. Payload visual acima de 32 KiB é omitido. Fontes sem proveniência, decomposição publicada e múltiplas dimensões de agrupamento mantêm a resposta textual, sem inventar gráfico.
 
@@ -56,8 +57,26 @@ Antes de salvar, `POST /api/v1/ai/visualizations/verify` revalida a sessão indi
 
 O JSON persistido guarda o campo opcional sem migração. Restauração conserva gráfico somente com publicação atual e escopo compatível; indisponibilidade do leitor ou publicação antiga remove a visualização, preservando o texto histórico. Cache e retomadas mantêm as verificações existentes. Retomar assunto replaneja e consulta a fonte atual; pontos antigos não viram fatos da memória. Resposta conceitual não recebe gráfico quantitativo.
 
+## Entrega progressiva e leitura
+
+As rotas de perguntas atuais, inclusive a conversa persistida, negociam `Accept: application/x-ndjson`. Sem a negociação, o JSON anterior permanece. Cada linha tem `type` (data, complete ou error), status e data. `data` contém dados consultados e uma mensagem explícita de interpretação em andamento; não afirma que o modelo respondeu. `complete` substitui a prévia. O plano e a consulta executam uma vez; a síntese existente é reaproveitada.
+
+A fila comporta um evento e respeita o orçamento da requisição. Dependências request do FastAPI permanecem abertas até o fim do stream; corpo é armazenado antes de observar desconexão, evitando dois consumidores ASGI. Desconectar antes ou depois do primeiro evento cancela a tarefa coordenadora e os monitores. Cancelar coroutine não prova interrupção instantânea de SQL em thread: timeout e controles existentes do servidor continuam necessários.
+
+O transporte limita o fluxo a 256KiB, valida UTF-8 e eventos, rejeita dados duplicados ou posteriores ao final. O domínio confere cada envelope e os pontos. Troca de conversa, conta ou publicação cancela/descarta a solicitação. 401/403/409 retiram a prévia. Em falha do modelo, a interface só conserva os dados depois de revalidar acesso/publicação; a interpretação não é apresentada como sucesso. Falha do renderer mantém tabela/CSV e resposta textual.
+
+`reading` usa somente observações identificadas do subconjunto exibido. Backend calcula diferença absoluta e percentual quando a base inicial é positiva, destaque de pico para séries e extremos para categorias. Ranking não vira participação; rosca só descreve parcelas válidas do total observado. Próximo passo não afirma causa nem remove limitações. A leitura é local e determinística, sem segunda chamada Gemini ou números extraídos da prosa. O insight existente continua responsável pela síntese; nenhum modelo adicional foi introduzido.
+
+Referências de evidência sanitizadas pelo núcleo (`gold.local:` + SHA-256 da referência original) são reconhecidas. O mapper confere o hash exato contra a origem consultada, além do plano/recorte; um hash arbitrário continua rejeitado. Fonte amigável na interface permanece interna, sem mostrar esse identificador.
+
 ## Evidências e limites
 
-[Plano de validação](../plans/2026-11-03-genai-graficos-insights-visuais.md) registra comandos/resultados: 154 testes Backend, 59 frontend, build/lint/fronteiras e Chromium. Reconciliação Gold real somente leitura via `python -m scripts.check_visual_gold`: três distribuições conferidas (14/14/5 grupos) e recorte específico sem expansão. No lote local essas distribuições não admitem participação; barras preservam essa distinção.
+[Plano de validação](../plans/2026-11-03-genai-graficos-insights-visuais.md): 162 testes Backend e 95 frontend passaram, além de build, formatação, lint sem erro e fronteiras. Chromium exerceu quatro larguras, dois temas, zoom de 200%, movimento reduzido, teclado, foco e árvore de acessibilidade. Testes de erro incluem renderer, fluxo incompleto/excessivo, falha do modelo, acesso negado, cancelamento antes/depois da prévia e contexto inválido.
 
-Revisão em dois eixos identificou período divergente, CSV sem nota de alcance e PNG estreito para 24pontos; todos corrigidos e revalidados. Ainda faltam apresentação progressiva no chat, interpretação ampliada por gráfico, benchmark comparável e prova integral do novo chat com Gold e modelo real. Esta fatia não alterou DEC503, avisos de consumo ou cobertura, tratados pela colega. Nenhuma nova chamada Gemini; nenhuma certificação de Dados ou mudança dos estados oficiais IA.
+Gold local com sessão temporária somente leitura e Gemini real: total de um mês, comparação de dois e série de seis reconciliados com SQL independente, mesma publicação, pelo leitor dedicado. Dados iniciais iguais aos pontos finais; CSV real do portal conferiu com pontos/SQL. Histórico restaurou três gráficos de quatro interações; conceitual sem gráfico e retomada consultando o recorte atual. Portal real validou tabela, PNG/CSV e recarga. Conta/sessões/conversas de teste são removidas ao final.
+
+Distribuição do Panorama conferida em três recortes (14/14/5 grupos), sem expansão dos filtros. O lote local não permite participação nesses recortes: barras preservam esse limite. Rosca válida é provada com controles artificiais reconciliados; não certifica cobertura real ausente.
+
+Benchmark exploratório da mesma comparação, três requisições por modo, mesmos serviços/publicação: JSON primeiro resultado/completo p50=15,792s e p95 empírico=19,213s; progressivo primeiro dado p50=14,153s/p95=14,653s, completo p50=16,069s/p95=16,917s. P95 por nearest rank, equivalente ao máximo nessa amostra pequena. Não é SLA nem prova de ganho geral no tempo total. Em14 correlações reais do serviço isolado houve uma chamada ao modelo por correlação; fallback/retentativas existentes não são eliminados.
+
+Estados oficiais IA e homologação de Dados preservados. DEC503 e avisos de consumo permanecem fora desta mudança. Os18critérios técnicos locais estão contemplados com evidências publicadas no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), sem alterar o aceite oficial IA ou realizar merge.
