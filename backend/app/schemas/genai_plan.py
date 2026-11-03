@@ -19,8 +19,8 @@ from pydantic import (
     StrictInt,
     StrictStr,
     SerializerFunctionWrapHandler,
-    model_serializer,
     StringConstraints,
+    model_serializer,
     model_validator,
 )
 
@@ -35,6 +35,8 @@ PlanFingerprint = Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0
 
 class QuestionPlanStatus(StrEnum):
     PLANNED = "planned"
+    ANSWERED = "answered"
+    NO_EVIDENCE = "no_evidence"
     NEEDS_CLARIFICATION = "needs_clarification"
     REFUSED = "refused"
     RECOVERABLE_ERROR = "recoverable_error"
