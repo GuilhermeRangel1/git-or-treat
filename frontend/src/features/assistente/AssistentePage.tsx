@@ -1,6 +1,10 @@
 import { ASSISTANT_EXAMPLES } from "@/shared/help/assistantExamples";
 import IndicatorHelp from "@/shared/help/IndicatorHelp";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/shared/auth/useSession";
+import { currentAuthorizationGeneration } from "@/shared/auth/authorization";
+import ConversationHistory from "./ConversationHistory";
+import { createConversation, openConversation } from "./history";
 import {
   AlertCircle,
   Check,
@@ -34,7 +38,12 @@ import type {
 
 type RetryRequest = Pick<
   AIQuestionRequest,
-  "question" | "context" | "continuation_token" | "conversation_id"
+  | "question"
+  | "context"
+  | "continuation_token"
+  | "conversation_id"
+  | "history_request_id"
+  | "refresh_context"
 > & {
   userMessageId: number;
   assistantMessageId: number;
@@ -48,6 +57,7 @@ type ChatMessage = {
   retryRequest?: RetryRequest;
   contextEligible: boolean;
   outdated?: boolean;
+  historical?: boolean;
 };
 
 const SUGGESTIONS = ASSISTANT_EXAMPLES;
@@ -359,6 +369,12 @@ function MessageCard({
         <Sparkles aria-hidden="true" className="size-4 text-brand" />
         Assistente Grid 360
       </div>
+      {message.historical && (
+        <p className="mt-2 text-sm text-muted">
+          Resposta salva · consulte novamente para obter dados atuais.
+        </p>
+      )}
+      {!message.response && <p className="mt-2">{message.content}</p>}
       {message.response && <AssistantResult response={message.response} />}
       {message.response?.status === "recoverable_error" &&
         message.response.error?.retryable &&
@@ -378,10 +394,20 @@ function MessageCard({
 }
 
 export default function AssistentePage() {
+  const session = useSession();
+  const historyEnabled = session.configured && Boolean(session.user);
+  const queryClient = useQueryClient();
+  const savedIdRef = useRef<string | null>(null);
+  const interactionRevision = useRef(0);
+  const drafts = useRef(new Map<string, string>());
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [restoredHistory, setRestoredHistory] = useState(false);
+  const [refreshContext, setRefreshContext] = useState(false);
+  const [hasInterruptedSend, setHasInterruptedSend] = useState(false);
   const publicationRevision = useGoldPublicationRevision();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [conversationId, setConversationId] = useState(() =>
+  const [conversationId, setConversationId] = useState<string>(() =>
     crypto.randomUUID(),
   );
   const nextMessageId = useRef(0);
@@ -389,6 +415,12 @@ export default function AssistentePage() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const mutation = useMutation({ mutationFn: askAIQuestion, retry: false });
+  useEffect(
+    () => () => {
+      interactionRevision.current++;
+    },
+    [],
+  );
   // Publication changes invalidate interpretation history, including saved retries.
   useEffect(() => {
     // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
@@ -416,7 +448,18 @@ export default function AssistentePage() {
     retryAttempt?: RetryRequest,
   ) {
     const question = questionText.trim();
-    if (!question || question.length > 1000 || sendingRef.current) return;
+    if (
+      !question ||
+      question.length > 1000 ||
+      sendingRef.current ||
+      loadingHistory
+    )
+      return;
+    const revision = interactionRevision.current;
+    const authorization = currentAuthorizationGeneration();
+    const current = () =>
+      revision === interactionRevision.current &&
+      authorization === currentAuthorizationGeneration();
     const userMessageId = addUserMessage
       ? nextMessageId.current++
       : retryAttempt?.userMessageId;
@@ -425,10 +468,16 @@ export default function AssistentePage() {
       : retryAttempt?.assistantMessageId;
     if (userMessageId === undefined || assistantMessageId === undefined) return;
     sendingRef.current = true;
-    const retryRequest = retryAttempt ?? {
+    const retryRequest: RetryRequest = retryAttempt ?? {
       question,
       context,
       conversation_id: conversationId,
+      ...(historyEnabled
+        ? {
+            history_request_id: crypto.randomUUID(),
+            refresh_context: refreshContext,
+          }
+        : {}),
       continuation_token:
         [...messages]
           .reverse()
@@ -454,12 +503,31 @@ export default function AssistentePage() {
     }
 
     try {
+      if (historyEnabled && !savedIdRef.current) {
+        const created = await createConversation(conversationId);
+        if (!current()) return;
+        savedIdRef.current = created.id;
+        setConversationId(created.id);
+      }
+      if (historyEnabled) retryRequest.conversation_id = savedIdRef.current!;
       const response = await mutation.mutateAsync({
         contract_version: "v1",
         question,
         context: context.slice(-3),
         conversation_id: retryRequest.conversation_id,
         continuation_token: retryRequest.continuation_token,
+        ...(historyEnabled
+          ? {
+              history_request_id: retryRequest.history_request_id,
+              refresh_context: retryRequest.refresh_context,
+            }
+          : {}),
+      });
+      if (!current()) return;
+      setHasInterruptedSend(false);
+      setRefreshContext(false);
+      void queryClient.invalidateQueries({
+        queryKey: ["ai-conversations", session.user?.id],
       });
       if (addUserMessage && response.status !== "recoverable_error") {
         setDraft("");
@@ -504,6 +572,7 @@ export default function AssistentePage() {
         );
       });
     } catch (error) {
+      if (!current()) return;
       if (
         error instanceof AIChatApiError &&
         error.code === "superseded_request"
@@ -543,8 +612,10 @@ export default function AssistentePage() {
         ),
       );
     } finally {
-      sendingRef.current = false;
-      requestAnimationFrame(() => composerRef.current?.focus());
+      if (current()) {
+        sendingRef.current = false;
+        requestAnimationFrame(() => composerRef.current?.focus());
+      }
     }
   }
 
@@ -565,12 +636,67 @@ export default function AssistentePage() {
   }
 
   function startNewConversation() {
-    if (mutation.isPending) return;
+    drafts.current.set(savedIdRef.current ?? conversationId, draft);
+    interactionRevision.current++;
+    sendingRef.current = false;
+    savedIdRef.current = null;
+    setRestoredHistory(false);
+    setRefreshContext(false);
+    setHasInterruptedSend(false);
+    setLoadingHistory(false);
     setMessages([]);
     setConversationId(crypto.randomUUID());
     setDraft("");
     if (composerRef.current) composerRef.current.style.height = "";
     mutation.reset();
+  }
+
+  async function openSaved(id: string) {
+    drafts.current.set(savedIdRef.current ?? conversationId, draft);
+    const revision = ++interactionRevision.current;
+    const authorization = currentAuthorizationGeneration();
+    setLoadingHistory(true);
+    mutation.reset();
+    sendingRef.current = false;
+    try {
+      const saved = await openConversation(id);
+      if (
+        revision !== interactionRevision.current ||
+        authorization !== currentAuthorizationGeneration()
+      )
+        return;
+      savedIdRef.current = id;
+      setConversationId(id);
+      const restored: ChatMessage[] = [];
+      for (const entry of saved.exchanges) {
+        restored.push({
+          id: nextMessageId.current++,
+          role: "user",
+          content: entry.question ?? "Envio sem conteúdo armazenado.",
+          contextEligible: false,
+        });
+        restored.push({
+          id: nextMessageId.current++,
+          role: "assistant",
+          content: entry.response
+            ? responseContent(entry.response)
+            : "Envio interrompido ou indisponível. Você pode enviar uma nova pergunta.",
+          response: entry.response ?? undefined,
+          historical: true,
+          contextEligible: false,
+        });
+      }
+      setMessages(restored);
+      setDraft(drafts.current.get(id) ?? "");
+      setRestoredHistory(true);
+      setRefreshContext(false);
+      const last = saved.exchanges.at(-1);
+      setHasInterruptedSend(
+        Boolean(last && ["pending", "interrupted"].includes(last.state)),
+      );
+    } finally {
+      if (revision === interactionRevision.current) setLoadingHistory(false);
+    }
   }
 
   return (
@@ -594,12 +720,20 @@ export default function AssistentePage() {
         </div>
         <div className="flex shrink-0 items-center justify-end gap-1">
           <IndicatorHelp screen="assistente" />
+          {historyEnabled && (
+            <ConversationHistory
+              actor={session.user!.id}
+              onOpen={openSaved}
+              onDeleted={(id) => {
+                if (savedIdRef.current === id) startNewConversation();
+              }}
+            />
+          )}
           {hasMessages && (
             <Button
               variant="ghost"
               size="sm"
               onClick={startNewConversation}
-              disabled={mutation.isPending}
               leftIcon={<Plus aria-hidden="true" className="size-4" />}
             >
               <span className="hidden sm:inline">Nova conversa</span>
@@ -611,6 +745,31 @@ export default function AssistentePage() {
 
       <AssistantIdentity pending={mutation.isPending} />
       <div className="assistant-conversation flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 lg:p-5">
+        {loadingHistory && <p role="status">Abrindo conversa…</p>}
+        {restoredHistory && (
+          <div className="rounded-xl border border-divider p-3 text-sm">
+            <p>
+              Você está vendo respostas salvas. Elas mantêm o recorte e a fonte
+              da consulta original.
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRefreshContext(true)}
+              disabled={refreshContext}
+            >
+              {refreshContext
+                ? "Pronto para consultar dados atuais"
+                : "Retomar com dados atuais"}
+            </Button>
+            {hasInterruptedSend && (
+              <p>
+                Há um envio sem resposta salva. Se ele ainda estiver em
+                processamento, aguarde antes de enviar uma nova pergunta.
+              </p>
+            )}
+          </div>
+        )}
         <div
           ref={historyRef}
           role="log"
@@ -659,8 +818,10 @@ export default function AssistentePage() {
               <p className="flex items-start justify-center gap-2 text-center text-sm leading-5 text-muted">
                 <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
                 Informe o período e o local para uma resposta mais precisa. A
-                disponibilidade dos dados é conferida a cada pergunta. A
-                conversa fica apenas nesta tela e não é salva.
+                disponibilidade dos dados é conferida a cada pergunta.{" "}
+                {historyEnabled
+                  ? "Suas conversas ficam salvas nesta conta por até 30 dias após a última mensagem e podem ser apagadas em Conversas."
+                  : "A conversa fica apenas nesta tela e não é salva."}
               </p>
             </div>
           ) : (
@@ -742,7 +903,7 @@ export default function AssistentePage() {
                 <>
                   <span aria-hidden="true">·</span>
                   <Check aria-hidden="true" className="size-3.5" />
-                  conversa temporária
+                  {historyEnabled ? "histórico privado" : "conversa temporária"}
                 </>
               )}
             </span>
@@ -761,7 +922,8 @@ export default function AssistentePage() {
           </span>
         </p>
         <p className="mt-2 text-sm leading-5 text-muted">
-          Nesta conversa · histórico temporário
+          Nesta conversa ·{" "}
+          {historyEnabled ? "histórico privado" : "histórico temporário"}
         </p>
         <ol className="mt-4 space-y-2">
           {messages
