@@ -84,6 +84,9 @@ it.each(["success", "model_failure", "denied"])(
     await userEvent.click(
       screen.getByRole("button", { name: "Enviar pergunta" }),
     );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Consultando os dados…",
+    );
     act(() =>
       stream.enqueue(
         encoder.encode(
@@ -96,6 +99,10 @@ it.each(["success", "model_failure", "denied"])(
       name: "Receita faturada",
     });
     expect(chart).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Preparando a análise…",
+    );
+    expect(screen.queryByText("Consultando os dados…")).toBeNull();
     expect(
       screen.getByText(
         "Os dados já estão disponíveis. Preparando a interpretação.",
@@ -130,6 +137,8 @@ it.each(["success", "model_failure", "denied"])(
         ),
       ).toBeNull(),
     );
+    expect(screen.queryByText("Preparando a análise…")).toBeNull();
+    expect(screen.getByText("Pronto para perguntar")).toBeVisible();
     if (finish === "denied")
       expect(
         screen.queryByRole("region", { name: "Receita faturada" }),

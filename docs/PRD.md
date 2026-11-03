@@ -3811,11 +3811,21 @@ Os complementos locais acima foram preparados para publicação na mesma branch 
 - Chromium no portal real confirmou a resposta final do ranking, alinhamento em 320/390/1440 px e dois temas, tabela de 14 municípios e PNG/CSV; zero erros JS. Uma reprodução adicional do retorno já reconciliado gerou captura, sem nova chamada de modelo. Conversas criadas nos testes removidas; demais conversas e dados preservados.
 - Verificações: 349 regressões GenAI, 36 do runner, 30 Backend e 44 frontend aprovadas; build, fronteiras (218 arquivos), Ruff direcionado e `git diff --check` passaram. Lint frontend mantém só aviso anterior do AuthProvider. Docker local reconstruído com o código final; contratos/guia/evidência atualizados. Estados oficiais IA e cobertura de Dados preservados.
 
+### 2026-11-03 — IA-05 — indicador de consulta e interpretação
+
+- O aviso do Assistente agora distingue consulta dos dados e preparação da análise pela chegada da prévia. Ao encerrar a interação, resposta/erro final e indicador usam o mesmo ciclo de envio; lateral acompanha essa fase. Nova conversa e abertura do histórico limpam o estado, preservando o descarte de callbacks antigos e o bloqueio de envios simultâneos.
+- `AssistentePage` e `AssistenteSession`: 33 testes passaram, com transição consulta → interpretação → final e erro/recusa. Chromium no portal local, repetindo o retorno Gold já reconciliado sem nova chamada Gemini, confirmou resposta final sem avisos pendentes, lateral pronta, tabela/PNG/CSV e zero erros JS. Build/fronteiras passaram; lint só com aviso preexistente do AuthProvider. Mudança local ainda sem commit/push; estados oficiais preservados.
+
 ### 2026-11-03 — IA-07 — escolha de gráficos no Assistente
 
 - Correção local: o chat aceitava somente barras e linha, embora a rosca já existisse no Panorama. Backend e decoder passam a aceitar rosca nas distribuições de receita/consumo de uma competência, sem ranking, com valores não negativos, soma positiva e resultado inferior ao limite do plano. Ranking permanece em barras e evolução contínua em linha.
 - Portal reaproveita a rosca existente, agrupa cinco maiores + Demais quando há mais de seis categorias e conserva todos os valores na tabela/CSV. Sem nova chamada ao modelo para desenhar ou selecionar gráfico; estados oficiais e cobertura de Dados preservados.
 - Verificações: 36 testes Backend e 47 frontend passaram; build, fronteiras, Ruff e diff passaram; lint somente com aviso preexistente de AuthProvider. Cinco consultas Gold v2/Gemini reais geraram linha, duas roscas, ranking horizontal e comparação vertical; 41 pontos reconciliados com SQL independente. Chromium repetiu a resposta real reconciliada em 320/390/1440 px, claro/escuro, seis setores/14 linhas, PNG/CSV e sem erros JS; conversa do teste removida. Detalhes no plano de gráficos. Sem commit/push nesta fatia.
+
+### 2026-11-03 — IA-05 / histórico — simplificação da conversa salva
+
+- Por solicitação da pessoa usuária, removidos o aviso de respostas salvas e a opção “Retomar com dados atuais” ao abrir histórico. O envio normal segue disponível, sem ativar atualização explícita de contexto. O aviso específico de envio interrompido continua quando aplicável.
+- Removido o estado de interface exclusivo da opção e atualizado o teste de restauração/novo envio. Mudança local na mesma branch de gráficos; sem commit/push.
 
 ### 2026-11-03 — IA-01 / IA-07 — divisão entre classes sem falso intervalo temporal
 

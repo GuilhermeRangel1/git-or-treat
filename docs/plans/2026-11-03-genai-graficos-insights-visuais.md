@@ -212,6 +212,12 @@ Comandos de regressão executados no Docker (GenAI com cópias de testes e contr
 
 Backend reiniciado e imagem final do ai-agent reconstruída sem reexecutar loader ou alterar o volume Gold. Nova fatia local ainda sem commit/push; estados oficiais e homologação de cobertura permanecem os anteriores.
 
+### Indicador de andamento — 03/11/2026
+
+O envio corrente mantém uma fase explícita na página: consulta antes de `data`, interpretação após a prévia e repouso ao concluir resposta/erro. A fase também governa lateral/compositor, inclui criação de conversa e é limpa na troca de conversa/histórico; revisões antigas continuam descartadas. Não depende somente de `mutation.isPending`, evitando um aviso de consulta junto de conteúdo já encerrado.
+
+`npm test -- src/features/assistente/AssistentePage.test.tsx src/features/assistente/AssistenteSession.test.tsx`: 33 passaram, incluindo os três desfechos do stream (sucesso, falha do modelo e acesso negado). Build, fronteiras (218 arquivos), formatação dos arquivos alterados e diff-check passaram; lint mantém aviso anterior do AuthProvider. Chromium com retorno Gold já reconciliado repetido na rota de perguntas confirmou final sem “Consultando os dados…”/“Preparando a análise…”, lateral pronta, tabela e PNG/CSV; zero erros JS. Conversa de teste removida. Nenhuma chamada Gemini nova foi necessária; HMR do Docker local já apresenta a alteração. Mudança ainda sem commit/push.
+
 ## Correção da seleção de gráfico no chat — 03/11/2026
 
 O tipo donut existia somente no componente/Panorama. O chat restringia schema e decoder a bars/horizontal/line; a pergunta de distribuição por município sempre virava barras. A afirmação anterior de setorial no chat era incorreta.
@@ -229,6 +235,12 @@ Verificações executadas nesta fatia:
 Backend reiniciado para aplicar o seletor; frontend recebe a alteração pelo bind mount/HMR. Conversas salvas anteriormente mantêm seu gráfico antigo. Nova pergunta usa a seleção nova. Nenhum commit/push nesta fatia.
 
 - Complemento do contrato final: total e percentuais dos setores foram movidos para o Backend, conforme o cartão. A distribuição municipal foi repetida pela API/Gold/Gemini real (16,569s); os 14 pontos continuaram reconciliados com SQL independente. Chromium repetiu esse retorno final e aprovou seis setores, 14 linhas, PNG/CSV, dois temas e três larguras; a conversa foi removida. Os mesmos 36 testes Backend e 47 frontend passaram após a mudança do contrato, assim como build, lint/fronteiras e Ruff. As cinco consultas anteriores não devem ser contadas como cinco rodadas adicionais do contrato final de setores.
+
+## Simplificação do histórico salvo — 03/11/2026
+
+Removidos, por solicitação da pessoa usuária, o banner “Você está vendo respostas salvas” e a ação “Retomar com dados atuais”. A interface não ativa mais refresh_context por botão; novas perguntas conservam o envio normal com false. Estados exclusivos da ação foram removidos. O aviso de requisição interrompida permanece específico ao envio pendente e o teste verifica a ausência da opção removida, a criação de nova tentativa e o envio normal.
+
+`npm test -- --run src/features/assistente/AssistenteSession.test.tsx src/features/assistente/AssistentePage.test.tsx`: 32 testes passaram. Prettier e diff passaram. Alteração disponível no bind mount do frontend, sem commit/push.
 
 ## Correção de “entre as classes” — 03/11/2026
 
