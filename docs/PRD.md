@@ -3583,3 +3583,54 @@ passaram; Chromium real confirmou Sim → ano, restauração e mudança de assun
 Duas respostas reconciliadas por SQL independente e quatro eventos de auditoria
 confirmados; conta temporária removida. Evidência no complemento do registro de
 entendimento acima; mesma branch, sem commit/push, estados oficiais preservados.
+
+### 03/11/2026 — adicional: início da busca documental autorizada
+
+- Branch `feat/genai-busca-semantica-documentacao`, base develop `36166bd`; cartão [busca semântica em documentação autorizada](https://trello.com/c/gctQzTDV). Preparação, sem entrega integrada ou alteração dos estados oficiais IA.
+- Corpus inicial reutiliza literalmente as nove definições aprovadas do FAQ. `scripts/generate-genai-documentation.py` confere rótulos/definições contra o catálogo Gold v2 e empacota apenas conteúdo conceitual em `ai-agent/app/corpora/indicators.json`.
+- Porta textual e adaptador `IndicatorDocumentation` limitam acesso por perfil/fonte/operação/métricas antes de expor trechos. Vigência, conflito de IDs e remoção são reavaliados sem cache derivado persistido. Sem dataset, consulta SQL ou nova retenção.
+- Verificações: geração e `--check` passaram; Ruff e `git diff --check` passaram; dois testes em cópia temporária Linux passaram, cobrindo escopo, conflito, expiração e retirada. Sem chamada externa nesta fatia.
+- Pendências: recuperação lexical/semântica comparada, composição e consumidor de runtime, respostas com citação, orçamento, injeção indireta e prova integrada. Dez critérios do cartão permanecem abertos; sem commit/push/PR.
+
+### 03/11/2026 — busca documental: integração e achados da avaliação
+
+- Integração local no núcleo composto e no planejamento HTTP, com resposta literal e referência documental tipada. Backend reconfere texto, citação, versão, vigência e métricas autorizadas antes da publicação; página mostra documentação interna e seção no fundamento. Sem commit/push.
+- Verificações anteriores à calibração: 109 testes GenAI passaram nas fronteiras de documentação, planejamento, composição, follow-up e autenticação; 13 Backend passaram, incluindo coordenação com Gold v2 artificial; 23 testes da página passaram. Última rodada dirigida após restrição lexical: 9 passaram. Corpus --check e compilação passaram.
+- Rodada real autorizada com onze perguntas artificiais e nove definições do FAQ revelou esclarecimentos/ausências excessivos e uma seleção lexical indevida (decomposição → preço). Seleção lexical foi restringida; não declarar ganho geral. Segunda rodada com consulta/documento separados apresentou falhas do provedor e não comprova aceite. Não inferir a causa dessas falhas sem diagnóstico sanitizado.
+- Pendentes: medir e calibrar a recuperação com resultado independente, revalidar chamadas reais, limites de chamadas adicionais, gates finais, jornada visual e revisão completa. Cartão permanece em andamento; não concluído.
+
+
+### 03/11/2026 — adicional: busca documental autorizada concluída localmente
+
+- Cartão [busca semântica em documentação autorizada](https://trello.com/c/gctQzTDV): dez critérios revisados e atendidos na primeira fatia de nove definições aprovadas do FAQ. Branch `feat/genai-busca-semantica-documentacao`, base `36166bd`; sem commit, push ou PR nesta rodada. Estados oficiais IA preservados.
+- Porta/adaptador no núcleo existente, corpus gerado e conferido no catálogo Gold v2, seleção estruturada Gemini restrita ao escopo, resposta literal e citação validada novamente pelo Backend. Quantitativos seguem SQL no Backend. Versão, vigência, retirada, revogação, histórico, auditoria, limites e rollback cobertos. Sem índice vetorial persistido, novos dados ou permissões.
+- Rodada real autorizada: nove respostas integralmente sustentadas, um esclarecimento por suporte parcial e uma ausência correta; dez IDs esperados de onze, versus três correspondências lexicais. Avaliação usada para calibração, sem alegação de precisão geral. Nove definições pela API pública: HTTP 200, texto literal e auditoria. Chromium real: desktop/celular, teclado, citação, dois temas e ausência de overflow/erros JavaScript.
+- Verificações: GenAI completo 4.318 passaram / 4 skips; Backend dirigido 176 passaram; página 23 passaram. Build/tipos, lint, fronteiras, formatação, Ruff, geração reproduzível e diff passaram; avisos preexistentes AuthProvider e Starlette/httpx. Revisão em requisitos e padrões corrigiu quatro defeitos, com regressões.
+- Contrato, comandos, critérios, limitações e evidências em [busca documental](contracts/genai-documentation-search.md) e [validação](plans/2026-11-03-genai-busca-documental.md). PR #113 de conversas longas permanece separado; integração posterior pela develop.
+
+
+### 03/11/2026 — ampliação da busca documental
+
+- Por solicitação da pessoa usuária, corpus ampliado de nove para 16 verbetes, cobrindo as definições dos 14 indicadores do catálogo Gold v2. Sete explicações individuais extraídas literalmente, incluindo consumo médio por UC e satisfação. Comparativos preservados; definições individuais usam apenas a permissão da própria métrica.
+- Reconhece “me explica”, “pode me explicar” e “o que quer dizer”; datas e localidades conservam o caminho quantitativo. Corpus versionado independentemente do FAQ; geração reproduzível para Backend/GenAI.
+- Verificações locais: 114 testes GenAI dirigidos e sete Backend passaram; Ruff, gerador e diff passaram. Prova Gemini/portal anterior corresponde aos nove verbetes iniciais e não estima qualidade semântica do corpus ampliado. Detalhes e falha de IDs corrigida em [evidência](plans/2026-11-03-genai-busca-documental.md). Sem commit/push.
+
+
+### Revisão do PR #114 — ciclo de vida documental
+
+A revisão de padrões identificou herança indevida da vigência do primeiro FAQ
+para as definições individuais. Corrigido com seleção explícita dos sete IDs e
+metadados próprios: retirar receita não retira DEC/FEC ou satisfação, e adicionar
+uma métrica ao catálogo não a publica automaticamente na busca. Corpus
+regenerado nos dois serviços. 115 testes GenAI dirigidos passaram; Ruff, gerador
+--check e diff passaram. Falha inicial na cópia Linux foi ausência do diretório
+temporário scripts, corrigida sem alterar a regressão. Sem novas chamadas externas.
+
+
+### PR #114 — compatibilidade do SDK opcional
+
+CI detectou três falhas na composição Gold quando o SDK Gemini não está instalado
+e o modelo quantitativo é injetado. Seleção documental agora carrega o SDK apenas
+na primeira chamada remota; falta do SDK resulta em erro documental sanitizado,
+sem impedir composição ou definições canônicas. Doze testes do seletor e runtime
+passaram; Ruff passou. Sem chamada externa.

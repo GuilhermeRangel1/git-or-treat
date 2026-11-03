@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.ai_conversations import CONVERSATIONS as C
 from app.models.ai_conversations import EXCHANGES as E
 from app.schemas.ai import AIQuestionResponse, AIQuestionText
+from app.services.genai_documentation import document_response_is_current
 
 QUESTION_TEXT = TypeAdapter(AIQuestionText)
 
@@ -145,9 +146,10 @@ class ConversationStore:
                     if entry["question"] is not None:
                         question = QUESTION_TEXT.validate_python(entry["question"])
                     if entry["response"] is not None:
-                        response = AIQuestionResponse.model_validate(
-                            entry["response"]
-                        ).model_dump(mode="json", exclude={"continuation_token"})
+                        parsed = AIQuestionResponse.model_validate(entry["response"])
+                        if not document_response_is_current(parsed):
+                            available = False
+                        response = parsed.model_dump(mode="json", exclude={"continuation_token"})
                 except (ValidationError, TypeError):
                     available = False
             items.append(
@@ -207,7 +209,9 @@ class ConversationStore:
             if previous["state"] == "completed":
                 try:
                     result = AIQuestionResponse.model_validate(previous["response"])
-                except (ValidationError, TypeError):
+                    if not document_response_is_current(result):
+                        raise ValueError("Definição histórica desatualizada.")
+                except (ValueError, TypeError):
                     raise HTTPException(
                         409, "Resposta histórica indisponível. Faça uma nova consulta."
                     ) from None

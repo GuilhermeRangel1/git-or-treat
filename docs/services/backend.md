@@ -1,5 +1,10 @@
 # Serviço: backend e banco local
 
+O planejamento GenAI também pode devolver uma definição com referência documental,
+sem plano SQL. O Backend confere texto/citação/versão e escopo no corpus aprovado,
+reautoriza e audita antes da resposta. Histórico e replay não republicam uma
+definição retirada. [Contrato de busca documental](../contracts/genai-documentation-search.md).
+
 Continuidade de esclarecimentos (03/11/2026): o planejamento interno pode devolver
 `pending_question`, aceito apenas em `needs_clarification`. O Backend assina esse
 rascunho como contexto pendente; autorização e publicação são revalidadas antes

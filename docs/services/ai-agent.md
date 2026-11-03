@@ -1,5 +1,16 @@
 # Serviço: agente de inteligência artificial
 
+## Busca conceitual autorizada — 03/11/2026
+
+O Assistente também explica as nove definições aprovadas do FAQ Gold v2.
+`DocumentationSource`/`DocumentSelector` são compostos no núcleo: seleção por
+escopo e vigência precede a chamada opcional Gemini, que escolhe um ID e distingue
+relevância de suporte suficiente. Texto final é extraído e conferido no Backend;
+perguntas quantitativas continuam no fluxo Gold existente.
+[Contrato](../contracts/genai-documentation-search.md) e
+[evidência local](../plans/2026-11-03-genai-busca-documental.md).
+Integração à develop pendente de commit/PR/merge; estados oficiais do PRD preservados.
+
 > Política vigente de prazo Gold (02/11/2026, [ADR-0002](../decisions/0002-genai-gold-query-owner.md)): 60 s totais no Backend; saldo interno de 1 a 60.000 ms; até 5 s por SQL; 70 s no navegador do Assistente. O saldo não reinicia entre etapas. Referências a 35 s em registros anteriores descrevem a política histórica.
 
 

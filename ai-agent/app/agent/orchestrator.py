@@ -9,6 +9,7 @@ from typing import TypeVar
 
 from pydantic import ValidationError
 
+from app.agent.documentation import DocumentationResponder, conceptual_question
 from app.agent.execution import (
     ExecutionController,
     ExecutionLimitExceeded,
@@ -163,6 +164,7 @@ class QuestionOrchestrator:
         event_sink: EventSink | None = None,
         require_durable_audit: bool = False,
         model_router: ModelRouter | None = None,
+        documentation_responder: DocumentationResponder | None = None,
     ) -> None:
         if (model_adapter is None) == (model_router is None):
             raise ValueError("Informe exatamente um entre model_adapter e model_router.")
@@ -180,6 +182,7 @@ class QuestionOrchestrator:
             )
         self._events = event_sink or NoopEventSink()
         self._require_durable_audit = require_durable_audit
+        self._documentation = documentation_responder
 
     async def answer(
         self,
@@ -196,14 +199,29 @@ class QuestionOrchestrator:
         )
 
     async def plan(self, request: QuestionPlanRequest, correlation_id: str) -> QuestionPlanResponse:
-        """Operação planejar: guardrail, interpretação e plano aprovado, sem fonte nem modelo."""
+        """Planeja números sem SQL/modelo; conceitos podem recuperar documentação autorizada."""
 
         access_context = request.access_scope.to_context(correlation_id)
         trace = self._trace(correlation_id)
+        documentation_reference = None
 
         async def plan_only(_budget: RequestBudget) -> QuestionResponse | PlannedQuestion:
+            nonlocal documentation_reference
+            if self._documentation is not None and conceptual_question(request.question):
+                refusal = await asyncio.to_thread(self._safety_refusal, request, trace)
+                if refusal is not None:
+                    return refusal
+                result = await self._documentation.respond(
+                    request.question, access_context, _budget, trace
+                )
+                documentation_reference = result.reference
+                return result.response
             return await asyncio.to_thread(
-                self._plan_step, request, access_context, trace, preserve_clarification=True,
+                self._plan_step,
+                request,
+                access_context,
+                trace,
+                preserve_clarification=True,
             )
 
         outcome = await self._run(
@@ -230,6 +248,8 @@ class QuestionOrchestrator:
             correlation_id=correlation_id,
             status=QuestionPlanStatus(outcome.status.value),
             response=outcome.model_copy(update={"correlation_id": correlation_id}),
+            documentation_reference=(documentation_reference
+                                     if outcome.status is QuestionStatus.ANSWERED else None),
         )
 
     async def synthesize(
@@ -322,6 +342,18 @@ class QuestionOrchestrator:
         budget: RequestBudget,
         trace: EventTrace,
     ) -> QuestionResponse:
+        if (
+            self._documentation is not None
+            and access_context is not None
+            and conceptual_question(request.question)
+        ):
+            refusal = await asyncio.to_thread(self._safety_refusal, request, trace)
+            if refusal is not None:
+                return refusal
+            result = await self._documentation.respond(
+                request.question, access_context, budget, trace
+            )
+            return result.response
         planned = await asyncio.to_thread(self._plan_step, request, access_context, trace)
         if isinstance(planned, QuestionResponse):
             return planned
@@ -575,7 +607,7 @@ class QuestionOrchestrator:
                 _describe_observation(
                     {key: value for key, value in observations[item].items()
                      if key != "period" or not metric.accumulated_period_phrases},
-                    labels, human_readable=not evidence.reference.is_demo
+                    labels, human_readable=not evidence.reference.is_demo,
                 )
                 for item in answer_observation_ids
             )
@@ -598,8 +630,6 @@ class QuestionOrchestrator:
                 )
             if read_plan.comparison_periods and "row_4" not in observations:
                 answer += " Variação percentual indisponível: a base inicial não é positiva."
-
-
         error = (
             map_failure(FailureCode.POLICY_REFUSAL).error if generated.status == "refused" else None
         )
