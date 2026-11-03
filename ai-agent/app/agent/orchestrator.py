@@ -83,12 +83,21 @@ def _describe_observation(
     if unit in {"BRL", "R$"} and isinstance(value, (int, float)) and not isinstance(value, bool):
         formatted = f"{value:,.2f}".translate(str.maketrans({",": ".", ".": ","}))
         value_with_unit = f"R$ {formatted}"
-    elif (human_readable and unit == "protocolos" and isinstance(value, (int, float))
-          and not isinstance(value, bool) and float(value).is_integer()):
-        value_with_unit = f"{value:,.0f} chamados de atendimento".replace(",", ".")
-    elif (human_readable and unit in {"UCs", "ocorrências"} and isinstance(value, (int, float))
-          and not isinstance(value, bool) and float(value).is_integer()):
-        value_with_unit = f"{value:,.0f} {unit}".replace(",", ".")
+    elif (
+        human_readable
+        and unit in {"protocolos", "UCs", "ocorrências"}
+        and isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and float(value).is_integer()
+    ):
+        count = f"{value:,.0f}".replace(",", ".")
+        singular = float(value) == 1
+        label = {
+            "protocolos": "chamado de atendimento" if singular else "chamados de atendimento",
+            "UCs": "UC" if singular else "UCs",
+            "ocorrências": "ocorrência" if singular else "ocorrências",
+        }[unit]
+        value_with_unit = f"{count} {label}"
     else:
         value_with_unit = f"{value} {unit}"
     if human_readable:

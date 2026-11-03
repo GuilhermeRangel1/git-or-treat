@@ -674,11 +674,11 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     })
                 domain_cases = [
                     ("INT-03", "Quantas interrupções houve no alimentador AL-TESTE em janeiro de 2001?",
-                     "network.interruption_events", "1.0 ocorrências"),
+                     "network.interruption_events", "1 ocorrência"),
                     ("FAT-11", "Quanto da variação da receita residencial em Lumenia foi efeito preço e quanto foi efeito volume?",
                      "billing.price_volume", "R$ 10,00"),
                     ("CON-08", "Quantas UCs com GD em Lumenia tiveram queda de consumo acima de 30%?",
-                     "energy.gd_consumption_drop", "1.0 UCs"),
+                     "energy.gd_consumption_drop", "1 UC"),
                     ("ATE-01", "Quantos chamados foram abertos em fevereiro de 2001?",
                      "service.attendance", "2 chamados de atendimento"),
                     ("ATE-03", "Quantos chamados de atendimento existem no histórico acumulado?",
