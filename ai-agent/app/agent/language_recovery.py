@@ -72,10 +72,21 @@ def spelling_suggestions(question: str, profile: DomainProfile) -> Iterator[str]
         _normalize(alias): alias for alias in aliases
         if re.fullmatch(r"[^\W\d_]{5,40}", alias, flags=re.UNICODE)
     }
+    # Nomes de dimensões e métricas são palavras válidas, nunca erros de um valor parecido
+    # (ex.: "bairro" não vira o bairro "BARRO"). O plural só acrescenta "s" após vogal.
+    known_words = {
+        word
+        for alias in (
+            *(alias for dimension in profile.dimensions for alias in dimension.aliases),
+            *(alias for metric in profile.metrics for alias in metric.aliases),
+        )
+        for word in re.findall(r"[^\W\d_]+", _normalize(alias))
+    }
+    known_words |= {word + "s" for word in known_words if word[-1] in "aeiou"}
     proposals = []
     for token in list(re.finditer(r"(?<![\w-])[^\W\d_]{5,40}(?![\w-])", question))[:50]:
         text = _normalize(token.group())
-        if text in vocabulary:
+        if text in vocabulary or text in known_words:
             continue
         candidates = [key for key in vocabulary if key[0] == text[0]
                       and abs(len(key) - len(text)) <= 2
