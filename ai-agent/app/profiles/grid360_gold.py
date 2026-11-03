@@ -594,7 +594,12 @@ def _build_profile() -> DomainProfile:
     values["supports_ordering"] = True
     values["default_period_context_phrases"] = ()
     values["comparison_period_phrases"] = ()
-    values["comparison_terms"] = (*values["comparison_terms"], "perdeu")
+    # "Variou em relação a maio" pede uma base; com um único período, o interpretador
+    # pede a comparação em vez de responder só o mês citado.
+    values["comparison_terms"] = (
+        *values["comparison_terms"], "perdeu", "variou", "variar", "variaram",
+        "em relação a", "em relação ao",
+    )
     values["non_location_phrases"] = ()
     values["ambiguities"] = (
         *values["ambiguities"],

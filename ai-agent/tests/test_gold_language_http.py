@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
 from app.schemas.internal import QuestionSynthesisRequest
 from app.schemas.read_plan import LogicalReadPlan
 
@@ -22,6 +23,50 @@ def _plan(question, context=(), *, dimension_values=None, extra_coverage=()):
         response = client.post(PLAN_PATH, json=payload, headers=HEADERS)
     assert response.status_code == 200
     return response.json()
+
+
+UNKNOWN_GEOGRAPHY = "Não reconheci esse local nas referências disponíveis"
+
+
+@pytest.mark.parametrize("question", [
+    "Qual foi a receita faturada em Recife em jun/26?",
+    "Qual foi a receita faturada em Recife em 2026?",
+    "Qual foi o ticket médio da classe comercial em Olinda e como ele variou "
+    "em relação a maio de 2026?",
+])
+def test_unrecognized_period_is_not_reported_as_unknown_location(question):
+    result = _plan(question)
+    assert result["status"] == "needs_clarification", result
+    message = result["response"]["message"]
+    assert UNKNOWN_GEOGRAPHY not in message
+    assert "período" in message or "mensal" in message
+
+
+@pytest.mark.parametrize("month", ["maio de 2026", "março de 2025"])
+def test_variation_against_a_single_period_asks_for_the_comparison_baseline(month):
+    result = _plan(
+        "Qual foi o ticket médio da classe comercial em Olinda e como ele variou "
+        f"em relação a {month}?"
+    )
+    assert result["status"] == "needs_clarification", result
+    assert result.get("plan") is None
+    message = result["response"]["message"]
+    assert UNKNOWN_GEOGRAPHY not in message
+    assert message.startswith(GRID360_GOLD_PROFILE.clarifications.comparison_baseline)
+
+
+def test_variation_between_two_explicit_months_still_plans_the_comparison():
+    result = _plan(
+        "Como a receita em Olinda variou entre fevereiro e março de 2025?"
+    )
+    assert result["status"] == "planned", result
+    assert result["plan"]["comparison_periods"] == ["2025-02", "2025-03"]
+
+
+def test_unknown_place_after_preposition_still_asks_for_geography():
+    result = _plan("Qual foi a receita faturada em Atlantis em junho de 2026?")
+    assert result["status"] == "needs_clarification", result
+    assert UNKNOWN_GEOGRAPHY in result["response"]["message"]
 
 
 @pytest.mark.parametrize("exclusion", [

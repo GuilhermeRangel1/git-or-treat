@@ -30,6 +30,12 @@ _PERCENTAGE_THRESHOLD = re.compile(
     re.IGNORECASE,
 )
 _LOCATION_AFTER_PREPOSITION = re.compile(r"\b(?:em|no|na)\s+([\wÀ-ÿ-]+)", re.IGNORECASE)
+# Calendário não é lugar: "em 2026", "em jun" e "em jun/26" seguem para a
+# validação de período em vez de pedir confirmação da geografia.
+_MONTH_ABBREVIATIONS = frozenset(
+    ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+)
+_AFTER_MONTH_ABBREVIATION = re.compile(r"(?:\.|/[0-9]{2}(?:[0-9]{2})?)?(?![\w/-])")
 # Sem preposição de lugar, só a grafia de nome próprio sinaliza local: "de Recife" e
 # "do Recife" sim, "de energia" e "de 2025" não. Siglas e nomes com hífen ficam de fora.
 _PROPER_NAME_AFTER_DE = re.compile(
@@ -1065,6 +1071,14 @@ class QuestionInterpreter:
                     return True
         for match in _LOCATION_AFTER_PREPOSITION.finditer(question):
             start, end = match.span(1)
+            word = _normalize(match.group(1))
+            # Só ano completo: "em 10 março" é data diária e precisa continuar bloqueada.
+            if (
+                re.fullmatch(r"[0-9]{4}", word)
+                or (word in _MONTH_ABBREVIATIONS
+                    and _AFTER_MONTH_ABBREVIATION.match(question, end))
+            ):
+                continue
             # O trecho conhecido pode começar na palavra ou na própria preposição ("na verdade").
             if not any(
                 recognized_start in (start, match.start()) and recognized_end >= end
