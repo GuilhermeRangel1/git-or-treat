@@ -69,14 +69,18 @@ class CachingModelAdapter:
         *,
         ttl_seconds: float,
         max_entries: int,
+        max_bytes: int = 4_194_304,
         namespace: str = "local-model-v1",
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        if ttl_seconds <= 0 or max_entries < 1:
+        if ttl_seconds <= 0 or max_entries < 1 or max_bytes < 1:
             raise ValueError("TTL e tamanho máximo do cache devem ser positivos.")
         self._inner = inner
         self._ttl_seconds = ttl_seconds
         self._max_entries = max_entries
+        self._max_bytes = max_bytes
+        self._bytes = 0
+        self._sizes: dict[str, int] = {}
         self._namespace = namespace
         self._clock = clock
         self._entries: OrderedDict[str, tuple[float, GeneratedAnswer]] = OrderedDict()
@@ -100,11 +104,14 @@ class CachingModelAdapter:
         cached = self._lookup(key)
         if cached is not None:
             record_execution("cache", 0, 0, "hit")
-            return cached.model_copy()
+            return cached.model_copy(deep=True)
         record_execution("cache", 0, 0, "miss")
 
+        self._purge_expired()
         task = self._in_flight.get(key)
         if task is None or task.done():
+            if len(self._in_flight) >= self._max_entries:
+                return await self._inner.generate(question, context, evidence)
             task = asyncio.ensure_future(self._fill(key, question, context, evidence))
             self._in_flight[key] = task
             task.add_done_callback(lambda done: self._forget(key, done))
@@ -112,7 +119,7 @@ class CachingModelAdapter:
         try:
             # A primeira desistência não interrompe outra solicitação ainda aguardando.
             answer = await asyncio.shield(task)
-            return answer.model_copy()
+            return answer.model_copy(deep=True)
         finally:
             remaining = self._waiters[key] - 1
             if remaining:
@@ -159,16 +166,32 @@ class CachingModelAdapter:
             return None
         expires_at, answer = entry
         if expires_at <= self._clock():
-            del self._entries[key]
+            self._remove(key)
             return None
         self._entries.move_to_end(key)
         return answer
 
+    def _remove(self, key: str) -> None:
+        self._entries.pop(key, None)
+        self._bytes -= self._sizes.pop(key, 0)
+
+    def _purge_expired(self) -> None:
+        now = self._clock()
+        for key, (expires, _) in list(self._entries.items()):
+            if expires <= now:
+                self._remove(key)
+
     def _store(self, key: str, answer: GeneratedAnswer) -> None:
-        self._entries[key] = (self._clock() + self._ttl_seconds, answer.model_copy())
-        self._entries.move_to_end(key)
-        while len(self._entries) > self._max_entries:
-            self._entries.popitem(last=False)
+        self._purge_expired()
+        size = len(key.encode()) + len(answer.model_dump_json().encode())
+        if size > self._max_bytes:
+            return
+        self._remove(key)
+        self._entries[key] = (self._clock() + self._ttl_seconds, answer.model_copy(deep=True))
+        self._sizes[key] = size
+        self._bytes += size
+        while len(self._entries) > self._max_entries or self._bytes > self._max_bytes:
+            self._remove(next(iter(self._entries)))
 
     def _forget(self, key: str, done: asyncio.Task[GeneratedAnswer]) -> None:
         if self._in_flight.get(key) is done:

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     model_total_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
     model_cache_ttl_seconds: int = Field(default=0, ge=0, le=86_400)
     model_cache_max_entries: int = Field(default=256, ge=1, le=10_000)
+    model_cache_max_bytes: int = Field(default=4_194_304, ge=1024, le=67_108_864)
     # Provedores tentados, em ordem, depois dos modelos do provedor principal.
     model_fallback_providers: Annotated[list[ModelProviderName], NoDecode] = Field(
         default_factory=list
