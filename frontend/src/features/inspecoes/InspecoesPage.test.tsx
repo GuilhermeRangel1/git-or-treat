@@ -398,6 +398,32 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   });
 });
 
+it("oferece ordenar a fila Gold pela energia recuperável estimada", async () => {
+  const fetch = vi.fn().mockImplementation(() => respond(goldQueue));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  const ordering = await screen.findByLabelText("Ordenar por");
+  expect(
+    within(ordering).getByRole("option", {
+      name: "Energia recuperável estimada",
+    }),
+  ).toBeEnabled();
+  await user.selectOptions(ordering, "potential_recoverable_energy_kwh");
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "order_by=potential_recoverable_energy_kwh",
+    ),
+  );
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("order_by=potential_recoverable_energy_kwh"),
+      expect.anything(),
+    ),
+  );
+});
+
 it("exige nova confirmação após troca de fingerprint e não repete a intenção obsoleta", async () => {
   const nextMetadata = {
     ...goldMetadata,
