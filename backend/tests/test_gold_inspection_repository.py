@@ -141,6 +141,34 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
         descending = build_gold_queue_response(repository, AnalyticsFilters(), 1, 1, "queue_position", "desc")
         detail = build_gold_suspicion_response(repository, "UC-1")
         incomplete = build_gold_suspicion_response(repository, "UC-2")
+        validated_report = (
+            '{"estimativa_uc":{"estado":"CANDIDATO_PASSOU_VALIDACAO_TEMPORAL",'
+            '"metodo":"CONSUMO_CONDICIONAL_V1","criterios":{"nivel_faixa":0.9},'
+            '"janela_aplicacao":{"ancora":"2026-06","meses":12,"minimo_meses":6}}}'
+        )
+        connection.execute(
+            queue.update().where(queue.c.id_uc == "UC-INVALID").values(
+                energia_estimada_recuperavel_kwh=75.0,
+                intervalo_recuperacao_inferior_kwh=60.0,
+                intervalo_recuperacao_superior_kwh=90.0,
+                estado_estimativa_recuperacao="ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+                metodo_estimativa_recuperacao="CONSUMO_CONDICIONAL_V1",
+                validacao_recuperacao_json=validated_report,
+            )
+        )
+        connection.execute(
+            queue.update().where(queue.c.id_uc == "UC-INFINITE").values(
+                posicao_fila_inspecao=2,
+            )
+        )
+        estimate_desc = build_gold_queue_response(
+            repository, AnalyticsFilters(), 1, 5,
+            "potential_recoverable_energy_kwh", "desc",
+        )
+        estimate_asc = build_gold_queue_response(
+            repository, AnalyticsFilters(), 1, 5,
+            "potential_recoverable_energy_kwh", "asc",
+        )
 
     assert first_page.pagination.total == 5
     assert first_page.pagination.total_pages == 5
@@ -183,6 +211,15 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
     assert "validação temporal" in invalid_metadata.data.items[0].recovery_unavailable_reason
     assert non_finite.data.items[0].potential_recoverable_energy_kwh is None
     assert non_finite.data.items[0].evidence.estimated_recoverable_energy_kwh is None
+    assert [item.uc_id for item in estimate_desc.data.items] == [
+        "UC-2", "UC-INVALID", "UC-0", "UC-1", "UC-INFINITE",
+    ]
+    assert [item.potential_recoverable_energy_kwh for item in estimate_desc.data.items[:2]] == [
+        125.5, 75.0,
+    ]
+    assert [item.uc_id for item in estimate_asc.data.items] == [
+        "UC-INVALID", "UC-2", "UC-0", "UC-1", "UC-INFINITE",
+    ]
     assert first_page.data.summary.estimated_units == 1
     assert first_page.data.summary.unavailable_estimate_units == 4
     assert detail.data.consumption_comparison.baseline_kwh == 300

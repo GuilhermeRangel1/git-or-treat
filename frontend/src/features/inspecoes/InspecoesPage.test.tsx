@@ -398,6 +398,32 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   });
 });
 
+it("oferece ordenar a fila Gold pela energia recuperável estimada", async () => {
+  const fetch = vi.fn().mockImplementation(() => respond(goldQueue));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  const ordering = await screen.findByLabelText("Ordenar por");
+  expect(
+    within(ordering).getByRole("option", {
+      name: "Energia recuperável estimada",
+    }),
+  ).toBeEnabled();
+  await user.selectOptions(ordering, "potential_recoverable_energy_kwh");
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "order_by=potential_recoverable_energy_kwh",
+    ),
+  );
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("order_by=potential_recoverable_energy_kwh"),
+      expect.anything(),
+    ),
+  );
+});
+
 it("exige nova confirmação após troca de fingerprint e não repete a intenção obsoleta", async () => {
   const nextMetadata = {
     ...goldMetadata,
@@ -1194,4 +1220,22 @@ it("rejeita contratos inválidos antes de apresentar métricas", () => {
       pagination: { page: 1, page_size: 10, total: 2, total_pages: 9 },
     }),
   ).toThrow();
+});
+
+it("uses descending as the default direction for Gold recovery estimates", async () => {
+  const fetch = vi.fn(async (_url: string) => respond(goldQueue));
+  vi.stubGlobal("fetch", fetch);
+  mount("/inspecoes?order_by=potential_recoverable_energy_kwh");
+
+  expect(await screen.findByLabelText("Ordenar por")).toBeVisible();
+  expect(screen.getByLabelText("Ordenar por")).toHaveValue(
+    "potential_recoverable_energy_kwh",
+  );
+  expect(screen.getByLabelText(/Dire/)).toHaveValue("desc");
+
+  const request = new URL(fetch.mock.calls.at(-1)![0], window.location.origin);
+  expect(request.searchParams.get("order_by")).toBe(
+    "potential_recoverable_energy_kwh",
+  );
+  expect(request.searchParams.get("direction")).toBeNull();
 });

@@ -210,7 +210,9 @@ export default function InspectionQueue({
   const legacyGold = result.metadata.source.kind === "gold_csv";
   const field =
     params.get("order_by") ?? (gold ? "queue_position" : "priority");
-  const direction = params.get("direction") ?? (gold ? "asc" : "desc");
+  const direction =
+    params.get("direction") ??
+    (gold && field === "queue_position" ? "asc" : "desc");
 
   function goTo(number: number) {
     const next = new URLSearchParams(params);
@@ -250,6 +252,9 @@ export default function InspectionQueue({
             {gold ? (
               <>
                 <option value="queue_position">Posição oficial da fila</option>
+                <option value="potential_recoverable_energy_kwh">
+                  Energia recuperável estimada
+                </option>
                 <option value="uc_id">Número da UC</option>
                 <option value="category">Categoria</option>
               </>

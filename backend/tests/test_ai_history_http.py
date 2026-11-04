@@ -26,7 +26,7 @@ ORIGIN = {"origin": "http://localhost:5173"}
 def client(request, monkeypatch):
     db, _, _ = request.getfixturevalue("storage")
     AuthSession.__table__.create(db.get_bind())
-    db.execute(update(AuthUser).values(profile="losses"))
+    db.execute(update(AuthUser).values(profile="losses", permissions=[]))
     for owner in ["one", "two"]:
         db.execute(
             insert(AuthSession).values(
@@ -100,11 +100,13 @@ def test_anonymous_revoked_and_cross_origin_are_denied(client):
 
 
 @pytest.mark.parametrize("profile", ["commercial", "customer_service", "losses", "operations", "admin"])
-def test_history_is_available_to_each_assistant_profile(client, profile):
+def test_history_uses_assistant_permission_for_each_platform_profile(client, profile):
     web, db, _ = client
     db.execute(update(AuthUser).where(AuthUser.id == "one").values(profile=profile))
     db.commit()
+    conversation = create(web)
     assert web.get("/api/v1/ai/conversations").status_code == 200
+    assert web.get(f"/api/v1/ai/conversations/{conversation}").status_code == 200
 
 
 def test_crud_owner_and_redacted_validation(client):

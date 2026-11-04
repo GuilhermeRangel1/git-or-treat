@@ -270,12 +270,24 @@ def build_gold_queue_response(
     _validate_gold_filters(repository, filters, options)
     total = repository.count(filters, category)
     category_counts = repository.category_counts(filters)
-    rows = repository.list_page(filters, page, page_size, order_by, direction, category)
+    estimate_groups = repository.recovery_estimate_groups(filters, category)
+    valid_recovery_reports = {
+        report
+        for report, _ in estimate_groups
+        if _recovery_validation({"validacao_recuperacao_json": report}) is not None
+    }
+    rows = repository.list_page(
+        filters,
+        page,
+        page_size,
+        order_by,
+        direction,
+        category,
+        valid_recovery_reports,
+    )
     items = [_gold_item(row) for row in rows]
     estimated_units = sum(
-        count
-        for report, count in repository.recovery_estimate_groups(filters, category)
-        if _recovery_validation({"validacao_recuperacao_json": report}) is not None
+        count for report, count in estimate_groups if report in valid_recovery_reports
     )
     state: AnalyticsStatus = "empty" if total == 0 else "available"
     return GoldInspectionQueueResponse(

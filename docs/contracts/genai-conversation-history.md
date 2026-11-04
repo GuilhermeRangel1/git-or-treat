@@ -16,7 +16,7 @@ O armazenamento fica no PostgreSQL operacional do Backend, separado da Gold e do
 
 A migração `genaihistory01` é filha de `genai12000001`. O script `backend/scripts/provision_backend_app.sql` concede CRUD operacional das duas tabelas ao papel do Backend e não muda privilégios do leitor Gold. O leitor não recebe acesso às tabelas do histórico.
 
-Rotas sob `/api/v1/ai/conversations` exigem sessão individual e `orders:read`: criar, listar, abrir, renomear, excluir e enviar pergunta. Todas as consultas de armazenamento filtram proprietário e expiração. Renomear exige revisão; envio e criação usam IDs de requisição. Uma reserva pendente tem lease; repetição da tentativa concluída devolve a resposta salva, e tentativa atrasada não substitui uma recuperação mais nova nem ressuscita conversa excluída.
+Rotas sob `/api/v1/ai/conversations` exigem sessão individual e `ai:ask`: criar, listar, abrir, renomear, excluir e enviar pergunta. Essa permissão acompanha a matriz WEB-10 e permite o histórico privado aos cinco perfis, independentemente do acesso a ordens. Todas as consultas de armazenamento filtram proprietário e expiração. Renomear exige revisão; envio e criação usam IDs de requisição. Uma reserva pendente tem lease; repetição da tentativa concluída devolve a resposta salva, e tentativa atrasada não substitui uma recuperação mais nova nem ressuscita conversa excluída.
 
 O formato público tipado limita lista a 50 conversas e detalhe a 200 trocas. JSON incompatível, resposta inválida ou escopo diferente é apresentado como indisponível, sem expor conteúdo. Contexto só é reconstruído de mensagens concluídas, validadas e do mesmo escopo. A resposta histórica é identificada como salva; atualizar exige nova consulta à publicação atual.
 
