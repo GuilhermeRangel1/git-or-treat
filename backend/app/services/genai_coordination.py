@@ -173,7 +173,8 @@ async def answer_gold_question(
                  and planned.response.pending_question is not None else None)
         return response.model_copy(update={"audit_reference": reference, "continuation_token": token})
     if engine is None:
-        # Identidade promovida entre a admissão HTTP e o planejamento.
+        # Identidade promovida entre a admissão HTTP e o planejamento: este
+        # pedido não reabre recursos sob a nova concessão.
         raise GenAIServiceUnavailable(retryable=False)
     if planned.deadline is None or planned.access_scope is None or planned.source is None:
         raise GenAIResponseInvalid

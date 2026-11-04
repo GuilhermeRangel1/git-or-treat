@@ -5,6 +5,7 @@ import { isGoldPublicationStale } from "@/shared/analytics/goldPublication";
 import { ASSISTANT_HOME_SUGGESTIONS } from "@/shared/help/assistantExamples";
 import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/shared/auth/useSession";
 import { currentAuthorizationGeneration } from "@/shared/auth/authorization";
 import ConversationHistory from "./ConversationHistory";
 import { createConversation, openConversation } from "./history";
@@ -28,7 +29,6 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useGoldPublicationRevision } from "@/shared/analytics/goldPublication";
-import { useSession } from "@/shared/auth/useSession";
 import Button from "@/shared/ui/Button";
 import { AIChatApiError, askAIQuestion } from "./api";
 import { AssistantIdentity, ProcessingIndicator } from "./AssistantIdentity";
@@ -466,7 +466,7 @@ export default function AssistentePage() {
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
   const [hasInterruptedSend, setHasInterruptedSend] = useState(false);
   const publicationRevision = useGoldPublicationRevision();
-  const { user } = useSession();
+  const { user } = session;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [requestPhase, setRequestPhase] = useState<
     "idle" | "consulting" | "interpreting"

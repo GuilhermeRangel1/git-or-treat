@@ -102,19 +102,17 @@ export default function RevenueDecomposition({
         ) : (
           <dl className="mt-4 grid gap-3">
             {labels.map(([label, key]) => (
-              <div key={key}>
-                <div className="flex flex-wrap justify-between gap-2">
-                  <dt>{label}</dt>
-                  <dd
-                    className={`font-semibold [overflow-wrap:anywhere] ${signedValueTone(window.components[key] ?? null)}`}
-                  >
-                    {signedAmount(window.components[key] ?? null)}
-                  </dd>
-                </div>
-                <EffectBar
-                  value={window.components[key] ?? null}
-                  maximum={maximum}
-                />
+              <div key={key} className="flex flex-wrap justify-between gap-2">
+                <dt>{label}</dt>
+                <dd
+                  className={`grid w-1/2 min-w-32 justify-items-end font-semibold [overflow-wrap:anywhere] ${signedValueTone(window.components[key] ?? null)}`}
+                >
+                  <span>{signedAmount(window.components[key] ?? null)}</span>
+                  <EffectBar
+                    value={window.components[key] ?? null}
+                    maximum={maximum}
+                  />
+                </dd>
               </div>
             ))}
             <div className="flex flex-wrap justify-between gap-2 border-t border-border pt-3">
@@ -194,15 +192,18 @@ export default function RevenueDecomposition({
 
       <dl className="mt-4 grid gap-4">
         {entries.map(([label, value]) => (
-          <div key={label}>
-            <div className="flex min-h-10 items-start justify-between gap-4">
-              <dt className="text-sm text-content">{label}</dt>
-              <dd
-                className={
-                  "flex items-center gap-2 text-right text-base font-semibold " +
-                  signedValueTone(value)
-                }
-              >
+          <div
+            key={label}
+            className="flex min-h-10 items-start justify-between gap-4"
+          >
+            <dt className="text-sm text-content">{label}</dt>
+            <dd
+              className={
+                "grid w-1/2 min-w-32 justify-items-end gap-2 text-right text-base font-semibold " +
+                signedValueTone(value)
+              }
+            >
+              <span className="flex items-center gap-2">
                 <span aria-hidden="true">
                   {value === null
                     ? ""
@@ -213,11 +214,11 @@ export default function RevenueDecomposition({
                         : "▶"}
                 </span>
                 {signedAmount(value)}
-              </dd>
-            </div>
-            {label !== "Variação total" && (
-              <EffectBar value={value} maximum={maximum} />
-            )}
+              </span>
+              {label !== "Variação total" ? (
+                <EffectBar value={value} maximum={maximum} />
+              ) : null}
+            </dd>
           </div>
         ))}
       </dl>

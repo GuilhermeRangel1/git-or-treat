@@ -20,8 +20,16 @@ it("distingue sinais, zero e ausência na decomposição", () => {
     },
   } as unknown as RevenueEnvelope;
   render(<RevenueDecomposition envelope={envelope} />);
-  expect(screen.getByText(/−R\$\s*10,00/)).toHaveClass("text-danger");
-  expect(screen.getByText(/\+R\$\s*20,00/)).toHaveClass("text-success");
-  expect(screen.getByText(/R\$\s*0,00/)).toHaveClass("text-content");
-  expect(screen.getAllByText("Indisponível")[0]).toHaveClass("text-muted");
+  expect(screen.getByText(/−R\$\s*10,00/).closest("dd")).toHaveClass(
+    "text-danger",
+  );
+  expect(screen.getByText(/\+R\$\s*20,00/).closest("dd")).toHaveClass(
+    "text-success",
+  );
+  expect(screen.getByText(/R\$\s*0,00/).closest("dd")).toHaveClass(
+    "text-content",
+  );
+  expect(screen.getAllByText("Indisponível")[0].closest("dd")).toHaveClass(
+    "text-muted",
+  );
 });
