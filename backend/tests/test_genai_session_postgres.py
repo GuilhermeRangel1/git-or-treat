@@ -725,7 +725,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     ("ATE-03", "Quantos chamados de atendimento existem no histórico acumulado?",
                      "service.accumulated_attendance", "3 chamados de atendimento"),
                     ("ATE-04", "Qual é a satisfação média do atendimento no histórico acumulado?",
-                     "service.accumulated_satisfaction", "2.0 pontos"),
+                     "service.accumulated_satisfaction", "2 pontos"),
                     ("FAT-10", "Qual classe mais contribuiu para a receita em Lumenia em janeiro de 2001?",
                      "billing.revenue", "R$ 12,00"),
                 ]
@@ -799,16 +799,16 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert compared_body["status"] == "answered", compared_body
                     assert "R$ 12,00" in compared_body["answer"]
                     assert "R$ 24,00" in compared_body["answer"]
-                    assert "100.0 %" in compared_body["answer"]
+                    assert "100%" in compared_body["answer"]
                     assert "9999" not in compared_body["answer"]
                     consumption = public_client.post("/api/v1/ai/questions", headers=origin, json={
                         "question": "O consumo residencial em Lumenia caiu entre janeiro de 2001 e abril de 2001?",
                     }).json()
                     assert consumption["status"] == "answered", consumption
-                    assert "30.0 kWh" in consumption["answer"]
-                    assert "24.0 kWh" in consumption["answer"]
-                    assert "-6.0 kWh" in consumption["answer"]
-                    assert "-20.0 %" in consumption["answer"]
+                    assert "30 kWh" in consumption["answer"]
+                    assert "24 kWh" in consumption["answer"]
+                    assert "-6 kWh" in consumption["answer"]
+                    assert "-20%" in consumption["answer"]
                     with owner.begin() as ranking_write:
                         ranking_write.execute(TABLES["consumo_receita_bairro"].insert(), [
                             {"competencia": month, "municipio": "Luz Clara", "bairro": name,
@@ -823,7 +823,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     }).json()
                     assert ranking["status"] == "answered", ranking
                     assert "Quadra A" in ranking["answer"] and "Quadra B" not in ranking["answer"]
-                    assert "-50.0 kWh" in ranking["answer"]
+                    assert "-50 kWh" in ranking["answer"]
                 finally:
                     with owner.begin() as comparison_write:
                         comparison_write.execute(TABLES["consumo_receita_bairro"].delete().where(

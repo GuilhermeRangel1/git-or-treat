@@ -238,6 +238,7 @@ export default function PanoramaPage() {
           <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]">
             <PanoramaSeriesChart
               data={data.serieMensal}
+              sourceKind={data.origem?.kind}
               selectedPeriod={filters.periodo}
               partialPeriod={
                 data.periodoIncompleto ? filters.periodo : undefined

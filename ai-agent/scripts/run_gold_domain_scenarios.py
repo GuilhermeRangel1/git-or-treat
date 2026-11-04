@@ -436,6 +436,27 @@ def observation_numbers(answer: str, label: str, unit: str | None = None,
     return values
 
 
+def compact_comparison_numbers(answer: str, first: str, last: str, unit: str):
+    """Reconhece a comparação legível mantendo vínculo mês/valor, unidade e sinais."""
+    number = r"[+-]?[0-9][0-9.,]*"
+    amount = (r"r\$\s*(?P<delta>" + number + ")" if unit in {"R$", "BRL"} else
+              r"(?P<delta>" + number + r")\s*" + re.escape(normalize(unit)))
+    matched = re.fullmatch(
+        r"[^:\n]+:\s*(?P<first>.+?);\s*(?P<last>.+?)\.\s*variacao absoluta:\s*"
+        + amount + r"(?:\s*\((?P<percentage>" + number + r")\s*%\))?\."
+        r"(?:\s*variacao percentual indisponivel: a base inicial nao e positiva\.)?",
+        normalize(answer),
+    )
+    if matched is None:
+        return None
+    return {
+        "valor": observation_numbers(matched["first"], first, unit),
+        "valor_final": observation_numbers(matched["last"], last, unit),
+        "variacao": parse_numbers(matched["delta"]),
+        "percentual": parse_numbers(matched["percentage"]),
+    }
+
+
 def numeric_divergences(case: dict, body: dict, expected: list[Decimal], tolerance: Decimal,
                         params: dict, dim_params: dict) -> tuple[list[str], list[Decimal]]:
     divergences = []
@@ -470,6 +491,7 @@ def numeric_divergences(case: dict, body: dict, expected: list[Decimal], toleran
     comparison = params.get("_comparacao_esperada")
     if comparison:
         answer = body.get("answer") or ""
+        compact = compact_comparison_numbers(answer, params["p0"], params["p1"], case["unidade"])
         labels = {
             "valor": (params["p0"], case["unidade"]),
             "valor_final": (params["p1"], case["unidade"]),
@@ -478,7 +500,8 @@ def numeric_divergences(case: dict, body: dict, expected: list[Decimal], toleran
         }
         for column, (label, unit) in labels.items():
             wanted = comparison.get(column)
-            observed = observation_numbers(answer, label, unit)
+            observed = (compact[column] if compact is not None
+                        else observation_numbers(answer, label, unit))
             if wanted is None:
                 if observed:
                     divergences.append("numero")

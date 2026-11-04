@@ -1,3 +1,5 @@
+import { verifyVisualExport } from "../../shared/analytics/verifyVisualExport";
+import VisualEvidence from "../../shared/analytics/VisualEvidence";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -93,25 +95,31 @@ function formatPercentage(value: number | null) {
   return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(Math.abs(value))}%`;
 }
 
+function describeComposition(
+  item: NonNullable<PanoramaInsightAnalysis["composicaoAtual"]>,
+  metric: PanoramaData["metricas"]["receitaFaturada"],
+  filters: PanoramaFilters,
+) {
+  const scope =
+    item.dimension === "municipio"
+      ? "entre os municípios"
+      : item.dimension === "classe"
+        ? "entre as classes de consumo"
+        : "entre os bairros";
+  const concentration =
+    item.participacaoPercentual > 50
+      ? "Esse segmento reúne mais da metade do valor observado neste recorte."
+      : "Esse é o maior segmento do recorte; o restante do valor está distribuído entre os demais grupos.";
+  return `${item.segmento} concentra ${formatPercentage(item.participacaoPercentual)} ${metric.unidade === "R$" ? "da receita observada" : `de ${metric.nome.toLowerCase()}`} em ${periodLabel(filters.periodo)} (${formatValue(item.valor, metric.unidade)}), liderando ${scope}. ${concentration}`;
+}
+
 function describeTrend(
   analysis: PanoramaInsightAnalysis,
   metric: PanoramaData["metricas"]["energiaFaturada"],
   filters: PanoramaFilters,
 ) {
-  if (analysis.composicaoAtual) {
-    const item = analysis.composicaoAtual;
-    const scope =
-      item.dimension === "municipio"
-        ? "entre os municípios"
-        : item.dimension === "classe"
-          ? "entre as classes de consumo"
-          : "entre os bairros";
-    const concentration =
-      item.participacaoPercentual > 50
-        ? "Esse segmento reúne mais da metade do valor observado neste recorte."
-        : "Esse é o maior segmento do recorte; o restante da receita está distribuído entre os demais grupos.";
-    return `${item.segmento} concentra ${formatPercentage(item.participacaoPercentual)} da receita observada em ${periodLabel(filters.periodo)} (${formatValue(item.valor, metric.unidade)}), liderando ${scope}. ${concentration}`;
-  }
+  if (analysis.direcao === "indisponivel" && analysis.composicaoAtual)
+    return describeComposition(analysis.composicaoAtual, metric, filters);
   if (metric.valorAtual === 0 && analysis.direcao === "indisponivel")
     return `A receita observada em ${periodLabel(filters.periodo)} soma ${formatValue(0, metric.unidade)} no recorte selecionado.`;
   const current = periodLabel(filters.periodo);
@@ -119,15 +127,19 @@ function describeTrend(
   const percentage = formatPercentage(analysis.variacaoPercentual);
 
   if (analysis.direcao === "indisponivel")
-    return `A receita observada em ${current} foi de ${formatValue(metric.valorAtual, metric.unidade)}. Explore os valores por município e classe no detalhamento.`;
+    return `O valor observado em ${current} foi de ${formatValue(metric.valorAtual, metric.unidade)} neste recorte. ${filters.comparacao === "nenhuma" ? "Esta leitura descreve o período selecionado, sem comparação temporal." : `A comparação com ${previous} não está disponível; esse valor, sozinho, não indica alta ou queda.`}`;
   if (analysis.direcao === "estavel")
-    return `${metric.nome} ficou estável de ${previous} para ${current}. A estabilidade do total pode coexistir com altas e quedas entre os segmentos; confira os movimentos no detalhamento.`;
+    return `${metric.nome} ficou estável de ${previous} para ${current}, em ${formatValue(metric.valorAtual, metric.unidade)}. O total estável não significa que todos os segmentos permaneceram iguais.`;
 
   const verb = analysis.direcao === "queda" ? "caiu" : "aumentou";
   const change =
     percentage ??
     formatValue(Math.abs(metric.variacaoAbsoluta ?? 0), metric.unidade);
-  return `${metric.nome} ${verb} ${change} de ${previous} para ${current}.`;
+  const values =
+    metric.valorAnterior != null && metric.valorAtual != null
+      ? ` O valor passou de ${formatValue(metric.valorAnterior, metric.unidade)} para ${formatValue(metric.valorAtual, metric.unidade)}${percentage && metric.variacaoAbsoluta != null ? `, uma diferença de ${formatValue(Math.abs(metric.variacaoAbsoluta), metric.unidade)}` : ""}.`
+      : "";
+  return `${metric.nome} ${verb} ${change} de ${previous} para ${current}.${values}${metric.baseZero ? " Como a base de comparação é zero, a mudança é apresentada em valor absoluto, sem variação percentual." : ""}`;
 }
 
 function describeContribution(
@@ -161,6 +173,8 @@ function investigationSuggestion(
   filters: PanoramaFilters,
 ) {
   const contribution = analysis.principalContribuicao;
+  if (filters.municipio !== "todos" && filters.classe !== "todas")
+    return `Acompanhe ${filters.classe} em ${filters.municipio} em outras competências comparáveis. Para contextualizar o resultado, retire um filtro por vez e compare com as demais classes ou municípios, mantendo o mesmo indicador.`;
   if (analysis.direcao === "indisponivel")
     return analysis.composicaoAtual?.dimension === "municipio"
       ? `Selecione ${analysis.composicaoAtual.segmento} e examine as classes que compõem sua receita.`
@@ -170,17 +184,28 @@ function investigationSuggestion(
           ? `Acompanhe ${analysis.composicaoAtual.segmento} em outras competências com valores comparáveis para avaliar a continuidade dessa concentração.`
           : "Explore os valores por município e classe ou escolha outro período com evidência disponível.";
   if (analysis.direcao === "estavel")
-    return "Compare os recortes por município e classe; o total pode ocultar movimentos diferentes entre grupos.";
+    return filters.municipio !== "todos"
+      ? `Compare as classes de consumo de ${filters.municipio}; altas e quedas podem se compensar no total do município.`
+      : filters.classe !== "todas"
+        ? `Compare os municípios da classe ${filters.classe}; altas e quedas podem se compensar no total da classe.`
+        : "Compare os recortes por município e classe; o total pode ocultar movimentos diferentes entre grupos.";
   if (contribution?.dimension === "classe")
     return `Acompanhe a classe ${contribution.segmento} em outras competências para verificar se o movimento se repete. Os dados não indicam a causa.`;
   if (contribution?.dimension === "municipio")
     return `Abra ${contribution.segmento} por classe para localizar onde o movimento se concentra. Os dados não indicam a causa.`;
-  if (filters.municipio !== "todos" && filters.classe !== "todas")
-    return "Abra o recorte por município ou classe para localizar onde o movimento se concentra. Os dados não indicam a causa.";
-  return "Compare os grupos deste recorte para localizar onde o movimento se concentra. Os dados não indicam a causa.";
+  return filters.municipio !== "todos"
+    ? `Compare as classes de consumo de ${filters.municipio} nos mesmos dois períodos para localizar onde a variação se concentra, antes de investigar sua causa.`
+    : filters.classe !== "todas"
+      ? `Compare os municípios da classe ${filters.classe} nos mesmos dois períodos para localizar onde a variação se concentra, antes de investigar sua causa.`
+      : "Compare os grupos deste recorte para localizar onde o movimento se concentra. Os dados não indicam a causa.";
 }
 
-function compactNextStep(analysis: PanoramaInsightAnalysis) {
+function compactNextStep(
+  analysis: PanoramaInsightAnalysis,
+  filters: PanoramaFilters,
+) {
+  if (filters.municipio !== "todos" && filters.classe !== "todas")
+    return "acompanhe este mesmo recorte em outros períodos comparáveis.";
   const contribution = analysis.principalContribuicao;
   if (analysis.direcao === "indisponivel")
     return analysis.composicaoAtual?.dimension === "municipio"
@@ -229,11 +254,29 @@ export default function AIInsightCard({
   const metric = isDemo
     ? data.metricas.energiaFaturada
     : data.metricas.receitaFaturada;
-  // A failed refetch can leave TanStack Query's previous response in `data`.
-  // Never present that cached interpretation as current after an error.
   const publicationStale = !isDemo && isGoldPublicationStale();
+  const apiError =
+    query.error instanceof PanoramaInsightApiError ? query.error : null;
+  const keepLastAnalysis =
+    query.isError &&
+    apiError?.retryable === true &&
+    ![401, 403, 409].includes(apiError.status ?? 0) &&
+    apiError.code !== "invalid_context" &&
+    query.data?.insight?.status === "answered";
+  function canExportChart() {
+    if (isDemo) return true;
+    if (publicationStale || !data.origem?.fingerprint) return false;
+    return verifyVisualExport({
+      metric: "billing.revenue",
+      dimension_ids: ["geography.municipality", "customer.consumption_class"],
+      expected_publication: {
+        lote: data.loteVersao,
+        fingerprint: data.origem.fingerprint,
+      },
+    });
+  }
   const response =
-    publicationStale || query.isError || (!isDemo && query.isFetching)
+    publicationStale || (query.isError && !keepLastAnalysis)
       ? undefined
       : query.data;
   const insight = response?.insight;
@@ -241,9 +284,8 @@ export default function AIInsightCard({
   const pending =
     !publicationStale &&
     data.totalRegistros > 0 &&
+    insight?.status !== "answered" &&
     (query.isPending || query.isFetching);
-  const apiError =
-    query.error instanceof PanoramaInsightApiError ? query.error : null;
   const isStale = publicationStale || apiError?.code === "invalid_context";
   const canRetryResponse =
     insight?.status === "recoverable_error" &&
@@ -270,6 +312,28 @@ export default function AIInsightCard({
       ].map(businessLanguage),
     ),
   ];
+
+  const observedAnalysis: PanoramaInsightAnalysis = {
+    direcao:
+      metric.variacaoAbsoluta == null
+        ? "indisponivel"
+        : metric.variacaoAbsoluta > 0
+          ? "alta"
+          : metric.variacaoAbsoluta < 0
+            ? "queda"
+            : "estavel",
+    variacaoPercentual: metric.variacaoPercentual ?? null,
+    principalContribuicao: null,
+    compensacao: null,
+    composicaoAtual:
+      metric.variacaoAbsoluta == null
+        ? data.distribuicao?.composicaoReceita
+        : null,
+  };
+  const observedReading =
+    metric.valorAtual == null
+      ? "Não há valor disponível para interpretar este recorte."
+      : describeTrend(observedAnalysis, metric, filters);
 
   let stateMessage = "";
   if (publicationStale) {
@@ -317,11 +381,30 @@ export default function AIInsightCard({
     if (insight?.status !== "answered") return null;
     return (
       <div className="space-y-3 text-sm leading-6 text-content">
+        {keepLastAnalysis && (
+          <p role="status" className="text-xs text-muted">
+            Última análise disponível. A conferência de atualização está
+            pendente.
+          </p>
+        )}
         <p className="font-medium">
           {analysis
             ? describeTrend(analysis, metric, filters)
             : "Não há análise calculada para este recorte."}
         </p>
+        {analysis &&
+          analysis.direcao !== "indisponivel" &&
+          (analysis.composicaoAtual ??
+            data.distribuicao?.composicaoReceita) && (
+            <p>
+              {describeComposition(
+                (analysis.composicaoAtual ??
+                  data.distribuicao?.composicaoReceita)!,
+                metric,
+                filters,
+              )}
+            </p>
+          )}
         {analysis?.principalContribuicao && (
           <p>
             {describeContribution(
@@ -343,7 +426,7 @@ export default function AIInsightCard({
   return (
     <section
       aria-label="Insight contextual do Panorama"
-      className={`flex w-full min-w-0 flex-col gap-4 rounded-xl border p-4 shadow-sm ${data.totalRegistros === 0 || query.isError || (insight && insight.status !== "answered") ? "border-[var(--status-warning)] bg-[var(--accent-goiaba-subtle)]" : "border-border bg-[var(--accent-pistache-subtle)]"}`}
+      className={`flex w-full min-w-0 flex-col gap-4 rounded-xl border p-4 shadow-sm ${data.totalRegistros === 0 || (query.isError && !keepLastAnalysis) || (insight && insight.status !== "answered") ? "border-[var(--status-warning)] bg-[var(--accent-goiaba-subtle)]" : "border-border bg-[var(--accent-pistache-subtle)]"}`}
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
@@ -391,7 +474,7 @@ export default function AIInsightCard({
                 {metric.valorAnterior == null
                   ? filters.comparacao === "nenhuma"
                     ? "Sem comparação selecionada"
-                    : "Leitura dos valores observados no período"
+                    : `${comparisonLabel(filters)}: comparação indisponível neste recorte`
                   : `${comparisonLabel(filters)}: ${formatValue(metric.valorAnterior, metric.unidade)}${metric.variacaoAbsoluta == null ? "" : ` · variação ${formatValue(metric.variacaoAbsoluta, metric.unidade)}`}`}
               </p>
             </>
@@ -404,14 +487,23 @@ export default function AIInsightCard({
           Leitura do recorte
         </p>
         {pending ? (
-          <p
-            role="status"
-            aria-live="polite"
-            className="mt-2 text-sm leading-6 text-content"
-          >
-            <span className="mr-2 inline-block size-3 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent-pistache)] align-[-2px]" />
-            Recorte alterado · atualizando a interpretação.
-          </p>
+          <div className="mt-2 space-y-2">
+            <p className="text-sm font-medium leading-6 text-content">
+              {observedReading}
+            </p>
+            <p className="border-l-2 border-[var(--accent-pistache)] pl-3 text-xs leading-5 text-muted">
+              <span className="font-semibold text-content">Próximo passo:</span>{" "}
+              {compactNextStep(observedAnalysis, filters)}
+            </p>
+            <p
+              role="status"
+              aria-live="polite"
+              className="mt-2 text-sm leading-6 text-content"
+            >
+              <span className="mr-2 inline-block size-3 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent-pistache)] align-[-2px]" />
+              Preparando a interpretação da IA…
+            </p>
+          </div>
         ) : insight?.status === "answered" ? (
           <div className="mt-2 space-y-1.5 text-sm leading-5 text-content">
             <p className="font-medium">
@@ -434,7 +526,7 @@ export default function AIInsightCard({
                 <span className="font-semibold text-content">
                   Próximo passo:
                 </span>{" "}
-                {compactNextStep(analysis)}
+                {compactNextStep(analysis, filters)}
               </p>
             )}
             {insight.hypothesis && analysis?.direcao !== "indisponivel" && (
@@ -458,6 +550,11 @@ export default function AIInsightCard({
                 Sem evidência suficiente
               </p>
             )}
+            {!isStale && (apiError?.retryable || canRetryResponse) && (
+              <p className="mb-2 text-sm font-medium leading-6 text-content">
+                {observedReading}
+              </p>
+            )}
             {!isStale && query.isError && (
               <p className="mb-1 text-xs font-semibold text-[var(--status-danger)]">
                 O insight não está disponível agora.
@@ -476,6 +573,12 @@ export default function AIInsightCard({
               {stateMessage}
             </p>
           </div>
+        )}
+        {keepLastAnalysis && (
+          <p role="status" className="mt-2 text-xs leading-5 text-muted">
+            Exibindo a última análise deste recorte. A conferência de
+            atualização está pendente.
+          </p>
         )}
         {((query.isError && (apiError?.retryable || isStale)) ||
           canRetryResponse) && (
@@ -511,7 +614,7 @@ export default function AIInsightCard({
           id="panorama-insight-details"
           aria-labelledby="panorama-insight-title"
           aria-modal="true"
-          className="fixed inset-y-0 right-0 m-0 h-dvh w-[min(460px,calc(100vw-1rem))] max-h-none max-w-none overflow-hidden border-l border-border bg-surface p-0 text-content shadow-2xl backdrop:bg-black/45"
+          className="fixed inset-y-0 right-0 m-0 h-dvh w-[min(760px,100vw)] max-h-none max-w-none overflow-hidden border-l border-border bg-surface p-0 text-content shadow-2xl backdrop:bg-black/45"
           style={{
             position: "fixed",
             top: 0,
@@ -558,40 +661,38 @@ export default function AIInsightCard({
             </header>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-5 sm:p-6">
-              <section
-                aria-label="Dado observado"
-                className="rounded-xl bg-[var(--accent-pistache-subtle)] p-4"
-              >
-                {data.totalRegistros === 0 ? (
-                  <p className="text-sm leading-6 text-muted">
-                    Não há observações de dados para este recorte.
-                  </p>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 text-xs font-semibold text-muted">
-                      <Check
-                        aria-hidden="true"
-                        className="size-3.5 text-[var(--accent-pistache)]"
-                      />
-                      Dado observado no Panorama
-                    </div>
-                    <p className="mt-1.5 font-heading text-xl font-semibold">
-                      {formatValue(metric.valorAtual, metric.unidade)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {isDemo ? metric.nome : "Receita observada"} ·{" "}
-                      {periodLabel(filters.periodo)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted">
-                      {metric.valorAnterior == null
-                        ? filters.comparacao === "nenhuma"
-                          ? "Sem comparação selecionada"
-                          : "Leitura dos valores observados no período"
-                        : `${comparisonLabel(filters)}: ${formatValue(metric.valorAnterior, metric.unidade)}${metric.variacaoAbsoluta == null ? "" : ` · variação ${formatSignedValue(metric.variacaoAbsoluta, metric.unidade)}`}`}
-                    </p>
-                  </>
+              {!publicationStale &&
+                data.totalRegistros > 0 &&
+                metric.valorAtual !== null && (
+                  <VisualEvidence
+                    key={`${data.loteVersao}-${data.dataAtualizacao}-${JSON.stringify(filters)}`}
+                    canExport={canExportChart}
+                    data={{
+                      isDemo,
+                      title: metric.nome,
+                      unit: metric.unidade,
+                      note:
+                        metric.limitacoes?.map(businessLanguage).join(" ") ||
+                        undefined,
+                      scope: `${filterLabel(filters.municipio, "Todos os municípios")} · ${filterLabel(filters.classe, "Todas as classes")}`,
+                      points: [
+                        ...(filters.comparacao !== "nenhuma" &&
+                        metric.valorAnterior != null
+                          ? [
+                              {
+                                label: comparisonLabel(filters),
+                                value: metric.valorAnterior,
+                              },
+                            ]
+                          : []),
+                        {
+                          label: periodLabel(filters.periodo),
+                          value: metric.valorAtual,
+                        },
+                      ],
+                    }}
+                  />
                 )}
-              </section>
 
               <section aria-labelledby="panorama-insight-points-title">
                 <h3
@@ -602,9 +703,16 @@ export default function AIInsightCard({
                 </h3>
                 <div className="mt-3">
                   {pending ? (
-                    <p role="status" className="text-sm leading-6 text-muted">
-                      Atualizando a interpretação para o recorte atual.
-                    </p>
+                    <div className="space-y-3 text-sm leading-6">
+                      <p className="font-medium">{observedReading}</p>
+                      <p>
+                        <span className="font-semibold">Próximo passo:</span>{" "}
+                        {compactNextStep(observedAnalysis, filters)}
+                      </p>
+                      <p role="status" className="text-muted">
+                        Preparando a análise complementar…
+                      </p>
+                    </div>
                   ) : insight?.status === "answered" ? (
                     renderAnalysis()
                   ) : (
@@ -637,6 +745,58 @@ export default function AIInsightCard({
                   )}
                 </div>
               </section>
+
+              {!publicationStale &&
+                data.distribuicao &&
+                data.totalRegistros > 0 && (
+                  <VisualEvidence
+                    key={`distribution-${data.loteVersao}-${data.dataAtualizacao}-${JSON.stringify(filters)}`}
+                    canExport={canExportChart}
+                    data={{
+                      reading: data.distribuicao.reading,
+                      kind:
+                        data.distribuicao.completo &&
+                        (data.distribuicao.visual ?? data.distribuicao.pontos)
+                          .length <= 6
+                          ? "donut"
+                          : "horizontal",
+                      isDemo,
+                      total: data.distribuicao.total,
+                      title: `${metric.nome} por ${data.distribuicao.dimension === "municipio" ? "município" : "classe"}`,
+                      categoryLabel:
+                        data.distribuicao.dimension === "municipio"
+                          ? "Município"
+                          : "Classe",
+                      unit: data.distribuicao.unidade,
+                      scope: `${periodLabel(filters.periodo)} · ${filterLabel(filters.municipio, "Todos os municípios")} · ${filterLabel(filters.classe, "Todas as classes")}`,
+                      note:
+                        [
+                          data.distribuicao.agrupados
+                            ? `${data.distribuicao.pontos.length} grupos no recorte. Gráfico: 5 maiores e ${data.distribuicao.agrupados} agrupados. Tabela e CSV: lista completa.`
+                            : data.distribuicao.pontos.length > 10
+                              ? `${data.distribuicao.pontos.length} grupos no recorte. Gráfico: 10 maiores valores observados. Tabela e CSV: lista completa.`
+                              : undefined,
+                          !data.distribuicao.completo
+                            ? "Valores observados; a base não permite calcular participações neste recorte."
+                            : undefined,
+                        ]
+                          .filter(Boolean)
+                          .join(" ") || undefined,
+                      tablePoints: data.distribuicao.pontos.map((p) => ({
+                        label: p.segmento,
+                        value: p.valor,
+                        percentage: p.percentual,
+                      })),
+                      points: (
+                        data.distribuicao.visual ?? data.distribuicao.pontos
+                      ).map((p) => ({
+                        label: p.segmento,
+                        value: p.valor,
+                        percentage: p.percentual,
+                      })),
+                    }}
+                  />
+                )}
 
               {insight?.status === "answered" &&
                 analysis?.direcao !== "indisponivel" &&

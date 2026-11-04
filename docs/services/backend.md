@@ -313,3 +313,14 @@ WEB-05 exclusão: DELETE /inspections/orders/{id} recebe version e confirmed_ord
 ## IA-07 — acompanhamento natural
 
 O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).
+
+
+### Continuação dos gráficos GenAI — 03/11/2026
+
+Campo opcional distribuicao do Panorama agrega a receita comparável Gold v2 por município ou classe, no mesmo snapshot e com os filtros aplicados. Reutiliza revenue_groups, limita a lista completa a 1000 grupos e reconcilia o total antes da publicação; o resumo tem até seis setores (top 5 + Demais calculado no servidor) ou dez barras. Partição completa dos registros observados permite participação; não certifica mês fechado. [Contrato](../contracts/genai-visual-evidence.md).
+
+
+O chat agora publica `visualization` opcional, montada exclusivamente no Backend a partir da evidência autorizada e do catálogo: tipo/IDs/pontos/subconjunto/precisão/período/dimensões. O cliente interno recusa gráficos vindos da GenAI. Validação confere proveniência e recorte antes de publicar, preservando síntese/auditoria existentes. Histórico omite o gráfico se a publicação mudou ou não pôde ser conferida. `POST /api/v1/ai/visualizations/verify` revalida identidade/escopo e referência no leitor dedicado antes do download; não recebe números/SQL nem executa medidas. Probe `python -m scripts.check_visual_gold` reconcilia a distribuição com SQL independente em transação somente leitura. Contrato e limites continuam no documento de evidência visual; entrega progressiva e leitura ampliada agora possuem prova local Gold/Gemini; evidências publicadas no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116).
+
+
+Continuação de 03/11: negociação opcional NDJSON preserva os clientes JSON e o histórico. Dados auditados/revalidados aparecem antes da síntese; desconexão antes/depois da prévia cancela o coordenador. A leitura local calcula diferenças/destaques sem causa presumida. Falha do modelo mantém dados somente após nova conferência de acesso/publicação; falha de desenho preserva tabela/CSV. Prova Gold/Gemini e portal, limites e matriz 18/18 em [evidências](../plans/2026-11-03-genai-graficos-insights-visuais.md); publicação concluída no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), sem merge.

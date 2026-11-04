@@ -1,3 +1,4 @@
+import { decodeDistribution } from "./distributionContract";
 import { decodeGoldMetadata, isGoldMetadata } from "./goldContract";
 import type { PanoramaData, PanoramaFilters, KpiMetric } from "./types";
 
@@ -214,6 +215,11 @@ export function decodePanorama(
       metadata?.source.updated_at ?? (data.dataAtualizacao as string),
     loteVersao: metadata?.source.version ?? (data.loteVersao as string),
     metricas: decodedMetrics as PanoramaData["metricas"],
+    distribuicao: decodeDistribution(
+      data.distribuicao,
+      normalizedFilters,
+      decodedMetrics[gold ? "receitaFaturada" : "energiaFaturada"],
+    ),
     serieMensal,
     opcoesFiltros,
     origem: metadata

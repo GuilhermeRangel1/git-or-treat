@@ -18,11 +18,16 @@ from app.schemas.genai_evidence import GoldEvidenceQuality
 from app.schemas.genai_internal import AccessScope, QuestionSynthesisRequest
 from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus, WindowKind
 from app.schemas.gold_readiness import GoldReadinessReport
+from app.services.chat_visualization import (
+    build_chat_visualization,
+    build_visual_preview,
+)
 from app.services.genai_audit import AuditStore
 from app.services.genai_client import (
     GenAIQuestionClient,
     GenAIResponseInvalid,
     GenAIServiceUnavailable,
+    GenAITimeout,
 )
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
@@ -132,6 +137,7 @@ async def answer_gold_question(
     expected_batch_ref: str | None = None,
     continuation: Callable[[GoldPlanningResult, AIQuestionResponse], str | None] | None = None,
     request_deadline: GenAIRequestDeadline | None = None,
+    on_visual: Callable[[AIQuestionResponse], Awaitable[None]] | None = None,
 ) -> AIQuestionResponse:
     """Mantém plano, identidade, publicação e prazo entre as duas operações HTTP.
 
@@ -192,18 +198,24 @@ async def answer_gold_question(
         raise GenAIServiceUnavailable(retryable=False)
     unavailable = [report.capabilities[key] for key in required
                    if report.capabilities[key].status != "available"]
-    quality = None
     if unavailable:
         quality = _observed_continuity_quality(
             report, planned.response.plan, planned.publication.batch_ref
         )
         if quality is None:
-            coverage_gap = any(
-                set(capability.reasons)
-                & {"coverage_missing", "coverage_incomplete", "period_missing"}
+            coverage_reasons = {
+                "period_missing",
+                "period_insufficient",
+                "coverage_missing",
+                "coverage_incomplete",
+                "table_empty",
+                "source_not_in_gold",
+            }
+            if all(
+                capability.reasons
+                and set(capability.reasons) <= coverage_reasons
                 for capability in unavailable
-            )
-            if coverage_gap:
+            ):
                 raise GoldCoverageUnavailable
             raise GenAIServiceUnavailable(retryable=False)
     else:
@@ -220,6 +232,15 @@ async def answer_gold_question(
         "caller_ref": planned.access_scope.caller_ref,
         "metric_id": planned.response.plan.metric_id,
         "source_id": planned.response.plan.source_id,
+    }
+    quality_audit = {
+        "quality_mode": quality.quality_mode,
+        "observed_capability_ids": quality.observed_capability_ids,
+        "observed_periods": quality.observed_periods,
+        "quality_limitation": (
+            OBSERVED_CONTINUITY_WARNING
+            if quality.quality_mode == "observed_uncertified" else None
+        ),
     }
     quality_audit = {
         "quality_mode": quality.quality_mode,
@@ -261,6 +282,17 @@ async def answer_gold_question(
     await planned.deadline.run(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
+    if on_visual is not None:
+        preview = await planned.deadline.run(
+            GOLD_REQUEST_TIMEOUT_SECONDS,
+            lambda: asyncio.to_thread(build_visual_preview, planned.response.plan, lookup),
+        )
+        if preview is not None:
+            # A montagem também consome prazo: conferir novamente antes de publicar.
+            if await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope)) != planned.access_scope:
+                raise GoldExecutionDenied
+            await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine))
+            await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: on_visual(preview))
     payload = QuestionSynthesisRequest(
         **request.model_dump(), access_scope=planned.access_scope,
         dimension_value_coverage=planned.dimension_value_coverage,
@@ -269,9 +301,17 @@ async def answer_gold_question(
         plan_fingerprint=planned.response.plan_fingerprint,
         lookup=lookup, expected_batch_ref=planned.publication.batch_ref,
     )
-    result = await planned.deadline.run(
-        GOLD_REQUEST_TIMEOUT_SECONDS, lambda: client.synthesize(payload, correlation_id=correlation_id),
-    )
+    try:
+        result = await planned.deadline.run(
+            GOLD_REQUEST_TIMEOUT_SECONDS, lambda: client.synthesize(payload, correlation_id=correlation_id),
+        )
+    except (GenAIServiceUnavailable, GenAIResponseInvalid, GenAITimeout):
+        # Uma falha do modelo não pode ocultar revogação/troca após a prévia.
+        if on_visual is not None:
+            if await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope)) != planned.access_scope:
+                raise GoldExecutionDenied from None
+            await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine))
+        raise
     result = _apply_observed_continuity_warning(result, quality)
     current_scope = await planned.deadline.run(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope),
@@ -282,6 +322,10 @@ async def answer_gold_question(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
     planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
+    visual = await planned.deadline.run(
+        GOLD_REQUEST_TIMEOUT_SECONDS,
+        lambda: asyncio.to_thread(build_chat_visualization, planned.response.plan, lookup, result),
+    )
     outcome = "error" if result.status == "recoverable_error" else (
         "refused" if result.status == "refused" else "success"
     )
@@ -299,7 +343,7 @@ async def answer_gold_question(
     planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     token = continuation(planned, result) if continuation is not None and result.status in {"answered", "no_evidence"} else None
     planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
-    return result.model_copy(update={"audit_reference": reference, "continuation_token": token})
+    return result.model_copy(update={"audit_reference": reference, "continuation_token": token, "visualization": visual})
 
 
 def build_readiness_gate(engine: Engine, client: GenAIQuestionClient, approved_controls):

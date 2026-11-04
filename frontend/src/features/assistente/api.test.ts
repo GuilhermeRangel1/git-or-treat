@@ -131,6 +131,7 @@ describe("cliente do chat", () => {
     const controller = new AbortController();
     const request = askAIQuestion(
       { contract_version: "v1", question: "Pergunta", context: [] },
+      undefined,
       controller.signal,
     );
     controller.abort();

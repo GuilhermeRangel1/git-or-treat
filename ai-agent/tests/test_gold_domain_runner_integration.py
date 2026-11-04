@@ -406,16 +406,23 @@ def test_comparison_cannot_pass_with_initial_and_final_values_swapped():
 
 
 @pytest.mark.parametrize("swapped", [False, True])
-def test_comparison_reconciles_readable_currency_without_losing_month_binding(swapped):
+@pytest.mark.parametrize("compact", [False, True])
+def test_comparison_reconciles_readable_currency_without_losing_month_binding(swapped, compact):
     db = revenue_database(**{"controle:CTL-FAT-COMPARACAO": [
         {"valor": 80, "valor_final": 100, "variacao": 20, "percentual": 25},
     ]})
     first, last = (100, 80) if swapped else (80, 100)
-    reply = answered(
+    answer = (
+        f"Receita faturada: R$ {first},00 em março de 1999; "
+        f"R$ {last},00 em março de 2000. Variação absoluta: R$ 20,00 (25%)."
+        if compact else
         f"Resultados de receita faturada no período solicitado:\n"
         f"• R$ {first},00 em março de 1999\n• R$ {last},00 em março de 2000\n"
         "• R$ 20,00 em Variação absoluta de 1999-03 a 2000-03\n"
-        "• 25.0 % em Variação percentual de 1999-03 a 2000-03",
+        "• 25.0 % em Variação percentual de 1999-03 a 2000-03"
+    )
+    reply = answered(
+        answer,
         "billing.revenue", {"geography.municipality": "JABOATAO DOS GUARARAPES",
                             "customer.consumption_class": "COMERCIAL"}, "R$",
         period="1999-03-01 a 2000-03-31",
