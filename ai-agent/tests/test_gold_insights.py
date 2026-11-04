@@ -107,13 +107,14 @@ def test_gold_insight_runtime(monkeypatch, case):
     assert response.status_code == 200
     result = response.json()
     if case in {"answered", "unavailable", "invalid", "rejected", "model_timeout"}:
-        assert result["status"] == "answered"
+        assert result["status"] == ("answered" if case == "answered" else "recoverable_error")
         assert result["observation"]["values"][0]["value"] == 0
         assert result["evidence"][0]["is_demo"] is False
         assert result["evidence"][0]["source"] == "gold.local"
         assert result["limitations"][:1] == body["screen"]["limitations"]
         if case != "answered":
-            assert "regras de apresentação" in result["limitations"][-1]
+            assert result.get("hypothesis") is None
+            assert result["error"] is not None
             assert "private provider detail" not in str(result)
         assert calls[0].reference.is_demo is False
         assert "Olinda" not in str(calls[0].records)

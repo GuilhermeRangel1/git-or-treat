@@ -111,17 +111,16 @@ def test_creation_and_completed_request_are_idempotent(storage):
         owner.reserve(conversation, exchange, "outro pedido", "scope")
 
 
-def test_interrupted_request_preserves_submitted_question(storage):
+def test_interrupted_request_does_not_store_submitted_question(storage):
     _db, owner, other = storage
     conversation = owner.create(str(uuid4()))["id"]
     request = str(uuid4())
-    question = "Qual o consumo em junho de 2026?"
     _, _, attempt = owner.reserve(
-        conversation, request, "request-payload", "scope", display_question=question,
+        conversation, request, "request-payload", "scope",
     )
     owner.interrupt(conversation, request, attempt)
     entry = owner.detail(conversation, "scope")["exchanges"][0]
-    assert entry["question"] == question
+    assert entry["question"] is None
     assert entry["state"] == "interrupted" and entry["response"] is None
     assert owner.detail(conversation, "other-scope")["exchanges"][0]["question"] is None
     with pytest.raises(HTTPException):
