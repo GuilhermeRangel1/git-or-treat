@@ -1,6 +1,6 @@
 # IA-08 — avaliação automática ampliada
 
-**Estado: Em validação.** A avaliação está na branch `feat/genai-avaliacao-ampliada`, baseada em `develop` no merge `8e595bc`. A amostra Gold e a revisão humana têm critérios próprios.
+**Estado: Concluído em 04/11/2026.** A avaliação está na branch `feat/genai-avaliacao-ampliada`, baseada em `develop` no merge `8e595bc`. A amostra Gold e a revisão humana têm critérios próprios.
 
 O [runner existente](../../ai-agent/tests/test_genai_regression.py) conserva as execuções sintética e de linguagem. O modo ampliado reúne perguntas e insights da composição sintética, planejamento Gold v2 com cobertura artificial e planejamento/síntese pela borda HTTP Gold v2 com evidências artificiais. As 16 formulações de holdout são identificadas separadamente. Antes da ampliação, faltavam uma matriz numérica com expectativas independentes, comparação por categoria e uma forma de incluir as fronteiras do Backend no relatório.
 
@@ -59,3 +59,8 @@ A revisão humana estratificada e o limiar local foram aprovados pela pessoa usu
 - Revisão final separada por padrões e especificação concluída. Standards sem achados materiais. O achado Spec de envelope malformado foi corrigido com tratamento por caso e regressões para resposta vazia e plano inválido. A rodada dirigida posterior passou em 52 testes, e o comparativo preservou 160/163 com as três falhas conhecidas.
 - Fluxo Backend ampliado para prazos, falhas HTTP, cobertura, execução e permissões, 118 testes aprovados com um aviso preexistente Starlette/httpx. Relatório de provedor real fora de `work/` foi recusado antes de qualquer chamada.
 - Trello atualizado para 9/10. O item de publicação sanitizada no CI aguarda autorização de commit e push. A pessoa usuária pediu revisão antes de publicar, portanto a branch segue com alterações locais.
+
+
+## Publicação remota e conclusão — 04/11/2026
+
+PR #122 integrado por merge commit `d825173`, preservando os commits. No head `d76c7c4`, a execução [41795628567](https://github.com/GuilhermeRangel1/git-or-treat/actions/runs/41795628567) aprovou os cinco checks. Os artefatos `genai-reports-41795628567-1` e `backend-evaluation-41795628567-1` foram publicados com a allowlist de JSONs sanitizados e baselines do workflow. A pendência de publicação descrita nas notas anteriores foi superada. A amostra real local e seu aceite permanecem separados da CI com fixtures; as três falhas legadas seguem contabilizadas. IA-08 concluído no escopo do avaliador, sem homologar cobertura de Dados ou precisão geral do agente.
