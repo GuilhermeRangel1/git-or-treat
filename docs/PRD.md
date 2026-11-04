@@ -465,6 +465,14 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-11-04 — IA-01/02/03/05/06/07/08 — consistência das consultas do Assistente
+
+- Estado do cartão adicional: `Concluído` para a entrega local descrita, com os doze aceites revisados. A integração em develop e os estados dos requisitos oficiais seguem seus próprios gates.
+- Revisão local do [cartão de consistência](https://trello.com/c/NZ3bE2Wd) em `fix/genai-respostas-chat`, base `5214aee`. Corrige exclusões invertidas, comparação temporal, esclarecimentos, rankings e orçamento textual, ciclo da transação de identidade e sobreposição em telas pequenas. Estende o núcleo existente.
+- Contrastes dirigidos passaram de 4/12 na base para 12/12 na candidata. Dezesseis casos funcionais reais foram validados com Gemini e Gold v2; respostas quantitativas conferidas por SQL independente, com recorte, unidade, publicação e auditoria. Portal, tabela/CSV, conversa salva, correção de local e mudança de assunto conferidos. Detalhes, comandos e limites no [registro da revisão](plans/2026-11-04-genai-consistencia-consultas.md).
+- GenAI: 4.517 testes aprovados/5 skips; Backend: 1.202 aprovados/114 skips; Assistente/gráficos: 66 aprovados. Matriz ampliada conserva 160/163 e as três divergências demonstrativas classificadas. Revisões independentes de padrões e spec não deixaram achados materiais.
+- Dezoito requisições intercaladas com a base mediram primeiro dado e final. Mediana do primeiro dado nas repetições igual; mediana final variou cerca de 0,8%. Falhas 504 do Gemini foram registradas nas duas versões, sem confusão com ausência de evidência. Não se declara ganho geral de latência nem precisão geral. Estados oficiais e cobertura de Dados preservados; aceite do cartão é local e a publicação depende de autorização posterior.
+
 ### 03/11/2026 — DEV-15 — validação web e correções de acessibilidade
 
 - Escopo aprovado: WEB-01 a WEB-07 nas seis jornadas Panorama, Receita, UC 360, Inspeções, Ordens e Operação; dependências DEV-13/DEV-14. GenAI fica com o time responsável; troca real de lote excluída porque só há uma publicação disponível. [Decisão](decisions/registro-escopo-dev15.md).
