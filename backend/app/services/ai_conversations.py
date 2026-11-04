@@ -191,7 +191,9 @@ class ConversationStore:
         )
         self.db.commit()
 
-    def reserve(self, conversation, request_id, question, scope):
+    def reserve(self, conversation, request_id, question, scope, *, display_question=None):
+        if display_question is not None:
+            display_question = QUESTION_TEXT.validate_python(display_question)
         row = self.owned(conversation, lock=True)
         fingerprint = sha256(question.encode()).hexdigest()
         previous = (
@@ -258,6 +260,7 @@ class ConversationStore:
                     request_digest=fingerprint,
                     scope_digest=scope,
                     state="pending",
+                    question=display_question,
                     lease_until=now() + timedelta(seconds=90),
                 )
             )
@@ -267,6 +270,7 @@ class ConversationStore:
                 .where(E.c.id == previous["id"])
                 .values(
                     state="pending",
+                    question=display_question,
                     attempt_id=attempt,
                     lease_until=now() + timedelta(seconds=90),
                 )

@@ -827,12 +827,15 @@ export default function AssistentePage() {
       setConversationId(id);
       const restored: ChatMessage[] = [];
       for (const entry of saved.exchanges) {
-        restored.push({
-          id: nextMessageId.current++,
-          role: "user",
-          content: entry.question ?? "Envio sem conteúdo armazenado.",
-          contextEligible: false,
-        });
+        const storedQuestion = entry.question?.trim();
+        if (storedQuestion && storedQuestion !== "Pergunta não armazenada.") {
+          restored.push({
+            id: nextMessageId.current++,
+            role: "user",
+            content: storedQuestion,
+            contextEligible: false,
+          });
+        }
         restored.push({
           id: nextMessageId.current++,
           role: "assistant",

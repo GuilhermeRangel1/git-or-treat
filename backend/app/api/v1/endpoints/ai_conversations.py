@@ -161,6 +161,7 @@ async def question(
             str(payload.request_id),
             payload.model_dump_json(exclude={"request_id"}),
             history_scope(scope),
+            display_question=payload.question,
         )
     except HTTPException as exc:
         if exc.status_code != 409:
