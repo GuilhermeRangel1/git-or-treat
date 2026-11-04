@@ -24,6 +24,25 @@ def record_execution(stage: str, queue_ms: int, work_ms: int, outcome: str) -> N
     )
 
 
+def record_provider_failure(
+    provider: str, model: str, kind: str, status: int | None = None,
+) -> None:
+    """Só a causa classificada; nunca texto da exceção, pergunta, evidência ou chave."""
+    logger.warning(
+        "genai_provider_failure %s",
+        json.dumps(
+            {
+                "correlation_id": correlation.get(),
+                "provider": provider,
+                "model": model,
+                "kind": kind,
+                "status": status if type(status) is int else None,
+            },
+            separators=(",", ":"),
+        ),
+    )
+
+
 def record_usage(
     provider: str,
     *,

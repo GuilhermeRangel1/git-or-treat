@@ -689,3 +689,37 @@ def test_incomplete_completion_rejects_even_valid_json(reason):
     handler = RecordingHandler(httpx.Response(200, json=payload))
     with pytest.raises(ModelProviderInvalidResponse):
         _generate(_adapter(handler))
+
+
+FAILURE_KINDS = {
+    "timeout": ("timeout_or_network", None),
+    "network": ("timeout_or_network", None),
+    "http-400": ("rejected", 400),
+    "http-401": ("rejected", 401),
+    "http-404": ("model_not_found", 404),
+    "http-429": ("quota", 429),
+    "http-500": ("overloaded", 500),
+    "http-503": ("overloaded", 503),
+}
+
+
+@pytest.mark.parametrize("case", FAILURES.keys())
+def test_groq_logs_only_the_classified_failure_cause(case: str, caplog) -> None:
+    failure, expected = FAILURES[case]
+    kind, status = FAILURE_KINDS.get(case, ("invalid_response", None))
+
+    with caplog.at_level(logging.INFO), pytest.raises(expected) as error:
+        _generate(_adapter(RecordingHandler(failure)))
+
+    assert type(error.value) is expected
+    lines = [
+        json.loads(record.getMessage().removeprefix("genai_provider_failure "))
+        for record in caplog.records
+        if record.getMessage().startswith("genai_provider_failure ")
+    ]
+    assert lines == [{
+        "correlation_id": None, "provider": "groq", "model": "groq-test-model",
+        "kind": kind, "status": status,
+    }]
+    assert FAKE_KEY not in caplog.text
+    assert QUESTION not in caplog.text

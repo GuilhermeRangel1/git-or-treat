@@ -14,7 +14,7 @@ from app.providers.protocols import (
 )
 from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
-from app.telemetry import record_usage
+from app.telemetry import record_provider_failure, record_usage
 
 
 class GeminiModelAdapter:
@@ -74,12 +74,21 @@ class GeminiModelAdapter:
                 status = getattr(exc, "code", None)
                 if isinstance(status, str) and status.isdecimal():
                     status = int(status)
+            if not isinstance(status, int):
+                status = None
             if isinstance(status, int) and 400 <= status < 500 and status != 429:
+                kind = "model_not_found" if status == 404 else "rejected"
+                record_provider_failure("gemini", self._model_name, kind, status)
                 raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
             if not isinstance(exc, (ConnectionError, TimeoutError, OSError)) and not (
                 status == 429 or isinstance(status, int) and status >= 500
             ):
+                record_provider_failure("gemini", self._model_name, "rejected", status)
                 raise ModelProviderRejected("O provedor rejeitou a solicitação.") from None
+            kind = ("quota" if status == 429
+                    else "overloaded" if isinstance(status, int) and status >= 500
+                    else "timeout_or_network")
+            record_provider_failure("gemini", self._model_name, kind, status)
             raise ModelProviderUnavailable(
                 "O provedor de modelo está temporariamente indisponível."
             ) from None
@@ -103,6 +112,7 @@ class GeminiModelAdapter:
                 raise ValueError("resposta vazia")
             return parse_answer(response_text, evidence)
         except (AttributeError, TypeError, ValueError, ValidationError):
+            record_provider_failure("gemini", self._model_name, "invalid_response")
             raise ModelProviderInvalidResponse(
                 "O provedor retornou uma resposta inválida."
             ) from None
