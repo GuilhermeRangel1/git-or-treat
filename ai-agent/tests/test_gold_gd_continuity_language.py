@@ -46,11 +46,12 @@ def test_natural_gd_drop_question_does_not_treat_threshold_as_unknown_location()
         "Quantas UCs com GD em Olinda reduziram o consumo em mais de 30%?",
         extra_coverage=[{"metric_id": "energy.gd_consumption_drop", "kind": "none"}],
     )
-    assert result["status"] == "needs_clarification", result
-    assert result["plan"] is None
-    assert "Não reconheci esse local" not in result["response"]["message"]
-    assert "queda de consumo acima de 30%" in result["pending_question"]
-    assert "município Olinda" in result["pending_question"]
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "energy.gd_consumption_drop"
+    assert {item["dimension_id"]: item["values"] for item in result["plan"]["filters"]} == {
+        "generation.distributed": ["Sim"],
+        "geography.municipality": ["Olinda"],
+    }
 
 
 def test_explicit_ticket_and_revenue_remain_two_indicators():

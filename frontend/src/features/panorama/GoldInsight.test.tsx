@@ -434,5 +434,7 @@ it("antecipa o texto de concentração e o próximo passo sem aguardar Gemini", 
   ).toBeVisible();
   expect(screen.getByText(/explore Recife por classe/)).toBeVisible();
   expect(screen.getByText(/Preparando a interpretação da IA/)).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Tentar novamente" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Tentar novamente" }),
+  ).not.toBeInTheDocument();
 });

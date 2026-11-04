@@ -367,7 +367,9 @@ function MessageCard({
   if (message.role === "user") {
     return (
       <article className="ml-auto w-fit max-w-[min(85%,680px)] rounded-2xl rounded-br-sm bg-selected px-4 py-3 text-base leading-6 text-content">
-        <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.content}</p>
+        <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+          {message.content}
+        </p>
       </article>
     );
   }
