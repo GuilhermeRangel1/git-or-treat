@@ -355,6 +355,15 @@
   }
 }
 @media (max-width: 639px) {
+  .assistant-conversation {
+    flex-basis: max(20rem, calc(100dvh - 13rem));
+  }
+  .assistant-toolbar > div:first-child {
+    min-width: 0;
+  }
+  .assistant-toolbar > div:first-child > span {
+    flex-shrink: 0;
+  }
   .assistant-history-sidebar {
     max-height: min(14rem, 35dvh);
   }
