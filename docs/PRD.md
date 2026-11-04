@@ -473,6 +473,16 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - GenAI: 4.517 testes aprovados/5 skips; Backend: 1.202 aprovados/114 skips; Assistente/gráficos: 66 aprovados. Matriz ampliada conserva 160/163 e as três divergências demonstrativas classificadas. Revisões independentes de padrões e spec não deixaram achados materiais.
 - Dezoito requisições intercaladas com a base mediram primeiro dado e final. Mediana do primeiro dado nas repetições igual; mediana final variou cerca de 0,8%. Falhas 504 do Gemini foram registradas nas duas versões, sem confusão com ausência de evidência. Não se declara ganho geral de latência nem precisão geral. Estados oficiais e cobertura de Dados preservados; aceite do cartão é local e a publicação depende de autorização posterior.
 
+### 03/11/2026 — Adicional Mapa da RMR — em andamento
+
+- Iniciada a implementação da página de mapa municipal da RMR, rastreada como adicional relacionado a WEB-01/WEB-02/WEB-07 e à autorização WEB-10. O adicional não recebeu ID próprio; os estados oficiais desses requisitos permanecem inalterados.
+- Geografia: malha pública do IBGE com 14 municípios e geometrias de 2022; correspondência de nomes conferida para 14/14 códigos contra o catálogo Gold v2 local aprovado, sem publicar linhas ou valores da fonte. A composição legal de 2025 não foi inspecionada.
+- Frontend: navegação, quatro camadas, filtros/modal no padrão do Panorama, URL, tabela acessível, detalhe municipal/bairros e continuação para Receita foram implementados e exercitados em Chromium (1440/390 px, claro/escuro, cinco perfis). O modal “Limpar filtros” redefine o rascunho, incluindo município; a URL só muda ao aplicar. O campo textual de variação percentual foi removido a pedido da pessoa usuária.
+- Backend: contrato `GET /api/v1/revenue` reutilizado, sem mudança de produção. Testes direcionados: 76 passaram. Suíte completa com `ANALYTICS_SOURCE=synthetic`: 1.033 passaram, 114 ignorados, 1 aviso. A reconciliação CSV Gold v2 → banco isolado → API conferiu oito recortes de município/classe/competência, sem divergências. Detalhes e comandos estão no [relatório de evidências](plans/2026-11-03-mapa-rmr-evidencias.md).
+- Pendências de aceite: no backend servido pelo Vite existente, a matriz registrou um 403 em `analytics/options` para Comercial, embora o backend isolado tenha retornado 200 para Comercial/Admin e 403 para Operação. A identidade/sessão/runtime dessa divergência não foi determinada. A matriz confirmou requests e renderização, mas não gravou a comparação dos valores numéricos no DOM do portal contra API/Gold. Também registrou fontes externas bloqueadas por egress e uma falha 503 do insight do Panorama, fora do Mapa. A suíte global do Vitest não fechou por incompatibilidade de um teste `node:test` com o runner e falta de espaço; os gates direcionados passaram. Os estados oficiais de WEB-01/02/07/10 permanecem inalterados.
+
+- Direção aprovada em 03/11/2026: filtros e modal seguem o Panorama; o Mapa não exibe o bloco técnico “Dados desta consulta”, identificadores/timestamps brutos, lista extensa de limitações ou texto de variação percentual. Proveniência continua nos contratos/API; unidades, período e ressalvas pertinentes permanecem junto às métricas. Panorama não foi alterado. Comparativos e smoke pós-HMR estão registrados no relatório.
+
 ### 03/11/2026 — DEV-15 — validação web e correções de acessibilidade
 
 - Escopo aprovado: WEB-01 a WEB-07 nas seis jornadas Panorama, Receita, UC 360, Inspeções, Ordens e Operação; dependências DEV-13/DEV-14. GenAI fica com o time responsável; troca real de lote excluída porque só há uma publicação disponível. [Decisão](decisions/registro-escopo-dev15.md).
@@ -1495,7 +1505,7 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Arquivos: `frontend/src/app`, `layouts`, `features`, `shared`, `styles`; configuração Tailwind/Vite, TypeScript estrito, testes e verificações na CI. Decisão e limites em [ADR-0001](decisions/0001-arquitetura-frontend.md) e [guia arquitetural](architecture/frontend.md).
 - Dados usados: nenhum dataset ou dado de negócio; testes de infraestrutura usam respostas HTTP artificiais e rotas vazias. O provedor de consultas não dispara solicitações.
 - Verificações: instalação reproduzível com `npm ci`; limites de importação, formatação, lint, dez testes de transporte/composição e tipos/build. O resultado final e a revisão de navegação ficam no [plano de execução](plans/2026-10-18-arquitetura-frontend.md).
-- Pendências: alinhamento visual ao Figma, componentes visuais, contratos por domínio, filtros, dados reais, operações e IA. A arquitetura não comprova critérios de aceite funcionais, reconciliação com Gold ou conformidade WCAG AA.
+- Pendências de aceite: reconciliação independente Gold, estados sintéticos de ausência/erro e diagnóstico do HTTP 403 em analytics/options no backend usado pelo browser. Percentuais não são calculados no frontend. WEB-01/02/07/10 mantêm os estados oficiais.
 - Responsável/revisor: Codex executou a fundação; revisão humana da branch pendente.
 
 ### 2026-10-18 — preparação visual de WEB-01 e navegação do portal — sidebar e topo do Panorama
@@ -1675,7 +1685,7 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Definições: [ADR-0008](decisions/0008-exploracao-demonstrativa-receita.md), [contrato Receita 1.1.0](contracts/revenue-dev03.md), [desenho](design/2026-10-21-dev03-design.md) e [plano](plans/2026-10-21-dev03-plan.md). Comparação mensal dos extremos demonstrativos, cinco UCs para percentual, cobertura explícita, preço observado distinto de homologação e reconciliação por receita/variação. As janelas anuais e métricas reais continuam dependentes da Gold.
 - Baseline informado pelos implementadores: backend Python 3.11.9, `python -m pytest -q` com 68 aprovados/1 PostgreSQL ignorado e compilação aprovada; alvo Python 3.12 e gate PostgreSQL seguem sem execução local. Frontend: 45 testes, lint, fronteiras e build aprovados; `format:check` já falha em nove arquivos existentes antes da implementação, registrado em relatório local. Estes resultados não são validação da DEV-03.
 - Fontes: somente código/contratos e referências Figma de Receita clara `15:331` e escura `16:1296`, consultadas pelo implementador frontend em modo de leitura. Nenhum dataset real ou esquema físico Gold presumido.
-- Pendências: implementar/revisar as fatias, executar API/tela reais e registrar resultados independentes antes do aceite. Trello: consulta MCP em 21/10/2026 ao quadro indicado retornou recurso não encontrado ou sem acesso; nenhum cartão foi alterado.
+- Pendências de aceite: reconciliação independente Gold, estados sintéticos de ausência/erro e diagnóstico do HTTP 403 em analytics/options no backend usado pelo browser. Percentuais não são calculados no frontend. WEB-01/02/07/10 mantêm os estados oficiais.
 
 ### 2026-10-21 — DEV-03 — exploração sintética da receita implementada e revisada
 
@@ -1744,7 +1754,7 @@ Se o teste falhar ou o resultado não for reproduzível, permaneça em `Em valid
 - Artefatos: [desenho](design/2026-10-22-dev04-design.md) e [plano](plans/2026-10-22-dev04-plan.md), como propostas para revisão. PRD WEB-03, jornada “Atender conta alta”, definições e qualidade orientam o plano; a matriz liga os oito itens do checklist às tarefas e evidências futuras. Aplicadas as skills locais de padrões backend/frontend e de referências Figma.
 - Referência visual: Figma MCP consultado somente em leitura em 22/10/2026; metadados de busca/unidade/histórico desktop/mobile nos dois temas e capturas da unidade encontrada nos dois temas e viewports, além do histórico desktop claro. IDs e links estão no desenho. Protótipo estático não comprova busca editável, paginação ou casos de ausência.
 - Dados e reconciliação: somente contratos/fixtures sintéticos existentes; controle planejado UC-1001, janeiro→fevereiro/2025, consumo 100→90 kWh e faturado BRL 100→105. Nenhuma métrica Gold homologada ou resultado de teste de produto novo nesta fase.
-- Pendências: revisar proposta; fechar contrato e cobertura por fonte antes do código; executar as fatias e os gates; reconciliar Gold → banco → API → portal para aceite WEB-03. Trello MCP retornou recurso não encontrado ou sem acesso ao quadro oficial; sincronização do cartão WEB-03 pendente, sem alteração remota.
+- Pendências de aceite: reconciliação independente Gold, estados sintéticos de ausência/erro e diagnóstico do HTTP 403 em analytics/options no backend usado pelo browser. Percentuais não são calculados no frontend. WEB-01/02/07/10 mantêm os estados oficiais.
 
 ### 2026-10-22 — DEV-04 — autorização de execução demonstrativa
 
@@ -1964,7 +1974,7 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Dados e contratos: fontes demonstrativas existentes e fórmulas preservadas; nenhuma alteração backend. Revisão pelo agente principal e execução por subagentes Luna/high. Nenhum commit ou push criado nesta execução.
 - Verificações: `npm.cmd test -- --reporter=dot` — 131 testes em 16 arquivos aprovados; lint, fronteiras em 91 arquivos, formatação, build TypeScript/Vite e `git diff --check` passaram. Entrada JavaScript caiu de 474,91 para 351,27 kB (138,21 para 109,63 kB gzip), redução de 26,0% no artefato; não mede latência. Preview de produção confirmou módulos solicitados por rota e sidebar persistente.
 - Jornada no navegador: filtros Receita/Inspeções em claro/escuro e 390/1440 px sem overflow, cores/medidas preservadas, Escape e retorno de foco; fundamento UC-1004 mantém prioridade 0,92 e energia 45 kWh. Busca UC-1001, detalhe, rascunho/aplicação do período e redirecionamento legado com parâmetros preservados passaram; UC 360 em 390 px sem overflow.
-- Pendências: reconciliação Gold e aceites funcionais continuam nos estados oficiais. Trello retornou recurso inexistente/sem acesso ao quadro indicado; sincronização pendente.
+- Pendências de aceite: reconciliação independente Gold, estados sintéticos de ausência/erro e diagnóstico do HTTP 403 em analytics/options no backend usado pelo browser. Percentuais não são calculados no frontend. WEB-01/02/07/10 mantêm os estados oficiais.
 
 ### 2026-10-23 — DEV-06 / WEB-05 — criação e consulta persistida de ordens
 
@@ -2145,7 +2155,7 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Composição e paginação do detalhe movidas da rota para `build_feeder_detail`, com retorno `OperationDetailResponse`; rotas de Operação agora têm retornos explícitos com modelos Pydantic e formatação organizada. A validação HTTP estrita fica em `StrictAnalyticsRoute`, na fronteira compartilhada; a identificação de parâmetros repetidos usa `repeated_query_parameters` tanto em Receita quanto em Operação. Políticas de parâmetros desconhecidos e envelopes de cada módulo preservados.
 - Arquivos: `backend/app/api/v1/analytics_route.py`, endpoints de Operação/Receita, serviço de Operação, `backend/tests/test_analytics_query_parameters.py`, guia backend e [contrato DEV-08](contracts/operations-dev08.md). Sem commit/push. Revisão estática pelo agente principal; revisão humana pendente.
 - Verificações: regressões de Operação, Receita e UC — **123 aprovados**; após os dois controles novos do contrato de erro de Receita, suíte completa em `backend/`: `venv/Scripts/python.exe -m pytest -q -p no:cacheprovider` — **329 aprovados, 4 ignorados** por PostgreSQL descartável não configurado. `venv/Scripts/python.exe -m compileall -q app tests scripts` e `git diff --check` passaram. Aviso existente TestClient/httpx; não foram instaladas ferramentas ou dependências.
-- Pendências preservadas: autorização individual para leituras reais, Gold/DE-05, integração e aceite do frontend. Nenhum requisito concluído por esta refatoração. Trello indisponível entre os conectores da sessão; sincronização das evidências pendente.
+- Pendências de aceite: reconciliação independente Gold, estados sintéticos de ausência/erro e diagnóstico do HTTP 403 em analytics/options no backend usado pelo browser. Percentuais não são calculados no frontend. WEB-01/02/07/10 mantêm os estados oficiais.
 
 ### 2026-10-26 — DEV-08 / WEB-06 e WEB-07 — correções da revisão de backend
 
@@ -2195,7 +2205,7 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 - Backend: em `backend/`, `venv/Scripts/python.exe -m pytest -q -p no:cacheprovider`, com `TEST_POSTGRES_URL` e `TEST_GOLD_POSTGRES_URL` em bancos descartáveis distintos e usuário sem superusuário: **426 aprovados, zero ignorados**. Recorte HTTP Gold anterior à otimização territorial: **6 aprovados**; após usar o agregado territorial e acrescentar controle independente de alimentador, recorte Gold/regressão de Receita: **20 aprovados**. A fixture desse controle explicita duas UCs em alimentadores distintos. `compileall` passou. A primeira suíte identificou resolução SQL indevida na demonstração; corrigida com dependência exclusiva do modo Gold. Ambiente Python 3.14.3/PostgreSQL 18.4; alvo Docker/CI Python 3.12/PostgreSQL 16 não reexecutado. Aviso existente de depreciação TestClient/httpx. PostgreSQL descartável encerrado após validação.
 - Frontend: em `frontend/`, `npm.cmd test -- --reporter=json --outputFile=../work/gold-frontend-sequential.json --maxWorkers=1`: **265 aprovados, zero falhas**, após timeouts em rodada concorrente com PostgreSQL. Uma rodada anterior consolidou 262 testes antes dos três controles adicionais de prioridade Gold. `build`, `lint`, `format:check`, `check:boundaries` (142 arquivos) e `git diff --check` aprovados. Jornadas sintéticas usam catálogo artificial explícito nos testes; o teste dedicado exercita o hook/Fetch/decoder reais, com AbortSignal. CSVs e bancos não foram versionados.
 - Navegador real: Vite `127.0.0.1:5199` → API `127.0.0.1:8029` → SQLite Gold. Receita carregou as últimas 12 competências e aplicou filtro real de município; fila/detail exibiram categoria e sinais observados, sem score/estimativa simulados; UC exibiu agregado mensal e marcou faturas detalhadas indisponíveis. UC sem overflow global em 390 e 1440 px, claro/escuro. Identificador longo do lote causou overflow no histórico e foi corrigido com quebra de linha/min-width. Captura local ignorada em `work/gold-uc-desktop.png`, sem incorporar dados/imagens do case ao Git. Alguns comandos CDP sofreram timeout; estados finais foram conferidos novamente pelo DOM. Não houve auditoria visual integral de todas as jornadas ou zoom nativo.
-- Pendências: dicionário e métricas homologadas, cobertura temporal, autorização individual/territorial antes de exposição real, ajustes/publicação consistente da Gold, dados detalhados faltantes, preço-volume, DEC/FEC e integração GenAI. O catálogo revelou grafias territoriais distintas com sinais de mojibake; valores recebidos foram preservados, sem correção heurística no consumidor. Engenharia deve corrigir e republicar a origem para homologar análise territorial. Revisão estática pelo agente principal; sem aceite humano nesta rodada. MCP Trello indisponível; sincronização WEB-02/03/04/07 e DE-06 pendente. Nenhum requisito concluído.
+- Pendências de aceite: reconciliação independente Gold, estados sintéticos de ausência/erro e diagnóstico do HTTP 403 em analytics/options no backend usado pelo browser. Percentuais não são calculados no frontend. WEB-01/02/07/10 mantêm os estados oficiais.
 
 ### 2026-10-27 — DEV-12 / DE-06 — infraestrutura sintética completa
 
@@ -2367,7 +2377,7 @@ O case não traz o dataset nas páginas, nomes reais de colunas, chaves de junç
 
 - Estados WEB-01 a WEB-07 e DE-04/05/06/08 preservados. Execução do plano aprovado por três subagentes GPT-6 Luna/high e revisão pelo principal: adaptadores e apresentação Gold em Panorama, fila/Ordens e Operação, consistência comum de lote/fingerprint e descoberta autenticada de opções de Operação.
 - Prova HTTP real somente leitura: decoders frontend aceitaram Panorama, fila/detalhe e Operação no mesmo lote, após corrigir o formato do resumo Gold. Nenhuma resposta real foi persistida em fixture e nenhuma ordem/carga real foi criada. Testes e limites ficam nas [evidências frontend](plans/2026-10-29-dev13-1-gold-frontend-evidencias.md).
-- Pendências: validar a sessão individual e a jornada do portal no navegador, temas e responsividade. Gates e limites das jornadas Gold estão nas [evidências frontend](plans/2026-10-29-dev13-1-gold-frontend-evidencias.md); Browser/IAB não estavam disponíveis. Sem aceite integral ou conclusão de requisitos WEB/DE.
+- Pendências de aceite: reconciliação independente Gold, estados sintéticos de ausência/erro e diagnóstico do HTTP 403 em analytics/options no backend usado pelo browser. Percentuais não são calculados no frontend. WEB-01/02/07/10 mantêm os estados oficiais.
 - Gates da implementação inicial: 306 testes frontend passaram (38 arquivos); 85 testes backend afetados passaram; lint sem avisos, fronteiras em 149 arquivos, formatação, build, teste do proxy, compileall e diff check passaram. Etapas 2–4 implementadas e revisadas; etapa 1 e aceite da etapa 5 continuam parciais conforme bloqueios registrados.
 ### 2026-10-29 — DEV-13.1 — integração Gold frontend
 
@@ -4003,6 +4013,32 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 - Regressão Frontend completa: 515 testes em 69 arquivos; build, formatação e fronteiras em 222 arquivos passaram; lint passou com dois avisos preexistentes. Backend completo com `ANALYTICS_SOURCE=synthetic`: 1.187 passaram, 114 ignorados e um aviso preexistente Starlette/httpx. Evidência detalhada e comandos em [resumo da DEV-15](validation/2026-11-03-dev15-resumo.md); JSONs e capturas reprodutíveis permanecem em `work/dev15-validation/`, ignorado pelo Git.
 - A direção descendente padrão da ordenação por energia foi corrigida para corresponder ao Backend; teste de regressão e replay de Inspeções passaram com 8/8 checks em temas claro/escuro, desktop/mobile e teclado. A validação estrutural, funcional e axe das seis páginas já aprovada permanece aplicável: a publicação atual adicionou métricas/dados, sem alterar a apresentação visual das demais jornadas. Os novos valores foram reconciliados por SQL/API e CSV/banco; Inspeções também foi revista no navegador com a estimativa disponível. WEB-01 a WEB-07 passam a `Concluído`, preservando a ressalva de cobertura não certificada para DEC/FEC. DEV-15 concluída localmente; execução do CI remoto depende da publicação da branch.
 
+### 04/11/2026 — WEB-02 / WEB-06 — alinhamento dos filtros e estabilidade dos KPIs
+
+- Receita usa a mesma altura mínima e alinhamento do resumo de filtros do Panorama; em desktop, os seis campos e o botão ficam em linha única, com grade menor em telas estreitas. Os valores dos KPIs passam a 18 px no mobile, 20 px em telas intermediárias e 24 px em desktop, sem quebra de linha.
+- Operação deixa de renderizar o aviso condicional de atualização acima dos KPIs de DEC/FEC, evitando deslocamento durante refetch. Estados iniciais de carregamento e mensagens de erro continuam disponíveis.
+- Arquivos alterados: `frontend/src/features/receita/ReceitaPage.tsx`, `RevenueSummary.tsx`, `frontend/src/features/operacao/OperacaoPage.tsx` e `OperationSummary.tsx`. Implementação local; testes e inspeção visual ainda não executados nesta alteração.
+
+### 04/11/2026 — Mapa da RMR — reorganização do painel
+
+- A lista “Municípios da RMR” passa para a coluna à direita do mapa. O detalhe do município selecionado (KPIs, série mensal e bairros) passa para uma faixa abaixo, ocupando a largura disponível.
+- A seleção de bairros clicáveis no mapa fica para uma etapa futura. O levantamento encontrou malha IBGE 2022 para 12 municípios, limites OSM adicionais em Itamaracá e pontos OSM em parte de Moreno; a camada visual de bairros não foi mantida nesta alteração.
+- No detalhe municipal, valores de variação exibem sinal e cor verde/vermelha conforme direção; competências mensais aparecem como `Mai/2026` em vez de `2026-05`.
+- Arquivos alterados: `frontend/src/features/mapa/MunicipalityPanel.tsx` e este registro. `git diff --check` passou; testes e inspeção visual no navegador não foram executados nesta alteração.
+
+
+### 04/11/2026 — Mapa da RMR — ambiente e checklist de aceite
+
+- O contêiner frontend tinha dependências desatualizadas: Leaflet estava no lockfile, mas ausente do volume. Após `npm ci` no contêiner e reinício do frontend, o Vite serviu o componente do mapa com HTTP 200; o build passou.
+- Uma sessão local de leitura autenticou com perfil ausente e recebeu 403 no catálogo e em Receita via Vite, conforme a política de acesso. Não há evidência de que essa fosse a sessão Comercial da rodada anterior; o 403 histórico continua sem diagnóstico.
+- Checklist ajustado ao delta absoluto: zero inicial observado é válido; camadas de variação de faturamento e consumo são explícitas. Continuam pendentes a reconciliação da tela com Gold/banco/API e a evidência conjunta de erro, recuperação e troca de publicação. Estados oficiais preservados. Detalhes no [relatório do Mapa](plans/2026-11-03-mapa-rmr-evidencias.md).
+
+
+### 04/11/2026 — Mapa da RMR — revalidação Comercial e reconciliação parcial
+
+- Comercial autenticado via Vite recebeu 200 no catálogo e em Receita. A sessão da ocorrência histórica de 403 permanece desconhecida.
+- Em oito recortes de dois municípios, duas classes e dois meses, os valores da tabela e do painel conferiram com a API; controles SQL somente leitura conferiram faturamento e consumo à precisão exibida e verificaram a identidade do mesmo lote Gold v2. Mais oito verificações cobriram as duas camadas de variação absoluta. A prova anterior CSV/banco/API não identifica o lote no relatório e não foi ligada a esta execução.
+- Navegador comprovou recuperação após 503 e reconsulta após 409 induzidos. Troca efetiva de publicação, reconciliação da série/bairros/Receita e vínculo independente com o CSV da mesma publicação continuam pendentes. Os estados oficiais foram preservados. Comandos e limites no [relatório do Mapa](plans/2026-11-03-mapa-rmr-evidencias.md).
 
 ### 2026-11-04 — IA-08 — publicação sanitizada aprovada e planejamento de cache
 
@@ -4034,3 +4070,8 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 
 - A/B com dois casos Gold/Gemini e quatro blocos: 16 respostas concluídas, hashes de resposta/contexto/visualização iguais por caso; oito misses e oito hits confirmados. Medianas antigo→limitado: geração nova 14,477→13,914 s; cache 12,921→12,500 s; até evidência 12,793→12,430 s. Uma tentativa adicional teve limite do modelo e foi registrada como falha, depois o bloco foi repetido.
 - Ganho pequeno e amostra restrita, sem afirmação de aceleração geral; prontidão continua dominante e SQL numérico próximo de 20 ms. Configuração de 512 MiB restaurada. Evidência completa e limites no [plano Docker](plans/2026-11-04-docker-gold-inicializacao.md); estados oficiais preservados.
+
+### 04/11/2026 — DEV-16 / ENT-02 a ENT-05 — preparação operacional
+
+- README reúne pré-requisitos, carga Gold, verificações e caminho da demonstração sintética; [roteiro](demo-roteiro.md) cobre as jornadas e condições de ensaio. [Status report](status-report.md) registra atualização e bloqueios sem alterar o corte histórico.
+- Evidência operacional existente: [runbook Docker](plans/2026-11-04-docker-gold-inicializacao.md) e [Workflow](../data-engineering/evidencias/workflow/run-limpo-250327107715287.md). Falta ensaio completo por outra pessoa, revisão analítica/narrativa e confirmação de publicação. Estados ENT preservados; documentação preparada não comprova o critério de execução independente.

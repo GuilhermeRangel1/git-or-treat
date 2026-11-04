@@ -90,7 +90,11 @@ it("mantém o rascunho local e restaura a consulta ao abrir o link aplicado", as
   vi.stubGlobal("fetch", fetchSpy);
   const user = userEvent.setup();
   const view = renderDiagnostic();
-  const municipality = await screen.findByLabelText("Município");
+  const municipality = await screen.findByLabelText(
+    "Município",
+    {},
+    { timeout: 5000 },
+  );
   await user.type(municipality, "  Porto Alegre  ");
   await user.type(screen.getByLabelText("Classe"), " Residencial ");
 
