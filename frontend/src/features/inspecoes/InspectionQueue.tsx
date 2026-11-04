@@ -250,6 +250,9 @@ export default function InspectionQueue({
             {gold ? (
               <>
                 <option value="queue_position">Posição oficial da fila</option>
+                <option value="potential_recoverable_energy_kwh">
+                  Energia recuperável estimada
+                </option>
                 <option value="uc_id">Número da UC</option>
                 <option value="category">Categoria</option>
               </>

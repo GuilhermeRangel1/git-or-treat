@@ -37,7 +37,12 @@ def order_conflict_response(exc: inspection_service.OrderConflictError) -> JSONR
 @analytics_router.get(
     "/queue", response_model=QueueResponse | GoldInspectionQueueResponse,
     summary="Fila de inspeção",
-    description="Gold: snapshot cadastral sem competência. A ordenação padrão usa posicao_fila_inspecao ascendente, com desempate por UC; aceita queue_position, uc_id ou category e direção explícita. `priority` e recuperação não são métricas Gold.",
+    description=(
+        "Gold: snapshot cadastral sem competência. Ordenação padrão usa "
+        "posicao_fila_inspecao ascendente, com desempate por UC; aceita "
+        "queue_position, uc_id, category e potential_recoverable_energy_kwh validada. "
+        "Ausentes ficam no fim por posição oficial e UC."
+    ),
 )
 def get_inspection_queue(
     page: int = Query(1, ge=1),
@@ -56,8 +61,25 @@ def get_inspection_queue(
     """Read-only demonstration queue; estimates are provisional and not Gold metrics."""
     filters = filters_model(municipio, bairro, classe, alimentador)
     if gold_context is not None:
-        if order_by not in {None, "uc_id", "category", "queue_position"}:
-            raise AnalyticsAPIError(422, "invalid_query", "Ordenação indisponível para a fila Gold.", [{"field": "order_by", "message": "Use queue_position, uc_id ou category; a categoria não é um score."}])
+        if order_by not in {
+            None,
+            "uc_id",
+            "category",
+            "queue_position",
+            "potential_recoverable_energy_kwh",
+        }:
+            raise AnalyticsAPIError(
+                422,
+                "invalid_query",
+                "Ordenação indisponível para a fila Gold.",
+                [{
+                    "field": "order_by",
+                    "message": (
+                        "Use queue_position, uc_id, category ou "
+                        "potential_recoverable_energy_kwh."
+                    ),
+                }],
+            )
         return build_gold_queue_response(
             GoldInspectionRepository(gold_context), filters, page, page_size,
             "queue_position" if order_by is None else order_by,

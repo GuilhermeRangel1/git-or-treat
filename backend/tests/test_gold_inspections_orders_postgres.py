@@ -144,6 +144,12 @@ def test_gold_queue_order_replay_reload_failure_and_removed_uc_preserve_snapshot
             assert recovery["estimated_recoverable_energy_kwh"] is None
             assert recovery["recovery_estimate_status"] == "ESTIMATIVA_UC_INDISPONIVEL"
             assert body["data"]["items"][0]["potential_recoverable_energy_kwh"] is None
+            ordered = client.get(
+                "/api/v1/inspections/queue?"
+                "order_by=potential_recoverable_energy_kwh&direction=desc"
+            )
+            assert ordered.status_code == 200, ordered.text
+            assert ordered.json()["data"]["items"][0]["potential_recoverable_energy_kwh"] is None
             assert body["data"]["items"][0]["variation"]["p1_start"] == "2022-07"
             assert body["data"]["items"][0]["variation"]["p2_end"] == "2026-06"
             client.headers.pop("Authorization")
