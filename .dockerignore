@@ -13,4 +13,8 @@
 **/.ruff_cache
 .git
 work/
+data/
+datasets/
+data-engineering/
+backend/data/
 frontend/visual.local/

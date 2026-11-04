@@ -28,7 +28,11 @@ class GoldAnalyticsRepository:
         elif not session.in_transaction():
             # SQLite legacy não inicia snapshot em SELECT automaticamente.
             session.execute(text("BEGIN"))
-        batch = session.execute(select(BATCH)).mappings().first()
+        statement = select(BATCH)
+        if session.bind.dialect.name == "postgresql":
+            statement = text("SELECT schema_version, lote, publication_id, fingerprint, importado_em, origem "
+                             "FROM gold.publicacao_analitica")
+        batch = session.execute(statement).mappings().first()
         if batch is None or (batch["schema_version"] != "gold-csv-v1" and not (allow_v2 and batch["schema_version"] == "gold-csv-v2" and batch["publication_id"])):
             from app.repositories.analytics import AnalyticsSourceUnavailable
             raise AnalyticsSourceUnavailable()

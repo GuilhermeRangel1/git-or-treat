@@ -1,0 +1,72 @@
+﻿services:
+  db:
+    image: postgres:16
+    env_file:
+      - .env.db
+    volumes:
+      # Volume novo: não montar arquivos de um PostgreSQL 18 no servidor 16.
+      - pgdata16:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ai-agent:
+    # Fixtures explícitas somente no smoke descartável do CI.
+    command: [uvicorn, app.main:app, --host, "0.0.0.0", --port, "8001"]
+    build:
+      context: .
+      dockerfile: ai-agent/Dockerfile
+    env_file:
+      - ai-agent/.env
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - backend/.env
+    environment:
+      ANALYTICS_SOURCE: ${ANALYTICS_SOURCE:-synthetic}
+      APP_ENV: development
+      ORDERS_AUTH_MODE: ${ORDERS_AUTH_MODE:-session}
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-agent:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app:rw
+      - ./work/local-auth:/work/local-auth:rw
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.dev
+    ports:
+      - "127.0.0.1:5173:5173"
+    environment:
+      - VITE_API_URL=/
+      - API_PROXY_TARGET=http://backend:8000
+      - DEV_USE_POLLING=true
+    volumes:
+      - ./frontend:/app:rw
+      - /app/node_modules
+
+volumes:
+  pgdata16:

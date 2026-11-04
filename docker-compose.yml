@@ -1,70 +1,122 @@
-﻿services:
+name: git-or-treat
+
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
+services:
   db:
     image: postgres:16
-    env_file:
-      - .env.db
-    volumes:
-      # Volume novo: não montar arquivos de um PostgreSQL 18 no servidor 16.
-      - pgdata16:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5432:5432"
+    # Limite local inclui cache de arquivos; ajustável para máquinas/cargas maiores.
+    mem_limit: ${POSTGRES_MEMORY_LIMIT:-512m}
+    mem_reservation: 256m
+    command: [postgres, -c, shared_buffers=64MB, -c, max_connections=64, -c, maintenance_work_mem=32MB]
+    environment:
+      POSTGRES_USER: gold_loader
+      POSTGRES_PASSWORD: ${DOCKER_DATABASE_PASSWORD:?Execute scripts/configure-docker.ps1}
+      POSTGRES_DB: v_energy
+    volumes: [pgdata16:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: [CMD-SHELL, "pg_isready -U gold_loader -d v_energy"]
       interval: 5s
-      timeout: 5s
-      retries: 5
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+      start_interval: 1s
+    restart: unless-stopped
+    logging: *logging
+
+  gold-loader:
+    image: git-or-treat-backend:local
+    build: {context: ., dockerfile: backend/Dockerfile}
+    environment:
+      DATABASE_URL: postgresql+psycopg://gold_loader:${DOCKER_DATABASE_PASSWORD:?Configure .env}@db:5432/v_energy
+      ANALYTICS_SOURCE: gold
+      DOCKER_BOOTSTRAP: "true"
+      DOCKER_APP_PASSWORD: ${DOCKER_APP_PASSWORD:?Configure .env}
+      DOCKER_READER_PASSWORD: ${DOCKER_READER_PASSWORD:?Configure .env}
+      DOCKER_CADASTRO_PASSWORD: ${DOCKER_CADASTRO_PASSWORD:?Configure .env}
+      LOCAL_PRESENTATION_ACCOUNTS: ${LOCAL_PRESENTATION_ACCOUNTS:-false}
+      LOCAL_PRESENTATION_PASSWORD: ${LOCAL_PRESENTATION_PASSWORD:-}
+    volumes:
+      - type: bind
+        source: ${GOLD_CSV_V2_HOST_DIR:?Configure o pacote Gold v2 em .env}
+        target: /gold-input
+        read_only: true
+      - ./work/local-auth:/work/local-auth
+    depends_on:
+      db: {condition: service_healthy}
+    command: [python, scripts/bootstrap_docker.py]
+    restart: "no"
+    logging: *logging
 
   ai-agent:
-    build:
-      context: .
-      dockerfile: ai-agent/Dockerfile
-    env_file:
-      - ai-agent/.env
+    build: {context: ., dockerfile: ai-agent/Dockerfile}
+    environment:
+      GENAI_ENVIRONMENT: production
+      GENAI_ENABLE_DEMO_ACCESS: "false"
+      GENAI_SERVICE_API_TOKEN: ${DOCKER_SERVICE_TOKEN:?Configure .env}
+      GENAI_AUDIT_URL: http://backend:8000/api/v1/internal/genai-audit-events
+      GENAI_AUDIT_WRITE_TOKEN: ${DOCKER_AUDIT_TOKEN:?Configure .env}
+      GENAI_MODEL_PROVIDER: ${GENAI_MODEL_PROVIDER:-gemini}
+      GENAI_GEMINI_API_KEY: ${GENAI_GEMINI_API_KEY:-}
+      GENAI_GEMINI_MODEL: ${GENAI_GEMINI_MODEL:-gemini-3.5-flash-lite}
+      GENAI_MODEL_CACHE_TTL_SECONDS: "120"
+      GENAI_MODEL_CACHE_MAX_BYTES: "4194304"
+    command: [uvicorn, "app.gold_runtime:create_gold_app", --factory, --host, "0.0.0.0", --port, "8001"]
     healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)
-      interval: 5s
-      timeout: 5s
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 4s
       retries: 10
+      start_period: 15s
+      start_interval: 1s
+    restart: unless-stopped
+    logging: *logging
 
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    env_file:
-      - backend/.env
+    image: git-or-treat-backend:local
+    build: {context: ., dockerfile: backend/Dockerfile}
     environment:
-      ANALYTICS_SOURCE: ${ANALYTICS_SOURCE:-synthetic}
+      DATABASE_URL: postgresql+psycopg://v_energy_app:${DOCKER_APP_PASSWORD:?Configure .env}@db:5432/v_energy
+      GENAI_GOLD_DATABASE_URL: postgresql+psycopg://venergy_genai_reader:${DOCKER_READER_PASSWORD:?Configure .env}@db:5432/v_energy
+      GOLD_CADASTRO_DATABASE_URL: postgresql+psycopg://venergy_gold_cadastro_reader:${DOCKER_CADASTRO_PASSWORD:?Configure .env}@db:5432/v_energy
+      ANALYTICS_SOURCE: gold
+      # HTTP somente em localhost; cookies Secure exigem ingresso HTTPS.
       APP_ENV: development
-      ORDERS_AUTH_MODE: ${ORDERS_AUTH_MODE:-session}
+      ORDERS_AUTH_MODE: session
+      AI_AGENT_BASE_URL: http://ai-agent:8001
+      AI_AGENT_SERVICE_API_TOKEN: ${DOCKER_SERVICE_TOKEN:?Configure .env}
+      GENAI_AUDIT_WRITE_TOKEN: ${DOCKER_AUDIT_TOKEN:?Configure .env}
+      GENAI_GOLD_APPROVED_CONTROLS: ${GENAI_GOLD_APPROVED_CONTROLS:-[]}
+      DB_POOL_SIZE: "5"
+      DB_MAX_OVERFLOW: "5"
+    ports: ["127.0.0.1:8000:8000"]
     depends_on:
-      db:
-        condition: service_healthy
-      ai-agent:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:8000:8000"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./backend:/app:rw
-      - ./work/local-auth:/work/local-auth:rw
+      gold-loader: {condition: service_completed_successfully}
+      ai-agent: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 15s
+      timeout: 4s
+      retries: 10
+      start_period: 15s
+      start_interval: 1s
+    restart: unless-stopped
+    logging: *logging
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile.dev
-    ports:
-      - "127.0.0.1:5173:5173"
-    environment:
-      - VITE_API_URL=/
-      - API_PROXY_TARGET=http://backend:8000
-      - DEV_USE_POLLING=true
-    volumes:
-      - ./frontend:/app:rw
-      - /app/node_modules
+    build: {context: ., dockerfile: frontend/Dockerfile}
+    ports: ["127.0.0.1:5173:5173"]
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:5173/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    logging: *logging
 
 volumes:
   pgdata16:

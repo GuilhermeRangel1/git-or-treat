@@ -1,5 +1,7 @@
 # Serviço: backend e banco local
 
+Execução Docker vigente: a composição padrão inicia toda a stack com Gold v2, papéis separados e bootstrap local. Demonstração fica somente no smoke explícito do CI. Consulte [inicialização Docker](../plans/2026-11-04-docker-gold-inicializacao.md).
+
 Memória de conversas longas (03/11/2026): a rota existente de histórico recupera,
 sob referência explícita, uma intenção antiga da mesma conversa e a replaneja com
 acesso/publicação atuais. Reutiliza âncoras e retenção existentes, sem migração ou
