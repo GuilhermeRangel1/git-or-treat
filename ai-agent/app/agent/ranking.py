@@ -38,15 +38,16 @@ def ranking_reference(text: str, aliases: tuple[str, ...]) -> RankingReference |
     alternatives = "|".join(re.escape(alias) for alias in sorted(aliases, key=len, reverse=True))
     pattern = (
         r"\b(?:(?P<which>qual|quais)\s+(?:(?:foi|foram|e|sao)\s+)?"
-        r"(?:(?:o|a|os|as)\s+)?|(?:top|os|as)\s+(?P<number>" + _NUMBER + r")\s+)"
+        r"(?:(?:o|a|os|as)\s+)?(?:(?P<which_number>" + _NUMBER + r")\s+)?"
+        r"|(?:top|os|as)\s+(?P<top_number>" + _NUMBER + r")\s+)"
         r"(?P<dimension>" + alternatives + r")(?!\w)"
     )
     for match in re.finditer(pattern, text):
         tail = text[match.end():]
+        number = match["which_number"] or match["top_number"]
         if not re.search(r"\b(?:mais|menos|maior|menor|cresceu|caiu|perdeu|reduziu|"
-                         r"aumentou|melhores|piores)\b", tail) and not match["number"]:
+                         r"aumentou|melhores|piores)\b", tail) and not number:
             continue
-        number = match["number"]
         limit = _count(number) if number else (
             None if match["which"] == "quais" else 1
         )
