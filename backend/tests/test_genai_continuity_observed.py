@@ -107,3 +107,76 @@ def test_audit_records_observed_mode_scope_and_limitation_without_values():
     assert payload["observed_periods"] == ["2026-06"]
     assert payload["quality_limitation"] == OBSERVED_CONTINUITY_WARNING
     assert "value" not in payload
+
+
+@pytest.mark.parametrize(("state", "allowed"), [
+    ("NAO_CERTIFICADA", True),
+    ("PARCIAL", False),
+    ("AUSENTE", False),
+])
+def test_observed_mode_requires_explicit_uncertified_coverage_and_matching_lineage(
+    state, allowed,
+):
+    from app.services.genai_continuity_coverage import coverage_rows_valid
+
+    origin = {"run_id_silver": "run-test", "lote_bronze_silver": "lot-test"}
+    row = {
+        "competencia": "2026-06",
+        "estado_cobertura": state,
+        "natureza_certificacao": (
+            "NAO_CERTIFICADA" if state == "NAO_CERTIFICADA" else "EXTRACAO"
+        ),
+        "motivo": (
+            "SEM_EVIDENCIA_DE_COBERTURA"
+            if state == "NAO_CERTIFICADA" else f"{state}_DECLARADO"
+        ),
+        "data_corte_evidencia": None,
+        "referencia_evidencia": None,
+        "reconciliacao_extracao_json": None,
+        "qtd_sem_competencia": 0,
+        "qtd_registros": 3,
+        "zero_registros_confirmado": False,
+        **origin,
+    }
+
+    assert coverage_rows_valid([row], ("2026-06",), origin) is allowed
+    assert not coverage_rows_valid(
+        [row], ("2026-06",), {**origin, "run_id_silver": "different-run"}
+    )
+    assert not coverage_rows_valid([], ("2026-06",), origin)
+
+
+def test_observed_coverage_reads_only_the_requested_feeder_and_month(monkeypatch):
+    from sqlalchemy import create_engine
+    from app.models.gold_v2 import TABLES
+    from app.services import genai_continuity_coverage as coverage
+
+    origin = {"run_id_silver": "run-test", "lote_bronze_silver": "lot-test"}
+    monkeypatch.setattr(coverage, "publication_lineage", lambda connection, batch: origin)
+    engine = create_engine(
+        "sqlite://",
+        execution_options={"schema_translate_map": {"gold_v2": None}},
+    )
+    table = TABLES["cobertura_dominios"]
+    quality = _observed_continuity_quality(_report(), _plan(), BATCH)
+    rows = [
+        {"dominio": "ocorrencias", "competencia": "2026-06",
+         "recorte": "ALIMENTADOR:AL-01", "estado_cobertura": "NAO_CERTIFICADA",
+         "natureza_certificacao": "NAO_CERTIFICADA",
+         "motivo": "SEM_EVIDENCIA_DE_COBERTURA", "qtd_registros": 3,
+         "qtd_sem_competencia": 0, "zero_registros_confirmado": False, **origin},
+        {"dominio": "ocorrencias", "competencia": "2026-06",
+         "recorte": "ALIMENTADOR:OTHER", "estado_cobertura": "PARCIAL",
+         "natureza_certificacao": "EXTRACAO", "motivo": "PARCIAL_DECLARADO",
+         "qtd_registros": 3, "qtd_sem_competencia": 0,
+         "zero_registros_confirmado": False, **origin},
+    ]
+    with engine.begin() as connection:
+        table.create(connection)
+        connection.execute(table.insert(), rows)
+        assert coverage.observed_coverage_valid(connection, _plan(), quality)
+        connection.execute(table.update().where(
+            table.c.recorte == "ALIMENTADOR:AL-01"
+        ).values(estado_cobertura="PARCIAL"))
+        assert not coverage.observed_coverage_valid(connection, _plan(), quality)
+    engine.dispose()

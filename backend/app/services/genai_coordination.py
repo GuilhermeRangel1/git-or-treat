@@ -29,19 +29,13 @@ from app.services.genai_client import (
     GenAIServiceUnavailable,
     GenAITimeout,
 )
+from app.services.genai_continuity_coverage import GoldCoverageUnavailable
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
 from app.services.genai_flow import should_synthesize
 from app.services.genai_planning import GoldPlanningResult, plan_gold_question
 from app.services.genai_replay import execution_artifact
 from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
-
-
-class GoldCoverageUnavailable(GenAIServiceUnavailable):
-    """O serviço está disponível, mas o recorte não tem cobertura validada."""
-
-    def __init__(self):
-        super().__init__(retryable=False)
 
 
 OBSERVED_CONTINUITY_WARNING = "Valores observados; cobertura do alimentador não certificada."
@@ -232,15 +226,6 @@ async def answer_gold_question(
         "caller_ref": planned.access_scope.caller_ref,
         "metric_id": planned.response.plan.metric_id,
         "source_id": planned.response.plan.source_id,
-    }
-    quality_audit = {
-        "quality_mode": quality.quality_mode,
-        "observed_capability_ids": quality.observed_capability_ids,
-        "observed_periods": quality.observed_periods,
-        "quality_limitation": (
-            OBSERVED_CONTINUITY_WARNING
-            if quality.quality_mode == "observed_uncertified" else None
-        ),
     }
     quality_audit = {
         "quality_mode": quality.quality_mode,
