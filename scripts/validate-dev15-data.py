@@ -128,6 +128,45 @@ def main():
                 check(f'queue:item_{index}',item['category']==row['prioridade_inspecao'] and item['reason']==row['motivo_prioridade'] and item['queue_position']==row['posicao_fila_inspecao'] and close(item['potential_recoverable_energy_kwh'],row['energia_estimada_recuperavel_kwh']))
             second=get('/inspections/queue?page_size=20&page=2')
             check('queue:second_page_disjoint',not ({item['uc_id'] for item in queue['data']['items']} & {item['uc_id'] for item in second['data']['items']}))
+            for direction in ('asc','desc'):
+                sorted_queue=get('/inspections/queue?'+urllib.parse.urlencode({
+                    'page_size':50,
+                    'order_by':'potential_recoverable_energy_kwh',
+                    'direction':direction,
+                }))
+                items=sorted_queue['data']['items']
+                estimates=[item['potential_recoverable_energy_kwh'] for item in items]
+                observed=[value for value in estimates if value is not None]
+                check(f'queue:recovery_sort_{direction}',observed==sorted(observed,reverse=direction=='desc'))
+                first_missing=next((index for index,value in enumerate(estimates) if value is None),len(estimates))
+                check(f'queue:recovery_nulls_last_{direction}',all(value is None for value in estimates[first_missing:]))
+                tied=[(left,right) for left,right in zip(items,items[1:])
+                      if left['potential_recoverable_energy_kwh'] is not None
+                      and left['potential_recoverable_energy_kwh']==right['potential_recoverable_energy_kwh']]
+                check(f'queue:recovery_tie_break_{direction}',all(
+                    (left['queue_position'],left['uc_id']) <= (right['queue_position'],right['uc_id'])
+                    for left,right in tied
+                ))
+                estimates_by_uc={item['uc_id']:item['potential_recoverable_energy_kwh']
+                                 for item in items if item['potential_recoverable_energy_kwh'] is not None}
+                if estimates_by_uc:
+                    db_estimates={row['id_uc']:row for row in db.execute(text(
+                        'SELECT id_uc,energia_estimada_recuperavel_kwh,intervalo_recuperacao_inferior_kwh,'
+                        'intervalo_recuperacao_superior_kwh,estado_estimativa_recuperacao,metodo_estimativa_recuperacao '
+                        'FROM gold_v2.fila_inspecao WHERE id_uc = ANY(:ids)'
+                    ),{'ids':list(estimates_by_uc)}).mappings()}
+                    check(f'queue:recovery_values_match_sql_{direction}',all(
+                        uc in db_estimates
+                        and close(value,db_estimates[uc]['energia_estimada_recuperavel_kwh'])
+                        and db_estimates[uc]['intervalo_recuperacao_inferior_kwh'] is not None
+                        and db_estimates[uc]['intervalo_recuperacao_superior_kwh'] is not None
+                        and db_estimates[uc]['intervalo_recuperacao_inferior_kwh'] <= value <= db_estimates[uc]['intervalo_recuperacao_superior_kwh']
+                        and db_estimates[uc]['estado_estimativa_recuperacao']=='ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA'
+                        and db_estimates[uc]['metodo_estimativa_recuperacao']=='CONSUMO_CONDICIONAL_V1'
+                        for uc,value in estimates_by_uc.items()
+                    ))
+                else:
+                    check(f'queue:recovery_values_match_sql_{direction}',True)
             # Uma competência: recomputação direta dos numeradores/denominador.
             continuity=get('/operations/continuity?'+urllib.parse.urlencode({'periodo':month}))['data']
             expected={row['id_alimentador']:row for row in db.execute(text('SELECT id_alimentador,duracao_total_interrupcoes_horas,frequencia_total_interrupcoes,total_ucs_alimentador FROM gold_v2.indicadores_dec_fec WHERE competencia=:m'),{'m':month}).mappings()}

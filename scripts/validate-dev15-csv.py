@@ -22,10 +22,36 @@ def main():
     from app.core.config import settings
     from app.models.gold_v2 import TABLES
     from app.schemas.gold_publication_v2 import read_export_manifest_v2
-    from app.services.gold_import_v2 import discover_files, fingerprint
+    from app.services.gold_import_v2 import fingerprint
+
+    def validation_files():
+        # Spark exports may include control files beside the CSV part. They
+        # are not source rows, so compare CSV parts and reject unknown files.
+        expected_entries = {"manifest.json", *TABLES}
+        if {entry.name for entry in directory.iterdir()} != expected_entries:
+            raise SystemExit("Pacote CSV com inventário inesperado.")
+        discovered = {}
+        for table in TABLES:
+            folder = directory / table
+            if folder.is_symlink() or not folder.is_dir():
+                raise SystemExit(f"Pasta de tabela inválida: {table}.")
+            csv_parts = []
+            for entry in folder.iterdir():
+                if entry.is_symlink() or not entry.is_file():
+                    raise SystemExit(f"Arquivo inválido no pacote: {table}.")
+                if entry.suffix.lower() == ".csv":
+                    csv_parts.append(entry)
+                elif entry.name == "_SUCCESS" or entry.name.startswith(("_committed_", "_started_")):
+                    continue
+                else:
+                    raise SystemExit(f"Arquivo de controle inesperado no pacote: {table}.")
+            if not csv_parts:
+                raise SystemExit(f"Partes CSV ausentes: {table}.")
+            discovered[table] = sorted(csv_parts, key=lambda path: path.name)
+        return discovered
 
     manifest = read_export_manifest_v2(directory)
-    files = discover_files(directory)
+    files = validation_files()
     signature, _ = fingerprint(files)
     checks = []
 
@@ -70,7 +96,12 @@ def main():
                     check(name + ':' + column.name + ':null_preserved', total is None)
             print(json.dumps({'table': name, 'completed': True}), flush=True)
         estimate_available = db.scalar(text('SELECT EXISTS (SELECT 1 FROM gold_v2.fila_inspecao WHERE energia_estimada_recuperavel_kwh IS NOT NULL)'))
-    check('source_unchanged_during_validation', fingerprint(discover_files(directory))[0] == signature)
+    current_files = validation_files()
+    same_parts = all(
+        [path.name for path in current_files[table]] == [path.name for path in files[table]]
+        for table in TABLES
+    )
+    check('source_unchanged_during_validation', same_parts and fingerprint(current_files)[0] == signature)
     output.write_text(json.dumps({'date': datetime.now(timezone.utc).isoformat(), 'publication': publication, 'checks': checks, 'limitations': {'individual_inspection_estimate_available': bool(estimate_available), 'delta_origin_rerun': False}, 'method': 'CSV count, nonnull count and numeric sum vs read-only database snapshot; float tolerance max(0.00001,abs(sum)*1e-9); exact integer/decimal; aggregate conservation does not prove row equality or business certification'}, indent=2) + '\n', encoding='utf-8')
     print(json.dumps({'checks': len(checks), 'failed': sum(not x['passed'] for x in checks), 'individual_estimate_available': bool(estimate_available)}))
     return int(any(not x['passed'] for x in checks))
