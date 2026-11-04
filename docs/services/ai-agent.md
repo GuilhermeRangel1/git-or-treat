@@ -547,3 +547,8 @@ O Assistente usa a referência curta assinada do Backend para continuar o últim
 ### IA-01 / IA-03 / IA-06 — DEC/FEC observados (03/11/2026)
 
 O contrato interno de evidência aceita `quality_mode=observed_uncertified` apenas com alimentador explícito e modo sem agrupamento. `EvidenceGuard` confere modo, limitação e escopo e rejeita combinação com outras métricas. O texto quantitativo do modelo não pode retirar a ressalva; o Backend a acrescenta deterministicamente na resposta pública e preserva modo/recorte na auditoria. Isso descreve valores observados, sem certificação, fechamento ou conformidade regulatória. A política e os controles estão na [ADR-0024](../decisions/0024-recuperacao-condicional-e-continuidade-observada.md) e no [contrato](../contracts/genai-query-execution.md). A prova integrada com modelo real ainda é necessária para os aceites de IA.
+
+
+## Cache e desempenho Gold v2 — implementação local em 04/11/2026
+
+Limites por bytes/entradas, coalescência dos insights, invalidação por contexto/publicação e redução das consultas do observador estão descritos no [plano de cache e desempenho](../plans/2026-11-04-genai-cache-desempenho.md). Autorização, prontidão, SQL e auditoria continuam executados; o cache não guarda permissão nem libera cobertura. Configuração, sincronização do namespace remoto, rollback, medições e limites constam no plano. Publicação/CI desta implementação ainda pendentes.
