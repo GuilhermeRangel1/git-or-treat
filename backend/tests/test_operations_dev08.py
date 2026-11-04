@@ -1,5 +1,7 @@
 import pytest
 
+from tests.support.platform_auth import login_as_profile
+
 from app.main import app
 from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository_provider
 
@@ -7,6 +9,11 @@ from app.repositories.analytics import SyntheticAnalyticsRepository, get_analyti
 @pytest.fixture(autouse=True)
 def synthetic_source(monkeypatch):
     monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "synthetic")
+
+
+@pytest.fixture(autouse=True)
+def authenticated_operations_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "operations")
 
 
 def test_options_explicitly_identify_unsupported_synthetic_source(client):

@@ -19,7 +19,17 @@ describe("transporte de sessão", () => {
   it("restaura a sessão sem cache e inclui o cookie", async () => {
     const envelope = {
       enabled: true,
-      user: { id: "usr-1", username: "operador", permissions: ["orders:read"] },
+      user: {
+        id: "usr-1",
+        username: "operador",
+        profile: "losses",
+        permissions: [
+          "inspections:read",
+          "orders:read",
+          "orders:write",
+          "ai:ask",
+        ],
+      },
       expires_at: "2099-10-29T15:00:00Z",
     };
     fetchMock.mockResolvedValueOnce(Response.json(envelope));
@@ -38,13 +48,24 @@ describe("transporte de sessão", () => {
         user: {
           id: "usr-1",
           username: "pessoa",
-          permissions: ["orders:write", "orders:write"],
+          profile: "losses",
+          permissions: [
+            "inspections:read",
+            "orders:read",
+            "orders:write",
+            "ai:ask",
+          ],
         },
         expires_at: "2099-10-29T15:00:00-03:00",
       }),
     );
     const result = await loginSession("pessoa", "senha");
-    expect(result.user?.permissions).toEqual(["orders:write"]);
+    expect(result.user?.permissions).toEqual([
+      "inspections:read",
+      "orders:read",
+      "orders:write",
+      "ai:ask",
+    ]);
     const request = fetchMock.mock.calls[0]?.[1];
     expect(request?.method).toBe("POST");
     expect(JSON.parse(String(request?.body))).toEqual({
@@ -107,5 +128,67 @@ describe("transporte de sessão", () => {
     expect(request?.method).toBe("POST");
     expect(request?.body).toBeUndefined();
     expect(request?.credentials).toBe("include");
+  });
+
+  it("exige perfil conhecido e uma matriz de permissoes coerente", async () => {
+    const base = {
+      enabled: true,
+      expires_at: "2099-10-29T15:00:00Z",
+    };
+    for (const user of [
+      { id: "usr-1", username: "pessoa", permissions: [] },
+      {
+        id: "usr-1",
+        username: "pessoa",
+        profile: "unknown",
+        permissions: [],
+      },
+      {
+        id: "usr-1",
+        username: "pessoa",
+        profile: "commercial",
+        permissions: ["ucs:read"],
+      },
+      {
+        id: "usr-1",
+        username: "pessoa",
+        profile: null,
+        permissions: ["panorama:read"],
+      },
+    ]) {
+      fetchMock.mockResolvedValueOnce(Response.json({ ...base, user }));
+      await expect(getSession()).rejects.toBeInstanceOf(SessionApiError);
+    }
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        ...base,
+        user: {
+          id: "usr-1",
+          username: "pessoa",
+          profile: "operations",
+          permissions: ["operations:read", "ai:ask"],
+        },
+      }),
+    );
+    await expect(getSession()).resolves.toMatchObject({
+      user: {
+        profile: "operations",
+        permissions: ["operations:read", "ai:ask"],
+      },
+    });
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        ...base,
+        user: {
+          id: "usr-unprovisioned",
+          username: "sem-perfil",
+          profile: null,
+          permissions: [],
+        },
+      }),
+    );
+    await expect(getSession()).resolves.toMatchObject({
+      user: { profile: null, permissions: [] },
+    });
   });
 });

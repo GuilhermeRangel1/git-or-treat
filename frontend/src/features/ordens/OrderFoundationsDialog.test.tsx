@@ -95,7 +95,7 @@ describe("OrderFoundationsDialog", () => {
       screen.getByText("synthetic · dev05-v1 · demonstração sintética"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Não disponível; ausência de estimativa não é zero."),
+      screen.getByText("Indisponível; ausência não representa zero."),
     ).toBeInTheDocument();
     expect(screen.getByText("jan/2025 a fev/2025")).toBeInTheDocument();
     expect(screen.getAllByText("Lacuna de leitura")).toHaveLength(2);
@@ -132,7 +132,7 @@ describe("OrderFoundationsDialog", () => {
         reason: "REVISAR",
         rule_version: "gold-fila-inspecao-v1",
         category: "REVISAR",
-        potential_recoverable_energy_kwh: null,
+        potential_recoverable_energy_kwh: 125.5,
         evidence: {
           inspections_performed: 0,
           interruptions: null,
@@ -141,9 +141,15 @@ describe("OrderFoundationsDialog", () => {
           historical_recovery_interval_upper_kwh: 0,
           historical_recovery_reference: "global",
           historical_recovery_status: "DISPONIVEL_REFERENCIA_HISTORICA",
-          estimated_recoverable_energy_kwh: null,
-          recovery_estimate_status: "ESTIMATIVA_UC_INDISPONIVEL",
-          recovery_estimate_method: "MEDIA_GLOBAL_COM_GRUPOS_OPCIONAIS_V2",
+          estimated_recoverable_energy_kwh: 125.5,
+          recovery_interval_lower_kwh: 100,
+          recovery_interval_upper_kwh: 151,
+          recovery_estimate_status: "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+          recovery_estimate_method: "CONSUMO_CONDICIONAL_V1",
+          recovery_estimate_confidence_level: 0.9,
+          recovery_estimate_window_anchor: "2026-06",
+          recovery_estimate_window_months: 12,
+          recovery_estimate_minimum_window_months: 6,
         },
         variation: {
           p1_start: "2022-07",
@@ -202,8 +208,11 @@ describe("OrderFoundationsDialog", () => {
         "0",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("125,5 kWh")).toBeInTheDocument();
+    expect(screen.getByText("Faixa nominal de 90%")).toBeInTheDocument();
+    expect(screen.getByText("100 a 151 kWh")).toBeInTheDocument();
     expect(
-      screen.getByText(/Não há estimativa de energia recuperável para esta UC/),
+      screen.getByText("12 meses até 2026-06 (mínimo: 6 meses)"),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Categoria não é prioridade de despacho."),

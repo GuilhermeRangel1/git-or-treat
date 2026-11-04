@@ -124,9 +124,47 @@ class EvidenceGuard:
             if (
                 quality is None
                 or quality.batch_ref != expected_batch_ref
-                or not quality.available_capability_ids
             ):
                 raise EvidenceContractInvalid("qualidade da publicação incompatível")
+            if quality.quality_mode == "certified" and not quality.available_capability_ids:
+                raise EvidenceContractInvalid("qualidade certificada sem capacidades disponíveis")
+            if quality.quality_mode == "observed_uncertified":
+                feeder_filters = [
+                    item for item in plan.filters if item.dimension_id == "network.feeder"
+                ]
+                if (
+                    plan.metric_id not in {
+                        "network.equivalent_interruption_duration",
+                        "network.equivalent_interruption_frequency",
+                    }
+                    or quality.observed_capability_ids != ("interrupcoes.dec_fec",)
+                    or not quality.observed_periods
+                    or plan.window.kind is not WindowKind.BOUNDED
+                    or plan.window.granularity != "month"
+                    or len(feeder_filters) != 1
+                    or feeder_filters[0].operator.value != "eq"
+                    or len(feeder_filters[0].values) != 1
+                    or plan.group_by_dimension_ids
+                ):
+                    raise EvidenceContractInvalid("qualidade observada fora do escopo DEC/FEC")
+                start, end = plan.window.start, plan.window.end
+                if (
+                    start is None
+                    or end is None
+                    or start.day != 1
+                    or end.day != monthrange(end.year, end.month)[1]
+                ):
+                    raise EvidenceContractInvalid(
+                        "janela observada não contém competências mensais completas"
+                    )
+                requested_periods = set()
+                current = date(start.year, start.month, 1)
+                last = date(end.year, end.month, 1)
+                while current <= last:
+                    requested_periods.add(current.strftime("%Y-%m"))
+                    current = date(current.year + (current.month == 12), current.month % 12 + 1, 1)
+                if set(quality.observed_periods) != requested_periods:
+                    raise EvidenceContractInvalid("competências observadas divergem da janela")
         elif quality is not None:
             raise EvidenceContractInvalid("fonte sintética trouxe qualidade Gold")
         if provenance.batch_ref != expected_batch_ref:
@@ -159,7 +197,6 @@ class EvidenceGuard:
             raise EvidenceContractInvalid("proveniência incompatível com plano")
         if len(evidence.records) > plan.limit:
             raise EvidenceContractInvalid("resultado excede limite do plano")
-
         metric = next(
             (item for item in self._profile.metrics if item.id == plan.metric_id), None
         )
@@ -278,6 +315,13 @@ class EvidenceGuard:
             if row_dimensions:
                 safe_row["dimensions"] = row_dimensions
             safe_records.append(safe_row)
+
+        if (
+            quality is not None
+            and quality.quality_mode == "observed_uncertified"
+            and {row.get("period") for row in safe_records} != set(quality.observed_periods)
+        ):
+            raise EvidenceContractInvalid("competências observadas incompletas")
 
         if metric.observation_labels:
             if (len(safe_records) != len(metric.observation_labels)

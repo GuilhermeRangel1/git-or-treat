@@ -26,7 +26,7 @@ ORIGIN = {"origin": "http://localhost:5173"}
 def client(request, monkeypatch):
     db, _, _ = request.getfixturevalue("storage")
     AuthSession.__table__.create(db.get_bind())
-    db.execute(update(AuthUser).values(permissions=["orders:read"]))
+    db.execute(update(AuthUser).values(profile="losses"))
     for owner in ["one", "two"]:
         db.execute(
             insert(AuthSession).values(
@@ -94,9 +94,17 @@ def test_anonymous_revoked_and_cross_origin_are_denied(client):
         ).status_code
         == 403
     )
-    db.execute(update(AuthUser).where(AuthUser.id == "one").values(permissions=[]))
+    db.execute(update(AuthUser).where(AuthUser.id == "one").values(profile=None))
     db.commit()
     assert web.get("/api/v1/ai/conversations").status_code == 403
+
+
+@pytest.mark.parametrize("profile", ["commercial", "customer_service", "losses", "operations", "admin"])
+def test_history_is_available_to_each_assistant_profile(client, profile):
+    web, db, _ = client
+    db.execute(update(AuthUser).where(AuthUser.id == "one").values(profile=profile))
+    db.commit()
+    assert web.get("/api/v1/ai/conversations").status_code == 200
 
 
 def test_crud_owner_and_redacted_validation(client):
@@ -153,7 +161,7 @@ def test_revocation_during_external_call_does_not_store_answer(client, monkeypat
     async def revoke(*_):
         with Session(db.get_bind()) as current:
             current.execute(
-                update(AuthUser).where(AuthUser.id == "one").values(permissions=[])
+                update(AuthUser).where(AuthUser.id == "one").values(profile=None)
             )
             current.commit()
         return AIQuestionResponse(

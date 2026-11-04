@@ -66,9 +66,9 @@ export async function askAIQuestion(
   };
   let rawResponse: unknown;
   const controller = new AbortController();
-  const abort = () => controller.abort();
-  signal?.addEventListener("abort", abort, { once: true });
+  const abortFromCaller = () => controller.abort();
   if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", abortFromCaller, { once: true });
   let timedOut = false;
   const timeout = setTimeout(() => {
     timedOut = true;
@@ -177,7 +177,7 @@ export async function askAIQuestion(
     );
   } finally {
     clearTimeout(timeout);
-    signal?.removeEventListener("abort", abort);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
 
   if (

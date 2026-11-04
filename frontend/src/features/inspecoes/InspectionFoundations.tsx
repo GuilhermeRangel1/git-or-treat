@@ -228,6 +228,68 @@ export default function InspectionFoundations({
                 recuperável nem confirma irregularidade.
               </p>
             </section>
+            <section
+              className="border-t border-border pt-5"
+              aria-labelledby="recovery-estimate-title"
+            >
+              <h3
+                id="recovery-estimate-title"
+                className="font-heading text-lg font-semibold"
+              >
+                Energia estimada a recuperar
+              </h3>
+              {goldDetail.potential_recoverable_energy_kwh === null ? (
+                <p className="mt-2 text-sm text-muted">
+                  {goldDetail.recovery_unavailable_reason ??
+                    "Estimativa individual indisponível nesta publicação."}
+                </p>
+              ) : (
+                <>
+                  <p className="mt-2 text-lg font-semibold text-brand">
+                    {energy(goldDetail.potential_recoverable_energy_kwh)}
+                  </p>
+                  <p className="mt-2 text-sm text-muted">
+                    Estimativa se a irregularidade se confirmar; não garante
+                    recuperação nesta UC.
+                  </p>
+                  {goldDetail.evidence.recovery_interval_lower_kwh !== null &&
+                  goldDetail.evidence.recovery_interval_upper_kwh !== null &&
+                  goldDetail.evidence.recovery_estimate_confidence_level !==
+                    null ? (
+                    <p className="mt-2 text-sm">
+                      Faixa nominal de{" "}
+                      {Math.round(
+                        goldDetail.evidence.recovery_estimate_confidence_level *
+                          100,
+                      )}
+                      %:{" "}
+                      {energy(goldDetail.evidence.recovery_interval_lower_kwh)}{" "}
+                      a{" "}
+                      {energy(goldDetail.evidence.recovery_interval_upper_kwh)}.
+                    </p>
+                  ) : null}
+                  {goldDetail.evidence.recovery_estimate_window_anchor &&
+                  goldDetail.evidence.recovery_estimate_window_months &&
+                  goldDetail.evidence
+                    .recovery_estimate_minimum_window_months ? (
+                    <p className="mt-1 text-sm text-muted">
+                      Janela de aplicação:{" "}
+                      {goldDetail.evidence.recovery_estimate_window_months}{" "}
+                      meses até{" "}
+                      {monthLabel(
+                        goldDetail.evidence.recovery_estimate_window_anchor,
+                      )}{" "}
+                      (mínimo:{" "}
+                      {
+                        goldDetail.evidence
+                          .recovery_estimate_minimum_window_months
+                      }{" "}
+                      meses).
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </section>
           </>
         ) : (
           <p className="border-t border-border pt-5 text-sm text-muted">

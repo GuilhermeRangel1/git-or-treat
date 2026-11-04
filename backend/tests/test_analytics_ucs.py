@@ -1,9 +1,16 @@
 import pytest
 
+from tests.support.platform_auth import login_as_profile
+
 
 @pytest.fixture(autouse=True)
 def synthetic_source(monkeypatch):
     monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "synthetic")
+
+
+@pytest.fixture(autouse=True)
+def authenticated_customer_service_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "customer_service")
 
 
 def test_uc_detail_returns_not_found_for_unknown_identifier(client, monkeypatch):

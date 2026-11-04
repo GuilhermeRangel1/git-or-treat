@@ -27,9 +27,17 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.models.gold_v2 import SCHEMA as DATA_SCHEMA
 from app.models.gold_v2_load import ATTEMPTS, BATCH, SCHEMA_VERSION, TABLES
+from app.models.gold_cadastro import CADASTRO_TITULAR_UC
 from app.schemas.gold_publication import PublicationReference
 from app.schemas.gold_publication_v2 import GoldManifestV2, read_export_manifest_v2
 from app.services.gold_import import GoldImportError, _finish_attempt
+from app.services.gold_import_cadastro import (
+    GoldCadastroImportError,
+    discover_files as discover_cadastro_files,
+    fingerprint as fingerprint_cadastro,
+    read_rows as read_cadastro_rows,
+    validate_pair as validate_cadastro_pair,
+)
 
 GOLD_RUN_PATTERN = re.compile(r"GOLD_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}")
 BATCH_SIZE = 1000
@@ -218,12 +226,17 @@ def _validate_financial_totals(manifest: dict) -> None:
             raise GoldV2ImportError("Parcelas de faturamento não reconciliam com o total.", "reconciliation_error")
 
 
-def import_gold_v2(engine: Engine, directory: Path, batch_name: str | None = None) -> dict:
-    """Valida e publica apenas o pacote analítico; cadastro restrito não é importado."""
+def import_gold_v2(
+    engine: Engine,
+    directory: Path,
+    batch_name: str | None = None,
+    cadastro_directory: Path | None = None,
+) -> dict:
+    """Validate and publish Gold v2, optionally with its paired restricted cadastro."""
     directory = Path(directory)
     attempt_id = str(uuid4())
     if engine.dialect.name == "sqlite":
-        engine = engine.execution_options(schema_translate_map={"gold": None, DATA_SCHEMA: None})
+        engine = engine.execution_options(schema_translate_map={"gold": None, DATA_SCHEMA: None, "gold_cadastro": None})
     batch_valid = isinstance(batch_name, str) and GOLD_RUN_PATTERN.fullmatch(batch_name)
     try:
         with engine.begin() as connection:
@@ -249,7 +262,20 @@ def import_gold_v2(engine: Engine, directory: Path, batch_name: str | None = Non
         origin = source.model_dump(mode="json", by_alias=True)
         files = discover_files(directory)
         signature, hashes = fingerprint(files)
-        return _publish(engine, directory, source, origin, files, hashes, signature, attempt_id, manifest)
+        cadastro = None
+        if cadastro_directory is not None:
+            cadastro_manifest, cadastro_files = discover_cadastro_files(cadastro_directory)
+            validate_cadastro_pair(cadastro_manifest, source)
+            cadastro_hashes = fingerprint_cadastro(cadastro_files)
+            cadastro = {
+                "directory": Path(cadastro_directory),
+                "manifest": cadastro_manifest,
+                "files": cadastro_files,
+                "hashes": cadastro_hashes,
+            }
+        return _publish(engine, directory, source, origin, files, hashes, signature, attempt_id, manifest, cadastro)
+    except GoldCadastroImportError as error:
+        _record_failed_attempt(engine, attempt_id, manifest, signature, origin, error)
     except KeyboardInterrupt as error:
         _record_failed_attempt(engine, attempt_id, manifest, signature, origin, error)
     except Exception as error:  # noqa: BLE001 - sanitiza falhas inesperadas e fecha a auditoria da carga.
@@ -307,7 +333,47 @@ def _coverage_windows(connection) -> list[dict]:
     return list(windows.values())
 
 
-def _publish(engine, directory, source: GoldManifestV2, origin, files, hashes, signature, attempt_id, manifest):
+def _load_restricted_cadastro(connection, source, cadastro, manifest):
+    if cadastro is None:
+        return {"status": "not_imported", "export_id": source.cadastro_export_id, "schema_version": source.cadastro_schema_version, "available_to_genai": False}
+    table = CADASTRO_TITULAR_UC
+    cadastro_manifest = cadastro["manifest"]
+    connection.execute(table.delete().where(
+        table.c.run_id == source.run_id,
+        table.c.analytic_export_id == source.export_id,
+    ))
+    count = 0
+    rows = []
+    for row in read_cadastro_rows(cadastro["files"], cadastro_manifest):
+        count += 1
+        rows.append(row)
+        if len(rows) == BATCH_SIZE:
+            connection.execute(table.insert(), rows)
+            rows.clear()
+    if rows:
+        connection.execute(table.insert(), rows)
+    observed = connection.scalar(select(func.count()).select_from(table).where(
+        table.c.run_id == source.run_id,
+        table.c.analytic_export_id == source.export_id,
+        table.c.cadastro_export_id == source.cadastro_export_id,
+    ))
+    if observed != count:
+        raise GoldCadastroImportError("Contagem divergente após a carga cadastral.", "row_count_mismatch")
+    current_manifest, current_files = discover_cadastro_files(cadastro["directory"])
+    if current_manifest != cadastro_manifest or fingerprint_cadastro(current_files) != cadastro["hashes"]:
+        raise GoldCadastroImportError("Os arquivos cadastrais mudaram durante a carga.", "changed_during_import")
+    manifest["restricted_cadastro"] = {
+        "status": "loaded",
+        "export_id": source.cadastro_export_id,
+        "schema_version": source.cadastro_schema_version,
+        "rows": count,
+        "files": cadastro["hashes"],
+        "available_to_genai": False,
+    }
+    return manifest["restricted_cadastro"]
+
+
+def _publish(engine, directory, source: GoldManifestV2, origin, files, hashes, signature, attempt_id, manifest, cadastro=None):
     with engine.begin() as connection:
         if connection.dialect.name == "postgresql":
             connection.execute(text("SELECT pg_advisory_xact_lock(73460127)"))
@@ -323,15 +389,19 @@ def _publish(engine, directory, source: GoldManifestV2, origin, files, hashes, s
             if read_export_manifest_v2(directory).model_dump(mode="json", by_alias=True) != origin or fingerprint(discover_files(directory))[0] != signature:
                 raise GoldV2ImportError("Os arquivos mudaram durante a carga; lote revertido.", "changed_during_import")
             reference = PublicationReference(schema_version=SCHEMA_VERSION, run_id=source.run_id, publication_id=previous["publication_id"])
-            previous_manifest = previous["manifesto"]
+            previous_manifest = dict(previous["manifesto"])
+            restricted = previous_manifest.get("restricted_cadastro", {})
+            if cadastro is not None:
+                restricted = _load_restricted_cadastro(connection, source, cadastro, previous_manifest)
+                connection.execute(BATCH.update().where(BATCH.c.id == 1).values(manifesto=previous_manifest))
+            status = restricted.get("status", "not_imported")
             _finish_attempt(connection, attempt_id, "unchanged", previous_manifest, signature, origin=origin, publication_id=previous["publication_id"])
             return {
                 "status": "unchanged", "schema_version": SCHEMA_VERSION, "lote": source.run_id,
                 "publication_id": previous["publication_id"], "batch_ref": reference.batch_ref,
-                "attempt_id": attempt_id, "scope": "analytical_only", "complete_delivery": False,
-                "cadastro_status": "not_imported",
-                "cadastro_export_id": source.cadastro_export_id,
-                "restricted_cadastro": previous_manifest["restricted_cadastro"],
+                "attempt_id": attempt_id, "scope": "analytical_and_restricted_cadastro" if status == "loaded" else "analytical_only",
+                "complete_delivery": status == "loaded", "cadastro_status": status,
+                "cadastro_export_id": source.cadastro_export_id, "restricted_cadastro": restricted,
                 "tables": previous_manifest["tables"],
             }
 
@@ -380,18 +450,14 @@ def _publish(engine, directory, source: GoldManifestV2, origin, files, hashes, s
 
         publication_id = str(uuid4())
         reference = PublicationReference(schema_version=SCHEMA_VERSION, run_id=source.run_id, publication_id=publication_id)
+        cadastro_status = _load_restricted_cadastro(connection, source, cadastro, manifest)
         publication_manifest = {
             "schema_version": SCHEMA_VERSION,
-            "scope": "analytical_only",
-            "complete_delivery": False,
+            "scope": "analytical_and_restricted_cadastro" if cadastro_status["status"] == "loaded" else "analytical_only",
+            "complete_delivery": cadastro_status["status"] == "loaded",
             "tables": manifest,
             "coverage_windows": _coverage_windows(connection),
-            "restricted_cadastro": {
-                "status": "not_imported",
-                "export_id": source.cadastro_export_id,
-                "schema_version": source.cadastro_schema_version,
-                "available_to_genai": False,
-            },
+            "restricted_cadastro": cadastro_status,
         }
         connection.execute(BATCH.delete())
         connection.execute(BATCH.insert().values(
@@ -403,7 +469,9 @@ def _publish(engine, directory, source: GoldManifestV2, origin, files, hashes, s
     return {
         "status": "loaded", "schema_version": SCHEMA_VERSION, "lote": source.run_id,
         "publication_id": publication_id, "batch_ref": reference.batch_ref,
-        "attempt_id": attempt_id, "scope": "analytical_only", "complete_delivery": False,
-        "cadastro_status": "not_imported",
-        "cadastro_export_id": source.cadastro_export_id, "tables": manifest,
+        "attempt_id": attempt_id, "scope": publication_manifest["scope"],
+        "complete_delivery": publication_manifest["complete_delivery"],
+        "cadastro_status": cadastro_status["status"],
+        "cadastro_export_id": source.cadastro_export_id,
+        "restricted_cadastro": cadastro_status, "tables": manifest,
     }

@@ -4,6 +4,10 @@ SPA React + TypeScript + Vite, com Tailwind CSS e ícones Lucide. A sidebar, o P
 
 A [arquitetura](../docs/architecture/frontend.md) define responsabilidades, dependências, tema, transporte HTTP e política de estado. A escolha está registrada na [ADR-0001](../docs/decisions/0001-arquitetura-frontend.md). O [PRD](../docs/PRD.md) governa os critérios funcionais.
 
+### Sessão e perfis WEB-10
+
+No modo autenticado, a resposta de sessão inclui perfil e permissões efetivas. O portal filtra a navegação, protege cada rota/ação e envia consultas autenticadas pelo proxy; o Backend continua validando toda autorização. 401 exige autenticação novamente; 403 preserva a sessão e mostra acesso negado. Perfil nulo recebe a mensagem de conta ainda não provisionada. A política canônica e o estado de validação estão na [ADR-0022](../docs/decisions/0022-perfis-de-acesso-web10.md), no [contrato de acesso](../docs/contracts/platform-access.md) e no [PRD](../docs/PRD.md#web-10--perfis-e-autorização).
+
 ## Executar
 
 A partir de `frontend/`:

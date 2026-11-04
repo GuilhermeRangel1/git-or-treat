@@ -111,6 +111,56 @@ describe("contrato Gold da fila de inspeções", () => {
     });
   });
 
+  it("aceita estimativa condicional só com faixa e validação temporal coerentes", () => {
+    const eligible = {
+      ...goldItem,
+      potential_recoverable_energy_kwh: 125.5,
+      recovery_unavailable_reason: null,
+      evidence: {
+        ...goldItem.evidence,
+        estimated_recoverable_energy_kwh: 125.5,
+        recovery_interval_lower_kwh: 100,
+        recovery_interval_upper_kwh: 151,
+        recovery_estimate_status: "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+        recovery_estimate_method: "CONSUMO_CONDICIONAL_V1",
+        recovery_estimate_confidence_level: 0.9,
+        recovery_estimate_window_anchor: "2026-06",
+        recovery_estimate_window_months: 12,
+        recovery_estimate_minimum_window_months: 6,
+      },
+    };
+    const decoded = decodeQueue({
+      data: {
+        items: [eligible],
+        filter_options: {
+          municipio: [],
+          bairro: [],
+          classe: [],
+          alimentador: [],
+        },
+        summary: {
+          total_units: 1,
+          categories: { REVISAR: 1 },
+          uncategorized_units: 0,
+          estimated_units: 1,
+          unavailable_estimate_units: 0,
+        },
+      },
+      pagination: { page: 1, page_size: 10, total: 1, total_pages: 1 },
+      metadata,
+    });
+    const decodedItem = decoded.data.items[0];
+    expect(decodedItem.potential_recoverable_energy_kwh).toBe(125.5);
+    expect("evidence" in decodedItem).toBe(true);
+    if ("evidence" in decodedItem) {
+      expect(decodedItem.evidence.recovery_estimate_confidence_level).toBe(0.9);
+    }
+    expect(decoded.data.summary).toMatchObject({
+      estimated_units: 1,
+      unavailable_estimate_units: 0,
+    });
+  });
+
   it("preserva a comparação trimestral proposta no detalhe Gold", () => {
     const decoded = decodeDetail({
       data: {

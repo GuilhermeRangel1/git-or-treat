@@ -1,4 +1,6 @@
 """Read-only repository for the published Gold inspection triage snapshot."""
+import math
+
 from sqlalchemy import func, select
 from sqlalchemy.engine import Connection
 
@@ -56,6 +58,38 @@ class GoldInspectionRepository:
             select(func.count()).select_from(self.queue).where(*predicates)
         ).scalar_one()
 
+    def recovery_estimate_groups(self, filters: AnalyticsFilters, category: str | None = None) -> list[tuple[str, int]]:
+        q = self.queue
+        predicates = self._predicates(filters)
+        if category is not None:
+            predicates.append(q.c.prioridade_inspecao == category)
+        predicates.extend((
+                q.c.estado_estimativa_recuperacao == "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+                q.c.metodo_estimativa_recuperacao == "CONSUMO_CONDICIONAL_V1",
+                q.c.energia_estimada_recuperavel_kwh.is_not(None),
+                q.c.intervalo_recuperacao_inferior_kwh.is_not(None),
+                q.c.intervalo_recuperacao_superior_kwh.is_not(None),
+                q.c.validacao_recuperacao_json.is_not(None),
+                q.c.energia_estimada_recuperavel_kwh > -math.inf,
+                q.c.energia_estimada_recuperavel_kwh < math.inf,
+                q.c.intervalo_recuperacao_inferior_kwh > -math.inf,
+                q.c.intervalo_recuperacao_inferior_kwh < math.inf,
+                q.c.intervalo_recuperacao_superior_kwh > -math.inf,
+                q.c.intervalo_recuperacao_superior_kwh < math.inf,
+                q.c.energia_estimada_recuperavel_kwh >= 0,
+                q.c.intervalo_recuperacao_inferior_kwh >= 0,
+                q.c.intervalo_recuperacao_superior_kwh >= q.c.intervalo_recuperacao_inferior_kwh,
+                q.c.intervalo_recuperacao_inferior_kwh <= q.c.energia_estimada_recuperavel_kwh,
+                q.c.energia_estimada_recuperavel_kwh <= q.c.intervalo_recuperacao_superior_kwh,
+        ))
+        statement = (
+            select(q.c.validacao_recuperacao_json, func.count())
+            .select_from(q)
+            .where(*predicates)
+            .group_by(q.c.validacao_recuperacao_json)
+        )
+        return [(report, count) for report, count in self.connection.execute(statement)]
+
     def category_counts(self, filters: AnalyticsFilters) -> dict[str | None, int]:
         rows = self.connection.execute(
             select(self.queue.c.prioridade_inspecao, func.count())
@@ -89,6 +123,7 @@ class GoldInspectionRepository:
             q.c.intervalo_recuperacao_inferior_kwh,
             q.c.intervalo_recuperacao_superior_kwh,
             q.c.estado_estimativa_recuperacao, q.c.metodo_estimativa_recuperacao,
+            q.c.validacao_recuperacao_json,
             v.c.id_uc.label("variation_uc_id"),
             v.c.consumo_medio_inicial, v.c.meses_com_leitura_p1,
             v.c.consumo_medio_final, v.c.meses_com_leitura_p2,
@@ -134,6 +169,7 @@ class GoldInspectionRepository:
             q.c.intervalo_recuperacao_inferior_kwh,
             q.c.intervalo_recuperacao_superior_kwh,
             q.c.estado_estimativa_recuperacao, q.c.metodo_estimativa_recuperacao,
+            q.c.validacao_recuperacao_json,
             v.c.id_uc.label("variation_uc_id"),
             v.c.consumo_medio_inicial, v.c.meses_com_leitura_p1,
             v.c.consumo_medio_final, v.c.meses_com_leitura_p2,

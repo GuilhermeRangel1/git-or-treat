@@ -122,6 +122,7 @@ class UCProfile(BaseModel):
     uc_id: str
     customer_reference: str | None
     customer_name: str | None
+    customer_identification_status: Literal["available", "absent", "conflict", "unavailable"] = "unavailable"
     municipio: str
     bairro: str
     classe: str

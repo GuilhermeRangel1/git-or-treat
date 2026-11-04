@@ -28,6 +28,8 @@ BODY = {
 @pytest.fixture
 def export_client(client, monkeypatch):
     web, db, _ = client
+    db.execute(update(AuthUser).values(profile="admin"))
+    db.commit()
     web.app.include_router(routes.router, prefix="/api/v1/ai")
     reader = SimpleNamespace(connect=lambda: nullcontext(None))
 
@@ -88,7 +90,7 @@ def test_no_session_revoked_permission_and_cross_origin_are_rejected(export_clie
         ).status_code
         == 403
     )
-    db.execute(update(AuthUser).where(AuthUser.id == "one").values(permissions=[]))
+    db.execute(update(AuthUser).where(AuthUser.id == "one").values(profile=None))
     db.commit()
     assert post(web, BODY).status_code == 403
 
@@ -97,7 +99,7 @@ def test_revocation_during_check_is_rejected(export_client, monkeypatch):
     web, db = export_client
 
     def revoked(*args):
-        db.execute(update(AuthUser).where(AuthUser.id == "one").values(permissions=[]))
+        db.execute(update(AuthUser).where(AuthUser.id == "one").values(profile=None))
         db.commit()
         return SimpleNamespace(batch_ref=BATCH)
 

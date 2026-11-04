@@ -5,7 +5,6 @@ import { isGoldPublicationStale } from "@/shared/analytics/goldPublication";
 import { ASSISTANT_HOME_SUGGESTIONS } from "@/shared/help/assistantExamples";
 import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSession } from "@/shared/auth/useSession";
 import { currentAuthorizationGeneration } from "@/shared/auth/authorization";
 import ConversationHistory from "./ConversationHistory";
 import { createConversation, openConversation } from "./history";
@@ -29,6 +28,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useGoldPublicationRevision } from "@/shared/analytics/goldPublication";
+import { useSession } from "@/shared/auth/useSession";
 import Button from "@/shared/ui/Button";
 import { AIChatApiError, askAIQuestion } from "./api";
 import { AssistantIdentity, ProcessingIndicator } from "./AssistantIdentity";
@@ -466,6 +466,7 @@ export default function AssistentePage() {
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
   const [hasInterruptedSend, setHasInterruptedSend] = useState(false);
   const publicationRevision = useGoldPublicationRevision();
+  const { user } = useSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [requestPhase, setRequestPhase] = useState<
     "idle" | "consulting" | "interpreting"
@@ -488,6 +489,24 @@ export default function AssistentePage() {
     }) => askAIQuestion(input.request, input.onData, input.signal),
     retry: false,
   });
+  const identityKey = `${user?.id ?? ""}:${user?.profile ?? ""}:${user?.permissions.join(",") ?? ""}`;
+  useEffect(() => {
+    interactionRevision.current++;
+    requestAbort.current?.abort();
+    requestAbort.current = null;
+    sendingRef.current = false;
+    savedIdRef.current = null;
+    // Identity changes clear the private conversation state.
+    // oxlint-disable-next-line react(set-state-in-effect)
+    setActiveSavedId(null);
+    setConversationId(crypto.randomUUID());
+    setDraft("");
+    setRequestPhase("idle");
+    setHasInterruptedSend(false);
+    setLoadingHistory(false);
+    drafts.current.clear();
+    setMessages([]);
+  }, [identityKey]);
   useEffect(
     () => () => {
       interactionRevision.current++;
@@ -498,7 +517,10 @@ export default function AssistentePage() {
   // Publication changes invalidate interpretation history, including saved retries.
   useEffect(() => {
     requestAbort.current?.abort();
+    requestAbort.current = null;
+    sendingRef.current = false;
     // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
+    setRequestPhase("idle");
     setMessages((current) =>
       current.map((message) => ({
         ...message,
@@ -543,7 +565,6 @@ export default function AssistentePage() {
       : retryAttempt?.assistantMessageId;
     if (userMessageId === undefined || assistantMessageId === undefined) return;
     sendingRef.current = true;
-    setRequestPhase("consulting");
     const retryRequest: RetryRequest = retryAttempt ?? {
       question,
       context,
@@ -583,6 +604,7 @@ export default function AssistentePage() {
     let preview: AIQuestionResponse | undefined;
     const abortController = new AbortController();
     requestAbort.current = abortController;
+    setRequestPhase("consulting");
     try {
       if (historyEnabled && !savedIdRef.current) {
         const created = await createConversation(conversationId);
@@ -681,7 +703,13 @@ export default function AssistentePage() {
         );
       });
     } catch (error) {
-      if (!current()) return;
+      const publicationConflict =
+        error instanceof AIChatApiError && error.status === 409;
+      if (
+        !current() ||
+        (abortController.signal.aborted && !publicationConflict)
+      )
+        return;
       if (
         error instanceof AIChatApiError &&
         error.code === "superseded_request"
@@ -734,7 +762,10 @@ export default function AssistentePage() {
         ),
       );
     } finally {
-      if (current()) {
+      if (requestAbort.current === abortController) {
+        requestAbort.current = null;
+      }
+      if (current() && !abortController.signal.aborted) {
         sendingRef.current = false;
         setRequestPhase("idle");
         requestAnimationFrame(() => composerRef.current?.focus());

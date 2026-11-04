@@ -79,7 +79,17 @@ export default function RequireSession({ children }: { children: ReactNode }) {
         </div>
       ) : null}
       <div
-        key={configured ? (user?.id ?? "anonymous") : "demo"}
+        key={
+          configured && user
+            ? JSON.stringify([
+                user.id,
+                user.profile,
+                [...user.permissions].sort(),
+              ])
+            : configured
+              ? "anonymous"
+              : "demo"
+        }
         hidden={needsReauthentication}
         inert={needsReauthentication}
       >

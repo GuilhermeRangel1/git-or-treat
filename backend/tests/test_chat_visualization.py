@@ -353,7 +353,7 @@ def test_coordinator_attaches_points_after_existing_synthesis(scenario, monkeypa
     monkeypatch.setattr(flow, "execute_gold_plan", lambda *args, **kwargs: lookup)
     result = asyncio.run(
         flow.answer_gold_question(
-            None,
+            object(),
             SimpleNamespace(synthesize=synthesis),
             AIQuestionRequest(question="Receita de junho a agosto em Recife?"),
             resolve_scope=lambda: SCOPE,

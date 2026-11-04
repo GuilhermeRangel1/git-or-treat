@@ -48,7 +48,7 @@ class GoldPlanningResult:
     """Plano e referência capturada no servidor; o executor deve revalidar ambos."""
 
     response: QuestionPlanResponse
-    publication: GoldPublicationContext
+    publication: GoldPublicationContext | None
     source: CatalogSource | None = None
     access_scope: AccessScope | None = None
     deadline: GenAIRequestDeadline | None = None
@@ -61,6 +61,7 @@ def _stop(status: QuestionPlanStatus, message: str, correlation_id: str):
         status=status,
         response=AIQuestionResponse(
             correlation_id=correlation_id, status=status.value, message=message,
+                limitations=[message] if status == QuestionPlanStatus.NEEDS_CLARIFICATION else [],
             error=(AIQuestionError(code="access_denied", retryable=False)
                    if status == QuestionPlanStatus.REFUSED else None),
         ),
@@ -205,6 +206,17 @@ async def plan_gold_question(
     if expected_batch_ref is not None:
         PublicationReference.parse(expected_batch_ref)
     scope = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope))
+    if not scope.allowed_metric_ids or not scope.allowed_operations:
+        return GoldPlanningResult(
+            _stop(
+                QuestionPlanStatus.NEEDS_CLARIFICATION,
+                "Seu perfil não tem métricas Gold disponíveis para esta pergunta. "
+                "Use um indicador autorizado ao seu perfil.",
+                correlation_id,
+            ),
+            publication=None,
+            access_scope=scope,
+        )
     publication = await deadline.run(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(GoldPublicationContext.capture, engine)
     )

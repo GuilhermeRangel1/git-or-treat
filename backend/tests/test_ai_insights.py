@@ -18,6 +18,7 @@ from app.services.genai_client import (
     GenAITimeout,
 )
 from app.services.panorama_insights import build_panorama_insight
+from tests.support.platform_auth import login_as_profile
 
 
 def _upstream_response(correlation_id: str, screen: dict[str, Any]) -> dict[str, Any]:
@@ -65,6 +66,14 @@ class RecordingInsightGateway:
 @pytest.fixture(autouse=True)
 def synthetic_source(monkeypatch):
     monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "synthetic")
+
+
+@pytest.fixture(autouse=True)
+def authenticated_commercial_session(client, monkeypatch):
+    """Insight requests need both ai:ask and panorama:read from a real profile."""
+    return login_as_profile(
+        client, monkeypatch, "commercial", username="ai-insight-commercial"
+    )
 
 
 def _request(

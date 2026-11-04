@@ -10,6 +10,7 @@ ABSENT = "Detalhe não fornecido nos CSVs Gold desta versão; ausência não equ
 
 def profile(row):
     return {"uc_id": row["id_uc"], "customer_reference": None, "customer_name": None,
+            "customer_identification_status": "unavailable",
             **{key: row[key] or "Não informado" for key in ("municipio", "bairro", "classe", "alimentador", "status")}}
 
 
@@ -39,7 +40,7 @@ def search(repository, q, municipio, classe, page, page_size, order_by):
         statement = statement.where(uc.c.classe == classe)
     sort = uc.c.id_uc if order_by == "uc_id" else uc.c[order_by]
     rows, pagination = repository.page(statement, page, page_size, sort.asc(), uc.c.id_uc.asc())
-    items = [{key: value for key, value in profile(row).items() if key not in {"customer_name", "customer_reference"}} for row in rows]
+    items = [{key: value for key, value in profile(row).items() if key not in {"customer_name", "customer_reference", "customer_identification_status"}} for row in rows]
     return items, pagination, "available" if pagination["total"] else "empty"
 
 
@@ -121,7 +122,7 @@ def overview(repository, uc_id, start, end):
                      "gold_generation_record": generation_record,
                      "section_status": {name: "partial" if name == "consumption" or (is_v2 and name in {"invoices", "meters", "interruptions", "calls"}) else "unavailable" for name in ("consumption", "invoices", "meters", "distributed_generation", "interruptions", "calls")}},
             "status": "partial", "limitations": (["Consumo e receita mensais são agregados publicados; não são faturas individuais.",
-                "Nome do titular, pagamento efetivo e energia faturada não estão disponíveis no pacote analítico.",
+                "Pagamento efetivo e energia faturada não estão disponíveis no pacote analítico.",
                 "Históricos são observados, sem certificar ausência de registros ou vigência cadastral.",
                 "GD em kWp não é energia gerada nem potência em kW; apresentação detalhada ainda não integrada."] if is_v2 else [ABSENT,
                 "Consumo e receita mensais são agregados publicados; não são faturas individuais.",

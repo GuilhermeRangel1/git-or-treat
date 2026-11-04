@@ -1,7 +1,15 @@
 import pytest
 
+from tests.support.platform_auth import login_as_profile
+
 from app.main import app
 from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository_provider
+
+
+@pytest.fixture(autouse=True)
+def authenticated_admin_session(client, monkeypatch):
+    # This module spans operations analytics and the inspection queue.
+    login_as_profile(client, monkeypatch, "admin")
 
 
 @pytest.mark.parametrize("alimentador", ["", "   ", "AL-99", " AL-01 "])

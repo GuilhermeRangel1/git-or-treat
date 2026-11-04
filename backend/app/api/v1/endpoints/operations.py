@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 
 from app.api.v1.analytics_route import StrictAnalyticsRoute
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository, get_analytics_repository_provider
-from app.repositories.gold_context import GoldContext, get_optional_gold_context
+from app.core.platform_identity import require_permission
+from app.repositories.gold_context import GoldContext, get_optional_gold_context_for
 from app.repositories.gold_operations import GoldOperationsRepository
 from app.schemas.gold import GoldMetadata
 from app.schemas.analytics import (
@@ -51,7 +52,7 @@ from app.services.operations import (
     validate_operation_window,
 )
 
-router = APIRouter(route_class=StrictAnalyticsRoute)
+router = APIRouter(route_class=StrictAnalyticsRoute, dependencies=[Depends(require_permission("operations:read"))])
 
 
 def operation_period(
@@ -83,7 +84,7 @@ def exploration_period(
 
 @router.get("/options", response_model=GoldOperationOptionsResponse)
 def get_operation_options(
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("operations:read")),
 ) -> GoldOperationOptionsResponse:
     if gold_context is None:
         raise AnalyticsAPIError(422, "unsupported_source", "Opções disponíveis somente para a fonte Gold.")
@@ -99,7 +100,7 @@ def get_continuity_metrics(
     period: Annotated[tuple[str, str], Depends(operation_period)],
     alimentador: Annotated[str | None, Query(max_length=100)] = None,
     municipio: Annotated[str | None, Query(max_length=100)] = None,
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("operations:read")),
     repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ) -> ContinuityResponse | GoldContinuityResponse:
     start, end = period
@@ -132,7 +133,7 @@ def get_operation_series(
     period: Annotated[tuple[str, str], Depends(exploration_period)],
     alimentador: Annotated[str | None, Query(max_length=100)] = None,
     municipio: Annotated[str | None, Query(max_length=100)] = None,
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("operations:read")),
     repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ) -> OperationSeriesResponse | GoldOperationSeriesResponse:
     start, end = period
@@ -161,7 +162,7 @@ def get_operation_summary(
     period: Annotated[tuple[str, str], Depends(exploration_period)],
     alimentador: Annotated[str | None, Query(max_length=100)] = None,
     municipio: Annotated[str | None, Query(max_length=100)] = None,
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("operations:read")),
     repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ) -> OperationSummaryResponse | GoldOperationSummaryResponse:
     start, end = period
@@ -184,7 +185,7 @@ def get_operation_ranking(
     alimentador: Annotated[str | None, Query(max_length=100)] = None,
     metric: Literal["dec", "fec"] = "dec",
     municipio: Annotated[str | None, Query(max_length=100)] = None,
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("operations:read")),
     repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ) -> OperationRankingResponse | GoldOperationRankingResponse:
     start, end = period
@@ -221,7 +222,7 @@ def get_gold_occurrences(
     page: Annotated[int, Query(ge=1, le=1000000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     municipio: Annotated[str | None, Query(max_length=100)] = None,
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("operations:read")),
 ) -> GoldOccurrencePage:
     if gold_context is None:
         raise AnalyticsAPIError(422, "unsupported_source", "Ocorrências observadas disponíveis somente para a fonte Gold.")
@@ -246,7 +247,7 @@ def get_feeder_detail(
     page: Annotated[int, Query(ge=1, le=1000000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     municipio: Annotated[str | None, Query(max_length=100)] = None,
-    gold_context: GoldContext | None = Depends(get_optional_gold_context),
+    gold_context: GoldContext | None = Depends(get_optional_gold_context_for("operations:read")),
     repository_provider: Callable[[], AnalyticsRepository] = Depends(get_analytics_repository_provider),
 ) -> OperationDetailResponse | GoldOperationDetailResponse:
     if gold_context is not None:

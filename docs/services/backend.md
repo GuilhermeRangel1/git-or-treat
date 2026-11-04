@@ -26,49 +26,17 @@ GENAI-15: execução Gold v2 usa `GOLD_LOADER_DATABASE_URL` exclusiva de carga n
 **Escopo:** sustenta WEB-01 a WEB-11 e IA-01 a IA-06 do [PRD](../PRD.md). **Estado:** API FastAPI, SQLAlchemy, ORM e Alembic; demonstração sintética preservada. A DEV-13.1 acrescenta modo Gold explícito para Panorama, fila/Ordens e Operação, com contrato v2 e limitações reais; o aceite integrado do portal permanece pendente. **Stack atual:** Python 3.12 no Docker/CI, FastAPI, SQLAlchemy e PostgreSQL com psycopg 3; testes HTTP sintéticos usam SQLite e os de integração Gold usam PostgreSQL descartável.
 
 
-## GENAI-12 — insight do Panorama Gold v2
-
-O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do KPI. O Backend coordena sessão individual, prontidão, leitor restrito/snapshot, síntese interna e auditoria durável; a GenAI reutiliza o núcleo de insight. O portal distingue Gold de demonstração, preserva recorte/fundamento/limitações e prioriza falhas sobre cache antigo. Migração `genai12000001` publica somente metadados mínimos por view, sem acesso direto à tabela operacional de carga. Contrato, implantação e reprodução: [insight do Panorama](../contracts/panorama-insight-api.md); evidências e limites: [GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Os registros anteriores sobre ausência de insight externo são históricos; a rota pública GenAI demonstrativa permanece separada da entrada interna Gold.
-
 ## Estado vigente da fatia conversacional Gold — 01/11/2026
 
 A rota pública Backend /api/v1/ai/questions já coordena sessão individual → planejamento GenAI → prontidão/SQL restrito → síntese GenAI → confirmação de auditoria. A GenAI usa app.gold_runtime:create_gold_app, com perfil Gold v2 e fonte gold.local; recebe evidências minimizadas, nunca credenciais do banco. Há resposta real reconciliada, replay e matriz integrada de falhas, conforme [evidência GENAI-09](../contracts/genai-first-question.md).
 
 Os trechos históricos de preparação abaixo que descrevem ausência de autenticação, SQL conversacional ou ligação interna foram superados por essa fatia. Isso não entrega automaticamente outros domínios, insights Gold ou o aceite integral do portal. Contratos vigentes: [chat](../contracts/genai-chat-api.md), [execução](../contracts/genai-query-execution.md), [coordenação](../contracts/genai-gold-coordination.md) e [auditoria](../contracts/genai-audit.md).
 
-O ingresso Backend deve aceitar prompt v4 antes de implantar a GenAI v4; eventos v1/v2/v3 continuam compatíveis. O contrato público continua v1 e conserva a marca is_demo para a fonte sintética explícita. Fonte Gold indisponível não ativa demonstração.
+O ingresso Backend deve aceitar prompt v3 antes de implantar a GenAI v3. O contrato público continua v1 e conserva a marca is_demo para a fonte sintética explícita. Fonte Gold indisponível não ativa demonstração.
 
 ## Responsabilidade
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
-
-Receita, catálogo de filtros e UC 360 consultam a Gold por adaptadores próprios e exigem identidade de leitura no modo Gold. Os contratos v1 permanecem apenas para compatibilidade; a publicação v2 é a referência atual. A leitura não homologa automaticamente as medidas ou a cobertura.
-
-A UC 360 v2 consulta o cadastro e cada fonte individualmente pela chave da UC, sob a mesma identidade de publicação. Retorna histórico mensal, faturas observadas, vínculos de medidores, chamados e interrupções com paginação; cobertura individual não é presumida. O histórico de faturas expõe separadamente o status declarado e o valor nominal declarado em aberto, sem classificá-los como pagamento comprovado ou saldo contábil. A seleção de possível medidor na referência Gold usa datas e é parcial; ambiguidades permanecem indisponíveis. Potência de GD é exposta separadamente em kWp. Titular, pagamento efetivo e energia faturada não são inferidos. Veja o [contrato da UC Gold v2](../contracts/uc360-gold-v2.md).
-
-O resumo conta faturas declaradas em aberto no período com estado parcial; a data de pagamento informada é exposta apenas com sinais consistentes, sem afirmar liquidação. A UC também oferece tratativas estruturadas paginadas por chamado, sem texto restrito. Em Operação, `/operations/feeders/{feeder_id}/occurrences` consulta ocorrências observadas por alimentador e data de abertura, sob autenticação e identidade Gold; registro ausente não certifica zero, e a atribuição pode refletir cadastro atual.
-
-A fila Gold v2 apresenta categoria e motivo publicados, usa a posição de triagem do lote e expõe opções de filtro extraídas da própria fila. A ordenação por estimativa individual é recusada. O detalhe compara três competências com as três anteriores como contexto candidato, sem atribuir essa janela à suspeita ou alterar a prioridade. A criação de ordem segue o contrato DEV-13.1: exige autorização de escrita, fingerprint da publicação e snapshot validado. Consulte o [contrato Gold DEV-13.1](../contracts/analytics-gold-dev13-1.md) e a descrição histórica da [fila DEV-13.2](../contracts/inspection-gold-v2.md).
-
-O detalhe também calcula cenário individual de queda de consumo por trimestres homólogos para investigação, com seis leituras mensais válidas, períodos e limitações explícitas. O valor não representa recuperação nem altera a ordenação; metodologia e ausência de validação retrospectiva estão no contrato da fila.
-
-Receita v2 apresenta preço observado somente a partir da receita e do consumo da base comparável e retorna, em `window_decomposition`, a decomposição materializada nas duas janelas da publicação. As sete parcelas são somadas por recorte, com método e janelas confrontados com o manifesto; grupos sem base comum mantêm resultado parcial e não são tratados como zero. O total só é exibido quando todos os grupos o possuem e o resíduo só é declarado com parcelas completas. Filtro por alimentador torna essa análise indisponível porque a tabela não tem esse grão; não se atribui a ela o recorte dos fatos mensais. Comparação entre meses e comparação entre janelas são independentes. O método continua candidato, sem homologar tarifa, energia faturada ou fechamento contábil.
-
-A entrega local em `data/gold/v2` passou a usar o esquema `gold-csv-v2`; selecionar o diretório e a versão explicitamente na carga, sem apagar a v1. O [mapeamento histórico DEV-13.2](../contracts/gold-v2-jornadas-dev132.md) descreve uma entrega anterior de sete tabelas, não o pacote atual de quinze. O período informado na fila v1 é cobertura do consumo do lote, não uma janela própria da suspeita.
-
-Para revisar a publicação já carregada no banco SQLite isolado local `backend/data/gold/receita-v2.sqlite`, sem alterar `.env`, executar no PowerShell em `backend/`:
-
-```powershell
-$env:DATABASE_URL = 'sqlite:///data/gold/receita-v2.sqlite'
-$env:ANALYTICS_SOURCE = 'gold'
-$env:APP_ENV = 'development'
-$env:ORDERS_AUTH_MODE = 'service'
-.\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
-```
-
-Em outro terminal, em `frontend/`, executar `npm run dev -- --host 127.0.0.1` e abrir `/receita`. O banco SQLite contém dados da entrega privada e permanece ignorado pelo Git. É uma validação local, não substitui PostgreSQL ou aceite das métricas. Para execução direta com PostgreSQL, o hostname `db` configurado para Compose só resolve dentro da rede Docker; usar a conexão local apropriada sem publicar credenciais. Não alterar o banco operacional existente para executar esta prova.
-
-A prova posterior usou PostgreSQL 18 no banco isolado `gold_receita_v2_test`, com migrações, importação das quinze tabelas e reconciliação privada da API; a conexão local foi preparada apenas no processo e o banco operacional anterior foi preservado. Para reproduzir, configure o endereço local e credenciais por um canal seguro no processo, sem gravá-los no repositório; o arquivo `.env` do Compose não deve ser exposto.
 
 As ordens têm persistência operacional inicial, separada da Gold analítica. As rotas de Panorama, fila/Ordens e Operação podem consultar a fonte sintética explícita ou, em `ANALYTICS_SOURCE=gold`, a publicação CSV v2 após autenticação e validação de lote. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. As cargas v1 e v2 são transacionais, conforme os [contratos provisórios v1](../contracts/gold-csv-v1.md) e [v2](../contracts/gold-csv-v2.md). O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
 
@@ -84,7 +52,7 @@ O adaptador sintético não depende de PostgreSQL e não altera ordens. A implem
 
 Nas ordens, endpoints HTTP validam os schemas de entrada/saída e delegam operações ao serviço, que recebe a sessão SQLAlchemy e usa os modelos ORM. `app/db/base.py` declara `Base` sem importar conexão; `app/core/database.py` configura engine, pooling, `SessionLocal` e `get_db`. Os modelos importam `Base` do módulo neutro, e Alembic carrega esses modelos para compor `target_metadata`. O import compatível `app.core.database.Base` permanece disponível.
 
-A revisão posterior da DEV-01 explicita cobertura temporal da fonte de interrupções, mantendo-a separada da cobertura cadastral. Janelas desconhecidas não produzem zero disponível; janelas parcialmente observadas identificam o trecho usado. A busca/projeção das UCs fica no serviço, e a continuidade usa a validação comum de filtros. A rota `/api/v1/ucs` aceita `q`, `municipio` e `classe`; os critérios cadastrais opcionais são intersectados antes de ordenar e paginar, para Gold e fonte sintética. Veja os casos no [catálogo de contratos](../contracts/analytics-api.md).
+A revisão posterior da DEV-01 explicita cobertura temporal da fonte de interrupções, mantendo-a separada da cobertura cadastral. Janelas desconhecidas não produzem zero disponível; janelas parcialmente observadas identificam o trecho usado. A busca/projeção das UCs fica no serviço, e a continuidade usa a validação comum de filtros. Veja os casos no [catálogo de contratos](../contracts/analytics-api.md).
 
 A revisão Alembic `7c4a2b1e9d60` acrescenta defaults de inserção do servidor aos timestamps de ordens, sem mudar a migração inicial, nomes persistidos do enum ou atualização direta por SQL. O gate de migrações compara esquema/modelos após upgrade e testa PostgreSQL descartável com papel de migração sem superusuário. Banco com resíduos é recusado antes de qualquer alteração. Os caminhos host/Compose/testes e os comandos ficam no [README do backend](../../backend/README.md).
 
@@ -129,7 +97,7 @@ O portal envia filtros aplicados e `loteVersao` a `POST /api/v1/ai/insights`; nu
 
 Recorte sem registros retorna `no_evidence` com observações vazias antes da chamada à GenAI; zero observado em registros existentes continua elegível para interpretação. Os controles de filtro, lote e fonte são aplicados antes da decisão de ausência.
 
-O insight de Panorama usa o contexto sintético; fonte não compatível falha fechada. Isso não comprova insight Gold ou geração ao vivo de provedor.
+Na versão atual, o serviço só gera o contexto com a fonte sintética do Panorama; fonte não compatível falha fechada. Isso conecta o caminho da interface, mas não comprova Gold, autorização de usuário, auditoria persistida ou uma geração ao vivo de provedor. A evolução para Gold precisa revisar a métrica com o dicionário e continuar recalculando os valores no Backend.
 
 O cálculo sintético do Panorama recebe `PanoramaRepository`, com cobertura e comparações demonstrativas preservadas. `ANALYTICS_SOURCE` aceita `synthetic`, `unavailable` e `gold`. O modo Gold usa consultas agregadas específicas, publica opções reais e ausências, e mantém identidade de lote/fingerprint por resposta. O insight continua exclusivamente sintético e falha fechado em Gold; sua adaptação precisa recalcular contexto na fonte real antes de ser habilitada. Veja o [contrato DEV-13.1](../contracts/analytics-gold-dev13-1.md).
 
@@ -151,7 +119,7 @@ O contêiner usa `dhi.io/python:3.12-alpine3.24-dev`, base mantida pela Docker c
 
 - Segredos via ambiente/gerenciador; nunca no frontend ou Git.
 - Validação de entradas, parâmetros e escopo de filtros no servidor; consulta ao banco parametrizada.
-- Garantir autorização de escrita das ordens; se WEB-10 for implementado, mapear perfis para leitura e ações.
+- Aplicar o catálogo de perfis WEB-10 em toda rota/ação pública; não usar apenas os guards do portal como autorização.
 - Separar usuário/credencial de leitura da IA do usuário de escrita operacional.
 - Informar competência, atualização e proveniência nas respostas para evitar interpretações falsas.
 - Erros não expõem SQL, stack trace, dados de terceiros ou credenciais ao navegador.
@@ -160,7 +128,7 @@ O contêiner usa `dhi.io/python:3.12-alpine3.24-dev`, base mantida pela Docker c
 
 A [ADR-0007](../decisions/0007-contencao-seguranca-ordens-e-entradas.md) registra a contenção implementada após a auditoria: Bearer de serviço com leitura/escrita separadas e negação por padrão; PENDENTE inicia ou cancela, EM_ANDAMENTO conclui ou cancela, estados finais não reabrem. Conclusão exige resultado. ID, strings e prioridade são limitados no servidor, com atualização condicional por status para impedir sobrescrita de transição concorrente.
 
-A API limita corpos a 64 KiB e JSON UTF-8 a 32 níveis, valida hosts e inclui headers defensivos. Essa proteção não substitui identidade de usuário e controle de acesso individual a ordens. WEB-05 permanece `Em validação`: a DEV-07 implementa o ciclo e o histórico operacional descritos a seguir, enquanto homologação e reconciliação com a Gold continuam pendentes. WEB-10 continua pendente. Preservar trilha de criação, alterações e cancelamento. Uma UC pode ser priorizada novamente; a regra para ordens simultâneas e repetição da mesma requisição deve ser explícita. Inspeções históricas do Excel não devem ser tratadas automaticamente como ordens novas do portal.
+A API limita corpos a 64 KiB e JSON UTF-8 a 32 níveis, valida hosts e inclui headers defensivos. Essa proteção não substitui identidade de usuário e controle de acesso individual a ordens. WEB-05 permanece `Em validação`: a DEV-07 implementa o ciclo e o histórico operacional descritos a seguir, enquanto homologação e reconciliação com a Gold continuam pendentes. WEB-10 está `Em validação` conforme seu registro no PRD. Preservar trilha de criação, alterações e cancelamento. Uma UC pode ser priorizada novamente; a regra para ordens simultâneas e repetição da mesma requisição deve ser explícita. Inspeções históricas do Excel não devem ser tratadas automaticamente como ordens novas do portal.
 
 ### DEV-07 — ciclo operacional das ordens
 
@@ -197,7 +165,7 @@ Na revisão de integração com DEV-04/develop, a busca passou a projetar `Order
 
 A [ADR-0011](../decisions/0011-ordem-ativa-por-uc.md) alinha DEV-06/DEV-07: uma única ordem ativa por UC, inclusive criações manuais e versões distintas da suspeita. A migração `a6d060000002` recusa duplicidades antigas sem cancelamento automático e instala índice parcial por UC. Reenvio confirmado resolve somente o banco operacional, sem exigir fonte analítica; novas intenções continuam dependentes da fonte. Conflitos mantêm `detail` e acrescentam `error.code`, `error.message` e `error.order_id`. Testes de falha antes e depois do commit comprovam rollback ou recuperação sem duplicação conforme o caso.
 
-A [ADR-0020](../decisions/0020-autenticacao-backend-por-sessao.md) define autenticação individual por sessão opaca do Backend, persistida no banco operacional, com ator resolvido pelo servidor e permissões de leitura/escrita. O cookie é HttpOnly e não é exposto ao JavaScript; chamadas autenticadas validam a origem. O proxy não injeta credenciais e o Compose publica portas somente em localhost. `ORDERS_AUTH_MODE=service` permanece para CLI/Swagger com credenciais privadas; `demo` permite leitura/escrita somente em desenvolvimento com fonte sintética e o ator `local-demo` não identifica uma pessoa. WEB-10 continua pendente até prova de login, permissões e jornada integrada. Veja o [contrato local](../contracts/local-auth.md) e o [guia de entrega para o frontend](../contracts/inspection-auth-handoff.md). Perfis das outras áreas e trilha durável completa não são concluídos por essa fatia.
+A [ADR-0020](../decisions/0020-autenticacao-backend-por-sessao.md) define autenticação individual por sessão opaca do Backend, persistida no banco operacional, com ator resolvido pelo servidor. A [ADR-0022](../decisions/0022-perfis-de-acesso-web10.md) acrescenta perfis de plataforma e permissão por recurso, ainda em validação integrada. O cookie é HttpOnly e não é exposto ao JavaScript; chamadas autenticadas validam a origem. O proxy não injeta credenciais e o Compose publica portas somente em localhost. `ORDERS_AUTH_MODE=service` permanece para CLI/Swagger com credenciais privadas; `demo` permite leitura/escrita somente em desenvolvimento com fonte sintética e o ator `local-demo` não identifica uma pessoa. Veja o [contrato local](../contracts/local-auth.md) e o [guia de entrega para o frontend](../contracts/inspection-auth-handoff.md).
 
 Para DEV-05/WEB-04, o serviço `inspection_analytics` calcula apenas a [regra sintética versionada](../contracts/inspection-dev05.md). A fila aceita direção explícita e retorna opções de filtros; `/api/v1/inspections/queue/{uc_id}` expõe os insumos e limites da prioridade/projeção. Não há gravação, alteração de ordens ou migração. A regra demonstrativa recusa fonte não demonstrativa até homologação dos critérios reais.
 
@@ -218,10 +186,6 @@ O endpoint `GET /api/v1/operations/summary` consolida apenas alimentadores `avai
 Na revisão DEV-08, todas as rotas de Operação passaram a recusar parâmetros desconhecidos/duplicados e a devolver `Cache-Control: no-store`, inclusive em erros. O cálculo compartilhado recusa denominador não inteiro positivo e determina cobertura pelas contagens exatas, evitando elegibilidade indevida no ranking por arredondamento. Autorização individual das leituras analíticas permanece pendente para dados reais.
 
 A refatoração de alinhamento DEV-08 move a composição e paginação do detalhe para `build_feeder_detail`, com resposta tipada. As rotas de Operação retornam modelos explícitos; `StrictAnalyticsRoute` fica na fronteira HTTP comum. Receita e Operação compartilham `repeated_query_parameters`, preservando seus contratos e políticas de erro.
-
-## Integração provisória Gold v1 — 27/10/2026
-
-Receita, UC 360 e fila de inspeção têm composição executável com `ANALYTICS_SOURCE=gold`, consultas SQL parametrizadas, agregação/paginação no banco e catálogo de filtros real. O portal preserva rotas e valida envelopes; apresenta lote, importação local, limitações e ausências. `priority_label` preserva a categoria textual; score e estimativa são nulos. Histórico mensal da UC distingue agregado financeiro de fatura individual. Modo sintético permanece explícito e não solicita banco. Panorama/Operação e GenAI não foram homologados para essa fonte; os requisitos continuam abertos. Veja [contrato e execução local](../contracts/gold-csv-v1.md#consumo-provisório-pela-api-e-pelo-portal).
 
 ## Preparação da identidade de publicação Gold — 28/10/2026
 
@@ -281,8 +245,6 @@ O artefato declara o limite datado de até 1.830 dias por métrica; a política 
 
 ### Cliente das operações internas — 31/10/2026
 
-Na integração DEV-13.2, as respostas analíticas Gold CSV v2 informam lote e fingerprint em `source`. Receita, UC 360 e opções aceitam `expected_lote` e `expected_fingerprint`, conferidos sob o bloqueio da publicação; divergências geram 409 e parâmetros repetidos geram 422. As fontes anteriores não recebem identidade inventada.
-
 `GenAIQuestionClient.plan(QuestionPlanRequest, correlation_id=...)` e `synthesize(QuestionSynthesisRequest, correlation_id=...)` usam as rotas internas contratuais, token e transporte existentes. Validam schema e correlação; o planejamento também confere o fingerprint pelo schema. Não há fallback para `/api/v1/questions`. A prova `test_database_metadata_drives_the_composed_genai_plan` liga o produtor do banco v2 ao cliente e às rotas GenAI reais ASGI em processo separado, incluindo síntese de ausência. A ponte de transporte é controlada e o banco é artificial. Esta entrega não ativa o coordenador no endpoint do portal, não autentica a pessoa usuária e não executa SQL de negócio.
 
 
@@ -296,19 +258,17 @@ A CLI é o chamador de runtime para esta etapa. Configure `GOLD_READINESS_DATABA
 
 O executor de medidas e a coordenação do endpoint do portal permanecem em GENAI-06/07. A operação acima é integração executável do planejamento, não aceite quantitativo IA-01/IA-03/IA-06 nem autenticação individual do chat. Referência técnica: SQLAlchemy 2.0.52 observado localmente; transações/`execution_options` conferidos via Context7 em 31/10/2026 na [documentação Core 2](https://docs.sqlalchemy.org/en/20/core/connections.html).
 
+## Cadastro restrito na UC 360 — 02/11/2026
 
-### GENAI-10B — leitura de atendimento e prontidão acumulada
+`load_gold.py --schema-version gold-csv-v2 --directory <export-analitico> --cadastro-directory <export-cadastral>` valida os manifestos cruzados e publica a projeção em `gold_cadastro` na mesma transação que a publicação analítica. `GOLD_CADASTRO_DATABASE_URL` aponta a uma credencial dedicada, read-only, limitada ao schema; `venergy_gold_reader` e a conexão GenAI não recebem permissão cadastral. A rota de overview aplica `ucs:read` antes da consulta e cruza run/export IDs da publicação ativa. O contrato cadastral não integra catálogo, planejamento, evidência, síntese ou auditoria IA.
 
-O escopo de sessão admite as quatro métricas de atendimento do catálogo Gold v2.
-O provisionamento quantitativo concede somente as três colunas de agregação de
-`atendimentos_uc` e o total acumulado da `visao_360_uc`, conforme autorização local
-explícita. Os limites, reautorização e isolamento operacional permanecem aplicados.
+A API informa `available`, `absent`, `conflict` ou `unavailable`. Ausência de linha, pacote ou conexão nunca é apresentada como ausência de titular. O pareamento usa run, linhagem, processamento e IDs cruzados dos manifestos; timestamps das linhas cadastrais são validados quanto a fuso/formato e uniformidade, mas podem divergir do instante dos manifestos. Ver [decisão de timestamps cadastrais](../decisions/0023-timestamps-cadastro-restrito.md), [contrato cadastral](../contracts/gold-cadastro-v1.md) e [contrato UC 360](../contracts/uc360-gold-v2.md).
 
-A operação de prontidão de domínios admite consulta acumulada sem competências,
-publicando cobertura temporal vazia. A operação mensal original ainda exige um recorte.
-Controles C14/C15 não promovem automaticamente fechamento mensal ou DEC/FEC.
-[Evidência reproduzível, alcance e pendências](../contracts/genai-domain-implementation.md).
+## WEB-10 — perfis e autorização por recurso
 
+A [ADR-0022](../decisions/0022-perfis-de-acesso-web10.md) define a política fixa `commercial`, `customer_service`, `losses`, `operations` e `admin`. `platform_identity` resolve usuário ativo e perfil em cada requisição; permissões vêm do catálogo `platform_access`, enquanto o JSON legado de grants não concede acesso de sessão. Endpoints analíticos e operacionais exigem permissões específicas antes de abrir providers/snapshots. Rotas internas de auditoria continuam com identidade técnica e não são elevadas por admin. A [matriz de acesso](../contracts/platform-access.md) é a referência de recurso/rota.
+
+O campo de perfil é nullable para preservar contas anteriores sem migração de privilégio. Provisionamento e atribuição são explícitos; scripts, 401/403, recuperação de admin e rollback estão no [contrato local de autenticação](../contracts/local-auth.md#perfis-de-plataforma--web-10). `service` permanece leitura analítica técnica apenas em desenvolvimento, sem `ai:ask`/admin; `demo` exige desenvolvimento e fonte sintética. Para GenAI Gold v2, o escopo efetivo é a interseção entre perfil, catálogo, capacidades e grants técnicos: Comercial tem cinco métricas de faturamento/energia, Operação DEC/FEC, admin a união de sete; Atendimento e Perdas recebem estado público `needs_clarification` sem iniciar engine/modelo enquanto não houver capacidade aprovada. Isso não amplia o leitor nem habilita dados UC individual. A suíte completa do Backend passou (901 aprovados, 102 testes pulados, 1 aviso); os skips incluem PostgreSQL opt-in e as provas dirigidas WEB-10 foram executadas separadamente. WEB-10 permanece `Em validação` enquanto faltarem respostas Admin e reconciliação com Gold autorizado.
 
 No ranking explícito com agrupamento, o executor retorna exatamente o limite do plano.
 A linha extra para detectar truncamento é preservada nas consultas completas; não
@@ -335,6 +295,12 @@ Assistente e insight vinculam a publicação conhecida à consulta; o insight en
 O insight do Panorama pode incluir `analysis.composicaoAtual` (opcional): maior receita observada por município/classe/bairro autorizado e participação na soma observada do mês, quando a comparação temporal não estiver disponível. O cálculo reconcilia os grupos com o KPI e não estima valores ausentes; participação não é variação temporal.
 
 Detalhamento por bairro requer a dimensão `geography.neighborhood` no escopo validado e reconciliação da projeção de bairros com o total do KPI. A mesma decisão de autorização é aplicada na consulta e na recomputação da auditoria; sem permissão ou reconciliação, a composição não é publicada.
+
+### Atualização 03/11/2026 — WEB-04 / continuidade observada
+
+Inspeções lê `validacao_recuperacao_json` da fila Gold v2 e expõe a estimativa individual somente após validar o estado/método conhecidos, validação temporal, limites, nível nominal e números finitos não negativos. O relatório bruto não cruza a API. O resumo de elegibilidade é calculado no universo filtrado antes da paginação.
+
+Na GenAI, `observed_uncertified` é uma exceção restrita a DEC/FEC. Só é selecionada quando prontidão falha exclusivamente por cobertura não certificada; o executor confere alimentador e competências exatos na publicação atual, números/denominadores e controles aplicáveis antes de executar. Autorização, escopo, prazo, limite e SQL somente leitura são os controles existentes. A resposta pública e a auditoria preservam o aviso de não certificação; demais falhas continuam bloqueando. Nenhum metadado ou registro Gold é alterado. Ver [ADR-0024](../decisions/0024-recuperacao-condicional-e-continuidade-observada.md) e [contrato de execução](../contracts/genai-query-execution.md).
 
 # Atualização de Receita — 02/11/2026
 

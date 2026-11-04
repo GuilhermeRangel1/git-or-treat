@@ -66,6 +66,7 @@ class Settings(BaseSettings):
 
     # Database (PostgreSQL com driver psycopg 3)
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/v_energy"
+    GOLD_CADASTRO_DATABASE_URL: SecretStr | None = None
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30

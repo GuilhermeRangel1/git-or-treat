@@ -314,11 +314,13 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(screen.getByText("UC-GOLD / REVISAR")).toBeVisible();
   expect(screen.getAllByText("Posição oficial na fila: 7")).toHaveLength(2);
   expect(
-    screen.getByText(/Energia recuperável individual indisponível/),
-  ).toBeVisible();
+    screen.getAllByText(
+      /Estimativas condicionais: 0 UCs disponíveis e 1 sem estimativa válida/,
+    ),
+  ).not.toHaveLength(0);
   expect(
-    screen.queryByRole("columnheader", { name: "Energia recuperável" }),
-  ).not.toBeInTheDocument();
+    screen.getByRole("columnheader", { name: "Energia a recuperar" }),
+  ).toBeVisible();
   expect(
     screen.getAllByText(/Contatos ao atendimento: indisponível/),
   ).toHaveLength(2);
@@ -531,6 +533,77 @@ it("explica a janela da fila sem expor identificadores técnicos", async () => {
       name: "Período, unidades e fonte dos dados",
     }),
   ).not.toBeInTheDocument();
+});
+
+it("mostra a estimativa condicional e sua faixa na fila e no detalhe Gold", async () => {
+  const candidate = {
+    ...goldItem,
+    potential_recoverable_energy_kwh: 125.5,
+    recovery_unavailable_reason: null,
+    evidence: {
+      ...goldItem.evidence,
+      estimated_recoverable_energy_kwh: 125.5,
+      recovery_interval_lower_kwh: 100,
+      recovery_interval_upper_kwh: 151,
+      recovery_estimate_status: "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+      recovery_estimate_method: "CONSUMO_CONDICIONAL_V1",
+      recovery_estimate_confidence_level: 0.9,
+      recovery_estimate_window_anchor: "2026-06",
+      recovery_estimate_window_months: 12,
+      recovery_estimate_minimum_window_months: 6,
+    },
+  };
+  const queue = {
+    ...goldQueue,
+    data: {
+      ...goldQueue.data,
+      items: [candidate],
+      summary: {
+        ...goldQueue.data.summary,
+        estimated_units: 1,
+        unavailable_estimate_units: 0,
+      },
+    },
+  };
+  const detail = {
+    ...goldDetail,
+    data: { ...goldDetail.data, ...candidate },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation((url: string) =>
+        Promise.resolve(
+          url.includes("/queue/UC-GOLD") ? respond(detail) : respond(queue),
+        ),
+      ),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  expect(await screen.findAllByText("125,5 kWh")).not.toHaveLength(0);
+  expect(
+    screen.getAllByText(/Faixa nominal de 90%: 100 kWh a 151 kWh/),
+  ).not.toHaveLength(0);
+  expect(
+    screen.getAllByText(/1 UCs disponíveis e 0 sem estimativa válida/),
+  ).not.toHaveLength(0);
+  await user.click(
+    (
+      await screen.findAllByRole("link", { name: "Ver evidência de UC-GOLD" })
+    )[0],
+  );
+  expect(
+    await screen.findByRole("region", {
+      name: "Estimativa condicional de energia a recuperar",
+    }),
+  ).toHaveTextContent("125,5 kWh");
+  expect(
+    screen.getByText(
+      /Janela de aplicação: 12 meses até junho de 2026 \(mínimo: 6 meses\)/,
+    ),
+  ).toBeVisible();
 });
 
 it("na Gold v2 desativa ordenação por energia e preserva a volta do detalhe", async () => {

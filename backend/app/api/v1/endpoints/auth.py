@@ -36,7 +36,7 @@ def _require_same_origin(request: Request) -> None:
 
 def _session_user(user: AuthUser) -> SessionUser:
     permissions = sorted(auth_service.permissions_for(user))
-    return SessionUser(id=user.id, username=user.username, permissions=permissions)
+    return SessionUser(id=user.id, username=user.username, profile=user.profile, permissions=permissions)
 
 
 def _envelope(user: AuthUser | None, expires_at: datetime | None = None) -> SessionEnvelope:

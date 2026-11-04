@@ -7,7 +7,7 @@ Data: 31/10/2026. Branch: `dev13.1`. A etapa valida as jornadas do portal contra
 - Panorama exige `gold-csv-v2`, escopo mensal e filtros Gold coerentes com os filtros aplicados. A métrica `ucsFaturadasNoMes` é obrigatória no contrato Gold e mantém `null/unavailable`.
 - Inspeções agora decodifica e mostra `queue_position` em desktop/mobile, ordena por posição oficial ascendente por padrão e exibe os indicadores disponíveis de GD, cadastro, atendimento e interrupções. A energia recuperável permanece indisponível quando não estimada. Variação de consumo aceita valores com sinal; médias e contagens continuam não negativas. Criação de ordem exige fingerprint na origem Gold.
 - Operação exige schema v2 e escopo temporal compatível. Zero, base inválida, vazio e indisponibilidade têm estados distintos; ocorrências individuais continuam indisponíveis.
-- Os consumidores sintéticos foram mantidos. O teste opt-in `frontend/src/stage4-live.integration.test.ts` decodifica Panorama, fila e Operação com respostas HTTP reais e confirma identidade única de lote/fingerprint. Sem `VITE_STAGE4_API_URL` e `VITE_STAGE4_READ_TOKEN`, o teste é ignorado na suíte comum.
+- Os consumidores sintéticos foram mantidos. A etapa previa um teste opt-in para decodificar Panorama, fila e Operação com respostas HTTP reais e confirmar identidade única de lote/fingerprint; esse teste foi removido e não integra mais a suíte.
 
 ## Reconciliação independente
 

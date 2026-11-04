@@ -1,5 +1,7 @@
 import pytest
 
+from tests.support.platform_auth import login_as_profile
+
 from app.main import app
 from app.repositories.analytics import SyntheticAnalyticsRepository, get_analytics_repository
 
@@ -7,6 +9,11 @@ from app.repositories.analytics import SyntheticAnalyticsRepository, get_analyti
 @pytest.fixture(autouse=True)
 def synthetic_source(monkeypatch):
     monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "synthetic")
+
+
+@pytest.fixture(autouse=True)
+def authenticated_commercial_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "commercial")
 
 
 def test_kpis_publish_versioned_envelope_and_reconciled_synthetic_total(client, monkeypatch):
@@ -117,14 +124,25 @@ def test_revenue_keeps_billed_and_measured_energy_distinct(client, monkeypatch):
     ) == 127.0
 
 
-def test_synthetic_analytics_request_does_not_resolve_sqlalchemy_session(client, monkeypatch):
+def test_synthetic_analytics_route_does_not_open_a_database_after_identity_resolution(
+    client, monkeypatch
+):
     from app.core.database import get_db
+    from app.core.platform_access import PlatformProfile, permissions_for_profile
+    from app.core.platform_identity import PlatformIdentity, get_platform_identity
 
     monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "synthetic", raising=False)
 
     def fail_if_database_is_requested():
         raise AssertionError("Synthetic analytics must not request a database session")
 
+    # Keep this provider-boundary test independent of the session resolver's DB read.
+    client.app.dependency_overrides[get_platform_identity] = lambda: PlatformIdentity(
+        actor="fixture:commercial",
+        profile=PlatformProfile.COMMERCIAL,
+        permissions=permissions_for_profile("commercial"),
+        auth_mode="session",
+    )
     client.app.dependency_overrides[get_db] = fail_if_database_is_requested
     response = client.get("/api/v1/kpis")
 

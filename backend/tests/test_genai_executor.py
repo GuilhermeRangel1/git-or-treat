@@ -8,12 +8,14 @@ from app.schemas.genai_evidence import (
     EvidenceLookupResult,
     EvidenceLookupStatus,
     EvidenceResult,
+    GoldEvidenceQuality,
 )
 from app.services.genai_executor import (
     MAX_EVIDENCE_BYTES,
     GoldExecutionDenied,
     _exceeds_evidence_byte_limit,
     _rounded_number,
+    _validate_observed_continuity_rows,
 )
 from app.schemas.genai_internal import AccessScope
 from app.schemas.genai_plan import LogicalReadPlan
@@ -69,3 +71,64 @@ def test_numeric_evidence_uses_catalog_half_even_rounding(raw, expected):
 def test_non_finite_measure_never_becomes_numeric_evidence(raw):
     with pytest.raises(GoldExecutionDenied):
         _rounded_number(Decimal(raw), 2)
+
+
+def test_observed_uncertified_quality_does_not_claim_a_certified_capability():
+    quality = GoldEvidenceQuality(
+        readiness_version="gold-readiness-v2",
+        batch_ref=("gold-csv-v2:GOLD_20260601T000000Z_12345678:"
+                   "12345678-1234-4234-8234-123456789012"),
+        lot_state="partial",
+        quality_mode="observed_uncertified",
+        available_capability_ids=(),
+        observed_capability_ids=("interrupcoes.dec_fec",),
+        observed_periods=("2026-06",),
+    )
+
+    assert quality.available_capability_ids == ()
+    assert quality.observed_capability_ids == ("interrupcoes.dec_fec",)
+
+
+def test_observed_uncertified_quality_rejects_non_continuity_capabilities():
+    with pytest.raises(ValueError, match="DEC/FEC"):
+        GoldEvidenceQuality(
+            readiness_version="gold-readiness-v2",
+            batch_ref=("gold-csv-v2:GOLD_20260601T000000Z_12345678:"
+                       "12345678-1234-4234-8234-123456789012"),
+            lot_state="partial",
+            quality_mode="observed_uncertified",
+            available_capability_ids=(),
+            observed_capability_ids=("faturamento.receita",),
+            observed_periods=("2026-06",),
+        )
+
+
+def test_observed_continuity_requires_one_result_per_requested_month():
+    plan = LogicalReadPlan.model_validate({
+        "catalog_version": "v1", "operation": "read",
+        "profile_id": "v-energy-grid-360-gold", "source_id": "gold.local",
+        "domain_id": "continuity", "metric_id": "network.equivalent_interruption_duration",
+        "unit": "horas por UC",
+        "window": {"kind": "bounded", "start": date(2026, 5, 1),
+                   "end": date(2026, 6, 30), "granularity": "month"},
+        "dimension_ids": ["network.feeder"],
+        "filters": [{"dimension_id": "network.feeder", "operator": "eq", "values": ["AL-01"]}],
+        "limit": 10,
+    })
+    quality = GoldEvidenceQuality(
+        readiness_version="gold-readiness-v2",
+        batch_ref=("gold-csv-v2:GOLD_20260601T000000Z_12345678:"
+                   "12345678-1234-4234-8234-123456789012"),
+        lot_state="partial", quality_mode="observed_uncertified",
+        available_capability_ids=(), observed_capability_ids=("interrupcoes.dec_fec",),
+        observed_periods=("2026-05", "2026-06"),
+    )
+
+    _validate_observed_continuity_rows(
+        [{"period": "2026-05", "feeder": "AL-01"},
+         {"period": "2026-06", "feeder": "AL-01"}], plan, quality,
+    )
+    with pytest.raises(GoldExecutionDenied):
+        _validate_observed_continuity_rows(
+            [{"period": "2026-05", "feeder": "AL-01"}], plan, quality,
+        )
