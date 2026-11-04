@@ -236,6 +236,30 @@ def test_preserves_direction_and_percentage_threshold_without_calculating_them()
     }
 
 
+@pytest.mark.parametrize("question", ["Na verdade, no último ano.", "Corrigindo: no último ano."])
+def test_explicit_period_correction_preserves_metric_and_filters(question: str) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        question,
+        [ConversationTurn(
+            role="user",
+            content="Qual foi o consumo residencial em Olinda no período de demonstração?",
+        )],
+    )
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.metric_id == "energy.consumption"
+    assert result.intent.period_phrase == "último ano"
+    assert result.intent.geography_phrase == "Olinda"
+    assert result.intent.class_phrase == "residencial"
+
+
+@pytest.mark.parametrize("question", ["Na verdade, no último ano.", "E em Olinda?"])
+def test_incomplete_follow_up_without_antecedent_requests_clarification(question: str) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+    assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
+    assert result.intent is None
+
+
 def test_follow_up_inherits_intent_and_applies_explicit_geography_correction() -> None:
     result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "E em Olinda, não, em Jaboatão?",

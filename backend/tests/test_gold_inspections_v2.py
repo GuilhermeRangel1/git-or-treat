@@ -3,9 +3,50 @@ from app.core.order_access import require_orders_write
 from app.main import app
 from app.models.gold_load import BATCH
 from app.models.gold_v2_load import TABLES
-from app.services.gold_inspections import consumption_comparison
+from app.services.gold_inspections import _recoverable_estimate, consumption_comparison
 from tests.test_gold_http import gold_client  # noqa: F401
 from tests.support.database import override_get_db
+
+
+def test_recovery_estimate_requires_known_method_temporal_validation_and_coherent_interval():
+    eligible = {
+        "energia_estimada_recuperavel_kwh": 125.5,
+        "intervalo_recuperacao_inferior_kwh": 100.0,
+        "intervalo_recuperacao_superior_kwh": 151.0,
+        "estado_estimativa_recuperacao": "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+        "metodo_estimativa_recuperacao": "CONSUMO_CONDICIONAL_V1",
+        "validacao_recuperacao_json": (
+            '{"estimativa_uc":{"estado":"CANDIDATO_PASSOU_VALIDACAO_TEMPORAL",'
+            '"metodo":"CONSUMO_CONDICIONAL_V1","criterios":{"nivel_faixa":0.9},'
+            '"janela_aplicacao":'
+            '{"ancora":"2026-06","meses":12,"minimo_meses":6},'
+            '"aceite_web04":"PENDENTE"}}'
+        ),
+    }
+    assert _recoverable_estimate(eligible) == (
+        125.5,
+        {
+            "confidence_level": 0.9,
+            "window_anchor": "2026-06",
+            "window_months": 12,
+            "minimum_window_months": 6,
+        },
+    )
+    assert _recoverable_estimate({
+        **eligible,
+        "energia_estimada_recuperavel_kwh": 0.0,
+        "intervalo_recuperacao_inferior_kwh": 0.0,
+        "intervalo_recuperacao_superior_kwh": 0.0,
+    })[0] == 0.0
+    assert _recoverable_estimate({**eligible, "metodo_estimativa_recuperacao": "OUTRO"}) == (None, None)
+    assert _recoverable_estimate({
+        **eligible,
+        "intervalo_recuperacao_inferior_kwh": 126.0,
+    }) == (None, None)
+    assert _recoverable_estimate({
+        **eligible,
+        "validacao_recuperacao_json": '{"estimativa_uc":{"estado":"PENDENTE"}}',
+    }) == (None, None)
 
 
 def test_consumption_comparison_preserves_zero_and_rejects_incomplete_readings():

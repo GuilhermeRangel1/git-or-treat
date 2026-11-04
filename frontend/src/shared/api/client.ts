@@ -16,6 +16,7 @@ import {
   isReauthenticationRequired,
   notifyUnauthorized,
 } from "@/shared/auth/authorization";
+import { JsonStreamFailure, readJsonStream } from "./jsonStream";
 
 type ApiErrorKind =
   "http" | "network" | "invalid-response" | "configuration" | "session-changed";
@@ -60,6 +61,7 @@ function isAborted(error: unknown, signal: AbortSignal | null | undefined) {
 export async function apiClient<T = unknown>(
   endpoint: string,
   options: RequestInit = {},
+  onProgress?: (value: unknown) => void,
 ): Promise<T> {
   if (isReauthenticationRequired()) {
     throw new ApiError("Renove a sessão antes de continuar.", 401);
@@ -92,9 +94,33 @@ export async function apiClient<T = unknown>(
       headers,
       credentials: "include",
     });
-    raw = await response.text();
+    raw =
+      response.ok &&
+      onProgress &&
+      response.headers.get("content-type")?.includes("application/x-ndjson")
+        ? await readJsonStream(response, (value) => {
+            if (authorizationGeneration !== currentAuthorizationGeneration())
+              throw new ApiError(
+                "A sessão mudou durante a solicitação.",
+                0,
+                undefined,
+                "session-changed",
+              );
+            onProgress(value);
+          })
+        : await response.text();
   } catch (error) {
     if (isAborted(error, options.signal)) throw error;
+    if (error instanceof ApiError) throw error;
+    if (error instanceof JsonStreamFailure) {
+      if (error.status === 401 && authenticatedSession) notifyUnauthorized();
+      throw new ApiError(
+        error.message,
+        error.status,
+        error.data,
+        "invalid-response",
+      );
+    }
     throw new ApiError(
       "Não foi possível concluir a solicitação.",
       0,

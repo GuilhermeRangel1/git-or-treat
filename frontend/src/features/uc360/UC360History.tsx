@@ -318,7 +318,7 @@ export function HistoryPanel({
                     Histórico de {sectionLabels[section].toLowerCase()} da
                     unidade
                   </caption>
-                  <thead className="bg-canvas font-mono text-xs leading-[18px] text-muted">
+                  <thead className="bg-canvas font-sans text-xs leading-[18px] text-muted">
                     <tr>
                       {columns.map((key) => (
                         <th

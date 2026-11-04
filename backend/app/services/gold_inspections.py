@@ -1,5 +1,7 @@
 """Fila publicada na Gold; preserva prioridade categórica e não inventa score."""
+import json
 import math
+import re
 from sqlalchemy import select
 
 from app.schemas.analytics import AnalyticsFilters
@@ -9,20 +11,99 @@ from app.services.analytics import AnalyticsAPIError, metadata
 LIMITATIONS = [
     "Prioridade categórica publicada pela Gold, sem score numérico; regra candidata aguarda homologação.",
     "Categorias de triagem descritas no dicionário Gold; a prioridade e o histórico não confirmam uma nova irregularidade.",
-    "Energia recuperável indisponível: os CSVs não fornecem estimativa homologada.",
+    "Estimativa condicional de energia a recuperar se a irregularidade se confirmar; não garante recuperação na UC.",
     "Criação de ordens a partir da fila Gold aguarda homologação e identidade autorizada; consulta disponível.",
     "O período da resposta indica os extremos das competências de consumo observadas, sem comprovar todos os meses; a fila e seus históricos acumulados não informam janela temporal própria.",
 ]
+
+RECOVERY_METHOD = "CONSUMO_CONDICIONAL_V1"
+RECOVERY_STATUS = "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA"
+RECOVERY_VALIDATION_STATUS = "CANDIDATO_PASSOU_VALIDACAO_TEMPORAL"
+RECOVERY_UNAVAILABLE = "A Gold não publicou uma estimativa individual validada para esta UC."
+
+
+def _recovery_validation(row):
+    """Return only the approved temporal-validation fields for a candidate estimate."""
+    raw = row.get("validacao_recuperacao_json")
+    if not isinstance(raw, str) or len(raw) > 16_384:
+        return None
+    try:
+        report = json.loads(
+            raw,
+            parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+        )
+    except (ValueError, TypeError):
+        return None
+    estimate = report.get("estimativa_uc") if isinstance(report, dict) else None
+    if not isinstance(estimate, dict):
+        return None
+    criteria = estimate.get("criterios")
+    window = estimate.get("janela_aplicacao")
+    if (
+        estimate.get("estado") != RECOVERY_VALIDATION_STATUS
+        or estimate.get("metodo") != RECOVERY_METHOD
+        or not isinstance(criteria, dict)
+        or criteria.get("nivel_faixa") != 0.9
+        or not isinstance(window, dict)
+    ):
+        return None
+    anchor = window.get("ancora")
+    months = window.get("meses")
+    minimum_months = window.get("minimo_meses")
+    if (
+        not isinstance(anchor, str)
+        or not re.fullmatch(r"(?!0000)\d{4}-(0[1-9]|1[0-2])", anchor)
+        or type(months) is not int
+        or months <= 0
+        or type(minimum_months) is not int
+        or minimum_months <= 0
+        or minimum_months > months
+    ):
+        return None
+    return {
+        "confidence_level": 0.9,
+        "window_anchor": anchor,
+        "window_months": months,
+        "minimum_window_months": minimum_months,
+    }
+
+
+def _recoverable_estimate(row):
+    values = (
+        row.get("energia_estimada_recuperavel_kwh"),
+        row.get("intervalo_recuperacao_inferior_kwh"),
+        row.get("intervalo_recuperacao_superior_kwh"),
+    )
+    if (
+        row.get("estado_estimativa_recuperacao") != RECOVERY_STATUS
+        or row.get("metodo_estimativa_recuperacao") != RECOVERY_METHOD
+        or any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value < 0
+            for value in values
+        )
+        or values[1] > values[0]
+        or values[0] > values[2]
+    ):
+        return None, None
+    validation = _recovery_validation(row)
+    if validation is None:
+        return None, None
+    return values[0], validation
 
 
 def item(row):
     reason = row["prioridade_inspecao"] or "Não informado"
     average = row["media_consumo_historico"]
     average_label = f"{average:.2f} kWh/leitura" if average is not None else "não informada"
+    estimate, validation = _recoverable_estimate(row)
     return {"uc_id": row["id_uc"], "municipality": row["municipio"] or "Não informado",
             "neighborhood": row["bairro"] or "Não informado", "class_name": row["classe"] or "Não informado",
             "feeder_id": row["alimentador"] or "Não informado", "priority": None, "priority_label": reason,
-            "reason": row.get("motivo_prioridade") or reason, "potential_recoverable_energy_kwh": None,
+            "reason": row.get("motivo_prioridade") or reason, "potential_recoverable_energy_kwh": estimate,
+            "recovery_unavailable_reason": None if estimate is not None else RECOVERY_UNAVAILABLE,
             "indicators": [f"Inspeções anteriores: {row['total_inspecoes_realizadas'] if row['total_inspecoes_realizadas'] is not None else 'não informado'}",
                            f"Inspeções irregulares no histórico: {row['total_inspecoes_irregulares'] if row['total_inspecoes_irregulares'] is not None else 'não informado'}",
                            f"Média histórica por leitura: {average_label}",

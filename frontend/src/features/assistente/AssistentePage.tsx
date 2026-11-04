@@ -1,11 +1,18 @@
-import { ASSISTANT_EXAMPLES } from "@/shared/help/assistantExamples";
+import { chatChartPoints } from "./visualization";
+import { verifyVisualExport } from "@/shared/analytics/verifyVisualExport";
+import VisualEvidence from "@/shared/analytics/VisualEvidence";
+import { isGoldPublicationStale } from "@/shared/analytics/goldPublication";
+import { ASSISTANT_HOME_SUGGESTIONS } from "@/shared/help/assistantExamples";
 import IndicatorHelp from "@/shared/help/IndicatorHelp";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/shared/auth/useSession";
+import { currentAuthorizationGeneration } from "@/shared/auth/authorization";
+import ConversationHistory from "./ConversationHistory";
+import { createConversation, openConversation } from "./history";
 import {
   AlertCircle,
   Check,
   CircleHelp,
-  Database,
   Info,
   MessageCircle,
   Plus,
@@ -22,7 +29,6 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useGoldPublicationRevision } from "@/shared/analytics/goldPublication";
-import { useSession } from "@/shared/auth/useSession";
 import Button from "@/shared/ui/Button";
 import { AIChatApiError, askAIQuestion } from "./api";
 import { AssistantIdentity, ProcessingIndicator } from "./AssistantIdentity";
@@ -33,7 +39,15 @@ import type {
   AIQuestionResponse,
 } from "./contract";
 
-type RetryRequest = Pick<AIQuestionRequest, "question" | "context"> & {
+type RetryRequest = Pick<
+  AIQuestionRequest,
+  | "question"
+  | "context"
+  | "continuation_token"
+  | "conversation_id"
+  | "history_request_id"
+  | "refresh_context"
+> & {
   userMessageId: number;
   assistantMessageId: number;
 };
@@ -46,9 +60,11 @@ type ChatMessage = {
   retryRequest?: RetryRequest;
   contextEligible: boolean;
   outdated?: boolean;
+  historical?: boolean;
+  preliminary?: boolean;
 };
 
-const SUGGESTIONS = ASSISTANT_EXAMPLES;
+const SUGGESTIONS = ASSISTANT_HOME_SUGGESTIONS;
 
 const RESPONSE_STATES: Record<
   AIQuestionResponse["status"],
@@ -192,12 +208,26 @@ function formatPeriod(value: string) {
   );
 }
 
+function formatVisualLabel(value: string) {
+  // Category names are literal business labels, even when they contain a date.
+  const separator = value.lastIndexOf(" · ");
+  if (separator >= 0)
+    return `${value.slice(0, separator)} · ${formatPeriod(value.slice(separator + 3))}`;
+  return /^\d{4}(?:-\d{2}(?:-\d{2})?)?$/.test(value)
+    ? formatPeriod(value)
+    : value;
+}
+
 function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   const context = response.analysis_context;
   if (!context) return null;
   const details = [
     context.metric_label && ["Indicador", context.metric_label],
     context.unit && ["Unidade", context.unit],
+    context.metric_definition && [
+      "Definição do indicador",
+      context.metric_definition,
+    ],
     context.period && ["Período", formatPeriod(context.period)],
     ...Object.entries(context.filters).map(([key, value]) => [
       context.filter_labels?.[key] ?? "Filtro aplicado",
@@ -224,17 +254,59 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   );
 }
 
-function AssistantResult({ response }: { response: AIQuestionResponse }) {
+function AssistantResult({
+  response,
+  preliminary = false,
+  interpretationFailed = false,
+}: {
+  response: AIQuestionResponse;
+  preliminary?: boolean;
+  interpretationFailed?: boolean;
+}) {
   const answered = response.status === "answered";
   const state = RESPONSE_STATES[response.status];
   return (
     <div className="mt-3 space-y-3">
       <p className={`text-sm font-semibold ${state.appearance}`}>
-        {state.label}
+        {preliminary ? "Dados da consulta" : state.label}
       </p>
       <p className="whitespace-pre-wrap text-base sm:text-[17px] leading-7 text-content">
-        {responseContent(response)}
+        {interpretationFailed
+          ? "A interpretação não pôde ser concluída. Os dados da consulta continuam disponíveis."
+          : preliminary
+            ? "Os dados já estão disponíveis. Preparando a interpretação."
+            : responseContent(response)}
       </p>
+      {answered && response.visualization && (
+        <VisualEvidence
+          key={`${response.analysis_context?.batch_reference}-${response.visualization.metric}-${response.visualization.period}-${JSON.stringify(response.analysis_context?.filters)}`}
+          canExport={() =>
+            !isGoldPublicationStale() &&
+            verifyVisualExport({
+              metric: response.visualization!.metric,
+              dimension_ids: response.visualization!.dimension_ids,
+              batch_reference: response.analysis_context!.batch_reference!,
+            })
+          }
+          data={{
+            kind: response.visualization.kind,
+            reading: response.visualization.reading,
+            title: response.visualization.title,
+            unit: response.visualization.unit,
+            precision: response.visualization.precision,
+            scope: [
+              formatPeriod(response.visualization.period),
+              ...Object.entries(response.analysis_context?.filters ?? {}).map(
+                ([key, value]) =>
+                  `${response.analysis_context?.filter_labels?.[key] ?? "Filtro aplicado"}: ${formatFilterValue(value)}`,
+              ),
+            ].join(" · "),
+            categoryLabel: response.visualization.category_label,
+            note: response.visualization.note,
+            ...chatChartPoints(response.visualization, formatVisualLabel),
+          }}
+        />
+      )}
       {response.evidence.some((item) => item.is_demo) && (
         <p className="flex items-center gap-2 text-sm font-medium text-[var(--status-warning-text)]">
           <Info aria-hidden="true" className="size-4" />
@@ -242,40 +314,30 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
         </p>
       )}
       {answered && response.evidence.length > 0 && (
-        <details
+        <div
           aria-label="Fundamento da resposta"
-          className="rounded-xl border border-divider bg-canvas/70 p-3"
+          className="space-y-2 text-sm leading-6 text-muted"
         >
-          <summary className="cursor-pointer text-sm font-semibold text-content focus-visible:outline-2 focus-visible:outline-brand">
-            <Database aria-hidden="true" className="mr-2 inline-block size-4" />
-            Como chegamos à resposta
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {response.evidence.map((item, index) => (
-              <li
-                key={`${item.source}-${index}`}
-                className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-5 text-muted"
-              >
-                <span>
-                  {item.is_demo
-                    ? "Dados de demonstração"
-                    : "Fonte de dados interna"}
-                </span>
-                {item.is_demo && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)]/10 px-2 py-0.5 font-medium text-[var(--status-warning-text)]">
-                    <Info aria-hidden="true" className="size-3" />
-                    Demonstração sintética
-                  </span>
-                )}
-              </li>
+          <p>
+            {response.evidence.some((item) => item.is_demo)
+              ? "Dados de demonstração"
+              : response.evidence.some(
+                    (item) => item.source === "documentation.indicators",
+                  )
+                ? "Documentação interna"
+                : "Fonte de dados interna"}
+          </p>
+          {response.evidence
+            .filter(
+              (item) =>
+                item.source === "documentation.indicators" && !item.is_demo,
+            )
+            .map((item, index) => (
+              <p key={index} className="break-words">
+                {item.description}
+              </p>
             ))}
-          </ul>
-          {response.analysis_context?.metric_definition && (
-            <p className="mt-3 text-sm leading-5 text-muted">
-              {response.analysis_context.metric_definition}
-            </p>
-          )}
-        </details>
+        </div>
       )}
       <AnalysisContext response={response} />
       {response.limitations.length > 0 && (
@@ -330,6 +392,13 @@ function MessageCard({
         />
         <div className="min-w-0">
           <p className="text-base leading-6 text-content">{message.content}</p>
+          {message.response && (
+            <AssistantResult
+              response={message.response}
+              preliminary
+              interpretationFailed
+            />
+          )}
           {message.error.correlationId && (
             <p className="mt-1 break-all font-mono text-xs text-muted">
               Referência: {message.error.correlationId}
@@ -357,7 +426,18 @@ function MessageCard({
         <Sparkles aria-hidden="true" className="size-4 text-brand" />
         Assistente Grid 360
       </div>
-      {message.response && <AssistantResult response={message.response} />}
+      {message.historical && (
+        <p className="mt-2 text-sm text-muted">
+          Resposta salva · consulte novamente para obter dados atuais.
+        </p>
+      )}
+      {!message.response && <p className="mt-2">{message.content}</p>}
+      {message.response && (
+        <AssistantResult
+          response={message.response}
+          preliminary={message.preliminary}
+        />
+      )}
       {message.response?.status === "recoverable_error" &&
         message.response.error?.retryable &&
         message.retryRequest && (
@@ -376,30 +456,71 @@ function MessageCard({
 }
 
 export default function AssistentePage() {
+  const session = useSession();
+  const historyEnabled = session.configured && Boolean(session.user);
+  const queryClient = useQueryClient();
+  const savedIdRef = useRef<string | null>(null);
+  const interactionRevision = useRef(0);
+  const drafts = useRef(new Map<string, string>());
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
+  const [hasInterruptedSend, setHasInterruptedSend] = useState(false);
   const publicationRevision = useGoldPublicationRevision();
-  const { user } = useSession();
+  const { user } = session;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [requestPhase, setRequestPhase] = useState<
+    "idle" | "consulting" | "interpreting"
+  >("idle");
+  const isSending = requestPhase !== "idle";
   const [draft, setDraft] = useState("");
+  const [conversationId, setConversationId] = useState<string>(() =>
+    crypto.randomUUID(),
+  );
   const nextMessageId = useRef(0);
   const sendingRef = useRef(false);
-  const requestControllerRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+  const requestAbort = useRef<AbortController | null>(null);
   const mutation = useMutation({
-    mutationFn: (request: AIQuestionRequest) =>
-      askAIQuestion(request, requestControllerRef.current?.signal),
+    mutationFn: (input: {
+      request: Parameters<typeof askAIQuestion>[0];
+      onData: (response: AIQuestionResponse) => void;
+      signal: AbortSignal;
+    }) => askAIQuestion(input.request, input.onData, input.signal),
     retry: false,
   });
   const identityKey = `${user?.id ?? ""}:${user?.profile ?? ""}:${user?.permissions.join(",") ?? ""}`;
   useEffect(() => {
-    requestControllerRef.current?.abort();
-    requestControllerRef.current = null;
+    interactionRevision.current++;
+    requestAbort.current?.abort();
+    requestAbort.current = null;
     sendingRef.current = false;
+    savedIdRef.current = null;
+    // Identity changes clear the private conversation state.
+    // oxlint-disable-next-line react(set-state-in-effect)
+    setActiveSavedId(null);
+    setConversationId(crypto.randomUUID());
+    setDraft("");
+    setRequestPhase("idle");
+    setHasInterruptedSend(false);
+    setLoadingHistory(false);
+    drafts.current.clear();
     setMessages([]);
   }, [identityKey]);
+  useEffect(
+    () => () => {
+      interactionRevision.current++;
+      requestAbort.current?.abort();
+    },
+    [],
+  );
   // Publication changes invalidate interpretation history, including saved retries.
   useEffect(() => {
+    requestAbort.current?.abort();
+    requestAbort.current = null;
+    sendingRef.current = false;
     // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
+    setRequestPhase("idle");
     setMessages((current) =>
       current.map((message) => ({
         ...message,
@@ -424,7 +545,18 @@ export default function AssistentePage() {
     retryAttempt?: RetryRequest,
   ) {
     const question = questionText.trim();
-    if (!question || question.length > 1000 || sendingRef.current) return;
+    if (
+      !question ||
+      question.length > 1000 ||
+      sendingRef.current ||
+      loadingHistory
+    )
+      return;
+    const revision = interactionRevision.current;
+    const authorization = currentAuthorizationGeneration();
+    const current = () =>
+      revision === interactionRevision.current &&
+      authorization === currentAuthorizationGeneration();
     const userMessageId = addUserMessage
       ? nextMessageId.current++
       : retryAttempt?.userMessageId;
@@ -433,11 +565,27 @@ export default function AssistentePage() {
       : retryAttempt?.assistantMessageId;
     if (userMessageId === undefined || assistantMessageId === undefined) return;
     sendingRef.current = true;
-    const controller = new AbortController();
-    requestControllerRef.current = controller;
-    const retryRequest = retryAttempt ?? {
+    const retryRequest: RetryRequest = retryAttempt ?? {
       question,
       context,
+      conversation_id: conversationId,
+      ...(historyEnabled
+        ? {
+            history_request_id: crypto.randomUUID(),
+            refresh_context: false,
+          }
+        : {}),
+      continuation_token:
+        [...messages]
+          .reverse()
+          .find(
+            (message) =>
+              message.contextEligible &&
+              message.response != null &&
+              (["answered", "no_evidence"].includes(message.response.status) ||
+                (message.response.status === "needs_clarification" &&
+                  message.response.continuation_token != null)),
+          )?.response?.continuation_token ?? undefined,
       userMessageId,
       assistantMessageId,
     };
@@ -453,11 +601,64 @@ export default function AssistentePage() {
       ]);
     }
 
+    let preview: AIQuestionResponse | undefined;
+    const abortController = new AbortController();
+    requestAbort.current = abortController;
+    setRequestPhase("consulting");
     try {
+      if (historyEnabled && !savedIdRef.current) {
+        const created = await createConversation(conversationId);
+        if (!current()) return;
+        savedIdRef.current = created.id;
+        setActiveSavedId(created.id);
+        setConversationId(created.id);
+      }
+      if (historyEnabled) retryRequest.conversation_id = savedIdRef.current!;
       const response = await mutation.mutateAsync({
-        contract_version: "v1",
-        question,
-        context: context.slice(-3),
+        request: {
+          contract_version: "v1",
+          question,
+          context: context.slice(-3),
+          conversation_id: retryRequest.conversation_id,
+          continuation_token: retryRequest.continuation_token,
+          ...(historyEnabled
+            ? {
+                history_request_id: retryRequest.history_request_id,
+                refresh_context: retryRequest.refresh_context,
+              }
+            : {}),
+        },
+        signal: abortController.signal,
+        onData: (data) => {
+          if (!current()) return;
+          setRequestPhase("interpreting");
+          preview = data;
+          setMessages((messages) =>
+            updateConversationInteraction(
+              messages,
+              userMessageId,
+              {
+                id: assistantMessageId,
+                role: "assistant",
+                content: "Dados da consulta disponíveis.",
+                response: data,
+                preliminary: true,
+                contextEligible: false,
+              },
+              true,
+            ),
+          );
+        },
+      });
+      if (!current()) return;
+      if (preview && response.status === "recoverable_error")
+        throw new AIChatApiError(
+          response.message ?? "Não foi possível concluir a interpretação.",
+          response.error?.retryable ?? false,
+        );
+      setHasInterruptedSend(false);
+      void queryClient.invalidateQueries({
+        queryKey: ["ai-conversations", session.user?.id],
       });
       if (addUserMessage && response.status !== "recoverable_error") {
         setDraft("");
@@ -502,7 +703,13 @@ export default function AssistentePage() {
         );
       });
     } catch (error) {
-      if (controller.signal.aborted) return;
+      const publicationConflict =
+        error instanceof AIChatApiError && error.status === 409;
+      if (
+        !current() ||
+        (abortController.signal.aborted && !publicationConflict)
+      )
+        return;
       if (
         error instanceof AIChatApiError &&
         error.code === "superseded_request"
@@ -515,11 +722,24 @@ export default function AssistentePage() {
               "Não foi possível concluir a pergunta. Tente novamente mais tarde.",
               false,
             );
+      const retained =
+        preview &&
+        ![401, 403, 409, 422].includes(safeError.status ?? 0) &&
+        (await verifyVisualExport({
+          metric: preview.visualization!.metric,
+          dimension_ids: preview.visualization!.dimension_ids,
+          batch_reference: preview.analysis_context!.batch_reference!,
+        }))
+          ? preview
+          : undefined;
+      if (!current()) return;
       const assistantMessage: ChatMessage = {
         id: assistantMessageId,
         role: "assistant",
         content: safeError.message,
         error: safeError,
+        response: retained,
+        preliminary: Boolean(preview),
         retryRequest: safeError.retryable ? retryRequest : undefined,
         contextEligible: false,
       };
@@ -531,18 +751,23 @@ export default function AssistentePage() {
                 contextEligible: false,
                 retryRequest: undefined,
                 outdated:
-                  message.role === "assistant" && Boolean(message.response),
+                  safeError.code !== "invalid_continuation" &&
+                  message.role === "assistant" &&
+                  Boolean(message.response),
               }))
             : current,
           userMessageId,
           assistantMessage,
-          retryAttempt !== undefined,
+          retryAttempt !== undefined || Boolean(preview),
         ),
       );
     } finally {
-      if (requestControllerRef.current === controller) {
-        requestControllerRef.current = null;
+      if (requestAbort.current === abortController) {
+        requestAbort.current = null;
+      }
+      if (current() && !abortController.signal.aborted) {
         sendingRef.current = false;
+        setRequestPhase("idle");
         requestAnimationFrame(() => composerRef.current?.focus());
       }
     }
@@ -565,11 +790,69 @@ export default function AssistentePage() {
   }
 
   function startNewConversation() {
-    if (mutation.isPending) return;
+    requestAbort.current?.abort();
+    drafts.current.set(savedIdRef.current ?? conversationId, draft);
+    interactionRevision.current++;
+    sendingRef.current = false;
+    setRequestPhase("idle");
+    savedIdRef.current = null;
+    setActiveSavedId(null);
+    setHasInterruptedSend(false);
+    setLoadingHistory(false);
     setMessages([]);
+    setConversationId(crypto.randomUUID());
     setDraft("");
     if (composerRef.current) composerRef.current.style.height = "";
     mutation.reset();
+  }
+
+  async function openSaved(id: string) {
+    requestAbort.current?.abort();
+    drafts.current.set(savedIdRef.current ?? conversationId, draft);
+    const revision = ++interactionRevision.current;
+    const authorization = currentAuthorizationGeneration();
+    setLoadingHistory(true);
+    setRequestPhase("idle");
+    mutation.reset();
+    sendingRef.current = false;
+    try {
+      const saved = await openConversation(id);
+      if (
+        revision !== interactionRevision.current ||
+        authorization !== currentAuthorizationGeneration()
+      )
+        return;
+      savedIdRef.current = id;
+      setActiveSavedId(id);
+      setConversationId(id);
+      const restored: ChatMessage[] = [];
+      for (const entry of saved.exchanges) {
+        restored.push({
+          id: nextMessageId.current++,
+          role: "user",
+          content: entry.question ?? "Envio sem conteúdo armazenado.",
+          contextEligible: false,
+        });
+        restored.push({
+          id: nextMessageId.current++,
+          role: "assistant",
+          content: entry.response
+            ? responseContent(entry.response)
+            : "Envio interrompido ou indisponível. Você pode enviar uma nova pergunta.",
+          response: entry.response ?? undefined,
+          historical: true,
+          contextEligible: false,
+        });
+      }
+      setMessages(restored);
+      setDraft(drafts.current.get(id) ?? "");
+      const last = saved.exchanges.at(-1);
+      setHasInterruptedSend(
+        Boolean(last && ["pending", "interrupted"].includes(last.state)),
+      );
+    } finally {
+      if (revision === interactionRevision.current) setLoadingHistory(false);
+    }
   }
 
   return (
@@ -598,7 +881,6 @@ export default function AssistentePage() {
               variant="ghost"
               size="sm"
               onClick={startNewConversation}
-              disabled={mutation.isPending}
               leftIcon={<Plus aria-hidden="true" className="size-4" />}
             >
               <span className="hidden sm:inline">Nova conversa</span>
@@ -608,8 +890,21 @@ export default function AssistentePage() {
         </div>
       </header>
 
-      <AssistantIdentity pending={mutation.isPending} />
+      <AssistantIdentity
+        pending={isSending}
+        interpreting={requestPhase === "interpreting"}
+      />
       <div className="assistant-conversation flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 lg:p-5">
+        {loadingHistory && <p role="status">Abrindo conversa…</p>}
+        {hasInterruptedSend && (
+          <p
+            className="rounded-xl border border-divider p-3 text-sm"
+            role="status"
+          >
+            Há um envio sem resposta salva. Se ele ainda estiver em
+            processamento, aguarde antes de enviar uma nova pergunta.
+          </p>
+        )}
         <div
           ref={historyRef}
           role="log"
@@ -620,7 +915,7 @@ export default function AssistentePage() {
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:-mr-0.5 lg:p-4"
         >
           {!hasMessages ? (
-            <div className="m-auto flex w-full max-w-[680px] flex-col gap-5 py-5">
+            <div className="m-auto flex w-full max-w-[680px] flex-col gap-5 py-5 lg:-translate-y-2">
               <div className="space-y-3 text-center">
                 <h1
                   id="assistant-heading"
@@ -634,7 +929,7 @@ export default function AssistentePage() {
                 </p>
               </div>
               <section aria-label="Perguntas comuns">
-                <h2 className="mb-2 text-sm font-semibold text-muted">
+                <h2 className="mb-2 text-center text-sm font-semibold text-muted">
                   Perguntas comuns
                 </h2>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -643,7 +938,7 @@ export default function AssistentePage() {
                       key={suggestion}
                       type="button"
                       onClick={() => void send(suggestion, [], true)}
-                      disabled={mutation.isPending}
+                      disabled={isSending}
                       className="group flex min-h-16 items-start gap-3 rounded-xl border border-divider bg-canvas/50 p-3 text-left text-base leading-6 text-content transition-colors hover:border-brand/50 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
                     >
                       <CircleHelp
@@ -655,12 +950,6 @@ export default function AssistentePage() {
                   ))}
                 </div>
               </section>
-              <p className="flex items-start justify-center gap-2 text-center text-sm leading-5 text-muted">
-                <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                Informe o período e o local para uma resposta mais precisa. A
-                disponibilidade dos dados é conferida a cada pergunta. A
-                conversa fica apenas nesta tela e não é salva.
-              </p>
             </div>
           ) : (
             <>
@@ -687,7 +976,11 @@ export default function AssistentePage() {
                   />
                 </div>
               ))}
-              {mutation.isPending && <ProcessingIndicator />}
+              {isSending && (
+                <ProcessingIndicator
+                  interpreting={requestPhase === "interpreting"}
+                />
+              )}
             </>
           )}
         </div>
@@ -714,7 +1007,7 @@ export default function AssistentePage() {
                 event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 144)}px`;
               }}
               onKeyDown={handleComposerKeyDown}
-              disabled={mutation.isPending}
+              disabled={isSending}
               className="max-h-36 min-h-12 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-base leading-6 text-content outline-none placeholder:text-muted disabled:opacity-60"
             />
             <Button
@@ -723,25 +1016,23 @@ export default function AssistentePage() {
               size="md"
               aria-label="Enviar pergunta"
               title="Enviar pergunta"
-              disabled={!draft.trim() || mutation.isPending}
-              isLoading={mutation.isPending}
+              disabled={!draft.trim() || isSending}
+              isLoading={isSending}
               loadingLabel={null}
               className="size-12 rounded-xl !p-0"
             >
-              {!mutation.isPending && (
-                <Send aria-hidden="true" className="size-6" />
-              )}
+              {!isSending && <Send aria-hidden="true" className="size-6" />}
             </Button>
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs leading-4 text-muted">
             <span>Enter envia · Shift + Enter quebra linha</span>
             <span className="inline-flex items-center gap-1.5">
               {draft.length}/1000
-              {hasMessages && !mutation.isPending && (
+              {hasMessages && !isSending && (
                 <>
                   <span aria-hidden="true">·</span>
                   <Check aria-hidden="true" className="size-3.5" />
-                  conversa temporária
+                  {historyEnabled ? "histórico privado" : "conversa temporária"}
                 </>
               )}
             </span>
@@ -749,48 +1040,31 @@ export default function AssistentePage() {
         </form>
       </div>
       <aside
-        aria-label="Perguntas desta conversa"
-        className="assistant-question-index min-h-0 overflow-y-auto border-l border-divider p-4"
+        aria-label="Conversas salvas"
+        className="assistant-history-sidebar min-h-0 overflow-hidden p-3 sm:p-4"
       >
-        <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted">
-          <MessageCircle aria-hidden="true" className="size-3.5" /> Suas
-          perguntas{" "}
-          <span className="ml-auto">
-            {messages.filter((message) => message.role === "user").length}
-          </span>
-        </p>
-        <p className="mt-2 text-sm leading-5 text-muted">
-          Nesta conversa · histórico temporário
-        </p>
-        <ol className="mt-4 space-y-2">
-          {messages
-            .filter((message) => message.role === "user")
-            .map((message, index) => (
-              <li key={message.id}>
-                <button
-                  type="button"
-                  className="w-full rounded-xl border border-divider bg-canvas/50 p-3 text-left text-sm leading-5 text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-brand"
-                  onClick={() => {
-                    const target = document.getElementById(
-                      `assistant-message-${message.id}`,
-                    );
-                    target?.scrollIntoView({ block: "nearest" });
-                    target?.focus({ preventScroll: true });
-                  }}
-                >
-                  <span className="mr-2 text-brand">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  {message.content}
-                </button>
-              </li>
-            ))}
-        </ol>
-        {!hasMessages && (
-          <p className="mt-6 text-sm leading-5 text-muted">
-            Suas perguntas aparecerão aqui para você voltar a elas durante a
-            conversa.
-          </p>
+        {historyEnabled ? (
+          <ConversationHistory
+            actor={session.user!.id}
+            activeId={activeSavedId}
+            onOpen={openSaved}
+            onDeleted={(id) => {
+              if (savedIdRef.current === id) startNewConversation();
+            }}
+          />
+        ) : (
+          <section aria-labelledby="assistant-conversations-heading">
+            <h2
+              id="assistant-conversations-heading"
+              className="text-sm font-semibold uppercase tracking-wider text-muted"
+            >
+              Conversas
+            </h2>
+            <p className="mt-3 text-sm leading-5 text-muted">
+              Entre na sua conta para salvar e gerenciar conversas. Esta
+              conversa fica somente nesta tela.
+            </p>
+          </section>
         )}
       </aside>
     </section>

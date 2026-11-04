@@ -96,13 +96,13 @@ _DIMENSIONS = (
         "customer.consumption_class",
         "Classe de consumo",
         "classification",
-        ("classe", "classe de consumo"),
+        ("classe", "classe de consumo", "classes", "classes de consumo"),
         (
-            {"value": "RESIDENCIAL", "aliases": ("residencial",)},
-            {"value": "COMERCIAL", "aliases": ("comercial",)},
-            {"value": "INDUSTRIAL", "aliases": ("industrial",)},
+            {"value": "RESIDENCIAL", "aliases": ("residencial", "residenciais")},
+            {"value": "COMERCIAL", "aliases": ("comercial", "comerciais")},
+            {"value": "INDUSTRIAL", "aliases": ("industrial", "industriais")},
             {"value": "PODER PUBLICO", "aliases": ("poder público",)},
-            {"value": "RURAL", "aliases": ("rural",)},
+            {"value": "RURAL", "aliases": ("rural", "rurais")},
         ),
     ),
     _dimension(
@@ -274,14 +274,15 @@ def _metric(
             "service.satisfaction": "service.accumulated_satisfaction",
         }.get(id_),
         "grouping_dimension_ids": (
-            ("customer.consumption_class", "geography.municipality")
+            ("customer.consumption_class", "geography.municipality", "geography.neighborhood")
             if id_ == "billing.revenue" else
-            ("geography.neighborhood",) if id_ == "energy.consumption" else ()
+            ("geography.neighborhood", "geography.municipality", "customer.consumption_class")
+            if id_ == "energy.consumption" else ()
         ),
         "comparison_grouping_dimension_ids": (
             ("geography.neighborhood",) if id_ == "energy.consumption" else ()
         ),
-        "grouping_requires_comparison": id_ == "energy.consumption",
+        "grouping_requires_comparison": False,
         "required_filter_dimension_ids": (
             ("network.feeder",) if id_.startswith("network.equivalent_interruption_") else ()
         ),
@@ -306,6 +307,7 @@ _METRICS = (
             "faturou",
             "faturaram",
             "faturei",
+            "faturado", "faturada", "faturados", "faturadas", "faturamentos",
         ),
         "R$",
         ("currency",),
@@ -316,7 +318,10 @@ _METRICS = (
         "energy.consumption",
         "consumption",
         ("consumo", "consumo de energia", "energia consumida", "volume residencial",
-         "volume comercial", "volume de consumo"),
+         "volume comercial", "volume de consumo", "consumiu", "consumiram",
+         "consumimos", "consumido", "consumida", "consumidos", "consumidas",
+         "energia gasta", "energia utilizada", "energia usada", "energia foi utilizada",
+         "energia foi usada", "energia foi gasta"),
         "kWh",
         ("energy",),
         _COMMERCIAL_WITH_UC,
@@ -590,19 +595,35 @@ def _build_profile() -> DomainProfile:
     values["supports_ordering"] = True
     values["default_period_context_phrases"] = ()
     values["comparison_period_phrases"] = ()
-    values["comparison_terms"] = (*values["comparison_terms"], "perdeu")
+    # "Variou em relação a maio" pede uma base; com um único período, o interpretador
+    # pede a comparação em vez de responder só o mês citado.
+    values["comparison_terms"] = (
+        *values["comparison_terms"], "perdeu", "variou", "variar", "variaram",
+        "em relação a", "em relação ao", "comparando",
+    )
     values["non_location_phrases"] = ()
     values["ambiguities"] = (
         *values["ambiguities"],
         {
             "phrases": (
-                "valor pago", "valores pagos", "quanto foi pago", "receita recebida",
-                "receita paga", "valor recebido", "arrecadação", "arrecadado",
-                "pagamento", "pagamentos", "faturas pagas",
-                "receita arrecadada", "receitas arrecadadas", "valores arrecadados",
-                "faturamento arrecadado", "faturamento recebido", "faturamento pago",
-                "valores recebidos", "receitas recebidas", "receitas pagas",
+                "pago", "pagos", "paga", "pagas", "arrecadação", "arrecadado", "arrecadada",
+                "arrecadados", "arrecadadas", "pagamento", "pagamentos",
+                "grana que entrou", "dinheiro que entrou",
+                "pagou", "pagaram", "pagamos", "arrecadou", "arrecadamos", "arrecadaram",
             ),
+            "alternative_metric_ids": ("billing.revenue",),
+            "clarification": (
+                "Receita faturada não comprova pagamento ou arrecadação. "
+                "Você quer consultar a receita faturada?"
+            ),
+        },
+        {
+            "phrases": ("recebido", "recebidos", "recebida", "recebidas",
+                        "recebemos", "receberam", "recebeu", "recebi"),
+            # Receber um chamado não significa receber receita. O mesmo verbo
+            # precisa respeitar o assunto explicitamente mencionado.
+            "resolved_metric_ids": ("service.attendance", "service.accumulated_attendance"),
+            "alternative_metric_ids": ("billing.revenue",),
             "clarification": (
                 "Receita faturada não comprova pagamento ou arrecadação. "
                 "Você quer consultar a receita faturada?"
@@ -610,6 +631,7 @@ def _build_profile() -> DomainProfile:
         },
         {
             "phrases": ("energia faturada", "kwh faturados", "kwh faturado"),
+            "alternative_metric_ids": ("energy.consumption",),
             "clarification": (
                 "A Gold v2 publica consumo medido em kWh, não energia faturada. "
                 "Quer consultar o consumo medido?"
@@ -620,6 +642,7 @@ def _build_profile() -> DomainProfile:
                 "energia injetada", "energia compensada", "energia entregue",
                 "consumo injetado", "consumo compensado",
             ),
+            "alternative_metric_ids": ("energy.consumption",),
             "clarification": (
                 "Consumo medido não representa energia injetada, compensada ou entregue. "
                 "Você quer consultar o consumo medido?"
@@ -627,11 +650,12 @@ def _build_profile() -> DomainProfile:
         },
         {
             "phrases": ("solar", "energia solar", "painel solar", "painéis solares"),
+            "confirmation_phrase": "com GD",
             "examples": ("Quantas UCs com GD em {geography.municipality} "
                          "tiveram queda de consumo acima de 30%?",),
             "clarification": (
                 "Os dados identificam geração distribuída (GD), mas não confirmam que a fonte "
-                "seja solar. Posso filtrar UCs com ou sem GD registrada?"
+                "seja solar. Quer consultar UCs com GD registrada?"
             ),
         },
         {
@@ -657,9 +681,13 @@ def _build_profile() -> DomainProfile:
     detail_rules = list(values["detail_rules"])
     detail_rules[0] = {
         **detail_rules[0],
+        "phrases": tuple(
+            phrase for phrase in detail_rules[0]["phrases"]
+            if phrase not in {"mês", "meses", "por mês", "mês a mês", "por ano", "ano a ano"}
+        ),
         "clarification": (
             "Informe uma competência com mês e ano, um intervalo de meses completos "
-            "ou uma janela como ‘último trimestre’. Séries e recortes por dia ainda "
+            "ou uma janela como ‘último trimestre’. Recortes por dia ou semana ainda "
             "não estão disponíveis neste planejamento."
         ),
     }

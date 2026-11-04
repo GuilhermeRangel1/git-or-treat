@@ -1,3 +1,4 @@
+import { visualResponse } from "./visualization.test-support";
 import { resetGoldPublication } from "@/shared/analytics/goldPublication";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import {
@@ -53,7 +54,243 @@ afterEach(() => {
   resetGoldPublication();
 });
 
+it.each(["success", "model_failure", "denied"])(
+  "mostra dados antes da síntese e trata o final %s",
+  async (finish) => {
+    let stream!: ReadableStreamDefaultController<Uint8Array>;
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        stream = controller;
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url) =>
+        String(url).endsWith("/visualizations/verify")
+          ? Promise.resolve(jsonResponse({ authorized: true }))
+          : Promise.resolve(
+              new Response(body, {
+                headers: { "Content-Type": "application/x-ndjson" },
+              }),
+            ),
+      ),
+    );
+    renderPage();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "Receita de junho a agosto em Recife?",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Enviar pergunta" }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Consultando os dados…",
+    );
+    act(() =>
+      stream.enqueue(
+        encoder.encode(
+          JSON.stringify({ type: "data", status: 200, data: visualResponse }) +
+            "\n",
+        ),
+      ),
+    );
+    const chart = await screen.findByRole("region", {
+      name: "Receita faturada",
+    });
+    expect(chart).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Preparando a análise…",
+    );
+    expect(screen.queryByText("Consultando os dados…")).toBeNull();
+    expect(
+      screen.getByText(
+        "Os dados já estão disponíveis. Preparando a interpretação.",
+      ),
+    ).toBeVisible();
+    const failed = finish !== "success";
+    const status = finish === "denied" ? 403 : 503;
+    const frame = failed
+      ? {
+          type: "error",
+          status,
+          data: {
+            contract_version: "v1",
+            status: "error",
+            correlation_id: "a".repeat(32),
+            message: "Interpretação indisponível.",
+            error: {
+              code: status === 403 ? "access_denied" : "service_unavailable",
+              retryable: status === 503,
+            },
+          },
+        }
+      : { type: "complete", status: 200, data: visualResponse };
+    act(() => {
+      stream.enqueue(encoder.encode(JSON.stringify(frame) + "\n"));
+      stream.close();
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "Os dados já estão disponíveis. Preparando a interpretação.",
+        ),
+      ).toBeNull(),
+    );
+    expect(screen.queryByText("Preparando a análise…")).toBeNull();
+    expect(screen.getByText("Pronto para perguntar")).toBeVisible();
+    if (finish === "denied")
+      expect(
+        screen.queryByRole("region", { name: "Receita faturada" }),
+      ).toBeNull();
+    else
+      expect(
+        screen.getAllByRole("region", {
+          name: "Receita faturada",
+        }),
+      ).toHaveLength(1);
+    if (finish === "model_failure")
+      expect(
+        screen.getByText(/A interpretação não pôde ser concluída/),
+      ).toBeVisible();
+  },
+);
+
+it("envia a referência pendente mais recente entre dois esclarecimentos", async () => {
+  const clarification = (message: string, token: string) => ({
+    contract_version: "v1",
+    status: "needs_clarification",
+    message,
+    evidence: [],
+    limitations: [],
+    continuation_token: token,
+  });
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      jsonResponse(clarification("Faturado ou recebido?", "pending-first")),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse(clarification("Qual ano?", "pending-second")),
+    )
+    .mockResolvedValueOnce(jsonResponse(answered));
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  await user.type(input, "Receita paga em Recife em maio e junho?");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Faturado ou recebido?");
+  await user.type(input, "faturado");
+  await user.keyboard("{Enter}");
+  await screen.findByText("Qual ano?");
+  await user.type(input, "2026");
+  await user.keyboard("{Enter}");
+  await screen.findByText(answered.answer);
+  expect(
+    JSON.parse(String(fetchMock.mock.calls[1][1]?.body)).continuation_token,
+  ).toBe("pending-first");
+  expect(
+    JSON.parse(String(fetchMock.mock.calls[2][1]?.body)).continuation_token,
+  ).toBe("pending-second");
+});
+
+it("mantém a referência válida em continuações e erros e renova a conversa", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      jsonResponse({ ...answered, continuation_token: "valid-first" }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({ ...answered, continuation_token: "valid-second" }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({
+        ...answered,
+        status: "refused",
+        answer: null,
+        message: "Não autorizado.",
+        error: { code: "access_denied", retryable: false },
+        continuation_token: null,
+      }),
+    )
+    .mockResolvedValueOnce(jsonResponse(answered))
+    .mockResolvedValue(
+      jsonResponse({ ...answered, continuation_token: "valid-third" }),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+  const input = screen.getByRole("textbox", { name: "Escreva sua pergunta" });
+  for (const question of [
+    "Qual a receita em Recife?",
+    "E Olinda?",
+    "Pedido recusado",
+    "Só residencial",
+    "Só comercial",
+  ]) {
+    await user.type(input, question);
+    await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+    await waitFor(() => expect(input).toHaveValue(""));
+  }
+  const payloads = fetchMock.mock.calls.map(([, options]) =>
+    JSON.parse(options.body),
+  );
+  expect(payloads.map((payload) => payload.continuation_token)).toEqual([
+    undefined,
+    "valid-first",
+    "valid-second",
+    "valid-second",
+    undefined,
+  ]);
+  expect(new Set(payloads.map((payload) => payload.conversation_id)).size).toBe(
+    1,
+  );
+  await user.click(screen.getByRole("button", { name: /Nova conversa/ }));
+  await user.type(input, "Outra consulta");
+  await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6));
+  const last = JSON.parse(fetchMock.mock.calls[5][1].body);
+  expect(last.continuation_token).toBeUndefined();
+  expect(last.conversation_id).not.toBe(payloads[0].conversation_id);
+});
+
 describe("Assistente Grid 360", () => {
+  it("apresenta a seção e versão da documentação no fundamento", async () => {
+    const citation =
+      "Dicionário de indicadores · Receita faturada · versão 30a032e4e4f5 · trecho revenue.";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          ...answered,
+          answer: "Receita faturada não representa valor pago.",
+          analysis_context: null,
+          limitations: [],
+          evidence: [
+            {
+              source: "documentation.indicators",
+              description: citation,
+              is_demo: false,
+            },
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "O que significa receita faturada?",
+    );
+    await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+    await screen.findByText("Receita faturada não representa valor pago.");
+    expect(screen.getByText("Documentação interna")).toBeVisible();
+    expect(screen.getByText(citation)).toBeVisible();
+    expect(
+      screen.queryByLabelText("Recorte analisado"),
+    ).not.toBeInTheDocument();
+  });
   it("mostra os rótulos do catálogo preservando os identificadores do recorte", async () => {
     vi.stubGlobal(
       "fetch",
@@ -128,7 +365,6 @@ describe("Assistente Grid 360", () => {
     expect(
       screen.queryByText(`Referência para conferência: ${reference}`),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByText("Como chegamos à resposta"));
     expect(screen.getByText("Fonte de dados interna")).toBeVisible();
     expect(screen.getByText(": Mai/2026")).toBeVisible();
     expect(screen.queryByText(/Referência para conferência/)).toBeNull();
@@ -146,21 +382,32 @@ describe("Assistente Grid 360", () => {
     const suggestions = screen.getByRole("region", {
       name: "Perguntas comuns",
     });
+    expect(within(suggestions).getAllByRole("button")).toHaveLength(4);
     expect(
       within(suggestions).getByRole("button", {
-        name: "Qual foi a receita residencial em junho de 2026?",
+        name: "Distribua a receita faturada por município em junho de 2026.",
       }),
     ).toBeVisible();
     expect(
       within(suggestions).getByRole("button", {
-        name: "Qual município teve maior receita em junho de 2026?",
+        name: "Quais municípios tiveram maior consumo medido em junho de 2026?",
       }),
     ).toBeVisible();
     expect(
       within(suggestions).getByRole("button", {
-        name: "Quantos chamados constam no histórico acumulado?",
+        name: "Compare o consumo medido em Recife entre janeiro e junho de 2026.",
       }),
     ).toBeVisible();
+    expect(
+      within(suggestions).getByRole("button", {
+        name: "Como evoluiu o consumo medido em Recife, mês a mês, de janeiro a junho de 2026?",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(
+        /Informe o período e o local para uma resposta mais precisa/,
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("mostra carregamento e bloqueia outro envio até a resposta", async () => {
@@ -188,7 +435,6 @@ describe("Assistente Grid 360", () => {
     expect(textbox).toBeDisabled();
     resolveResponse(jsonResponse(answered));
     expect(await screen.findByText(answered.answer)).toBeVisible();
-    await user.click(screen.getByText("Como chegamos à resposta"));
   });
 
   it("envia a pergunta ao Backend e mostra resposta, recorte e evidência demonstrativa", async () => {
@@ -204,9 +450,8 @@ describe("Assistente Grid 360", () => {
     await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
 
     expect(await screen.findByText(answered.answer)).toBeVisible();
-    await user.click(screen.getByText("Como chegamos à resposta"));
     expect(screen.getByText("Resposta fundamentada")).toBeVisible();
-    expect(screen.getByText(/Demonstração sintética/)).toBeVisible();
+    expect(screen.getByText(/Exemplo com dados fictícios/)).toBeVisible();
     expect(screen.getByText("Dados de demonstração")).toBeVisible();
     expect(screen.getByText(/Jan\/2025 – Fev\/2025/)).toBeVisible();
     expect(
@@ -231,20 +476,17 @@ describe("Assistente Grid 360", () => {
       within(analysisContext).getAllByRole("definition")[3],
     ).toHaveTextContent(": Exemplo");
 
-    const questionIndex = screen.getByRole("complementary", {
-      name: "Perguntas desta conversa",
+    const conversationSidebar = screen.getByRole("complementary", {
+      name: "Conversas salvas",
     });
-    const originalQuestion = document.getElementById("assistant-message-0")!;
-    originalQuestion.scrollIntoView = vi.fn();
-    await user.click(
-      within(questionIndex).getByRole("button", {
-        name: /Como variou o consumo/,
-      }),
-    );
-    expect(originalQuestion).toHaveFocus();
-    expect(originalQuestion.scrollIntoView).toHaveBeenCalledWith({
-      block: "nearest",
-    });
+    expect(
+      within(conversationSidebar).getByText(
+        "Entre na sua conta para salvar e gerenciar conversas. Esta conversa fica somente nesta tela.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Conversas" }),
+    ).not.toBeInTheDocument();
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(options.method).toBe("POST");
@@ -252,6 +494,7 @@ describe("Assistente Grid 360", () => {
       contract_version: "v1",
       question: "Como variou o consumo?",
       context: [],
+      conversation_id: expect.any(String),
     });
     expect(String(fetchMock.mock.calls[0][0])).toBe("/api/v1/ai/questions");
   });
@@ -555,7 +798,9 @@ describe("Assistente Grid 360", () => {
 
     await user.click(screen.getByRole("button", { name: /Nova conversa/ }));
     expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
-    expect(screen.getByText(/fica apenas nesta tela/)).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "O que você quer investigar?" }),
+    ).toBeVisible();
   });
 
   it("oferece repetição manual somente quando o erro diz que é recuperável", async () => {
@@ -801,4 +1046,24 @@ it("removes previously authorized evidence and retries after scope revocation", 
   await user.keyboard("{Enter}");
   await screen.findByText(/Seu acesso/);
   expect(screen.queryByText(answered.answer)).not.toBeInTheDocument();
+});
+
+it("apresenta gráfico de pontos autorizados e tabela junto à resposta", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(jsonResponse(visualResponse)),
+  );
+  renderPage();
+  const user = userEvent.setup();
+  await user.type(
+    screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+    "Compare a receita de junho a agosto em Recife.",
+  );
+  await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+  const chart = await screen.findByRole("img", { name: "Receita faturada" });
+  expect(chart).toHaveAccessibleDescription(/2026|Jun/);
+  await user.click(screen.getByRole("button", { name: "Ver tabela" }));
+  expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(4);
+  expect(screen.getByRole("button", { name: /PNG/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: /CSV/ })).toBeVisible();
 });

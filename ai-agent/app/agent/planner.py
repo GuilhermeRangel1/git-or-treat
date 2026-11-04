@@ -12,12 +12,16 @@ from app.agent.access import ReadAccessPolicy
 from app.agent.evidence_guard import EvidenceGuard
 from app.agent.execution import ExecutionLimitExceeded, RequestBudget
 from app.agent.interpreter import QuestionInterpreter, _find_phrases, _normalize
+from app.agent.language_recovery import intent_question, pending_year_answer, spelling_suggestions
 from app.agent.read_plan import (
     PlanCapabilityUnavailable,
     ReadPlanBuilder,
     ReadPlanValidator,
+    TemporalCoverageUnavailable,
 )
 from app.agent.temporal import (
+    complete_contextual_period,
+    expand_short_calendar_year,
     explicit_monthly_phrases,
     monthly_period_label,
     normalize_calendar_phrases,
@@ -39,9 +43,50 @@ from app.ports.evidence import (
 from app.schemas.access import AccessContext
 from app.schemas.domain_profile import DimensionValue, DomainProfile
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
-from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
+from app.schemas.interpretation import (
+    ClarificationReason,
+    IntentInterpretation,
+    InterpretationStatus,
+)
 from app.schemas.questions import ConversationTurn
 from app.schemas.read_plan import LogicalReadPlan
+
+# Calendário que o interpretador não reconheceu como período ("em jun/26", "em 2026"):
+# sai do exemplo junto com a preposição para não ficar ao lado do período sugerido.
+_UNRECOGNIZED_CALENDAR = re.compile(
+    r"\b(?:em|no|na|de)\s+(?:(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)"
+    r"\.?/(?:[0-9]{4}|[0-9]{2})|(?:19|20)[0-9]{2})(?![\w/-])(?!\s*(?:%|kwh|mwh|r\$|reais))",
+    re.IGNORECASE,
+)
+# Uma troca ao lado destes conectores deixaria a comparação pela metade.
+_DANGLING_CONNECTORS = {"versus", "vs", "e", "ou"}
+
+
+def _replace_in_place(question: str, phrases: tuple[str, ...], replacement: str) -> str | None:
+    """Troca o único trecho ambíguo no lugar; sem exemplo se a frase ficar quebrada."""
+    matches = _find_phrases(question, phrases)
+    if len(matches) != 1:
+        return None
+    start, end, _ = matches[0]
+    before = re.search(r"([\w.]+)\s*$", question[:start])
+    after = re.match(r"\s*([\w.]+)", question[end:])
+    # A confirmação pode conter a mesma preposição já escrita antes do termo.
+    if (before is not None and _normalize(before[1]) == "com"
+            and _normalize(replacement).startswith("com ")):
+        start = before.start(1)
+
+    if any(match is not None and _normalize(match[1]).rstrip(".") in _DANGLING_CONNECTORS
+           for match in (before, after)):
+        return None
+    if before is not None and _normalize(before[1]) in {"o", "a", "os", "as"}:
+        # O artigo acompanha a substituição: "a energia faturada" vira "o consumo".
+        word = _normalize(replacement.split()[0])
+        article = "a" if re.search(r"(?:a|cao|dade|agem)s?$", word) else "o"
+        if word.endswith("s"):
+            article += "s"
+        start = before.start(1)
+        replacement = (article.upper() if before[1][0].isupper() else article) + " " + replacement
+    return question[:start] + replacement + question[end:]
 
 
 class AnalysisPlanStatus(StrEnum):
@@ -100,6 +145,7 @@ class PlannedQuestion(BaseModel):
     interpretation: IntentInterpretation
     read_plan: LogicalReadPlan | None = None
     clarification: EvidenceLookupResult | None = None
+    pending_question: str | None = None
 
     @model_validator(mode="after")
     def validate_single_outcome(self) -> Self:
@@ -185,8 +231,12 @@ class QuestionAnalysisPlanner:
         )
         if not self.profile.structured_dimension_filters or result.read_plan is not None:
             return result
+        if result.interpretation.clarification_reason is ClarificationReason.MISSING_YEAR:
+            # Os meses já foram informados: um exemplo com outro período atrapalha
+            # a resposta curta e mudaria o recorte que a pessoa está construindo.
+            return result
         for candidate in self._clarification_examples(
-            question, temporal_coverage, dimension_value_coverage,
+            result.pending_question or question, temporal_coverage, dimension_value_coverage,
         ):
             try:
                 example = self._plan(
@@ -216,23 +266,28 @@ class QuestionAnalysisPlanner:
         """Os exemplos usam somente competências recebidas; nenhum mês é presumido."""
         if not coverage:
             return
+        contextual_profile = self._profile_with_dimension_values(dimensions)
+        yield from spelling_suggestions(question, contextual_profile)
         normalized = _normalize(question)
         for rule in self.profile.ambiguities:
             if not any(_normalize(phrase) in normalized for phrase in rule.phrases):
                 continue
-            for template in rule.examples:
-                candidate = template
-                for key, values in (dimensions or {}).items():
-                    value = next(
-                        (value for value in values if _normalize(value) in normalized), None,
-                    )
-                    if value is not None:
-                        candidate = candidate.replace("{" + key + "}", value)
-                if "{" not in candidate:
-                    yield candidate
-        metrics = sorted(self.profile.metrics, key=lambda metric: not any(
-            _normalize(alias) in normalized for alias in metric.aliases
-        ))
+            replacement = rule.confirmation_phrase
+            alternative = None
+            if replacement is None and len(rule.alternative_metric_ids) == 1:
+                alternative = next(m for m in self.profile.metrics
+                                   if m.id == rule.alternative_metric_ids[0])
+                replacement = alternative.aliases[0]
+            candidate = (_replace_in_place(question, rule.phrases, replacement)
+                         if replacement else None)
+            # O mesmo indicador duas vezes ("receita faturada versus receita") não é exemplo.
+            if candidate is not None and (
+                alternative is None or len(_find_phrases(candidate, alternative.aliases)) == 1
+            ):
+                yield candidate
+        recognized_metrics = [metric for metric in self.profile.metrics
+                              if _find_phrases(question, metric.aliases)]
+        metrics = recognized_metrics or self.profile.metrics
         compare = any(_normalize(term) in normalized for term in self.profile.comparison_terms)
         for metric in metrics:
             kind, competencies = coverage.get(metric.id, (None, ()))
@@ -244,8 +299,21 @@ class QuestionAnalysisPlanner:
             temporal_phrases = (*self.profile.period_phrases, *explicit_monthly_phrases(original))
             for start, end, _ in reversed(_find_phrases(original, temporal_phrases)):
                 original = original[:start] + " " * (end - start) + original[end:]
+            original = _UNRECOGNIZED_CALENDAR.sub(" ", original)
             original = " ".join(original.split()).rstrip(" ?.")
-            original = re.sub(r"\b(?:em|no|na|nos|nas|de)\s*$", "", original).strip()
+            original = re.sub(
+                r"\b(?:entre\s+e|de\s+(?:a|para)|em|no|na|nos|nas|de)\s*$",
+                "", original,
+            ).strip()
+            constraints = tuple(
+                phrase for dimension in contextual_profile.dimensions
+                for phrase in (*dimension.aliases,
+                               *(a for value in dimension.values for a in value.aliases))
+            ) + tuple(phrase for rule in self.profile.detail_rules for phrase in rule.phrases)
+            has_constraint = bool(
+                _find_phrases(original, constraints) or re.search(r"\d", original)
+                or re.search(r"\b(?:em|no|na|para)\s+\w+", _normalize(original))
+            )
             period = (f"entre {periods[-2]} e {periods[-1]}"
                       if compare and metric.supports_comparison and len(periods) >= 2
                       else f"em {periods[-1]}")
@@ -262,9 +330,10 @@ class QuestionAnalysisPlanner:
                                    f"{period}?")
                     yield (f"{original} no {dimension.aliases[0]} de {values[0]} "
                            f"{period}?")
-            if compare and metric.supports_comparison and len(periods) >= 2:
+            if not has_constraint and compare and metric.supports_comparison and len(periods) >= 2:
                 yield f"Compare {alias} entre {periods[-2]} e {periods[-1]}."
-            yield f"Quero consultar {alias} em {periods[-1]}."
+            if not has_constraint:
+                yield f"Quero consultar {alias} em {periods[-1]}."
 
     def _plan(
         self,
@@ -279,12 +348,21 @@ class QuestionAnalysisPlanner:
 
         profile = self._profile_with_dimension_values(dimension_value_coverage)
         if profile.structured_dimension_filters:
+            completed = pending_year_answer(question, context or [], profile)
+            if completed is not None:
+                question, context = completed, []
+            competencies = tuple(period for _, periods in (temporal_coverage or {}).values()
+                                 for period in periods)
+            question = expand_short_calendar_year(question, competencies)
             question = normalize_calendar_phrases(question)
             context = [
-                turn.model_copy(update={"content": normalize_calendar_phrases(turn.content)})
+                turn.model_copy(update={"content": normalize_calendar_phrases(
+                    expand_short_calendar_year(turn.content, competencies),
+                )})
                 if turn.role == "user" else turn
                 for turn in context or []
             ]
+            question = complete_contextual_period(question, context)
             phrases = tuple(dict.fromkeys(
                 phrase for text in (question, *(turn.content for turn in context or []))
                 for phrase in explicit_monthly_phrases(text)
@@ -296,7 +374,7 @@ class QuestionAnalysisPlanner:
         interpreter = (
             self._interpreter
             if profile is self._access_policy.profile
-            else QuestionInterpreter(profile)
+            else QuestionInterpreter(profile, max_rows=self._max_rows)
         )
         plan_builder = (
             self._plan_builder
@@ -313,11 +391,26 @@ class QuestionAnalysisPlanner:
                 max_rows=self._max_rows,
             )
         )
-        interpretation = interpreter.interpret(question, context)
+        pending_temporal = None
+        if (temporal_coverage is not None and context and len(context) >= 2
+                and context[-2].role == "user" and context[-1].role == "assistant"):
+            previous = interpreter.interpret(context[-2].content, context[:-2])
+            if previous.intent is not None:
+                try:
+                    plan_builder.build(previous.intent, temporal_coverage)
+                except TemporalCoverageUnavailable:
+                    pending_temporal = previous.intent
+                except PlanCapabilityUnavailable:
+                    pass
+        interpretation = interpreter.interpret(
+            question, context, pending_temporal_intent=pending_temporal,
+        )
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
             if trace is not None:
                 trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
-            return PlannedQuestion(interpretation=interpretation)
+            return PlannedQuestion(
+                interpretation=interpretation, pending_question=interpretation.pending_question,
+            )
 
         assert interpretation.intent is not None
         try:
@@ -328,6 +421,7 @@ class QuestionAnalysisPlanner:
                 trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)
             return PlannedQuestion(
                 interpretation=interpretation,
+                pending_question=intent_question(interpretation.intent, profile),
                 clarification=EvidenceLookupResult(
                     status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
                     message=str(exc),

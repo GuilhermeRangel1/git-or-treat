@@ -35,62 +35,26 @@ function signedMoney(value: number | null) {
   );
 }
 
-function competenceLabel(value: string) {
-  const monthNames = [
-    "Jan",
-    "Fev",
-    "Mar",
-    "Abr",
-    "Mai",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Set",
-    "Out",
-    "Nov",
-    "Dez",
-  ];
-  return `${monthNames[Number(value.slice(5, 7)) - 1]}/${value.slice(0, 4)}`;
-}
-
 function MetricCard({
   label,
   value,
-  before,
-  competence,
   valueClassName,
 }: {
   label: string;
   value: string;
-  before: string;
-  competence: string;
   valueClassName?: string;
 }) {
   return (
     <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
-      <h3 className="text-sm text-muted">{label}</h3>
+      <h3 className="text-sm font-medium leading-5 text-muted">{label}</h3>
       <p
-        className={`min-w-0 [overflow-wrap:anywhere] font-heading ${valueClassName ?? (value.length > 13 ? "text-2xl" : "text-3xl")} leading-tight font-semibold tracking-tight ${value.startsWith("-") || value.startsWith("−") ? "text-danger" : "text-content"}`}
+        className={`min-w-0 [overflow-wrap:anywhere] font-heading ${valueClassName ?? "text-2xl lg:text-[36px]"} leading-[30px] lg:leading-[44px] font-semibold tracking-tight ${value.startsWith("-") || value.startsWith("−") ? "text-danger" : "text-content"}`}
       >
         {value}
       </p>
-      {value !== "Indisponível" || before !== "Indisponível" ? (
-        <p className="text-xs text-muted">
-          Antes:{" "}
-          <span
-            className={
-              before.startsWith("-") || before.startsWith("−")
-                ? "text-danger"
-                : "text-content"
-            }
-          >
-            {before}
-          </span>
-        </p>
-      ) : (
+      {value === "Indisponível" ? (
         <p className="text-xs text-muted">A fonte não informa esta medida.</p>
-      )}
-      <p className="text-xs text-muted">Mês: {competence}</p>
+      ) : null}
     </article>
   );
 }
@@ -101,7 +65,6 @@ export default function RevenueSummary({
   envelope: RevenueEnvelope;
 }) {
   const { data } = envelope;
-  const initial = data.comparison.initial;
   const final = data.comparison.final;
   const change = data.comparison.billed_amount_change_brl;
   const signStyle = signedValueTone(change);
@@ -112,41 +75,25 @@ export default function RevenueSummary({
         Resumo da receita
       </h2>
       <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Valor faturado"
-          value={money(final.billed_amount)}
-          before={money(initial.billed_amount)}
-          competence={competenceLabel(final.competencia)}
-        />
+        <MetricCard label="Valor faturado" value={money(final.billed_amount)} />
         <MetricCard
           label="Consumo medido"
           value={energy(final.measured_energy_kwh)}
-          before={energy(initial.measured_energy_kwh)}
-          competence={competenceLabel(final.competencia)}
         />
         <MetricCard
           label="Preço observado"
           value={price(final.observed_price_brl_per_kwh)}
-          before={price(initial.observed_price_brl_per_kwh)}
-          competence={competenceLabel(final.competencia)}
-          valueClassName="text-xl sm:text-2xl"
+          valueClassName="text-2xl lg:text-[36px]"
         />
         <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
-          <h3 className="text-sm text-muted">Variação</h3>
+          <h3 className="text-sm font-medium leading-5 text-muted">Variação</h3>
           <p
             className={
-              "flex min-w-0 flex-wrap items-center justify-center gap-2 [overflow-wrap:anywhere] font-heading text-xl sm:text-2xl leading-tight font-semibold tracking-tight " +
+              "flex min-w-0 flex-wrap items-center justify-center gap-2 [overflow-wrap:anywhere] font-heading text-2xl lg:text-[36px] leading-[30px] lg:leading-[44px] font-semibold tracking-tight " +
               signStyle
             }
           >
-            <span aria-hidden="true">
-              {change === null ? "" : change > 0 ? "▲" : change < 0 ? "▼" : "▶"}
-            </span>
             <span className="min-w-0">{signedMoney(change)}</span>
-          </p>
-          <p className="text-xs text-muted">
-            Período: {competenceLabel(initial.competencia)} →{" "}
-            {competenceLabel(final.competencia)}
           </p>
         </article>
       </div>

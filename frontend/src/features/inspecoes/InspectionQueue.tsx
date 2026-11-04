@@ -6,7 +6,12 @@ import {
   Search,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { GoldInspectionItem, QueueEnvelope, QueueItem } from "./contract";
+import type {
+  GoldInspectionItem,
+  GoldQueueEnvelope,
+  QueueEnvelope,
+  QueueItem,
+} from "./contract";
 import { energy, formatNumber } from "./format";
 import {
   inspectionAction,
@@ -153,11 +158,40 @@ function GoldItemCard({
             {evidence.join(" · ") || "Sem evidências disponíveis"}
           </p>
         </div>
+        <GoldRecoverySummary item={item} />
       </div>
       <div className="mt-4 grid gap-2">
         <EvidenceLink item={item} params={params} />
       </div>
     </article>
+  );
+}
+
+function GoldRecoverySummary({ item }: { item: GoldInspectionItem }) {
+  const evidence = item.evidence;
+  return (
+    <div aria-label="Energia a recuperar">
+      <p className="text-xs text-muted">Energia a recuperar</p>
+      {item.potential_recoverable_energy_kwh === null ? (
+        <p className="mt-1 leading-5">
+          Indisponível. {item.recovery_unavailable_reason}
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 font-medium">
+            {energy(item.potential_recoverable_energy_kwh)}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            Estimativa se a irregularidade se confirmar.
+            {evidence.recovery_interval_lower_kwh !== null &&
+            evidence.recovery_interval_upper_kwh !== null &&
+            evidence.recovery_estimate_confidence_level !== null
+              ? ` Faixa nominal de ${Math.round(evidence.recovery_estimate_confidence_level * 100)}%: ${energy(evidence.recovery_interval_lower_kwh)} a ${energy(evidence.recovery_interval_upper_kwh)}.`
+              : ""}
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -176,8 +210,9 @@ export default function InspectionQueue({
   const legacyGold = result.metadata.source.kind === "gold_csv";
   const field =
     params.get("order_by") ?? (gold ? "queue_position" : "priority");
-  const direction = params.get("direction") ?? (gold ? "asc" : "desc");
-  const sortDescription = `${gold ? (field === "category" ? "Categoria" : field === "uc_id" ? "Número da UC" : "Posição oficial da fila") : field === "priority" ? "Prioridade demonstrativa" : field === "uc_id" ? "Número da UC" : "Energia estimada"} ${direction === "desc" ? "decrescente" : "crescente"}`;
+  const direction =
+    params.get("direction") ??
+    (gold && field === "queue_position" ? "asc" : "desc");
 
   function goTo(number: number) {
     const next = new URLSearchParams(params);
@@ -217,6 +252,9 @@ export default function InspectionQueue({
             {gold ? (
               <>
                 <option value="queue_position">Posição oficial da fila</option>
+                <option value="potential_recoverable_energy_kwh">
+                  Energia recuperável estimada
+                </option>
                 <option value="uc_id">Número da UC</option>
                 <option value="category">Categoria</option>
               </>
@@ -304,29 +342,33 @@ export default function InspectionQueue({
         <>
           {gold ? (
             <>
-              <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
+              <div className="hidden overflow-hidden rounded-xl bg-surface p-4 md:block">
                 <table className="w-full table-fixed text-left">
                   <caption className="caption-top pb-4 text-left text-sm font-normal text-muted">
                     <span>
-                      Energia recuperável individual indisponível. Consulte o
-                      detalhe para conhecer a limitação de cada UC.
+                      Estimativas condicionais:{" "}
+                      {result.data.summary.estimated_units} UCs disponíveis e{" "}
+                      {result.data.summary.unavailable_estimate_units} sem
+                      estimativa válida.
                     </span>
                     <span className="sr-only">
                       Categorias, motivos, evidências e acesso ao detalhe
                     </span>
                   </caption>
                   <colgroup>
-                    <col className="w-[21%]" />
-                    <col className="w-[25%]" />
-                    <col className="w-[38%]" />
+                    <col className="w-[19%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[27%]" />
                     <col className="w-[16%]" />
                   </colgroup>
-                  <thead className="font-mono text-xs leading-[18px] text-muted">
+                  <thead className="font-sans text-xs leading-[18px] text-muted">
                     <tr className="h-11">
                       {[
                         "Posição / UC / categoria",
                         "Motivo",
                         "Evidências publicadas",
+                        "Energia a recuperar",
                         "Ação",
                       ].map((label) => (
                         <th
@@ -355,12 +397,15 @@ export default function InspectionQueue({
                           <p>{item.uc_id}</p>
                           <p>{item.category ?? "Sem categoria"}</p>
                         </th>
-                        <td className="py-3 pr-2">
+                        <td className="break-words py-3 pr-2">
                           {item.reason ?? "Não informado"}
                         </td>
                         <td className="py-3 pr-2 text-muted">
                           {goldEvidence(item).join(" · ") ||
                             "Sem evidências disponíveis"}
+                        </td>
+                        <td className="py-3 pr-2 text-sm">
+                          <GoldRecoverySummary item={item} />
                         </td>
                         <td className="py-1">
                           <EvidenceLink item={item} params={params} />
@@ -372,23 +417,19 @@ export default function InspectionQueue({
               </div>
               <div className="space-y-3 md:hidden">
                 <p className="px-1 text-sm text-muted">
-                  Estimativa individual indisponível. Consulte o detalhe da UC
-                  para conhecer os dados e limites disponíveis.
+                  Estimativas condicionais:{" "}
+                  {(result as GoldQueueEnvelope).data.summary.estimated_units}{" "}
+                  UCs disponíveis e{" "}
+                  {
+                    (result as GoldQueueEnvelope).data.summary
+                      .unavailable_estimate_units
+                  }{" "}
+                  sem estimativa válida.
                 </p>
                 {(items as GoldInspectionItem[]).map((item) => (
                   <GoldItemCard key={item.uc_id} item={item} params={params} />
                 ))}
               </div>
-              <p className="text-xs leading-5 text-muted">
-                Ordenação por{" "}
-                {field === "category"
-                  ? "texto da categoria"
-                  : field === "queue_position"
-                    ? "posição oficial da fila"
-                    : "UC"}{" "}
-                {direction === "desc" ? "decrescente" : "crescente"}. Ela não
-                define prioridade de despacho.
-              </p>
             </>
           ) : (
             <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
@@ -404,7 +445,7 @@ export default function InspectionQueue({
                   {!legacyGold && <col className="w-[19%]" />}
                   <col className="w-[24%]" />
                 </colgroup>
-                <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+                <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
                   <tr>
                     {[
                       "UC / prioridade",
@@ -489,12 +530,6 @@ export default function InspectionQueue({
               Investigar {items[0].uc_id}
               <ArrowUpRight size={16} aria-hidden="true" />
             </Link>
-            <p className="text-xs leading-5 text-muted">
-              Ordenação: {sortDescription}.
-              {gold
-                ? " Categoria textual não equivale a prioridade de despacho."
-                : " Empates seguem energia disponível e número da UC; indisponibilidade permanece explícita."}
-            </p>
           </div>
         </>
       )}

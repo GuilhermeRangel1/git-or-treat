@@ -1,3 +1,4 @@
+import re
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
@@ -9,8 +10,11 @@ from pydantic import (
     StrictInt,
     StrictStr,
     StringConstraints,
+    model_serializer,
     model_validator,
 )
+
+from app.schemas.chat_visualization import ChatVisualization
 
 AIContractVersion = Literal["v1"]
 AIQuestionText = Annotated[
@@ -45,6 +49,8 @@ AICorrelationId = Annotated[
     str,
     StringConstraints(pattern=r"^[a-f0-9]{32}$", min_length=32, max_length=32),
 ]
+
+
 
 
 class AIQueryRequest(BaseModel):
@@ -84,6 +90,8 @@ class AIQuestionError(BaseModel):
         "invalid_upstream_response",
         "ungrounded_response",
         "invalid_context",
+        "invalid_continuation",
+        "conversation_conflict",
         "internal_error",
     ]
     retryable: StrictBool
@@ -154,9 +162,27 @@ class AIQuestionResponse(BaseModel):
     evidence: list[AIEvidenceReference] = Field(default_factory=list, max_length=20)
     limitations: list[AIResponseLimitation] = Field(default_factory=list, max_length=20)
     analysis_context: AIAnalysisContext | None = None
+    visualization: ChatVisualization | None = None
+    continuation_token: Annotated[str, StringConstraints(min_length=1, max_length=16000)] | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_absent_continuation(self, handler):
+        data = handler(self)
+        if self.visualization is None:
+            data.pop("visualization", None)
+        if self.continuation_token is None:
+            data.pop("continuation_token", None)
+        return data
 
     @model_validator(mode="after")
     def validate_status_content(self) -> Self:
+        if self.visualization is not None:
+            context = self.analysis_context
+            if (self.status != "answered" or context is None or not context.batch_reference
+                or not context.batch_reference.startswith("gold-csv-v2:")
+                or (context.metric, context.unit, context.period) != (self.visualization.metric, self.visualization.unit, self.visualization.period)
+                or not self.evidence or any(e.is_demo or re.fullmatch(r"gold\.local(?::[a-f0-9]{64})?", e.source) is None for e in self.evidence)):
+                raise ValueError("visualização exige evidência Gold v2 e recorte correspondente")
         if self.status == "answered":
             if self.answer is None or self.message is not None or not self.evidence:
                 raise ValueError("resposta concluída exige answer e evidência, sem message")

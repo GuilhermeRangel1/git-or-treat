@@ -386,7 +386,7 @@ function SeriesChart({
             <caption className="sr-only">
               Série mensal de {label} simplificado
             </caption>
-            <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+            <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
               <tr>
                 <th scope="col">Mês</th>
                 <th scope="col">

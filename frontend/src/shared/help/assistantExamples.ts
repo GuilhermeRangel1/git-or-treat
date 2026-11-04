@@ -1,13 +1,15 @@
 // Perguntas já exercitadas no fluxo Gold local. Datas são exemplos editáveis.
-export const ASSISTANT_EXAMPLES = [
-  "Qual foi a receita faturada em junho de 2026?",
-  "Qual foi a receita residencial em junho de 2026?",
-  "Quanto foi o consumo medido em Recife em junho de 2026?",
-  "Qual município teve maior receita em junho de 2026?",
-  "Compare a receita de maio e junho de 2026.",
-  "Qual o DEC do alimentador ALM-JAB-015 em junho de 2026?",
-  "Quantos chamados constam no histórico acumulado?",
-];
+const assistantExamples = {
+  distribution: "Distribua a receita faturada por município em junho de 2026.",
+  ranking: "Quais municípios tiveram maior consumo medido em junho de 2026?",
+  comparison:
+    "Compare o consumo medido em Recife entre janeiro e junho de 2026.",
+  monthlySeries:
+    "Como evoluiu o consumo medido em Recife, mês a mês, de janeiro a junho de 2026?",
+} as const;
+
+export const ASSISTANT_EXAMPLES: string[] = Object.values(assistantExamples);
+export const ASSISTANT_HOME_SUGGESTIONS = ASSISTANT_EXAMPLES;
 
 // Exemplos adicionais baseados nos cenários positivos da matriz Gold v2.
 // Não se confundem com as sugestões da tela inicial nem prometem cobertura futura.

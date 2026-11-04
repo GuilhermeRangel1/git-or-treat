@@ -1,3 +1,7 @@
+import {
+  decodeChatVisualization,
+  type ChatVisualization,
+} from "./visualization";
 export type AIConversationTurn = {
   role: "user" | "assistant";
   content: string;
@@ -8,6 +12,10 @@ export type AIQuestionRequest = {
   expected_publication?: { lote: string; fingerprint: string };
   question: string;
   context: AIConversationTurn[];
+  conversation_id?: string;
+  continuation_token?: string;
+  history_request_id?: string;
+  refresh_context?: boolean;
 };
 
 export type AIEvidenceReference = {
@@ -49,6 +57,8 @@ export type AIQuestionResponse = {
   evidence: AIEvidenceReference[];
   limitations: string[];
   analysis_context?: AIAnalysisContext | null;
+  continuation_token?: string | null;
+  visualization?: ChatVisualization;
 };
 
 export type AIQuestionErrorResponse = {
@@ -244,11 +254,27 @@ export function decodeAIQuestionResponse(value: unknown): AIQuestionResponse {
     }
   }
 
+  const visualization = decodeChatVisualization(
+    value.visualization,
+    analysisContext,
+  );
+  if (
+    visualization &&
+    (status !== "answered" ||
+      evidence.some(
+        (e) => e.is_demo || !/^gold\.local(?::[a-f0-9]{64})?$/.test(e.source),
+      ))
+  )
+    throw new Error("Visualização sem evidência autorizada.");
   const auditReference = value.audit_reference;
   if (auditReference != null && !isText(auditReference, 200)) {
     throw new Error("Resposta inválida do serviço.");
   }
   const modelTier = value.model_tier;
+  const continuationToken = value.continuation_token;
+  if (continuationToken != null && !isText(continuationToken, 16000)) {
+    throw new Error("Resposta inválida do serviço.");
+  }
   if (modelTier != null && modelTier !== "light" && modelTier !== "strong") {
     throw new Error("Resposta inválida do serviço.");
   }
@@ -265,6 +291,8 @@ export function decodeAIQuestionResponse(value: unknown): AIQuestionResponse {
     evidence,
     limitations: rawLimitations as string[],
     analysis_context: analysisContext,
+    continuation_token: continuationToken as string | null | undefined,
+    ...(visualization ? { visualization } : {}),
   };
 }
 

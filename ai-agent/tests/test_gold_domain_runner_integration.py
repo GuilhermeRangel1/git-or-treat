@@ -406,16 +406,23 @@ def test_comparison_cannot_pass_with_initial_and_final_values_swapped():
 
 
 @pytest.mark.parametrize("swapped", [False, True])
-def test_comparison_reconciles_readable_currency_without_losing_month_binding(swapped):
+@pytest.mark.parametrize("compact", [False, True])
+def test_comparison_reconciles_readable_currency_without_losing_month_binding(swapped, compact):
     db = revenue_database(**{"controle:CTL-FAT-COMPARACAO": [
         {"valor": 80, "valor_final": 100, "variacao": 20, "percentual": 25},
     ]})
     first, last = (100, 80) if swapped else (80, 100)
-    reply = answered(
+    answer = (
+        f"Receita faturada: R$ {first},00 em março de 1999; "
+        f"R$ {last},00 em março de 2000. Variação absoluta: R$ 20,00 (25%)."
+        if compact else
         f"Resultados de receita faturada no período solicitado:\n"
         f"• R$ {first},00 em março de 1999\n• R$ {last},00 em março de 2000\n"
         "• R$ 20,00 em Variação absoluta de 1999-03 a 2000-03\n"
-        "• 25.0 % em Variação percentual de 1999-03 a 2000-03",
+        "• 25.0 % em Variação percentual de 1999-03 a 2000-03"
+    )
+    reply = answered(
+        answer,
         "billing.revenue", {"geography.municipality": "JABOATAO DOS GUARARAPES",
                             "customer.consumption_class": "COMERCIAL"}, "R$",
         period="1999-03-01 a 2000-03-31",
@@ -423,6 +430,27 @@ def test_comparison_reconciles_readable_currency_without_losing_month_binding(sw
     outcome = run("FAT-09", client(lambda payload: reply), db)
     assert outcome.classe == ("FAIL" if swapped else "PASS")
     assert ("numero" in outcome.divergencias) is swapped
+
+
+def test_negative_currency_keeps_its_sign_in_every_answer_format():
+    answer = ("Receita faturada: -R$ 10,00 em março de 1999; R$ 80,00 em março de 2000. "
+              "Variação absoluta: -R$ 1.020,50 (-20%).")
+    compact = runner.compact_comparison_numbers(answer, "1999-03", "2000-03", "R$")
+    assert compact == {
+        "valor": [Decimal("-10.00")], "valor_final": [Decimal("80.00")],
+        "variacao": [Decimal("-1020.50")], "percentual": [Decimal(-20)],
+    }
+    assert Decimal("-1020.50") in runner.parse_numbers(answer)
+    assert runner.observation_numbers(
+        "• -R$ 100,00 em março de 1999", "1999-03", "R$",
+    ) == [Decimal("-100.00")]
+    assert runner.observation_numbers("-50 kWh em março de 1999", "1999-03", "kWh") == [
+        Decimal(-50),
+    ]
+    # Hífen seguido de espaço continua sendo marcador de lista, não sinal.
+    assert runner.observation_numbers(
+        "- R$ 10,00 em março de 1999", "1999-03", "R$",
+    ) == [Decimal("10.00")]
 
 
 def test_readable_decomposition_binds_each_value_to_effect_and_published_window():

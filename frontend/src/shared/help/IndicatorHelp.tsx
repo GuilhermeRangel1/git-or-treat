@@ -24,7 +24,6 @@ export default function IndicatorHelp({ screen }: { screen: HelpScreen }) {
         type="button"
         variant="ghost"
         size="sm"
-        aria-label="Entenda os indicadores"
         className="h-auto min-h-11 py-2 text-sm"
         onClick={() => {
           setQuery("");

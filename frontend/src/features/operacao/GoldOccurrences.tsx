@@ -145,7 +145,7 @@ export default function GoldOccurrences({
               <col className="w-[29%]" />
               <col className="w-[18%]" />
             </colgroup>
-            <thead className="font-mono text-xs leading-[18px] text-muted">
+            <thead className="font-sans text-xs leading-[18px] text-muted">
               <tr className="h-11">
                 <th scope="col" className="pr-2 font-normal">
                   Ocorrência

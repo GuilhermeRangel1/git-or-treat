@@ -35,6 +35,10 @@ class PlanCapabilityUnavailable(Exception):
     """O catálogo não permite representar fielmente o recorte solicitado."""
 
 
+class TemporalCoverageUnavailable(PlanCapabilityUnavailable):
+    """O período não pode ser provado pela cobertura recebida do Backend."""
+
+
 def _normalize(value: str) -> str:
     decomposed = unicodedata.normalize("NFD", value.casefold())
     return "".join(char for char in decomposed if not unicodedata.combining(char))
@@ -57,6 +61,13 @@ class ReadPlanBuilder:
         intent: AnalysisIntent,
         temporal_coverage: Mapping[str, tuple[str, tuple[str, ...]]] | None = None,
     ) -> LogicalReadPlan:
+        if intent.ranking_limit is not None and (
+            not intent.ranking_direction or not intent.group_by_dimension_ids
+            or intent.comparison_period_phrases is not None
+        ):
+            raise PlanCapabilityUnavailable(
+                "A quantidade de resultados exige ranking de um único período."
+            )
         metric = next(
             (item for item in self._profile.metrics if item.id == intent.metric_id),
             None,
@@ -115,7 +126,7 @@ class ReadPlanBuilder:
         missing_filters = set(metric.required_filter_dimension_ids) - filters.keys()
         if missing_filters:
             labels = ", ".join(dimensions[key].label.lower() for key in sorted(missing_filters))
-            raise PlanCapabilityUnavailable(f"Informe o filtro obrigatório: {labels}.")
+            raise PlanCapabilityUnavailable(f"Para consultar este indicador, informe: {labels}.")
 
         period_window = next(
             (
@@ -132,7 +143,7 @@ class ReadPlanBuilder:
             )
             metric_coverage = temporal_coverage.get(metric.id)
             if metric_coverage is None:
-                raise PlanCapabilityUnavailable(unavailable)
+                raise TemporalCoverageUnavailable(unavailable)
             coverage_kind, competencies = metric_coverage
             if coverage_kind == "monthly":
                 try:
@@ -140,13 +151,13 @@ class ReadPlanBuilder:
                         intent.period_phrase, competencies
                     )
                 except TemporalResolutionUnavailable as exc:
-                    raise PlanCapabilityUnavailable(unavailable) from exc
+                    raise TemporalCoverageUnavailable(unavailable) from exc
             else:
                 if not metric.accumulated_period_phrases or (
                     _normalize(intent.period_phrase)
                     not in {_normalize(item) for item in metric.accumulated_period_phrases}
                 ):
-                    raise PlanCapabilityUnavailable(unavailable)
+                    raise TemporalCoverageUnavailable(unavailable)
                 window = ReadWindow(kind=WindowKind.CATALOG_PHRASE, phrase=intent.period_phrase)
         else:
             window = (
@@ -172,7 +183,7 @@ class ReadPlanBuilder:
                 pair = tuple(GoldTemporalWindowResolver().resolve(phrase, coverage[1])
                              for phrase in intent.comparison_period_phrases)
             except TemporalResolutionUnavailable as exc:
-                raise PlanCapabilityUnavailable(str(exc)) from exc
+                raise TemporalCoverageUnavailable(str(exc)) from exc
             if any(w.start is None or w.end is None or
                    (w.start.year, w.start.month) != (w.end.year, w.end.month) for w in pair):
                 raise PlanCapabilityUnavailable("Informe duas competências mensais completas.")
@@ -198,8 +209,11 @@ class ReadPlanBuilder:
             window=window,
             comparison_periods=comparison_periods,
             filters=tuple(filters[key] for key in sorted(filters)),
-            limit=1 if intent.ranking_direction and comparison_periods is None
-            else self._default_limit,
+            limit=(
+                (intent.ranking_limit or 1)
+                if intent.ranking_direction and comparison_periods is None
+                else self._default_limit
+            ),
         )
 
 

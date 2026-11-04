@@ -52,6 +52,14 @@ export type OrderFoundation = {
   estimateUnavailable: boolean;
   signals: SnapshotSignal[];
   estimateEvidence: string | null;
+  recoveryEstimateRange?: {
+    lowerKwh: number;
+    upperKwh: number;
+    confidenceLevel: number;
+    windowAnchor: string;
+    windowMonths: number;
+    minimumWindowMonths: number;
+  } | null;
   limitations: string[];
   origin: "gold" | "synthetic" | null;
   fingerprint: string | null;
@@ -165,6 +173,45 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
   if (isGold) {
     const evidence = record(data?.evidence);
     const variation = record(data?.variation);
+    const rawEstimate = finiteNumber(data?.potential_recoverable_energy_kwh);
+    const evidenceEstimate = finiteNumber(
+      evidence?.estimated_recoverable_energy_kwh,
+    );
+    const lower = finiteNumber(evidence?.recovery_interval_lower_kwh);
+    const upper = finiteNumber(evidence?.recovery_interval_upper_kwh);
+    const confidenceLevel = finiteNumber(
+      evidence?.recovery_estimate_confidence_level,
+    );
+    const windowAnchor = competenceText(
+      evidence?.recovery_estimate_window_anchor,
+    );
+    const windowMonths = finiteNumber(
+      evidence?.recovery_estimate_window_months,
+    );
+    const minimumWindowMonths = finiteNumber(
+      evidence?.recovery_estimate_minimum_window_months,
+    );
+    const estimateValid =
+      rawEstimate !== null &&
+      rawEstimate >= 0 &&
+      evidenceEstimate === rawEstimate &&
+      lower !== null &&
+      upper !== null &&
+      lower >= 0 &&
+      lower <= rawEstimate &&
+      rawEstimate <= upper &&
+      evidence?.recovery_estimate_status ===
+        "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA" &&
+      evidence?.recovery_estimate_method === "CONSUMO_CONDICIONAL_V1" &&
+      confidenceLevel === 0.9 &&
+      windowAnchor !== null &&
+      windowMonths !== null &&
+      Number.isSafeInteger(windowMonths) &&
+      windowMonths > 0 &&
+      minimumWindowMonths !== null &&
+      Number.isSafeInteger(minimumWindowMonths) &&
+      minimumWindowMonths > 0 &&
+      minimumWindowMonths <= windowMonths;
     const display = (label: string, value: unknown, unit = "") => ({
       label,
       value:
@@ -234,10 +281,27 @@ export function readOrderFoundation(order: OrderDetail): OrderFoundation {
       supported: true,
       source,
       period: null,
-      estimateKwh: null,
-      estimateUnavailable: true,
+      estimateKwh: estimateValid ? rawEstimate : null,
+      estimateUnavailable: !estimateValid,
       signals: [],
       estimateEvidence: null,
+      recoveryEstimateRange:
+        estimateValid &&
+        lower !== null &&
+        upper !== null &&
+        confidenceLevel !== null &&
+        windowAnchor !== null &&
+        windowMonths !== null &&
+        minimumWindowMonths !== null
+          ? {
+              lowerKwh: lower,
+              upperKwh: upper,
+              confidenceLevel,
+              windowAnchor,
+              windowMonths,
+              minimumWindowMonths,
+            }
+          : null,
       limitations: Array.isArray(data?.limitations)
         ? data.limitations.flatMap((item) => (text(item) ? [text(item)!] : []))
         : [],
