@@ -4010,3 +4010,17 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 - A seleção de bairros clicáveis no mapa fica para uma etapa futura. O levantamento encontrou malha IBGE 2022 para 12 municípios, limites OSM adicionais em Itamaracá e pontos OSM em parte de Moreno; a camada visual de bairros não foi mantida nesta alteração.
 - No detalhe municipal, valores de variação exibem sinal e cor verde/vermelha conforme direção; competências mensais aparecem como `Mai/2026` em vez de `2026-05`.
 - Arquivos alterados: `frontend/src/features/mapa/MunicipalityPanel.tsx` e este registro. `git diff --check` passou; testes e inspeção visual no navegador não foram executados nesta alteração.
+
+
+### 04/11/2026 — Mapa da RMR — ambiente e checklist de aceite
+
+- O contêiner frontend tinha dependências desatualizadas: Leaflet estava no lockfile, mas ausente do volume. Após `npm ci` no contêiner e reinício do frontend, o Vite serviu o componente do mapa com HTTP 200; o build passou.
+- Uma sessão local de leitura autenticou com perfil ausente e recebeu 403 no catálogo e em Receita via Vite, conforme a política de acesso. Não há evidência de que essa fosse a sessão Comercial da rodada anterior; o 403 histórico continua sem diagnóstico.
+- Checklist ajustado ao delta absoluto: zero inicial observado é válido; camadas de variação de faturamento e consumo são explícitas. Continuam pendentes a reconciliação da tela com Gold/banco/API e a evidência conjunta de erro, recuperação e troca de publicação. Estados oficiais preservados. Detalhes no [relatório do Mapa](plans/2026-11-03-mapa-rmr-evidencias.md).
+
+
+### 04/11/2026 — Mapa da RMR — revalidação Comercial e reconciliação parcial
+
+- Comercial autenticado via Vite recebeu 200 no catálogo e em Receita. A sessão da ocorrência histórica de 403 permanece desconhecida.
+- Em oito recortes de dois municípios, duas classes e dois meses, os valores da tabela e do painel conferiram com a API; controles SQL somente leitura conferiram faturamento e consumo à precisão exibida e verificaram a identidade do mesmo lote Gold v2. Mais oito verificações cobriram as duas camadas de variação absoluta. A prova anterior CSV/banco/API não identifica o lote no relatório e não foi ligada a esta execução.
+- Navegador comprovou recuperação após 503 e reconsulta após 409 induzidos. Troca efetiva de publicação, reconciliação da série/bairros/Receita e vínculo independente com o CSV da mesma publicação continuam pendentes. Os estados oficiais foram preservados. Comandos e limites no [relatório do Mapa](plans/2026-11-03-mapa-rmr-evidencias.md).

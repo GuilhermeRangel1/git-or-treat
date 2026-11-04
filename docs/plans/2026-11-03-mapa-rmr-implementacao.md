@@ -161,7 +161,7 @@ Os caminhos novos abaixo são propostas para a execução; os caminhos existente
 - [ ] Usar publicação Gold v2 autorizada e ambiente isolado; registrar schema, lote/fingerprint e cortes. Confirmar que a consulta do mapa está no caminho Gold, sem interceptação ou fallback demonstrativo.
 - [ ] Conferir ao menos dois municípios, duas classes e dois meses comparáveis: valores Gold → banco → API → mapa/tabela → painel → Receita. Usar controle independente das funções que produzem a resposta. Registrar precisão de origem; moeda após formatação deve conferir a centavos, energia deve conferir à precisão publicada, sem tolerância arbitrária para encobrir divergência.
 - [ ] Reconciliar municípios mapeados com o universo correspondente da RMR. Separar nomes não associados, municípios fora da RMR e valores desconhecidos; não usar o total geral da API como se fosse total regional. Não somar contagens mensais de UCs como unidades únicas do intervalo.
-- [ ] Exercitar carregamento, erro/recuperação, ausência, cobertura parcial, base zero, dado sem correspondência, troca de publicação, recarga, voltar/avançar e acesso negado. Se o lote não contiver determinado caso, provar esse comportamento com fixture identificada, sem inventar amostra real.
+- [ ] Exercitar carregamento, erro/recuperação, ausência, cobertura parcial, valor inicial zero com delta absoluto válido, dado sem correspondência, troca de publicação, recarga, voltar/avançar e acesso negado. Verificar explicitamente as camadas de variação absoluta de faturamento e de consumo entre os meses extremos. Se o lote não contiver determinado caso, provar esse comportamento com fixture identificada, sem inventar amostra real.
 - [ ] Conferir jornadas em 1440 px e 390 px, temas claro/escuro, teclado completo, foco visível, zoom, leitor/estrutura semântica da tabela, contraste e movimento reduzido. Capturar comparação visual com páginas atuais, incluindo fontes calculadas.
 - [ ] Executar gates previstos abaixo, revisar critérios do cartão e registrar comandos/resultados/limites no relatório. Falha conserva o item aberto com causa e próximo passo.
 - [ ] Na entrega funcional, atualizar o PRD no mesmo conjunto de mudanças, com entrada do adicional e evidência, sem concluir automaticamente WEB-01/02/07/10. Atualizar os guias que divergirem do comportamento entregue e sincronizar o cartão de rastreamento conforme as ferramentas e instruções aplicáveis, sem criar ou enviar mensagens externas nesta etapa de planejamento.
@@ -196,12 +196,13 @@ Acrescentar testes PostgreSQL pertinentes se houver mudança de acesso ao banco,
 | Risco/condição | Comportamento esperado | Tarefa que comprova |
 | --- | --- | --- |
 | Nome Gold divergente ou município sem geometria/dado | Sem associação aproximada, perda silenciosa ou zero artificial | 1, 3 e 6 |
-| Percentual bloqueado, base zero ou mês extremo ausente | Indisponibilidade com motivo; frontend não refaz a fórmula | 2, 4 e 6 |
+| Percentual indisponível ou mês extremo ausente | Percentual indisponível conforme a fonte; delta absoluto indisponível quando faltar um extremo, sem fórmula alternativa no frontend | 2, 4 e 6 |
+| Valor inicial zero e extremos disponíveis | Zero é valor observado válido para o delta absoluto de faturamento e consumo | 2, 4 e 6 |
 | Troca rápida de seleção/filtro/lote | Resumo, cores e painel correspondem ao mesmo contexto autorizado | 3 e 6 |
 | Usuário sem permissão abre URL diretamente | Rota e HTTP negam acesso, sem ampliar perfis | 2 e 4 |
 | Estilo Leaflet, mobile ou uso sem mouse | Fontes/componentes padronizados, sem overflow e com lista equivalente | 4, 5 e 6 |
 
-O adicional pode ser apresentado para aceite quando for possível identificar a variação no mapa, selecionar um município, ler fundamentos e continuar em Receita com contexto preservado, com números reconciliados e acesso controlado. Geometria pública, fixture ou screenshot isolados não encerram esse aceite. Qualquer exigência de percentual sem cobertura suficiente deve permanecer registrada como pendência, sem flexibilização silenciosa do cartão.
+O adicional pode ser apresentado para aceite quando for possível identificar a variação no mapa, selecionar um município, ler fundamentos e continuar em Receita com contexto preservado, com números reconciliados e acesso controlado. Geometria pública, fixture ou screenshot isolados não encerram esse aceite. O escopo atual usa variações absolutas; o percentual indisponível na Gold v2 não é critério de aceite desta entrega.
 
 ## 8. Fontes técnicas consultadas no planejamento
 
