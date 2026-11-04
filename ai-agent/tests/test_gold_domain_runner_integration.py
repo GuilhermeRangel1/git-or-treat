@@ -170,6 +170,7 @@ def feeder_database():
         "periodo:ULTIMA_COMPETENCIA_DEC_FEC": [{"competencia": "2000-03"}],
         "amostra:MUNICIPIO_DO_CASE": MUNICIPALITIES,
         "amostra:ALIMENTADOR_MAIOR_DEC": [{"alimentador": "AL-SINTETICO"}],
+        "observacao:DEC_FEC": [],
     })
 
 
@@ -179,6 +180,25 @@ def test_blocked_case_with_expected_unavailability_is_blocked_not_pass():
     outcome = run("INT-01", client(lambda payload: reply), db)
     assert outcome.classe == "BLOQUEADO"
     assert not any(name.startswith("controle:") for name, _, _ in db.calls)
+
+
+@pytest.mark.parametrize(("case_id", "number"), [("INT-01", "3,5"), ("INT-02", "2")])
+def test_observed_continuity_reconciles_value_publication_and_warning(case_id, number):
+    case = CASES[case_id]
+    batch = "gold-csv-v2:synthetic:publication"
+    db = feeder_database()
+    db.responses["observacao:DEC_FEC"] = [{"batch_ref": batch}]
+    db.responses["controle:C11"] = [
+        {"alimentador": "AL-SINTETICO", "dec": Decimal("3.5"), "fec": Decimal("2")},
+    ]
+    reply = answered(f"Valor observado: {number}. {runner.OBSERVED_WARNING}",
+                     case["metrica"], {"network.feeder": "AL-SINTETICO"}, case["unidade"])
+    reply[1]["analysis_context"]["batch_reference"] = batch
+    reply[1]["limitations"] = [runner.OBSERVED_WARNING]
+    assert run(case_id, client(lambda payload: reply), db).classe == "PASS"
+    reply[1]["limitations"] = []
+    outcome = run(case_id, client(lambda payload: reply), db)
+    assert outcome.classe == "FAIL" and "fundamentacao" in outcome.divergencias
 
 
 @pytest.mark.parametrize("case_id", ["INT-01", "FAT-07", "SEG-01"])

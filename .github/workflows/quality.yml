@@ -60,12 +60,22 @@ jobs:
         if: always() && steps.deps.outcome == 'success'
         run: python -m tests.test_genai_regression --output reports/synthetic-regression-report.json
 
+      - name: Comparar avaliação ampliada com o baseline
+        if: always() && steps.deps.outcome == 'success'
+        run: >-
+          python -m tests.test_genai_regression --expanded
+          --baseline reports/expanded-regression-baseline.json
+          --output reports/expanded-regression-report.json
+
       - name: Publicar relatórios GenAI
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: genai-reports-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ai-agent/reports/
+          path: |
+            ai-agent/reports/expanded-regression-report.json
+            ai-agent/reports/expanded-regression-baseline.json
+            ai-agent/reports/backend-evaluation-baseline.json
           if-no-files-found: ignore
           retention-days: 14
 
@@ -125,7 +135,25 @@ jobs:
         run: psql --host localhost --port 5432 --username venergy_test --dbname v_energy_test --file scripts/prepare_test_postgres.sql
 
       - name: Executar testes e verificar drift entre modelos e migrações
-        run: python -m pytest -q
+        run: python -m pytest -q --junitxml="$RUNNER_TEMP/backend-quality.private.xml"
+
+      - name: Comparar fronteiras GenAI do Backend
+        if: success() || failure()
+        working-directory: ai-agent
+        run: >-
+          python -m tests.test_genai_regression
+          --backend-junit "$RUNNER_TEMP/backend-quality.private.xml"
+          --baseline reports/backend-evaluation-baseline.json
+          --output "$RUNNER_TEMP/backend-evaluation.json"
+
+      - name: Publicar avaliação sanitizada do Backend
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-evaluation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backend-evaluation.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Validar compilação Python
         run: python -m compileall -q app tests scripts

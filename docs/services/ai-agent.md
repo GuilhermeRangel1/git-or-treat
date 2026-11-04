@@ -407,6 +407,8 @@ Esses exemplos não são respostas esperadas; os números só podem ser preenchi
 
 ## Avaliação
 
+O diferencial IA-08 amplia o runner existente com `--expanded` e comparação por categoria via `--baseline`. A avaliação com Gemini usa opt-in e agregados artificiais, e a prova Gold privada tem reconciliação própria. Consulte [comandos, baselines e evidências](../plans/2026-11-03-ia08-avaliacao-ampliada.md).
+
 Preparar casos representativos para consumo, faturamento, rede, atendimento, geografia, classe, GD e perguntas impossíveis. Conferir correção numérica e recusa adequada. IA-08 é diferencial de automação; mesmo sem ele, evidência manual reproduzível é necessária para IA-01 a IA-06.
 
 ## Preparação da identidade de publicação Gold — 28/10/2026
