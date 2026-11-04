@@ -241,3 +241,20 @@ def test_public_route_restores_only_valid_reference_before_coordination(
         assert kwargs["expected_batch_ref"] == "batch"
         assert kwargs["request_deadline"] is not None
         assert "continuation_token" not in forwarded.model_dump()
+
+
+def test_unique_rank_result_becomes_signed_entity_anchor():
+    from app.services.genai_continuation import ranked_result_anchor
+    ranked = plan().model_copy(update={
+        "filters": (), "group_by_dimension_ids": ("geography.municipality",),
+        "order": ReadOrder(field_id="billing.revenue", direction="desc"), "limit": 1,
+    })
+    anchor = ranked_result_anchor(ranked, [{"municipality": "RECIFE", "value": 100}])
+    assert anchor.filters[0].values == ("RECIFE",)
+    assert anchor.order is None and anchor.group_by_dimension_ids == ()
+    assert anchor.window == ranked.window
+    assert "RECIFE" in canonical_question(anchor)
+    assert ranked_result_anchor(ranked, []) == ranked
+    assert ranked_result_anchor(ranked, [{"municipality": "RECIFE"}] * 2) == ranked
+    assert ranked_result_anchor(ranked.model_copy(update={"limit": 2}),
+                                [{"municipality": "RECIFE"}]) != anchor

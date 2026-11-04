@@ -297,6 +297,20 @@ class QuestionInterpreter:
         previous_intent = self._previous_intent(turns)
         if previous_intent is not None and not self._is_follow_up(question, previous_intent):
             previous_intent = None
+        if previous_intent is not None:
+            for dimension in self._profile.dimensions:
+                value = previous_intent.filters.get(dimension.id)
+                if isinstance(value, str):
+                    for alias in dimension.aliases:
+                        question = re.sub(
+                            rf"\b(?:nesse|neste|nessa|nesta)\s+{re.escape(alias)}\b",
+                            lambda match, label=alias, name=value: f"no {label} {name}",
+                            question, flags=re.IGNORECASE,
+                        )
+            question = re.sub(
+                r"\b(?:no|nesse|neste)\s+mesmo\s+m[eê]s\b", "",
+                question, flags=re.IGNORECASE,
+            )
         return self._interpret(question, previous_intent)
 
     def _pending_period_question(self, context: list[ConversationTurn]) -> str | None:

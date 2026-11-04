@@ -4075,3 +4075,9 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 
 - README reúne pré-requisitos, carga Gold, verificações e caminho da demonstração sintética; [roteiro](demo-roteiro.md) cobre as jornadas e condições de ensaio. [Status report](status-report.md) registra atualização e bloqueios sem alterar o corte histórico.
 - Evidência operacional existente: [runbook Docker](plans/2026-11-04-docker-gold-inicializacao.md) e [Workflow](../data-engineering/evidencias/workflow/run-limpo-250327107715287.md). Falta ensaio completo por outra pessoa, revisão analítica/narrativa e confirmação de publicação. Estados ENT preservados; documentação preparada não comprova o critério de execução independente.
+
+
+### 2026-11-04 — IA-01/IA-03/IA-07 — entidade do ranking
+
+- A continuação assinada pode representar a entidade de um ranking com limite um e uma única linha autorizada, após a validação da visualização; rankings maiores, vazios e comparações não viram seleção implícita. A troca de indicador reaproveita o filtro e o período, com novo planejamento e autorização. Sem contexto válido, referências demonstrativas continuam pedindo esclarecimento.
+- Verificações registradas para essa continuação: testes dirigidos do Backend e do GenAI, além de uma consulta autenticada ao fluxo público. Esta evidência se refere ao suporte de contexto para perguntas de acompanhamento; não altera nem certifica valores ou fórmulas do catálogo Gold.
