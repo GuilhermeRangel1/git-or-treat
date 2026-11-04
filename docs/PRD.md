@@ -254,7 +254,7 @@ Para GenAI Gold v2, Comercial tem as cinco métricas de faturamento/energia e Op
 | IA-05 | Obrigatório | Em validação | **Agente acessível no portal.** Pessoa usuária conversa com a IA sem trocar de ferramenta; erros e indisponibilidade são comunicados. |
 | IA-06 | Obrigatório | Pendente | **Somente leitura e limites.** IA não altera dados, não executa SQL arbitrário fora do esquema autorizado e responde “não sei”/explica insuficiência quando a evidência falta. Testes demonstram bloqueio de escrita e de perguntas fora do escopo. |
 | IA-07 | Diferencial | Concluído | **Follow-up com contexto.** Usuário faz pergunta complementar e o agente mantém período, métrica e filtros relevantes sem confundir conversas. |
-| IA-08 | Diferencial | Pendente | **Avaliação automática.** Conjunto versionado de perguntas e resultados esperados mede correção numérica, fundamentação e recusa adequada, com relatório de regressão. |
+| IA-08 | Diferencial | Em validação | **Avaliação automática.** Conjunto versionado de perguntas e resultados esperados mede correção numérica, fundamentação e recusa adequada, com relatório de regressão. |
 
 ### 6.4 Diagnóstico, documentação e entrega — ENT
 
@@ -3959,3 +3959,11 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 - Backend na imagem real: 63 testes dirigidos passaram, um aviso preexistente Starlette/httpx; EvidenceGuard: 39 passaram. Runtime: todos os componentes prontos, geração configurada. CI do head revisado: cinco checks aprovados, execução `41751055858`. Não se atribui a esta rodada uma suíte local completa nem todas as jornadas históricas.
 - A pendência anterior de resposta Admin de Continuidade foi superada para os recortes observados testados. Guarda local agora exige estado `NAO_CERTIFICADA`, competência e alimentador exatos, registros datados existentes e linhagem correspondente no mesmo snapshot; `PARCIAL`, `AUSENTE`, ausência da linha ou linhagem divergente são recusados como falta de evidência. 23 testes focados passaram; Ruff não está disponível na imagem local. A jornada Gold/Gemini não foi repetida após a guarda, WEB-10 segue Em validação. Revisão Standards sem bloqueador material; atribuição redundante de `quality_audit` foi removida.
 - Matriz documental de Admin corrigida para refletir as treze métricas analíticas que já existiam na develop, preservadas pela WEB-10; nenhum grant foi ampliado. Evidências, comandos e limites em [WEB-10](plans/2026-11-01-web10-perfis-evidencias.md). Sem commit, push ou merge desta revalidação.
+
+
+### 2026-11-03 — IA-08 — avaliação ampliada e fronteiras WEB-10
+
+- IA-08 de `Pendente` para `Em validação`. O runner existente compara relatórios por categoria e mantém falhas conhecidas, casos omitidos e erros do avaliador visíveis. A matriz fixa os recortes e valores artificiais esperados para Receita, Consumo, Atendimento e Continuidade, além de recusa, ausência e falhas de fonte ou provedor.
+- Avaliação offline com 160/163 e três falhas legadas conhecidas. Fronteiras do Backend com 45/45 checks. Amostra de provedor real com agregados artificiais passou em 6/6. Receita, DEC e FEC reconciliados separadamente na Gold v2 privada.
+- O teste com as duas credenciais revelou a tentativa de ler cobertura pelo leitor restrito. A guarda passou para o snapshot da prontidão operacional e o executor permanece com o leitor dedicado. A publicação é conferida nos dois snapshots.
+- Comandos, limites, baseline e amostra em [IA-08](plans/2026-11-03-ia08-avaliacao-ampliada.md). Pessoa usuária validou a amostra e o limiar local em 04/11/2026. Suíte GenAI completa após a correção do runner: 4.488 testes aprovados e 5 skips; os casos finais do envelope do avaliador passaram em suíte dirigida de 52 testes. Backend dirigido: 118 testes aprovados. Resta observar a publicação do relatório sanitizado no CI.
