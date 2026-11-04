@@ -27,13 +27,30 @@ def test_domain_questions_preserve_requested_metric(question, metric):
         assert result["plan"]["group_by_dimension_ids"] == ["generation.distributed"]
 
 
-def test_total_gd_count_plans_ranking_without_drop_criterion():
-    result = _plan("Qual município tem mais unidades com GD?", extra_coverage=[
+@pytest.mark.parametrize("question", [
+    "Qual município tem mais unidades com GD?",
+    "Qual município tem mais unidades com geração distribuída?",
+    "Qual município tem mais UCs com geração distribuída?",
+])
+def test_total_gd_count_plans_ranking_without_drop_criterion(question):
+    result = _plan(question, extra_coverage=[
         {"metric_id": "energy.gd_units", "kind": "none"},
     ])
     assert result["status"] == "planned", result["response"]["message"]
     assert result["plan"]["metric_id"] == "energy.gd_units"
     assert result["plan"]["group_by_dimension_ids"] == ["geography.municipality"]
+
+
+def test_natural_gd_drop_question_does_not_treat_threshold_as_unknown_location():
+    result = _plan(
+        "Quantas UCs com GD em Olinda reduziram o consumo em mais de 30%?",
+        extra_coverage=[{"metric_id": "energy.gd_consumption_drop", "kind": "none"}],
+    )
+    assert result["status"] == "needs_clarification", result
+    assert result["plan"] is None
+    assert "Não reconheci esse local" not in result["response"]["message"]
+    assert "queda de consumo acima de 30%" in result["pending_question"]
+    assert "município Olinda" in result["pending_question"]
 
 
 def test_explicit_ticket_and_revenue_remain_two_indicators():

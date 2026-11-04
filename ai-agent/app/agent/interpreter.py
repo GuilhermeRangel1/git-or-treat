@@ -584,6 +584,8 @@ class QuestionInterpreter:
         filter_question = detail_question
         value_question = question
         location_question = question
+        if selected_metric is not None and selected_metric.id == "energy.gd_consumption_drop":
+            location_question = detail_question
         if grouping_allowed:
             # O nome da dimensão no pedido de contribuição não é um valor de filtro.
             filter_question = self._without_grouping_reference(filter_question, breakdown)

@@ -251,7 +251,10 @@ _BUSINESS_METRICS["energy.gd_consumption_drop"] = (
 _GD_SNAPSHOT = "cadastro de GD no lote"
 _BUSINESS_METRICS["energy.gd_units"] = (
     "Unidades com GD no lote",
-    "Conta uma vez cada UC com GD registrada na população do lote; não informa vigência histórica nem origem solar.",
+    (
+        "Conta uma vez cada UC com GD registrada na população do lote; "
+        "não informa vigência histórica nem origem solar."
+    ),
 )
 
 def _metric(
@@ -518,7 +521,11 @@ _METRICS += (
         **_metric(
             "energy.gd_consumption_drop",
             "consumption",
-            ("queda de consumo acima de 30%", "queda de consumo superior a 30%"),
+            (
+                "queda de consumo acima de 30%",
+                "queda de consumo superior a 30%",
+                "reduziram o consumo em mais de 30%",
+            ),
             "UCs",
             ("count",),
             ("geography.municipality", "generation.distributed"),
@@ -546,7 +553,8 @@ _METRICS += (
         **_metric(
             "energy.gd_units", "consumption",
             ("quantas unidades com GD", "quantas UCs com GD", "unidades com GD",
-             "contagem de unidades com GD", "quantas unidades com geração distribuída"),
+             "contagem de unidades com GD", "quantas unidades com geração distribuída",
+             "unidades com geração distribuída", "UCs com geração distribuída"),
             "UCs", ("count",), ("geography.municipality", "generation.distributed"),
             ("Retrato cadastral do lote, sem vigência histórica; GD não confirma origem solar.",),
             accumulated=True,
