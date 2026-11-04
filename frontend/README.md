@@ -1,5 +1,7 @@
 # Frontend — Grid360
 
+> **Operação atual:** consulte o [README principal](../README.md#executar-localmente-com-docker) e o [runbook Docker](../docs/plans/2026-11-04-docker-gold-inicializacao.md). Seções históricas abaixo descrevem estágios anteriores ou demonstrações específicas, não necessariamente o Compose atual.
+
 SPA React + TypeScript + Vite, com Tailwind CSS e ícones Lucide. A sidebar, o Panorama e as jornadas disponíveis seguem o Figma nos temas claro/escuro, com navegação mobile. O Assistente já envia perguntas pelo Backend para o serviço GenAI usando o contrato v1; a demonstração usa evidências artificiais e não substitui integração com Gold.
 
 A [arquitetura](../docs/architecture/frontend.md) define responsabilidades, dependências, tema, transporte HTTP e política de estado. A escolha está registrada na [ADR-0001](../docs/decisions/0001-arquitetura-frontend.md). O [PRD](../docs/PRD.md) governa os critérios funcionais.

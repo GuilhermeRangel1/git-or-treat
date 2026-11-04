@@ -1,5 +1,7 @@
 # Agente de IA
 
+> **Operação atual:** consulte o [README principal](../README.md#executar-localmente-com-docker) e o [runbook Docker](../docs/plans/2026-11-04-docker-gold-inicializacao.md). Seções históricas abaixo descrevem estágios anteriores ou demonstrações específicas, não necessariamente o Compose atual.
+
 Este diretório contém o serviço FastAPI isolado que serve de base ao agente analítico e aos insights. Há endpoints para perguntas e para insights com contexto de tela estruturado; os adaptadores Gemini e Groq são opcionais. A rota `/assistente` do portal encaminha perguntas pelo Backend até este serviço. As evidências continuam sintéticas, sem integração com Gold. Contrato e critérios: [guia do serviço](../docs/services/ai-agent.md), [contrato de chat](../docs/contracts/genai-chat-api.md) e [PRD](../docs/PRD.md).
 
 Os endpoints podem ser exercitados localmente com adaptadores simulados. Resultados sintéticos demonstram fluxo e contrato, não números reais nem requisitos concluídos no PRD.

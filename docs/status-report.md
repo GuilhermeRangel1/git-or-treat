@@ -46,3 +46,9 @@ Corte em 03/11/2026, um dia antes da entrega final (04/11). Cobre a camada de da
 | Entrega final no repositório | 04/11 | Grupo | `develop` revisada |
 | Prévia | 05/11 | Grupo | Apresentação |
 | Banca | 10/11 | Grupo | Demonstração ao vivo |
+
+## Atualização operacional — 04/11/2026
+
+O corte analítico acima permanece histórico; não implica aprovação da narrativa executiva. A composição Docker Gold v2, cinco perfis locais e uma pergunta Gold/Gemini com evidência foram verificados em 04/11 conforme o [runbook](plans/2026-11-04-docker-gold-inicializacao.md). O [roteiro de demonstração](demo-roteiro.md) prepara as jornadas, mas ainda falta ensaio integral por outra pessoa e reconciliação da pergunta com a tela no mesmo lote durante esse ensaio. O PRD mantém os estados oficiais.
+
+Bloqueios para entrega: revisão do diagnóstico e narrativa executiva; confirmação da organização sobre publicação de material do case; demonstração e aceite independente do README; confirmação do vínculo entre o lote exibido e a evidência do Workflow. A estimativa por UC e a cobertura devem ser apresentadas conforme o estado efetivamente publicado, sem assumir certificação por alimentador. Os marcos acima são o plano do corte de 03/11, não comprovam entrega ou apresentação realizadas.

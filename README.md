@@ -61,32 +61,62 @@ O pipeline Bronze → Silver → Gold roda inteiro no Databricks (PySpark, arqui
 
 ## Executar localmente com Docker
 
-A execução padrão inicia PostgreSQL, carga Gold v2, Backend, GenAI e portal compilado no projeto `git-or-treat`. Fonte inválida impede o início da API, sem fallback sintético. Os ambientes antigos e seus volumes são preservados.
+**Pré-requisitos:** Windows com PowerShell, Docker Desktop e Compose ativos, portas 5173 e 8000 livres e pacote Gold v2 autorizado, obtido por canal privado. A pasta deve conter `manifest.json` e quinze diretórios analíticos; cadastro pareado é opcional. A primeira carga pode levar vários minutos e requer espaço para imagens e banco. Para respostas do assistente, configure chave Gemini e somente controles Gold já aprovados. Não inclua pacotes ou segredos no Git.
+
+O [roteiro de demonstração](docs/demo-roteiro.md) reúne verificações e jornadas. Para gerar a Gold no Databricks, siga o [guia de dados](data-engineering/README.md); o Compose consome uma exportação existente.
+
+### Passo a passo: execução integrada com Gold
+
+1. Instale Git e Docker Desktop, inicie o Docker Desktop e aguarde o engine ficar disponível. No PowerShell, confira `git --version`, `docker --version` e `docker compose version`; `docker info` deve terminar sem erro. Os serviços são construídos pelo Docker: não é preciso instalar Python ou Node no computador para este caminho.
+2. Clone o repositório e entre na pasta criada:
+
+   ```powershell
+   git clone https://github.com/GuilhermeRangel1/git-or-treat.git
+   cd git-or-treat
+   ```
+
+3. Solicite à equipe, por canal autorizado, o pacote exportado Gold v2. Extraia-o em uma pasta local acessível ao Docker. Confirme que o arquivo `manifest.json` está diretamente nessa pasta, junto aos quinze diretórios analíticos. O cadastro opcional deve estar em `cadastro_titular_uc/` com manifesto pareado. Sem o pacote não é possível executar esta modalidade; use a demo sintética abaixo para explorar fila e ordens.
+4. Na raiz do repositório, substitua o caminho de exemplo pela pasta que contém o manifesto e execute:
+
+   ```powershell
+   .\scripts\configure-docker.ps1 -GoldDirectory "C:\caminho\para\data" -PresentationAccounts
+   ```
+
+   O comando cria `.env` local com segredos. Ele recusa sobrescrever um `.env` existente: nesse caso preserve-o e confira as configurações antes de continuar. A opção de apresentação cria as contas locais `admin`, `comercial`, `atendimento`, `perdas` e `operacao`, todas com senha `senha123`, apenas se ainda não existirem. Sem a opção, senhas geradas ficam em `work/local-auth/credentials.txt`; contas existentes não são alteradas.
+5. Para testar o assistente, abra o `.env` local em um editor, preencha `GENAI_GEMINI_API_KEY` e configure `GENAI_GOLD_APPROVED_CONTROLS` somente com controles previamente aprovados. Sem chave ou controles aplicáveis, a geração pode ficar indisponível; a aplicação não muda para dados sintéticos. Não compartilhe nem versione o `.env` ou as credenciais.
+6. Construa e inicie a composição, na raiz:
+
+   ```powershell
+   docker compose up --build -d
+   docker compose ps -a
+   docker compose logs -f gold-loader
+   ```
+
+   A primeira carga pode levar vários minutos. Saia da visualização de logs com Ctrl+C: isso não interrompe os serviços. Em `docker compose ps -a`, aguarde `gold-loader` terminar com código 0 e os serviços permanentes ficarem saudáveis. Se falhar, veja `docker compose logs --tail 100 gold-loader backend ai-agent`; corrija a causa e repita a subida. Portas 5173 e 8000 devem estar livres.
+7. Abra [o portal](http://localhost:5173), entre com a conta do perfil necessário e siga o [roteiro de demonstração](docs/demo-roteiro.md). A saúde da API está em http://localhost:8000/api/v1/health. O banco fica apenas na rede interna Docker. Para gerar a exportação, consulte o [guia de dados](data-engineering/README.md): o Compose não executa o Workflow Databricks.
+8. Ao terminar, execute `docker compose down`. Isso preserva o volume e as contas; preserve também o `.env`, cujas credenciais correspondem ao banco. Não use `down -v` para corrigir inicialização. Para iniciar novamente, use `docker compose up -d`.
+
+### Demonstração sintética
+
+No Windows, para explorar fila e ordens sem pacote Gold, instale Python 3.12 e Node.js 22 e, na raiz do repositório, execute:
 
 ```powershell
-.\scripts\configure-docker.ps1 -GoldDirectory C:\caminho\para\data -PresentationAccounts
-# Configure GENAI_GEMINI_API_KEY e somente controles já aprovados no .env local.
-docker compose up --build -d
-docker compose ps -a
+py -3.12 -m venv backend\.venv
+.\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+npm --prefix frontend ci
+.\scripts\start-orders-demo.ps1
 ```
 
-O configurador gera segredos distintos no `.env` ignorado pelo Git e não sobrescreve configuração existente. O loader prepara automaticamente migrações, carga idempotente, papéis restritos e contas. A opção local `-PresentationAccounts` cria `admin`, `comercial`, `atendimento`, `perdas` e `operacao` com a senha de apresentação aprovada `senha123`. Sem a opção, senhas aleatórias ficam em `work/local-auth/credentials.txt`. Contas existentes nunca têm senha ou perfil substituídos. O cadastro opcional exige seu manifesto em `cadastro_titular_uc/`, pareado com o analítico; não é concedido à GenAI.
-
-| Serviço | Endereço | Execução |
-| --- | --- | --- |
-| Portal | http://localhost:5173 | Nginx com build estático e proxy da API |
-| API | http://localhost:8000/api/v1 | Sessão individual, fonte Gold v2 |
-| Banco | Rede interna Docker, porta 5432 | Sem porta publicada no host |
-
+Abra http://localhost:5173/inspecoes, escolha uma suspeita e crie uma ordem; acompanhe em http://localhost:5173/ordens. Os dados são artificiais e não estão conectados à Gold; as ordens ficam em SQLite local. O script informa conflito de portas e aceita `-BackendPort 8010 -FrontendPort 5180`; nesse caso use a porta 5180 no navegador. Logs e identificação dos processos ficam em `work/dev06-demo/`. A demo não comprova o assistente ou o diagnóstico real. Detalhes no [guia do frontend](frontend/README.md#abrir-ordens-dev-06-com-persistência-local). `docker-compose.ci.yml` é para smoke descartável de CI.
 O portal normal não usa polling, Node ou HMR em runtime; a API não usa reload. Para editar com HMR, use explicitamente `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d`; a fonte permanece Gold v2. Volte ao comando normal para retornar ao portal compilado. A falta de chave impede a geração de respostas, sem substituir a fonte por demonstração. O PostgreSQL tem teto local de 512 MiB; `POSTGRES_MEMORY_LIMIT=1g` no `.env` permite ampliá-lo para cargas maiores.
 
 Use `docker compose logs -f gold-loader` durante a carga e `docker compose logs -f backend` para a API. `docker compose down` preserva o volume `git-or-treat_pgdata16`; não use `down -v` para corrigir inicialização. Preserve também o `.env`, pois ele contém as credenciais desse volume. A composição é HTTP local, não uma publicação pública com HTTPS. [Fluxo, limites e evidências](docs/plans/2026-11-04-docker-gold-inicializacao.md).
 
 ## Preparação dos agentes
 
-Codex, Claude Code e Antigravity compartilham os `AGENTS.md`, as skills compatíveis em `.agents/skills/` e os scripts em `.hooks/`. Cada cliente tem configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e nenhum item funcional foi concluído nesta fase.
+Codex, Claude Code e Antigravity compartilham os `AGENTS.md`, as skills compatíveis em `.agents/skills/` e os scripts em `.hooks/`. Cada cliente tem configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e de seus estados.
 
-O GitHub Actions em `.github/workflows/quality.yml` roda em pull requests, na branch `main` e manualmente. Por enquanto, valida configurações dos agentes (incluindo hooks e MCPs do Antigravity), imports compartilhados, links locais da documentação e sintaxe dos hooks. Ele não implementa funcionalidades nem cria branches ou pull requests.
+O GitHub Actions em `.github/workflows/quality.yml` roda em pull requests, na branch `main` e manualmente. Ele executa verificações por módulo e de documentação; consulte o workflow para a lista vigente de jobs.
 
 ### Compatibilidade do volume PostgreSQL local
 
