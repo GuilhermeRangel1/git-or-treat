@@ -51,8 +51,8 @@ export type GoldInspectionItem = {
   feeder_id: string | null;
   category: string | null;
   reason: string | null;
-  potential_recoverable_energy_kwh: null;
-  recovery_unavailable_reason: string;
+  potential_recoverable_energy_kwh: number | null;
+  recovery_unavailable_reason: string | null;
   evidence: {
     inspections_performed: number | null;
     confirmed_irregular_inspections: number | null;
@@ -66,6 +66,15 @@ export type GoldInspectionItem = {
     historical_recovery_interval_upper_kwh: number | null;
     historical_recovery_reference: string | null;
     historical_recovery_status: string | null;
+    estimated_recoverable_energy_kwh: number | null;
+    recovery_interval_lower_kwh: number | null;
+    recovery_interval_upper_kwh: number | null;
+    recovery_estimate_status: string | null;
+    recovery_estimate_method: string | null;
+    recovery_estimate_confidence_level: number | null;
+    recovery_estimate_window_anchor: string | null;
+    recovery_estimate_window_months: number | null;
+    recovery_estimate_minimum_window_months: number | null;
   };
   variation: GoldInspectionVariation | null;
 };
@@ -99,7 +108,7 @@ export type GoldQueueEnvelope = {
       total_units: number;
       categories: Record<string, number>;
       uncategorized_units: number;
-      estimated_units: 0;
+      estimated_units: number;
       unavailable_estimate_units: number;
     };
   };
@@ -303,7 +312,7 @@ function goldVariation(value: unknown): GoldInspectionVariation {
 }
 function goldItem(value: unknown): GoldInspectionItem {
   const row = record(value);
-  if (row.potential_recoverable_energy_kwh !== null) invalid();
+  const estimate = nullable(row.potential_recoverable_energy_kwh);
   const queue_position = number(row.queue_position);
   if (!Number.isSafeInteger(queue_position) || queue_position < 1) invalid();
   const evidence = record(row.evidence);
@@ -312,6 +321,63 @@ function goldItem(value: unknown): GoldInspectionItem {
     if (result !== null && result < 0) invalid();
     return result;
   };
+  const recoveryEstimate = nullableNonNegative(
+    evidence.estimated_recoverable_energy_kwh ?? null,
+  );
+  const intervalLower = nullableNonNegative(
+    evidence.recovery_interval_lower_kwh ?? null,
+  );
+  const intervalUpper = nullableNonNegative(
+    evidence.recovery_interval_upper_kwh ?? null,
+  );
+  const confidenceLevel = nullableNonNegative(
+    evidence.recovery_estimate_confidence_level ?? null,
+  );
+  const validationWindowAnchor =
+    evidence.recovery_estimate_window_anchor == null
+      ? null
+      : goldMonth(evidence.recovery_estimate_window_anchor);
+  const validationWindowMonths =
+    evidence.recovery_estimate_window_months == null
+      ? null
+      : nullableCount(evidence.recovery_estimate_window_months);
+  const validationMinimumWindowMonths =
+    evidence.recovery_estimate_minimum_window_months == null
+      ? null
+      : nullableCount(evidence.recovery_estimate_minimum_window_months);
+  const unavailableReason =
+    row.recovery_unavailable_reason === undefined
+      ? "Estimativa individual indisponível nesta publicação anterior."
+      : nullableText(row.recovery_unavailable_reason);
+  const estimateStatus =
+    evidence.recovery_estimate_status == null
+      ? null
+      : string(evidence.recovery_estimate_status);
+  const estimateMethod =
+    evidence.recovery_estimate_method == null
+      ? null
+      : string(evidence.recovery_estimate_method);
+  if (estimate !== recoveryEstimate) invalid();
+  if (estimate === null) {
+    if (!unavailableReason?.trim()) invalid();
+  } else if (
+    unavailableReason !== null ||
+    intervalLower === null ||
+    intervalUpper === null ||
+    intervalLower > estimate ||
+    estimate > intervalUpper ||
+    estimateStatus !== "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA" ||
+    estimateMethod !== "CONSUMO_CONDICIONAL_V1" ||
+    confidenceLevel !== 0.9 ||
+    validationWindowAnchor === null ||
+    validationWindowMonths === null ||
+    validationWindowMonths <= 0 ||
+    validationMinimumWindowMonths === null ||
+    validationMinimumWindowMonths <= 0 ||
+    validationMinimumWindowMonths > validationWindowMonths
+  ) {
+    invalid();
+  }
   if (
     row.variation !== null &&
     (!row.variation ||
@@ -328,8 +394,8 @@ function goldItem(value: unknown): GoldInspectionItem {
     feeder_id: nullableText(row.feeder_id),
     category: nullableText(row.category),
     reason: nullableText(row.reason),
-    potential_recoverable_energy_kwh: null,
-    recovery_unavailable_reason: string(row.recovery_unavailable_reason),
+    potential_recoverable_energy_kwh: estimate,
+    recovery_unavailable_reason: unavailableReason,
     evidence: {
       inspections_performed: nullableNonNegative(
         evidence.inspections_performed,
@@ -372,6 +438,15 @@ function goldItem(value: unknown): GoldInspectionItem {
         evidence.historical_recovery_status == null
           ? null
           : string(evidence.historical_recovery_status),
+      estimated_recoverable_energy_kwh: recoveryEstimate,
+      recovery_interval_lower_kwh: intervalLower,
+      recovery_interval_upper_kwh: intervalUpper,
+      recovery_estimate_status: estimateStatus,
+      recovery_estimate_method: estimateMethod,
+      recovery_estimate_confidence_level: confidenceLevel,
+      recovery_estimate_window_anchor: validationWindowAnchor,
+      recovery_estimate_window_months: validationWindowMonths,
+      recovery_estimate_minimum_window_months: validationMinimumWindowMonths,
     },
     variation: row.variation === null ? null : goldVariation(row.variation),
   };
@@ -421,11 +496,10 @@ function goldQueue(value: Record<string, unknown>): GoldQueueEnvelope {
     page_size < 1 ||
     total !== summary.total_units ||
     total_pages !== Math.ceil(total / page_size) ||
-    summary.estimated_units !== 0 ||
     summary.uncategorized_units +
       Object.values(categoryCounts).reduce((sum, count) => sum + count, 0) !==
       total ||
-    summary.unavailable_estimate_units !== total ||
+    summary.estimated_units + summary.unavailable_estimate_units !== total ||
     data.items.length > page_size ||
     data.items.length > total
   )
@@ -435,7 +509,7 @@ function goldQueue(value: Record<string, unknown>): GoldQueueEnvelope {
       items: data.items.map(goldItem),
       filter_options,
       neighborhoods,
-      summary: { ...summary, estimated_units: 0 },
+      summary,
     },
     pagination: { page, page_size, total, total_pages },
     metadata: decodeGoldMetadata(value.metadata),

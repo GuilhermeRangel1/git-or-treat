@@ -1,6 +1,11 @@
 from app.repositories.analytics import AnalyticsRepository
 from app.repositories.gold_inspections import GoldInspectionRepository
-from app.services.gold_inspections import comparison_from_rows, investigation_potential_from_rows
+from app.services.gold_inspections import (
+    _recoverable_estimate,
+    _recovery_validation,
+    comparison_from_rows,
+    investigation_potential_from_rows,
+)
 from app.schemas.analytics import AnalyticsFilters, AnalyticsSource, AnalyticsStatus
 from app.schemas.gold import GoldMetadata
 from app.schemas.inspection_queue import (
@@ -160,13 +165,14 @@ GOLD_INSPECTION_LIMITATIONS = [
     "A fila é um snapshot cadastral sem competência mensal de triagem.",
     "A categoria reproduz a classificação Gold e não representa uma ordem de despacho nem uma probabilidade.",
     "REVISAR permanece uma categoria própria; a API não a converte em outra prioridade.",
-    "A extração não publica energia recuperável; nenhum valor é estimado.",
+    "Estimativa condicional de energia a recuperar se a irregularidade se confirmar; não garante recuperação na UC.",
     "Variação compara as janelas fixas jul/2022–jun/2023 e jul/2025–jun/2026 e não estima recuperação.",
 ]
 GOLD_RECOVERY_UNAVAILABLE_REASONS = {
     "ESTIMATIVA_UC_INDISPONIVEL": "A Gold publica apenas referência histórica por inspeção; não estima recuperação para esta UC.",
     "BASE_INSUFICIENTE": "A base histórica é insuficiente para validar a referência de recuperação.",
     "CANDIDATO_REPROVADO_NA_VALIDACAO_TEMPORAL": "A referência de recuperação não passou na validação temporal.",
+    "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA": "Os metadados da estimativa individual não passaram na validação temporal esperada.",
 }
 
 
@@ -191,6 +197,7 @@ def _gold_metadata(repository: GoldInspectionRepository, state: AnalyticsStatus,
 
 
 def _gold_item(row: dict) -> GoldInspectionItem:
+    estimated_energy, validation = _recoverable_estimate(row)
     variation = None
     if row.get("variation_uc_id") is not None:
         variation = GoldInspectionVariation(
@@ -206,7 +213,11 @@ def _gold_item(row: dict) -> GoldInspectionItem:
         class_name=row["classe"], feeder_id=row["alimentador"],
         category=row["prioridade_inspecao"], reason=row["motivo_prioridade"],
         queue_position=row["posicao_fila_inspecao"],
-        recovery_unavailable_reason=_gold_recovery_unavailable_reason(row["estado_estimativa_recuperacao"]),
+        potential_recoverable_energy_kwh=estimated_energy,
+        recovery_unavailable_reason=(
+            None if estimated_energy is not None
+            else _gold_recovery_unavailable_reason(row["estado_estimativa_recuperacao"])
+        ),
         evidence=GoldInspectionEvidence(
             inspections_performed=row["total_inspecoes_realizadas"],
             confirmed_irregular_inspections=row["total_inspecoes_irregulares"],
@@ -220,11 +231,27 @@ def _gold_item(row: dict) -> GoldInspectionItem:
             historical_recovery_interval_upper_kwh=row["intervalo_historico_recuperacao_superior_kwh"],
             historical_recovery_reference=row["referencia_media_historica_recuperacao"],
             historical_recovery_status=row["estado_media_historica_recuperacao"],
-            estimated_recoverable_energy_kwh=row["energia_estimada_recuperavel_kwh"],
-            recovery_interval_lower_kwh=row["intervalo_recuperacao_inferior_kwh"],
-            recovery_interval_upper_kwh=row["intervalo_recuperacao_superior_kwh"],
-            recovery_estimate_status=row["estado_estimativa_recuperacao"],
-            recovery_estimate_method=row["metodo_estimativa_recuperacao"],
+            estimated_recoverable_energy_kwh=estimated_energy,
+            recovery_interval_lower_kwh=(
+                row["intervalo_recuperacao_inferior_kwh"]
+                if estimated_energy is not None else None
+            ),
+            recovery_interval_upper_kwh=(
+                row["intervalo_recuperacao_superior_kwh"]
+                if estimated_energy is not None else None
+            ),
+            recovery_estimate_status=(
+                row["estado_estimativa_recuperacao"]
+                if validation is not None else None
+            ),
+            recovery_estimate_method=(
+                row["metodo_estimativa_recuperacao"]
+                if validation is not None else None
+            ),
+            recovery_estimate_confidence_level=(validation["confidence_level"] if validation else None),
+            recovery_estimate_window_anchor=(validation["window_anchor"] if validation else None),
+            recovery_estimate_window_months=(validation["window_months"] if validation else None),
+            recovery_estimate_minimum_window_months=(validation["minimum_window_months"] if validation else None),
         ), variation=variation,
     )
 
@@ -248,6 +275,11 @@ def build_gold_queue_response(
     category_counts = repository.category_counts(filters)
     rows = repository.list_page(filters, page, page_size, order_by, direction, category)
     items = [_gold_item(row) for row in rows]
+    estimated_units = sum(
+        count
+        for report, count in repository.recovery_estimate_groups(filters, category)
+        if _recovery_validation({"validacao_recuperacao_json": report}) is not None
+    )
     state: AnalyticsStatus = "empty" if total == 0 else "available"
     return GoldInspectionQueueResponse(
         data={
@@ -256,7 +288,8 @@ def build_gold_queue_response(
                 "total_units": total,
                 "categories": {key: count for key, count in category_counts.items() if key is not None},
                 "uncategorized_units": category_counts.get(None, 0),
-                "estimated_units": 0, "unavailable_estimate_units": total,
+                "estimated_units": estimated_units,
+                "unavailable_estimate_units": total - estimated_units,
             },
         },
         pagination={"page": page, "page_size": page_size, "total": total,

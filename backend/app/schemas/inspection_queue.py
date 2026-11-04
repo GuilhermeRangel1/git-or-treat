@@ -116,8 +116,12 @@ class GoldInspectionEvidence(BaseModel):
     estimated_recoverable_energy_kwh: float | None
     recovery_interval_lower_kwh: float | None
     recovery_interval_upper_kwh: float | None
-    recovery_estimate_status: str
+    recovery_estimate_status: str | None
     recovery_estimate_method: str | None
+    recovery_estimate_confidence_level: float | None = None
+    recovery_estimate_window_anchor: str | None = None
+    recovery_estimate_window_months: int | None = None
+    recovery_estimate_minimum_window_months: int | None = None
 
 
 class GoldInspectionItem(BaseModel):
@@ -129,8 +133,8 @@ class GoldInspectionItem(BaseModel):
     category: str | None
     reason: str | None
     queue_position: int
-    potential_recoverable_energy_kwh: None = None
-    recovery_unavailable_reason: str = "A Gold publicada não contém uma estimativa de energia recuperável."
+    potential_recoverable_energy_kwh: float | None = None
+    recovery_unavailable_reason: str | None = None
     evidence: GoldInspectionEvidence
     variation: GoldInspectionVariation | None
 
@@ -139,7 +143,7 @@ class GoldInspectionSummary(BaseModel):
     total_units: int = Field(ge=0)
     categories: dict[str, int]
     uncategorized_units: int = Field(ge=0)
-    estimated_units: int = 0
+    estimated_units: int = Field(default=0, ge=0)
     unavailable_estimate_units: int = Field(ge=0)
 
 

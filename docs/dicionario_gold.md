@@ -492,3 +492,7 @@ Os campos `energia_estimada_recuperavel_kwh`, `intervalo_recuperacao_inferior_kw
 A prioridade existente é preservada. Os limites estatísticos são provisórios e exigem revisão com Dados/Produto e execução no lote real. A issue #47 ainda exige decisão explícita de escopo/aceite caso a referência histórica seja adotada como alternativa ao requisito de estimativa por UC; o código não conclui WEB-04.
 
 O manifesto registra a limitação global de recuperação como `ESTIMATIVA_HISTORICA_CONDICIONAL`; os estados e o relatório por UC determinam se há valor publicável. Essa classificação não transforma uma validação sintética em aceite do método no lote real.
+
+### Atualização da publicação — 03/11/2026
+
+A publicação Gold v2 atualizada contém, para UCs elegíveis, `energia_estimada_recuperavel_kwh`, seus limites e `validacao_recuperacao_json` com o método `CONSUMO_CONDICIONAL_V1`, estado `ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA` e validação temporal candidata de faixa nominal 90%. O portal apresenta esse número somente como estimativa **se a irregularidade se confirmar**; não altera o relatório, `aceite_web04`, os registros ou a cobertura da publicação. UCs sem estimativa elegível continuam nulas, e zero observado continua distinto de ausência. A faixa temporal não garante recuperação daquela UC. Ver o [contrato da fila](contracts/inspection-gold-v2.md) e a [ADR-0024](decisions/0024-recuperacao-condicional-e-continuidade-observada.md). A validação do consumidor não equivale a homologação regulatória nem conclui WEB-04.

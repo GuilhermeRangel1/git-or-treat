@@ -6,7 +6,12 @@ import {
   Search,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { GoldInspectionItem, QueueEnvelope, QueueItem } from "./contract";
+import type {
+  GoldInspectionItem,
+  GoldQueueEnvelope,
+  QueueEnvelope,
+  QueueItem,
+} from "./contract";
 import { energy, formatNumber } from "./format";
 import {
   inspectionAction,
@@ -153,11 +158,40 @@ function GoldItemCard({
             {evidence.join(" · ") || "Sem evidências disponíveis"}
           </p>
         </div>
+        <GoldRecoverySummary item={item} />
       </div>
       <div className="mt-4 grid gap-2">
         <EvidenceLink item={item} params={params} />
       </div>
     </article>
+  );
+}
+
+function GoldRecoverySummary({ item }: { item: GoldInspectionItem }) {
+  const evidence = item.evidence;
+  return (
+    <div aria-label="Energia a recuperar">
+      <p className="text-xs text-muted">Energia a recuperar</p>
+      {item.potential_recoverable_energy_kwh === null ? (
+        <p className="mt-1 leading-5">
+          Indisponível. {item.recovery_unavailable_reason}
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 font-medium">
+            {energy(item.potential_recoverable_energy_kwh)}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            Estimativa se a irregularidade se confirmar.
+            {evidence.recovery_interval_lower_kwh !== null &&
+            evidence.recovery_interval_upper_kwh !== null &&
+            evidence.recovery_estimate_confidence_level !== null
+              ? ` Faixa nominal de ${Math.round(evidence.recovery_estimate_confidence_level * 100)}%: ${energy(evidence.recovery_interval_lower_kwh)} a ${energy(evidence.recovery_interval_upper_kwh)}.`
+              : ""}
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -303,21 +337,24 @@ export default function InspectionQueue({
         <>
           {gold ? (
             <>
-              <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
+              <div className="hidden overflow-hidden rounded-xl bg-surface p-4 md:block">
                 <table className="w-full table-fixed text-left">
                   <caption className="caption-top pb-4 text-left text-sm font-normal text-muted">
                     <span>
-                      Energia recuperável individual indisponível. Consulte o
-                      detalhe para conhecer a limitação de cada UC.
+                      Estimativas condicionais:{" "}
+                      {result.data.summary.estimated_units} UCs disponíveis e{" "}
+                      {result.data.summary.unavailable_estimate_units} sem
+                      estimativa válida.
                     </span>
                     <span className="sr-only">
                       Categorias, motivos, evidências e acesso ao detalhe
                     </span>
                   </caption>
                   <colgroup>
-                    <col className="w-[21%]" />
-                    <col className="w-[25%]" />
-                    <col className="w-[38%]" />
+                    <col className="w-[19%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[27%]" />
                     <col className="w-[16%]" />
                   </colgroup>
                   <thead className="font-sans text-xs leading-[18px] text-muted">
@@ -326,6 +363,7 @@ export default function InspectionQueue({
                         "Posição / UC / categoria",
                         "Motivo",
                         "Evidências publicadas",
+                        "Energia a recuperar",
                         "Ação",
                       ].map((label) => (
                         <th
@@ -354,12 +392,15 @@ export default function InspectionQueue({
                           <p>{item.uc_id}</p>
                           <p>{item.category ?? "Sem categoria"}</p>
                         </th>
-                        <td className="py-3 pr-2">
+                        <td className="break-words py-3 pr-2">
                           {item.reason ?? "Não informado"}
                         </td>
                         <td className="py-3 pr-2 text-muted">
                           {goldEvidence(item).join(" · ") ||
                             "Sem evidências disponíveis"}
+                        </td>
+                        <td className="py-3 pr-2 text-sm">
+                          <GoldRecoverySummary item={item} />
                         </td>
                         <td className="py-1">
                           <EvidenceLink item={item} params={params} />
@@ -371,8 +412,14 @@ export default function InspectionQueue({
               </div>
               <div className="space-y-3 md:hidden">
                 <p className="px-1 text-sm text-muted">
-                  Estimativa individual indisponível. Consulte o detalhe da UC
-                  para conhecer os dados e limites disponíveis.
+                  Estimativas condicionais:{" "}
+                  {(result as GoldQueueEnvelope).data.summary.estimated_units}{" "}
+                  UCs disponíveis e{" "}
+                  {
+                    (result as GoldQueueEnvelope).data.summary
+                      .unavailable_estimate_units
+                  }{" "}
+                  sem estimativa válida.
                 </p>
                 {(items as GoldInspectionItem[]).map((item) => (
                   <GoldItemCard key={item.uc_id} item={item} params={params} />
