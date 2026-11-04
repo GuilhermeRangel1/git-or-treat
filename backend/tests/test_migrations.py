@@ -30,6 +30,32 @@ def test_alembic_revision_graph_has_a_single_head():
     assert len(ScriptDirectory.from_config(config).get_heads()) == 1
 
 
+@pytest.mark.parametrize("starting_revision", ["20261102_cadastro", "genaihistory01"])
+def test_merge_upgrade_from_each_branch_preserves_existing_user(tmp_path, starting_revision):
+    engine = create_engine(f"sqlite:///{tmp_path / 'merge_test.db'}")
+    try:
+        with engine.connect() as connection:
+            connection = connection.execution_options(
+                schema_translate_map={"gold": None, "gold_v2": None, "gold_cadastro": None}
+            )
+            config = alembic_config(connection)
+            command.upgrade(config, starting_revision)
+            connection.execute(text(
+                "INSERT INTO auth_users (id, username, password_hash, permissions, is_active) "
+                "VALUES ('merge-user', 'merge-user', 'unused', '[]', 1)"
+            ))
+            connection.commit()
+            command.upgrade(config, "head")
+            assert connection.execute(text(
+                "SELECT username FROM auth_users WHERE id = 'merge-user'"
+            )).scalar_one() == "merge-user"
+            assert {"ai_conversations", "ai_conversation_exchanges"} <= set(
+                inspect(connection).get_table_names()
+            )
+    finally:
+        engine.dispose()
+
+
 def test_alembic_upgrade_and_downgrade_use_the_explicit_disposable_sqlite_database(
     tmp_path,
 ):

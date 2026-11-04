@@ -77,8 +77,28 @@ python scripts/genai_audit.py --verify-insight-reference <referencia> --insight-
 
 O cookie é solicitado sem eco. A reprodução recalcula o contexto pelo leitor restrito e confronta o digest; escopo diferente, publicação alterada ou filtros adulterados não recebem confirmação. Não reconstruir uma publicação antiga a partir de uma Gold sobrescrita.
 
-No portal, cache Gold inclui origem, lote, fingerprint e atualização, com revalidação na montagem e retorno à janela. Resposta de outro KPI/recorte é rejeitada; atualização em curso, erro e 409 prevalecem sobre sucesso antigo. O cartão usa a receita comparável, moeda brasileira e origem real; hipóteses, fundamento e limitações ficam separados. Demonstração conserva sua marca explícita.
+No portal, cache Gold inclui origem, lote, fingerprint e atualização, com revalidação na montagem e retorno à janela. Resposta de outro KPI/recorte é rejeitada. Uma análise respondida permanece durante a revalidação leve do mesmo contexto; 401/403/409, publicação alterada e contrato inválido invalidam sua apresentação. Falha transitória de transporte preserva somente a última análise desse recorte, identificada como atualização pendente. O cartão usa a receita comparável, moeda brasileira e origem real; hipóteses, fundamento e limitações ficam separados. Demonstração conserva sua marca explícita.
 
 ## Evidência e limites
 
 A prova local de 01/11/2026 usa Gold v2, sessão individual e Gemini, com controle SQL independente e referência reproduzida. Testes controlados complementam comparação, contribuições, zero/ausência/parcial, revogação, falha de auditoria, timeout e concorrência do consumidor. Veja o [registro GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Esse aceite local não certifica produção, fechamento mensal ou causalidade e não conclui automaticamente IA-03/IA-04/IA-05.
+
+
+## Latência e apresentação do cartão (03/11/2026)
+
+O portal mostra a leitura calculada do KPI/distribuição atual enquanto aguarda a hipótese da IA; essa leitura não é geração do modelo. Falhas recuperáveis preservam essa leitura e permitem nova tentativa. Contexto inválido, publicação alterada e recusa não reapresentam a interpretação anterior. A espera HTTP no navegador tem limite de 70 s, cancelamento e limpeza dos recursos locais.
+
+Depois de recalcular e autorizar o contexto, o cliente Backend pode reutilizar síntese respondida por até 120 s (64 entradas em memória por processo). A chave inclui tela, evidência, limitações, escopo/identidade e lote; exclui só o saldo transitório do prazo. O coordenador mantém prontidão, leitura, revalidação e auditoria por requisição antes/depois do reuso. Correlação e auditoria são atuais; erros não são armazenados e escopos distintos não compartilham sínteses. Reinício limpa o cache. A primeira síntese e a prontidão continuam sujeitas à latência do provedor e do lote.
+
+
+A competência e a comparação são os filtros aplicados da página. O cartão informa o mês comparativo mesmo quando seu valor não permite comparação e prioriza a variação temporal válida na leitura imediata. Além do valor atual, o consumidor confere o valor anterior da resposta contra o KPI antes de aceitar a síntese. Os controles de 12/24 meses/todo o histórico limitam a janela visual da série; não alteram os filtros mensais do insight.
+
+
+O retorno inicial do Panorama Gold inclui opcionalmente `distribuicao.composicaoReceita` (dimensão, segmento de maior valor, valor e percentual do total observado), calculada com os grupos já consultados. O mesmo helper de concentração atende ao Panorama e à preparação de síntese, sem nova leitura. O frontend reconcilia a composição contra a distribuição e apresenta o mesmo texto de concentração/próximo passo antes da IA quando não há variação temporal válida. Ausência do campo mantém a leitura compatível do KPI; não habilita inferência de cobertura, bairro não autorizado ou causa.
+
+
+## Permanência da análise pronta (03/11/2026)
+
+Ao retomar foco ou montar novamente um recorte ainda presente no cache em memória, o portal reutiliza o insight Gold `answered` após conferir acesso e publicação no endpoint existente `/api/v1/ai/visualizations/verify`. Não solicita outra síntese, prontidão quantitativa ou chamada Gemini nesse caminho. A verificação tem prazo de 8 s e cancelamento; inclui também escopo de bairro se a análise o utilizar. Filtros, publicação, atualização, valores atual/anterior e unidade participam da chave do consumidor; troca de identidade limpa o cache pelo fluxo de sessão existente.
+
+Enquanto confere o mesmo contexto, o insight não some nem vira carregamento. Se a conferência falhar por transporte/5xx, permanece a última análise com aviso discreto de atualização pendente, sem apresentá-la como recém-verificada. 401/403/409, publicação obsoleta e falha de contrato ocultam a interpretação anterior; exportação continua sujeita à conferência própria. O cache é apenas em memória, com descarte pelo TanStack Query; recarregar a página pode solicitar uma nova geração. Erros da primeira geração continuam explícitos, sem resposta fabricada.

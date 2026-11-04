@@ -119,19 +119,24 @@ describe("cliente do chat", () => {
   });
 
   it("encaminha sinal de cancelamento para a pergunta em voo", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(validResponse), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+    const fetchMock = vi.fn().mockImplementation(
+      (_path, init) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
     );
     vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
-    await askAIQuestion(
+    const request = askAIQuestion(
       { contract_version: "v1", question: "Pergunta", context: [] },
+      undefined,
       controller.signal,
     );
-    expect(fetchMock.mock.calls[0][1]?.signal).toBe(controller.signal);
+    controller.abort();
+    await expect(request).rejects.toBeDefined();
+    expect(fetchMock.mock.calls[0][1]?.signal.aborted).toBe(true);
   });
 
   it("rejeita JSON de sucesso fora do contrato v1", async () => {

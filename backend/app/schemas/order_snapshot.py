@@ -37,7 +37,7 @@ class SuspicionEvidenceV2(BaseModel):
     reason: str
     rule_version: str
     category: str
-    potential_recoverable_energy_kwh: None = None
+    potential_recoverable_energy_kwh: float | None = None
     evidence: dict[str, JsonValue]
     variation: dict[str, JsonValue] | None
     limitations: list[str]

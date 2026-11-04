@@ -1,6 +1,6 @@
 # V-Energy Grid 360
 
-Plataforma integrada para a distribuidora V-Energy, proposta no case final Visagio Rocket Lab 2026.2. Este repositório reúne a **fonte de verdade textual** do produto e as instruções de trabalho para humanos e agentes. Nesta etapa, ainda não há implementação da aplicação.
+Plataforma integrada para a distribuidora V-Energy, proposta no case final Visagio Rocket Lab 2026.2. Este repositório reúne o código da solução (pipeline de dados, backend, frontend e agente de IA), a **fonte de verdade textual** do produto e as instruções de trabalho para humanos e agentes. O estado oficial de cada requisito está na tabela do [PRD](docs/PRD.md).
 
 > O material do case traz marcação de confidencialidade e, ao mesmo tempo, pede repositório público como entrega. Antes de publicar, o time deve confirmar com a organização o tratamento permitido dos dados e do enunciado. Não versionar o dataset bruto nem credenciais sem autorização explícita.
 
@@ -12,10 +12,11 @@ Plataforma integrada para a distribuidora V-Energy, proposta no case final Visag
 4. [Fluxo de desenvolvimento e qualidade](docs/agents/workflow.md): como concluir e comprovar requisitos.
 5. [Integrações e hooks](docs/agents/tooling.md): skills, Context7, Figma e automações de proteção.
 6. [Acompanhamento no Trello](docs/agents/issue-tracker.md): cartões dos requisitos obrigatórios sincronizados com o PRD.
-7. [Diagnóstico da receita](docs/revenue-diagnosis.md) e [status report](docs/status-report.md): estruturas a preencher com evidências reais.
-8. [Protótipo visual](docs/design/grid360-prototype.md): arquivo Figma, temas, componentes, jornadas e limites da demonstração.
+7. [Diagnóstico da receita](docs/revenue-diagnosis.md) e [status report](docs/status-report.md).
+8. [Engenharia de Dados: Workflow, dicionário e suposições](#engenharia-de-dados-workflow-dicionário-e-suposições): print do run limpo, links e decisões da camada de dados.
+9. [Protótipo visual](docs/design/grid360-prototype.md): arquivo Figma, temas, componentes, jornadas e limites da demonstração.
 
-## Estrutura planejada
+## Estrutura do repositório
 
 ```text
 data-engineering/  pipeline Databricks e documentação local
@@ -29,7 +30,34 @@ docs/              PRD, diagnóstico, dicionário e decisões
 .hooks/            scripts compartilhados pelos três clientes
 ```
 
-As pastas de serviços são apenas esqueletos documentais. A solução será construída em entregas verificáveis, seguindo os IDs do PRD. O dataset mencionado no case será disponibilizado separadamente na plataforma da atividade; o repositório não o contém.
+Cada pasta de serviço tem seu guia em [docs/services](docs/services/README.md). O dataset do case é disponibilizado separadamente na plataforma da atividade; o repositório não o contém.
+
+## Engenharia de Dados: Workflow, dicionário e suposições
+
+O pipeline Bronze → Silver → Gold roda inteiro no Databricks (PySpark, arquitetura Medalhão) e é orquestrado pelo Job `v-energy-grid-360`, com seis tarefas encadeadas: `Landing_to_Bronze`, `Bronze_perfilamento`, `Bronze_to_Silver`, `Cobertura_Declaracao`, `Silver_to_gold` e `Exportacao_Gold`. A exportação gera CSVs das tabelas Gold (contrato [`gold-csv-v2`](docs/contracts/gold-csv-v2.md)) que alimentam o backend; o cadastro com dados pessoais sai em pacote separado e restrito, nunca neste repositório.
+
+**Execução bem-sucedida do Workflow** (run de ponta a ponta, seis tarefas `Succeeded`, sem tarefas isoladas): [registro do run](data-engineering/evidencias/workflow/run-limpo-250327107715287.md).
+
+![Execução bem-sucedida do Workflow v-energy-grid-360](data-engineering/evidencias/workflow/workflow-run-limpo.png)
+
+| O que | Onde |
+| --- | --- |
+| Dicionário de dados da Gold | [docs/dicionario_gold.md](docs/dicionario_gold.md) |
+| Diagnóstico da variação de receita | [docs/revenue-diagnosis.md](docs/revenue-diagnosis.md) |
+| Notebooks e YAML do Workflow | [data-engineering/](data-engineering/README.md) |
+| Decisões técnicas e o porquê de cada número | [data-engineering/decisoes-tecnicas.md](data-engineering/decisoes-tecnicas.md) |
+| Estratégia de agendamento (proposta, não ativada) | [data-engineering/README.md](data-engineering/README.md#estratégia-de-agendamento-proposta-não-ativada) |
+
+**Suposições da camada de dados** (onde o case não era explícito):
+
+- **Receita é a faturada, não a recebida.** Fatura em aberto usa o valor declarado em aberto, sem afirmar pagamento.
+- **Não há kWh faturado na fonte.** A tabela de faturas traz valores, não energia. O volume do diagnóstico é o consumo medido nos pares UC/mês com fatura, e não energia faturada; a limitação consta no diagnóstico e no dicionário.
+- **Preço é o preço efetivo observado** (receita ÷ consumo medido nos mesmos pares UC/mês), não a tarifa homologada.
+- **Recorte geográfico e de classe vem do cadastro atual**, sem histórico de mudanças.
+- **DEC e FEC** seguem a definição simplificada do case: servem para comparar alimentadores e períodos, não para comparar com limites regulatórios reais.
+- **Cobertura:** consumo e faturamento têm cobertura certificada (`FECHADO`); domínios sem evidência de fechamento ficam `NAO_CERTIFICADA`, e a Gold e o portal mostram esse estado em vez de esconder a lacuna.
+- **Energia recuperável por UC:** a estimativa individual só é publicada quando passa em validação temporal; sem isso o campo fica nulo e o portal mostra apenas a referência histórica, rotulada como tal.
+- **Confidencialidade:** o case é confidencial e o repositório é público. Não são versionados dataset bruto, valores em R$, contagens de registros nem identificadores de UC; as evidências trazem apenas estados e percentuais.
 
 ## Executar localmente com Docker
 

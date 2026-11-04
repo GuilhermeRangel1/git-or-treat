@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     AI_AGENT_SERVICE_API_TOKEN: SecretStr | None = None
     AI_AGENT_TIMEOUT_SECONDS: float = Field(default=GOLD_REQUEST_TIMEOUT_SECONDS, ge=0.1, le=120.0)
     GENAI_AUDIT_WRITE_TOKEN: SecretStr | None = None
+    GENAI_CONVERSATION_MEMORY_ENABLED: bool = True
 
     @field_validator("GENAI_AUDIT_WRITE_TOKEN")
     @classmethod

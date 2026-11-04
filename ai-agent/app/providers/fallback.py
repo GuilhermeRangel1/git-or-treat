@@ -18,10 +18,11 @@ logger = logging.getLogger(__name__)
 class FallbackModelAdapter:
     """Tenta cada adaptador em ordem até um responder, dentro de um prazo total opcional.
 
-    Só ``ModelProviderUnavailable`` aciona o próximo adaptador; outros erros sobem intactos
-    para não mascarar defeitos. Hoje todos os modelos usam o mesmo provedor e a mesma chave,
-    então a cadeia não protege contra fim de cota nem queda do provedor. Cada novo provedor
-    entrará como um adaptador novo na lista.
+    Só ``ModelProviderUnavailable`` (429, 5xx, timeout e rede) aciona o próximo adaptador;
+    rejeição, como 404 de modelo inexistente, e resposta inválida sobem intactas e encerram
+    a cadeia. A cota gratuita do Gemini é por modelo, então outro modelo da cadeia pode cobrir
+    um 429; a queda do provedor só é coberta por outro provedor, como o Groq. A causa de cada
+    falha aparece no log ``genai_provider_failure`` (campos ``kind`` e ``status``).
     """
 
     def __init__(

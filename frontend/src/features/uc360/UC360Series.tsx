@@ -470,7 +470,7 @@ export default function UC360Series({
               <col className={hasPreviousData ? "w-[37.5%]" : "w-1/2"} />
               {hasPreviousData ? <col className="w-[37.5%]" /> : null}
             </colgroup>
-            <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+            <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
               <tr>
                 <th scope="col">Competência</th>
                 <th scope="col">Consumo no mês</th>

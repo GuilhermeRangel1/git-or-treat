@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     model_provider: Literal["unavailable", "gemini", "groq"] = "unavailable"
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_api_key: SecretStr | None = None
+    documentation_search_enabled: bool = True
     model_timeout_ms: int = Field(default=20_000, ge=1_000, le=120_000)
     gemini_fallback_models: Annotated[list[str], NoDecode] = Field(default_factory=list)
     model_routing_enabled: bool = False

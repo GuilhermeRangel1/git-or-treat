@@ -1,5 +1,10 @@
 # Perguntas de acompanhamento com contexto
 
+A extensão de [memória de conversas longas](genai-long-conversation-memory.md)
+recupera sob referência explícita uma âncora anterior do histórico privado e
+reutiliza esta assinatura/revalidação. Não altera o contrato público v1 ou o
+contexto curto do núcleo; números continuam exigindo consulta atual.
+
 ## Evolução vigente — 03/11/2026
 
 A referência também pode preservar esclarecimentos com um rascunho interno

@@ -132,7 +132,7 @@ export default function OperationRanking({
               aria-label="Ranking de alimentadores"
               className="w-full min-w-[780px] border-collapse text-left font-sans text-sm leading-[22px]"
             >
-              <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+              <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
                 <tr>
                   <th scope="col" className="px-4 py-3">
                     Posição

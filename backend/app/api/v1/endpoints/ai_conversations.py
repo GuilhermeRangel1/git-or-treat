@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.v1.endpoints.ai import (
@@ -22,6 +23,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.genai_gold_access import get_genai_gold_access_resolver
 from app.core.genai_gold_database import (
+    create_genai_gold_engine,
     get_question_gold_readiness_gate,
     get_question_gold_resources,
 )
@@ -42,6 +44,7 @@ from app.schemas.ai_conversations import (
 from app.schemas.ai_question_publication import AIQuestionPublicRequest
 from app.schemas.genai_internal import AccessScope
 from app.services.ai_conversations import ConversationStore
+from app.services.conversation_memory import MemoryUnavailable, memory_request
 from app.services.genai_client import GenAIQuestionClient
 from app.services.genai_continuation import (
     _catalog_digest,
@@ -59,6 +62,8 @@ def access(request: Request, response: Response, db: Database):
     response.headers["Cache-Control"] = "no-store"
     if settings.ORDERS_AUTH_MODE != "session":
         raise HTTPException(503, "Histórico exige sessão individual.")
+    if request.headers.get("authorization"):
+        raise HTTPException(401, "Credencial inválida ou expirada.")
     identity = get_platform_identity(request, None, db)
     if "ai:ask" not in identity.permissions:
         raise HTTPException(403, "Histórico não autorizado.")
@@ -92,9 +97,28 @@ def listing(
 
 @router.get("/conversations/{conversation}", response_model=ConversationDetail)
 def detail(conversation: UUID, owner: Owner, db: Database, request: Request):
-    return ConversationStore(db, owner).detail(
-        str(conversation), history_scope(current_scope(request, db))
-    )
+    scope = current_scope(request, db)
+    result = ConversationStore(db, owner).detail(str(conversation), history_scope(scope))
+    visual_responses = [e["response"] for e in result["exchanges"] if e["response"] and e["response"].get("visualization")]
+    if visual_responses:
+        current_batch = None
+        engine = None
+        try:
+            engine = create_genai_gold_engine(scope)
+            with engine.connect() as connection:
+                current_batch = current_publication(connection).batch_ref
+        except (GoldPublicationUnavailable, SQLAlchemyError, ValueError, TypeError):
+            current_batch = None
+        finally:
+            if engine is not None:
+                engine.dispose()
+        for response in visual_responses:
+            context = response.get("analysis_context") or {}
+            if current_batch is None or context.get("batch_reference") != current_batch:
+                response.pop("visualization", None)
+        if history_scope(current_scope(request, db)) != history_scope(scope):
+            raise HTTPException(403, "Acesso ao histórico alterado.")
+    return result
 
 
 @router.patch("/conversations/{conversation}", response_model=ConversationSummary)
@@ -196,8 +220,37 @@ async def question(
                 role="assistant", content=recent["response"]["message"][:1000]
             ),
         ]
+    question_text = payload.question
+    if settings.GENAI_CONVERSATION_MEMORY_ENABLED:
+        try:
+            reference = memory_request(payload.question)
+            if reference is not None:
+                if secret is None or gold_resources is None:
+                    raise MemoryUnavailable
+                remembered = store.memory(identity, history_scope(scope), reference)
+                db.commit()  # Não manter snapshot/lock durante consulta ou modelo.
+                token = None
+                if remembered.kind == "gold":
+                    token = issue_context_continuation(
+                        remembered.question, scope, remembered.batch,
+                        session=request.cookies.get("grid360_session", ""),
+                        conversation=identity, secret=secret.get_secret_value(),
+                    )
+                    if token is None:
+                        raise MemoryUnavailable
+                context = []
+                question_text = reference.follow_up or remembered.question
+                logger.info("Memória: versão %s, sequência de origem %s.",
+                            remembered.version, remembered.source_sequence)
+        except MemoryUnavailable:
+            store.interrupt(identity, str(payload.request_id), attempt)
+            return _question_error(
+                request, status_code=409, code="conversation_conflict", retryable=False,
+                message="Não foi possível retomar essa consulta com o acesso atual. "
+                        "Informe novamente o indicador, o período e o local desejados.",
+            )
     question_payload = AIQuestionPublicRequest(
-        question=payload.question,
+        question=question_text,
         context=context,
         conversation_id=identity,
         continuation_token=token,
@@ -223,6 +276,10 @@ async def question(
                 context=[],
             )
             normalized = restored[0].content
+        elif any(item.source == "documentation.indicators" for item in result.evidence):
+            # Conserva a pergunta executada, inclusive após retomadas sucessivas.
+            # A resposta antiga nunca é usada para reconstruir a intenção.
+            normalized = question_text
         store.finish(
             identity,
             str(payload.request_id),

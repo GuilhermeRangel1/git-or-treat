@@ -4,7 +4,50 @@
 **Estado do requisito:** Em validação
 **Escopo comprovado:** banco PostgreSQL descartável, API FastAPI real e portal Vite no navegador, com contas artificiais e chamadas HTTP sem interceptação.
 
-## Atualização vigente — 02/11/2026 — Gold v2 e provedor real
+## Atualização vigente — 03/11/2026 — nova publicação e Continuidade observada
+
+Base revisada: `feat/web10-perfis`, commit `8ecfe77`, PR #101, comparada à `develop` em `277b1fd`. WEB-10 permanece **Em validação**; a pendência anterior de produzir respostas Admin de Continuidade foi superada nos recortes testados. A elegibilidade da resposta observada recebeu uma correção local descrita abaixo; isso não certifica o mês nem homologa os domínios de Dados.
+
+### Publicação, ambiente e isolamento
+
+- Manifestos `gold-csv-v2` e `gold-cadastro-v1` pareados pelo carregador, run `GOLD_20261103T173853Z_76c37784`, export analítico `63b57aff1788404ea6bd7d89fff3ee1d` e cadastral `8e01250febe54f48b36ac075b4262e40`.
+- Migração e carga transacional das quinze tabelas analíticas e do cadastro concluídas no PostgreSQL 16 isolado `v_energy_web10_validation_20261103_clean`. Publicação `2e8fca18-bc73-44a8-92a9-8d04506318a0`. Banco principal e snapshot anterior preservados. A cópia antiga de validação tinha divergência entre tabelas de histórico e revisão Alembic; a cópia limpa foi feita a partir do banco principal com revisão consistente, sem forçar stamp.
+- Serviços construídos com o código da branch, composição Gold `app.gold_runtime:create_gold_app`; API na porta local 8012 e portal na 5181. Segredos e cópias de entrada permaneceram em arquivos ignorados. Modelo real: `gemini-3.5-flash-lite`; nenhum nome cadastral ou linha bruta foi enviado ao provedor.
+- O cadastro foi carregado em `gold_cadastro`, separado de `gold_v2`. O leitor GenAI não tem USAGE no schema nem SELECT em qualquer coluna de `cadastro_titular_uc`; tampouco lê `auth_users` ou possui TEMP. O diagnóstico do runtime aprovou leitor, publicação, catálogo, auditoria e integração GenAI. A exibição de nomes pela conexão cadastral própria da UC 360 não foi validada nesta rodada.
+
+### Resultado integrado
+
+- Admin: Receita faturada de Recife, DEC e FEC do alimentador `ALM-JAB-015`, junho/2026, retornaram HTTP 200 `answered` com Gemini real. Valores reconciliados com SQL independente na mesma publicação, arredondamento de duas casas do catálogo, métrica, período e origem conferidos. DEC/FEC também coincidiram com seus numeradores divididos pelo denominador positivo, com diferença inferior a `1e-8`.
+- DEC/FEC conservaram “Valores observados; cobertura do alimentador não certificada.” na resposta e nas limitações. As trilhas de ambos persistiram `quality_mode=observed_uncertified`; cada referência de auditoria das três respostas existe e contém estágio de modelo concluído. O estado da cobertura não foi alterado para `FECHADO`.
+- Matriz HTTP: cinco perfis × sete recursos, **35 combinações corretas**; os quatro perfis não administrativos não obtiveram resposta/evidência fora de seus escopos. Os cinco logouts devolveram 204 e os acessos seguintes, 401. Pedido Admin de nomes e CPF foi bloqueado sem resposta ou evidência pessoal.
+- Portal real, sem interceptação: login Admin, sete áreas no menu, DEC e Receita na mesma conversa, com filtros próprios. Após recarregar e reabrir o histórico, a resposta de DEC e a ressalva persistiram. Dois exchanges foram confirmados no banco; imagens e respostas completas ficam privadas em `work/web10-validation/`, fora do Git.
+- Esta rodada não repete todo o ciclo de ordens, downgrade, expiração e troca de perfil em voo; as evidências históricas e os testes dirigidos continuam separados da nova jornada Gold.
+- Encerramento: cinco contas artificiais, sessões e histórico de teste removidos do snapshot; arquivo de credenciais temporárias apagado. Os três serviços WEB-10 foram parados para liberar recursos; PostgreSQL, chave/configuração e publicação de validação preservados localmente. O cartão WEB-10 não foi localizado entre os cartões acessíveis na conexão Trello atual; a sincronização dessa evidência permanece pendente, sem alterar estado de outros cartões.
+
+### Comandos e verificações observados
+
+- Build de `backend`, `ai-agent` e `frontend` pela composição Gold/override privado: passou. Migração `alembic upgrade head` e `scripts/load_gold.py --schema-version gold-csv-v2 --cadastro-directory ...` no snapshot limpo: passaram.
+- `docker exec web10-validation-backend-1 python scripts/check_genai_runtime.py`: todos os componentes `ready`; geração `configured`.
+- Backend, na imagem construída, `python -m pytest -q tests/test_genai_continuity_observed.py tests/test_genai_profile_access.py tests/test_genai_session_access.py tests/test_platform_profiles.py tests/test_platform_authorization.py`: **63 passaram**, um aviso preexistente de Starlette/httpx.
+- GenAI, `python -m pytest -q tests/test_evidence_guard.py`: **39 passaram**.
+- `python -u work/web10-validation/validate_current.py` e conferência privada complementar: matriz, reconciliação, fórmulas, auditoria persistida, pedido pessoal negado e isolamento do leitor passaram. O primeiro roteiro de privilégios tentou resolver uma tabela por nome no schema proibido e recebeu a negação esperada; a verificação foi corrigida para consultar privilégios pelo OID no catálogo, sem conceder acesso.
+- CI do head revisado: execução `41751055858`, cinco checks aprovados. Essa evidência do GitHub é distinta dos 102 testes dirigidos locais e não representa execução de toda a suíte local nesta rodada.
+
+### Revisão Standards
+
+Nenhum bloqueador material de padrões ou acesso cadastral nos caminhos lidos. Há uma atribuição duplicada de `quality_audit` em `backend/app/services/genai_coordination.py`, sem efeito funcional; possível simplificação de manutenção.
+
+### Revisão Spec e correção local
+
+A revisão apontou que `coverage_incomplete` não distingue, sozinho, `NAO_CERTIFICADA` de `PARCIAL` ou metadados inválidos. A execução DEC/FEC agora confere a linha original `cobertura_dominios` do alimentador e de cada mês solicitado dentro do mesmo snapshot SQL da publicação capturada. A exceção só prossegue com `NAO_CERTIFICADA`, zero registros sem competência, observações existentes e linhagem Silver correspondente; `PARCIAL`, `AUSENTE`, linha faltante ou linhagem divergente viram falta de evidência. A cobertura continua sem ser certificada ou alterada.
+
+Regressões focadas cobrem os estados aceito/recusados, ausência e linhagem, além da consulta SQL filtrada por alimentador/mês. `backend/tests/test_genai_continuity_observed.py` e `backend/tests/test_genai_executor.py`: **23 passaram** na imagem local do Backend. O Ruff não está instalado nessa imagem (`No module named ruff`); `git diff --check` passou. Não houve nova chamada Gemini nem repetição da jornada real após esta guarda. A correção elimina a distinção faltante; não é uma certificação de Dados nem altera o estado `Em validação` ou a conclusão geral WEB-10.
+
+A revisão também encontrou texto antigo que limitava Admin a sete métricas: o código conserva as treze métricas analíticas já existentes na `develop`. A matriz documental foi alinhada a essa capacidade já implementada, sem mudar grants ou escopos de execução. Atendimento/Perdas continuam sem métricas atribuídas aos seus perfis; Admin não ganha cadastro pessoal ou rotas técnicas.
+
+**Decisão desta rodada:** a resposta Admin de Continuidade permanece limitada aos recortes testados e a guarda de cobertura agora distingue não certificação de cobertura parcial. WEB-10 continua Em validação até o aceite global; código e evidências seguem sem commit/push e o PR não foi mergeado.
+
+## Rodada histórica — 02/11/2026 — Gold v2 e provedor real
 
 WEB-10 permanece **Em validação**. Esta rodada acrescenta evidência à validação de 01/11; as afirmações antigas de ausência de lote/provedor descrevem aquele ambiente, não o atual. Base revisada: `feat/web10-perfis` em `92f80b4`, com a correção de autorização descrita abaixo; alterações encaminhadas ao [PR #101](https://github.com/GuilhermeRangel1/git-or-treat/pull/101), sem merge.
 
@@ -156,3 +199,12 @@ Essas respostas demonstram negação por capacidade ausente antes de qualquer co
 - Reconciliação de duas respostas Admin de domínios distintos com lote Gold autorizado: **não realizada**; não havia lote Gold autorizado nem serviço de resposta real.
 
 **Decisão de aceite:** manter WEB-10 `Em validação`. O gate completo do Backend passou com 102 testes pulados, incluindo integrações PostgreSQL opt-in; esses skips não são considerados cobertos pela validação dirigida. As provas PostgreSQL específicas de WEB-10 para migração, provisão e acesso foram executadas separadamente, conforme os relatórios das tarefas. Permanecem pendentes respostas conversacionais Admin e reconciliação de duas respostas com lote Gold autorizado; nenhum lote/provedor estava disponível. A troca de conta com chamada em voo foi coberta por testes automatizados, não ao vivo. Não foi possível salvar uma captura sanitizada pelo serviço de browser; snapshots de página e estados visíveis foram observados diretamente. A UI das ordens, menus, autorização HTTP, inativação, revogação, expiração, remoção de perfil, downgrade e clarificação vazia de Atendimento/Perdas foram comprovados no banco e API descartáveis.
+
+## Complemento de validação — 03/11/2026
+
+Este complemento registra a mudança de política do consumidor após a evidência histórica acima. DEC/FEC podem seguir como valores observados apenas no recorte elegível; o estado `NAO_CERTIFICADA` por alimentador permanece intacto. A estimativa de energia recuperável é apresentada condicionalmente, se a irregularidade se confirmar, usando os campos publicados pela Gold. Nenhum job, exportação ou escrita na Gold foi executado.
+
+- Backend direcionado após ajuste do fluxo: 50 testes passaram nos cinco arquivos de contrato/consulta; 45 passaram no fluxo, guarda e execução observada. Suíte Backend completa: 1.119 passaram, 114 skips, 6 falharam antes do ajuste; cinco falhas de Continuidade foram corrigidas e passaram na rodada focada posterior. A falha restante depende de `openpyxl`, declarado nas dependências mas ausente na venv; rede bloqueou a instalação e a suíte completa não foi repetida.
+- Suíte GenAI completa: 4.333 passaram, 5 skips; guard: 29 passaram; compilação Python passou. Ruff não está instalado.
+- Frontend dirigido de Inspeções: 30 passaram. Lint, fronteiras (205 arquivos), build e Prettier dos arquivos alterados passaram, com dois avisos preexistentes no lint. Suíte Frontend completa: 451 passaram/9 falharam; execução isolada dos arquivos falhos: 47 passaram/8 falharam, em Panorama, roteador, Ajuda contextual e Assistente.
+- Sem configuração local de leitor Gold/AI Agent nem sessão Admin no navegador, não foi repetida resposta real do Assistente, navegação autenticada ou reconciliação portal/API/IA. Esses critérios continuam pendentes; WEB-10 permanece em validação e não está liberado para merge.

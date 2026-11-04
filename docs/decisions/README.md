@@ -34,3 +34,4 @@ relacionados na mesma mudança.
 - [ADR-0022 — Consumo das métricas documentadas na Gold v2](0022-consumo-metricas-documentadas-gold-v2.md): implementação local de comparação mensal, ranking de variação, GD/queda, eventos distintos e decomposição publicada; controles, cobertura e homologação permanecem distintos.
 
 - [ADR-0023 — Pareamento do cadastro restrito pelos manifestos](0023-timestamps-cadastro-restrito.md): aprovada em 02/11/2026; timestamps das linhas cadastrais precisam ser válidos e uniformes, enquanto a identidade da publicação usa metadados coincidentes dos manifestos.
+- [ADR-0024 — Recuperação condicional e continuidade observada](0024-recuperacao-condicional-e-continuidade-observada.md): adotada em 03/11/2026; expõe estimativa Gold por UC sob condição e admite leitura delimitada DEC/FEC sem converter `NAO_CERTIFICADA` em cobertura certificada.

@@ -169,15 +169,35 @@ export default function OrderFoundationsDialog({
                     value="Não disponível no snapshot."
                   />
                 ) : null}
-                {foundation.origin !== "gold" ? (
+                {foundation.origin !== null ? (
                   <Detail
-                    label="Energia potencialmente recuperável"
+                    label={
+                      foundation.origin === "gold"
+                        ? "Energia estimada a recuperar"
+                        : "Energia potencialmente recuperável"
+                    }
                     value={
                       foundation.estimateUnavailable
-                        ? "Não disponível; ausência de estimativa não é zero."
+                        ? "Indisponível; ausência não representa zero."
                         : `${formatNumber(foundation.estimateKwh!)} kWh`
                     }
                   />
+                ) : null}
+                {foundation.recoveryEstimateRange ? (
+                  <div className="grid gap-2 rounded-lg bg-canvas p-4 text-sm">
+                    <Detail
+                      label={`Faixa nominal de ${Math.round(foundation.recoveryEstimateRange.confidenceLevel * 100)}%`}
+                      value={`${formatNumber(foundation.recoveryEstimateRange.lowerKwh)} a ${formatNumber(foundation.recoveryEstimateRange.upperKwh)} kWh`}
+                    />
+                    <Detail
+                      label="Janela de aplicação"
+                      value={`${foundation.recoveryEstimateRange.windowMonths} meses até ${foundation.recoveryEstimateRange.windowAnchor} (mínimo: ${foundation.recoveryEstimateRange.minimumWindowMonths} meses)`}
+                    />
+                    <p className="text-xs text-muted">
+                      Estimativa se a irregularidade se confirmar. A faixa foi
+                      validada temporalmente e não garante recuperação nesta UC.
+                    </p>
+                  </div>
                 ) : null}
                 {foundation.estimateEvidence && (
                   <Detail
@@ -227,8 +247,9 @@ export default function OrderFoundationsDialog({
                         {foundation.category?.toUpperCase().includes("REVISAR")
                           ? " “REVISAR” é uma categoria própria."
                           : ""}{" "}
-                        Não há estimativa de energia recuperável para esta UC; a
-                        variação de consumo é apenas histórica.
+                        {foundation.estimateUnavailable
+                          ? "Estimativa individual indisponível; a variação de consumo permanece apenas como contexto histórico."
+                          : "A energia exibida é uma estimativa condicional, não confirma irregularidade nem garante recuperação; a variação de consumo permanece como contexto separado."}
                       </p>
                     ) : (
                       <ul className="grid list-disc gap-1 pl-5 text-sm text-muted">

@@ -1,5 +1,7 @@
 """Read-only repository for the published Gold inspection triage snapshot."""
-from sqlalchemy import func, select
+import math
+
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.engine import Connection
 
 from app.repositories.gold_context import GoldContext
@@ -48,10 +50,49 @@ class GoldInspectionRepository:
                 predicates.append(getattr(self.queue.c, column_name) == value)
         return predicates
 
-    def count(self, filters: AnalyticsFilters) -> int:
+    def count(self, filters: AnalyticsFilters, category: str | None = None) -> int:
+        predicates = self._predicates(filters)
+        if category is not None:
+            predicates.append(self.queue.c.prioridade_inspecao == category)
         return self.connection.execute(
-            select(func.count()).select_from(self.queue).where(*self._predicates(filters))
+            select(func.count()).select_from(self.queue).where(*predicates)
         ).scalar_one()
+
+    def recovery_estimate_groups(self, filters: AnalyticsFilters, category: str | None = None) -> list[tuple[str, int]]:
+        q = self.queue
+        predicates = self._predicates(filters)
+        if category is not None:
+            predicates.append(q.c.prioridade_inspecao == category)
+        predicates.extend(self._recovery_estimate_predicates())
+        statement = (
+            select(q.c.validacao_recuperacao_json, func.count())
+            .select_from(q)
+            .where(*predicates)
+            .group_by(q.c.validacao_recuperacao_json)
+        )
+        return [(report, count) for report, count in self.connection.execute(statement)]
+
+    def _recovery_estimate_predicates(self) -> list:
+        q = self.queue
+        return [
+            q.c.estado_estimativa_recuperacao == "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+            q.c.metodo_estimativa_recuperacao == "CONSUMO_CONDICIONAL_V1",
+            q.c.energia_estimada_recuperavel_kwh.is_not(None),
+            q.c.intervalo_recuperacao_inferior_kwh.is_not(None),
+            q.c.intervalo_recuperacao_superior_kwh.is_not(None),
+            q.c.validacao_recuperacao_json.is_not(None),
+            q.c.energia_estimada_recuperavel_kwh > -math.inf,
+            q.c.energia_estimada_recuperavel_kwh < math.inf,
+            q.c.intervalo_recuperacao_inferior_kwh > -math.inf,
+            q.c.intervalo_recuperacao_inferior_kwh < math.inf,
+            q.c.intervalo_recuperacao_superior_kwh > -math.inf,
+            q.c.intervalo_recuperacao_superior_kwh < math.inf,
+            q.c.energia_estimada_recuperavel_kwh >= 0,
+            q.c.intervalo_recuperacao_inferior_kwh >= 0,
+            q.c.intervalo_recuperacao_superior_kwh >= q.c.intervalo_recuperacao_inferior_kwh,
+            q.c.intervalo_recuperacao_inferior_kwh <= q.c.energia_estimada_recuperavel_kwh,
+            q.c.energia_estimada_recuperavel_kwh <= q.c.intervalo_recuperacao_superior_kwh,
+        ]
 
     def category_counts(self, filters: AnalyticsFilters) -> dict[str | None, int]:
         rows = self.connection.execute(
@@ -69,7 +110,16 @@ class GoldInspectionRepository:
             )
         ).scalar_one() > 0
 
-    def list_page(self, filters: AnalyticsFilters, page: int, page_size: int, order_by: str, direction: str) -> list[dict]:
+    def list_page(
+        self,
+        filters: AnalyticsFilters,
+        page: int,
+        page_size: int,
+        order_by: str,
+        direction: str,
+        category: str | None = None,
+        valid_recovery_reports: set[str] | None = None,
+    ) -> list[dict]:
         q, v, p = self.queue, self.variation, self.profile
         columns = [
             q.c.id_uc, q.c.municipio, q.c.bairro, q.c.classe, q.c.alimentador,
@@ -86,6 +136,7 @@ class GoldInspectionRepository:
             q.c.intervalo_recuperacao_inferior_kwh,
             q.c.intervalo_recuperacao_superior_kwh,
             q.c.estado_estimativa_recuperacao, q.c.metodo_estimativa_recuperacao,
+            q.c.validacao_recuperacao_json,
             v.c.id_uc.label("variation_uc_id"),
             v.c.consumo_medio_inicial, v.c.meses_com_leitura_p1,
             v.c.consumo_medio_final, v.c.meses_com_leitura_p2,
@@ -97,9 +148,27 @@ class GoldInspectionRepository:
         statement = select(*columns).select_from(
             q.outerjoin(v, q.c.id_uc == v.c.id_uc).outerjoin(p, q.c.id_uc == p.c.id_uc)
         ).where(*self._predicates(filters))
+        if category is not None:
+            statement = statement.where(q.c.prioridade_inspecao == category)
         if order_by == "queue_position":
             position = q.c.posicao_fila_inspecao.desc() if direction == "desc" else q.c.posicao_fila_inspecao.asc()
             statement = statement.order_by(position, q.c.id_uc.asc())
+        elif order_by == "potential_recoverable_energy_kwh":
+            eligible_estimate = and_(
+                *self._recovery_estimate_predicates(),
+                q.c.validacao_recuperacao_json.in_(valid_recovery_reports or set()),
+            )
+            estimate = case(
+                (eligible_estimate, q.c.energia_estimada_recuperavel_kwh),
+                else_=None,
+            )
+            estimate_order = estimate.desc() if direction == "desc" else estimate.asc()
+            statement = statement.order_by(
+                estimate.is_(None).asc(),
+                estimate_order,
+                q.c.posicao_fila_inspecao.asc().nulls_last(),
+                q.c.id_uc.asc(),
+            )
         elif order_by == "category":
             category = q.c.prioridade_inspecao.desc() if direction == "desc" else q.c.prioridade_inspecao.asc()
             statement = statement.order_by(
@@ -129,6 +198,7 @@ class GoldInspectionRepository:
             q.c.intervalo_recuperacao_inferior_kwh,
             q.c.intervalo_recuperacao_superior_kwh,
             q.c.estado_estimativa_recuperacao, q.c.metodo_estimativa_recuperacao,
+            q.c.validacao_recuperacao_json,
             v.c.id_uc.label("variation_uc_id"),
             v.c.consumo_medio_inicial, v.c.meses_com_leitura_p1,
             v.c.consumo_medio_final, v.c.meses_com_leitura_p2,

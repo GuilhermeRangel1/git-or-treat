@@ -227,7 +227,7 @@ export default function PanoramaSeriesChart({
         className="mt-4 flex flex-wrap items-center gap-2"
         aria-label="Janela da série"
       >
-        <span className="text-xs text-muted">Exibir:</span>
+        <span className="text-xs text-muted">Janela do gráfico:</span>
         {([12, 24, "all"] as const).map((size) => (
           <button
             key={size}
@@ -488,7 +488,7 @@ export default function PanoramaSeriesChart({
       >
         <div className="panorama-series-chart__table-wrap">
           <table className="panorama-series-chart__table font-sans">
-            <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+            <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
               <tr>
                 <th scope="col">Competência</th>
                 <th scope="col">Receita faturada</th>

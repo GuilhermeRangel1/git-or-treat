@@ -3,7 +3,7 @@
 import calendar
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from hashlib import sha256
 from math import isfinite
@@ -290,6 +290,59 @@ def _exceeds_evidence_byte_limit(result: EvidenceLookupResult) -> bool:
     return len(serialized.encode("utf-8")) > MAX_EVIDENCE_BYTES
 
 
+def _validate_observed_continuity_rows(
+    rows, plan: LogicalReadPlan, quality: GoldEvidenceQuality
+) -> None:
+    """Exige uma linha mensal observada por competência e alimentador solicitado."""
+    if quality.quality_mode != "observed_uncertified":
+        return
+    if (
+        plan.metric_id not in {
+            "network.equivalent_interruption_duration",
+            "network.equivalent_interruption_frequency",
+        }
+        or plan.window.kind is not WindowKind.BOUNDED
+        or plan.window.granularity != "month"
+        or plan.group_by_dimension_ids
+    ):
+        raise GoldExecutionDenied
+    feeder_filters = [item for item in plan.filters if item.dimension_id == "network.feeder"]
+    if (
+        len(feeder_filters) != 1
+        or feeder_filters[0].operator.value != "eq"
+        or len(feeder_filters[0].values) != 1
+    ):
+        raise GoldExecutionDenied
+    start, end = plan.window.start, plan.window.end
+    if (
+        start is None
+        or end is None
+        or start.day != 1
+        or end.day != calendar.monthrange(end.year, end.month)[1]
+    ):
+        raise GoldExecutionDenied
+    expected = set(quality.observed_periods)
+    if not expected:
+        raise GoldExecutionDenied
+    requested = date(start.year, start.month, 1)
+    last_requested = date(end.year, end.month, 1)
+    requested_periods = set()
+    while requested <= last_requested:
+        requested_periods.add(requested.strftime("%Y-%m"))
+        requested = date(requested.year + (requested.month == 12), requested.month % 12 + 1, 1)
+    if expected != requested_periods:
+        raise GoldExecutionDenied
+    months = set()
+    for row in rows:
+        period = str(row.get("period"))
+        feeder = row.get("feeder")
+        if feeder != feeder_filters[0].values[0] or period in months:
+            raise GoldExecutionDenied
+        months.add(period)
+    if months != expected:
+        raise GoldExecutionDenied
+
+
 def execute_gold_plan(
     engine: Engine,
     planned: GoldPlanningResult,
@@ -346,6 +399,13 @@ def execute_gold_plan(
         )
         if resolve_scope() != current_scope:
             raise GoldExecutionDenied
+        if quality is not None and quality.quality_mode == "observed_uncertified":
+            from app.services.genai_continuity_coverage import (
+                GoldCoverageUnavailable,
+                observed_coverage_valid,
+            )
+            if not observed_coverage_valid(connection, plan, quality):
+                raise GoldCoverageUnavailable
         try:
             rows = connection.execute(statement).mappings().all()
         except DBAPIError as exc:
@@ -353,6 +413,8 @@ def execute_gold_plan(
                 # Coluna/tabela renomeada ou tipo alterado: incompatível, não transitório.
                 raise GoldCatalogIncompatible from None
             raise
+        if quality is not None:
+            _validate_observed_continuity_rows(rows, plan, quality)
         if metric.aggregation == "published_decomposition":
             from app.repositories.gold_publication import publication_lineage
             origin = publication_lineage(connection, planned.publication.batch_ref)

@@ -7,6 +7,7 @@ from app.repositories.panorama import PanoramaRepository
 from app.repositories.panorama import GoldPanoramaRepository
 from app.schemas.panorama import PanoramaData, PanoramaFilterOptions, PanoramaMetric, PanoramaSeriesPoint
 from app.services.analytics import AnalyticsAPIError
+from app.services.panorama_distribution import gold_distribution, synthetic_distribution
 
 DEFAULT_PERIOD = "2024-04"
 COMPARISON_TYPES = ("anterior", "ano_anterior", "nenhuma")
@@ -299,6 +300,7 @@ def build_panorama(
     }
 
     return PanoramaData(
+        distribuicao=synthetic_distribution(registros_atuais, filtros, metricas["energiaFaturada"]),
         filtros=filtros,
         periodoIncompleto=periodo in repository.incomplete_periods,
         totalRegistros=len(registros_atuais),
@@ -611,6 +613,7 @@ def build_gold_panorama(
             status="partial" if has_data else "empty",
         ))
     return PanoramaData(
+        distribuicao=gold_distribution(repository, financials, metrics["receitaFaturada"]),
         filtros={"periodo": period, "comparacao": compare, "municipio": municipality, "classe": consumption_class},
         periodoIncompleto=False,
         totalRegistros=actual["row_count"],

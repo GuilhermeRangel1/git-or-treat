@@ -8,7 +8,7 @@ O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente
 
 ## GENAI-12 — insight do Panorama Gold v2
 
-O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do KPI. O Backend coordena sessão individual, prontidão, leitor restrito/snapshot, síntese interna e auditoria durável; a GenAI reutiliza o núcleo de insight. O portal distingue Gold de demonstração, preserva recorte/fundamento/limitações e prioriza falhas sobre cache antigo. Migração `genai12000001` publica somente metadados mínimos por view, sem acesso direto à tabela operacional de carga. Contrato, implantação e reprodução: [insight do Panorama](../contracts/panorama-insight-api.md); evidências e limites: [GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Os registros anteriores sobre ausência de insight externo são históricos; a rota pública GenAI demonstrativa permanece separada da entrada interna Gold.
+O Panorama gera insight de receita comparável pelo mesmo cálculo financeiro do KPI. O Backend coordena sessão individual, prontidão, leitor restrito/snapshot, síntese interna e auditoria durável; a GenAI reutiliza o núcleo de insight. O portal distingue Gold de demonstração, preserva recorte/fundamento/limitações e invalida interpretações após mudança de contexto/acesso; preserva a última análise do mesmo recorte durante falha transitória de revalidação, com indicação de atualização pendente. Migração `genai12000001` publica somente metadados mínimos por view, sem acesso direto à tabela operacional de carga. Contrato, implantação e reprodução: [insight do Panorama](../contracts/panorama-insight-api.md); evidências e limites: [GENAI-12](../plans/2026-11-01-genai12-panorama-gold.md). Os registros anteriores sobre ausência de insight externo são históricos; a rota pública GenAI demonstrativa permanece separada da entrada interna Gold.
 
 ## Arquitetura adotada
 
@@ -196,11 +196,29 @@ O Assistente tem uma identidade visual animada em `AssistantIdentity.tsx` e esti
 # Atualização de Receita — 02/11/2026
 
 O cartão de Receita apresenta “Consumo medido” em kWh nos mesmos extremos mensais usados pelos demais cartões. Quando a cobertura da medida é parcial, a tela informa isso junto ao cartão; ausência continua distinta de zero. A métrica não é chamada de energia faturada.
+Arquivos de campo: Inspeções oferece diálogo de exportação integral ou filtrada por categoria, município, bairro e classe, com opções carregadas da API. Paginação da tela não limita o arquivo. Importação atual usa CSV e apresenta erros por linha; XLSX e validação visual continuam pendentes.
+WEB-09: Baixar modelo de resultados gera Excel das ordens em andamento; preencher resultado na aba Resultados e importar XLSX ou CSV. Portal apresenta contagem de resultados e erros por linha e atualiza o cache de Ordens. Cada linha válida é confirmada separadamente; revisão visual permanece pendente.
+Organização WEB-08/WEB-09: Inspeções mantém somente exportação da fila; Ordens concentra modelo e upload de resultados, para usuários com escrita. Feedback informa ordens concluídas e erros por linha; componente compartilhado em shared/inspections respeita os limites entre features.
+Ordens permite excluir qualquer estado com confirmação digitando o ID. A interface aguarda 204, atualiza as consultas e informa a exclusão; o histórico permanece para auditoria. Cancelar ordem usa rótulo sem reticências.
 
 ## FAQ contextual de indicadores
 
 Assistente, Panorama, Receita, Operação e UC 360 oferecem a ajuda “Entenda os indicadores”, pelo componente `shared/help/IndicatorHelp`. As nove perguntas usam definições geradas do catálogo Gold v2; a ajuda estática funciona sem IA ou API de dados e distingue conceito de consulta numérica. Vigência, fonte, versão, retirada de verbetes, manutenção e evidências estão no [contrato do FAQ](../contracts/indicator-faq.md). `npm run check:faq` integra o CI Frontend; após alterar o catálogo, gerar novamente e revisar os textos. A fonte aparece como referência interna sem link para GitHub; a ajuda inclui exemplos de perguntas com cópia e seleção manual, reaproveitados das perguntas comuns do Assistente. A pessoa usuária aprovou a experiência e os textos do FAQ em 02/11/2026, concluindo os dez critérios na entrega local; integração por commit/PR permanece pendente.
 
+### WEB-04 — estimativa condicional individual (03/11/2026)
+
+Inspeções mostra a estimativa Gold quando o decoder recebe estado, método, janela e intervalo coerentes; caso contrário mantém indisponibilidade e motivo. A tabela desktop reserva as cinco colunas do contrato e quebra o motivo em linhas, sem depender de scroll lateral; cards mobile preservam os mesmos fundamentos. Detalhe e fundamentos identificam que o valor só se aplica se a irregularidade se confirmar e mostram a faixa nominal de 90% quando publicada. Snapshot de ordem preserva os fundamentos congelados; ordem antiga não é reescrita após recarga Gold. Ausência, zero e estimativa são estados distintos. Esta alteração não conclui WEB-04 sem revisão visual autenticada e reconciliação da amostra real.
+
 ## IA-07 — acompanhamento natural
 
 O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).
+
+
+## Gráficos GenAI — integração em desenvolvimento (03/11/2026)
+
+`VisualEvidence` é compartilhado pelo chat e pelo modal existente do Panorama. Recebe valores estruturados validados, sem analisar números da prosa ou calcular métricas. Chat apresenta indicador, barras/ranking, linha ou rosca conforme o resultado autorizado. O modal do Panorama apresenta total/comparação e distribuição com tabela/download, sem o resumo superior duplicado. A distribuição usa rosca quando a partição permite participação e barras horizontais nos demais casos, mantendo a interpretação contextual e sem inventar percentuais. Tabela equivalente, lista paginada e PNG/CSV preservam pontos, precisão, metadados e alcance. Fonte/definição do chat aparecem junto aos metadados; citações e limites permanecem visíveis.
+
+Distribuição por município/classe segue os filtros. Top5+Demais vem do Backend; tabela/CSV mantêm a lista completa. Downloads revalidam sessão, métrica/dimensões e publicação pelo servidor, além do estado local. Histórico só restaura gráficos com publicação/escopo atuais; retomadas consultam novamente. O modal já mostra dados antes da interpretação; o chat agora negocia apresentação progressiva e leitura ampliada por observações identificadas, sem segunda chamada de modelo. [Contrato](../contracts/genai-visual-evidence.md) e [evidências/limites](../plans/2026-11-03-genai-graficos-insights-visuais.md). Estados oficiais IA preservados.
+
+
+Continuação de 03/11: negociação opcional NDJSON preserva os clientes JSON e o histórico. Dados auditados/revalidados aparecem antes da síntese; desconexão antes/depois da prévia cancela o coordenador. A leitura local calcula diferenças/destaques sem causa presumida. Falha do modelo mantém dados somente após nova conferência de acesso/publicação; falha de desenho preserva tabela/CSV. Prova Gold/Gemini e portal, limites e matriz 18/18 em [evidências](../plans/2026-11-03-genai-graficos-insights-visuais.md); publicação concluída no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), sem merge.

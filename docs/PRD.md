@@ -231,8 +231,8 @@ Cada time deve responder à pergunta sobre a evolução da receita residencial (
 | WEB-06 | Obrigatório | Em validação | **Operação DEC/FEC.** Gerente visualiza evolução por alimentador e identifica piores regiões; números remetem à mesma definição Gold e a ausência de denominador adequado é tratada. |
 | WEB-07 | Obrigatório | Em andamento | **Filtro e recorte.** Usuário filtra informações conforme necessidade, mantém contexto visível e entende quais filtros afetam cada gráfico/tabela. |
 | WEB-08 | Diferencial | Pendente | **Exportar fila de inspeção.** O arquivo reflete ordem, filtros e dados exibidos, com proteção de acesso e formato documentado. |
-| WEB-09 | Diferencial | Pendente | **Importar planilha de campo.** Upload valida colunas/linhas, apresenta erros, evita duplicação e grava resultados em formato digital auditável. |
-| WEB-10 | Diferencial | Em validação | **Perfis.** Entrada e autorização por cargo restringem telas e ações; perfis e permissões estão documentados e testados. Política aprovada na [ADR-0022](decisions/0022-perfis-de-acesso-web10.md); o aceite integrado de todas as jornadas e a segregação ponta a ponta da IA ainda aguardam a tarefa 5. |
+| WEB-09 | Diferencial | Em validação | **Importar planilha de campo.** Upload valida colunas/linhas, apresenta erros, evita duplicação e grava resultados em formato digital auditável. |
+| WEB-10 | Diferencial | Em validação | **Perfis.** Entrada e autorização por cargo restringem telas e ações; perfis e permissões estão documentados e testados. Política aprovada na [ADR-0022](decisions/0022-perfis-de-acesso-web10.md); DEC/FEC pode ser consultado como observado sem certificação sob as condições da [ADR-0024](decisions/0024-recuperacao-condicional-e-continuidade-observada.md). Resposta Admin real e reconciliação de Receita, DEC e FEC comprovadas na rodada de 03/11; permanece Em validação pela revisão da elegibilidade observada e pelo aceite integrado global das jornadas. |
 | WEB-11 | Diferencial | Pendente | **Testes automatizados no backend.** Cobrem contratos, validação, filtros, autenticação se adotada, estados de ordens e casos de erro; execução repetível. |
 
 #### WEB-10 — perfis e autorização
@@ -241,7 +241,7 @@ Há um perfil por conta: `commercial`, `customer_service`, `losses`, `operations
 
 O Backend deriva as permissões do perfil persistido e revalida identidade e autorização em cada requisição; a navegação filtrada do Frontend é apenas apresentação. A sessão ausente, inválida, expirada, revogada ou de conta inativa retorna 401; sessão autenticada sem perfil válido ou sem a permissão do recurso retorna 403. Contas legadas permanecem sem perfil e sem acesso até atribuição explícita; o JSON `permissions` legado não concede permissões de plataforma em sessão. Provisão e recuperação administrativa são operações locais, sem cadastro público ou gestão de usuários pela interface.
 
-Para GenAI Gold v2, Comercial tem as cinco métricas de faturamento/energia e Operação tem DEC/FEC; admin recebe a união dessas sete capacidades, conforme o catálogo e a matriz. Atendimento e Perdas ficam sem métricas habilitadas enquanto faltarem capacidades seguras para seus domínios; nesses casos, o Assistente retorna `needs_clarification` antes de engine/modelo, sem ampliar grants. WEB-10 não conclui WEB/IA relacionados nem certifica dados Gold. Critérios finais de aceite exigem a prova integrada no navegador e HTTP por perfil, incluindo recursos permitidos/negados, ações de ordens, logout/revogação e isolamento da IA.
+Para GenAI Gold v2, Comercial tem as cinco métricas de faturamento/energia e Operação tem DEC/FEC; Admin conserva todas as métricas analíticas já implementadas e autorizadas em `GOLD_METRICS`, conforme o catálogo vigente e a matriz; isso não inclui cadastro pessoal nem isenção de prontidão, leitor restrito ou autorização. Para DEC/FEC, a leitura observada pode prosseguir somente no recorte elegível e conserva a ressalva de cobertura não certificada; não adiciona capacidade certificada nem amplia grants. Atendimento e Perdas ficam sem métricas habilitadas enquanto faltarem capacidades seguras para seus domínios; nesses casos, o Assistente retorna `needs_clarification` antes de engine/modelo, sem ampliar grants. WEB-10 não conclui WEB/IA relacionados nem certifica dados Gold. Critérios finais de aceite exigem a prova integrada no navegador e HTTP por perfil, incluindo recursos permitidos/negados, ações de ordens, logout/revogação e isolamento da IA.
 
 ### 6.3 Inteligência artificial — IA
 
@@ -3522,6 +3522,68 @@ A fronteira HTTP pública foi comprovada; renderização/interação no navegado
 - Implementados schema/tabela isolados, leitor PostgreSQL de privilégio mínimo, validação pareada dos manifestos Gold v2/cadastro, consulta Backend autenticada e estados tipados no cabeçalho UC 360. O nome não entra na busca nem na GenAI. Scripts e contrato operacional atualizados; sem alteração do estado oficial de WEB-03 ou WEB-10.
 - Migração `python -m alembic upgrade heads` passou e criou `20261102_cadastro`; `python scripts/provision_gold_cadastro_reader.py` criou o papel restrito e gravou o DSN apenas em `backend/.env`; `python -m compileall -q app scripts` e importação da aplicação passaram.
 - Resultado inicial: a importação foi revertida porque o timestamp nas 45.000 linhas divergia do manifesto em 425 segundos. Em seguida, por aprovação da pessoa usuária e conforme [ADR-0023](decisions/0023-timestamps-cadastro-restrito.md), o pareamento passou a usar a identidade coincidente dos manifestos, mantendo timestamp de linha válido e uniforme. Reexecução carregou 45.000 linhas (`status=unchanged`, cadastro `loaded`, GenAI sem acesso); smoke admin: login/overview 200, estado `available` e nome presente, sem exibir valores pessoais. API e frontend responderam 200; captura visual ainda não feita.
+### 02/11/2026 — WEB-08/WEB-09: primeira fatia de arquivos de campo
+
+- Implementadas ações em Inspeções para exportar a página atual autenticada em CSV e importar resultados por CSV UTF-8 separado por ponto e vírgula. Colunas de entrada: ordem_id;versao;resultado. Limites: 1 MB e 500 linhas. Cada linha válida confirma sua própria transação; erros são apresentados por linha. Reenvio obsoleto não duplica resultados ou histórico.
+- Arquivos: backend/app/services/field_files.py, endpoints/inspections.py e frontend/src/features/inspecoes/FieldFiles.tsx. Gold não é alterada. Resultado usa autorização, versão e histórico operacional existentes.
+- Verificações: build/tipos frontend, lint e fronteiras passaram (lint com aviso preexistente em AuthProvider); git diff --check passou. Testes backend cobrem importação, persistência, auditoria, reenvio e acesso.
+- Estados mantidos pendentes: exportação integral do recorte, XLSX, modelo preenchido com IDs/versões, revisão de publicação Gold, testes de interface e jornada no navegador ainda necessários. Esta fatia não conclui os diferenciais.
+### 02/11/2026 — WEB-08: exportação integral com seleção de recorte
+
+- O portal pergunta se deve exportar toda a fila ou um recorte combinando categoria, município, bairro e classe. As opções vêm da fonte; categorias são as publicadas pela Gold, sem lista inventada. Fonte sintética sem categorias informa indisponibilidade.
+- O endpoint autenticado gera CSV de todas as UCs selecionadas, independentemente da página aberta, preservando a ordenação e incluindo fonte/filtros. Limite explícito de 50.000 UCs, sem truncamento silencioso; valores que podem ser interpretados como fórmulas são neutralizados.
+- Evidências: três testes backend passaram, incluindo exportação além da página, filtro municipal, opções reais, categoria inválida, acesso, importação e auditoria. Build/tipos frontend, fronteiras e lint passaram, com aviso preexistente de AuthProvider. Falta validação visual/Gold real, XLSX e modelo operacional preenchido; WEB-08/WEB-09 não estão concluídos.
+### 02/11/2026 — WEB-09: modelo Excel e upload de resultados
+
+- Inspeções oferece modelo XLSX com ID, versão e UC das ordens EM_ANDAMENTO; a equipe preenche resultado e importa no portal. CSV segue compatível. Cada linha válida conclui a ordem por meio do serviço operacional existente, com controle de versão, autor e histórico; erros são exibidos por linha. A UC do modelo é conferida com a ordem e os caches de Ordens são invalidados após sucesso.
+- Limites: 1 MB e 500 ordens; a aba Resultados e o cabeçalho do modelo são obrigatórios no XLSX. Fórmulas e arquivos inválidos são recusados antes das gravações. Falhas de linha não desfazem linhas já confirmadas; reenvios obsoletos retornam conflito sem duplicar auditoria. Modelo com mais de 500 ordens em andamento é recusado explicitamente.
+- Arquivos: backend/app/services/field_files.py, backend/app/api/v1/endpoints/inspections.py, backend/tests/test_field_files.py e frontend/src/features/inspecoes/FieldFiles.tsx e FieldFiles.test.tsx. Dependências: openpyxl 3.1.5 e defusedxml 0.7.1; leitura otimizada, sem links externos e fechamento explícito, conforme documentação oficial openpyxl consultada via Context7 (https://openpyxl.readthedocs.io/en/stable/optimized.html).
+- Verificações: pytest tests/test_field_files.py tests/test_order_lifecycle_dev07.py -q -p no:cacheprovider --tb=short: 19 passaram; após conferência adicional de UC, os 4 testes de arquivos passaram novamente. Vitest FieldFiles.test.tsx e InspecoesPage.test.tsx: 20 passaram. Build/tipos, lint e fronteiras passaram; lint mantém aviso preexistente em AuthProvider. Testes usam dados artificiais e HTTP real de teste, incluindo baixar/preencher/importar XLSX, persistência, reenvio e auditoria.
+- Estado Em validação: falta revisão visual no navegador e aceite humano. Trello não conectado; sincronização pendente. Não houve alteração da Gold ou de dados reais.
+### 02/11/2026 — WEB-08/WEB-09: apresentação dos arquivos de campo
+
+- FieldFiles.tsx organiza envio da fila e retorno de resultados em dois blocos, com botões compartilhados, ícones, cabeçalho, limites próximos ao upload e mensagens de processamento/retorno em área própria. O seletor nativo fica associado a um botão acessível. Desktop usa duas colunas; telas menores empilham os blocos.
+- Diálogo de exportação usa opções em cartões, campos de filtro em grade responsiva e rodapé com cancelar/baixar. Tokens existentes preservam claro/escuro; comportamento operacional permanece igual.
+- Verificações: 20 testes de FieldFiles/InspecoesPage passaram; build/tipos, lint e fronteiras passaram (aviso preexistente em AuthProvider). Sem inspeção visual no navegador nesta revisão; estados dos requisitos preservados.
+### 02/11/2026 — WEB-08: contagem do recorte e mensagens de exportação
+
+- O diálogo consulta count_only a cada mudança de escopo/filtros, incluindo categoria. Na Gold, COUNT usa os mesmos predicados da exportação e o snapshot autenticado; categoria passa a ser aplicada antes do limite/paginação. Respostas de seleções antigas não substituem a contagem da chave atual; download fica desabilitado durante consulta, com zero, erro ou mais de 50.000 UCs.
+- Recortes vazios mostram explicação em português. Erros de filtros, sessão, publicação e indisponibilidade recebem mensagens de produto, sem expor Falha HTTP 422. A contagem não gera CSV nem carrega as linhas Gold.
+- Verificações: 22 testes de interface passaram (incluindo alteração de filtro, zero e 422); 8 testes backend de arquivos/fila/repositório passaram. Build/tipos, lint, fronteiras e diff passaram; aviso preexistente de AuthProvider mantido. Sem nova validação visual ou aceite integral; estados preservados.
+### 02/11/2026 — WEB-08: bairros vinculados ao município na exportação
+
+- Opções de exportação incluem pares reais municipio/bairro da fonte. Bairro fica desabilitado sem município, mostra somente bairros correspondentes e é limpo ao trocar a cidade. Os filtros principais da fila já possuem esse comportamento e foram preservados.
+- Arquivos: endpoint de inspeções, FieldFiles.tsx e teste de interação com dois municípios e bairros distintos. Build/tipos passou. Estados dos requisitos preservados; sem aceite visual novo.
+### 02/11/2026 — WEB-09: correção do ambiente e modelo CSV
+
+- Logs do backend Docker confirmaram ModuleNotFoundError de openpyxl ao gerar modelo Excel. Serviço reconstruído com requirements e reiniciado sem alterar o banco; openpyxl 3.1.5 confirmado no container. A consulta operacional encontrou zero ordens EM_ANDAMENTO.
+- Modelo sem ordens passa a explicar a necessidade de criar/iniciar uma inspeção. GET /inspections/field-results/template aceita format=csv além de xlsx; portal oferece modelo CSV e mensagem explicativa se o serviço Excel estiver indisponível. Ausência da biblioteca passa a 503 controlado, sem stack na resposta.
+- CSV mínimo: ordem_id;versao;uc_id;resultado, preenchido pelo servidor com ordens existentes. Não inventar IDs nem resultados de inspeção para teste no banco operacional. Modelo de referência vazio foi entregue fora do repositório.
+- Verificações: 5 testes backend e 5 testes de interface passaram; build/tipos passou. Container confirmou dependência e mensagem de ausência. Não houve gravação de resultados reais nem aceite integral do requisito; estado preservado.
+### 02/11/2026 — correção operacional da fonte após reconstrução do backend
+
+- A reconstrução para instalar openpyxl foi iniciada apenas com docker-compose.yml e recriou o backend com ANALYTICS_SOURCE=synthetic. A pessoa usuária reportou redução da fila de 45.000 para 2 UCs. Configuração efetiva confirmou fonte sintética e ausência do overlay, enquanto o ai-agent preservava os dois arquivos Compose.
+- Restaurado somente backend com docker compose --env-file .env.gold-v2 -f docker-compose.yml -f docker-compose.gold-v2.yml up -d --no-deps backend. Loader não executado; banco e demais serviços não foram recriados.
+- Verificação no container: ANALYTICS_SOURCE=gold, openpyxl=3.1.5 e COUNT da fila pelo GoldInspectionRepository = 45.000 UCs. Não foram consultados registros individuais nem alterados dados. A configuração Compose Gold completa deve ser preservada em futuras recriações.
+### 02/11/2026 — WEB-09: escolha do formato do modelo
+
+- O botão único Baixar modelo de resultados abre diálogo com escolha Excel (XLSX) ou CSV antes da solicitação. Cancelar não baixa arquivo; erros permanecem no diálogo e sucesso fecha o modal. Seleção de ordens e backend preservados.
+- FieldFiles.tsx e FieldFiles.test.tsx: seis testes de interface passaram, incluindo solicitação somente após confirmação e envio de format=csv. Build/tipos passou; sem nova inspeção visual. Estado do requisito preservado.
+### 02/11/2026 — WEB-08/WEB-09: separar envio da fila e retorno operacional
+
+- Inspeções mostra apenas envio/exportação da fila. Ordens recebe o registro de resultados por planilha e o download do modelo com escolha CSV/XLSX, condicionado à permissão de escrita. A mensagem após upload explicita a quantidade de ordens concluídas e preserva os erros por linha; cache operacional continua invalidado.
+- Componente compartilhado em frontend/src/shared/inspections/FieldFiles.tsx permite compor as duas jornadas sem imports entre features. Não houve alteração de banco, transições ou configuração de execução.
+- Verificações: 42 testes de FieldFiles, InspecoesPage e OrdensPage passaram; build/tipos, lint e fronteiras passaram (aviso preexistente em AuthProvider). Sem nova inspeção visual no navegador; estados dos requisitos preservados.
+### 02/11/2026 — WEB-05: exclusão de ordens e ajuste de cancelamento
+
+- A pessoa usuária autorizou excluir ordens em qualquer estado, inclusive concluídas. O diálogo oferece Excluir ordem com confirmação digitando o ID. DELETE /inspections/orders/{id} exige escrita, versão atual e confirmed_order_id; a exclusão é lógica, registrada no histórico existente sem migração ou apagamento da auditoria.
+- A ordem excluída deixa de aparecer em consultas, buscas e modelos e não recebe novas alterações. Ordens ativas são encerradas na mesma transação para liberar a restrição de uma ordem ativa por UC; resultados e histórico anteriores permanecem. Reenvio da intenção de criação excluída retorna conflito, sem ressuscitar a ordem. Cancelar ordem perde apenas as reticências no rótulo.
+- Arquivos: serviços inspections/field_files, endpoint de inspeções, DeleteOrder.tsx e diálogo/página de Ordens. Verificações: 24 testes backend passaram, incluindo exclusão dos quatro estados, confirmação incorreta, preservação da auditoria e nova ordem na mesma UC; 30 testes das telas de Ordens e 1 teste de confirmação da exclusão passaram. Build/tipos, lint e fronteiras passaram, com aviso preexistente em AuthProvider. Sem teste PostgreSQL/inspeção visual novo; estados dos requisitos preservados.
+### 03/11/2026 — WEB-01/WEB-02/WEB-04: simplificação visual e tipografia
+
+- Panorama remove a linha duplicada de competência junto aos indicadores, mantendo o período nos filtros. Receita adota a disposição dos filtros de Inspeções, com resumo em grade e botão lateral (em largura completa no celular), remove Antes/Mês/Período e setas dos cartões e adota a escala tipográfica dos indicadores do Panorama. Valores, filtros e cálculos permanecem iguais.
+- Cabeçalhos das tabelas de produto usam a fonte de interface (font-sans), em lugar da monoespaçada, em Panorama, Receita, Inspeções, Ordens, UC 360 e Operação. Inspeções remove os dois avisos repetidos de ordenação solicitados; controles de campo e direção continuam disponíveis.
+- Verificações: 56 testes dirigidos de Receita/Inspeções e sinais passaram; 26 testes do Panorama e série passaram. Build/tipos, lint e fronteiras passaram, com aviso preexistente em AuthProvider. Não houve alteração de backend/banco nem nova inspeção visual; estados dos requisitos preservados.
 
 ### 2026-11-02 — IA-04 / WEB-01 — linguagem do insight no Panorama
 
@@ -3637,3 +3699,285 @@ passaram; Chromium real confirmou Sim → ano, restauração e mudança de assun
 Duas respostas reconciliadas por SQL independente e quatro eventos de auditoria
 confirmados; conta temporária removida. Evidência no complemento do registro de
 entendimento acima; mesma branch, sem commit/push, estados oficiais preservados.
+
+### 2026-11-03 — IA-07: memória de consultas em conversas longas
+
+- Adicional [Memória para conversas mais longas](https://trello.com/c/Wen9zrG0), branch `feat/genai-memoria-conversas-longas`, base develop `36166bd`. Concluído na entrega técnica local, dez critérios revisados; integração à develop pendente de commit/PR/merge. Integração executável e prova local Gold v2; estados oficiais IA-01 a IA-07 preservados. Escopo: retomar explicitamente consultas anteriores da mesma conversa, por ordem; sem resumo livre ou memória entre conversas. Contrato e reprodução em [memória de investigações](contracts/genai-long-conversation-memory.md) e [evidência](plans/2026-11-03-genai-memoria-conversas-longas.md).
+- Backend recupera uma âncora tipada com autoria, UUID/sequência de origem e publicação v2, mantendo a ordem antes de conferir o escopo. Reutiliza assinatura, autorização, replanejamento, SQL restrito e auditoria. Uma âncora por pedido, até 1.000 caracteres/4.096 bytes e 200 trocas; nenhuma chamada de modelo para selecionar/sumarizar. Reutiliza retenção aprovada de 30 dias e exclusão existentes, sem migração ou novo estado derivado. Desativação por `GENAI_CONVERSATION_MEMORY_ENABLED=false`.
+- Baseline controlado de quatro retomadas: contexto curto 0/4 planos corretos (quatro esclarecimentos) → recuperação 4/4 planos integrais corretos. Correção posterior do filtro e troca de assunto verificadas. Prova pública com sessão/conta de leitura temporária: receita, consumo como troca de assunto, doze esclarecimentos e retomada da primeira consulta; 15 respostas auditadas. Receita inicial e retomada reconciliadas com SQL independente na mesma publicação. Acesso revogado 403, publicação antiga 409, injeção recusada e exclusão 204/404 confirmados; contas e processos temporários removidos/encerrados.
+- Verificações e revisão dos dez critérios estão na evidência. Na jornada principal, retomada usou 1.531 tokens de entrada e 29 de saída, contra 1.488/29 na primeira pergunta, sem resumo remoto; latência de 14,816 s, sem atribuir ganho de desempenho à memória. Uma referência malformada detectada na prova foi bloqueada antes da coordenação após a correção. Limites de Dados continuam aplicáveis. Sem commit/push/PR nesta rodada.
+
+### 03/11/2026 — adicional: início da busca documental autorizada
+
+- Branch `feat/genai-busca-semantica-documentacao`, base develop `36166bd`; cartão [busca semântica em documentação autorizada](https://trello.com/c/gctQzTDV). Preparação, sem entrega integrada ou alteração dos estados oficiais IA.
+- Corpus inicial reutiliza literalmente as nove definições aprovadas do FAQ. `scripts/generate-genai-documentation.py` confere rótulos/definições contra o catálogo Gold v2 e empacota apenas conteúdo conceitual em `ai-agent/app/corpora/indicators.json`.
+- Porta textual e adaptador `IndicatorDocumentation` limitam acesso por perfil/fonte/operação/métricas antes de expor trechos. Vigência, conflito de IDs e remoção são reavaliados sem cache derivado persistido. Sem dataset, consulta SQL ou nova retenção.
+- Verificações: geração e `--check` passaram; Ruff e `git diff --check` passaram; dois testes em cópia temporária Linux passaram, cobrindo escopo, conflito, expiração e retirada. Sem chamada externa nesta fatia.
+- Pendências: recuperação lexical/semântica comparada, composição e consumidor de runtime, respostas com citação, orçamento, injeção indireta e prova integrada. Dez critérios do cartão permanecem abertos; sem commit/push/PR.
+
+### 03/11/2026 — busca documental: integração e achados da avaliação
+
+- Integração local no núcleo composto e no planejamento HTTP, com resposta literal e referência documental tipada. Backend reconfere texto, citação, versão, vigência e métricas autorizadas antes da publicação; página mostra documentação interna e seção no fundamento. Sem commit/push.
+- Verificações anteriores à calibração: 109 testes GenAI passaram nas fronteiras de documentação, planejamento, composição, follow-up e autenticação; 13 Backend passaram, incluindo coordenação com Gold v2 artificial; 23 testes da página passaram. Última rodada dirigida após restrição lexical: 9 passaram. Corpus --check e compilação passaram.
+- Rodada real autorizada com onze perguntas artificiais e nove definições do FAQ revelou esclarecimentos/ausências excessivos e uma seleção lexical indevida (decomposição → preço). Seleção lexical foi restringida; não declarar ganho geral. Segunda rodada com consulta/documento separados apresentou falhas do provedor e não comprova aceite. Não inferir a causa dessas falhas sem diagnóstico sanitizado.
+- Pendentes: medir e calibrar a recuperação com resultado independente, revalidar chamadas reais, limites de chamadas adicionais, gates finais, jornada visual e revisão completa. Cartão permanece em andamento; não concluído.
+
+
+### 03/11/2026 — adicional: busca documental autorizada concluída localmente
+
+- Cartão [busca semântica em documentação autorizada](https://trello.com/c/gctQzTDV): dez critérios revisados e atendidos na primeira fatia de nove definições aprovadas do FAQ. Branch `feat/genai-busca-semantica-documentacao`, base `36166bd`; sem commit, push ou PR nesta rodada. Estados oficiais IA preservados.
+- Porta/adaptador no núcleo existente, corpus gerado e conferido no catálogo Gold v2, seleção estruturada Gemini restrita ao escopo, resposta literal e citação validada novamente pelo Backend. Quantitativos seguem SQL no Backend. Versão, vigência, retirada, revogação, histórico, auditoria, limites e rollback cobertos. Sem índice vetorial persistido, novos dados ou permissões.
+- Rodada real autorizada: nove respostas integralmente sustentadas, um esclarecimento por suporte parcial e uma ausência correta; dez IDs esperados de onze, versus três correspondências lexicais. Avaliação usada para calibração, sem alegação de precisão geral. Nove definições pela API pública: HTTP 200, texto literal e auditoria. Chromium real: desktop/celular, teclado, citação, dois temas e ausência de overflow/erros JavaScript.
+- Verificações: GenAI completo 4.318 passaram / 4 skips; Backend dirigido 176 passaram; página 23 passaram. Build/tipos, lint, fronteiras, formatação, Ruff, geração reproduzível e diff passaram; avisos preexistentes AuthProvider e Starlette/httpx. Revisão em requisitos e padrões corrigiu quatro defeitos, com regressões.
+- Contrato, comandos, critérios, limitações e evidências em [busca documental](contracts/genai-documentation-search.md) e [validação](plans/2026-11-03-genai-busca-documental.md). PR #113 de conversas longas permanece separado; integração posterior pela develop.
+
+
+### 03/11/2026 — ampliação da busca documental
+
+- Por solicitação da pessoa usuária, corpus ampliado de nove para 16 verbetes, cobrindo as definições dos 14 indicadores do catálogo Gold v2. Sete explicações individuais extraídas literalmente, incluindo consumo médio por UC e satisfação. Comparativos preservados; definições individuais usam apenas a permissão da própria métrica.
+- Reconhece “me explica”, “pode me explicar” e “o que quer dizer”; datas e localidades conservam o caminho quantitativo. Corpus versionado independentemente do FAQ; geração reproduzível para Backend/GenAI.
+- Verificações locais: 114 testes GenAI dirigidos e sete Backend passaram; Ruff, gerador e diff passaram. Prova Gemini/portal anterior corresponde aos nove verbetes iniciais e não estima qualidade semântica do corpus ampliado. Detalhes e falha de IDs corrigida em [evidência](plans/2026-11-03-genai-busca-documental.md). Sem commit/push.
+
+
+### Revisão do PR #114 — ciclo de vida documental
+
+A revisão de padrões identificou herança indevida da vigência do primeiro FAQ
+para as definições individuais. Corrigido com seleção explícita dos sete IDs e
+metadados próprios: retirar receita não retira DEC/FEC ou satisfação, e adicionar
+uma métrica ao catálogo não a publica automaticamente na busca. Corpus
+regenerado nos dois serviços. 115 testes GenAI dirigidos passaram; Ruff, gerador
+--check e diff passaram. Falha inicial na cópia Linux foi ausência do diretório
+temporário scripts, corrigida sem alterar a regressão. Sem novas chamadas externas.
+
+
+### PR #114 — compatibilidade do SDK opcional
+
+CI detectou três falhas na composição Gold quando o SDK Gemini não está instalado
+e o modelo quantitativo é injetado. Seleção documental agora carrega o SDK apenas
+na primeira chamada remota; falta do SDK resulta em erro documental sanitizado,
+sem impedir composição ou definições canônicas. Doze testes do seletor e runtime
+passaram; Ruff passou. Sem chamada externa.
+
+
+### 03/11/2026 — memória atualizada após busca documental
+
+- PR #114 integrado à develop por Create a merge commit `ef3a625`, após cinco checks GitHub aprovados. Seis commits individuais preservados, incluindo correções de vigência e SDK opcional; sem squash/rebase.
+- Branch `feat/genai-memoria-conversas-longas` / PR #113 recebeu develop via merge `5a2dc82`, com os três conflitos resolvidos preservando imports e progresso das duas entregas. Ajuste de integração distingue memória Gold e documental, reexecuta pergunta conceitual vigente, preserva ordinais, descarta contexto numérico implícito após conceito e mantém retomadas sucessivas. Sem migração, novas fontes ou retenção.
+- Backend dirigido 95 passaram; GenAI dirigido 192 passaram; Ruff, corpus --check e diff passaram. Prova entre processos com fonte/modelo controlados percorreu rota, histórico, coordenação e núcleo em três respostas documentais auditadas. Não houve nova rodada Gemini/portal nem nova homologação Gold real. Contrato e resultados em [memória](contracts/genai-long-conversation-memory.md) e [evidência](plans/2026-11-03-genai-memoria-conversas-longas.md). Estados oficiais IA preservados.
+
+### 03/11/2026 — WEB-04 / WEB-10 / IA-01, IA-03, IA-06 — estimativa condicional e DEC/FEC observados
+
+- Na branch `feat/web10-perfis`, o Backend lê os campos existentes de estimativa individual e aceita somente estado/método conhecidos, valores finitos e faixa coerente, acompanhados por validação temporal candidata de 90%. Inspeções mostra estimativa e condição por UC, com motivo para indisponibilidade; o resumo respeita filtros e paginação. Fundamentos/snapshot de novas ordens preservam estimativa, faixa, janela e publicação. O consumidor não reescreve `aceite_web04`, fórmula ou registro Gold.
+- A coordenação GenAI distingue `observed_uncertified` de capacidades certificadas. A consulta observada é restrita a DEC/FEC, um alimentador explícito, janela mensal completa e presente no lote, controles válidos e única falha de prontidão por cobertura não certificada. O Backend/guard preservam a ressalva pública e a auditoria. Nenhuma cobertura foi certificada, e nenhuma carga, exportação ou escrita Gold foi feita.
+- Consulta SQL somente leitura no banco local `v_energy`, publicação Gold v2: para `ALM-JAB-015`, 2026-06, numeradores/dados Gold foram 61,2667 horas, 39 interrupções e 34 UCs; divisões independentes reproduziram DEC 1,80196 h/UC e FEC 1,14706 interrupções/UC. Para 2025-07–2026-06, `cobertura_dominios` mostra 12 meses `FECHADO` em `DOMINIO` e 12 meses `NAO_CERTIFICADA` em `ALIMENTADOR:ALM-JAB-015`. Isso confirma os dados observados e a distinção de certificação, mas não é resposta do Assistente nem reconciliação portal/API/IA.
+- Verificações executadas nesta rodada: Backend dirigido, 164 passaram, 1 pulado e 1 aviso preexistente Starlette/httpx; `ai-agent/tests/test_evidence_guard.py`, 29 passaram, e `compileall` passou; Frontend Inspeções/decoder/fundamentos, 30 passaram, lint passou com dois avisos preexistentes fora das mudanças, fronteiras passaram em 205 arquivos, build TypeScript/Vite passou e Prettier dos arquivos alterados passou. Ruff não está instalado no ambiente disponível. Uma consulta de contagem integral de recuperação excedeu o limite SQL de 5 s e não foi usada como evidência de contagem.
+- Pendências bloqueadoras do aceite integrado: `check_genai_runtime.py` reportou configuração indisponível porque faltam neste ambiente o leitor Gold da GenAI e URL/token do serviço AI Agent; o navegador desta sessão está sem login Admin. Assim, não foram repetidos login/jornadas por perfil, resposta Admin real de DEC/FEC, auditoria/persistência pelo portal ou reconciliação da resposta. WEB-04 e WEB-10 permanecem `Em validação`; IA-01/03/06 mantêm os estados do PRD. Ver [plano e checklist](plans/2026-11-03-inspecoes-recuperacao-continuidade-observada.md), [ADR-0024](decisions/0024-recuperacao-condicional-e-continuidade-observada.md) e [relatório histórico WEB-10](plans/2026-11-01-web10-perfis-evidencias.md). PR #101 não está liberado para merge por esta rodada.
+
+#### Complemento de verificação — 03/11/2026
+
+- Após corrigir a compatibilidade dos planos anteriores no fluxo DEC/FEC, os cinco arquivos Backend diretamente alterados passaram: 50 testes, com um aviso preexistente Starlette/httpx. Os testes de fluxo, elegibilidade e execução observada passaram separadamente: 45 testes. A suíte GenAI completa passou com 4.333 testes e 5 skips; o guard passou com 29 testes e `compileall` passou.
+- A suíte Backend completa terminou em 1.119 aprovados, 114 skips e 6 falhas. Cinco falhas eram do fluxo de Continuidade e foram corrigidas; a repetição focada atual passou. A sexta ocorreu porque `openpyxl` está ausente da venv, embora esteja declarado em `backend/requirements.txt`; a instalação não foi possível por bloqueio de rede. A suíte completa não foi repetida após a correção.
+- A suíte Frontend completa terminou em 451 aprovados e 9 falhas. A execução isolada dos quatro arquivos que falharam confirmou 47 aprovados e 8 falhas em Panorama, roteador, Ajuda contextual e Assistente. Os testes dirigidos das Inspeções (30) passaram; lint, fronteiras (205 arquivos), build e formatação dos arquivos alterados passaram. Os avisos de lint são preexistentes e fora dos arquivos alterados.
+- Ruff não está instalado. A verificação runtime GenAI continua indisponível sem URL/token do AI Agent e DSN do leitor Gold; não há sessão Admin no navegador. Portanto, ainda não há resposta real do Assistente reconciliada com SQL nem prova portal/API/IA. WEB-04 e WEB-10 seguem `Em validação`; a branch pode receber os commits, mas esta rodada não autoriza declarar os requisitos concluídos nem liberar merge.
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — início dos gráficos e insights visuais
+
+- Estados oficiais preservados. Adicional em desenvolvimento na branch feat/genai-graficos-insights-visuais, base develop 77fa425; primeira fatia para feedback, sem aceite integral do cartão.
+- Modal do Panorama apresenta comparação em barras e tabela com os valores já carregados, antes da síntese; PNG/CSV usam os mesmos pontos. Chat troca acordeão por metadados visíveis, preservando citações.
+- Verificação: 32 testes dirigidos, build, lint (aviso anterior AuthProvider), fronteiras e Chromium com dados artificiais em 320/390/1440 px e ambos os temas passaram; downloads exercitados. Sem chamada Gemini ou reconciliação Gold nova.
+- Pendentes: contrato de pontos do chat, demais tipos, interpretação ampliada, latência, histórico/cache/autorização integrados e aceite Gold. [Plano e evidência](plans/2026-11-03-genai-graficos-insights-visuais.md). Sem commit/push nesta rodada.
+
+
+### 2026-11-03 — IA-04 — distribuição visual do recorte do Panorama
+
+- Adicional em desenvolvimento: Backend publica distribuição opcional por município/classe na mesma fonte e filtros. Modal exibe rosca quando as parcelas observadas fecham com total positivo; demais casos usam barras. Sem certificar cobertura mensal ou ampliar permissões.
+- 50 testes Backend (HTTP sintético e snapshot SQL), 23 frontend, build/lint/fronteiras e Chromium com snapshots artificiais e downloads em 320/390/1440 px e dois temas passaram. Sem benchmark ou reconciliação privada desta fatia.
+- Estados oficiais preservados. Chat quantitativo, demais formatos, memória/cache e aceite integrado pendentes. [Contrato](contracts/genai-visual-evidence.md). Branch feat/genai-graficos-insights-visuais, sem commit/push.
+
+
+### 2026-11-03 — IA-04 — volume e legibilidade dos gráficos adicionais
+
+- Feedback visual aplicado: gráficos compactados, legenda com rolagem no celular e visual top 5 + Demais calculado no Backend. Lista completa preservada (até 1000 grupos), tabela de 20 linhas/página e CSV completo.
+- Gold local: contagem somente leitura confirmou 14 municípios no diagnóstico e no mês mais recente. Validação visual usa fontes artificiais de 14/200 grupos; 52 testes Backend e 25 frontend, build/lint/fronteiras e Chromium em três larguras e dois temas passaram, com downloads e paginação. Sem chamada Gemini ou benchmark/reconciliação privada dessa fatia.
+- Estados oficiais e aceites integrais permanecem inalterados. [Contrato e evidência](contracts/genai-visual-evidence.md). Sem commit/push.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — gráficos do chat e downloads verificados
+
+- Campo opcional versionado do chat deriva pontos da evidência autorizada, com período/unidade/filtros/publicação/precisão conferidos; gráfico fornecido pela GenAI é recusado. Componente compartilhado apresenta barras, ranking, linhas e distribuição válida do Panorama; escalar, zero/nulo e lacunas conservam significado. Metadados do chat ficam visíveis, sem SQL/infraestrutura.
+- PNG/CSV nos dois consumidores revalidam sessão, permissão e publicação no servidor; estado local também impede exportação após troca de conta/lote ou desmontagem. CSV inclui alcance/ranking; PNG de série extensa usa até 3600px e metadados em linhas. Histórico confere origem/escopo antes de restaurar gráfico.
+- Verificação: 154 testes Backend e 59 frontend passaram; build, Ruff dos arquivos novos, fronteiras e diff limpo. Lint sem erro, aviso anterior AuthProvider. Chromium: chat/modal/tabelas/downloads,14/200 grupos, série de 24 pontos, até quatro larguras e dois temas, acesso negado, movimento reduzido e Escape/foco. Revisões de padrões/especificação encontraram período divergente, alcance ausente no CSV e PNG estreito; corrigidos/revalidados.
+- Reconciliação independente somente leitura com Gold local: três distribuições (14/14/5 grupos) e recorte específico sem expansão passaram. Participação indisponível nesses recortes não vira rosca. Não houve nova chamada Gemini nem jornada do novo chat com modelo/Gold reais. Serviços existentes não foram reconstruídos. [Contrato](contracts/genai-visual-evidence.md), [comandos, evidências e limites](plans/2026-11-03-genai-graficos-insights-visuais.md).
+- Quatro dos 18 critérios têm aceite técnico local (metadados, PNG, CSV e pt-BR); cartão continua em desenvolvimento. Pendentes apresentação progressiva do chat, leitura ampliada, benchmark e aceite integrado restante. Estados oficiais IA preservados; sem commit/push. Correções de DEC503/avisos de consumo da colega não foram incluídas.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — entrega progressiva e aceite técnico dos gráficos
+
+- Complemento ainda sem commit/push na mesma branch: rotas existentes negociam NDJSON, entregando dados consultados/auditados/revalidados antes da síntese, sem repetir SQL/modelo. JSON anterior preservado. Cancelamento antes/depois da prévia, troca de contexto e validação limitada de eventos/bytes; falha do modelo mantém dados apenas após confirmar acesso/publicação. Falha do desenho conserva tabela/CSV.
+- Leitura ampliada determinística e ligada a IDs de observação: diferença, percentual com base válida, pico/extremos e próximo passo sem causa presumida. Fonte sanitizada conferida contra origem exata; controles/aditividade/cobertura preservados. Nenhuma nova métrica ou permissão.
+- Verificações finais:162 testes Backend e95 frontend passaram; build/formatação/lint/fronteiras e diff limpo. Lint só com aviso anterior AuthProvider; apontamentos legados do Panorama não ampliados. Revisão corrigiu disconnect antes do primeiro dado e revalidou; sem outro bloqueio concreto encontrado.
+- Gold/Gemini reais com ambos os serviços da branch: total mensal, comparação e série de seis meses passaram; todos os pontos reconciliados com SQL independente no leitor dedicado. Portal real: gráfico/tabela/PNG/CSV/recarga, sem erro JavaScript; CSV igual a pontos/SQL. Histórico/acompanhamento/conceito/retomada: quatro respostas e três gráficos restaurados. Conta/conversas temporárias removidas ao fim; aplicação principal preservada.
+- Latência exploratória3+3 da mesma comparação: primeiro resultado p50 JSON15,792s e progressivo14,153s; completo p50 respectivamente15,792s e16,069s. Amostra pequena, sem SLA/garantia de ganho total. Logs da GenAI isolada:14 correlações com uma chamada real por correlação. Chromium quatro larguras/dois temas/zoom200%/teclado/árvoreARIA passou.
+- Matriz técnica local17/18 no [relatório](plans/2026-11-03-genai-graficos-insights-visuais.md): implementação/validação contempladas; último critério, registro das evidências no PR, aguarda publicação dos complementos. Não marcar18/18 apenas pelo relatório local. Estados oficiais IA e aceite de Dados preservados. [Contrato atualizado](contracts/genai-visual-evidence.md).
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — publicação dos gráficos e Docker local
+
+- Evidências de implementação/validação publicadas no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), para develop, preservando os commits e sem merge. Matriz técnica local18/18; o último critério exigia registrar as evidências no PR, agora atendido. Estados oficiais IA e homologação de Dados preservados.
+- Complementos de Backend6772a10 e frontend399fdb5 publicados após revisão. Relatório/contratos/guias atualizados com os162/95testes, reconciliação Gold/Gemini, portal real, histórico/memória, limites de cobertura e benchmark exploratório.
+- Docker reconstruído desta worktree para localhost5173: IA saudável, Backend/portal200, Gold e chave configuradas sem expor segredos. Nova consulta autenticada na composição reconstruída confirmou dados antes da síntese e dois pontos iguais ao final; conta temporária removida. Volume Gold preservado e loader não reexecutado. .dockerignore exclui configuração privada e artefatos locais.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — sincronização do PR116
+
+- Branch de gráficos sincronizada por merge normal com develop6fc93de, preservando os commits do PR115 e da GenAI, sem squash/reescrita. Integração sem conflitos de conteúdo; PR116 continua aberto, sem merge na develop.
+- Árvore integrada:186 testes Backend na imagem Docker limpa e153 frontend passaram, incluindo regressões dos módulos recebidos; build/fronteiras passaram. Backend reconstruído com as dependências já versionadas na develop; localhost5173/health8000 continuaram200, IA saudável e volume Gold intacto. Evidência e limites permanecem no relatório dos gráficos.
+
+
+### 2026-11-03 — IA-04 — leitura imediata e estabilidade do insight
+
+- Integração executável local na branch `feat/genai-graficos-insights-visuais`, ainda sem novo commit: leitura calculada dos indicadores/distribuição assim que o Panorama chega. A hipótese continua identificada como geração da IA e chega depois; falha recuperável preserva leitura e nova tentativa. Contexto inválido não reapresenta interpretação antiga.
+- Sínteses respondidas vinculadas ao contexto são reutilizadas por 120 s, até 64 entradas em memória por processo. Chave: tela, evidência, limitações, lote e escopo/identidade completos; só o saldo transitório de prazo é excluído. Cada requisição mantém prontidão, autorização, leitura e publicação atuais e nova auditoria; falhas não entram no cache. Reiniciar o Backend limpa o cache. Navegador cancela em 70 s e na troca de recorte, com limpeza de timer/listener.
+- Antes: respostas reais em 44,540 s e 40,824 s. Perfil separado: total 49,565 s, prontidão 14,353 s, snapshot 0,020 s, síntese 35,060 s. Depois, reutilizações em 13,060 s e 13,630 s, `answered`, com observações/hipótese iguais e auditorias distintas. A rodada inicial pós-alteração teve falha recuperável em 29,512 s e resposta em 36,765 s; o provedor continua variável. Amostra exploratória, sem alegação de SLA.
+- Chromium no localhost: leitura visível com IA deliberadamente pendente em 4.967 ms (390 px) e 2.224 ms (1440 px); zero erros JavaScript. Interceptação controlada prova apresentação; medições API acima usaram Gold/Gemini reais, sem publicar payloads ou segredos.
+- Verificações: Backend `test_genai_client.py`, `test_gold_panorama_coordination.py`, `test_ai_insights.py`: 71 aprovados; frontend `GoldInsight`, `InsightInvalidation`, `PanoramaInsight`, `InsightFilterScope`: 14 aprovados. Build, fronteiras (218 arquivos), Ruff direcionado e `git diff --check` passaram; lint mantém aviso preexistente do AuthProvider. Estados obrigatórios do PRD preservados.
+
+
+### 2026-11-03 — IA-04 — competência e comparação explícitas no insight
+
+- A inspeção do fluxo não reproduziu envio de outra competência: filtros da URL, chave da consulta e contexto validado acompanham mês/comparação. A ambiguidade visual existia: comparação sem valor anterior não mostrava o mês solicitado; a leitura durante a espera priorizava distribuição territorial, mesmo com variação temporal válida.
+- O cartão e o modal agora identificam o mês solicitado na comparação indisponível. A leitura imediata prioriza variação temporal quando calculada. O consumidor confere também o valor do período anterior contra o KPI antes de aceitar a síntese; datas/filtros continuam sujeitos às guardas existentes. O gráfico recebe explicitamente a origem Gold e seus botões são identificados como janela do gráfico (a síntese mensal segue os filtros da página).
+- Chromium no portal real, usando Ajustar filtros → Aplicar: maio/2026 com abril, junho com junho/2025, junho sem comparação e junho com maio. Payload do insight e rótulo visível coincidiram nos quatro casos; zero erros JavaScript. A síntese foi mantida pendente por interceptação para provar atualização imediata, sem novas chamadas Gemini nesta verificação.
+- Regressões: 72 testes Backend (transporte/cache/coordenação/insights) e 21 frontend (cartão, invalidação, filtros e série) aprovados; build, Ruff direcionado e diff-check passaram. Cache testado também com comparação diferente. Alterações locais sem commit/push; estados obrigatórios preservados.
+
+
+### 2026-11-03 — IA-04 — concentração e próximo passo sem espera pelo modelo
+
+- O trecho “segmento concentra X% da receita observada” e o próximo passo ainda dependiam de a síntese terminar para aparecer nesse formato. A resposta inicial do Panorama agora inclui `distribuicao.composicaoReceita`, calculada no Backend sobre os mesmos grupos já lidos, sem nova consulta SQL nem chamada Gemini. `revenue_composition_from_groups` é compartilhado com a síntese; o consumidor valida dimensão, maior segmento, valor e percentual contra o conjunto reconciliado e usa os mesmos formatadores do cartão final.
+- Durante a espera, cartão e modal apresentam essa leitura e o próximo passo. A hipótese complementar continua separada e depende da IA. Zero, valores negativos, soma incompatível e grupos fora do limite não produzem concentração. A condição de cobertura mensal e as regras de comparação permanecem as existentes.
+- Chromium no localhost com Gold real e chamada IA interceptada: texto de concentração e próximo passo visíveis em 2.280 ms (390 px) e 2.237 ms (1440 px), ambos com IA ainda pendente; zero erros JavaScript. Isso comprova a antecipação do trecho apontado, sem afirmar redução da latência do provedor.
+- Verificações: 59 testes Backend (`test_panorama_current_composition`, `test_panorama_distribution`, `test_gold_panorama_coordination`, `test_panorama`) e 26 frontend (`GoldInsight`, `distributionContract`, `panoramaContract`, `PanoramaInsight`, `InsightInvalidation`) aprovados; build/fronteiras e Ruff dos serviços passaram. O schema Panorama mantém quatro avisos UP045 anteriores, sem novo problema funcional. Complemento local sem commit/push.
+
+
+### 2026-11-03 — IA-04 — insight pronto permanece durante revalidação
+
+- Retorno à janela/refetch do mesmo insight Gold respondido confere acesso/publicação pelo endpoint existente de verificação e reutiliza a análise em memória, sem repetir Gemini. A chave agora também inclui valores atual/anterior e unidade. A verificação tem limite de 8 s, cancelamento e escopo de bairro quando utilizado; troca de recorte/identidade/publicação mantém as invalidações existentes.
+- O cartão e o modal mantêm a análise durante essa conferência. Falha de transporte/5xx preserva a última análise com aviso discreto de atualização pendente; 401/403/409 e contexto inválido continuam ocultando-a. A leitura calculada dos indicadores continua independente da primeira geração. Cache não é persistido em navegador/banco.
+- Chromium com sessão local e insight Gold/Gemini real: uma geração, três conferências (200 real, 503 e 403 controladas). Conteúdo permaneceu nos dois primeiros casos e foi ocultado na recusa; nenhum segundo POST de geração ocorreu. Sem publicar números, mensagens, credenciais ou payloads.
+- Frontend: 16 testes direcionados (`GoldInsight`, `InsightInvalidation`, `PanoramaInsight`, `InsightFilterScope`) e build passaram; fronteiras (218 arquivos) e diff-check passaram; lint mantém só o aviso preexistente do AuthProvider. TanStack Query v5: comportamento de revalidação/erro conferido via Context7 na documentação/código oficial (`tanstack/query`, query.ts), preservando os controles de negócio no consumidor. Complemento local sem commit/push.
+
+
+### 2026-11-03 — publicação dos complementos de latência e estabilidade
+
+Os complementos locais acima foram preparados para publicação na mesma branch do PR #116: `ee77230` (reuso de síntese), `33a030c` (concentração antecipada) e `80ac907` (consumidor estável e recorte). As referências anteriores a ausência de commit descrevem o estado durante as validações. Esta atualização documental integra o quarto commit autorizado; segredos, credenciais, scripts privados de navegação e artefatos locais permanecem fora do Git. O push não equivale a merge nem a aprovação da CI remota.
+
+### 2026-11-03 — IA-01 / IA-02 / IA-03 / IA-05 — perguntas e apresentação dos gráficos
+
+- Correção executável local na mesma branch dos gráficos, ainda sem novo commit/push: removido bloqueio legado de “mês a mês”; consumo medido admite agrupamento por município/classe/bairro nas fontes já autorizadas. Datas, cobertura, permissões, comparação agrupada e limites permanecem validados no núcleo e no Backend, sem nova credencial ou concessão.
+- Respostas por categoria resumem os agregados consultados; comparação usa números pt-BR e meses legíveis, sem rótulos técnicos de observações derivadas. Runner de aceites atualizado para o formato, mantendo teste de meses trocados. Gráficos categóricos mostram os dez maiores valores por padrão, respeitam ordenação explícita e preservam todos os grupos na tabela/CSV. Barras alinhadas à esquerda.
+- Cinco perguntas reportadas repetidas na API pública com Gold v2 e Gemini reais: série de seis meses, receita por classe, ranking municipal de consumo, distribuição municipal da receita e comparação de dois meses. Todas `answered` com `data → complete`; os 41 pontos retornados, inclusive prévia/final, bateram com SQL independente no leitor restrito. Tempos completos observados: 15,8–18,8 s; amostra exploratória, sem SLA.
+- Chromium no portal real confirmou a resposta final do ranking, alinhamento em 320/390/1440 px e dois temas, tabela de 14 municípios e PNG/CSV; zero erros JS. Uma reprodução adicional do retorno já reconciliado gerou captura, sem nova chamada de modelo. Conversas criadas nos testes removidas; demais conversas e dados preservados.
+- Verificações: 349 regressões GenAI, 36 do runner, 30 Backend e 44 frontend aprovadas; build, fronteiras (218 arquivos), Ruff direcionado e `git diff --check` passaram. Lint frontend mantém só aviso anterior do AuthProvider. Docker local reconstruído com o código final; contratos/guia/evidência atualizados. Estados oficiais IA e cobertura de Dados preservados.
+
+### 2026-11-03 — correção da validação documental do PR116
+
+- No head publicado `9822087`, GenAI, Backend, Frontend e Docker Compose passaram; “CI Documentação e configuração” falhou por um link do guia Backend para `0005-backend-python=312-alpine.md`, introduzido em `86d2975`. Caminho corrigido para o arquivo existente `0005-backend-python312-alpine.md`.
+- O mesmo bloco Python do workflow foi executado em cópia limpa dos arquivos versionados com as alterações locais: configurações válidas, seis imports de instruções presentes e links conferidos em 167 documentos. Correção local ainda sem commit/push; não afirma nova execução remota aprovada nem altera estados funcionais.
+
+### 2026-11-03 — IA-05 — indicador de consulta e interpretação
+
+- O aviso do Assistente agora distingue consulta dos dados e preparação da análise pela chegada da prévia. Ao encerrar a interação, resposta/erro final e indicador usam o mesmo ciclo de envio; lateral acompanha essa fase. Nova conversa e abertura do histórico limpam o estado, preservando o descarte de callbacks antigos e o bloqueio de envios simultâneos.
+- `AssistentePage` e `AssistenteSession`: 33 testes passaram, com transição consulta → interpretação → final e erro/recusa. Chromium no portal local, repetindo o retorno Gold já reconciliado sem nova chamada Gemini, confirmou resposta final sem avisos pendentes, lateral pronta, tabela/PNG/CSV e zero erros JS. Build/fronteiras passaram; lint só com aviso preexistente do AuthProvider. Mudança local ainda sem commit/push; estados oficiais preservados.
+
+
+### 2026-11-03 — IA-07 — escolha de gráficos no Assistente
+
+- Correção local: o chat aceitava somente barras e linha, embora a rosca já existisse no Panorama. Backend e decoder passam a aceitar rosca nas distribuições de receita/consumo de uma competência, sem ranking, com valores não negativos, soma positiva e resultado inferior ao limite do plano. Ranking permanece em barras e evolução contínua em linha.
+- Portal reaproveita a rosca existente, agrupa cinco maiores + Demais quando há mais de seis categorias e conserva todos os valores na tabela/CSV. Sem nova chamada ao modelo para desenhar ou selecionar gráfico; estados oficiais e cobertura de Dados preservados.
+- Verificações: 36 testes Backend e 47 frontend passaram; build, fronteiras, Ruff e diff passaram; lint somente com aviso preexistente de AuthProvider. Cinco consultas Gold v2/Gemini reais geraram linha, duas roscas, ranking horizontal e comparação vertical; 41 pontos reconciliados com SQL independente. Chromium repetiu a resposta real reconciliada em 320/390/1440 px, claro/escuro, seis setores/14 linhas, PNG/CSV e sem erros JS; conversa do teste removida. Detalhes no plano de gráficos. Sem commit/push nesta fatia.
+
+
+### 2026-11-03 — IA-05 / histórico — simplificação da conversa salva
+
+- Por solicitação da pessoa usuária, removidos o aviso de respostas salvas e a opção “Retomar com dados atuais” ao abrir histórico. O envio normal segue disponível, sem ativar atualização explícita de contexto. O aviso específico de envio interrompido continua quando aplicável.
+- Removido o estado de interface exclusivo da opção e atualizado o teste de restauração/novo envio. Mudança local na mesma branch de gráficos; sem commit/push.
+
+
+### 2026-11-03 — IA-01 / IA-07 — divisão entre classes sem falso intervalo temporal
+
+- Interpretador reconhece “entre as classes”/“entre os municípios” como agrupamento pelas dimensões autorizadas e retira apenas essa referência da checagem de intervalo temporal. Um intervalo realmente incompleto ainda pede esclarecimento. Sem alteração no escopo, evidência, SQL ou permissões.
+- 334 regressões de interpretação, filtros, períodos, receptividade e planejamento passaram. A pergunta exata “Como a receita faturada de Olinda se divide entre as classes em junho de 2026?” retornou answered com rosca e cinco pontos pela API pública com Gold v2/Gemini reais; todos reconciliados com SQL independente somente leitura. Imagem GenAI reconstruída e aplicada no Docker local; Ruff e diff passaram. Sem commit/push.
+
+### 2026-11-03 — publicação das correções de perguntas, gráficos e histórico
+
+Os três grupos autorizados foram commitados na mesma branch do PR #116: 440b249 fix(ai-agent): interpreta agrupamentos e séries nas consultas Gold; fae2d53 feat(assistente): apresenta distribuições autorizadas em rosca; 8bcc982 fix(assistente): sincroniza progresso e simplifica o histórico. Este registro acompanha a correção documental da ADR-0005. As notas anteriores de ausência de commit descrevem as etapas de validação; os quatro commits estão preparados para push, com verificações observadas registradas nos respectivos corpos. Arquivos privados e segredos permanecem fora do Git. CI remota e merge continuam posteriores à publicação.
+
+
+### 2026-11-03 — IA-04 / IA-07 — composição setorial e leitura contextual do Panorama
+
+- Ajuste de apresentação na branch `feat/genai-graficos-insights-visuais`: o modal deixa de repetir o total/comparação temporal como gráfico. Prioriza principais pontos e conserva apenas rosca de composição válida por município/classe, com tabela e exportações existentes. Recortes sem partição positiva válida não ganham percentuais artificiais.
+- Cartão e modal apresentam valores inicial/final e diferença, além do percentual fornecido pela API. A leitura distingue base zero, estabilidade, ausência de comparação e concentração; composição não oculta a tendência quando ambas existem. Recomendações consideram os filtros já selecionados. Usa os mesmos indicadores/análise autorizados, sem nova chamada ao modelo ou cálculo de métrica no navegador.
+- Verificações: 26 testes passaram em `InsightPresentation.test.tsx`, `GoldInsight.test.tsx`, `PanoramaInsight.test.tsx` e `VisualEvidence.test.tsx`; build, fronteiras em 219 arquivos e lint passaram (lint mantém o aviso anterior em AuthProvider.tsx:108). Chromium: três recortes Gold reais, com competência/comparação/filtros distintos, em 1440/390/320px, sem transbordamento ou erros JS; esses recortes não forneceram partição elegível e mantiveram texto sem gráfico. Rosca e tabela conferidas separadamente com fixture demonstrativa nos dois temas e três larguras. Os erros iniciais de preâmbulo/import React pertenciam ao probe isolado; corrigidos sem mudança de produção.
+- Estados oficiais IA preservados; conferência de UI não homologa cobertura da fonte. Arquivos privados de captura/probe ignorados. Alteração local, sem commit/push nesta rodada; evidência vinculada ao cartão de gráficos.
+
+
+### 2026-11-03 — IA-05 / IA-07 — quatro sugestões para explorar gráficos
+
+- As quatro perguntas iniciais do Assistente passam a oferecer distribuição de receita por município (rosca), ranking municipal de consumo (barras horizontais), comparação de consumo entre janeiro/junho (barras verticais) e evolução mensal de janeiro a junho (linha). São as mesmas formulações exercitadas com Gold v2/Gemini e reconciliadas anteriormente nesta branch; o tipo continua condicionado ao resultado autorizado, sem forçar visualizações.
+- Mantidos quatro botões, envio existente e FAQ sem repetição das sugestões iniciais. Testes existentes da página atualizados: página/FAQ tiveram 32 testes aprovados. Alteração local, sem commit/push.
+
+
+### 2026-11-03 — IA-04 / IA-07 — blocos exportáveis sem resumo duplicado
+
+- Por refinamento solicitado, restaurados os blocos de total/comparação e distribuição com tabela/download no modal. Removido somente o resumo superior “Dado observado”, que repetia o total. Distribuição volta a usar rosca ou barras conforme os dados autorizados; a restrição anterior a somente rosca está superada. Textos aprimorados, recomendações e quatro sugestões de gráficos do chat preservados.
+- 26 testes de apresentação/insight/visualização passaram após atualizar as expectativas do modal; build e fronteiras (219 arquivos) passaram, lint conserva somente o aviso anterior em AuthProvider.tsx:108. `git diff --check` passou. Sem commit/push nesta rodada; estados oficiais preservados.
+
+- Conferência final no Chromium: recortes Gold em 1440/390/320px mostraram blocos exportáveis, ausência do resumo superior duplicado e nenhuma falha temporária ou transbordamento horizontal. Distribuição em barras reapareceu nos recortes elegíveis; município/classe específicos conservaram somente o total exportável, sem fabricar grupos.
+
+### 2026-11-03 — publicação dos refinamentos do modal e das sugestões
+
+Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leitura) e a92d85b (sugestões de gráficos). As notas anteriores de ausência de commit descrevem etapas históricas. Este registro documental acompanha o terceiro commit, com publicação no PR #116 e CI posterior ao push.
+
+
+### 2026-11-03 — IA-03 / IA-04 — expectativas de apresentação no CI dos gráficos
+
+- Ajustados somente testes de síntese e sessão PostgreSQL ao formato numérico vigente; valores, unidades e sinais continuam conferidos. GenAI completo: 4.344 passaram, 4 skips; prova integrada PostgreSQL corrigida: 1 passou. Estados dos requisitos preservados. Detalhes e limites em [evidências dos gráficos](plans/2026-11-03-genai-graficos-insights-visuais.md).
+
+### 03/11/2026 — atualização de feat/web10-perfis com develop
+
+- `origin/develop` (`a6406fc`) foi mesclada na branch WEB-10. Nos conflitos, foram preservados os gráficos progressivos/visuais e o comportamento de histórico trazidos pela CeleoP, junto com a ressalva de Continuidade observada e a limpeza de conversa na troca de identidade desta branch. Os estados oficiais dos requisitos não mudaram.
+- Suíte Frontend completa após a integração: 513 passaram em 69 arquivos. Testes de sessão/API/Assistente e visualização: 63 passaram; build, fronteiras (222 arquivos), formatação e lint passaram. O lint manteve avisos `react(set-state-in-effect)` em AuthProvider e no reset privado por identidade do Assistente.
+- Regressão Backend dos fluxos de visualização, exportação e Continuidade: 76 passaram, com um aviso preexistente Starlette/httpx. A suíte Backend completa não foi repetida nesta integração.
+- WEB-04 e WEB-10 permanecem `Em validação`; a jornada real Admin/reconciliação portal/API/IA continua pendente. Este merge não declara aceite nem autoriza merge para `develop`.
+
+### 2026-11-03 — IA-01 / IA-02 / IA-03 — integração local da consistência do chat
+
+- Resolvidos conflitos da branch de consistência com a develop, preservando os gráficos, comparações e formatação pt-BR. Corrigidos exemplo solar com “com com GD” e título “uCs”. GenAI: 4.432 passaram, 4 skips; Backend PostgreSQL: 1.211 passaram, 14 skips.
+- Rodada ampliada Gold v2/Gemini: 33 solicitações, 14 respostas numéricas reconciliadas, 15 esclarecimentos, 2 recusas e 2 falhas transitórias iniciais rechecadas com sucesso. Continuação de comparação que perde indicador e desambiguação de Recife continuam pendentes; não se declara precisão geral nem conclusão dos requisitos. [Evidências e limites](plans/2026-11-03-pr117-integracao-consistencia.md). Alterações ainda locais.
+
+- Complemento da revisão local: corrigida continuação da comparação após resposta com dois meses, preservando indicador/filtros e isolamento de pergunta nova. GenAI final: 4.435 passaram, 4 skips; diálogo Gold/Gemini real respondeu e reconciliou com SQL independente, com gráfico. A ressalva anterior de perda de indicador é histórica para esse caso; a desambiguação de Recife permanece. Sem publicação nesta rodada.
+
+- Ampliação posterior de IA-01/02/03/07: preposições de local seguem a preferência municipal já existente, ambiguidade oferece escolhas explícitas, mês/ano curto usa somente ano inequívoco da cobertura, trimestre com ano vira janela mensal e “comparando” reconhece comparação. “Mês anterior” preserva os filtros do antecedente mensal. Receita por bairro reutiliza fonte autorizada; rankings conservam dimensão/direção/limite. GenAI completo: 4.475 passaram, 4 skips; Ruff aprovado. Rodada adicional Gold v2/Gemini real: 18 solicitações, 13 respostas numéricas reconciliadas com SQL independente, 4 esclarecimentos e 1 recusa, todas com referência de auditoria e contas temporárias removidas. O trimestre retornou série mensal; a expectativa inicial de soma do roteiro foi corrigida para esse contrato. Revisões Standards/Spec sem achados materiais. Estados oficiais preservados, sem nova homologação de cobertura ou alegação de precisão geral; alterações locais sem publicação. Detalhes e limites no plano do PR117.
+
+- Conferência final: publicação das respostas coincide com a capturada pelo leitor restrito para SQL independente. Após tornar a regressão de ranking explícita quanto ao ID da dimensão, os 36 testes de variações passaram; Ruff de código/testes e `git diff --check` também passaram. Nenhum novo commit ou push nesta rodada.
+
+- Consolidação para publicação no PR #117: aproveitado o merge remoto `ff6e7aa` da Laura, preservando seus ajustes de calendário, percentuais e reconciliação de moeda negativa. As melhorias desta revisão ficam em um commit complementar, sem duplicar o merge. Revalidação Linux do conteúdo combinado: 4.478 testes passaram, 4 skips; Ruff e compileall passaram. Estados oficiais preservados; nenhuma nova chamada externa ou alteração de cobertura. Evidências e limites no plano de integração da consistência.
+
+
+### 2026-11-03 — WEB-10 / IA-01 / IA-03 / IA-06 — revalidação da nova publicação
+
+- WEB-10 permanece `Em validação`; estados IA preservados. Revisão do PR #101 em `8ecfe77` contra `develop` em `277b1fd`; uma guarda local de elegibilidade DEC/FEC foi acrescentada após a revisão.
+- Manifestos analítico/cadastral pareados do lote `GOLD_20261103T173853Z_76c37784` validados e carregados transacionalmente no snapshot PostgreSQL isolado `v_energy_web10_validation_20261103_clean`, publicação `2e8fca18-bc73-44a8-92a9-8d04506318a0`. Banco principal preservado; dados e segredos locais ignorados pelo Git.
+- Admin respondeu Receita, DEC e FEC com Gemini real, valores reconciliados por SQL independente, contexto/publicação exatos e auditoria persistida com modelo concluído. Razões DEC/FEC conferidas contra numeradores/denominador. Continuidade conserva a ressalva `observed_uncertified`; a cobertura não foi certificada nem alterada.
+- Matriz HTTP de cinco perfis × sete recursos: 35 combinações corretas; bloqueios de domínio, logout e revogação passaram. Portal real: Admin consultou DEC e Receita na mesma conversa, com recortes corretos; DEC persistiu após recarga/reabertura do histórico. Leitor GenAI sem USAGE/SELECT no cadastro, sem acesso a contas operacionais ou TEMP; pedido de nomes/CPF bloqueado. Cinco contas temporárias e credenciais removidas.
+- Backend na imagem real: 63 testes dirigidos passaram, um aviso preexistente Starlette/httpx; EvidenceGuard: 39 passaram. Runtime: todos os componentes prontos, geração configurada. CI do head revisado: cinco checks aprovados, execução `41751055858`. Não se atribui a esta rodada uma suíte local completa nem todas as jornadas históricas.
+- A pendência anterior de resposta Admin de Continuidade foi superada para os recortes observados testados. Guarda local agora exige estado `NAO_CERTIFICADA`, competência e alimentador exatos, registros datados existentes e linhagem correspondente no mesmo snapshot; `PARCIAL`, `AUSENTE`, ausência da linha ou linhagem divergente são recusados como falta de evidência. 23 testes focados passaram; Ruff não está disponível na imagem local. A jornada Gold/Gemini não foi repetida após a guarda, WEB-10 segue Em validação. Revisão Standards sem bloqueador material; atribuição redundante de `quality_audit` foi removida.
+- Matriz documental de Admin corrigida para refletir as treze métricas analíticas que já existiam na develop, preservadas pela WEB-10; nenhum grant foi ampliado. Evidências, comandos e limites em [WEB-10](plans/2026-11-01-web10-perfis-evidencias.md). Sem commit, push ou merge desta revalidação.
+
+### 2026-11-03 — WEB-04 — ordenação da fila pela energia recuperável
+
+- Na branch `feat/inspection-recovery-sort`, a fila Gold aceita ordenação por `potential_recoverable_energy_kwh`. O Backend ordena apenas estimativas individuais acompanhadas pela validação temporal publicada e compatíveis com o estado/método Gold; indisponíveis ou inválidas ficam no fim. Empates e ausências seguem posição oficial da fila crescente (nulos por último) e UC crescente; a direção solicitada controla a estimativa.
+- A página de Inspeções oferece a opção Gold e mantém o critério na URL. Atualizados os contratos DEV-13.1 e Gold v2. WEB-04 continua `Em validação`: a mudança não altera `aceite_web04`, não comprova recuperação e não substitui validação humana da estimativa.
+- Arquivos de código/testes: `backend/app/api/v1/endpoints/inspections.py`, `backend/app/repositories/gold_inspections.py`, `backend/app/services/inspection_analytics.py`, seus testes de repositório/rota, `frontend/src/features/inspecoes/InspectionQueue.tsx` e seu teste de página. Contratos atualizados: `docs/contracts/analytics-gold-dev13-1.md` e `docs/contracts/inspection-gold-v2.md`.
+- Verificações locais: `backend/.venv/Scripts/python.exe -m pytest -q --basetemp=.pytest-ci-estimate-sort backend/tests/test_gold_inspection_repository.py backend/tests/test_gold_inspections_orders_postgres.py backend/tests/test_gold_inspections_v2.py backend/tests/test_gold_inspections_v2_real.py backend/tests/test_inspection_queue_dev05.py` (20 passaram, 4 pulados por dependência de PostgreSQL externo); em `frontend/`, `npm.cmd run test -- --run src/features/inspecoes/InspecoesPage.test.tsx` (20 passaram), `npm.cmd run lint` (passou com dois avisos preexistentes), `npm.cmd run format:check`, `npm.cmd run check:boundaries` (222 arquivos) e `npm.cmd run build` (passaram). `git diff --check` passou. Ruff não está instalado na venv local do Backend.
+- A regressão cobre ordenação ascendente/descendente, valores indisponíveis no fim e desempate estável usando dados sintéticos. Não houve reconciliação contra uma publicação real nesta mudança; a validação real deve usar o lote Gold v2 do PR #118 (`GOLD_20261103T173853Z_76c37784`). Suíte Backend completa, CI/CD e revisão de PR ainda pendentes. WEB-04 segue `Em validação`; aceite humano da estimativa não foi declarado.

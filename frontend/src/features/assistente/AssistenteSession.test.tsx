@@ -23,121 +23,120 @@ function RevalidateSession() {
 
 afterEach(() => vi.unstubAllGlobals());
 
-it.each([false, true])(
-  "envia nova tentativa ao restaurar histórico interrompido (atualizar dados: %s)",
-  async (refresh) => {
-    const conversation = {
-      id: "44444444-4444-4444-8444-444444444444",
-      title: "Conversa interrompida",
-      revision: 2,
-      created_at: "2026-11-02T12:00:00Z",
-      updated_at: "2026-11-02T12:00:00Z",
-      expires_at: "2026-12-02T12:00:00Z",
-      message_count: 0,
-    };
-    const originalRequest = "55555555-5555-4555-8555-555555555555";
-    const payloads: Array<Record<string, unknown>> = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-        const path = new URL(String(input), "http://localhost").pathname;
-        if (path.endsWith("/auth/session"))
-          return Promise.resolve(
-            Response.json({
-              enabled: true,
-              user: {
-                id: "history-person",
-                username: "history-person",
-                profile: "commercial",
-                permissions: PROFILE_PERMISSIONS.commercial,
+it("envia nova tentativa ao restaurar histórico interrompido sem opção de atualizar dados", async () => {
+  const conversation = {
+    id: "44444444-4444-4444-8444-444444444444",
+    title: "Conversa interrompida",
+    revision: 2,
+    created_at: "2026-11-02T12:00:00Z",
+    updated_at: "2026-11-02T12:00:00Z",
+    expires_at: "2026-12-02T12:00:00Z",
+    message_count: 0,
+  };
+  const originalRequest = "55555555-5555-4555-8555-555555555555";
+  const payloads: Array<Record<string, unknown>> = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input), "http://localhost").pathname;
+      if (path.endsWith("/auth/session"))
+        return Promise.resolve(
+          Response.json({
+            enabled: true,
+            user: {
+              id: "history-person",
+              username: "history-person",
+              profile: "losses",
+              permissions: PROFILE_PERMISSIONS.losses,
+            },
+            expires_at: "2099-01-01T00:00:00Z",
+          }),
+        );
+      if (path.endsWith("/questions")) {
+        const payload = JSON.parse(String(init?.body));
+        payloads.push(payload);
+        if (payload.request_id === originalRequest)
+          throw new Error(
+            "Não reutilizar tentativa com parâmetros desconhecidos",
+          );
+        return Promise.resolve(
+          Response.json({
+            contract_version: "v1",
+            correlation_id: "a".repeat(32),
+            audit_reference: "b".repeat(32),
+            status: "answered",
+            answer: "Nova consulta concluída.",
+            evidence: [
+              {
+                source: "gold.local",
+                description: "Agregado de teste.",
+                is_demo: false,
               },
-              expires_at: "2099-01-01T00:00:00Z",
-            }),
-          );
-        if (path.endsWith("/questions")) {
-          const payload = JSON.parse(String(init?.body));
-          payloads.push(payload);
-          if (payload.request_id === originalRequest)
-            throw new Error(
-              "Não reutilizar tentativa com parâmetros desconhecidos",
-            );
-          return Promise.resolve(
-            Response.json({
-              contract_version: "v1",
-              correlation_id: "a".repeat(32),
-              audit_reference: "b".repeat(32),
-              status: "answered",
-              answer: "Nova consulta concluída.",
-              evidence: [
-                {
-                  source: "gold.local",
-                  description: "Agregado de teste.",
-                  is_demo: false,
-                },
-              ],
-              limitations: [],
-              analysis_context: { metric: "Receita", unit: "R$", filters: {} },
-            }),
-          );
-        }
-        if (path.endsWith(`/conversations/${conversation.id}`))
-          return Promise.resolve(
-            Response.json({
-              conversation,
-              historical: true,
-              exchanges: [
-                {
-                  request_id: originalRequest,
-                  state: "interrupted",
-                  question: null,
-                  response: null,
-                },
-              ],
-            }),
-          );
-        if (path.endsWith("/conversations"))
-          return Promise.resolve(
-            Response.json({ items: [conversation], has_more: false }),
-          );
-        throw new Error(`Rota inesperada: ${path}`);
-      }),
-    );
-    render(
-      <QueryClientProvider
-        client={
-          new QueryClient({ defaultOptions: { queries: { retry: false } } })
-        }
-      >
-        <MemoryRouter>
-          <AuthProvider>
-            <RequireSession>
-              <AssistentePage />
-            </RequireSession>
-          </AuthProvider>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-    const user = userEvent.setup();
-    await user.click(
-      await screen.findByRole("button", { name: "Conversa interrompida" }),
-    );
-    await screen.findByText(/Há um envio sem resposta salva/);
-    if (refresh)
-      await user.click(
-        screen.getByRole("button", { name: "Retomar com dados atuais" }),
-      );
-    await user.type(
-      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
-      "Qual o consumo em junho de 2026?",
-    );
-    await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
-    expect(await screen.findByText("Nova consulta concluída.")).toBeVisible();
-    expect(payloads).toHaveLength(1);
-    expect(payloads[0].request_id).not.toBe(originalRequest);
-    expect(payloads[0].refresh_context).toBe(refresh);
-    expect(payloads[0].question).toBe("Qual o consumo em junho de 2026?");
-  },
-);
+            ],
+            limitations: [],
+            analysis_context: { metric: "Receita", unit: "R$", filters: {} },
+          }),
+        );
+      }
+      if (path.endsWith(`/conversations/${conversation.id}`))
+        return Promise.resolve(
+          Response.json({
+            conversation,
+            historical: true,
+            exchanges: [
+              {
+                request_id: originalRequest,
+                state: "interrupted",
+                question: null,
+                response: null,
+              },
+            ],
+          }),
+        );
+      if (path.endsWith("/conversations"))
+        return Promise.resolve(
+          Response.json({ items: [conversation], has_more: false }),
+        );
+      throw new Error(`Rota inesperada: ${path}`);
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <AuthProvider>
+          <RequireSession>
+            <AssistentePage />
+          </RequireSession>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole("button", { name: "Conversa interrompida" }),
+  );
+  await screen.findByText(/Há um envio sem resposta salva/);
+  expect(
+    screen.queryByRole("button", { name: "Retomar com dados atuais" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/Você está vendo respostas salvas/),
+  ).not.toBeInTheDocument();
+  await user.type(
+    screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+    "Qual o consumo em junho de 2026?",
+  );
+  await user.click(screen.getByRole("button", { name: "Enviar pergunta" }));
+  expect(await screen.findByText("Nova consulta concluída.")).toBeVisible();
+  expect(payloads).toHaveLength(1);
+  expect(payloads[0].request_id).not.toBe(originalRequest);
+  expect(payloads[0].refresh_context).toBe(false);
+  expect(payloads[0].question).toBe("Qual o consumo em junho de 2026?");
+});
 
 it.each([false, true])(
   "descarta conversa e resposta anterior ao trocar identidade (resposta atrasada: %s)",
@@ -283,8 +282,8 @@ it.each([false, true])(
       user: {
         id: "person-logout",
         username: "person-logout",
-        profile: "commercial",
-        permissions: PROFILE_PERMISSIONS.commercial,
+        profile: "customer_service",
+        permissions: PROFILE_PERMISSIONS.customer_service,
       },
       expires_at: "2099-01-01T00:00:00Z",
     };

@@ -445,15 +445,13 @@ describe("Receita", () => {
     const summary = await screen.findByRole("region", {
       name: "Resumo da receita",
     });
-    expect(within(summary).getAllByText("Mês: Fev/2025")).toHaveLength(3);
+    expect(within(summary).queryByText(/Mês:/)).not.toBeInTheDocument();
     expect(
-      within(summary).getByText("Período: Jan/2025 → Fev/2025"),
-    ).toBeVisible();
+      within(summary).queryByText("Período: Jan/2025 → Fev/2025"),
+    ).not.toBeInTheDocument();
     expect(within(summary).queryByText(/Mês: 2025-/)).not.toBeInTheDocument();
     expect(within(summary).getAllByText("R$ 76.500,00")[0]).toBeVisible();
-    expect(
-      within(summary).getByText("R$ 80.000,00").closest("p"),
-    ).toHaveTextContent(/Antes: R\$\s*80\.000,00/i);
+    expect(within(summary).queryByText(/Antes:/)).not.toBeInTheDocument();
     expect(within(summary).getByText("R$ 0,8500/kWh")).toBeVisible();
     expect(
       screen.getByRole("heading", {
@@ -488,7 +486,7 @@ describe("Receita", () => {
       }),
     ).not.toBeInTheDocument();
     expect(screen.getAllByText("R$ 76.500,00")).toHaveLength(1);
-    expect(screen.getAllByText("R$ 80.000,00")).not.toHaveLength(0);
+    expect(within(summary).queryByText("R$ 80.000,00")).not.toBeInTheDocument();
     expect(screen.getAllByText("−R$ 3.500,00")).toHaveLength(2);
     expect(within(summary).getByText("92.000,00 kWh")).toBeVisible();
     expect(

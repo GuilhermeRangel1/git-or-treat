@@ -1,5 +1,6 @@
 """Contratos de evidência compartilhados pelo núcleo e pelos adaptadores."""
 
+import re
 from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal, Self
@@ -48,15 +49,52 @@ class GoldEvidenceQuality(BaseModel):
     readiness_version: Literal["gold-readiness-v2"]
     batch_ref: GoldBatchRef
     lot_state: Literal["ready", "partial"]
+    quality_mode: Literal["certified", "observed_uncertified"] = "certified"
     available_capability_ids: tuple[LogicalIdentifier, ...] = Field(
-        min_length=1, max_length=64
+        default=(), max_length=64
     )
+    observed_capability_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=4)
+    observed_periods: tuple[str, ...] = Field(default=(), max_length=120)
 
     @model_validator(mode="after")
     def require_unique_capabilities(self) -> Self:
-        if len(self.available_capability_ids) != len(set(self.available_capability_ids)):
+        if (
+            len(self.available_capability_ids) != len(set(self.available_capability_ids))
+            or len(self.observed_capability_ids) != len(set(self.observed_capability_ids))
+            or len(self.observed_periods) != len(set(self.observed_periods))
+        ):
             raise ValueError("capacidade repetida na qualidade da evidência")
+        if self.quality_mode == "certified":
+            if (
+                not self.available_capability_ids
+                or self.observed_capability_ids
+                or self.observed_periods
+            ):
+                raise ValueError("qualidade certificada exige capacidades disponíveis")
+        elif (
+            self.observed_capability_ids != ("interrupcoes.dec_fec",)
+            or self.available_capability_ids
+            or not self.observed_periods
+            or any(
+                not re.fullmatch(r"[0-9]{4}-(?:0[1-9]|1[0-2])", period)
+                for period in self.observed_periods
+            )
+        ):
+            raise ValueError("observação não certificada só admite DEC/FEC e competências mensais")
         return self
+
+    @model_serializer(mode="wrap")
+    def omit_certified_quality_defaults(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, object]:
+        payload = handler(self)
+        if self.quality_mode == "certified":
+            payload.pop("quality_mode", None)
+        if not self.observed_capability_ids:
+            payload.pop("observed_capability_ids", None)
+        if not self.observed_periods:
+            payload.pop("observed_periods", None)
+        return payload
 
 
 class EvidenceReference(BaseModel):

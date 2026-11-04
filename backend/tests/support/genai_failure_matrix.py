@@ -1,12 +1,12 @@
 """Mesma fatia HTTP/PostgreSQL com falhas determinísticas nas fronteiras de I/O."""
 
-from sqlalchemy import event, select, update
-from sqlalchemy.engine import Engine
-from sqlalchemy.exc import OperationalError, SQLAlchemyError
-
 from app.models.auth import AuthUser
 from app.models.gold_v2_load import TABLES
 from app.services.genai_audit import AuditStore
+from sqlalchemy import event, func, select, update
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
+
 from tests.support.genai_transport import GENAI_TRANSPORT_EVENTS
 
 QUESTION = "Qual a receita em Lumenia em janeiro de 2001?"
@@ -99,6 +99,54 @@ def assert_first_question_failures(client, owner, monkeypatch, headers):
                 table.c.municipio == 'Lumenia', table.c.competencia.in_(months),
             ))
 
+    # Receita por bairro passou a ser uma abertura permitida no Gold v2.
+    # Confere um ranking real no executor e compara com SQL independente.
+    neighborhood_table = TABLES['consumo_receita_bairro']
+    neighborhood_rows = [
+        {'competencia': '2001-01', 'municipio': 'Lumenia', 'bairro': name,
+         'classe_consumo': 'RESIDENCIAL', 'receita_total_reais': value}
+        for name, value in (
+            ('CI Ranking Bairro Alfa', 3_000_000),
+            ('CI Ranking Bairro Beta', 2_000_000),
+            ('CI Ranking Bairro Gama', 1_000_000),
+        )
+    ]
+    with owner.begin() as db:
+        db.execute(neighborhood_table.insert(), neighborhood_rows)
+    try:
+        GENAI_TRANSPORT_EVENTS.clear()
+        ranking = client.post('/api/v1/ai/questions', headers=headers, json={
+            'question': 'Quais os três bairros com maior receita em janeiro de 2001?',
+        })
+        assert ranking.status_code == 200, ranking.text
+        body = ranking.json()
+        assert body['status'] == 'answered', body
+        assert body['analysis_context']['metric'] == 'billing.revenue'
+        assert len(GENAI_TRANSPORT_EVENTS) == 2
+        plan = GENAI_TRANSPORT_EVENTS[0]['response']['plan']
+        assert plan['group_by_dimension_ids'] == ['geography.neighborhood']
+        assert plan['order']['direction'] == 'desc'
+        assert plan['limit'] == 3
+        records = GENAI_TRANSPORT_EVENTS[1]['request']['lookup']['evidence']['records']
+        value = func.sum(neighborhood_table.c.receita_total_reais)
+        with owner.connect() as db:
+            expected = db.execute(
+                select(neighborhood_table.c.bairro, value.label('value'))
+                .where(neighborhood_table.c.competencia == '2001-01')
+                .group_by(neighborhood_table.c.bairro)
+                .order_by(value.desc().nulls_last(), neighborhood_table.c.bairro.asc())
+                .limit(3)
+            ).mappings().all()
+        assert [row['neighborhood'] for row in records] == [row['bairro'] for row in expected]
+        assert [row['value'] for row in records] == [float(row['value']) for row in expected]
+    finally:
+        with owner.begin() as db:
+            db.execute(neighborhood_table.delete().where(
+                neighborhood_table.c.municipio == 'Lumenia',
+                neighborhood_table.c.competencia == '2001-01',
+                neighborhood_table.c.bairro.in_([row['bairro'] for row in neighborhood_rows]),
+            ))
+
     def ask(question=QUESTION, *, context=None):
         GENAI_TRANSPORT_EVENTS.clear()
         response = client.post('/api/v1/ai/questions', headers=headers,
@@ -144,7 +192,6 @@ def assert_first_question_failures(client, owner, monkeypatch, headers):
         'Qual a receita da UC UC-999 em janeiro de 2001?',
         'Qual a receita em Lumenia nos últimos 12 meses?',
         'Qual a receita em Lumenia entre 15 e 20 de janeiro de 2001?',
-        'Quais os três bairros com maior receita em janeiro de 2001?',
         'Qual a receita em Lumenia e Outra Cidade em janeiro de 2001?',
         'Qual a receita em Lumenia em kWh em janeiro de 2001?',
         'Qual a receita no município Desconhecido em janeiro de 2001?',

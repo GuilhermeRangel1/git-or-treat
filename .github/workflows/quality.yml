@@ -45,6 +45,9 @@ jobs:
       - name: Preparar relatórios de teste
         run: mkdir -p reports
 
+      - name: Conferir corpus documental Gold v2
+        run: python ../scripts/generate-genai-documentation.py --check
+
       - name: Executar testes
         run: python -m pytest -q --junitxml=reports/junit-genai.xml
 

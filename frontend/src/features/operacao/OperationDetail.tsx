@@ -193,7 +193,7 @@ export default function OperationDetail({
                   aria-label="Ocorrências de interrupção"
                   className="w-full min-w-[560px] border-collapse text-left font-sans text-sm leading-[22px]"
                 >
-                  <thead className="font-mono text-xs leading-[18px] text-muted [&_th]:font-normal">
+                  <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
                     <tr>
                       <th scope="col" className="px-3 py-2">
                         Registro

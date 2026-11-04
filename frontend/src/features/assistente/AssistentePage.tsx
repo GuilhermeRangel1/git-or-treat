@@ -1,3 +1,7 @@
+import { chatChartPoints } from "./visualization";
+import { verifyVisualExport } from "@/shared/analytics/verifyVisualExport";
+import VisualEvidence from "@/shared/analytics/VisualEvidence";
+import { isGoldPublicationStale } from "@/shared/analytics/goldPublication";
 import { ASSISTANT_HOME_SUGGESTIONS } from "@/shared/help/assistantExamples";
 import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +13,6 @@ import {
   AlertCircle,
   Check,
   CircleHelp,
-  Database,
   Info,
   MessageCircle,
   Plus,
@@ -58,6 +61,7 @@ type ChatMessage = {
   contextEligible: boolean;
   outdated?: boolean;
   historical?: boolean;
+  preliminary?: boolean;
 };
 
 const SUGGESTIONS = ASSISTANT_HOME_SUGGESTIONS;
@@ -204,12 +208,26 @@ function formatPeriod(value: string) {
   );
 }
 
+function formatVisualLabel(value: string) {
+  // Category names are literal business labels, even when they contain a date.
+  const separator = value.lastIndexOf(" · ");
+  if (separator >= 0)
+    return `${value.slice(0, separator)} · ${formatPeriod(value.slice(separator + 3))}`;
+  return /^\d{4}(?:-\d{2}(?:-\d{2})?)?$/.test(value)
+    ? formatPeriod(value)
+    : value;
+}
+
 function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   const context = response.analysis_context;
   if (!context) return null;
   const details = [
     context.metric_label && ["Indicador", context.metric_label],
     context.unit && ["Unidade", context.unit],
+    context.metric_definition && [
+      "Definição do indicador",
+      context.metric_definition,
+    ],
     context.period && ["Período", formatPeriod(context.period)],
     ...Object.entries(context.filters).map(([key, value]) => [
       context.filter_labels?.[key] ?? "Filtro aplicado",
@@ -236,17 +254,59 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   );
 }
 
-function AssistantResult({ response }: { response: AIQuestionResponse }) {
+function AssistantResult({
+  response,
+  preliminary = false,
+  interpretationFailed = false,
+}: {
+  response: AIQuestionResponse;
+  preliminary?: boolean;
+  interpretationFailed?: boolean;
+}) {
   const answered = response.status === "answered";
   const state = RESPONSE_STATES[response.status];
   return (
     <div className="mt-3 space-y-3">
       <p className={`text-sm font-semibold ${state.appearance}`}>
-        {state.label}
+        {preliminary ? "Dados da consulta" : state.label}
       </p>
       <p className="whitespace-pre-wrap text-base sm:text-[17px] leading-7 text-content">
-        {responseContent(response)}
+        {interpretationFailed
+          ? "A interpretação não pôde ser concluída. Os dados da consulta continuam disponíveis."
+          : preliminary
+            ? "Os dados já estão disponíveis. Preparando a interpretação."
+            : responseContent(response)}
       </p>
+      {answered && response.visualization && (
+        <VisualEvidence
+          key={`${response.analysis_context?.batch_reference}-${response.visualization.metric}-${response.visualization.period}-${JSON.stringify(response.analysis_context?.filters)}`}
+          canExport={() =>
+            !isGoldPublicationStale() &&
+            verifyVisualExport({
+              metric: response.visualization!.metric,
+              dimension_ids: response.visualization!.dimension_ids,
+              batch_reference: response.analysis_context!.batch_reference!,
+            })
+          }
+          data={{
+            kind: response.visualization.kind,
+            reading: response.visualization.reading,
+            title: response.visualization.title,
+            unit: response.visualization.unit,
+            precision: response.visualization.precision,
+            scope: [
+              formatPeriod(response.visualization.period),
+              ...Object.entries(response.analysis_context?.filters ?? {}).map(
+                ([key, value]) =>
+                  `${response.analysis_context?.filter_labels?.[key] ?? "Filtro aplicado"}: ${formatFilterValue(value)}`,
+              ),
+            ].join(" · "),
+            categoryLabel: response.visualization.category_label,
+            note: response.visualization.note,
+            ...chatChartPoints(response.visualization, formatVisualLabel),
+          }}
+        />
+      )}
       {response.evidence.some((item) => item.is_demo) && (
         <p className="flex items-center gap-2 text-sm font-medium text-[var(--status-warning-text)]">
           <Info aria-hidden="true" className="size-4" />
@@ -254,40 +314,30 @@ function AssistantResult({ response }: { response: AIQuestionResponse }) {
         </p>
       )}
       {answered && response.evidence.length > 0 && (
-        <details
+        <div
           aria-label="Fundamento da resposta"
-          className="rounded-xl border border-divider bg-canvas/70 p-3"
+          className="space-y-2 text-sm leading-6 text-muted"
         >
-          <summary className="cursor-pointer text-sm font-semibold text-content focus-visible:outline-2 focus-visible:outline-brand">
-            <Database aria-hidden="true" className="mr-2 inline-block size-4" />
-            Como chegamos à resposta
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {response.evidence.map((item, index) => (
-              <li
-                key={`${item.source}-${index}`}
-                className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-5 text-muted"
-              >
-                <span>
-                  {item.is_demo
-                    ? "Dados de demonstração"
-                    : "Fonte de dados interna"}
-                </span>
-                {item.is_demo && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-warning)]/10 px-2 py-0.5 font-medium text-[var(--status-warning-text)]">
-                    <Info aria-hidden="true" className="size-3" />
-                    Demonstração sintética
-                  </span>
-                )}
-              </li>
+          <p>
+            {response.evidence.some((item) => item.is_demo)
+              ? "Dados de demonstração"
+              : response.evidence.some(
+                    (item) => item.source === "documentation.indicators",
+                  )
+                ? "Documentação interna"
+                : "Fonte de dados interna"}
+          </p>
+          {response.evidence
+            .filter(
+              (item) =>
+                item.source === "documentation.indicators" && !item.is_demo,
+            )
+            .map((item, index) => (
+              <p key={index} className="break-words">
+                {item.description}
+              </p>
             ))}
-          </ul>
-          {response.analysis_context?.metric_definition && (
-            <p className="mt-3 text-sm leading-5 text-muted">
-              {response.analysis_context.metric_definition}
-            </p>
-          )}
-        </details>
+        </div>
       )}
       <AnalysisContext response={response} />
       {response.limitations.length > 0 && (
@@ -342,6 +392,13 @@ function MessageCard({
         />
         <div className="min-w-0">
           <p className="text-base leading-6 text-content">{message.content}</p>
+          {message.response && (
+            <AssistantResult
+              response={message.response}
+              preliminary
+              interpretationFailed
+            />
+          )}
           {message.error.correlationId && (
             <p className="mt-1 break-all font-mono text-xs text-muted">
               Referência: {message.error.correlationId}
@@ -375,7 +432,12 @@ function MessageCard({
         </p>
       )}
       {!message.response && <p className="mt-2">{message.content}</p>}
-      {message.response && <AssistantResult response={message.response} />}
+      {message.response && (
+        <AssistantResult
+          response={message.response}
+          preliminary={message.preliminary}
+        />
+      )}
       {message.response?.status === "recoverable_error" &&
         message.response.error?.retryable &&
         message.retryRequest && (
@@ -401,53 +463,64 @@ export default function AssistentePage() {
   const interactionRevision = useRef(0);
   const drafts = useRef(new Map<string, string>());
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [restoredHistory, setRestoredHistory] = useState(false);
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
-  const [refreshContext, setRefreshContext] = useState(false);
   const [hasInterruptedSend, setHasInterruptedSend] = useState(false);
   const publicationRevision = useGoldPublicationRevision();
   const { user } = session;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [requestPhase, setRequestPhase] = useState<
+    "idle" | "consulting" | "interpreting"
+  >("idle");
+  const isSending = requestPhase !== "idle";
   const [draft, setDraft] = useState("");
   const [conversationId, setConversationId] = useState<string>(() =>
     crypto.randomUUID(),
   );
   const nextMessageId = useRef(0);
   const sendingRef = useRef(false);
-  const requestControllerRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+  const requestAbort = useRef<AbortController | null>(null);
   const mutation = useMutation({
-    mutationFn: (request: AIQuestionRequest) =>
-      askAIQuestion(request, requestControllerRef.current?.signal),
+    mutationFn: (input: {
+      request: Parameters<typeof askAIQuestion>[0];
+      onData: (response: AIQuestionResponse) => void;
+      signal: AbortSignal;
+    }) => askAIQuestion(input.request, input.onData, input.signal),
     retry: false,
   });
   const identityKey = `${user?.id ?? ""}:${user?.profile ?? ""}:${user?.permissions.join(",") ?? ""}`;
   useEffect(() => {
-    requestControllerRef.current?.abort();
-    requestControllerRef.current = null;
-    sendingRef.current = false;
     interactionRevision.current++;
+    requestAbort.current?.abort();
+    requestAbort.current = null;
+    sendingRef.current = false;
     savedIdRef.current = null;
-    drafts.current.clear();
+    // Identity changes clear the private conversation state.
+    // oxlint-disable-next-line react(set-state-in-effect)
     setActiveSavedId(null);
-    setRestoredHistory(false);
-    setLoadingHistory(false);
-    setRefreshContext(false);
-    setHasInterruptedSend(false);
     setConversationId(crypto.randomUUID());
     setDraft("");
+    setRequestPhase("idle");
+    setHasInterruptedSend(false);
+    setLoadingHistory(false);
+    drafts.current.clear();
     setMessages([]);
   }, [identityKey]);
   useEffect(
     () => () => {
       interactionRevision.current++;
+      requestAbort.current?.abort();
     },
     [],
   );
   // Publication changes invalidate interpretation history, including saved retries.
   useEffect(() => {
+    requestAbort.current?.abort();
+    requestAbort.current = null;
+    sendingRef.current = false;
     // eslint-disable-next-line react/set-state-in-effect -- external publication invalidates local conversation evidence.
+    setRequestPhase("idle");
     setMessages((current) =>
       current.map((message) => ({
         ...message,
@@ -492,8 +565,6 @@ export default function AssistentePage() {
       : retryAttempt?.assistantMessageId;
     if (userMessageId === undefined || assistantMessageId === undefined) return;
     sendingRef.current = true;
-    const controller = new AbortController();
-    requestControllerRef.current = controller;
     const retryRequest: RetryRequest = retryAttempt ?? {
       question,
       context,
@@ -501,7 +572,7 @@ export default function AssistentePage() {
       ...(historyEnabled
         ? {
             history_request_id: crypto.randomUUID(),
-            refresh_context: refreshContext,
+            refresh_context: false,
           }
         : {}),
       continuation_token:
@@ -530,6 +601,10 @@ export default function AssistentePage() {
       ]);
     }
 
+    let preview: AIQuestionResponse | undefined;
+    const abortController = new AbortController();
+    requestAbort.current = abortController;
+    setRequestPhase("consulting");
     try {
       if (historyEnabled && !savedIdRef.current) {
         const created = await createConversation(conversationId);
@@ -540,21 +615,48 @@ export default function AssistentePage() {
       }
       if (historyEnabled) retryRequest.conversation_id = savedIdRef.current!;
       const response = await mutation.mutateAsync({
-        contract_version: "v1",
-        question,
-        context: context.slice(-3),
-        conversation_id: retryRequest.conversation_id,
-        continuation_token: retryRequest.continuation_token,
-        ...(historyEnabled
-          ? {
-              history_request_id: retryRequest.history_request_id,
-              refresh_context: retryRequest.refresh_context,
-            }
-          : {}),
+        request: {
+          contract_version: "v1",
+          question,
+          context: context.slice(-3),
+          conversation_id: retryRequest.conversation_id,
+          continuation_token: retryRequest.continuation_token,
+          ...(historyEnabled
+            ? {
+                history_request_id: retryRequest.history_request_id,
+                refresh_context: retryRequest.refresh_context,
+              }
+            : {}),
+        },
+        signal: abortController.signal,
+        onData: (data) => {
+          if (!current()) return;
+          setRequestPhase("interpreting");
+          preview = data;
+          setMessages((messages) =>
+            updateConversationInteraction(
+              messages,
+              userMessageId,
+              {
+                id: assistantMessageId,
+                role: "assistant",
+                content: "Dados da consulta disponíveis.",
+                response: data,
+                preliminary: true,
+                contextEligible: false,
+              },
+              true,
+            ),
+          );
+        },
       });
       if (!current()) return;
+      if (preview && response.status === "recoverable_error")
+        throw new AIChatApiError(
+          response.message ?? "Não foi possível concluir a interpretação.",
+          response.error?.retryable ?? false,
+        );
       setHasInterruptedSend(false);
-      setRefreshContext(false);
       void queryClient.invalidateQueries({
         queryKey: ["ai-conversations", session.user?.id],
       });
@@ -601,7 +703,13 @@ export default function AssistentePage() {
         );
       });
     } catch (error) {
-      if (controller.signal.aborted || !current()) return;
+      const publicationConflict =
+        error instanceof AIChatApiError && error.status === 409;
+      if (
+        !current() ||
+        (abortController.signal.aborted && !publicationConflict)
+      )
+        return;
       if (
         error instanceof AIChatApiError &&
         error.code === "superseded_request"
@@ -614,11 +722,24 @@ export default function AssistentePage() {
               "Não foi possível concluir a pergunta. Tente novamente mais tarde.",
               false,
             );
+      const retained =
+        preview &&
+        ![401, 403, 409, 422].includes(safeError.status ?? 0) &&
+        (await verifyVisualExport({
+          metric: preview.visualization!.metric,
+          dimension_ids: preview.visualization!.dimension_ids,
+          batch_reference: preview.analysis_context!.batch_reference!,
+        }))
+          ? preview
+          : undefined;
+      if (!current()) return;
       const assistantMessage: ChatMessage = {
         id: assistantMessageId,
         role: "assistant",
         content: safeError.message,
         error: safeError,
+        response: retained,
+        preliminary: Boolean(preview),
         retryRequest: safeError.retryable ? retryRequest : undefined,
         contextEligible: false,
       };
@@ -637,15 +758,16 @@ export default function AssistentePage() {
             : current,
           userMessageId,
           assistantMessage,
-          retryAttempt !== undefined,
+          retryAttempt !== undefined || Boolean(preview),
         ),
       );
     } finally {
-      if (requestControllerRef.current === controller) {
-        requestControllerRef.current = null;
+      if (requestAbort.current === abortController) {
+        requestAbort.current = null;
       }
-      if (current()) {
+      if (current() && !abortController.signal.aborted) {
         sendingRef.current = false;
+        setRequestPhase("idle");
         requestAnimationFrame(() => composerRef.current?.focus());
       }
     }
@@ -668,13 +790,13 @@ export default function AssistentePage() {
   }
 
   function startNewConversation() {
+    requestAbort.current?.abort();
     drafts.current.set(savedIdRef.current ?? conversationId, draft);
     interactionRevision.current++;
     sendingRef.current = false;
+    setRequestPhase("idle");
     savedIdRef.current = null;
     setActiveSavedId(null);
-    setRestoredHistory(false);
-    setRefreshContext(false);
     setHasInterruptedSend(false);
     setLoadingHistory(false);
     setMessages([]);
@@ -685,10 +807,12 @@ export default function AssistentePage() {
   }
 
   async function openSaved(id: string) {
+    requestAbort.current?.abort();
     drafts.current.set(savedIdRef.current ?? conversationId, draft);
     const revision = ++interactionRevision.current;
     const authorization = currentAuthorizationGeneration();
     setLoadingHistory(true);
+    setRequestPhase("idle");
     mutation.reset();
     sendingRef.current = false;
     try {
@@ -722,8 +846,6 @@ export default function AssistentePage() {
       }
       setMessages(restored);
       setDraft(drafts.current.get(id) ?? "");
-      setRestoredHistory(true);
-      setRefreshContext(false);
       const last = saved.exchanges.at(-1);
       setHasInterruptedSend(
         Boolean(last && ["pending", "interrupted"].includes(last.state)),
@@ -768,32 +890,20 @@ export default function AssistentePage() {
         </div>
       </header>
 
-      <AssistantIdentity pending={mutation.isPending} />
+      <AssistantIdentity
+        pending={isSending}
+        interpreting={requestPhase === "interpreting"}
+      />
       <div className="assistant-conversation flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-3 lg:p-5">
         {loadingHistory && <p role="status">Abrindo conversa…</p>}
-        {restoredHistory && (
-          <div className="rounded-xl border border-divider p-3 text-sm">
-            <p>
-              Você está vendo respostas salvas. Elas mantêm o recorte e a fonte
-              da consulta original.
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setRefreshContext(true)}
-              disabled={refreshContext}
-            >
-              {refreshContext
-                ? "Pronto para consultar dados atuais"
-                : "Retomar com dados atuais"}
-            </Button>
-            {hasInterruptedSend && (
-              <p>
-                Há um envio sem resposta salva. Se ele ainda estiver em
-                processamento, aguarde antes de enviar uma nova pergunta.
-              </p>
-            )}
-          </div>
+        {hasInterruptedSend && (
+          <p
+            className="rounded-xl border border-divider p-3 text-sm"
+            role="status"
+          >
+            Há um envio sem resposta salva. Se ele ainda estiver em
+            processamento, aguarde antes de enviar uma nova pergunta.
+          </p>
         )}
         <div
           ref={historyRef}
@@ -828,7 +938,7 @@ export default function AssistentePage() {
                       key={suggestion}
                       type="button"
                       onClick={() => void send(suggestion, [], true)}
-                      disabled={mutation.isPending}
+                      disabled={isSending}
                       className="group flex min-h-16 items-start gap-3 rounded-xl border border-divider bg-canvas/50 p-3 text-left text-base leading-6 text-content transition-colors hover:border-brand/50 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
                     >
                       <CircleHelp
@@ -866,7 +976,11 @@ export default function AssistentePage() {
                   />
                 </div>
               ))}
-              {mutation.isPending && <ProcessingIndicator />}
+              {isSending && (
+                <ProcessingIndicator
+                  interpreting={requestPhase === "interpreting"}
+                />
+              )}
             </>
           )}
         </div>
@@ -893,7 +1007,7 @@ export default function AssistentePage() {
                 event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 144)}px`;
               }}
               onKeyDown={handleComposerKeyDown}
-              disabled={mutation.isPending}
+              disabled={isSending}
               className="max-h-36 min-h-12 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-base leading-6 text-content outline-none placeholder:text-muted disabled:opacity-60"
             />
             <Button
@@ -902,21 +1016,19 @@ export default function AssistentePage() {
               size="md"
               aria-label="Enviar pergunta"
               title="Enviar pergunta"
-              disabled={!draft.trim() || mutation.isPending}
-              isLoading={mutation.isPending}
+              disabled={!draft.trim() || isSending}
+              isLoading={isSending}
               loadingLabel={null}
               className="size-12 rounded-xl !p-0"
             >
-              {!mutation.isPending && (
-                <Send aria-hidden="true" className="size-6" />
-              )}
+              {!isSending && <Send aria-hidden="true" className="size-6" />}
             </Button>
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs leading-4 text-muted">
             <span>Enter envia · Shift + Enter quebra linha</span>
             <span className="inline-flex items-center gap-1.5">
               {draft.length}/1000
-              {hasMessages && !mutation.isPending && (
+              {hasMessages && !isSending && (
                 <>
                   <span aria-hidden="true">·</span>
                   <Check aria-hidden="true" className="size-3.5" />

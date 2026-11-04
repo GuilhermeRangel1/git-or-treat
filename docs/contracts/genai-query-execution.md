@@ -2,6 +2,17 @@
 
 **Versão vigente:** envelopes internos v1, catálogo lógico v1 e mapeamento Gold v2.
 
+## Respostas documentais conceituais — 03/11/2026
+
+O planejamento interno admite `answered`/`no_evidence` sem plano para a busca
+documental autorizada. `answered` exige `documentation_reference` (ID/versão).
+O núcleo pode fazer uma seleção semântica limitada para conceitos; planos
+quantitativos continuam determinísticos. Backend confere texto e citação no corpus
+aprovado, reautoriza e audita antes de publicar. Não executa SQL para a explicação.
+[Contrato, implantação e limites](genai-documentation-search.md).
+Os estados públicos v1 existentes são preservados. Os trechos históricos abaixo
+sobre modelo somente na síntese descrevem o fluxo quantitativo anterior.
+
 ## Recuperação de esclarecimentos — 03/11/2026
 
 `QuestionPlanResponse` pode incluir `pending_question` (texto de até 1.000 caracteres)
@@ -557,3 +568,9 @@ A prova entre serviços usa a fábrica externa real e HTTP ASGI, com ponte de tr
 Cobertura produzida por união de fontes é observacional. A existência de um mês em outra tabela ou em outro recorte não autoriza o plano: a admissão consulta somente a fonte escolhida com os filtros parametrizados e exige cada competência da janela. O produtor limita SQL ao saldo de 5 s; a operação usa prazo global de 60 s e não renova o relógio entre etapas. O papel de runtime é `venergy_gold_reader`; a CLI não registra valores do lote. A ADR-0018 foi aprovada pela pessoa usuária em 31/10/2026, superando a pendência semântica histórica.
 
 Essa operação entrega o planejamento à admissão de fonte do Backend. Não é o executor quantitativo, não substitui a avaliação de prontidão nem ativa o endpoint Gold do portal; essas fronteiras permanecem GENAI-06/07/09/10. Nenhum estado oficial IA é concluído pela operação de planejamento.
+
+### DEC/FEC observados com cobertura não certificada — 03/11/2026
+
+O envelope interno de evidência distingue `quality_mode=certified` (padrão compatível) de `observed_uncertified`. O segundo é aceito somente pelo caminho DEC/FEC com falha de prontidão exclusivamente `coverage_incomplete`, um único filtro de igualdade para alimentador, sem agrupamento, janela mensal exata integralmente presente na publicação atual, numeradores utilizáveis, denominador positivo e controles de qualidade/reconciliação aprovados. O Backend consulta o mesmo snapshot/publicação e revalida autorização, versão, janela e escopo; a GenAI valida a restrição e não pode ampliar a consulta.
+
+O modo observado não adiciona a capacidade à lista de capacidades certificadas. A resposta deve conter e a borda do Backend acrescenta deterministicamente a ressalva “Valores observados; cobertura do alimentador não certificada.” A auditoria preserva modo, recorte e limitação. Controles falhos, meses ausentes, denominadores inválidos, publicação divergente, timeout, falta de permissão ou qualquer outro motivo mantêm o bloqueio; nenhuma ausência vira zero. Não se anuncia fechamento, ranking completo ou conformidade regulatória. A política é a [ADR-0024](../decisions/0024-recuperacao-condicional-e-continuidade-observada.md).
