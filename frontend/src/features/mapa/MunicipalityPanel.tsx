@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import type { RevenueEnvelope } from "@/shared/analytics/revenueContract";
 import type { TerritoryMunicipality } from "./municipalities";
 import Button from "@/shared/ui/Button";
+import { signedValueTone } from "@/shared/ui/signedValue";
 import type { MapLayer, MapQuery } from "./map-state";
 
 const money = new Intl.NumberFormat("pt-BR", {
@@ -10,6 +11,32 @@ const money = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 2,
 });
 const energy = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
+const competenceMonths = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
+
+function formatCompetence(competencia: string) {
+  const match = /^(\d{4})-(\d{2})$/.exec(competencia);
+  if (!match) return competencia;
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return competencia;
+  return `${competenceMonths[month - 1]}/${match[1]}`;
+}
+
+function formatPeriod(start: string, end: string) {
+  return `${formatCompetence(start)} a ${formatCompetence(end)}`;
+}
 
 function moneyValue(value: number | null) {
   return value === null ? "Indisponível" : money.format(value);
@@ -24,18 +51,26 @@ function signedMoney(value: number | null) {
   return `${value > 0 ? "+" : value < 0 ? "−" : ""}${money.format(Math.abs(value))}`;
 }
 
+function signedEnergy(value: number | null) {
+  if (value === null) return "Indisponível";
+  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+  return `${sign}${energy.format(Math.abs(value))} kWh`;
+}
+
 function Metric({
   label,
   initial,
   final,
   change,
   format,
+  formatChange,
 }: {
   label: string;
   initial: number | null;
   final: number | null;
   change: number | null;
   format: (value: number | null) => string;
+  formatChange: (value: number | null) => string;
 }) {
   return (
     <div className="rounded-lg border border-border p-3">
@@ -55,8 +90,10 @@ function Metric({
         </div>
         <div className="col-span-2">
           <dt className="text-xs text-muted">Variação absoluta</dt>
-          <dd className="mt-0.5 font-semibold tabular-nums text-content">
-            {format(change)}
+          <dd
+            className={`mt-0.5 font-semibold tabular-nums ${signedValueTone(change)}`}
+          >
+            {formatChange(change)}
           </dd>
         </div>
       </dl>
@@ -114,7 +151,9 @@ function Neighborhoods({ envelope }: { envelope: RevenueEnvelope }) {
                 <td className="px-3 py-2 text-right tabular-nums text-content">
                   {moneyValue(row.comparison.final.billed_amount)}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-content">
+                <td
+                  className={`px-3 py-2 text-right tabular-nums ${signedValueTone(row.comparison.billed_amount_change_brl)}`}
+                >
                   {signedMoney(row.comparison.billed_amount_change_brl)}
                 </td>
               </tr>
@@ -183,7 +222,7 @@ export default function MunicipalityPanel({
   const row = item;
   const comparison = row?.comparison ?? detail?.data.comparison;
   const monthCaption = query
-    ? `${query.competencia_inicio} a ${query.competencia_fim}`
+    ? formatPeriod(query.competencia_inicio, query.competencia_fim)
     : "período selecionado";
   return (
     <section
@@ -230,6 +269,7 @@ export default function MunicipalityPanel({
               final={comparison.final.billed_amount}
               change={comparison.billed_amount_change_brl}
               format={moneyValue}
+              formatChange={signedMoney}
             />
             <Metric
               label="Consumo medido · kWh"
@@ -237,6 +277,7 @@ export default function MunicipalityPanel({
               final={comparison.final.measured_energy_kwh}
               change={comparison.measured_energy_change_kwh}
               format={energyValue}
+              formatChange={signedEnergy}
             />
           </div>
           <section
@@ -272,7 +313,7 @@ export default function MunicipalityPanel({
                         scope="row"
                         className="px-3 py-2 font-medium text-content"
                       >
-                        {month.competencia}
+                        {formatCompetence(month.competencia)}
                       </th>
                       <td className="px-3 py-2 text-right tabular-nums text-content">
                         {moneyValue(month.billed_amount)}

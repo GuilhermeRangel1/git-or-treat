@@ -4007,5 +4007,6 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 ### 04/11/2026 — Mapa da RMR — reorganização do painel
 
 - A lista “Municípios da RMR” passa para a coluna à direita do mapa. O detalhe do município selecionado (KPIs, série mensal e bairros) passa para uma faixa abaixo, ocupando a largura disponível.
-- A seleção de bairros no mapa ficou para a próxima etapa. O levantamento encontrou malha IBGE 2022 para 12 municípios, limites OSM adicionais em Itamaracá e pontos OSM em parte de Moreno; a camada visual ainda não foi implementada.
-- Arquivo alterado: `frontend/src/features/mapa/MapaPage.tsx`. Verificações e inspeção visual ainda não executadas nesta alteração.
+- A seleção de bairros clicáveis no mapa fica para uma etapa futura. O levantamento encontrou malha IBGE 2022 para 12 municípios, limites OSM adicionais em Itamaracá e pontos OSM em parte de Moreno; a camada visual de bairros não foi mantida nesta alteração.
+- No detalhe municipal, valores de variação exibem sinal e cor verde/vermelha conforme direção; competências mensais aparecem como `Mai/2026` em vez de `2026-05`.
+- Arquivos alterados: `frontend/src/features/mapa/MunicipalityPanel.tsx` e este registro. `git diff --check` passou; testes e inspeção visual no navegador não foram executados nesta alteração.
