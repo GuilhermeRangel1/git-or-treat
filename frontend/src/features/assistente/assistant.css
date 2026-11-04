@@ -295,6 +295,18 @@
     opacity: 1;
   }
 }
+@media (max-width: 1023px) {
+  .assistant-workspace {
+    overflow-y: auto;
+  }
+  .assistant-identity,
+  .assistant-history-sidebar {
+    flex-shrink: 0;
+  }
+  .assistant-conversation {
+    flex: 1 0 24rem;
+  }
+}
 @media (min-width: 1024px) {
   .assistant-workspace {
     display: grid;
