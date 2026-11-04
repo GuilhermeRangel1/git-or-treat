@@ -238,6 +238,8 @@ class QuestionAnalysisPlanner:
         for candidate in self._clarification_examples(
             result.pending_question or question, temporal_coverage, dimension_value_coverage,
         ):
+            if re.search(r"^[,;]|\b(?:em|por|de|entre)\s*[,?]", candidate):
+                continue
             try:
                 example = self._plan(
                     candidate, None, access_context, None,

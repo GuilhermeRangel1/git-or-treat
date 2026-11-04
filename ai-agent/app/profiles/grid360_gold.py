@@ -599,7 +599,7 @@ def _build_profile() -> DomainProfile:
     # pede a comparação em vez de responder só o mês citado.
     values["comparison_terms"] = (
         *values["comparison_terms"], "perdeu", "variou", "variar", "variaram",
-        "em relação a", "em relação ao", "comparando",
+        "em relação a", "em relação ao", "comparando", "mudou", "mudaram",
     )
     values["non_location_phrases"] = ()
     values["ambiguities"] = (
@@ -608,7 +608,7 @@ def _build_profile() -> DomainProfile:
             "phrases": (
                 "pago", "pagos", "paga", "pagas", "arrecadação", "arrecadado", "arrecadada",
                 "arrecadados", "arrecadadas", "pagamento", "pagamentos",
-                "grana que entrou", "dinheiro que entrou",
+                "grana que entrou", "dinheiro que entrou", "entrou no caixa",
                 "pagou", "pagaram", "pagamos", "arrecadou", "arrecadamos", "arrecadaram",
             ),
             "alternative_metric_ids": ("billing.revenue",),
@@ -664,6 +664,8 @@ def _build_profile() -> DomainProfile:
                 "interrupção",
                 "interrupções",
                 "falta de luz",
+                "quantas vezes faltou luz",
+                "vezes que faltou luz",
                 "faltas de luz",
                 "falta de energia",
                 "faltas de energia",

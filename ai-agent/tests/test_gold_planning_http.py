@@ -89,6 +89,54 @@ def test_municipality_revenue_ranking_uses_grouped_evidence_and_enforces_scope()
         assert client.post(PLAN_PATH, json=denied, headers=HEADERS).json()["status"] == "refused"
 
 
+@pytest.mark.parametrize("count", [3, 12])
+def test_explicit_multi_result_ranking_lists_every_returned_group(count):
+    core, request = _setup(
+        f"Quais foram os {count} municípios com maior receita em março de 2025?"
+    )
+    with InProcessClient(_application(core)) as client:
+        planned = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+        assert planned["status"] == "planned", planned
+        plan = LogicalReadPlan.model_validate(planned["plan"])
+        assert plan.limit == count
+        ranked_rows = [("Recife", 300), ("Jaboatão", 200), ("Olinda", 100)]
+        ranked_rows.extend((f"Município {index}", 100 - index) for index in range(3, count))
+        dimension_coverage = [
+            item.model_copy(update={"values": tuple(name for name, _ in ranked_rows)})
+            if item.dimension_id == "geography.municipality" else item
+            for item in request.dimension_value_coverage
+        ]
+        lookup = _lookup(plan, batch_ref=request.batch_ref)
+        lookup.evidence.records = [
+            {
+                "period": "2025-03", "value": value, "unit": "R$",
+                "municipality": municipality,
+            }
+            for municipality, value in ranked_rows
+        ]
+        synthesis = QuestionSynthesisRequest(
+            question=request.question, access_scope=request.access_scope,
+            remaining_timeout_ms=35000, plan=plan,
+            plan_fingerprint=planned["plan_fingerprint"], lookup=lookup,
+            expected_batch_ref=request.batch_ref,
+            dimension_value_coverage=dimension_coverage,
+        )
+        result = client.post(
+            SYNTHESIS_PATH, json=synthesis.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+
+    assert result["status"] == "answered", result
+    assert f"{min(count, 10)} maiores valores" in result["answer"]
+    assert result["answer"].index("Recife") < result["answer"].index("Jaboatão")
+    assert result["answer"].index("Jaboatão") < result["answer"].index("Olinda")
+    if count > 10:
+        assert "Exibidos 10 de 12 resultados" in result["answer"]
+        assert "Município 11" not in result["answer"]
+    assert len(result["answer"]) <= 4000
+
+
 @pytest.mark.parametrize("label,metric", [
     ("receita", "billing.revenue"), ("consumo", "energy.consumption"),
 ])

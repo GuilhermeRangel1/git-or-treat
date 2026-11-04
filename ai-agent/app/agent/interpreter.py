@@ -3,6 +3,7 @@
 import re
 import unicodedata
 
+from app.agent.documentation import conceptual_question
 from app.agent.language_recovery import intent_question
 from app.agent.ranking import ranking_reference
 from app.agent.temporal import (
@@ -48,11 +49,13 @@ _QUESTION_START = re.compile(
     r"queria saber|pode mostrar|da pra ver)\b"
 )
 _EXCLUDED_VALUE_PREFIX = re.compile(
-    r"\b(?:exceto|menos|excluindo|excluir|exclua|"
+    r"\b(?:exceto|menos|excluindo|excluir|exclua|tirando|retirando|desconsiderando|"
+    r"desconsidere|(?:com|a)\s+excecao\s+de|sem\s+contar(?:\s+com)?|"
     r"(?:sem|nao)(?:\s+(?:ser|seja|sejam|e|incluir|inclua|considerar|apenas|somente|so))?|"
     r"(?:fora|diferentes?)\s+(?:de|do|da|dos|das))\s+"
     r"(?:(?:a|o|os|as|de|do|da|dos|das|classe|consumo|municipio|cidade|bairro|"
-    r"alimentador|subgrupo)\s+)*$"
+    r"alimentador|subgrupo|clientes?|consumidores?|unidades?|consumidoras?|ucs?|"
+    r"dados|valores|receita|faturamento|todos|todas)\s+)*$"
 )
 
 
@@ -425,10 +428,7 @@ class QuestionInterpreter:
         question: str,
         base_intent: AnalysisIntent | None,
     ) -> IntentInterpretation:
-        if self._profile.structured_dimension_filters and re.match(
-            r"^(?:o que (?:e|significa|quer dizer)|qual (?:e )?a diferenca|"
-            r"como (?:e calculad[oa]|se calcula))\b", _normalize(question).strip(),
-        ):
+        if self._profile.structured_dimension_filters and conceptual_question(question):
             return self._clarify(
                 "Para consultar definições e fórmulas aprovadas, abra “Entenda os indicadores” "
                 "no topo do Assistente. Para buscar valores, informe o indicador, o período "
@@ -728,6 +728,9 @@ class QuestionInterpreter:
             ):
                 return self._clarify(self._profile.clarifications.comparison_baseline)
             comparison_phrases = (explicit[0], explicit[1])
+            connector = _normalize(question[periods[0][1]:periods[1][0]])
+            if re.search(r"\bem\s+(?:comparacao\s+com|relacao\s+ao?)\s+$", connector):
+                comparison_phrases = (explicit[1], explicit[0])
         if len(periods) > 1:
             period_phrase = question[periods[0][0] : periods[-1][1]]
         elif periods:
