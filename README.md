@@ -59,6 +59,13 @@ O pipeline Bronze → Silver → Gold roda inteiro no Databricks (PySpark, arqui
 - **Energia recuperável por UC:** a estimativa individual só é publicada quando passa em validação temporal; sem isso o campo fica nulo e o portal mostra apenas a referência histórica, rotulada como tal.
 - **Confidencialidade:** o case é confidencial e o repositório é público. Não são versionados dataset bruto, valores em R$, contagens de registros nem identificadores de UC; as evidências trazem apenas estados e percentuais.
 
+## Inteligência artificial no portal
+
+- **Assistente:** receba respostas em português sobre consumo, faturamento, interrupções e atendimento. O agente interpreta termos do dia a dia, como “conta de luz”, e pede esclarecimento quando houver mais de uma interpretação.
+- **Insights no Panorama:** a IA ajuda a interpretar os indicadores exibidos com base no período e nos filtros selecionados, sem precisar abrir o chat.
+- **Fundamento e limites:** o FastAPI executa consultas autorizadas de somente leitura no PostgreSQL alimentado pela Gold v2. As respostas quantitativas indicam fonte, período, recorte e unidade, com trilha de auditoria. Se faltar evidência, o agente informa a limitação.
+- **Diferenciais:** perguntas de acompanhamento na mesma conversa e avaliação automatizada da qualidade das respostas. Veja a [matriz de perguntas](docs/gold-question-matrix.md) e o [guia do agente](docs/services/ai-agent.md).
+
 ## Executar localmente com Docker
 
 **Pré-requisitos:** Windows com PowerShell, Docker Desktop e Compose ativos, portas 5173 e 8000 livres e pacote Gold v2 autorizado, obtido por canal privado. A pasta deve conter `manifest.json` e quinze diretórios analíticos; cadastro pareado é opcional. A primeira carga pode levar vários minutos e requer espaço para imagens e banco. Para respostas do assistente, configure chave Gemini e somente controles Gold já aprovados. Não inclua pacotes ou segredos no Git.
@@ -75,7 +82,7 @@ O [roteiro de demonstração](docs/demo-roteiro.md) reúne verificações e jorn
    cd git-or-treat
    ```
 
-3. Solicite à equipe, por canal autorizado, o pacote exportado Gold v2. Extraia-o em uma pasta local acessível ao Docker. Confirme que o arquivo `manifest.json` está diretamente nessa pasta, junto aos quinze diretórios analíticos. O cadastro opcional deve estar em `cadastro_titular_uc/` com manifesto pareado. Sem o pacote não é possível executar esta modalidade; use a demo sintética abaixo para explorar fila e ordens.
+3. Obtenha o pacote exportado Gold v2 na [pasta de CSVs do grupo](https://drive.google.com/drive/folders/1FGlA80LKOayaM7MWrgCoMh3YZAjTVWG4?usp=sharing). Se o acesso estiver restrito, solicite permissão à equipe. Extraia-o em uma pasta local acessível ao Docker. Confirme que o arquivo `manifest.json` está diretamente nessa pasta, junto aos quinze diretórios analíticos. O cadastro opcional deve estar em `cadastro_titular_uc/` com manifesto pareado. Sem o pacote não é possível executar esta modalidade; use a demo sintética abaixo para explorar fila e ordens.
 4. Na raiz do repositório, substitua o caminho de exemplo pela pasta que contém o manifesto e execute:
 
    ```powershell
