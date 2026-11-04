@@ -15,6 +15,11 @@ Plataforma integrada para a distribuidora V-Energy, proposta no case final Visag
 7. [Diagnóstico da receita](docs/revenue-diagnosis.md) e [status report](docs/status-report.md).
 8. [Engenharia de Dados: Workflow, dicionário e suposições](#engenharia-de-dados-workflow-dicionário-e-suposições): print do run limpo, links e decisões da camada de dados.
 9. [Protótipo visual](docs/design/grid360-prototype.md): arquivo Figma, temas, componentes, jornadas e limites da demonstração.
+10. [CSVs da Gold v2 do grupo](https://drive.google.com/drive/folders/1FGlA80LKOayaM7MWrgCoMh3YZAjTVWG4?usp=sharing): pacote para a carga local.
+
+## Arquitetura da entrega
+
+O Databricks processa os dados em camadas Bronze, Silver e Gold. A exportação Gold v2 alimenta o PostgreSQL local. O portal React acessa a API FastAPI, que aplica as permissões por perfil. O Backend executa as consultas analíticas autorizadas e envia ao serviço GenAI apenas as evidências necessárias à resposta.
 
 ## Estrutura do repositório
 
