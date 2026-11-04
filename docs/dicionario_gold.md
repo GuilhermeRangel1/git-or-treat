@@ -1,5 +1,7 @@
 # Dicionário de dados — camada Gold
 
+Para reproduzir a publicação, consulte o [guia de dados](../data-engineering/README.md). Para aplicar as definições à variação de receita, veja o [diagnóstico](revenue-diagnosis.md).
+
 ## Aceite local das regras e controles — 01/11/2026
 
 A pessoa usuária aprovou expressamente, nesta entrega local, as regras documentadas neste dicionário e os controles C01/C02/C03/C04/C10/C11/C12/C13/C14/C15 após nova execução somente leitura no PostgreSQL Gold carregado. Todos passaram; a origem atual permanece a base aceita, sem nova certificação Silver. A aprovação não altera fórmulas, tolerâncias existentes ou permissões e não é atribuída a outros integrantes.

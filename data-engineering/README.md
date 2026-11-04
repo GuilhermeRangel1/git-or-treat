@@ -92,6 +92,8 @@ Conflitos de CPF/CNPJ ou nome de titular ficam nulos e sinalizados na UC. Data f
 
 ## Gold e exportação
 
+A entrega usa o pacote analítico Gold v2. Para importá-lo no PostgreSQL local, siga o [README principal](../README.md#executar-localmente-com-docker). Para reproduzir a exportação no Databricks, use o procedimento e a evidência de execução abaixo.
+
 `Silver_to_gold.ipynb` usa `workspace.silver_publicada` como fonte de dados e
 consulta os controles de publicação e execução da Silver. Ele lê o widget
 `AMBIENTE`, aceitando `dev`, `test` ou `prod`; para o Job de entrega, configure
@@ -108,7 +110,7 @@ As fontes publicadas são materializadas e conferidas por execução/lote. Os
 candidatos são validados em schema próprio antes da promoção; dev/test não
 sobrescrevem a Gold produtiva. DEC/FEC permanecem indicadores simplificados.
 
-Na semântica candidata v2, faturas e leituras são pré-agregadas por UC/mês e preservadas como populações independentes. O diagnóstico e o recorte territorial separam faturamento com e sem leitura; a série mensal conserva receita, consumo, flags e contagens de observações. A tarifa observada usa somente pares com fatura e leituras integralmente válidas. Isso não comprova cobertura completa, energia efetivamente faturada, valor pago ou tarifa homologada. O saldo em aberto individual é um valor indicativo derivado do status e das flags, não um saldo contábil nem inclui pagamentos parciais; situações inconclusivas ficam nulas. O consumidor v1 ainda não aceita o contrato v2.
+Na exportação Gold v2, faturas e leituras são pré-agregadas por UC/mês e preservadas como populações independentes. O diagnóstico e o recorte territorial separam faturamento com e sem leitura; a série mensal conserva receita, consumo, flags e contagens de observações. A tarifa observada usa somente pares com fatura e leituras integralmente válidas. Isso não comprova cobertura completa, energia efetivamente faturada, valor pago ou tarifa homologada. O saldo em aberto individual é um valor indicativo derivado do status e das flags, não um saldo contábil nem inclui pagamentos parciais; situações inconclusivas ficam nulas.
 
 A fila também publica `motivo_prioridade`, alinhado à primeira regra de triagem aplicada; isso não estima energia recuperável por si só. O estudo candidato separado compara a média global de kWh registrados por inspeção com médias históricas opcionais por grupo, usando treino, calibração e teste temporais. As referências aprovadas pelos critérios internos são publicadas em campos próprios de média histórica, intervalo, origem global/grupo e estado; os campos de estimativa individual continuam nulos. O aceite do WEB-04 segue pendente. Método e critérios provisórios estão descritos no dicionário e ainda exigem revisão de Dados/Produto e validação no lote real. `faturas_uc` expõe situação declarada e saldo indicativo por fatura, mantendo nulo quando status/flags conflitam ou são inconclusivos. `medidor_uc` preserva vínculo e datas e inclui uma situação temporal candidata por registro; sobreposições permanecem separadas. A regra de status/saldo e a vigência dos medidores também permanecem sujeitas à validação de Dados/Produto.
 

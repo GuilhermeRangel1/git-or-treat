@@ -2,7 +2,7 @@
 
 > **Operação atual:** consulte o [README principal](../README.md#executar-localmente-com-docker) e o [runbook Docker](../docs/plans/2026-11-04-docker-gold-inicializacao.md). Seções históricas abaixo descrevem estágios anteriores ou demonstrações específicas, não necessariamente o Compose atual.
 
-SPA React + TypeScript + Vite, com Tailwind CSS e ícones Lucide. A sidebar, o Panorama e as jornadas disponíveis seguem o Figma nos temas claro/escuro, com navegação mobile. O Assistente já envia perguntas pelo Backend para o serviço GenAI usando o contrato v1; a demonstração usa evidências artificiais e não substitui integração com Gold.
+SPA React + TypeScript + Vite, com Tailwind CSS e ícones Lucide. A sidebar, o Panorama e as jornadas disponíveis seguem o Figma nos temas claro/escuro, com navegação mobile. O Assistente já envia perguntas pelo Backend para o serviço GenAI usando o contrato v1; o Panorama apresenta insights com base no recorte atual da Gold v2.
 
 A [arquitetura](../docs/architecture/frontend.md) define responsabilidades, dependências, tema, transporte HTTP e política de estado. A escolha está registrada na [ADR-0001](../docs/decisions/0001-arquitetura-frontend.md). O [PRD](../docs/PRD.md) governa os critérios funcionais.
 
@@ -21,9 +21,9 @@ npm run dev
 
 O ambiente de CI usa Node.js 22; use uma versão compatível com os requisitos declarados pelo Vite instalado. O Docker de desenvolvimento está disponível em `Dockerfile.dev`.
 
-O Panorama exige a API para exibir os indicadores; as demais páginas ainda estão no escopo visual. A rota de diagnóstico `/dev/contratos` existe somente durante o desenvolvimento e consulta `/api/v1/kpis` por meio do cliente HTTP compartilhado. Em desenvolvimento, sem `VITE_API_URL`, as consultas usam a origem do portal e o proxy `/api` do Vite, cujo destino padrão é `http://127.0.0.1:8000`. No Docker, `API_PROXY_TARGET=http://backend:8000` configura esse destino no servidor; `DEV_USE_POLLING=true` atualiza os arquivos do volume Windows. Para outro servidor, configure `VITE_API_URL`; em produção essa variável continua obrigatória (use `/` somente quando houver proxy no servidor publicado). Essa URL é pública; credenciais não pertencem a variáveis `VITE_*`.
+Use a API do ambiente integrado para navegar pelas jornadas com dados Gold v2. A rota de diagnóstico `/dev/contratos` existe somente durante o desenvolvimento e consulta `/api/v1/kpis` por meio do cliente HTTP compartilhado. Em desenvolvimento, sem `VITE_API_URL`, as consultas usam a origem do portal e o proxy `/api` do Vite, cujo destino padrão é `http://127.0.0.1:8000`. No Docker, `API_PROXY_TARGET=http://backend:8000` configura esse destino no servidor; `DEV_USE_POLLING=true` atualiza os arquivos do volume Windows. Para outro servidor, configure `VITE_API_URL`; em produção essa variável continua obrigatória (use `/` somente quando houver proxy no servidor publicado). Essa URL é pública; credenciais não pertencem a variáveis `VITE_*`.
 
-Para testar o chat com os três serviços no Docker, configure os arquivos privados conforme [a integração Backend → GenAI](../backend/README.md#chat-do-portal-no-docker-compose), execute `docker compose up --build` na raiz e acesse `http://localhost:5173/assistente`. O navegador chama somente o Backend; não recebe a chave do Gemini.
+Para testar o chat com os três serviços no Docker, configure os arquivos privados conforme [o passo a passo de execução integrada](../README.md#executar-localmente-com-docker), execute `docker compose up --build` na raiz e acesse `http://localhost:5173/assistente`. O navegador chama somente o Backend; não recebe a chave do Gemini.
 
 ## Verificar
 
@@ -83,4 +83,4 @@ Branch `feat/visual-frontend`, renomeada de `refactor/arquitetura-frontend`. A [
 
 Os ícones usam Lucide; a logo é um asset local. A decoração do Panorama usa um único SVG no componente: desenha as linhas, transmite pulsos e repousa em cerca de 3,7 s; passar o mouse repete os pulsos. A preferência por movimento reduzido mantém o desenho estático. O tema é persistido quando o armazenamento permite. No mobile, o menu pode ser aberto, fechado com botão/Escape e usado para navegar. Há foco visível e atalho para o conteúdo.
 
-Para conferir a fatia visual do produto: abra `/panorama` em 1440 × 1024 e 390 × 844, alterne os dois temas, navegue nas sete áreas e exercite o menu mobile. Para conferir o consumidor do contrato em desenvolvimento, abra `/dev/contratos`; essa tela é uma ferramenta de diagnóstico separada, sem item no menu e sem dados embutidos. A construção das jornadas de negócio, ordens e IA permanece pendente.
+Para conferir a fatia visual do produto: abra `/panorama` em 1440 × 1024 e 390 × 844, alterne os dois temas, navegue nas sete áreas e exercite o menu mobile. Para conferir o consumidor do contrato em desenvolvimento, abra `/dev/contratos`; essa tela é uma ferramenta de diagnóstico separada, sem item no menu e sem dados embutidos.
