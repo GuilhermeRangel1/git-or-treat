@@ -1,10 +1,10 @@
 # Entregável: diagnóstico da variação de receita
 
-**Escopo:** ENT-01 e ENT-02 do [PRD](../PRD.md). **Estado:** perguntas e método definidos; análise bloqueada até receber o dataset e Gold validada.
+**Escopo:** ENT-01 e ENT-02 do [PRD](../PRD.md). **Estado:** perguntas e método definidos; análise executada; o resultado está em [diagnóstico](../revenue-diagnosis.md).
 
 ## Pergunta executiva
 
-Explicar por que a receita residencial ficou cerca de 8% abaixo do primeiro ano da base nos 12 meses finais, apesar de reajuste tarifário homologado acumulado de 10,5% desde meados de 2022 e queda de quase 4% no volume de energia faturada. Os três percentuais são do enunciado; devem ser reconciliados antes de entrarem como achado final.
+Explicar por que a receita residencial ficou cerca de 8% acima do primeiro ano da base nos 12 meses finais, apesar de reajuste tarifário homologado acumulado de 10,5% desde meados de 2022 e queda de quase 4% no volume de energia faturada. Os três percentuais são do enunciado; devem ser reconciliados antes de entrarem como achado final.
 
 Separar quatro perguntas: (1) o valor da queda se reproduz no dataset? (2) quanto da mudança aritmética se associa a volume e preço efetivo? (3) em quais recortes a contribuição é maior? (4) quais mecanismos têm evidência suficiente para justificar ação? Uma conta que fecha não prova a causa do comportamento do cliente.
 
