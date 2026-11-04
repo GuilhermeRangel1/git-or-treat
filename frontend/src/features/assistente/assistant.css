@@ -295,6 +295,18 @@
     opacity: 1;
   }
 }
+@media (max-width: 1023px) {
+  .assistant-workspace {
+    overflow-y: auto;
+  }
+  .assistant-identity,
+  .assistant-history-sidebar {
+    flex-shrink: 0;
+  }
+  .assistant-conversation {
+    flex: 1 0 24rem;
+  }
+}
 @media (min-width: 1024px) {
   .assistant-workspace {
     display: grid;
@@ -343,6 +355,15 @@
   }
 }
 @media (max-width: 639px) {
+  .assistant-conversation {
+    flex-basis: max(20rem, calc(100dvh - 13rem));
+  }
+  .assistant-toolbar > div:first-child {
+    min-width: 0;
+  }
+  .assistant-toolbar > div:first-child > span {
+    flex-shrink: 0;
+  }
   .assistant-history-sidebar {
     max-height: min(14rem, 35dvh);
   }

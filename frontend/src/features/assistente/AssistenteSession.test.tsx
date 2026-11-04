@@ -121,6 +121,14 @@ it("envia nova tentativa ao restaurar histórico interrompido sem opção de atu
   );
   await screen.findByText(/Há um envio sem resposta salva/);
   expect(
+    screen.queryByText("Envio sem conteúdo armazenado."),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Envio interrompido ou indisponível. Você pode enviar uma nova pergunta.",
+    ),
+  ).toBeVisible();
+  expect(
     screen.queryByRole("button", { name: "Retomar com dados atuais" }),
   ).not.toBeInTheDocument();
   expect(

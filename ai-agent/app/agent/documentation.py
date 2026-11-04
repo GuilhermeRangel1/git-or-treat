@@ -45,7 +45,7 @@ def conceptual_question(question: str) -> bool:
     if re.search(
         r"\b\d{4}\b|\d+[/-]\d+|\balm[-_]|"
         r"\b(quanto(?! tempo em media)|quantos|quantas|qual foi|compare|comparar|"
-        r"mes passado|top|ranking|"
+        r"mes passado|top|ranking|(?:receita|faturamento|consumo)\s+entre|"
         r"maiores|menores|janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|"
         r"setembro|outubro|novembro|dezembro|ontem|hoje|trimestre|ano passado)\b|"
         r"\bem\s+(?!que\b|kwh\b|reais\b|horas\b|media\b)[a-z]+",
@@ -60,7 +60,7 @@ def conceptual_question(question: str) -> bool:
             r"pode (?:explicar|me explicar)|representam um mes|"
             r"(?:comprova|explica) (?:a )?causa|"
             r"(?:e|sao) (?:o mesmo|a mesma|(?:o )?valor pago|(?:a )?energia faturada|"
-            r"(?:a )?tarifa)|como (?:entender|interpretar|funciona|e calculado))\b",
+            r"(?:a )?tarifa)|como (?:entender|interpretar|funciona|e calculad[oa]|se calcula))\b",
             text,
         )
     )

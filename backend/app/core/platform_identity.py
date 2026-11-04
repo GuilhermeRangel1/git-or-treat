@@ -70,15 +70,23 @@ def get_platform_identity(
             raise HTTPException(403, "Origem não permitida.")
         from app.services.auth import permissions_for, resolve_session
 
-        resolved = resolve_session(db, token)
-        if resolved is None:
-            raise _unauthorized()
-        user, _session = resolved
         try:
-            profile = PlatformProfile(user.profile) if user.profile is not None else None
-        except ValueError:
-            profile = None
-        return PlatformIdentity(f"user:{user.id}", profile, permissions_for(user), "session")
+            resolved = resolve_session(db, token)
+            if resolved is None:
+                raise _unauthorized()
+            user, _session = resolved
+            try:
+                profile = PlatformProfile(user.profile) if user.profile is not None else None
+            except ValueError:
+                profile = None
+            identity = PlatformIdentity(
+                f"user:{user.id}", profile, permissions_for(user), "session"
+            )
+        finally:
+            # A autorização é uma leitura curta. Não mantenha a transação
+            # aberta enquanto a rota aguarda a Gold ou um provedor GenAI.
+            db.rollback()
+        return identity
 
     if settings.APP_ENV == "production":
         raise HTTPException(503, "Produção exige autenticação individual por sessão.")

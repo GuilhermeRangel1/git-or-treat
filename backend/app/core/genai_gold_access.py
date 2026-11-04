@@ -20,6 +20,7 @@ GOLD_METRICS = frozenset({
     "billing.price_volume",
     "network.interruption_events",
     "energy.gd_consumption_drop",
+    "energy.gd_units",
     "billing.revenue", "energy.consumption", "billing.average_ticket",
     "billing.effective_tariff", "energy.average_consumption_per_uc",
     "service.attendance", "service.satisfaction",

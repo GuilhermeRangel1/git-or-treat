@@ -88,6 +88,44 @@ def test_ai_question_endpoint_forwards_versioned_contract_and_correlation(client
     assert correlation_id == response.headers["x-correlation-id"]
 
 
+def test_session_authorization_transaction_is_closed_before_genai_call(
+    client, monkeypatch
+):
+    from app.core.config import settings
+    from app.core.database import get_db
+    from tests.support.database import TestingSessionLocal
+
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "synthetic")
+    sessions = []
+
+    def tracked_database_session():
+        db = TestingSessionLocal()
+        sessions.append(db)
+        try:
+            yield db
+        finally:
+            db.close()
+
+    class Gateway:
+        async def ask(self, payload, correlation_id):
+            assert sessions[-1].in_transaction() is False
+            return AIQuestionResponse.model_validate(
+                _answered_response(correlation_id)
+            )
+
+    monkeypatch.setitem(app.dependency_overrides, get_db, tracked_database_session)
+    monkeypatch.setattr(
+        app.state, "genai_question_client", Gateway(), raising=False
+    )
+
+    response = client.post(
+        "/api/v1/ai/questions", json={"question": "Qual foi o consumo?"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "answered"
+
+
 def test_ai_question_contract_rejects_oversized_or_extra_fields_without_echoing_input(
     client, monkeypatch
 ):

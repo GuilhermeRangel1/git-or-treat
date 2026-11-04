@@ -7,5 +7,8 @@ export function visualValue(value: number | null, unit: string, precision = 2) {
       minimumFractionDigits: precision,
       maximumFractionDigits: precision,
     }).format(value);
-  return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: precision }).format(value)} ${unit}`;
+  const number = new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: precision,
+  }).format(value);
+  return unit === "%" ? `${number}%` : `${number} ${unit}`;
 }

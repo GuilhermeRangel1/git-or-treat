@@ -91,8 +91,12 @@ def _admit_plan(plan: LogicalReadPlan, scope: AccessScope) -> CatalogSource:
     ):
         raise GenAIResponseInvalid
     if plan.comparison_periods is not None and (
-        plan.metric_id not in {"billing.revenue", "energy.consumption"}
-        or metric.aggregation != "sum"
+        plan.metric_id not in {
+            "billing.revenue", "energy.consumption",
+            "network.equivalent_interruption_duration",
+            "network.equivalent_interruption_frequency",
+        }
+        or metric.aggregation not in {"sum", "key_grain_read"}
         or (plan.group_by_dimension_ids and (
             plan.metric_id != "energy.consumption"
             or plan.group_by_dimension_ids != ("geography.neighborhood",)

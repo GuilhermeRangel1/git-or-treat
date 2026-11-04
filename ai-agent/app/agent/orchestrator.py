@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.agent.documentation import DocumentationResponder, conceptual_question
 from app.agent.execution import (
+    GOLD_INTERPRETATION_SECONDS,
     ExecutionController,
     ExecutionLimitExceeded,
     RequestBudget,
@@ -537,7 +538,10 @@ class QuestionOrchestrator:
                 evidence_chars=_serialized_evidence_chars(evidence),
             )
         assert adapter is not None
-        generated = await self._generate(adapter, request, evidence, budget, trace)
+        try:
+            generated = await self._generate(adapter, request, evidence, budget, trace)
+        except ExecutionLimitExceeded:
+            generated = self._recoverable_error(FailureCode.EXECUTION_LIMIT)
         if isinstance(generated, QuestionResponse):
             return generated
 
@@ -659,12 +663,57 @@ class QuestionOrchestrator:
             elif read_plan.group_by_dimension_ids and not read_plan.comparison_periods:
                 rows = list(observations.values())
                 smallest = read_plan.order is not None and read_plan.order.direction.value == "asc"
-                extreme = (min if smallest else max)(rows, key=lambda row: row["value"])
-                described = _describe_observation(extreme, labels, human_readable=True)
-                answer = (
-                    f"Entre os {len(rows)} grupos retornados, o {'menor' if smallest else 'maior'} "
-                    f"valor de {_lowercase_title(title)} foi de {described}."
+                paired_groups = any(
+                    item.operator.value == "in"
+                    and item.dimension_id in read_plan.group_by_dimension_ids
+                    and len(item.values) == 2
+                    for item in read_plan.filters
                 )
+                if paired_groups and read_plan.order is None and len(rows) <= 2:
+                    described = [
+                        _describe_observation(row, labels, human_readable=True) for row in rows
+                    ]
+                    answer = f"Resultados de {_lowercase_title(title)} no recorte:\n"
+                    answer += "\n".join(f"• {line}" for line in described)
+                    if len(rows) == 1:
+                        answer += "\nSó um dos grupos retornou dados para este recorte."
+                elif read_plan.order is not None and read_plan.limit > 1:
+                    group_label = " e ".join(
+                        labels.get(dimension_id, dimension_id).lower()
+                        for dimension_id in read_plan.group_by_dimension_ids
+                    )
+                    heading = (
+                        f"{'menores' if smallest else 'maiores'} valores de "
+                        f"{_lowercase_title(title)} por {group_label} foram:\n"
+                    )
+                    lines = []
+                    # Reserva cabeçalho e aviso de tabela/CSV dentro de ResponseText.
+                    remaining = 4000 - len(heading) - 200
+                    for row in rows[:10]:
+                        line = _describe_observation(row, labels, human_readable=True)
+                        if len(line) + 3 > remaining:
+                            break
+                        lines.append(line)
+                        remaining -= len(line) + 3
+                    answer = (
+                        f"Os {len(lines)} {heading}"
+                        + "\n".join(f"• {line}" for line in lines)
+                    )
+                    if not lines:
+                        answer = f"Foram encontrados {len(rows)} resultados de {title.lower()}."
+                    if len(rows) > len(lines):
+                        answer += (
+                            f"\nExibidos {len(lines)} de {len(rows)} resultados. "
+                            "Consulte os demais na tabela ou baixe os dados em CSV."
+                        )
+                else:
+                    extreme = (min if smallest else max)(rows, key=lambda row: row["value"])
+                    described = _describe_observation(extreme, labels, human_readable=True)
+                    extreme_label = "menor" if smallest else "maior"
+                    answer = (
+                        f"Entre os {len(rows)} grupos retornados, o {extreme_label} "
+                        f"valor de {_lowercase_title(title)} foi de {described}."
+                    )
             else:
                 lines = [
                     _describe_observation(observations[item], labels, human_readable=True)
@@ -735,7 +784,8 @@ class QuestionOrchestrator:
                     request.question,
                     request.context,
                     evidence,
-                )
+                ),
+                timeout_seconds=None if evidence.reference.is_demo else GOLD_INTERPRETATION_SECONDS,
             )
             generated = GeneratedAnswer.model_validate(
                 generated_result.model_dump()

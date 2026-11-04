@@ -5,6 +5,31 @@ import pytest
 from .test_gold_language_http import _plan
 
 
+def test_change_between_months_preserves_consumption_and_municipality():
+    result = _plan("Como o consumo de Recife mudou de janeiro para março de 2025?")
+    assert result["status"] == "planned", result
+    plan = result["plan"]
+    assert plan["metric_id"] == "energy.consumption"
+    assert plan["comparison_periods"] == ["2025-01", "2025-03"]
+    assert plan["filters"] == [{
+        "dimension_id": "geography.municipality", "operator": "eq", "values": ["Recife"],
+    }]
+
+
+def test_cash_question_requests_billing_confirmation_and_keeps_slice():
+    first = _plan("Quanto entrou no caixa em Recife em março de 2025?")
+    assert first["status"] == "needs_clarification", first
+    assert "receita faturada" in first["response"]["message"]
+    result = _plan("sim", [
+        {"role": "user", "content": first["pending_question"]},
+        {"role": "assistant", "content": first["response"]["message"]},
+    ])
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "billing.revenue"
+    assert result["plan"]["window"]["start"] == "2025-03-01"
+    assert result["plan"]["filters"][0]["values"] == ["Recife"]
+
+
 @pytest.mark.parametrize("question,metric,place,kind", [
     ("Quero saber quanto foi faturado em Recife em março de 2025.",
      "billing.revenue", "Recife", None),
@@ -67,6 +92,8 @@ def test_ranking_preserves_group_order_and_requested_count(question, limit, dire
     "Os cento e um municípios com mais receita em março de 2025?",
     "Qual município inventado teve maior receita em março de 2025?",
     "Quanto de energia foi consumida exceto residencial em março de 2025?",
+    "Qual foi a receita em março de 2025 sem contar Recife?",
+    "Quanto foi consumido em Olinda em março de 2025, tirando residencial?",
     "Quanto foi faturado e pago em Recife em março de 2025?",
     "Quanto foi faturado em Recife no mês 13 de 2025?",
     "Quanto foi faturado em Recife em 12 de março de 2025?",

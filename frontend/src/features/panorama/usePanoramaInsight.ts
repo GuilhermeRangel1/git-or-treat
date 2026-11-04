@@ -70,6 +70,7 @@ export function usePanoramaInsight(
       }
       return requestPanoramaInsight(filters, data, signal);
     },
+    // Preserva a interpretação do recorte; lote, filtro ou valor novo muda a chave.
     staleTime: data?.origem?.kind === "gold" ? 0 : 1000 * 60 * 5,
     retry: false,
     refetchOnWindowFocus: data?.origem?.kind === "gold",

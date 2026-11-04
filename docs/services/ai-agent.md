@@ -452,6 +452,22 @@ A operação interna de prontidão existente recebe os resultados observados de 
 
 ### Catálogo Gold v2 em adaptação
 
+Revisão de linguagem de 04/11/2026: preço observado e ticket das unidades faturadas
+usam os indicadores existentes. Comparar consumo de unidades com e sem GD separa
+os grupos na mesma competência, sem inventar um segundo período. Comparações de
+DEC/FEC leem duas competências do mesmo alimentador; não somam nem calculam média
+entre meses. O modo observado continua exigindo os controles e a linhagem de cada
+competência solicitada. Referências como “nesse alimentador” e “desse alimentador”
+reaproveitam apenas filtros do contexto reconhecido, inclusive após uma comparação.
+
+A contagem de UCs com GD por município usa uma linha por UC na população de
+`variacao_consumo_uc` e exige GD registrada. É um retrato cadastral do lote,
+sem vigência histórica. Em perguntas de queda, a confirmação de GD preserva o
+recorte e o agente pede o critério de queda superior a 30% quando ele falta.
+GD não comprova origem solar. Contagem mensal de eventos de interrupção continua
+dependendo da cobertura própria dessa fonte, mesmo quando DEC/FEC observado pode
+ser consultado. Nenhuma dessas mudanças altera as fórmulas de receita ou consumo.
+
 Os módulos correntes `grid360_gold` e `grid360_gold_mapping` referenciam Gold CSV v2 e prontidão v2; os módulos `_v1` conservam a compatibilidade histórica explicitamente. O dicionário SQL de sete tabelas do PR #46 continua legado e não é a referência física da fonte atual. A adaptação é validada contra as quinze tabelas `gold_v2` do Backend por teste em processo separado e pelo planejador público, sem executar evidência ou LLM. O perfil lógico não importa o mapeamento físico. Esta preparação não compõe a consulta Gold implantada; o [estado do catálogo](../gold-catalog.md) registra as onze métricas, atendimento e distribuição do artefato ao Backend.
 
 

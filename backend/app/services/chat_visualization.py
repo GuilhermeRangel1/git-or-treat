@@ -221,7 +221,10 @@ def build_chat_visualization(
         else points
     )
     plotted = display_points[:maximum] if kind == "horizontal" else points[-maximum:]
-    note = f"{len(points)} observações retornadas pela consulta autorizada."
+    note = (
+        "1 observação retornada pela consulta autorizada."
+        if len(points) == 1 else f"{len(points)} observações retornadas pela consulta autorizada."
+    )
     if kind == "donut":
         note += " Participação no total observado; até seis setores, com grupos excedentes reunidos em Demais."
     if plan.order is not None and plan.group_by_dimension_ids:

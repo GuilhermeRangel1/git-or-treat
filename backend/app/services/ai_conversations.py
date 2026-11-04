@@ -258,6 +258,7 @@ class ConversationStore:
                     request_digest=fingerprint,
                     scope_digest=scope,
                     state="pending",
+                    question=None,
                     lease_until=now() + timedelta(seconds=90),
                 )
             )
@@ -267,6 +268,7 @@ class ConversationStore:
                 .where(E.c.id == previous["id"])
                 .values(
                     state="pending",
+                    question=None,
                     attempt_id=attempt,
                     lease_until=now() + timedelta(seconds=90),
                 )
@@ -401,7 +403,7 @@ class ConversationStore:
                     E.c.request_id == request_id,
                     E.c.attempt_id == attempt,
                 )
-                .values(state="interrupted", lease_until=now())
+                .values(state="interrupted", question=None, response=None, lease_until=now())
             )
             self.db.commit()
 

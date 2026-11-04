@@ -465,6 +465,14 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-11-04 — IA-01/02/03/05/06/07/08 — consistência das consultas do Assistente
+
+- Estado do cartão adicional: `Concluído` para a entrega local descrita, com os doze aceites revisados. A integração em develop e os estados dos requisitos oficiais seguem seus próprios gates.
+- Revisão local do [cartão de consistência](https://trello.com/c/NZ3bE2Wd) em `fix/genai-respostas-chat`, base `5214aee`. Corrige exclusões invertidas, comparação temporal, esclarecimentos, rankings e orçamento textual, ciclo da transação de identidade e sobreposição em telas pequenas. Estende o núcleo existente.
+- Contrastes dirigidos passaram de 4/12 na base para 12/12 na candidata. Dezesseis casos funcionais reais foram validados com Gemini e Gold v2; respostas quantitativas conferidas por SQL independente, com recorte, unidade, publicação e auditoria. Portal, tabela/CSV, conversa salva, correção de local e mudança de assunto conferidos. Detalhes, comandos e limites no [registro da revisão](plans/2026-11-04-genai-consistencia-consultas.md).
+- GenAI: 4.517 testes aprovados/5 skips; Backend: 1.202 aprovados/114 skips; Assistente/gráficos: 66 aprovados. Matriz ampliada conserva 160/163 e as três divergências demonstrativas classificadas. Revisões independentes de padrões e spec não deixaram achados materiais.
+- Dezoito requisições intercaladas com a base mediram primeiro dado e final. Mediana do primeiro dado nas repetições igual; mediana final variou cerca de 0,8%. Falhas 504 do Gemini foram registradas nas duas versões, sem confusão com ausência de evidência. Não se declara ganho geral de latência nem precisão geral. Estados oficiais e cobertura de Dados preservados; aceite do cartão é local e a publicação depende de autorização posterior.
+
 ### 03/11/2026 — Adicional Mapa da RMR — em andamento
 
 - Iniciada a implementação da página de mapa municipal da RMR, rastreada como adicional relacionado a WEB-01/WEB-02/WEB-07 e à autorização WEB-10. O adicional não recebeu ID próprio; os estados oficiais desses requisitos permanecem inalterados.
@@ -4067,3 +4075,20 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 
 - README reúne pré-requisitos, carga Gold, verificações e caminho da demonstração sintética; [roteiro](demo-roteiro.md) cobre as jornadas e condições de ensaio. [Status report](status-report.md) registra atualização e bloqueios sem alterar o corte histórico.
 - Evidência operacional existente: [runbook Docker](plans/2026-11-04-docker-gold-inicializacao.md) e [Workflow](../data-engineering/evidencias/workflow/run-limpo-250327107715287.md). Falta ensaio completo por outra pessoa, revisão analítica/narrativa e confirmação de publicação. Estados ENT preservados; documentação preparada não comprova o critério de execução independente.
+
+
+### 2026-11-04 — IA-01/IA-03/IA-07 — entidade do ranking
+
+- A continuação assinada pode representar a entidade de um ranking com limite um e uma única linha autorizada, após a validação da visualização; rankings maiores, vazios e comparações não viram seleção implícita. A troca de indicador reaproveita o filtro e o período, com novo planejamento e autorização. Sem contexto válido, referências demonstrativas continuam pedindo esclarecimento.
+- Verificações registradas para essa continuação: testes dirigidos do Backend e do GenAI, além de uma consulta autenticada ao fluxo público. Esta evidência se refere ao suporte de contexto para perguntas de acompanhamento; não altera nem certifica valores ou fórmulas do catálogo Gold.
+
+### 2026-11-04 — IA-01/IA-02/IA-03/IA-07 — linguagem de GD e continuidade
+
+- Integração executável na branch `fix/genai-respostas-chat`: comparação com/sem GD mantém uma competência e separa a dimensão; DEC/FEC comparam duas leituras mensais do mesmo alimentador. As referências “nesse/desse alimentador” funcionam também no contexto canônico assinado após comparação. Preço observado e ticket das unidades faturadas reconhecem os indicadores existentes; dois indicadores explicitamente pedidos continuam exigindo escolha.
+- Contagens de UCs sem critério não viram soma de consumo; exemplos declarados no perfil passam pelo mesmo planejamento/autorização antes da apresentação. Origem solar continua distinta de GD. Contagem total de UCs com GD não é oferecida pelo catálogo; contagem mensal de eventos continua bloqueada quando falta cobertura. Fórmulas e população da receita não foram alteradas. Detalhes no [guia GenAI](services/ai-agent.md#catálogo-gold-v2-em-adaptação).
+- Verificações em Docker: no ai-agent, `python -m pytest -q -p no:cacheprovider tests/test_gold_gd_continuity_language.py tests/test_gold_language_http.py tests/test_gold_receptivity.py tests/test_ranked_entity_follow_up.py tests/test_gold_catalog_v2.py`: 256 passaram. No Backend, `python -m pytest -q tests/test_genai_continuity_observed.py tests/test_genai_planning_real.py tests/test_genai_executor.py`: 26 passaram e uma verificação PostgreSQL foi ignorada pelo ambiente de teste. Ruff nos arquivos alterados e `git diff --check` passaram.
+- Pela rota autenticada `POST /api/v1/ai/questions`, oito cenários numéricos com Gemini real responderam: preço, ticket, consumo por GD, queda acima de 30%, DEC, FEC e comparação de cada indicador de continuidade. Os agregados foram reconciliados por SELECT independente no leitor restrito da mesma publicação local; razões usam suas bases próprias e comparações usam as duas linhas mensais. Os três casos sem capacidade/cobertura mantiveram esclarecimento ou bloqueio. Sem nova validação visual no navegador ou homologação de Dados; estados oficiais preservados.
+
+### 2026-11-04 — IA-01 / IA-02 / IA-03 — ranking de unidades com GD
+
+O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por município no lote. A API autenticada local retornou Recife, 1.420 UCs, reconciliadas com uma agregação SQL independente usando o leitor restrito. A suíte de linguagem de GD e continuidade passou com 18 testes, incluindo confirmação de GD e do limiar de queda sem perder o município. A métrica cadastral não descreve vigência histórica nem comprova origem solar.

@@ -467,7 +467,7 @@ export default function AIInsightCard({
                 {formatValue(metric.valorAtual, metric.unidade)}
               </p>
               <p className="mt-0.5 text-xs text-muted">
-                {isDemo ? metric.nome : "Receita observada"} ·{" "}
+                {isDemo ? metric.nome : "Receita da base comparável"} ·{" "}
                 {periodLabel(filters.periodo)}
               </p>
               <p className="mt-1 text-xs text-muted">
@@ -580,18 +580,19 @@ export default function AIInsightCard({
             atualização está pendente.
           </p>
         )}
-        {((query.isError && (apiError?.retryable || isStale)) ||
-          canRetryResponse) && (
-          <button
-            type="button"
-            onClick={() =>
-              isStale ? onRefreshIndicators() : void query.refetch()
-            }
-            className="mt-3 w-fit rounded-md px-2 py-1 text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-          >
-            {isStale ? "Atualizar indicadores" : "Tentar novamente"}
-          </button>
-        )}
+        {!pending &&
+          ((query.isError && (apiError?.retryable || isStale)) ||
+            canRetryResponse) && (
+            <button
+              type="button"
+              onClick={() =>
+                isStale ? onRefreshIndicators() : void query.refetch()
+              }
+              className="mt-3 w-fit rounded-md px-2 py-1 text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              {isStale ? "Atualizar indicadores" : "Tentar novamente"}
+            </button>
+          )}
       </div>
 
       <div className="mt-auto border-t border-[var(--line)] pt-3">
@@ -717,6 +718,12 @@ export default function AIInsightCard({
                     renderAnalysis()
                   ) : (
                     <div>
+                      {!isStale &&
+                        (apiError?.retryable || canRetryResponse) && (
+                          <p className="mb-2 text-sm font-medium leading-6">
+                            {observedReading}
+                          </p>
+                        )}
                       {insight && (
                         <p className="mb-1 text-xs font-semibold text-[var(--status-warning)]">
                           {statusLabel(insight.status)}
@@ -725,22 +732,23 @@ export default function AIInsightCard({
                       <p role="status" className="text-sm leading-6">
                         {stateMessage}
                       </p>
-                      {((query.isError && (apiError?.retryable || isStale)) ||
-                        canRetryResponse) && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            isStale
-                              ? onRefreshIndicators()
-                              : void query.refetch()
-                          }
-                          className="mt-3 w-fit rounded-md px-2 py-1 text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                        >
-                          {isStale
-                            ? "Atualizar indicadores"
-                            : "Tentar novamente"}
-                        </button>
-                      )}
+                      {!pending &&
+                        ((query.isError && (apiError?.retryable || isStale)) ||
+                          canRetryResponse) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              isStale
+                                ? onRefreshIndicators()
+                                : void query.refetch()
+                            }
+                            className="mt-3 w-fit rounded-md px-2 py-1 text-sm font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                          >
+                            {isStale
+                              ? "Atualizar indicadores"
+                              : "Tentar novamente"}
+                          </button>
+                        )}
                     </div>
                   )}
                 </div>

@@ -14,6 +14,7 @@ from app.schemas.read_plan import LogicalReadPlan, cache_plan_digest
 from app.telemetry import record_execution
 
 T = TypeVar("T")
+GOLD_INTERPRETATION_SECONDS = 8.0
 
 
 class ExecutionLimitExceeded(Exception):
@@ -124,13 +125,16 @@ class RequestBudget:
             self._controller._sources, self._controller.limits.source_seconds, action, "source"
         )
 
-    async def model(self, action: Callable[[], Awaitable[T]]) -> T:
+    async def model(
+        self, action: Callable[[], Awaitable[T]], *, timeout_seconds: float | None = None
+    ) -> T:
         self._model_calls += 1
         if self._model_calls > self._controller.limits.max_model_calls:
             raise ExecutionLimitExceeded("limite de chamadas ao modelo")
-        return await self._bounded(
-            self._controller._models, self._controller.limits.model_seconds, action, "model"
-        )
+        seconds = self._controller.limits.model_seconds
+        if timeout_seconds is not None:
+            seconds = min(seconds, timeout_seconds)
+        return await self._bounded(self._controller._models, seconds, action, "model")
 
     @staticmethod
     async def _bounded(

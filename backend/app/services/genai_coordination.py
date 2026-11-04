@@ -5,6 +5,7 @@ import json
 import logging
 from calendar import monthrange
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import date
 from time import monotonic
 
@@ -29,14 +30,17 @@ from app.services.genai_client import (
     GenAIServiceUnavailable,
     GenAITimeout,
 )
-from app.services.genai_continuity_coverage import GoldCoverageUnavailable, observed_coverage_valid
+from app.services.genai_continuation import ranked_result_anchor
+from app.services.genai_continuity_coverage import (
+    GoldCoverageUnavailable,
+    observed_coverage_valid,
+)
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
 from app.services.genai_flow import should_synthesize
 from app.services.genai_planning import GoldPlanningResult, plan_gold_question
 from app.services.genai_replay import execution_artifact
 from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
-
 
 OBSERVED_CONTINUITY_WARNING = "Valores observados; cobertura do alimentador não certificada."
 _OBSERVED_CONTINUITY_METRICS = frozenset({
@@ -56,6 +60,8 @@ def _requested_months(plan: LogicalReadPlan) -> tuple[str, ...]:
         or window.end.day != monthrange(window.end.year, window.end.month)[1]
     ):
         return ()
+    if plan.comparison_periods is not None:
+        return plan.comparison_periods
     current = date(window.start.year, window.start.month, 1)
     end = date(window.end.year, window.end.month, 1)
     periods = []
@@ -327,7 +333,13 @@ async def answer_gold_question(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(planned.publication.assert_current, engine),
     )
     planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
-    token = continuation(planned, result) if continuation is not None and result.status in {"answered", "no_evidence"} else None
+    continuation_plan = planned
+    if result.status == "answered" and visual is not None and lookup.evidence is not None:
+        anchor = ranked_result_anchor(planned.response.plan, lookup.evidence.records)
+        continuation_plan = replace(
+            planned, response=planned.response.model_copy(update={"plan": anchor}),
+        )
+    token = continuation(continuation_plan, result) if continuation is not None and result.status in {"answered", "no_evidence"} else None
     planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
     return result.model_copy(update={"audit_reference": reference, "continuation_token": token, "visualization": visual})
 

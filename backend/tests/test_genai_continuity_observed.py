@@ -4,14 +4,13 @@ import pytest
 
 from app.schemas.ai import AIQuestionResponse
 from app.schemas.genai_audit import BackendAuditEvent
-from app.schemas.gold_readiness import CapabilityReadiness, GoldReadinessReport
 from app.schemas.genai_plan import LogicalReadPlan
+from app.schemas.gold_readiness import CapabilityReadiness, GoldReadinessReport
 from app.services.genai_coordination import (
     OBSERVED_CONTINUITY_WARNING,
     _apply_observed_continuity_warning,
     _observed_continuity_quality,
 )
-
 
 BATCH = (
     "gold-csv-v2:GOLD_20260601T000000Z_12345678:"
@@ -49,6 +48,25 @@ def test_only_dec_fec_with_exclusively_uncertified_coverage_enters_observed_mode
     assert quality.available_capability_ids == ()
     assert quality.observed_capability_ids == ("interrupcoes.dec_fec",)
     assert quality.observed_periods == ("2026-06",)
+
+
+def test_nonadjacent_comparison_requires_only_the_two_requested_months():
+    from app.services.genai_executor import (
+        GoldExecutionDenied,
+        _validate_observed_continuity_rows,
+    )
+
+    data = _plan().model_dump(mode="python")
+    data["window"]["start"] = date(2026, 1, 1)
+    data["comparison_periods"] = ("2026-01", "2026-06")
+    plan = LogicalReadPlan.model_validate(data)
+    quality = _observed_continuity_quality(_report(), plan, BATCH)
+    assert quality.observed_periods == ("2026-01", "2026-06")
+    rows = [{"period": month, "feeder": "AL-01", "value": value}
+            for month, value in [("2026-01", 0.25), ("2026-06", 0.5)]]
+    _validate_observed_continuity_rows(rows, plan, quality)
+    with pytest.raises(GoldExecutionDenied):
+        _validate_observed_continuity_rows(rows[:1], plan, quality)
 
 
 @pytest.mark.parametrize("reason", ["control_failed", "table_empty", "coverage_missing"])
@@ -148,6 +166,7 @@ def test_observed_mode_requires_explicit_uncertified_coverage_and_matching_linea
 
 def test_observed_coverage_reads_only_the_requested_feeder_and_month(monkeypatch):
     from sqlalchemy import create_engine
+
     from app.models.gold_v2 import TABLES
     from app.services import genai_continuity_coverage as coverage
 

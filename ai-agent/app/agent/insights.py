@@ -211,7 +211,12 @@ class ScreenInsightOrchestrator:
                 else generated_result
             )
             await trace.emit_async(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
-        except ModelProviderUnavailable:
+        except (ModelProviderUnavailable, ExecutionLimitExceeded) as exc:
+            if (
+                isinstance(exc, ExecutionLimitExceeded)
+                and not isinstance(screen, GoldScreenContext)
+            ):
+                raise
             await trace.emit_async(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
             failure = map_failure(FailureCode.MODEL_UNAVAILABLE)
             return self._response(
@@ -234,8 +239,6 @@ class ScreenInsightOrchestrator:
                 message=failure.message,
                 error=failure.error,
             )
-        except ExecutionLimitExceeded:
-            raise
         except AuditUnavailable:
             raise
         except (ValidationError, TypeError, ValueError):

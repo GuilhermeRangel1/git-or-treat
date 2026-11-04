@@ -270,7 +270,7 @@ function AssistantResult({
       <p className={`text-sm font-semibold ${state.appearance}`}>
         {preliminary ? "Dados da consulta" : state.label}
       </p>
-      <p className="whitespace-pre-wrap text-base sm:text-[17px] leading-7 text-content">
+      <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-base sm:text-[17px] leading-7 text-content">
         {interpretationFailed
           ? "A interpretação não pôde ser concluída. Os dados da consulta continuam disponíveis."
           : preliminary
@@ -367,7 +367,9 @@ function MessageCard({
   if (message.role === "user") {
     return (
       <article className="ml-auto w-fit max-w-[min(85%,680px)] rounded-2xl rounded-br-sm bg-selected px-4 py-3 text-base leading-6 text-content">
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+          {message.content}
+        </p>
       </article>
     );
   }
@@ -827,12 +829,15 @@ export default function AssistentePage() {
       setConversationId(id);
       const restored: ChatMessage[] = [];
       for (const entry of saved.exchanges) {
-        restored.push({
-          id: nextMessageId.current++,
-          role: "user",
-          content: entry.question ?? "Envio sem conteúdo armazenado.",
-          contextEligible: false,
-        });
+        const storedQuestion = entry.question?.trim();
+        if (storedQuestion && storedQuestion !== "Pergunta não armazenada.") {
+          restored.push({
+            id: nextMessageId.current++,
+            role: "user",
+            content: storedQuestion,
+            contextEligible: false,
+          });
+        }
         restored.push({
           id: nextMessageId.current++,
           role: "assistant",
@@ -860,7 +865,7 @@ export default function AssistentePage() {
       aria-labelledby="assistant-heading"
       className="assistant-workspace mx-auto h-full min-h-0 w-full rounded-[20px] border border-divider bg-surface"
     >
-      <header className="assistant-toolbar flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-divider px-4 py-3">
+      <header className="assistant-toolbar flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-divider px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
         <div className="flex items-center gap-2.5">
           <span className="flex size-9 items-center justify-center rounded-full bg-brand/10 text-brand">
             <MessageCircle aria-hidden="true" className="size-4" />
@@ -874,7 +879,7 @@ export default function AssistentePage() {
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center justify-end gap-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
           <IndicatorHelp screen="assistente" />
           {hasMessages && (
             <Button
@@ -915,11 +920,11 @@ export default function AssistentePage() {
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:-mr-0.5 lg:p-4"
         >
           {!hasMessages ? (
-            <div className="m-auto flex w-full max-w-[680px] flex-col gap-5 py-5 lg:-translate-y-2">
+            <div className="m-auto flex w-full max-w-[680px] flex-col gap-3 py-3 sm:gap-5 sm:py-5 lg:-translate-y-2">
               <div className="space-y-3 text-center">
                 <h1
                   id="assistant-heading"
-                  className="font-heading text-[30px] leading-[38px] font-semibold lg:text-[36px] lg:leading-[44px] lg:tracking-[-0.64px]"
+                  className="font-heading text-[24px] leading-[30px] sm:text-[30px] sm:leading-[38px] font-semibold lg:text-[36px] lg:leading-[44px] lg:tracking-[-0.64px]"
                 >
                   O que você quer investigar?
                 </h1>
@@ -1008,7 +1013,7 @@ export default function AssistentePage() {
               }}
               onKeyDown={handleComposerKeyDown}
               disabled={isSending}
-              className="max-h-36 min-h-12 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-base leading-6 text-content outline-none placeholder:text-muted disabled:opacity-60"
+              className="max-h-36 min-h-12 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-base leading-6 text-content outline-none placeholder:text-muted disabled:opacity-60"
             />
             <Button
               type="submit"
@@ -1019,7 +1024,7 @@ export default function AssistentePage() {
               disabled={!draft.trim() || isSending}
               isLoading={isSending}
               loadingLabel={null}
-              className="size-12 rounded-xl !p-0"
+              className="size-12 shrink-0 rounded-xl !p-0"
             >
               {!isSending && <Send aria-hidden="true" className="size-6" />}
             </Button>

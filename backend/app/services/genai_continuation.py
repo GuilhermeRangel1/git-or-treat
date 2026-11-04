@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.schemas.ai import AIConversationTurn, AIQuestionText
 from app.schemas.genai_internal import AccessScope
-from app.schemas.genai_plan import LogicalReadPlan, WindowKind
+from app.schemas.genai_plan import LogicalReadPlan, ReadFilter, WindowKind
 from app.services.gold_catalog import load_gold_catalog
 
 TTL_SECONDS = 1800
@@ -200,3 +200,23 @@ def restore_continuation(
         return payload.batch, [anchor, *context[-2:]]
     except (ValueError, KeyError, TypeError, UnicodeError):
         raise InvalidContinuation from None
+
+
+def ranked_result_anchor(plan: LogicalReadPlan, records: list[dict]) -> LogicalReadPlan:
+    """Retoma uma entidade única consultada, sem extrair filtros da prosa do modelo."""
+    fields = {"geography.municipality": "municipality",
+              "geography.neighborhood": "neighborhood",
+              "customer.consumption_class": "consumption_class",
+              "network.feeder": "feeder"}
+    if (plan.order is None or plan.limit != 1 or len(records) != 1
+            or len(plan.group_by_dimension_ids) != 1 or plan.comparison_periods is not None):
+        return plan
+    dimension = plan.group_by_dimension_ids[0]
+    value = records[0].get(fields.get(dimension, ""))
+    if not isinstance(value, str) or not value.strip() or len(value) > 120:
+        return plan
+    return plan.model_copy(update={
+        "group_by_dimension_ids": (), "order": None,
+        "filters": (*[item for item in plan.filters if item.dimension_id != dimension],
+                    ReadFilter(dimension_id=dimension, operator="eq", values=(value,))),
+    })
