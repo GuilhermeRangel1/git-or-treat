@@ -32,7 +32,7 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
              "energia_estimada_recuperavel_kwh": None,
              "intervalo_recuperacao_inferior_kwh": None,
              "intervalo_recuperacao_superior_kwh": None,
-             "estado_estimativa_recuperacao": "SEM_REFERENCIA_VALIDADA",
+             "estado_estimativa_recuperacao": "ESTIMATIVA_UC_INDISPONIVEL",
              "metodo_estimativa_recuperacao": None,
              "validacao_recuperacao_json": None},
             {"id_uc": "UC-2", "municipio": "Cidade A", "bairro": "Bairro B",
@@ -151,6 +151,7 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
     assert first.queue_position == 2
     assert first.evidence.priority_order is None
     assert first.evidence.historical_recovery_status == "SEM_REFERENCIA_VALIDADA"
+    assert third_page.data.items[0].evidence.recovery_estimate_status == "ESTIMATIVA_UC_INDISPONIVEL"
     assert second.evidence.historical_recovery_mean_kwh_per_inspection == 13.5
     assert second.evidence.historical_recovery_reference == "global"
     assert second.potential_recoverable_energy_kwh == 125.5

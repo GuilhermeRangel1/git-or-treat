@@ -240,10 +240,7 @@ def _gold_item(row: dict) -> GoldInspectionItem:
                 row["intervalo_recuperacao_superior_kwh"]
                 if estimated_energy is not None else None
             ),
-            recovery_estimate_status=(
-                row["estado_estimativa_recuperacao"]
-                if validation is not None else None
-            ),
+            recovery_estimate_status=row["estado_estimativa_recuperacao"],
             recovery_estimate_method=(
                 row["metodo_estimativa_recuperacao"]
                 if validation is not None else None
