@@ -576,6 +576,12 @@ class QuestionInterpreter:
         if ranking is not None and ranking.limit is not None and not 1 <= ranking.limit <= 100:
             return self._clarify("Consulte entre 1 e 100 resultados por pergunta.")
         if breakdown is not None and breakdown_message is not None and not grouping_allowed:
+            if (breakdown.id == "network.feeder" and selected_metric is not None
+                    and selected_metric.id.startswith("network.equivalent_interruption_")):
+                return self._clarify(
+                    "Ainda não consigo comparar alimentadores para esse indicador. "
+                    "Informe o código de um alimentador para consultar o mês solicitado."
+                )
             # Sem agrupamento no plano, responder o total seria um falso acerto.
             return self._clarify(
                 breakdown_message.replace("{dimension}", breakdown.label.lower())

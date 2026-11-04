@@ -99,6 +99,16 @@ def test_fec_follow_up_keeps_feeder_and_same_month():
     assert result["plan"]["filters"][0]["values"] == ["AL-01"]
 
 
+def test_unsupported_feeder_ranking_asks_for_a_specific_feeder():
+    result = _plan("Qual alimentador teve o maior DEC em junho de 2026?")
+    assert result["status"] == "needs_clarification", result
+    assert result["plan"] is None
+    assert result["response"]["message"].startswith(
+        "Ainda não consigo comparar alimentadores para esse indicador."
+    )
+    assert "Informe o código de um alimentador" in result["response"]["message"]
+
+
 def test_solar_confirmation_preserves_municipality_then_requests_drop_criterion():
     original = "Quantas unidades com energia solar em Olinda tiveram queda de consumo?"
     first = _plan(original, extra_coverage=[
