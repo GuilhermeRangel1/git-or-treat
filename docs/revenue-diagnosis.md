@@ -143,6 +143,8 @@ Ordem de grandeza em % do faturamento de P0. Os ganhos se sobrepõem e **não** 
 
 ## 10. Reprodução
 
+O [roteiro de demonstração](demo-roteiro.md) indica como apresentar o diagnóstico e conferir o recorte no portal. Para carregar a Gold v2 usada pela aplicação, siga o [guia de execução](../README.md#executar-localmente-com-docker).
+
 - **Tabela:** `decomposicao_receita`, na Gold `GOLD_20261103T173853Z_76c37784`.
 - **Método:** `Silver_to_gold.ipynb`, com `MIN_PARES_PRECO_VOLUME=6`.
 - **Controles:** roteiros `validacao_gold_v4` e `validacao_silver_v1`, executados depois do run limpo, sem falhas.
