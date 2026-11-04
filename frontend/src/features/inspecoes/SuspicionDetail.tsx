@@ -284,14 +284,54 @@ export default function SuspicionDetail({
             )}
           </section>
           <section
-            className="mt-5 rounded-lg bg-[var(--status-warning-bg)] p-4 text-sm text-[var(--status-warning-text)]"
-            aria-label="Estimativa de recuperação indisponível"
+            className={`mt-5 rounded-lg p-4 text-sm ${data.potential_recoverable_energy_kwh === null ? "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]" : "bg-canvas"}`}
+            aria-label="Estimativa condicional de energia a recuperar"
           >
-            <h3 className="font-medium">Energia recuperável indisponível</h3>
-            <p className="mt-1">
-              Não há estimativa de energia recuperável para esta UC. A variação
-              de consumo, por si só, não permite calculá-la.
-            </p>
+            <h3 className="font-medium">
+              {data.potential_recoverable_energy_kwh === null
+                ? "Energia recuperável indisponível"
+                : "Energia estimada a recuperar"}
+            </h3>
+            {data.potential_recoverable_energy_kwh === null ? (
+              <p className="mt-1">
+                {data.recovery_unavailable_reason ??
+                  "A Gold não publicou uma estimativa válida para esta UC."}
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-lg font-semibold">
+                  {energy(data.potential_recoverable_energy_kwh)}
+                </p>
+                <p className="mt-1 text-muted">
+                  Estimativa de energia a recuperar se a irregularidade se
+                  confirmar. A faixa foi validada temporalmente e não garante
+                  recuperação nesta UC.
+                </p>
+                {evidence.recovery_interval_lower_kwh !== null &&
+                evidence.recovery_interval_upper_kwh !== null &&
+                evidence.recovery_estimate_confidence_level !== null ? (
+                  <p className="mt-2">
+                    Faixa nominal de{" "}
+                    {Math.round(
+                      evidence.recovery_estimate_confidence_level * 100,
+                    )}
+                    %: {energy(evidence.recovery_interval_lower_kwh)} a{" "}
+                    {energy(evidence.recovery_interval_upper_kwh)}.
+                  </p>
+                ) : null}
+                {evidence.recovery_estimate_window_anchor &&
+                evidence.recovery_estimate_window_months &&
+                evidence.recovery_estimate_minimum_window_months ? (
+                  <p className="mt-1 text-xs text-muted">
+                    Janela de aplicação:{" "}
+                    {evidence.recovery_estimate_window_months} meses até{" "}
+                    {periodLabel(evidence.recovery_estimate_window_anchor)}{" "}
+                    (mínimo: {evidence.recovery_estimate_minimum_window_months}{" "}
+                    meses).
+                  </p>
+                ) : null}
+              </>
+            )}
           </section>
         </section>
         <aside

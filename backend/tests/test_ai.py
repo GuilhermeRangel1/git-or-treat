@@ -1,3 +1,13 @@
+import pytest
+
+from tests.support.platform_auth import login_as_profile
+
+
+@pytest.fixture(autouse=True)
+def authenticated_commercial_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "commercial")
+
+
 def test_ai_query_cannot_report_success_without_a_gold_reader(client):
     response = client.post(
         "/api/v1/ai/query",

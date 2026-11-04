@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useSession } from "@/shared/auth/useSession";
+import { getDefaultRoute } from "@/shared/auth/platformAccess";
+import AccessDenied from "@/shared/auth/AccessDenied";
 import { useTheme } from "@/shared/theme/useTheme";
 import Brand from "@/shared/ui/Brand";
 import logoDark from "@/shared/ui/assets/grid360-dark.svg";
@@ -38,7 +40,15 @@ export default function LoginPage() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!loading && (user || (!configured && !sessionError)))
+  if (user) {
+    const destination = getDefaultRoute(user);
+    return destination ? (
+      <Navigate to={destination} replace />
+    ) : (
+      <AccessDenied />
+    );
+  }
+  if (!loading && !configured && !sessionError)
     return <Navigate to="/panorama" replace />;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -52,9 +62,9 @@ export default function LoginPage() {
     setPending(true);
     setError(null);
     try {
-      await login(normalizedUsername, password);
+      const signedIn = await login(normalizedUsername, password);
       setPassword("");
-      navigate("/panorama", { replace: true });
+      navigate(getDefaultRoute(signedIn) ?? "/login", { replace: true });
     } catch (cause) {
       setError(
         cause instanceof Error

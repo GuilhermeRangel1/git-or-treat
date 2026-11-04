@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.progressive import progressive_handler
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.platform_identity import require_permission
 from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
     get_question_gold_resources,
@@ -69,7 +70,7 @@ from app.services.panorama_insights import (
     build_panorama_insight,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_permission("ai:ask"))])
 
 class AIQuestionRoute(APIRoute):
     """Retorna erro de validação estável sem ecoar valores da pergunta."""
@@ -145,8 +146,17 @@ class AIQuestionRoute(APIRoute):
         return progressive_handler(ai_question_handler)
 
 
-questions_router = APIRouter(route_class=AIQuestionRoute)
-insights_router = APIRouter(route_class=AIQuestionRoute)
+questions_router = APIRouter(
+    route_class=AIQuestionRoute,
+    dependencies=[Depends(require_permission("ai:ask"))],
+)
+insights_router = APIRouter(
+    route_class=AIQuestionRoute,
+    dependencies=[
+        Depends(require_permission("ai:ask")),
+        Depends(require_permission("panorama:read")),
+    ],
+)
 
 
 def _question_error(
@@ -205,7 +215,7 @@ async def ask_genai_question(
     request: Request,
     genai: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
     gold_resources: Annotated[
-        tuple[Engine, Callable[[], AccessScope]] | None, Depends(get_question_gold_resources)
+        tuple[Engine | None, Callable[[], AccessScope]] | None, Depends(get_question_gold_resources)
     ],
     readiness_gate: Annotated[Callable | None, Depends(get_question_gold_readiness_gate)],
     db: Annotated[Session, Depends(get_db)],

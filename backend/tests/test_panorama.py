@@ -1,5 +1,7 @@
 import pytest
 
+from tests.support.platform_auth import login_as_profile
+
 from app.repositories.panorama import SyntheticPanoramaRepository
 from app.services.panorama import build_panorama
 
@@ -7,6 +9,11 @@ from app.services.panorama import build_panorama
 @pytest.fixture(autouse=True)
 def synthetic_source(monkeypatch):
     monkeypatch.setattr("app.core.config.settings.ANALYTICS_SOURCE", "synthetic")
+
+
+@pytest.fixture(autouse=True)
+def authenticated_commercial_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "commercial")
 
 
 def test_get_panorama_default_benchmark(client):

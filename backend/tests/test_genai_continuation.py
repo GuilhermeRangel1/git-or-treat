@@ -210,13 +210,13 @@ def test_public_route_restores_only_valid_reference_before_coordination(
 
     client, calls = request.getfixturevalue("gold_route")
     monkeypatch.setattr(ai.settings, "AI_AGENT_SERVICE_API_TOKEN", SecretStr(SECRET))
-    client.cookies.set("grid360_session", "local-session")
+    session_token = client.cookies.get("grid360_session")
     conversation = "00000000-0000-0000-0000-000000000000"
     token = issue_continuation(
         plan(),
         ROUTE_SCOPE,
         "batch",
-        session="local-session",
+        session=session_token,
         conversation=conversation,
         secret=SECRET,
     )

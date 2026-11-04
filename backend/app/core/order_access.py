@@ -73,7 +73,7 @@ def get_order_identity(
         if resolved is None:
             raise _unauthorized()
         user, _session = resolved
-        return OrderIdentity(f"user:{user.id}", permissions_for(user), "session")
+        return OrderIdentity(f"user:{user.id}", permissions_for(user) & {READ, WRITE}, "session")
 
     if settings.APP_ENV == "production":
         raise HTTPException(503, "Produção exige autenticação individual por sessão.")

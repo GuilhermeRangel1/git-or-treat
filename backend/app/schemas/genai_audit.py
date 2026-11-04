@@ -58,5 +58,13 @@ class BackendAuditEvent(GenAIAuditEvent):
     caller_ref: LogicalIdentifier | None = None
     metric_id: LogicalIdentifier | None = None
     source_id: LogicalIdentifier | None = None
+    quality_mode: Literal["certified", "observed_uncertified"] | None = None
+    observed_capability_ids: tuple[LogicalIdentifier, ...] = Field(default=(), max_length=4)
+    observed_periods: tuple[
+        Annotated[str, Field(pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")], ...
+    ] = Field(default=(), max_length=120)
+    quality_limitation: Literal[
+        "Valores observados; cobertura do alimentador não certificada."
+    ] | None = None
 
     artifact: AuditExecutionArtifact | None = None

@@ -29,17 +29,27 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
              "intervalo_historico_recuperacao_superior_kwh": None,
              "referencia_media_historica_recuperacao": None,
              "estado_media_historica_recuperacao": "SEM_REFERENCIA_VALIDADA",
-             "estado_estimativa_recuperacao": "SEM_REFERENCIA_VALIDADA"},
+             "energia_estimada_recuperavel_kwh": None,
+             "intervalo_recuperacao_inferior_kwh": None,
+             "intervalo_recuperacao_superior_kwh": None,
+             "estado_estimativa_recuperacao": "ESTIMATIVA_UC_INDISPONIVEL",
+             "metodo_estimativa_recuperacao": None,
+             "validacao_recuperacao_json": None},
             {"id_uc": "UC-2", "municipio": "Cidade A", "bairro": "Bairro B",
              "prioridade_inspecao": "BAIXA", "motivo_prioridade": "DEMAIS CASOS",
              "ordem_prioridade_inspecao": 4, "posicao_fila_inspecao": 1,
+             "energia_estimada_recuperavel_kwh": 125.5,
+             "intervalo_recuperacao_inferior_kwh": 100.0,
+             "intervalo_recuperacao_superior_kwh": 151.0,
+             "estado_estimativa_recuperacao": "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+             "metodo_estimativa_recuperacao": "CONSUMO_CONDICIONAL_V1",
+             "validacao_recuperacao_json": '{"estimativa_uc":{"estado":"CANDIDATO_PASSOU_VALIDACAO_TEMPORAL","metodo":"CONSUMO_CONDICIONAL_V1","criterios":{"nivel_faixa":0.9},"janela_aplicacao":{"ancora":"2026-06","meses":12,"minimo_meses":6},"aceite_web04":"PENDENTE"}}',
              "media_historica_recuperacao_kwh_por_inspecao": 13.5,
              "intervalo_historico_recuperacao_inferior_kwh": 0,
              "intervalo_historico_recuperacao_superior_kwh": 27,
              "referencia_media_historica_recuperacao": "global",
              "estado_media_historica_recuperacao": "DISPONIVEL_REFERENCIA_HISTORICA",
-             "energia_estimada_recuperavel_kwh": None,
-             "estado_estimativa_recuperacao": "ESTIMATIVA_UC_INDISPONIVEL"},
+            },
             {"id_uc": "UC-0", "municipio": "Cidade B", "bairro": "Bairro C",
              "prioridade_inspecao": "MEDIA", "motivo_prioridade": "NUNCA INSPECIONADO",
              "ordem_prioridade_inspecao": 3, "posicao_fila_inspecao": 1,
@@ -48,17 +58,54 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
              "intervalo_historico_recuperacao_superior_kwh": None,
              "referencia_media_historica_recuperacao": None,
              "estado_media_historica_recuperacao": "SEM_REFERENCIA_VALIDADA",
-             "estado_estimativa_recuperacao": "BASE_INSUFICIENTE"},
+             "energia_estimada_recuperavel_kwh": None,
+             "intervalo_recuperacao_inferior_kwh": None,
+             "intervalo_recuperacao_superior_kwh": None,
+             "estado_estimativa_recuperacao": "BASE_INSUFICIENTE",
+             "metodo_estimativa_recuperacao": None,
+             "validacao_recuperacao_json": None},
+            {"id_uc": "UC-INVALID", "municipio": "Cidade B", "bairro": "Bairro D",
+             "prioridade_inspecao": "MEDIA", "motivo_prioridade": "Metadados inválidos",
+             "ordem_prioridade_inspecao": 5, "posicao_fila_inspecao": 3,
+             "media_historica_recuperacao_kwh_por_inspecao": None,
+             "intervalo_historico_recuperacao_inferior_kwh": None,
+             "intervalo_historico_recuperacao_superior_kwh": None,
+             "referencia_media_historica_recuperacao": None,
+             "estado_media_historica_recuperacao": "SEM_REFERENCIA_VALIDADA",
+             "energia_estimada_recuperavel_kwh": 125.0,
+             "intervalo_recuperacao_inferior_kwh": 100.0,
+             "intervalo_recuperacao_superior_kwh": 150.0,
+             "estado_estimativa_recuperacao": "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+             "metodo_estimativa_recuperacao": "CONSUMO_CONDICIONAL_V1",
+             "validacao_recuperacao_json": '{"estimativa_uc":{"estado":"PENDENTE"}}'},
+            {"id_uc": "UC-INFINITE", "municipio": "Cidade B", "bairro": "Bairro E",
+             "prioridade_inspecao": "MEDIA", "motivo_prioridade": "Valor não finito",
+             "ordem_prioridade_inspecao": 6, "posicao_fila_inspecao": 4,
+             "media_historica_recuperacao_kwh_por_inspecao": None,
+             "intervalo_historico_recuperacao_inferior_kwh": None,
+             "intervalo_historico_recuperacao_superior_kwh": None,
+             "referencia_media_historica_recuperacao": None,
+             "estado_media_historica_recuperacao": "SEM_REFERENCIA_VALIDADA",
+             "energia_estimada_recuperavel_kwh": float("inf"),
+             "intervalo_recuperacao_inferior_kwh": 0.0,
+             "intervalo_recuperacao_superior_kwh": float("inf"),
+             "estado_estimativa_recuperacao": "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA",
+             "metodo_estimativa_recuperacao": "CONSUMO_CONDICIONAL_V1",
+             "validacao_recuperacao_json": '{"estimativa_uc":{"estado":"CANDIDATO_PASSOU_VALIDACAO_TEMPORAL","metodo":"CONSUMO_CONDICIONAL_V1","criterios":{"nivel_faixa":0.9},"janela_aplicacao":{"ancora":"2026-06","meses":12,"minimo_meses":6}}}'},
         ])
         connection.execute(insert(variation), [
             {"id_uc": "UC-1", "variacao_kwh": None},
             {"id_uc": "UC-2", "variacao_kwh": 5},
             {"id_uc": "UC-0", "variacao_kwh": 0},
+            {"id_uc": "UC-INVALID", "variacao_kwh": None},
+            {"id_uc": "UC-INFINITE", "variacao_kwh": None},
         ])
         connection.execute(insert(profile), [
             {"id_uc": "UC-1", "status": "ATIVA"},
             {"id_uc": "UC-2", "status": "ATIVA"},
             {"id_uc": "UC-0", "status": "ATIVA"},
+            {"id_uc": "UC-INVALID", "status": "ATIVA"},
+            {"id_uc": "UC-INFINITE", "status": "ATIVA"},
         ])
         connection.execute(insert(monthly), [
             {"id_uc": "UC-1", "competencia": month, "consumo_kwh": value,
@@ -77,9 +124,14 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
             fingerprint="a" * 64, imported_at=datetime(2026, 10, 31, tzinfo=timezone.utc),
         )
         repository = GoldInspectionRepository(context)
+        from app.services.gold_inspections import _recoverable_estimate
+        row = repository.detail("UC-2")
+        assert _recoverable_estimate(row)[0] == 125.5
         first_page = build_gold_queue_response(repository, AnalyticsFilters(), 1, 1, "queue_position", "asc")
         second_page = build_gold_queue_response(repository, AnalyticsFilters(), 2, 1, "queue_position", "asc")
         third_page = build_gold_queue_response(repository, AnalyticsFilters(), 3, 1, "queue_position", "asc")
+        invalid_metadata = build_gold_queue_response(repository, AnalyticsFilters(), 4, 1, "queue_position", "asc")
+        non_finite = build_gold_queue_response(repository, AnalyticsFilters(), 5, 1, "queue_position", "asc")
         filtered_first = build_gold_queue_response(
             repository, AnalyticsFilters(municipio="Cidade A"), 1, 1, "queue_position", "asc",
         )
@@ -90,28 +142,49 @@ def test_gold_inspection_queue_preserves_grain_pagination_and_v2_fields():
         detail = build_gold_suspicion_response(repository, "UC-1")
         incomplete = build_gold_suspicion_response(repository, "UC-2")
 
-    assert first_page.pagination.total == 3
-    assert first_page.pagination.total_pages == 3
+    assert first_page.pagination.total == 5
+    assert first_page.pagination.total_pages == 5
     assert [item.uc_id for page in (first_page, second_page, third_page) for item in page.data.items] == ["UC-0", "UC-2", "UC-1"]
-    assert descending.data.items[0].uc_id == "UC-1"
+    assert descending.data.items[0].uc_id == "UC-INFINITE"
     first, second = third_page.data.items[0], second_page.data.items[0]
     assert first.reason == "SEM HISTORICO DE CONSUMO"
     assert first.queue_position == 2
     assert first.evidence.priority_order is None
     assert first.evidence.historical_recovery_status == "SEM_REFERENCIA_VALIDADA"
+    assert third_page.data.items[0].evidence.recovery_estimate_status == "ESTIMATIVA_UC_INDISPONIVEL"
     assert second.evidence.historical_recovery_mean_kwh_per_inspection == 13.5
     assert second.evidence.historical_recovery_reference == "global"
-    assert second.potential_recoverable_energy_kwh is None
-    assert second.evidence.estimated_recoverable_energy_kwh is None
-    assert second.evidence.recovery_estimate_status == "ESTIMATIVA_UC_INDISPONIVEL"
+    assert second.potential_recoverable_energy_kwh == 125.5
+    assert second.recovery_unavailable_reason is None
+    assert second.evidence.estimated_recoverable_energy_kwh == 125.5
+    assert second.evidence.recovery_interval_lower_kwh == 100.0
+    assert second.evidence.recovery_interval_upper_kwh == 151.0
+    assert second.evidence.recovery_estimate_status == "ESTIMATIVA_UC_POR_CONSUMO_SE_CONFIRMADA"
+    assert second.evidence.recovery_estimate_confidence_level == 0.9
+    assert second.evidence.recovery_estimate_window_anchor == "2026-06"
+    assert second.evidence.recovery_estimate_window_months == 12
+    assert second.evidence.recovery_estimate_minimum_window_months == 6
     assert filtered_first.pagination.total == 2
+    assert filtered_first.data.summary.estimated_units == 1
+    assert filtered_first.data.summary.unavailable_estimate_units == 1
     assert filtered_first.data.neighborhoods == [
         {"municipio": "Cidade A", "bairro": "Bairro A"},
         {"municipio": "Cidade A", "bairro": "Bairro B"},
         {"municipio": "Cidade B", "bairro": "Bairro C"},
+        {"municipio": "Cidade B", "bairro": "Bairro D"},
+        {"municipio": "Cidade B", "bairro": "Bairro E"},
     ]
     assert [item.uc_id for item in filtered_first.data.items + filtered_second.data.items] == ["UC-2", "UC-1"]
     assert "insuficiente" in first_page.data.items[0].recovery_unavailable_reason
+    assert invalid_metadata.data.items[0].potential_recoverable_energy_kwh is None
+    assert invalid_metadata.data.items[0].evidence.estimated_recoverable_energy_kwh is None
+    assert invalid_metadata.data.items[0].evidence.recovery_interval_lower_kwh is None
+    assert invalid_metadata.data.items[0].evidence.recovery_interval_upper_kwh is None
+    assert "validação temporal" in invalid_metadata.data.items[0].recovery_unavailable_reason
+    assert non_finite.data.items[0].potential_recoverable_energy_kwh is None
+    assert non_finite.data.items[0].evidence.estimated_recoverable_energy_kwh is None
+    assert first_page.data.summary.estimated_units == 1
+    assert first_page.data.summary.unavailable_estimate_units == 4
     assert detail.data.consumption_comparison.baseline_kwh == 300
     assert detail.data.consumption_comparison.recent_kwh == 150
     assert detail.data.consumption_comparison.change_percent == -50

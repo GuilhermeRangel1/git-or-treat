@@ -1,6 +1,7 @@
 """Matriz de despacho B9; falhas nunca viram ausência legítima."""
 
 import pytest
+from sqlalchemy import create_engine
 from app.repositories.gold_publication import (
     GoldPublicationChanged,
     GoldPublicationInvalid,
@@ -110,7 +111,7 @@ def test_known_source_gap_is_distinct_from_infrastructure_or_approval_failure(mo
 
     monkeypatch.setattr(flow, "plan_gold_question", plan)
     with pytest.raises(GenAIServiceUnavailable) as error:
-        asyncio.run(flow.answer_gold_question(None, None, AIQuestionRequest(question="Qual o DEC?"),
+        asyncio.run(flow.answer_gold_question(create_engine("sqlite://"), None, AIQuestionRequest(question="Qual o DEC?"),
             resolve_scope=lambda: None, correlation_id="b" * 32, readiness_gate=gate, audit_store=Audit()))
     assert isinstance(error.value, flow.GoldCoverageUnavailable) is coverage_error
     assert error.value.retryable is False

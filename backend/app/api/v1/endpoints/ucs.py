@@ -1,9 +1,9 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
-from app.core.analytics_access import require_gold_analytics_read
 
 from app.api.v1.analytics_route import AnalyticsRoute
+from app.core.platform_identity import require_permission
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
 from app.schemas.analytics import (
     AnalyticsErrorResponse,
@@ -21,7 +21,7 @@ from app.services.uc_analytics import (
     build_uc_search,
 )
 
-router = APIRouter(route_class=AnalyticsRoute, dependencies=[Depends(require_gold_analytics_read)])
+router = APIRouter(route_class=AnalyticsRoute, dependencies=[Depends(require_permission("ucs:read"))])
 AnalyticsRepositoryDep = Annotated[
     AnalyticsRepository, Depends(get_analytics_repository)
 ]
@@ -86,6 +86,16 @@ def get_uc_overview(
     end: str | None = Query(None, min_length=7, max_length=7),
 ):
     result = build_uc_overview(repository, uc_id, start, end)
+    from app.repositories.gold import GoldAnalyticsRepository
+    if isinstance(repository, GoldAnalyticsRepository) and repository.schema_version == "gold-csv-v2":
+        from app.repositories.gold_cadastro import resolve_customer_identification
+        identification = resolve_customer_identification(
+            run_id=repository.publication_lote,
+            analytic_export_id=repository.origin.get("export_id"),
+            cadastro_export_id=repository.origin.get("cadastro_export_id"),
+            uc_id=result["data"]["profile"]["uc_id"],
+        )
+        result["data"]["profile"].update(identification)
     period = result["data"]["period"]
     return {
         **result,

@@ -14,6 +14,7 @@ import pytest
 from sqlalchemy import delete, insert
 
 from app.api.v1.endpoints import ai
+from app.core.config import settings
 from app.core.genai_gold_database import get_question_gold_resources
 from app.main import app
 from app.models.gold_load import BATCH
@@ -34,6 +35,7 @@ from app.services.gold_catalog import (
     load_gold_catalog,
 )
 from tests.support.database import test_engine
+from tests.support.platform_auth import login_as_profile
 
 LOTE = "GOLD_20000101T000000Z_aaaaaaaa"
 OTHER_LOTE = "GOLD_20000201T000000Z_bbbbbbbb"
@@ -71,6 +73,8 @@ def publication_rows():
 def gold_route(client, monkeypatch):
     """Rota pública em modo Gold; o coordenador é substituído por um espião."""
     calls = []
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    login_as_profile(client, monkeypatch, "commercial", username="genai-invalidation")
 
     async def spy(engine, genai, request, **kwargs):
         calls.append((request, kwargs))
@@ -170,6 +174,7 @@ def test_synthetic_mode_rejects_publication_and_forwards_the_unchanged_contract(
 ):
     from tests.test_ai_chat import FakeQuestionGateway
 
+    login_as_profile(client, monkeypatch, "commercial", username="genai-synthetic")
     gateway = FakeQuestionGateway()
     monkeypatch.setattr(app.state, "genai_question_client", gateway, raising=False)
     previous = app.dependency_overrides.get(get_question_gold_resources)

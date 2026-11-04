@@ -30,6 +30,32 @@ def test_alembic_revision_graph_has_a_single_head():
     assert len(ScriptDirectory.from_config(config).get_heads()) == 1
 
 
+@pytest.mark.parametrize("starting_revision", ["20261102_cadastro", "genaihistory01"])
+def test_merge_upgrade_from_each_branch_preserves_existing_user(tmp_path, starting_revision):
+    engine = create_engine(f"sqlite:///{tmp_path / 'merge_test.db'}")
+    try:
+        with engine.connect() as connection:
+            connection = connection.execution_options(
+                schema_translate_map={"gold": None, "gold_v2": None, "gold_cadastro": None}
+            )
+            config = alembic_config(connection)
+            command.upgrade(config, starting_revision)
+            connection.execute(text(
+                "INSERT INTO auth_users (id, username, password_hash, permissions, is_active) "
+                "VALUES ('merge-user', 'merge-user', 'unused', '[]', 1)"
+            ))
+            connection.commit()
+            command.upgrade(config, "head")
+            assert connection.execute(text(
+                "SELECT username FROM auth_users WHERE id = 'merge-user'"
+            )).scalar_one() == "merge-user"
+            assert {"ai_conversations", "ai_conversation_exchanges"} <= set(
+                inspect(connection).get_table_names()
+            )
+    finally:
+        engine.dispose()
+
+
 def test_alembic_upgrade_and_downgrade_use_the_explicit_disposable_sqlite_database(
     tmp_path,
 ):
@@ -270,5 +296,45 @@ def test_gold_audit_upgrade_and_downgrade_preserve_the_published_batch():
         with engine.connect() as connection:
             with migrated_database(connection):
                 assert_gold_audit_migration_preserves_the_previous_batch(connection)
+    finally:
+        engine.dispose()
+
+
+def test_profile_migration_preserves_legacy_accounts_and_downgrade_revokes_access():
+    from sqlalchemy.exc import IntegrityError
+
+    engine = create_engine("sqlite:///:memory:")
+    try:
+        with engine.connect() as connection:
+            with migrated_database(connection):
+                config = alembic_config(connection)
+                command.downgrade(config, "genai08000001")
+                connection.execute(text(
+                    "INSERT INTO auth_users "
+                    "(id, username, password_hash, permissions, is_active) "
+                    "VALUES ('legacy', 'legacy', 'hash-only', '[\"orders:write\"]', 1)"
+                ))
+                connection.execute(text(
+                    "INSERT INTO auth_sessions (id, token_hash, user_id, expires_at) "
+                    "VALUES ('session', 'a', 'legacy', '2099-01-01 00:00:00')"
+                ))
+                connection.commit()
+
+                command.upgrade(config, "head")
+                assert connection.scalar(text("SELECT profile FROM auth_users WHERE id = 'legacy'")) is None
+                assert connection.scalar(text("SELECT count(*) FROM auth_sessions WHERE id = 'session'")) == 1
+                with pytest.raises(IntegrityError):
+                    connection.execute(text(
+                        "INSERT INTO auth_users "
+                        "(id, username, password_hash, permissions, is_active, profile) "
+                        "VALUES ('invalid', 'invalid', 'hash-only', '[]', 1, 'administrator')"
+                    ))
+                connection.rollback()
+
+                command.downgrade(config, "genai08000001")
+                assert connection.scalar(text("SELECT count(*) FROM auth_sessions")) == 0
+                assert connection.scalar(text("SELECT permissions FROM auth_users WHERE id = 'legacy'")) == "[]"
+                command.upgrade(config, "head")
+                assert connection.scalar(text("SELECT profile FROM auth_users WHERE id = 'legacy'")) is None
     finally:
         engine.dispose()

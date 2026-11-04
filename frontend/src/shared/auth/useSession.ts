@@ -5,9 +5,13 @@ import { decodeOrderAccess, type OrderAccess } from "./orderAccess";
 import { SessionContext } from "./session-context";
 
 export function useSession() {
-  const value = useContext(SessionContext);
+  const value = useOptionalSession();
   if (!value) throw new Error("AuthProvider nao esta disponivel.");
   return value;
+}
+
+export function useOptionalSession() {
+  return useContext(SessionContext);
 }
 
 export function useOrderAccess() {

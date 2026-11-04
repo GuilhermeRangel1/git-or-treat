@@ -34,6 +34,7 @@ def gold_postgres(tmp_path, monkeypatch):
     with engine.begin() as connection:
         connection.exec_driver_sql("CREATE SCHEMA gold")
         connection.exec_driver_sql("CREATE SCHEMA gold_v2")
+        connection.exec_driver_sql("CREATE SCHEMA gold_cadastro")
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.exec_driver_sql("CREATE VIEW gold.publicacao_contexto AS "
@@ -112,6 +113,7 @@ def gold_postgres(tmp_path, monkeypatch):
         with engine.begin() as connection:
             connection.exec_driver_sql("DROP SCHEMA gold CASCADE")
             connection.exec_driver_sql("DROP SCHEMA gold_v2 CASCADE")
+            connection.exec_driver_sql("DROP SCHEMA gold_cadastro CASCADE")
         engine.dispose()
 
 

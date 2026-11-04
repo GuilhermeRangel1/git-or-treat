@@ -5,8 +5,15 @@ import asyncio
 import httpx
 import pytest
 
+from tests.support.platform_auth import login_as_profile
+
 from app.main import app
 from app.services.genai_client import GenAIInsightClient, GenAIQuestionClient
+
+
+@pytest.fixture(autouse=True)
+def authenticated_commercial_session(client, monkeypatch):
+    login_as_profile(client, monkeypatch, "commercial")
 
 
 @pytest.mark.parametrize("kind", ["questions", "insights"])

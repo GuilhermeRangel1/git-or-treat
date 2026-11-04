@@ -3,7 +3,11 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints, field_validator
 
 
-Permission = Literal["orders:read", "orders:write"]
+Permission = Literal[
+    "panorama:read", "revenue:read", "ucs:read", "inspections:read",
+    "orders:read", "orders:write", "operations:read", "ai:ask",
+]
+PlatformProfileValue = Literal["commercial", "customer_service", "losses", "operations", "admin"]
 
 
 class LoginRequest(BaseModel):
@@ -31,6 +35,7 @@ class LoginRequest(BaseModel):
 class SessionUser(BaseModel):
     id: str
     username: str
+    profile: PlatformProfileValue | None
     permissions: list[Permission]
 
 

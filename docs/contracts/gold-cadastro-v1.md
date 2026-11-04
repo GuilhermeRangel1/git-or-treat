@@ -11,7 +11,7 @@ Produtor: [Silver_to_gold](../../data-engineering/notebook/Silver_to_gold.ipynb)
 | `id_uc` | `string` | Não nulo e único | Liga o cadastro à unidade; não é identificador de cliente. |
 | `nome_exibicao_titular` | `string` | Pode ser nulo | Nome atual da Silver, com espaços nas extremidades removidos; sem transformação em chave ou identificador. |
 | `situacao_identificacao` | `string` | Não nulo | `DISPONIVEL`, `AUSENTE_NA_ORIGEM` ou `CONFLITO_NA_ORIGEM`. Conflito tem precedência e mantém nome nulo. |
-| `data_processamento_gold` | `timestamp` | Não nulo | Mesmo instante de referência das demais projeções. |
+| `data_processamento_gold` | `timestamp` | Não nulo | Instante de processamento registrado nas linhas; deve ser válido e uniforme no pacote, mas não define a identidade da publicação. |
 
 Exclui UC nula ou de teste. Não contém CPF/CNPJ, endereço, coordenadas, hash de documento ou referência fictícia de cliente. Não prova titularidade histórica. A origem não fornece uma chave de cliente/contrato independente da UC nesta projeção: `customer_reference` deve continuar nulo, sem agrupar nomes iguais como uma pessoa.
 
@@ -39,10 +39,16 @@ Não há transação entre os dois Volumes. Interrupção abrupta pode deixar ma
 
 ## Obrigações do consumidor e do operador
 
-- Conferir que `run_id`, origem Silver/Bronze e processamento coincidem com o pacote analítico selecionado; `analytic_export_id` deve apontar àquela tentativa, não apenas a um lote com prefixo semelhante; os campos `cadastro_export_id` e `cadastro_schema_version` do manifesto analítico devem coincidir com o pacote cadastral. Rejeitar versão desconhecida, schema inesperado, arquivo ausente ou cadastro de outra publicação.
+- Conferir que `run_id`, origem Silver/Bronze e `data_processamento_gold` dos manifestos coincidem com o pacote analítico selecionado; `analytic_export_id` deve apontar àquela tentativa, não apenas a um lote com prefixo semelhante; os campos `cadastro_export_id` e `cadastro_schema_version` do manifesto analítico devem coincidir com o pacote cadastral. Rejeitar versão desconhecida, schema inesperado, arquivo ausente ou cadastro de outra publicação. O timestamp nas linhas cadastrais deve ser válido e uniforme no pacote, mas pode diferir do instante de publicação dos manifestos e não é usado para parear as publicações.
 - Importar em schema cadastral separado do schema analítico `gold`, por papel de carga próprio, preservando idempotência e publicação válida anterior. Não editar `gold_v1.py` para aceitar este pacote.
 - O papel analítico `venergy_gold_reader` e o serviço GenAI não podem ler o schema/Volume cadastral. O Backend deve consultar o nome por um papel restrito e aplicar autorização individual de atendimento. Nenhum nome entra no contexto de planejamento/síntese, catálogo, evidência ou auditoria textual da IA.
 - Provisionar e conferir permissões também no catálogo e nos schemas de preparo, pois privilégios herdados podem ampliar acesso; separar schemas não comprova sozinho o controle de acesso. Os notebooks não concedem permissões nem demonstram ACLs do ambiente real.
 - Mapear `nome_exibicao_titular` disponível para `customer_name`. Ausência ou conflito gera valor nulo e explicação específica na seção cadastral; falha de carga/consulta gera indisponibilidade da integração. Não substituir por nome sintético ou tratar ausência de pacote como ausência de titular na origem.
 
 Esta entrega prepara o produtor; migração, carga, autorização e mapeamento da API/portal permanecem entregas dos consumidores. A projeção não conclui o WEB-03 nem atende por si só ao pedido mais amplo de referência de cliente e endereço do DEV13.2 U03.
+
+## Consumidor local Backend/UC 360 — 02/11/2026
+
+O Backend aceita `--cadastro-directory` junto de `--schema-version gold-csv-v2`, confere ambos os manifestos e carrega a tabela separada `gold_cadastro.cadastro_titular_uc` dentro da transação da publicação analítica. O runtime usa `GOLD_CADASTRO_DATABASE_URL`, papel dedicado somente leitura; o papel analítico e a GenAI não recebem grants cadastrais. A rota UC 360 só busca a linha da UC selecionada após a permissão `ucs:read`. O Frontend apresenta os estados de disponibilidade, ausência e conflito; busca, histórico e GenAI não recebem nomes.
+
+Revisão aprovada em 02/11/2026: os timestamps das linhas descrevem o processamento da projeção e podem divergir do instante final registrado nos manifestos. O consumidor valida fuso/formato e exige que o timestamp das linhas seja uniforme no pacote; a identidade da publicação é determinada pelos manifestos cadastral e analítico, que continuam obrigados a coincidir em run, linhagem, processamento e IDs cruzados. O pacote local informado declara nas linhas um instante 425 segundos anterior ao manifesto, condição que por si só deixa de bloquear a carga. Nenhuma linha pessoal deve ser exibida ou registrada na evidência. WEB-03 permanece Em andamento.

@@ -27,7 +27,11 @@ relacionados na mesma mudança.
 - [ADR-0018 — Janelas relativas na cobertura mensal Gold v2](0018-genai-janelas-relativas-gold-v2.md): aprovada pela pessoa usuária em 31/10/2026 para o GENAI-04; usa a competência mais recente da publicação como âncora, exige a cobertura mensal completa da janela e esclarece lacunas.
 - [ADR-0020 — Autenticação individual por sessão do backend](0020-autenticacao-backend-por-sessao.md): sessão opaca persistida, cookie HttpOnly e provisão local; autenticação/jornada principal validadas, com WEB-10/WEB-11 ainda pendentes no escopo completo.
 - [ADR-0021 — API analítica sobre a publicação Gold](0021-api-gold-dev13-1.md): implementação técnica da DEV-13.1 em 28/10/2026; contratos Gold v2, identidade por lote/fingerprint, leitura consistente, categorias/evidências reais e ordens preservadas. Homologação de negócio e aceite do portal permanecem pendentes.
+- [ADR-0022 — Perfis de acesso da plataforma](0022-perfis-de-acesso-web10.md): aprovada em 01/11/2026 para WEB-10; perfil único por conta, permissões fixas calculadas no Backend, contas legadas sem concessão implícita e admin limitado às capacidades efetivamente disponíveis.
 
 - [D20 — projeção cadastral restrita](../../data-engineering/decisoes-tecnicas.md#93-exclusão-de-dados-pessoais-na-projeção-gold-d20-decidido): revisão pontual solicitada em 30/10/2026 para nome de exibição do titular, fora dos agregados e da GenAI; contratos e ACLs do consumidor continuam pendentes.
 
 - [ADR-0022 — Consumo das métricas documentadas na Gold v2](0022-consumo-metricas-documentadas-gold-v2.md): implementação local de comparação mensal, ranking de variação, GD/queda, eventos distintos e decomposição publicada; controles, cobertura e homologação permanecem distintos.
+
+- [ADR-0023 — Pareamento do cadastro restrito pelos manifestos](0023-timestamps-cadastro-restrito.md): aprovada em 02/11/2026; timestamps das linhas cadastrais precisam ser válidos e uniformes, enquanto a identidade da publicação usa metadados coincidentes dos manifestos.
+- [ADR-0024 — Recuperação condicional e continuidade observada](0024-recuperacao-condicional-e-continuidade-observada.md): adotada em 03/11/2026; expõe estimativa Gold por UC sob condição e admite leitura delimitada DEC/FEC sem converter `NAO_CERTIFICADA` em cobertura certificada.

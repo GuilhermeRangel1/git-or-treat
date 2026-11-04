@@ -27,7 +27,7 @@ from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
     get_question_gold_resources,
 )
-from app.core.order_access import READ, get_order_identity
+from app.core.platform_identity import get_platform_identity
 from app.repositories.gold_publication import (
     GoldPublicationUnavailable,
     current_publication,
@@ -62,8 +62,10 @@ def access(request: Request, response: Response, db: Database):
     response.headers["Cache-Control"] = "no-store"
     if settings.ORDERS_AUTH_MODE != "session":
         raise HTTPException(503, "Histórico exige sessão individual.")
-    identity = get_order_identity(request, None, db)
-    if READ not in identity.permissions:
+    if request.headers.get("authorization"):
+        raise HTTPException(401, "Credencial inválida ou expirada.")
+    identity = get_platform_identity(request, None, db)
+    if "ai:ask" not in identity.permissions:
         raise HTTPException(403, "Histórico não autorizado.")
     return identity.actor.removeprefix("user:")
 
