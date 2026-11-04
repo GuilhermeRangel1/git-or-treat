@@ -339,6 +339,8 @@ jobs:
     name: CI Docker Compose
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      COMPOSE_FILE: docker-compose.ci.yml
 
     steps:
       - name: Baixar o repositório
@@ -363,6 +365,22 @@ jobs:
 
       - name: Validar configuração do Compose
         run: docker compose config --quiet
+
+      - name: Validar composição Gold padrão sem dados privados
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          keys = (
+              "DOCKER_DATABASE_PASSWORD", "DOCKER_APP_PASSWORD", "DOCKER_READER_PASSWORD",
+              "DOCKER_CADASTRO_PASSWORD", "DOCKER_SERVICE_TOKEN", "DOCKER_AUDIT_TOKEN",
+          )
+          Path(".env").write_text(
+              "GOLD_CSV_V2_HOST_DIR=.\n" + "\n".join(f"{key}={'a' * 64}" for key in keys) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
 
       - name: Subir os serviços
         run: docker compose up --build --detach

@@ -37,6 +37,10 @@ def gold_postgres(tmp_path, monkeypatch):
         connection.exec_driver_sql("CREATE SCHEMA gold_cadastro")
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
+        connection.exec_driver_sql("CREATE VIEW gold.publicacao_analitica AS "
+            "SELECT schema_version,lote,publication_id,fingerprint,importado_em, "
+            "jsonb_build_object('preco_volume_configuracao',origem::jsonb->'preco_volume_configuracao') AS origem "
+            "FROM public.gold_carga_atual WHERE id=1")
         connection.exec_driver_sql("CREATE VIEW gold.publicacao_contexto AS "
             "SELECT schema_version,lote,publication_id,fingerprint,importado_em "
             "FROM public.gold_carga_atual WHERE id=1")
@@ -108,6 +112,7 @@ def gold_postgres(tmp_path, monkeypatch):
         yield engine, folder, write_batch, write_token, read_token, override_db, first_publication
     finally:
         with engine.begin() as connection:
+            connection.exec_driver_sql("DROP VIEW gold.publicacao_analitica")
             connection.exec_driver_sql("DROP VIEW gold.publicacao_contexto")
         Base.metadata.drop_all(engine)
         with engine.begin() as connection:

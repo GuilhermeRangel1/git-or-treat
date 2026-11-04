@@ -1,5 +1,7 @@
 # Serviço: agente de inteligência artificial
 
+Execução Docker vigente: a composição padrão inicia toda a stack com Gold v2, papéis separados e bootstrap local. Demonstração fica somente no smoke explícito do CI. Consulte [inicialização Docker](../plans/2026-11-04-docker-gold-inicializacao.md).
+
 ## Busca conceitual autorizada — 03/11/2026
 
 O Assistente também explica as nove definições aprovadas do FAQ Gold v2.
