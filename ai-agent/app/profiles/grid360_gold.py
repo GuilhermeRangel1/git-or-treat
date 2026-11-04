@@ -248,6 +248,12 @@ _BUSINESS_METRICS["energy.gd_consumption_drop"] = (
     "leitura em cada janela fixa; não demonstra causa nem origem solar.",
 )
 
+_GD_SNAPSHOT = "cadastro de GD no lote"
+_BUSINESS_METRICS["energy.gd_units"] = (
+    "Unidades com GD no lote",
+    "Conta uma vez cada UC com GD registrada na população do lote; não informa vigência histórica nem origem solar.",
+)
+
 def _metric(
     id_: str,
     domain_id: str,
@@ -276,7 +282,8 @@ def _metric(
         "grouping_dimension_ids": (
             ("customer.consumption_class", "geography.municipality", "geography.neighborhood")
             if id_ == "billing.revenue" else
-            ("geography.neighborhood", "geography.municipality", "customer.consumption_class")
+            ("geography.neighborhood", "geography.municipality",
+             "customer.consumption_class", "generation.distributed")
             if id_ == "energy.consumption" else ()
         ),
         "comparison_grouping_dimension_ids": (
@@ -334,7 +341,9 @@ _METRICS = (
     _metric(
         "billing.average_ticket",
         "revenue",
-        ("ticket médio", "receita média por UC", "faturamento médio por UC"),
+        ("ticket médio", "receita média por UC", "faturamento médio por UC",
+         "ticket médio das unidades faturadas", "ticket médio das UCs faturadas",
+         "ticket médio por UC faturada no mês"),
         "R$ por UC faturada no mês",
         ("currency",),
         _COMMERCIAL,
@@ -349,7 +358,7 @@ _METRICS = (
         "billing.effective_tariff",
         "revenue",
         ("tarifa média efetiva", "tarifa efetiva", "preço médio por kWh",
-         "preço médio observado da energia"),
+         "preço médio observado da energia", "preço observado", "preço médio observado"),
         "R$/kWh",
         ("currency",),
         _COMMERCIAL_WITH_UC,
@@ -522,6 +531,7 @@ _METRICS += (
             ),
             accumulated=True,
         ),
+        "absorbed_metric_ids": ("energy.gd_units",),
         "aggregate_subject_aliases": ("UCs", "unidades consumidoras"),
         "default_period_phrase": _GD_WINDOW,
         "accumulated_period_phrases": (_GD_WINDOW,),
@@ -530,6 +540,25 @@ _METRICS += (
     },
 )
 
+
+_METRICS += (
+    {
+        **_metric(
+            "energy.gd_units", "consumption",
+            ("quantas unidades com GD", "quantas UCs com GD", "unidades com GD",
+             "contagem de unidades com GD", "quantas unidades com geração distribuída"),
+            "UCs", ("count",), ("geography.municipality", "generation.distributed"),
+            ("Retrato cadastral do lote, sem vigência histórica; GD não confirma origem solar.",),
+            accumulated=True,
+        ),
+        "grouping_dimension_ids": ("geography.municipality",),
+        "aggregate_subject_aliases": ("UCs", "unidades"),
+        "default_period_phrase": _GD_SNAPSHOT,
+        "accumulated_period_phrases": (_GD_SNAPSHOT,),
+        "fixed_filter_values": {"generation.distributed": "Sim"},
+        "required_filter_dimension_ids": ("generation.distributed",),
+    },
+)
 
 def _build_profile() -> DomainProfile:
     values = GRID360_DEMO_PROFILE.model_dump(mode="python")
@@ -564,9 +593,17 @@ def _build_profile() -> DomainProfile:
         {"id": "service.score", "kind": "score", "aliases": ("ponto", "pontos")},
     )
     values["metrics"] = tuple(
-        {**metric, "supports_comparison": metric["id"] in {
+        {
+            **metric,
+            "absorbed_metric_ids": (
+                ("energy.gd_units",) if metric["id"] == "energy.consumption"
+                else metric.get("absorbed_metric_ids", ())
+            ),
+            "supports_comparison": metric["id"] in {
             "billing.revenue", "energy.consumption",
-        }} for metric in _METRICS
+            "network.equivalent_interruption_duration", "network.equivalent_interruption_frequency",
+            },
+        } for metric in _METRICS
     )
     values["dimensions"] = tuple(
         {**dimension, "parent_dimension_id": "geography.municipality"}
@@ -586,6 +623,7 @@ def _build_profile() -> DomainProfile:
         "neste ano",
         "histórico acumulado",
         _GD_WINDOW,
+        _GD_SNAPSHOT,
         _PRICE_VOLUME_WINDOW,
     )
     values["period_windows"] = ()
@@ -604,6 +642,25 @@ def _build_profile() -> DomainProfile:
     values["non_location_phrases"] = ()
     values["ambiguities"] = (
         *values["ambiguities"],
+        {
+            "phrases": ("solar", "energia solar", "painel solar", "painéis solares"),
+            "confirmation_phrase": "com GD",
+            "examples": ("Quantas UCs com GD tiveram queda de consumo acima de 30%?",),
+            "clarification": (
+                "Os dados identificam geração distribuída (GD), mas não confirmam que a fonte "
+                "seja solar. Quer consultar UCs com GD registrada?"
+            ),
+        },
+        {
+            "phrases": ("tiveram queda de consumo", "tiveram queda no consumo"),
+            "resolved_metric_ids": ("energy.gd_consumption_drop",),
+            "confirmation_phrase": "queda de consumo acima de 30%",
+            "examples": ("Quantas UCs com GD em Olinda tiveram queda de consumo acima de 30%?",),
+            "clarification": (
+                "Para contar unidades com queda, posso considerar GD e redução superior a 30% "
+                "entre as janelas publicadas de julho/2022 a junho/2023 e julho/2025 a junho/2026?"
+            ),
+        },
         {
             "phrases": (
                 "pago", "pagos", "paga", "pagas", "arrecadação", "arrecadado", "arrecadada",
@@ -649,17 +706,10 @@ def _build_profile() -> DomainProfile:
             ),
         },
         {
-            "phrases": ("solar", "energia solar", "painel solar", "painéis solares"),
-            "confirmation_phrase": "com GD",
-            "examples": ("Quantas UCs com GD em {geography.municipality} "
-                         "tiveram queda de consumo acima de 30%?",),
-            "clarification": (
-                "Os dados identificam geração distribuída (GD), mas não confirmam que a fonte "
-                "seja solar. Quer consultar UCs com GD registrada?"
+            "resolved_metric_ids": (
+                "network.interruption_events", "network.equivalent_interruption_duration",
+                "network.equivalent_interruption_frequency",
             ),
-        },
-        {
-            "resolved_metric_ids": ("network.interruption_events",),
             "phrases": (
                 "interrupção",
                 "interrupções",

@@ -287,6 +287,7 @@ class QuestionAnalysisPlanner:
                 alternative is None or len(_find_phrases(candidate, alternative.aliases)) == 1
             ):
                 yield candidate
+            yield from rule.examples
         recognized_metrics = [metric for metric in self.profile.metrics
                               if _find_phrases(question, metric.aliases)]
         metrics = recognized_metrics or self.profile.metrics

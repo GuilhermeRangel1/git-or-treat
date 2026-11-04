@@ -169,6 +169,16 @@ class QuestionInterpreter:
         *,
         pending_temporal_intent: AnalysisIntent | None = None,
     ) -> IntentInterpretation:
+        if self._profile.structured_dimension_filters:
+            for dimension in self._profile.dimensions:
+                aliases = {alias for value in dimension.values for alias in value.aliases}
+                for alias in aliases:
+                    if alias.startswith("com ") and "sem " + alias[4:] in aliases:
+                        question = re.sub(
+                            rf"\bcom\s+e\s+sem\s+{re.escape(alias[4:])}\b",
+                            lambda match, suffix=alias[4:]: f"entre com {suffix} e sem {suffix}",
+                            question, flags=re.IGNORECASE,
+                        )
         turns = context or []
         if (self._profile.structured_dimension_filters and len(turns) >= 2
                 and turns[-2].role == "user" and turns[-1].role == "assistant"):
@@ -194,7 +204,8 @@ class QuestionInterpreter:
                     return self._interpret(original, None)
             if previous.clarification_reason is ClarificationReason.AMBIGUOUS_METRIC:
                 pending = next((r for r in self._profile.ambiguities
-                                if _find_phrases(original, r.phrases)), None)
+                                if _find_phrases(original, r.phrases)
+                                and turns[-1].content.startswith(r.clarification)), None)
                 phrase = pending.confirmation_phrase if pending else None
                 if pending and phrase is None and len(pending.alternative_metric_ids) == 1:
                     phrase = next(m.aliases[0] for m in self._profile.metrics
@@ -303,7 +314,7 @@ class QuestionInterpreter:
                 if isinstance(value, str):
                     for alias in dimension.aliases:
                         question = re.sub(
-                            rf"\b(?:nesse|neste|nessa|nesta)\s+{re.escape(alias)}\b",
+                            rf"\b(?:nesse|neste|nessa|nesta|desse|deste|dessa|desta)\s+{re.escape(alias)}\b",
                             lambda match, label=alias, name=value: f"no {label} {name}",
                             question, flags=re.IGNORECASE,
                         )
@@ -333,6 +344,11 @@ class QuestionInterpreter:
             re.escape(_normalize(item)) for item in self._profile.follow_up_starters
         )
         if starters and re.match(rf"^(?:{starters})\b", normalized):
+            return True
+        if any(re.search(
+                   rf"\b(?:nesse|neste|nessa|nesta|desse|deste|dessa|desta)\s+"
+                   rf"{re.escape(_normalize(alias))}\b", normalized)
+               for dimension in self._profile.dimensions for alias in dimension.aliases):
             return True
 
         geography = self._dimension_value_matches(question, self._geography_dimensions)
@@ -618,7 +634,8 @@ class QuestionInterpreter:
                         and selected_metric is not None
                         and self._profile.supports_grouping
                         and dimension.id in (selected_metric.grouping_dimension_ids or ())
-                        and re.search(r"\bentre\s+$", _normalize(question[:matches[0][0]]))
+                        and (re.search(r"\bentre\s+$", _normalize(question[:matches[0][0]]))
+                             or self._has_comparison(_normalize(question)))
                         and re.fullmatch(
                             r"\s+e\s+", _normalize(question[matches[0][1]:matches[1][0]])
                         )
@@ -733,7 +750,9 @@ class QuestionInterpreter:
             bool(re.search(r"\bentre\s+$", _normalize(question[:periods[0][0]])))
             if paired_filter else " entre " in f" {normalized_question} "
         )
-        comparison_requested = comparison_requested or self._has_comparison(normalized_question)
+        comparison_requested = comparison_requested or (
+            self._has_comparison(normalized_question) and not (paired_filter and len(periods) == 1)
+        )
         comparison_requested = comparison_requested or configured_comparison_window
         if (selected_metric is not None and selected_metric.requires_published_windows
                 and not periods):

@@ -60,6 +60,8 @@ def _requested_months(plan: LogicalReadPlan) -> tuple[str, ...]:
         or window.end.day != monthrange(window.end.year, window.end.month)[1]
     ):
         return ()
+    if plan.comparison_periods is not None:
+        return plan.comparison_periods
     current = date(window.start.year, window.start.month, 1)
     end = date(window.end.year, window.end.month, 1)
     periods = []

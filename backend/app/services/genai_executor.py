@@ -330,6 +330,8 @@ def _validate_observed_continuity_rows(
     while requested <= last_requested:
         requested_periods.add(requested.strftime("%Y-%m"))
         requested = date(requested.year + (requested.month == 12), requested.month % 12 + 1, 1)
+    if plan.comparison_periods is not None:
+        requested_periods = set(plan.comparison_periods)
     if expected != requested_periods:
         raise GoldExecutionDenied
     months = set()

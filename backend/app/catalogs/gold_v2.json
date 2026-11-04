@@ -1157,6 +1157,70 @@
       ]
     },
     {
+      "metric_id": "energy.gd_units",
+      "label": "Unidades com GD no lote",
+      "definition": "Conta uma vez cada UC com GD registrada na população do lote; não informa vigência histórica nem origem solar.",
+      "fixed_filter_values": {
+        "generation.distributed": "Sim"
+      },
+      "dimension_operators": {
+        "geography.municipality": [
+          "eq",
+          "in"
+        ],
+        "generation.distributed": [
+          "eq",
+          "in"
+        ]
+      },
+      "capability_id": "consumo.variacao_uc",
+      "required_capability_ids": [
+        "consumo.variacao_uc"
+      ],
+      "accumulated_period_phrases": [
+        "cadastro de GD no lote"
+      ],
+      "granularities": [
+        "month",
+        "year"
+      ],
+      "max_window_days": null,
+      "aggregation": "count_non_null",
+      "unit": "UCs",
+      "unit_kind": "count",
+      "measure_type": "string",
+      "numerator_type": null,
+      "denominator_type": null,
+      "rounding": {
+        "decimals": 0,
+        "mode": "half_even"
+      },
+      "null_rule": "count_requires_certified_zero",
+      "required_dimension_ids": [
+        "generation.distributed"
+      ],
+      "sources": [
+        {
+          "capability_id": "consumo.variacao_uc",
+          "table": "variacao_consumo_uc",
+          "temporal_column": null,
+          "temporal_transform": "identity",
+          "grain": [
+            "id_uc"
+          ],
+          "measure_column": "possui_gd",
+          "numerator_column": null,
+          "denominator_column": null,
+          "nullable_columns": [],
+          "dimension_columns": {
+            "geography.municipality": "municipio",
+            "generation.distributed": "possui_gd"
+          },
+          "decimal_shapes": {}
+        }
+      ]
+    },
+    {
       "metric_id": "energy.gd_consumption_drop",
       "label": "UCs elegíveis com GD e queda de consumo superior a 30%",
       "definition": "Conta UCs com GD e queda bruta superior a 30%, com ao menos seis meses com leitura em cada janela fixa; não demonstra causa nem origem solar.",

@@ -295,7 +295,9 @@ class ReadPlanValidator:
             if not set(plan.group_by_dimension_ids) <= set(metric.grouping_dimension_ids):
                 raise PlanCapabilityUnavailable("Este agrupamento não foi aprovado.")
             if (plan.comparison_periods is None and plan.group_by_dimension_ids
-                and plan.order is not None) and (
+                and plan.order is not None
+                and not (plan.window.kind is WindowKind.CATALOG_PHRASE
+                         and metric.accumulated_period_phrases)) and (
                 plan.window.start is None or plan.window.end is None
                 or (plan.window.start.year, plan.window.start.month)
                 != (plan.window.end.year, plan.window.end.month)
