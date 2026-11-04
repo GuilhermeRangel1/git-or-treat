@@ -2386,7 +2386,7 @@
       },
       "tolerancia": "dec_fec",
       "bloqueio": {
-        "motivo": "Cobertura de ocorrências não certificada no lote; o gate bloqueia a capacidade.",
+        "motivo": "Sem recorte observacional elegível, a continuidade permanece bloqueada.",
         "dono": "Dados",
         "estado_publico_atual": "error:service_unavailable",
         "pergunta_dados": null
@@ -2394,10 +2394,11 @@
       "referencias": {
         "existentes": [
           "C11"
-        ]
+        ],
+        "continuidade_observada": "ADR-0024"
       },
       "modo_execucao": "fluxo_integrado",
-      "observacao": "Com cobertura certificada, o estado alvo é sucesso com o controle C11.",
+      "observacao": "Com C11 aprovado, recorte observado elegível exige resposta reconciliada e ressalva de cobertura.",
       "resultado_observado": null,
       "referencia_execucao": null
     },
@@ -2440,7 +2441,7 @@
       },
       "tolerancia": "dec_fec",
       "bloqueio": {
-        "motivo": "Cobertura de ocorrências não certificada no lote; o gate bloqueia a capacidade.",
+        "motivo": "Sem recorte observacional elegível, a continuidade permanece bloqueada.",
         "dono": "Dados",
         "estado_publico_atual": "error:service_unavailable",
         "pergunta_dados": null
@@ -2449,10 +2450,11 @@
         "existentes": [
           "C11"
         ],
-        "consulta_runner": "CTL-INT-DEC-FEC"
+        "consulta_runner": "CTL-INT-DEC-FEC",
+        "continuidade_observada": "ADR-0024"
       },
       "modo_execucao": "fluxo_integrado",
-      "observacao": null,
+      "observacao": "Com C11 aprovado, recorte observado elegível exige resposta reconciliada e ressalva de cobertura.",
       "resultado_observado": null,
       "referencia_execucao": null
     },

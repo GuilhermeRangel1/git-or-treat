@@ -1,0 +1,452 @@
+{
+  "dataset_version": "1.1.0",
+  "scope": "Gold v2 HTTP planning and synthesis with artificial aggregate evidence; no SQL or real Gold",
+  "source": "gold.local",
+  "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+  "coverage": [
+    "2025-01",
+    "2025-02",
+    "2025-03"
+  ],
+  "tolerance": 0,
+  "tolerance_reason": "Literal artificial já agregado; o número deve ser preservado na resposta, sem tolerância relativa.",
+  "cases": [
+    {
+      "id": "NUM-REV",
+      "category": "revenue",
+      "question": "Qual a receita em Olinda em março de 2025?",
+      "context": [],
+      "metric": "billing.revenue",
+      "unit": "R$",
+      "inputs": [
+        12.5,
+        7.5
+      ],
+      "aggregation": "sum",
+      "expected_value": 20,
+      "expected_fragment": "R$ 20,00",
+      "expected_status": "answered",
+      "reason": "Duas parcelas artificiais totalizam vinte reais.",
+      "expected_filters": [
+        {
+          "dimension_id": "geography.municipality",
+          "operator": "eq",
+          "values": [
+            "Olinda"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    },
+    {
+      "id": "NUM-CONS",
+      "category": "consumption",
+      "question": "Qual o consumo em Recife em março de 2025?",
+      "context": [],
+      "metric": "energy.consumption",
+      "unit": "kWh",
+      "inputs": [
+        100.25,
+        49.75
+      ],
+      "aggregation": "sum",
+      "expected_value": 150,
+      "expected_fragment": "150 kWh",
+      "expected_status": "answered",
+      "reason": "Duas leituras artificiais totalizam cento e cinquenta kWh.",
+      "expected_filters": [
+        {
+          "dimension_id": "geography.municipality",
+          "operator": "eq",
+          "values": [
+            "Recife"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    },
+    {
+      "id": "NUM-DEC",
+      "category": "network",
+      "question": "Qual o DEC do alimentador AL-01 em março de 2025?",
+      "context": [],
+      "metric": "network.equivalent_interruption_duration",
+      "unit": "horas por UC",
+      "inputs": [
+        1.5
+      ],
+      "aggregation": "observed",
+      "expected_value": 1.5,
+      "expected_fragment": "1,5 horas por UC",
+      "expected_status": "answered",
+      "reason": "DEC observado é preservado; não se somam índices.",
+      "expected_filters": [
+        {
+          "dimension_id": "network.feeder",
+          "operator": "eq",
+          "values": [
+            "AL-01"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    },
+    {
+      "id": "NUM-FEC",
+      "category": "network",
+      "question": "Qual o FEC do alimentador AL-01 em março de 2025?",
+      "context": [],
+      "metric": "network.equivalent_interruption_frequency",
+      "unit": "interrupções por UC",
+      "inputs": [
+        2
+      ],
+      "aggregation": "observed",
+      "expected_value": 2,
+      "expected_fragment": "2 interrupções por UC",
+      "expected_status": "answered",
+      "reason": "FEC observado é preservado; não se somam índices.",
+      "expected_filters": [
+        {
+          "dimension_id": "network.feeder",
+          "operator": "eq",
+          "values": [
+            "AL-01"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    },
+    {
+      "id": "NUM-ATE",
+      "category": "service",
+      "question": "Quantos chamados de atendimento em março de 2025?",
+      "context": [],
+      "metric": "service.attendance",
+      "unit": "protocolos",
+      "inputs": [
+        3,
+        4
+      ],
+      "aggregation": "sum",
+      "expected_value": 7,
+      "expected_fragment": "7 chamados de atendimento",
+      "expected_status": "answered",
+      "reason": "Dois grupos artificiais contêm sete protocolos.",
+      "expected_filters": [],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    },
+    {
+      "id": "NUM-ZERO",
+      "category": "consumption",
+      "question": "Qual o consumo em Olinda em março de 2025?",
+      "context": [],
+      "metric": "energy.consumption",
+      "unit": "kWh",
+      "inputs": [
+        0
+      ],
+      "aggregation": "observed",
+      "expected_value": 0,
+      "expected_fragment": "0 kWh",
+      "expected_status": "answered",
+      "reason": "Zero observado não é ausência.",
+      "expected_filters": [
+        {
+          "dimension_id": "geography.municipality",
+          "operator": "eq",
+          "values": [
+            "Olinda"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    },
+    {
+      "id": "DENY-REV",
+      "category": "authorization",
+      "question": "Qual município teve maior receita em março de 2025?",
+      "context": [],
+      "metric": "billing.revenue",
+      "unit": "R$",
+      "mode": "denied",
+      "expected_status": "refused",
+      "reason": "Escopo atual não permite a dimensão município.",
+      "expected_filters": [],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    },
+    {
+      "id": "BATCH-REV",
+      "category": "provenance",
+      "question": "Qual a receita em Olinda em março de 2025?",
+      "context": [],
+      "metric": "billing.revenue",
+      "unit": "R$",
+      "inputs": [
+        20
+      ],
+      "aggregation": "observed",
+      "mode": "wrong_batch",
+      "expected_status": "recoverable_error",
+      "reason": "Evidência de outra publicação não fundamenta a resposta.",
+      "expected_filters": [
+        {
+          "dimension_id": "geography.municipality",
+          "operator": "eq",
+          "values": [
+            "Olinda"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    },
+    {
+      "id": "FAIL-EMPTY",
+      "category": "absence",
+      "question": "Qual a receita em Olinda em março de 2025?",
+      "context": [],
+      "metric": "billing.revenue",
+      "unit": "R$",
+      "inputs": [
+        12.5,
+        7.5
+      ],
+      "aggregation": "sum",
+      "expected_value": 20,
+      "expected_fragment": "R$ 20,00",
+      "expected_status": "no_evidence",
+      "reason": "Ausência e erro de provedor não produzem resposta numérica.",
+      "expected_filters": [
+        {
+          "dimension_id": "geography.municipality",
+          "operator": "eq",
+          "values": [
+            "Olinda"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      },
+      "mode": "empty"
+    },
+    {
+      "id": "FAIL-PROVIDER",
+      "category": "provider_failure",
+      "question": "Qual a receita em Olinda em março de 2025?",
+      "context": [],
+      "metric": "billing.revenue",
+      "unit": "R$",
+      "inputs": [
+        12.5,
+        7.5
+      ],
+      "aggregation": "sum",
+      "expected_value": 20,
+      "expected_fragment": "R$ 20,00",
+      "expected_status": "recoverable_error",
+      "reason": "Ausência e erro de provedor não produzem resposta numérica.",
+      "expected_filters": [
+        {
+          "dimension_id": "geography.municipality",
+          "operator": "eq",
+          "values": [
+            "Olinda"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      },
+      "mode": "provider_failure"
+    },
+    {
+      "id": "NUM-DEC-OBS",
+      "category": "observed_continuity",
+      "question": "Qual o DEC do alimentador AL-01 em março de 2025?",
+      "context": [],
+      "metric": "network.equivalent_interruption_duration",
+      "unit": "horas por UC",
+      "inputs": [
+        1.5
+      ],
+      "aggregation": "observed",
+      "expected_value": 1.5,
+      "expected_fragment": "1,5 horas por UC",
+      "expected_status": "answered",
+      "reason": "Índice observado mantém ressalva de falta de certificação.",
+      "expected_filters": [
+        {
+          "dimension_id": "network.feeder",
+          "operator": "eq",
+          "values": [
+            "AL-01"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      },
+      "mode": "observed"
+    },
+    {
+      "id": "NUM-FEC-OBS",
+      "category": "observed_continuity",
+      "question": "Qual o FEC do alimentador AL-01 em março de 2025?",
+      "context": [],
+      "metric": "network.equivalent_interruption_frequency",
+      "unit": "interrupções por UC",
+      "inputs": [
+        2
+      ],
+      "aggregation": "observed",
+      "expected_value": 2,
+      "expected_fragment": "2 interrupções por UC",
+      "expected_status": "answered",
+      "reason": "Índice observado mantém ressalva de falta de certificação.",
+      "expected_filters": [
+        {
+          "dimension_id": "network.feeder",
+          "operator": "eq",
+          "values": [
+            "AL-01"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      },
+      "mode": "observed"
+    },
+    {
+      "id": "CLARIFY-BILLED",
+      "category": "metric_semantics",
+      "question": "Qual foi a energia faturada em Recife em março de 2025?",
+      "context": [],
+      "metric": "billing.revenue",
+      "unit": "R$",
+      "inputs": [
+        12.5,
+        7.5
+      ],
+      "aggregation": "sum",
+      "expected_value": 20,
+      "expected_fragment": "R$ 20,00",
+      "expected_status": "needs_clarification",
+      "reason": "Não inferir energia faturada ou recuperação a partir de consumo medido.",
+      "expected_filters": [
+        {
+          "dimension_id": "geography.municipality",
+          "operator": "eq",
+          "values": [
+            "Olinda"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    },
+    {
+      "id": "CLARIFY-RECOVER",
+      "category": "metric_semantics",
+      "question": "Quanto de energia vou recuperar em Recife em março de 2025?",
+      "context": [],
+      "metric": "billing.revenue",
+      "unit": "R$",
+      "inputs": [
+        12.5,
+        7.5
+      ],
+      "aggregation": "sum",
+      "expected_value": 20,
+      "expected_fragment": "R$ 20,00",
+      "expected_status": "needs_clarification",
+      "reason": "Não inferir energia faturada ou recuperação a partir de consumo medido.",
+      "expected_filters": [
+        {
+          "dimension_id": "geography.municipality",
+          "operator": "eq",
+          "values": [
+            "Olinda"
+          ]
+        }
+      ],
+      "expected_period": "2025-03-01 a 2025-03-31",
+      "expected_window": {
+        "kind": "bounded",
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "granularity": "month"
+      }
+    }
+  ]
+}

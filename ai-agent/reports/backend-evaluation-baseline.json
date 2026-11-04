@@ -1,0 +1,457 @@
+{
+  "summary": {
+    "total": 45,
+    "passed": 45,
+    "failed": 0,
+    "known_failures": 0
+  },
+  "categories": {
+    "backend.authorization": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "backend.coverage": {
+      "total": 14,
+      "passed": 14,
+      "failed": 0
+    },
+    "backend.permissions": {
+      "total": 27,
+      "passed": 27,
+      "failed": 0
+    }
+  },
+  "dimensions": {
+    "contract": {
+      "total": 44,
+      "passed": 44,
+      "failed": 0
+    },
+    "required_suites": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "cases": [
+    {
+      "id": "BACKEND-01015244416c225c0183",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-0327534d75d70a986e15",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-1305ae5334f036f6be05",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-185163c3a52588b30819",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-19727fcb385e13a8e08c",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-41a7195fec11565ec590",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-48cb81eed06f1a69934f",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-4d058b9cf98f0ff8a342",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-54e63fe12e28e194a9e8",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-5ad80d8a27aa07ccb7e2",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-5b60f44ed7c163b7e962",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-5e10fbf08a7eb62ac8e8",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-6e0b97ba4054faaebab5",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-772cc7a784d0ee773e2e",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-7e3425f088cf9fa1e264",
+      "category": "backend.authorization",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-8016f63bf1fba24e821d",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-81c49c095d64b81a909a",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-82e64818f081b6519a4d",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-834e6d131a611ef2d4e6",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-84b6a624b805f72b1132",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-864004c376bb110c5e04",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-8999df2e8f570a6bba74",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-8ddd4d78eee232e6dc64",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-8f6179454f4dc6443a23",
+      "category": "backend.authorization",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-902745f92e3b10a3472b",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-908c551fde064d1aa67f",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-91a9969b09323962dba3",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-94d5fd6c1fb9f7e74e20",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-9f07b03f73a3ee8fb690",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-COVERAGE",
+      "category": "backend.coverage",
+      "checks": {
+        "required_suites": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-ac4093fe81881c650f19",
+      "category": "backend.authorization",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-ad5abfd84f007571c095",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-addfb3926d22d56d1c2b",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-b0e7dd7b8a813481d16a",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-be9d851e600891dfce5f",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-c35832eaa7189f27e4c8",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-c9c62653add3c2eaef93",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-cf3f7fd51b569e7e0114",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-cfb224690efedbbe1087",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-d25376e156518c06a834",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-d58d8875717e72bd6537",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-d8dff0b89b41b443f9fb",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-de3e4c4728321226d987",
+      "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-f4c1191a66c6ab16b30e",
+      "category": "backend.coverage",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-f654f8a304b9dbeb056f",
+      "category": "backend.authorization",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    }
+  ],
+  "report_type": "backend_boundary_evaluation_v1",
+  "execution_scope": "backend_contract_fixtures",
+  "dataset_digest": "backend-boundaries-v1",
+  "versions": {
+    "physical_catalog": "gold-catalog-v2",
+    "schema": "gold-csv-v2",
+    "prompt": "not_applicable",
+    "model": "not_applicable",
+    "batch": "test_fixtures"
+  },
+  "limitations": [
+    "Fixtures e contratos; não é reconciliação Gold privada."
+  ]
+}
