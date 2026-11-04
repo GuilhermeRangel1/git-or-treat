@@ -432,6 +432,27 @@ def test_comparison_reconciles_readable_currency_without_losing_month_binding(sw
     assert ("numero" in outcome.divergencias) is swapped
 
 
+def test_negative_currency_keeps_its_sign_in_every_answer_format():
+    answer = ("Receita faturada: -R$ 10,00 em março de 1999; R$ 80,00 em março de 2000. "
+              "Variação absoluta: -R$ 1.020,50 (-20%).")
+    compact = runner.compact_comparison_numbers(answer, "1999-03", "2000-03", "R$")
+    assert compact == {
+        "valor": [Decimal("-10.00")], "valor_final": [Decimal("80.00")],
+        "variacao": [Decimal("-1020.50")], "percentual": [Decimal(-20)],
+    }
+    assert Decimal("-1020.50") in runner.parse_numbers(answer)
+    assert runner.observation_numbers(
+        "• -R$ 100,00 em março de 1999", "1999-03", "R$",
+    ) == [Decimal("-100.00")]
+    assert runner.observation_numbers("-50 kWh em março de 1999", "1999-03", "kWh") == [
+        Decimal(-50),
+    ]
+    # Hífen seguido de espaço continua sendo marcador de lista, não sinal.
+    assert runner.observation_numbers(
+        "- R$ 10,00 em março de 1999", "1999-03", "R$",
+    ) == [Decimal("10.00")]
+
+
 def test_readable_decomposition_binds_each_value_to_effect_and_published_window():
     period = "P0 1998-01 a 1998-12; P1 1999-01 a 1999-12"
     answer = (

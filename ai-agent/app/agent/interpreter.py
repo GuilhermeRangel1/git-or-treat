@@ -30,6 +30,12 @@ _PERCENTAGE_THRESHOLD = re.compile(
     re.IGNORECASE,
 )
 _LOCATION_AFTER_PREPOSITION = re.compile(r"\b(?:em|no|na)\s+([\wÀ-ÿ-]+)", re.IGNORECASE)
+# Calendário não é lugar: "em 2026", "em jun" e "em jun/26" seguem para a
+# validação de período em vez de pedir confirmação da geografia.
+_MONTH_ABBREVIATIONS = frozenset(
+    ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+)
+_AFTER_MONTH_ABBREVIATION = re.compile(r"(?:\.|/[0-9]{2}(?:[0-9]{2})?)?(?![\w/-])")
 # Sem preposição de lugar, só a grafia de nome próprio sinaliza local: "de Recife" e
 # "do Recife" sim, "de energia" e "de 2025" não. Siglas e nomes com hífen ficam de fora.
 _PROPER_NAME_AFTER_DE = re.compile(
@@ -53,6 +59,13 @@ _EXCLUDED_VALUE_PREFIX = re.compile(
 def _normalize(value: str) -> str:
     decomposed = unicodedata.normalize("NFD", value.casefold())
     return "".join(char for char in decomposed if not unicodedata.combining(char))
+
+
+def _join_labels(items: list[str], conjunction: str) -> str:
+    """Lista legível: "A", "A e B", "A, B e C"."""
+    if len(items) < 2:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} {conjunction} {items[-1]}"
 
 
 def _find_phrases(text: str, phrases: tuple[str, ...]) -> list[tuple[int, int, str]]:
@@ -158,6 +171,16 @@ class QuestionInterpreter:
                 and turns[-2].role == "user" and turns[-1].role == "assistant"):
             original = turns[-2].content
             previous = self._interpret(original, None)
+            # Uma resposta com dois períodos completa a comparação pendente;
+            # conserva indicador/filtros e substitui o mês isolado anterior.
+            if (previous.clarification_question == self._profile.clarifications.comparison_baseline
+                    and not self._metric_matches(question)
+                    and len(_find_phrases(question, self._profile.period_phrases)) == 2):
+                for start, end, _ in reversed(
+                    _find_phrases(original, self._profile.period_phrases)
+                ):
+                    original = original[:start] + " " * (end - start) + original[end:]
+                return self._interpret(f"{original} {question}", None)
             if previous.clarification_reason is ClarificationReason.CONFLICTING_RANKING:
                 answer = _normalize(question).strip(" ?!.")
                 choice = {"maiores": "mais", "maior": "mais", "mais": "mais",
@@ -411,13 +434,21 @@ class QuestionInterpreter:
                 "no topo do Assistente. Para buscar valores, informe o indicador, o período "
                 "e o recorte desejados."
             )
-        temporal_question = question
+        # Só o calendário decide se o intervalo está incompleto: "entre Recife, Olinda e ..."
+        # introduz locais e "entre as classes" pede agrupamento, não um intervalo de meses.
+        calendar_question = question
         if self._profile.structured_dimension_filters:
+            for start, _, _ in self._dimension_value_matches(question, self._profile.dimensions):
+                between = re.search(r"\bentre\s+$", question[:start], flags=re.IGNORECASE)
+                if between is not None:
+                    calendar_question = (calendar_question[:between.start()]
+                                         + " " * (start - between.start())
+                                         + calendar_question[start:])
             grouping = self._requested_breakdown(question)
             if grouping is not None:
-                temporal_question = self._without_grouping_reference(question, grouping)
+                calendar_question = self._without_grouping_reference(calendar_question, grouping)
         if (self._profile.structured_dimension_filters
-                and has_incomplete_calendar_period(temporal_question)):
+                and has_incomplete_calendar_period(calendar_question)):
             return self._clarify(
                 "Informe o mês e o ano de ambos os extremos do intervalo; "
                 "preciso dos dois períodos para fazer essa consulta."
@@ -541,15 +572,37 @@ class QuestionInterpreter:
                     and (start, end) != match[:2]
                     for start, end, _ in known_spans
                 )]
+                label = dimension.label[:1].lower() + dimension.label[1:]
                 if self._has_unresolved_dimension_reference(filter_question, dimension, matches):
+                    groupable = {
+                        dimension_id for metric in self._profile.metrics
+                        for dimension_id in metric.grouping_dimension_ids or ()
+                    }
+                    if dimension.id not in groupable and re.search(
+                        r"\b(?:quais|liste|listar|lista)\b", _normalize(filter_question)
+                    ):
+                        # Registro individual não é recorte publicado: oferece os totais.
+                        totals = [item.label[:1].lower() + item.label[1:]
+                                  for item in self._profile.dimensions if item.id in groupable]
+                        offer = (f" Posso mostrar totais por {_join_labels(totals, 'ou')}."
+                                 if totals else "")
+                        return self._clarify(
+                            f"Não apresento resultados individuais por {label}.{offer}"
+                        )
                     return self._clarify(
-                        f"Há um valor não reconhecido de {dimension.label.lower()}. "
+                        f"Há um valor não reconhecido de {label}. "
                         "Informe somente os valores autorizados que deseja consultar."
                     )
                 if self._has_unresolved_multiple_values(question, matches):
+                    if any(_EXCLUDED_VALUE_PREFIX.search(_normalize(question[:start]))
+                           for start, _, _ in matches):
+                        return self._clarify(
+                            "Este recorte pede exclusão; informe o valor que deseja incluir."
+                        )
+                    cited = list(dict.fromkeys(surface for _, _, surface in matches))
                     return self._clarify(
-                        f"Informe um único valor de {dimension.label.lower()} "
-                        "ou uma correção explícita."
+                        f"Consulto um valor de {label} por vez; você citou "
+                        f"{_join_labels(cited, 'e')}. Qual quer primeiro?"
                     )
                 if matches:
                     prefix = _normalize(question[:matches[-1][0]])
@@ -559,9 +612,12 @@ class QuestionInterpreter:
                         )
                     surface = _normalize(matches[-1][2])
                     if surface in matched_surfaces:
+                        choices = [item.label for item in self._profile.dimensions
+                                   if any(surface == _normalize(alias)
+                                          for value in item.values for alias in value.aliases)]
                         return self._clarify(
-                            "O mesmo nome corresponde a mais de uma dimensão; "
-                            "especifique outro recorte sem ambiguidade.",
+                            f"Você quer consultar {matches[-1][2]} como "
+                            f"{_join_labels(choices, 'ou')}? Responda com uma dessas opções.",
                             ClarificationReason.AMBIGUOUS_DIMENSION,
                         )
                     matched_surfaces[surface] = dimension.id
@@ -789,7 +845,7 @@ class QuestionInterpreter:
         if ranking is not None:
             tail = normalized[ranking.end:].lstrip()
             if not tail or re.match(
-                r"^(?:[?.,;:]|(?:por|que|em|no|na|nos|nas|com|sem|de|do|da|teve|tiveram|tem|"
+                r"^(?:[?.,;:]|(?:por|que|entre|em|no|na|nos|nas|com|sem|de|do|da|teve|tiveram|tem|"
                 r"foi|foram|e|mais|menos|maior|menor|cresceu|caiu|perdeu|reduziu|aumentou)\b)",
                 tail,
             ):
@@ -890,9 +946,9 @@ class QuestionInterpreter:
                     rf"\b{re.escape(_normalize(alias))}\s+(?:(?:de|do|da)\s+)?$", prefix
                 ) for alias in dimension.aliases)
             }
-            # Uma localização introduzida por "em" usa o município quando o
+            # Uma localização introduzida por "em/de/do/da" usa o município quando o
             # nome também existe como bairro. Qualificadores explícitos prevalecem.
-            if not qualified and re.search(r"\bem\s+$", prefix):
+            if not qualified and re.search(r"\b(?:em|de|do|da)\s+$", prefix):
                 parent_ids = {
                     dimension.parent_dimension_id for dimension in self._profile.dimensions
                     if dimension.parent_dimension_id and any(
@@ -1073,6 +1129,14 @@ class QuestionInterpreter:
                     return True
         for match in _LOCATION_AFTER_PREPOSITION.finditer(question):
             start, end = match.span(1)
+            word = _normalize(match.group(1))
+            # Só ano completo: "em 10 março" é data diária e precisa continuar bloqueada.
+            if (
+                re.fullmatch(r"[0-9]{4}", word)
+                or (word in _MONTH_ABBREVIATIONS
+                    and _AFTER_MONTH_ABBREVIATION.match(question, end))
+            ):
+                continue
             # O trecho conhecido pode começar na palavra ou na própria preposição ("na verdade").
             if not any(
                 recognized_start in (start, match.start()) and recognized_end >= end

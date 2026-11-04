@@ -337,7 +337,9 @@ def expected_values(matrix: dict, case: dict, params: dict, db: ControlDatabase,
 def parse_numbers(text: str | None) -> list[Decimal]:
     """Lê números em pt-BR ou en-US; separador ambíguo gera as duas leituras."""
     found: list[Decimal] = []
-    for token in _NUMBER.findall(text or ""):
+    # O núcleo escreve o sinal antes da moeda; "- R$ 10" com espaço é marcador de lista.
+    text = re.sub(r"-R\$\s*", "-", text or "", flags=re.IGNORECASE)
+    for token in _NUMBER.findall(text):
         token = token.rstrip(".,")
         candidates = set()
         if "," in token and "." in token:
@@ -416,7 +418,7 @@ def observation_numbers(answer: str, label: str, unit: str | None = None,
     for line in lines:
         line = normalize(line)
         match = re.fullmatch(
-            r"\s*(?:[•*-]\s*)?(?:r\$\s*(?P<money>" + number + r")"
+            r"\s*(?:[•*]\s*|-\s+)?(?:(?P<money>[+-]?r\$\s*" + number + r")"
             r"|(?P<number>" + number + r")\s+(?P<unit>[^\n]+?))\s+em\s+(?P<tail>.+)",
             line,
         )
@@ -439,7 +441,7 @@ def observation_numbers(answer: str, label: str, unit: str | None = None,
 def compact_comparison_numbers(answer: str, first: str, last: str, unit: str):
     """Reconhece a comparação legível mantendo vínculo mês/valor, unidade e sinais."""
     number = r"[+-]?[0-9][0-9.,]*"
-    amount = (r"r\$\s*(?P<delta>" + number + ")" if unit in {"R$", "BRL"} else
+    amount = (r"(?P<delta>[+-]?r\$\s*" + number + ")" if unit in {"R$", "BRL"} else
               r"(?P<delta>" + number + r")\s*" + re.escape(normalize(unit)))
     matched = re.fullmatch(
         r"[^:\n]+:\s*(?P<first>.+?);\s*(?P<last>.+?)\.\s*variacao absoluta:\s*"

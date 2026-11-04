@@ -49,6 +49,20 @@ def normalize_calendar_phrases(text: str) -> str:
     Notação mês/ano exige ano completo e não é extraída de uma data com dia.
     """
     text = " ".join(unicodedata.normalize("NFC", text).split())
+    quarters = {"primeiro": 1, "segundo": 2, "terceiro": 3, "quarto": 4}
+
+    def calendar_quarter(match: re.Match) -> str:
+        token = match["quarter"].lower()
+        quarter = int(token[0]) if token[0].isdigit() else quarters[token]
+        start = (quarter - 1) * 3 + 1
+        year = match["year"]
+        return f"de {year}-{start:02d} a {year}-{start + 2:02d}"
+
+    text = re.sub(
+        r"\b(?P<quarter>[1-4](?:[º°o])?|primeiro|segundo|terceiro|quarto)"
+        r"\s+trimestre\s+(?:de\s+)?(?P<year>[0-9]{4})(?![\w/-])",
+        calendar_quarter, text, flags=re.IGNORECASE,
+    )
     # Somente abreviações acompanhadas de ano: não altera nomes de locais nem
     # completa mês/ano ausente. A resolução posterior continua validando cobertura.
     abbreviations = dict(zip(
@@ -81,6 +95,25 @@ def normalize_calendar_phrases(text: str) -> str:
     return _MONTHLY_PREFIX.sub("em ", _SLASH_MONTH.sub(slash_month, text))
 
 
+def expand_short_calendar_year(text: str, competencies: tuple[str, ...]) -> str:
+    """Expande ano curto apenas quando o lote autorizado determina um único século."""
+    years = {period[:4] for period in competencies if re.fullmatch(r"[0-9]{4}-[0-9]{2}", period)}
+    month = (r"(?:0?[1-9]|1[0-2]|jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez|"
+             + _SHARED_MONTH_NAME + r")")
+    pattern = re.compile(
+        rf"(?<![\w/.-])(?P<month>{month})\.?\s*/\s*(?P<year>[0-9]{{2}})(?![\w/.-])",
+        re.IGNORECASE,
+    )
+
+    def expand(match: re.Match) -> str:
+        candidates = {year for year in years if year.endswith(match["year"])}
+        if len(candidates) != 1:
+            return match[0]
+        return f"{match['month']}/{next(iter(candidates))}"
+
+    return pattern.sub(expand, text)
+
+
 def complete_contextual_period(text: str, context: list) -> str:
     """Completa só continuações curtas a partir de um único mês explícito.
 
@@ -97,10 +130,16 @@ def complete_contextual_period(text: str, context: list) -> str:
         r"(?:e\s+)?compar(?:e|ar)\s+com\s+(?:o\s+)?(?:mes|periodo)\s+anterior",
         normalized,
     )
+    previous_month_request = re.fullmatch(
+        r"(?:e\s+)?(?:em|no)\s+(?:o\s+)?m[eê]s\s+(?:anterior|passado)",
+        normalized,
+    )
     year_correction = re.fullmatch(
         r"(?:na verdade|corrigindo)[,:]?\s+(?:em\s+)?([0-9]{4})", normalized,
     )
-    if month is None and comparison is None and year_correction is None:
+    if all(match is None for match in (
+        month, comparison, year_correction, previous_month_request,
+    )):
         return text
     for turn in reversed(context):
         if turn.role != "user":
@@ -117,6 +156,8 @@ def complete_contextual_period(text: str, context: list) -> str:
         if month is not None:
             return f"E em {year:04d}-{_MONTH_NUMBERS[_normalize(month[1])]:02d}?"
         previous_year, previous_month = (year - 1, 12) if number == 1 else (year, number - 1)
+        if comparison is None:
+            return f"E em {previous_year:04d}-{previous_month:02d}?"
         return (f"E compare entre {previous_year:04d}-{previous_month:02d} "
                 f"e {year:04d}-{number:02d}.")
     return text
