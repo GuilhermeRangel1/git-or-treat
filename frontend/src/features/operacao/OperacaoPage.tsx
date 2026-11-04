@@ -232,15 +232,6 @@ export default function OperacaoPage() {
           )
         }
       />
-      {options.data?.kind === "gold" &&
-      ((summary.isFetching && summary.data) ||
-        (ranking.isFetching && ranking.data) ||
-        (detail.isFetching && detail.data)) ? (
-        <p role="status" className="text-sm text-muted">
-          Atualizando consultas Gold; a última resposta válida permanece
-          visível.
-        </p>
-      ) : null}
       {options.isError ? (
         <p
           role="alert"
@@ -373,7 +364,6 @@ export default function OperacaoPage() {
           <OperationSummary
             data={syntheticSummary}
             isLoading={summary.isLoading}
-            isFetching={summary.isFetching}
             isError={summary.isError}
             onRetry={() => void summary.refetch()}
           />

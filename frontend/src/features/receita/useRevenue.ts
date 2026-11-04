@@ -1,16 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/shared/api/client";
-import { decodeRevenueEnvelope, type RevenueEnvelope } from "./contract";
-import { revenueRequestParams, type RevenueQuery } from "./revenue-filters";
+import type { RevenueEnvelope } from "@/shared/analytics/revenueContract";
+import { fetchRevenue } from "@/shared/analytics/revenueClient";
+import type { RevenueQuery } from "./revenue-filters";
 import { useGoldPublicationKey } from "@/shared/analytics/goldPublication";
-
-async function fetchRevenue(query: RevenueQuery, signal: AbortSignal) {
-  const params = revenueRequestParams(query);
-  const response = await apiClient<unknown>(`/api/v1/revenue?${params}`, {
-    signal,
-  });
-  return decodeRevenueEnvelope(response);
-}
 
 export function useRevenue(query: RevenueQuery | null) {
   const publication = useGoldPublicationKey();

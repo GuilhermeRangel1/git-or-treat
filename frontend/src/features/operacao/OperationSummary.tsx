@@ -19,13 +19,11 @@ function statusLabel(status: string) {
 export default function OperationSummary({
   data,
   isLoading,
-  isFetching,
   isError,
   onRetry,
 }: {
   data?: OperationSummaryEnvelope;
   isLoading: boolean;
-  isFetching: boolean;
   isError: boolean;
   onRetry: () => void;
 }) {
@@ -82,11 +80,6 @@ export default function OperationSummary({
 
   return (
     <section aria-label="Resumo de continuidade" className="grid gap-4">
-      {isFetching && data ? (
-        <p role="status" className="text-xs text-muted">
-          Atualizando consolidado; exibindo a última consulta válida.
-        </p>
-      ) : null}
       {isError && data ? (
         <p
           role="alert"

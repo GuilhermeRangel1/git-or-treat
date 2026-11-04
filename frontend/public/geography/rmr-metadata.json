@@ -1,0 +1,43 @@
+{
+  "source": "Instituto Brasileiro de Geografia e Estatística (IBGE)",
+  "sourceUrls": [
+    "https://www.ibge.gov.br/geociencias/organizacao-do-territorio/estrutura-territorial/18354-recortes-metropolitanos-e-aglomeracoes-urbanas.html",
+    "https://servicodados.ibge.gov.br/api/docs/malhas?versao=3",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2600054?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2601052?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2602902?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2603454?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2606804?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2607604?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2607208?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2607752?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2607901?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2609402?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2609600?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2610707?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2611606?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022",
+    "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2613701?formato=application%2Fvnd.geo%2Bjson&qualidade=minima&periodo=2022"
+  ],
+  "compositionReference": "RMR conforme LC-PE 426/2020 e lista de 14 municípios publicada pelo IBGE em 17/11/2020",
+  "geometryPeriod": "2022",
+  "simplification": "Qualidade mínima entregue pela API oficial do IBGE; nenhuma simplificação adicional foi aplicada.",
+  "attribution": "Fonte: IBGE. Malha municipal simplificada para visualização. Regiões metropolitanas são definidas por lei estadual.",
+  "municipalityCodes": [
+    "2600054",
+    "2601052",
+    "2602902",
+    "2603454",
+    "2606804",
+    "2607208",
+    "2607604",
+    "2607752",
+    "2607901",
+    "2609402",
+    "2609600",
+    "2610707",
+    "2611606",
+    "2613701"
+  ],
+  "featureCount": 14,
+  "geojsonSha256": "0b64b33f4c722aa48cf7349385bb5cc271ba49bf252c01306db508a22f898ded"
+}
