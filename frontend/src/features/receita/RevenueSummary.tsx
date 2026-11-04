@@ -37,13 +37,7 @@ function signedMoney(value: number | null) {
   );
 }
 
-function MetricCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function MetricCard({ label, value }: { label: string; value: string }) {
   return (
     <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
       <h3 className="text-sm font-medium leading-5 text-muted">{label}</h3>
@@ -87,9 +81,7 @@ export default function RevenueSummary({
         <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
           <h3 className="text-sm font-medium leading-5 text-muted">Variação</h3>
           <p
-            className={
-              `flex min-w-0 flex-nowrap items-center justify-center gap-2 whitespace-nowrap ${metricTypographyClass} ${signStyle}`
-            }
+            className={`flex min-w-0 flex-nowrap items-center justify-center gap-2 whitespace-nowrap ${metricTypographyClass} ${signStyle}`}
           >
             <span className="min-w-0">{signedMoney(change)}</span>
           </p>

@@ -232,6 +232,7 @@ jobs:
           npm run check:boundaries
           npm run format:check
           npm test
+          node --test scripts/prepare-rmr-geography.test.mjs
           npm run test:proxy
 
       - name: Validar tipos e build
