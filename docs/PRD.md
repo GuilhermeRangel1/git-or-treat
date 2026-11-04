@@ -4062,3 +4062,8 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 
 - A/B com dois casos Gold/Gemini e quatro blocos: 16 respostas concluídas, hashes de resposta/contexto/visualização iguais por caso; oito misses e oito hits confirmados. Medianas antigo→limitado: geração nova 14,477→13,914 s; cache 12,921→12,500 s; até evidência 12,793→12,430 s. Uma tentativa adicional teve limite do modelo e foi registrada como falha, depois o bloco foi repetido.
 - Ganho pequeno e amostra restrita, sem afirmação de aceleração geral; prontidão continua dominante e SQL numérico próximo de 20 ms. Configuração de 512 MiB restaurada. Evidência completa e limites no [plano Docker](plans/2026-11-04-docker-gold-inicializacao.md); estados oficiais preservados.
+
+### 04/11/2026 — DEV-16 / ENT-02 a ENT-05 — preparação operacional
+
+- README reúne pré-requisitos, carga Gold, verificações e caminho da demonstração sintética; [roteiro](demo-roteiro.md) cobre as jornadas e condições de ensaio. [Status report](status-report.md) registra atualização e bloqueios sem alterar o corte histórico.
+- Evidência operacional existente: [runbook Docker](plans/2026-11-04-docker-gold-inicializacao.md) e [Workflow](../data-engineering/evidencias/workflow/run-limpo-250327107715287.md). Falta ensaio completo por outra pessoa, revisão analítica/narrativa e confirmação de publicação. Estados ENT preservados; documentação preparada não comprova o critério de execução independente.

@@ -1,5 +1,7 @@
 # Backend — V-Energy Grid 360
 
+> **Operação atual:** consulte o [README principal](../README.md#executar-localmente-com-docker) e o [runbook Docker](../docs/plans/2026-11-04-docker-gold-inicializacao.md). Seções históricas abaixo descrevem estágios anteriores ou demonstrações específicas, não necessariamente o Compose atual.
+
 API FastAPI com conexão SQLAlchemy, migração Alembic e persistência inicial das ordens de inspeção. As rotas analíticas têm contratos versionados e um adaptador sintético em memória para desenvolvimento; elas não consultam a Gold. Os requisitos de produto permanecem pendentes de implementação e reconciliação com dados Gold.
 
 PostgreSQL é o banco configurado para execução normal. SQLite é usado nos testes HTTP. O quality workflow executa também migrações e uma gravação/leitura ORM contra um serviço PostgreSQL descartável, com credenciais sintéticas definidas apenas no CI.

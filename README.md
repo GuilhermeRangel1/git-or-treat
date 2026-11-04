@@ -61,6 +61,10 @@ O pipeline Bronze → Silver → Gold roda inteiro no Databricks (PySpark, arqui
 
 ## Executar localmente com Docker
 
+**Pré-requisitos:** Windows com PowerShell, Docker Desktop e Compose ativos, portas 5173 e 8000 livres e pacote Gold v2 autorizado, obtido por canal privado. A pasta deve conter `manifest.json` e quinze diretórios analíticos; cadastro pareado é opcional. A primeira carga pode levar vários minutos e requer espaço para imagens e banco. Para respostas do assistente, configure chave Gemini e somente controles Gold já aprovados. Não inclua pacotes ou segredos no Git.
+
+O [roteiro de demonstração](docs/demo-roteiro.md) reúne verificações e jornadas. Para gerar a Gold no Databricks, siga o [guia de dados](data-engineering/README.md); o Compose consome uma exportação existente.
+
 A execução padrão inicia PostgreSQL, carga Gold v2, Backend, GenAI e portal compilado no projeto `git-or-treat`. Fonte inválida impede o início da API, sem fallback sintético. Os ambientes antigos e seus volumes são preservados.
 
 ```powershell
@@ -78,15 +82,20 @@ O configurador gera segredos distintos no `.env` ignorado pelo Git e não sobres
 | API | http://localhost:8000/api/v1 | Sessão individual, fonte Gold v2 |
 | Banco | Rede interna Docker, porta 5432 | Sem porta publicada no host |
 
+Após a subida, aguarde o `gold-loader` terminar com código 0 e os serviços permanentes ficarem saudáveis em `docker compose ps -a`. Abra o portal e entre com uma conta provisionada. Confira http://localhost:8000/api/v1/health. Se falhar, consulte os logs abaixo, corrija pacote ou configuração e repita a subida. Se as portas estiverem ocupadas, libere-as antes de iniciar. Não compartilhe o arquivo de credenciais.
+
+### Demonstração sintética
+
+Para explorar fila e ordens sem Gold, siga os scripts e pré-requisitos no [guia do frontend](frontend/README.md#abrir-ordens-dev-06-com-persistência-local). Os dados são artificiais e não estão conectados à Gold; a demo de ordens usa SQLite local. `docker-compose.ci.yml` serve ao smoke descartável de CI, não substitui o roteiro integrado Gold.
 O portal normal não usa polling, Node ou HMR em runtime; a API não usa reload. Para editar com HMR, use explicitamente `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d`; a fonte permanece Gold v2. Volte ao comando normal para retornar ao portal compilado. A falta de chave impede a geração de respostas, sem substituir a fonte por demonstração. O PostgreSQL tem teto local de 512 MiB; `POSTGRES_MEMORY_LIMIT=1g` no `.env` permite ampliá-lo para cargas maiores.
 
 Use `docker compose logs -f gold-loader` durante a carga e `docker compose logs -f backend` para a API. `docker compose down` preserva o volume `git-or-treat_pgdata16`; não use `down -v` para corrigir inicialização. Preserve também o `.env`, pois ele contém as credenciais desse volume. A composição é HTTP local, não uma publicação pública com HTTPS. [Fluxo, limites e evidências](docs/plans/2026-11-04-docker-gold-inicializacao.md).
 
 ## Preparação dos agentes
 
-Codex, Claude Code e Antigravity compartilham os `AGENTS.md`, as skills compatíveis em `.agents/skills/` e os scripts em `.hooks/`. Cada cliente tem configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e nenhum item funcional foi concluído nesta fase.
+Codex, Claude Code e Antigravity compartilham os `AGENTS.md`, as skills compatíveis em `.agents/skills/` e os scripts em `.hooks/`. Cada cliente tem configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e de seus estados.
 
-O GitHub Actions em `.github/workflows/quality.yml` roda em pull requests, na branch `main` e manualmente. Por enquanto, valida configurações dos agentes (incluindo hooks e MCPs do Antigravity), imports compartilhados, links locais da documentação e sintaxe dos hooks. Ele não implementa funcionalidades nem cria branches ou pull requests.
+O GitHub Actions em `.github/workflows/quality.yml` roda em pull requests, na branch `main` e manualmente. Ele executa verificações por módulo e de documentação; consulte o workflow para a lista vigente de jobs.
 
 ### Compatibilidade do volume PostgreSQL local
 
