@@ -58,6 +58,10 @@ async def lifespan(app: FastAPI):
                 else None
             ),
             service_token=token,
+            cache_ttl_seconds=settings.GENAI_INSIGHT_CACHE_TTL_SECONDS,
+            cache_max_entries=settings.GENAI_INSIGHT_CACHE_MAX_ENTRIES,
+            cache_max_bytes=settings.GENAI_INSIGHT_CACHE_MAX_BYTES,
+            cache_namespace=settings.GENAI_INSIGHT_CACHE_NAMESPACE,
         )
         retention = None
         history_retention = asyncio.create_task(maintain_history_retention(engine)) if settings.ORDERS_AUTH_MODE == "session" else None
