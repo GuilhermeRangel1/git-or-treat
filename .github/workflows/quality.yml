@@ -72,7 +72,10 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: genai-reports-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ai-agent/reports/
+          path: |
+            ai-agent/reports/expanded-regression-report.json
+            ai-agent/reports/expanded-regression-baseline.json
+            ai-agent/reports/backend-evaluation-baseline.json
           if-no-files-found: ignore
           retention-days: 14
 
