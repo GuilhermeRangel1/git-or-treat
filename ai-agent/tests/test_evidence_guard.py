@@ -402,7 +402,12 @@ def test_gold_guard_accepts_only_complete_single_feeder_observed_months():
         catalog_version="v1", operation="read", profile_id=GRID360_GOLD_PROFILE.profile_id,
         source_id="gold.local", domain_id="network",
         metric_id="network.equivalent_interruption_duration", unit="horas por UC",
-        window=ReadWindow(kind="bounded", start="2026-06-01", end="2026-06-30", granularity="month"),
+        window=ReadWindow(
+            kind="bounded",
+            start="2026-06-01",
+            end="2026-06-30",
+            granularity="month",
+        ),
         dimension_ids=("network.feeder",),
         filters=(ReadFilter(dimension_id="network.feeder", operator=FilterOperator.EQ,
                             values=("AL-01",)),),

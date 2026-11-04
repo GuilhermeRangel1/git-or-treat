@@ -316,9 +316,12 @@ class EvidenceGuard:
                 safe_row["dimensions"] = row_dimensions
             safe_records.append(safe_row)
 
-        if quality is not None and quality.quality_mode == "observed_uncertified":
-            if {row.get("period") for row in safe_records} != set(quality.observed_periods):
-                raise EvidenceContractInvalid("competências observadas incompletas")
+        if (
+            quality is not None
+            and quality.quality_mode == "observed_uncertified"
+            and {row.get("period") for row in safe_records} != set(quality.observed_periods)
+        ):
+            raise EvidenceContractInvalid("competências observadas incompletas")
 
         if metric.observation_labels:
             if (len(safe_records) != len(metric.observation_labels)
