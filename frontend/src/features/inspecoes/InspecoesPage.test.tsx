@@ -1221,3 +1221,21 @@ it("rejeita contratos inválidos antes de apresentar métricas", () => {
     }),
   ).toThrow();
 });
+
+it("uses descending as the default direction for Gold recovery estimates", async () => {
+  const fetch = vi.fn(async (_url: string) => respond(goldQueue));
+  vi.stubGlobal("fetch", fetch);
+  mount("/inspecoes?order_by=potential_recoverable_energy_kwh");
+
+  expect(await screen.findByLabelText("Ordenar por")).toBeVisible();
+  expect(screen.getByLabelText("Ordenar por")).toHaveValue(
+    "potential_recoverable_energy_kwh",
+  );
+  expect(screen.getByLabelText(/Dire/)).toHaveValue("desc");
+
+  const request = new URL(fetch.mock.calls.at(-1)![0], window.location.origin);
+  expect(request.searchParams.get("order_by")).toBe(
+    "potential_recoverable_energy_kwh",
+  );
+  expect(request.searchParams.get("direction")).toBeNull();
+});
