@@ -170,6 +170,33 @@ def test_typo_is_only_suggested_and_confirmed_by_a_new_plan():
     assert accepted["plan"]["filters"][0]["values"] == ["Recife"]
 
 
+NEIGHBORHOODS = [
+    {"dimension_id": "geography.municipality", "values": ["Recife", "Olinda"]},
+    {"dimension_id": "geography.neighborhood", "values": ["BAIRO", "LUMENIA"]},
+]
+
+
+def test_dimension_name_is_not_suggested_as_a_similar_neighborhood():
+    result = _plan(
+        "Qual bairro de Recife teve a maior queda de consumo entre fevereiro e março de 2025?",
+        dimension_values=NEIGHBORHOODS,
+    )
+    assert result["status"] == "needs_clarification", result
+    assert "BAIRO" not in result["response"]["message"]
+
+
+def test_typo_beside_a_dimension_name_is_still_suggested():
+    result = _plan(
+        "Qual foi a receita faturada no bairro LUMENIA em Reciffe em março de 2025?",
+        dimension_values=NEIGHBORHOODS,
+    )
+    assert result["status"] == "needs_clarification", result
+    example = result["response"]["message"].split("\n\nExemplo de pergunta: “")[1]
+    assert example.removesuffix("”") == (
+        "Qual foi a receita faturada no bairro LUMENIA em Recife em março de 2025?"
+    )
+
+
 @pytest.mark.parametrize("question,limit", [
     ("Quais classes tiveram mais receita em março de 2025?", 100),
     ("Top 3 classes com maior receita faturada em 2025-03?", 3),

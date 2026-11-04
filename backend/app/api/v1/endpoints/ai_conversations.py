@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.v1.endpoints.ai import (
@@ -22,6 +23,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.genai_gold_access import get_genai_gold_access_resolver
 from app.core.genai_gold_database import (
+    create_genai_gold_engine,
     get_question_gold_readiness_gate,
     get_question_gold_resources,
 )
@@ -93,9 +95,28 @@ def listing(
 
 @router.get("/conversations/{conversation}", response_model=ConversationDetail)
 def detail(conversation: UUID, owner: Owner, db: Database, request: Request):
-    return ConversationStore(db, owner).detail(
-        str(conversation), history_scope(current_scope(request, db))
-    )
+    scope = current_scope(request, db)
+    result = ConversationStore(db, owner).detail(str(conversation), history_scope(scope))
+    visual_responses = [e["response"] for e in result["exchanges"] if e["response"] and e["response"].get("visualization")]
+    if visual_responses:
+        current_batch = None
+        engine = None
+        try:
+            engine = create_genai_gold_engine(scope)
+            with engine.connect() as connection:
+                current_batch = current_publication(connection).batch_ref
+        except (GoldPublicationUnavailable, SQLAlchemyError, ValueError, TypeError):
+            current_batch = None
+        finally:
+            if engine is not None:
+                engine.dispose()
+        for response in visual_responses:
+            context = response.get("analysis_context") or {}
+            if current_batch is None or context.get("batch_reference") != current_batch:
+                response.pop("visualization", None)
+        if history_scope(current_scope(request, db)) != history_scope(scope):
+            raise HTTPException(403, "Acesso ao histórico alterado.")
+    return result
 
 
 @router.patch("/conversations/{conversation}", response_model=ConversationSummary)

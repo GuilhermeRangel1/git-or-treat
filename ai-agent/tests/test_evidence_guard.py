@@ -4,7 +4,7 @@ import pytest
 
 from app.agent.evidence_guard import EvidenceGuard
 from app.agent.interpreter import QuestionInterpreter
-from app.agent.orchestrator import _describe_observation
+from app.agent.orchestrator import _describe_observation, _lowercase_title
 from app.agent.read_plan import ReadPlanBuilder
 from app.api.access import SYNTHETIC_SOURCE_ID
 from app.ports.evidence import EvidenceContractInvalid
@@ -37,6 +37,31 @@ def test_human_readable_integer_counts_use_singular_labels(unit, expected):
     assert _describe_observation(
         {"value": 1.0, "unit": unit}, human_readable=True,
     ) == expected
+
+
+@pytest.mark.parametrize("value, unit, expected", [
+    (1364362.0, "kWh", "1.364.362 kWh"),
+    (322.46, "kWh", "322,46 kWh"),
+    (260.78, "R$ por UC faturada no mês", "260,78 R$ por UC faturada no mês"),
+    (0.7557, "R$/kWh", "0,7557 R$/kWh"),
+    (-29.91, "%", "-29,91%"),
+    (-189630.15, "R$", "-R$ 189.630,15"),
+    (-189630.15, "BRL", "-R$ 189.630,15"),
+])
+def test_human_readable_values_use_pt_br_number_format(value, unit, expected):
+    assert _describe_observation({"value": value, "unit": unit}, human_readable=True) == expected
+
+
+def test_demo_mode_keeps_raw_values_outside_currency():
+    assert _describe_observation({"value": 1364362.0, "unit": "kWh"}) == "1364362.0 kWh"
+
+
+@pytest.mark.parametrize("title, expected", [
+    ("Ticket médio por UC faturada no mês", "ticket médio por UC faturada no mês"),
+    ("Preço médio observado por kWh", "preço médio observado por kWh"),
+])
+def test_answer_title_lowercases_only_first_letter(title, expected):
+    assert _lowercase_title(title) == expected
 
 
 def _plan():

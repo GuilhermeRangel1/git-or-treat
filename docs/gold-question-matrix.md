@@ -1,5 +1,9 @@
 # Matriz de perguntas para o catálogo Gold v2
 
+## Regressão do chat — 03/11/2026
+
+A formatação pt-BR das respostas, a correção ortográfica com nomes de dimensão, períodos abreviados e variação, os exemplos de esclarecimento e as mensagens de limite têm regressão com fixtures sintéticas em `test_gold_language_http.py`, `test_gold_receptivity.py`, `test_evidence_guard.py` e `test_language_recovery.py`; não é nova rodada da matriz real.
+
 ## Revisão de amostras e provas técnicas — 02/11/2026
 
 A busca apenas na última competência escondia amostras reais de receita e consumo nulos. FAT-13 e CON-10 passaram na API pública após selecionar mês, município e classe da mesma amostra em toda a publicação. FAT-12/13/15 e CON-10 adotam `COMPETENCIA_DA_AMOSTRA`; base zero exige denominador observado, sem converter nulo em zero. Os outros cinco continuam sem amostra após conferência de todas as competências. SEG-06/07 foram revalidados em suítes separadas (1.751 testes GenAI e uma prova PostgreSQL de 102,35 s), sem forçar PASS no runner live. Ver [regras, notebooks, resultados e reprodução](plans/2026-11-02-genai-amostras-e-provas-tecnicas.md). As rodadas completas abaixo permanecem históricas; não foi refeita a matriz inteira nesta fatia.

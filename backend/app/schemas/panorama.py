@@ -1,10 +1,12 @@
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.common import AnalyticalMetadata
+from app.schemas.ai_insight import PanoramaCurrentComposition
 from app.schemas.analytics import AnalyticsStatus
+from app.schemas.common import AnalyticalMetadata
 from app.schemas.gold import GoldMetadata
+from app.schemas.visual_reading import VisualReading
 
 
 class PanoramaMetric(BaseModel):
@@ -49,6 +51,28 @@ class PanoramaFilterOptions(BaseModel):
     classes: list[str] = Field(default_factory=list)
 
 
+class PanoramaDistributionPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    segmento: str
+    valor: float | None
+    percentual: float | None = None
+
+
+class PanoramaDistribution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reading: VisualReading | None = None
+    composicaoReceita: PanoramaCurrentComposition | None = None
+    dimension: Literal["municipio", "classe"]
+    periodo: str
+    metricId: str
+    unidade: str
+    total: float
+    completo: bool
+    pontos: list[PanoramaDistributionPoint] = Field(max_length=1000)
+    visual: list[PanoramaDistributionPoint] = Field(max_length=10)
+    agrupados: int = Field(default=0, ge=0, le=1000)
+
+
 class PanoramaData(BaseModel):
     filtros: dict[str, Any]
     periodoIncompleto: bool
@@ -57,6 +81,7 @@ class PanoramaData(BaseModel):
     dataAtualizacao: str
     loteVersao: str
     metricas: dict[str, PanoramaMetric]
+    distribuicao: PanoramaDistribution | None = None
     serieMensal: list[PanoramaSeriesPoint] = Field(default_factory=list)
     opcoesFiltros: PanoramaFilterOptions | None = None
 

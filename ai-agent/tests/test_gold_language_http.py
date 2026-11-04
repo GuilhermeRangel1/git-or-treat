@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
 from app.schemas.internal import QuestionSynthesisRequest
 from app.schemas.read_plan import LogicalReadPlan
 
@@ -22,6 +23,122 @@ def _plan(question, context=(), *, dimension_values=None, extra_coverage=()):
         response = client.post(PLAN_PATH, json=payload, headers=HEADERS)
     assert response.status_code == 200
     return response.json()
+
+
+UNKNOWN_GEOGRAPHY = "Não reconheci esse local nas referências disponíveis"
+
+
+@pytest.mark.parametrize("question", [
+    "Qual foi a receita faturada em Recife em jun/26?",
+    "Qual foi a receita faturada em Recife em 2026?",
+    "Qual foi o ticket médio da classe comercial em Olinda e como ele variou "
+    "em relação a maio de 2026?",
+])
+def test_unrecognized_period_is_not_reported_as_unknown_location(question):
+    result = _plan(question)
+    assert result["status"] == "needs_clarification", result
+    message = result["response"]["message"]
+    assert UNKNOWN_GEOGRAPHY not in message
+    assert "período" in message or "mensal" in message
+
+
+@pytest.mark.parametrize("month", ["maio de 2026", "março de 2025"])
+def test_variation_against_a_single_period_asks_for_the_comparison_baseline(month):
+    result = _plan(
+        "Qual foi o ticket médio da classe comercial em Olinda e como ele variou "
+        f"em relação a {month}?"
+    )
+    assert result["status"] == "needs_clarification", result
+    assert result.get("plan") is None
+    message = result["response"]["message"]
+    assert UNKNOWN_GEOGRAPHY not in message
+    assert message.startswith(GRID360_GOLD_PROFILE.clarifications.comparison_baseline)
+
+
+def test_variation_between_two_explicit_months_still_plans_the_comparison():
+    result = _plan(
+        "Como a receita em Olinda variou entre fevereiro e março de 2025?"
+    )
+    assert result["status"] == "planned", result
+    assert result["plan"]["comparison_periods"] == ["2025-02", "2025-03"]
+
+
+@pytest.mark.parametrize("question,expected", [
+    ("Qual foi a receita faturada em Recife em jun/26?",
+     "Qual foi a receita faturada em Recife em março de 2025?"),
+    ("Qual foi a receita faturada em Recife em 2026?",
+     "Qual foi a receita faturada em Recife em março de 2025?"),
+    ("Qual foi a energia faturada de clientes residenciais com GD em Recife em março de 2025?",
+     "Qual foi o consumo de clientes residenciais com GD em Recife em março de 2025?"),
+    # A troca ao lado de "versus" deixaria a comparação pela metade: sem exemplo.
+    ("Qual a receita faturada versus paga em Olinda em março de 2025?", None),
+    ("Qual foi a receita faturada em Recife?",
+     "Qual foi a receita faturada em Recife em março de 2025?"),
+])
+def test_clarification_example_is_fluent_or_absent(question, expected):
+    result = _plan(question)
+    assert result["status"] == "needs_clarification", result
+    parts = result["response"]["message"].split("\n\nExemplo de pergunta: “", 1)
+    example = parts[1].removesuffix("”") if len(parts) == 2 else None
+    assert example == expected
+    if example is not None:
+        assert "  " not in example and example.endswith("?")
+        assert _plan(example)["status"] == "planned"
+
+
+MUNICIPALITIES = [{
+    "dimension_id": "geography.municipality",
+    "values": ["Recife", "Olinda", "Jaboatão dos Guararapes"],
+}]
+ONE_AT_A_TIME = (
+    "Consulto um valor de município por vez; você citou Recife, Olinda e "
+    "Jaboatão dos Guararapes. Qual quer primeiro?"
+)
+BOTH_BOUNDS = "Informe o mês e o ano de ambos os extremos do intervalo"
+
+
+@pytest.mark.parametrize("question,expected", [
+    # "entre" introduz uma lista de locais, não um intervalo de meses incompleto.
+    ("Em março de 2025, qual município entre Recife, Olinda e Jaboatão dos Guararapes "
+     "teve a maior receita faturada?", ONE_AT_A_TIME),
+    ("Qual foi a receita faturada em março de 2025 em Recife, em Olinda e em "
+     "Jaboatão dos Guararapes?", ONE_AT_A_TIME),
+    # A lista de locais não vira intervalo nem some ao lado de um agrupamento.
+    ("Mostre a receita por classe entre Recife, Olinda e Jaboatão dos Guararapes "
+     "em março de 2025.", ONE_AT_A_TIME),
+    # "Um valor de" evita errar o gênero de dimensões femininas.
+    ("Qual foi a receita residencial e comercial em Recife em junho de 2026?",
+     "Consulto um valor de classe de consumo por vez; você citou residencial e comercial. "
+     "Qual quer primeiro?"),
+    ("Qual foi a receita faturada em março de 2025 em Recife, excluindo Olinda?",
+     "Este recorte pede exclusão; informe o valor que deseja incluir."),
+    ("Qual foi a receita faturada em março de 2025 em Recife, exceto Olinda?",
+     "Este recorte pede exclusão; informe o valor que deseja incluir."),
+    ("Qual foi a receita faturada em março de 2025 em Recife, menos Olinda?",
+     "Este recorte pede exclusão; informe o valor que deseja incluir."),
+    ("Quais UCs com GD em Olinda tiveram queda de consumo superior a 30%?",
+     "Não apresento resultados individuais por unidade consumidora (UC). "
+     "Posso mostrar totais por município, bairro ou classe de consumo."),
+    ("Qual foi a receita faturada entre janeiro e março?",
+     "De qual ano você quer consultar janeiro e março? "
+     "Se forem anos diferentes, informe o ano de cada mês."),
+])
+def test_limit_clarifications_name_the_real_problem(question, expected):
+    result = _plan(question, dimension_values=MUNICIPALITIES)
+    assert result["status"] == "needs_clarification", result
+    assert result["response"]["message"].split("\n\n")[0] == expected
+
+
+def test_incomplete_month_interval_still_asks_for_both_bounds():
+    result = _plan("Qual foi a receita faturada entre janeiro de 2025 e março?")
+    assert result["status"] == "needs_clarification", result
+    assert result["response"]["message"].startswith(BOTH_BOUNDS)
+
+
+def test_unknown_place_after_preposition_still_asks_for_geography():
+    result = _plan("Qual foi a receita faturada em Atlantis em junho de 2026?")
+    assert result["status"] == "needs_clarification", result
+    assert UNKNOWN_GEOGRAPHY in result["response"]["message"]
 
 
 @pytest.mark.parametrize("exclusion", [
@@ -122,7 +239,7 @@ def test_unknown_or_multiple_grouping_references_do_not_disappear(question):
 
 @pytest.mark.parametrize("period", [
     "no mês de março de 2025", "na competência março de 2025",
-    "em 03/2025", "em 3/2025", "em março/2025",
+    "em 03/2025", "em 3/2025", "em março/2025", "em mar/2025", "em mar. 2025",
 ])
 def test_explicit_month_notation_preserves_the_authorized_slice(period):
     result = _plan(f"Receita residencial em Olinda {period}?")
@@ -169,8 +286,8 @@ def test_whitespace_does_not_lose_metric_or_registered_filter(question):
 @pytest.mark.parametrize("question", [
     "Receita de 2025-13 a 2025-03?", "Receita de 13/2025 a 03/2025?",
     "Receita de 31/03/2025 a 03/2025?", "Receita de janeiro de 2025 até março?",
-    "Receita em 31/03/2025?", "Receita em 03/25?",
-    "Receita de 03/25 a 03/2025?", "Receita de 2025-123 a 2025-03?",
+    "Receita em 31/03/2025?", "Receita em 03/99?",
+    "Receita de 03/99 a 03/2025?", "Receita de 2025-123 a 2025-03?",
     "Receita em 10 março de 2025?", "Receita em 31.03.2025?",
 ])
 def test_invalid_or_daily_dates_cannot_be_shortened_to_a_recognized_month(question):
@@ -243,6 +360,70 @@ def test_lost_revenue_ranking_cannot_be_answered_as_lowest_monthly_total():
     assert result.get("plan") is None
 
 
+@pytest.mark.parametrize("question,value,unit,expected", [
+    ("Qual foi o ticket médio em Olinda em março de 2025?", 260.78,
+     "R$ por UC faturada no mês",
+     "Para ticket médio por UC faturada no mês, o resultado foi de "
+     "260,78 R$ por UC faturada no mês em março de 2025."),
+    ("Qual foi a tarifa média efetiva em Olinda em março de 2025?", 0.7557, "R$/kWh",
+     "Para preço médio observado por kWh, o resultado foi de 0,7557 R$/kWh em março de 2025."),
+    ("Qual foi o consumo em Olinda em março de 2025?", 1364362.0, "kWh",
+     "Para consumo medido, o resultado foi de 1.364.362 kWh em março de 2025."),
+    ("Qual foi a receita em Olinda em março de 2025?", -189630.15, "R$",
+     "Para receita faturada, o resultado foi de -R$ 189.630,15 em março de 2025."),
+])
+def test_synthesized_answer_uses_pt_br_numbers_and_keeps_acronyms(question, value, unit, expected):
+    core, request = _setup(question)
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+        assert result["status"] == "planned", result
+        plan = LogicalReadPlan.model_validate(result["plan"])
+        lookup = _lookup(plan, batch_ref=request.batch_ref)
+        lookup.evidence.records = [{"period": "2025-03", "value": value, "unit": unit}]
+        synthesis = QuestionSynthesisRequest(
+            question=question, access_scope=request.access_scope,
+            remaining_timeout_ms=35000, plan=plan, plan_fingerprint=plan.fingerprint(),
+            lookup=lookup, expected_batch_ref=request.batch_ref,
+            dimension_value_coverage=request.dimension_value_coverage,
+        )
+        response = client.post(
+            SYNTHESIS_PATH, json=synthesis.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+    assert response["status"] == "answered", response
+    assert response["answer"] == expected
+
+
+def test_comparison_keeps_sign_before_currency_and_percent_without_space():
+    question = "Compare a receita em Recife entre janeiro e março de 2025."
+    core, request = _setup(question)
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+        assert result["status"] == "planned", result
+        plan = LogicalReadPlan.model_validate(result["plan"])
+        lookup = _lookup(plan, batch_ref=request.batch_ref)
+        lookup.evidence.records = [
+            {"period": "2025-01", "value": 2000, "unit": "R$"},
+            {"period": "2025-03", "value": 979.5, "unit": "R$"},
+        ]
+        synthesis = QuestionSynthesisRequest(
+            question=question, access_scope=request.access_scope,
+            remaining_timeout_ms=35000, plan=plan, plan_fingerprint=plan.fingerprint(),
+            lookup=lookup, expected_batch_ref=request.batch_ref,
+        )
+        response = client.post(
+            SYNTHESIS_PATH, json=synthesis.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+    assert response["status"] == "answered", response
+    assert response["answer"] == (
+        "Receita faturada: R$ 2.000,00 em janeiro de 2025; R$ 979,50 em março de 2025. "
+        "Variação absoluta: -R$ 1.020,50 (-51,02%)."
+    )
+
+
 @pytest.mark.parametrize("follow_up", [False, True])
 def test_language_normalization_survives_plan_revalidation_and_synthesis(follow_up):
     question = "Receita da classe de consumo residencial em Olinda em 03/2025?"
@@ -280,8 +461,7 @@ def test_language_normalization_survives_plan_revalidation_and_synthesis(follow_
     assert "março de 2025" in response["answer"]
     if follow_up:
         assert "janeiro de 2025" in response["answer"]
-        assert "20.0 kWh" in response["answer"]
-        assert "25.0 %" in response["answer"]
+        assert "Variação absoluta: 20 kWh (25%)." in response["answer"]
     else:
         assert "R$ 120,00" in response["answer"]
 
@@ -467,3 +647,80 @@ def test_examples_respect_read_scope_and_are_omitted_without_published_periods(a
         planned = client.post(PLAN_PATH, json=payload, headers=HEADERS).json()
     assert planned["status"] == "planned", planned
     assert planned["plan"]["metric_id"] == "energy.consumption"
+
+
+@pytest.mark.parametrize("question", [
+    "Quantas UCs com solar em Olinda tiveram queda de consumo acima de 30%?",
+])
+def test_solar_example_replaces_the_qualifier_without_repeating_com(question):
+    coverage = [{"metric_id": "energy.gd_consumption_drop", "kind": "none"}]
+    result = _plan(question, extra_coverage=coverage)
+    assert result["status"] == "needs_clarification"
+    message = result["response"]["message"]
+    example = message.split("Exemplo de pergunta: “", 1)[1].removesuffix("”")
+    assert "com com" not in example
+    assert "UCs com GD em Olinda" in example
+    assert _plan(example, extra_coverage=coverage)["status"] == "planned"
+
+
+def test_gd_synthesis_preserves_initial_acronym_and_published_windows():
+    question = "Quantas UCs com GD em Olinda tiveram queda de consumo acima de 30%?"
+    core, request = _setup(question)
+    payload = request.model_dump(mode="json")
+    payload["temporal_coverage"].append({"metric_id": "energy.gd_consumption_drop", "kind": "none"})
+    with InProcessClient(_application(core)) as client:
+        result = client.post(PLAN_PATH, json=payload, headers=HEADERS).json()
+        assert result["status"] == "planned", result
+        plan = LogicalReadPlan.model_validate(result["plan"])
+        lookup = _lookup(plan, batch_ref=request.batch_ref)
+        lookup.evidence.records = [{"period": plan.window.phrase, "value": 12, "unit": "UCs"}]
+        synthesis = QuestionSynthesisRequest(
+            question=question, access_scope=request.access_scope,
+            remaining_timeout_ms=35000, plan=plan, plan_fingerprint=plan.fingerprint(),
+            lookup=lookup, expected_batch_ref=request.batch_ref,
+            dimension_value_coverage=request.dimension_value_coverage,
+        )
+        response = client.post(
+            SYNTHESIS_PATH, json=synthesis.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+    assert response["status"] == "answered", response
+    assert "Para UCs elegíveis com GD" in response["answer"]
+    assert "12 UCs" in response["answer"]
+    assert response["analysis_context"]["period"] == plan.window.phrase
+
+
+@pytest.mark.parametrize("reply", [
+    "Compare janeiro de 2025 e março de 2025",
+    "entre janeiro de 2025 e março de 2025",
+])
+def test_comparison_baseline_reply_retains_metric_and_filters(reply):
+    question = "Como a receita residencial em Olinda variou em março de 2025?"
+    pending = _plan(question)
+    assert pending["status"] == "needs_clarification"
+    result = _plan(reply, [
+        {"role": "user", "content": question},
+        {"role": "assistant", "content": pending["response"]["message"]},
+    ])
+    assert result["status"] == "planned", result
+    plan = result["plan"]
+    assert plan["metric_id"] == "billing.revenue"
+    assert plan["comparison_periods"] == ["2025-01", "2025-03"]
+    assert {f["dimension_id"]: f["values"] for f in plan["filters"]} == {
+        "geography.municipality": ["Olinda"],
+        "customer.consumption_class": ["RESIDENCIAL"],
+    }
+
+
+def test_new_question_after_comparison_clarification_does_not_inherit_metric():
+    question = "Como a receita residencial em Olinda variou em março de 2025?"
+    pending = _plan(question)
+    result = _plan("Qual foi o consumo em Recife em janeiro de 2025?", [
+        {"role": "user", "content": question},
+        {"role": "assistant", "content": pending["response"]["message"]},
+    ])
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "energy.consumption"
+    assert result["plan"].get("comparison_periods") is None
+    assert result["plan"]["filters"] == [{
+        "dimension_id": "geography.municipality", "operator": "eq", "values": ["Recife"],
+    }]

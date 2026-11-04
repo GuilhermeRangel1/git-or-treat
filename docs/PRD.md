@@ -3710,3 +3710,181 @@ passaram; Ruff passou. Sem chamada externa.
 - PR #114 integrado à develop por Create a merge commit `ef3a625`, após cinco checks GitHub aprovados. Seis commits individuais preservados, incluindo correções de vigência e SDK opcional; sem squash/rebase.
 - Branch `feat/genai-memoria-conversas-longas` / PR #113 recebeu develop via merge `5a2dc82`, com os três conflitos resolvidos preservando imports e progresso das duas entregas. Ajuste de integração distingue memória Gold e documental, reexecuta pergunta conceitual vigente, preserva ordinais, descarta contexto numérico implícito após conceito e mantém retomadas sucessivas. Sem migração, novas fontes ou retenção.
 - Backend dirigido 95 passaram; GenAI dirigido 192 passaram; Ruff, corpus --check e diff passaram. Prova entre processos com fonte/modelo controlados percorreu rota, histórico, coordenação e núcleo em três respostas documentais auditadas. Não houve nova rodada Gemini/portal nem nova homologação Gold real. Contrato e resultados em [memória](contracts/genai-long-conversation-memory.md) e [evidência](plans/2026-11-03-genai-memoria-conversas-longas.md). Estados oficiais IA preservados.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — início dos gráficos e insights visuais
+
+- Estados oficiais preservados. Adicional em desenvolvimento na branch feat/genai-graficos-insights-visuais, base develop 77fa425; primeira fatia para feedback, sem aceite integral do cartão.
+- Modal do Panorama apresenta comparação em barras e tabela com os valores já carregados, antes da síntese; PNG/CSV usam os mesmos pontos. Chat troca acordeão por metadados visíveis, preservando citações.
+- Verificação: 32 testes dirigidos, build, lint (aviso anterior AuthProvider), fronteiras e Chromium com dados artificiais em 320/390/1440 px e ambos os temas passaram; downloads exercitados. Sem chamada Gemini ou reconciliação Gold nova.
+- Pendentes: contrato de pontos do chat, demais tipos, interpretação ampliada, latência, histórico/cache/autorização integrados e aceite Gold. [Plano e evidência](plans/2026-11-03-genai-graficos-insights-visuais.md). Sem commit/push nesta rodada.
+
+
+### 2026-11-03 — IA-04 — distribuição visual do recorte do Panorama
+
+- Adicional em desenvolvimento: Backend publica distribuição opcional por município/classe na mesma fonte e filtros. Modal exibe rosca quando as parcelas observadas fecham com total positivo; demais casos usam barras. Sem certificar cobertura mensal ou ampliar permissões.
+- 50 testes Backend (HTTP sintético e snapshot SQL), 23 frontend, build/lint/fronteiras e Chromium com snapshots artificiais e downloads em 320/390/1440 px e dois temas passaram. Sem benchmark ou reconciliação privada desta fatia.
+- Estados oficiais preservados. Chat quantitativo, demais formatos, memória/cache e aceite integrado pendentes. [Contrato](contracts/genai-visual-evidence.md). Branch feat/genai-graficos-insights-visuais, sem commit/push.
+
+
+### 2026-11-03 — IA-04 — volume e legibilidade dos gráficos adicionais
+
+- Feedback visual aplicado: gráficos compactados, legenda com rolagem no celular e visual top 5 + Demais calculado no Backend. Lista completa preservada (até 1000 grupos), tabela de 20 linhas/página e CSV completo.
+- Gold local: contagem somente leitura confirmou 14 municípios no diagnóstico e no mês mais recente. Validação visual usa fontes artificiais de 14/200 grupos; 52 testes Backend e 25 frontend, build/lint/fronteiras e Chromium em três larguras e dois temas passaram, com downloads e paginação. Sem chamada Gemini ou benchmark/reconciliação privada dessa fatia.
+- Estados oficiais e aceites integrais permanecem inalterados. [Contrato e evidência](contracts/genai-visual-evidence.md). Sem commit/push.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — gráficos do chat e downloads verificados
+
+- Campo opcional versionado do chat deriva pontos da evidência autorizada, com período/unidade/filtros/publicação/precisão conferidos; gráfico fornecido pela GenAI é recusado. Componente compartilhado apresenta barras, ranking, linhas e distribuição válida do Panorama; escalar, zero/nulo e lacunas conservam significado. Metadados do chat ficam visíveis, sem SQL/infraestrutura.
+- PNG/CSV nos dois consumidores revalidam sessão, permissão e publicação no servidor; estado local também impede exportação após troca de conta/lote ou desmontagem. CSV inclui alcance/ranking; PNG de série extensa usa até 3600px e metadados em linhas. Histórico confere origem/escopo antes de restaurar gráfico.
+- Verificação: 154 testes Backend e 59 frontend passaram; build, Ruff dos arquivos novos, fronteiras e diff limpo. Lint sem erro, aviso anterior AuthProvider. Chromium: chat/modal/tabelas/downloads,14/200 grupos, série de 24 pontos, até quatro larguras e dois temas, acesso negado, movimento reduzido e Escape/foco. Revisões de padrões/especificação encontraram período divergente, alcance ausente no CSV e PNG estreito; corrigidos/revalidados.
+- Reconciliação independente somente leitura com Gold local: três distribuições (14/14/5 grupos) e recorte específico sem expansão passaram. Participação indisponível nesses recortes não vira rosca. Não houve nova chamada Gemini nem jornada do novo chat com modelo/Gold reais. Serviços existentes não foram reconstruídos. [Contrato](contracts/genai-visual-evidence.md), [comandos, evidências e limites](plans/2026-11-03-genai-graficos-insights-visuais.md).
+- Quatro dos 18 critérios têm aceite técnico local (metadados, PNG, CSV e pt-BR); cartão continua em desenvolvimento. Pendentes apresentação progressiva do chat, leitura ampliada, benchmark e aceite integrado restante. Estados oficiais IA preservados; sem commit/push. Correções de DEC503/avisos de consumo da colega não foram incluídas.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — entrega progressiva e aceite técnico dos gráficos
+
+- Complemento ainda sem commit/push na mesma branch: rotas existentes negociam NDJSON, entregando dados consultados/auditados/revalidados antes da síntese, sem repetir SQL/modelo. JSON anterior preservado. Cancelamento antes/depois da prévia, troca de contexto e validação limitada de eventos/bytes; falha do modelo mantém dados apenas após confirmar acesso/publicação. Falha do desenho conserva tabela/CSV.
+- Leitura ampliada determinística e ligada a IDs de observação: diferença, percentual com base válida, pico/extremos e próximo passo sem causa presumida. Fonte sanitizada conferida contra origem exata; controles/aditividade/cobertura preservados. Nenhuma nova métrica ou permissão.
+- Verificações finais:162 testes Backend e95 frontend passaram; build/formatação/lint/fronteiras e diff limpo. Lint só com aviso anterior AuthProvider; apontamentos legados do Panorama não ampliados. Revisão corrigiu disconnect antes do primeiro dado e revalidou; sem outro bloqueio concreto encontrado.
+- Gold/Gemini reais com ambos os serviços da branch: total mensal, comparação e série de seis meses passaram; todos os pontos reconciliados com SQL independente no leitor dedicado. Portal real: gráfico/tabela/PNG/CSV/recarga, sem erro JavaScript; CSV igual a pontos/SQL. Histórico/acompanhamento/conceito/retomada: quatro respostas e três gráficos restaurados. Conta/conversas temporárias removidas ao fim; aplicação principal preservada.
+- Latência exploratória3+3 da mesma comparação: primeiro resultado p50 JSON15,792s e progressivo14,153s; completo p50 respectivamente15,792s e16,069s. Amostra pequena, sem SLA/garantia de ganho total. Logs da GenAI isolada:14 correlações com uma chamada real por correlação. Chromium quatro larguras/dois temas/zoom200%/teclado/árvoreARIA passou.
+- Matriz técnica local17/18 no [relatório](plans/2026-11-03-genai-graficos-insights-visuais.md): implementação/validação contempladas; último critério, registro das evidências no PR, aguarda publicação dos complementos. Não marcar18/18 apenas pelo relatório local. Estados oficiais IA e aceite de Dados preservados. [Contrato atualizado](contracts/genai-visual-evidence.md).
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — publicação dos gráficos e Docker local
+
+- Evidências de implementação/validação publicadas no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), para develop, preservando os commits e sem merge. Matriz técnica local18/18; o último critério exigia registrar as evidências no PR, agora atendido. Estados oficiais IA e homologação de Dados preservados.
+- Complementos de Backend6772a10 e frontend399fdb5 publicados após revisão. Relatório/contratos/guias atualizados com os162/95testes, reconciliação Gold/Gemini, portal real, histórico/memória, limites de cobertura e benchmark exploratório.
+- Docker reconstruído desta worktree para localhost5173: IA saudável, Backend/portal200, Gold e chave configuradas sem expor segredos. Nova consulta autenticada na composição reconstruída confirmou dados antes da síntese e dois pontos iguais ao final; conta temporária removida. Volume Gold preservado e loader não reexecutado. .dockerignore exclui configuração privada e artefatos locais.
+
+
+### 2026-11-03 — IA-03 / IA-04 / IA-05 — sincronização do PR116
+
+- Branch de gráficos sincronizada por merge normal com develop6fc93de, preservando os commits do PR115 e da GenAI, sem squash/reescrita. Integração sem conflitos de conteúdo; PR116 continua aberto, sem merge na develop.
+- Árvore integrada:186 testes Backend na imagem Docker limpa e153 frontend passaram, incluindo regressões dos módulos recebidos; build/fronteiras passaram. Backend reconstruído com as dependências já versionadas na develop; localhost5173/health8000 continuaram200, IA saudável e volume Gold intacto. Evidência e limites permanecem no relatório dos gráficos.
+
+
+### 2026-11-03 — IA-04 — leitura imediata e estabilidade do insight
+
+- Integração executável local na branch `feat/genai-graficos-insights-visuais`, ainda sem novo commit: leitura calculada dos indicadores/distribuição assim que o Panorama chega. A hipótese continua identificada como geração da IA e chega depois; falha recuperável preserva leitura e nova tentativa. Contexto inválido não reapresenta interpretação antiga.
+- Sínteses respondidas vinculadas ao contexto são reutilizadas por 120 s, até 64 entradas em memória por processo. Chave: tela, evidência, limitações, lote e escopo/identidade completos; só o saldo transitório de prazo é excluído. Cada requisição mantém prontidão, autorização, leitura e publicação atuais e nova auditoria; falhas não entram no cache. Reiniciar o Backend limpa o cache. Navegador cancela em 70 s e na troca de recorte, com limpeza de timer/listener.
+- Antes: respostas reais em 44,540 s e 40,824 s. Perfil separado: total 49,565 s, prontidão 14,353 s, snapshot 0,020 s, síntese 35,060 s. Depois, reutilizações em 13,060 s e 13,630 s, `answered`, com observações/hipótese iguais e auditorias distintas. A rodada inicial pós-alteração teve falha recuperável em 29,512 s e resposta em 36,765 s; o provedor continua variável. Amostra exploratória, sem alegação de SLA.
+- Chromium no localhost: leitura visível com IA deliberadamente pendente em 4.967 ms (390 px) e 2.224 ms (1440 px); zero erros JavaScript. Interceptação controlada prova apresentação; medições API acima usaram Gold/Gemini reais, sem publicar payloads ou segredos.
+- Verificações: Backend `test_genai_client.py`, `test_gold_panorama_coordination.py`, `test_ai_insights.py`: 71 aprovados; frontend `GoldInsight`, `InsightInvalidation`, `PanoramaInsight`, `InsightFilterScope`: 14 aprovados. Build, fronteiras (218 arquivos), Ruff direcionado e `git diff --check` passaram; lint mantém aviso preexistente do AuthProvider. Estados obrigatórios do PRD preservados.
+
+
+### 2026-11-03 — IA-04 — competência e comparação explícitas no insight
+
+- A inspeção do fluxo não reproduziu envio de outra competência: filtros da URL, chave da consulta e contexto validado acompanham mês/comparação. A ambiguidade visual existia: comparação sem valor anterior não mostrava o mês solicitado; a leitura durante a espera priorizava distribuição territorial, mesmo com variação temporal válida.
+- O cartão e o modal agora identificam o mês solicitado na comparação indisponível. A leitura imediata prioriza variação temporal quando calculada. O consumidor confere também o valor do período anterior contra o KPI antes de aceitar a síntese; datas/filtros continuam sujeitos às guardas existentes. O gráfico recebe explicitamente a origem Gold e seus botões são identificados como janela do gráfico (a síntese mensal segue os filtros da página).
+- Chromium no portal real, usando Ajustar filtros → Aplicar: maio/2026 com abril, junho com junho/2025, junho sem comparação e junho com maio. Payload do insight e rótulo visível coincidiram nos quatro casos; zero erros JavaScript. A síntese foi mantida pendente por interceptação para provar atualização imediata, sem novas chamadas Gemini nesta verificação.
+- Regressões: 72 testes Backend (transporte/cache/coordenação/insights) e 21 frontend (cartão, invalidação, filtros e série) aprovados; build, Ruff direcionado e diff-check passaram. Cache testado também com comparação diferente. Alterações locais sem commit/push; estados obrigatórios preservados.
+
+
+### 2026-11-03 — IA-04 — concentração e próximo passo sem espera pelo modelo
+
+- O trecho “segmento concentra X% da receita observada” e o próximo passo ainda dependiam de a síntese terminar para aparecer nesse formato. A resposta inicial do Panorama agora inclui `distribuicao.composicaoReceita`, calculada no Backend sobre os mesmos grupos já lidos, sem nova consulta SQL nem chamada Gemini. `revenue_composition_from_groups` é compartilhado com a síntese; o consumidor valida dimensão, maior segmento, valor e percentual contra o conjunto reconciliado e usa os mesmos formatadores do cartão final.
+- Durante a espera, cartão e modal apresentam essa leitura e o próximo passo. A hipótese complementar continua separada e depende da IA. Zero, valores negativos, soma incompatível e grupos fora do limite não produzem concentração. A condição de cobertura mensal e as regras de comparação permanecem as existentes.
+- Chromium no localhost com Gold real e chamada IA interceptada: texto de concentração e próximo passo visíveis em 2.280 ms (390 px) e 2.237 ms (1440 px), ambos com IA ainda pendente; zero erros JavaScript. Isso comprova a antecipação do trecho apontado, sem afirmar redução da latência do provedor.
+- Verificações: 59 testes Backend (`test_panorama_current_composition`, `test_panorama_distribution`, `test_gold_panorama_coordination`, `test_panorama`) e 26 frontend (`GoldInsight`, `distributionContract`, `panoramaContract`, `PanoramaInsight`, `InsightInvalidation`) aprovados; build/fronteiras e Ruff dos serviços passaram. O schema Panorama mantém quatro avisos UP045 anteriores, sem novo problema funcional. Complemento local sem commit/push.
+
+
+### 2026-11-03 — IA-04 — insight pronto permanece durante revalidação
+
+- Retorno à janela/refetch do mesmo insight Gold respondido confere acesso/publicação pelo endpoint existente de verificação e reutiliza a análise em memória, sem repetir Gemini. A chave agora também inclui valores atual/anterior e unidade. A verificação tem limite de 8 s, cancelamento e escopo de bairro quando utilizado; troca de recorte/identidade/publicação mantém as invalidações existentes.
+- O cartão e o modal mantêm a análise durante essa conferência. Falha de transporte/5xx preserva a última análise com aviso discreto de atualização pendente; 401/403/409 e contexto inválido continuam ocultando-a. A leitura calculada dos indicadores continua independente da primeira geração. Cache não é persistido em navegador/banco.
+- Chromium com sessão local e insight Gold/Gemini real: uma geração, três conferências (200 real, 503 e 403 controladas). Conteúdo permaneceu nos dois primeiros casos e foi ocultado na recusa; nenhum segundo POST de geração ocorreu. Sem publicar números, mensagens, credenciais ou payloads.
+- Frontend: 16 testes direcionados (`GoldInsight`, `InsightInvalidation`, `PanoramaInsight`, `InsightFilterScope`) e build passaram; fronteiras (218 arquivos) e diff-check passaram; lint mantém só o aviso preexistente do AuthProvider. TanStack Query v5: comportamento de revalidação/erro conferido via Context7 na documentação/código oficial (`tanstack/query`, query.ts), preservando os controles de negócio no consumidor. Complemento local sem commit/push.
+
+
+### 2026-11-03 — publicação dos complementos de latência e estabilidade
+
+Os complementos locais acima foram preparados para publicação na mesma branch do PR #116: `ee77230` (reuso de síntese), `33a030c` (concentração antecipada) e `80ac907` (consumidor estável e recorte). As referências anteriores a ausência de commit descrevem o estado durante as validações. Esta atualização documental integra o quarto commit autorizado; segredos, credenciais, scripts privados de navegação e artefatos locais permanecem fora do Git. O push não equivale a merge nem a aprovação da CI remota.
+
+### 2026-11-03 — IA-01 / IA-02 / IA-03 / IA-05 — perguntas e apresentação dos gráficos
+
+- Correção executável local na mesma branch dos gráficos, ainda sem novo commit/push: removido bloqueio legado de “mês a mês”; consumo medido admite agrupamento por município/classe/bairro nas fontes já autorizadas. Datas, cobertura, permissões, comparação agrupada e limites permanecem validados no núcleo e no Backend, sem nova credencial ou concessão.
+- Respostas por categoria resumem os agregados consultados; comparação usa números pt-BR e meses legíveis, sem rótulos técnicos de observações derivadas. Runner de aceites atualizado para o formato, mantendo teste de meses trocados. Gráficos categóricos mostram os dez maiores valores por padrão, respeitam ordenação explícita e preservam todos os grupos na tabela/CSV. Barras alinhadas à esquerda.
+- Cinco perguntas reportadas repetidas na API pública com Gold v2 e Gemini reais: série de seis meses, receita por classe, ranking municipal de consumo, distribuição municipal da receita e comparação de dois meses. Todas `answered` com `data → complete`; os 41 pontos retornados, inclusive prévia/final, bateram com SQL independente no leitor restrito. Tempos completos observados: 15,8–18,8 s; amostra exploratória, sem SLA.
+- Chromium no portal real confirmou a resposta final do ranking, alinhamento em 320/390/1440 px e dois temas, tabela de 14 municípios e PNG/CSV; zero erros JS. Uma reprodução adicional do retorno já reconciliado gerou captura, sem nova chamada de modelo. Conversas criadas nos testes removidas; demais conversas e dados preservados.
+- Verificações: 349 regressões GenAI, 36 do runner, 30 Backend e 44 frontend aprovadas; build, fronteiras (218 arquivos), Ruff direcionado e `git diff --check` passaram. Lint frontend mantém só aviso anterior do AuthProvider. Docker local reconstruído com o código final; contratos/guia/evidência atualizados. Estados oficiais IA e cobertura de Dados preservados.
+
+### 2026-11-03 — correção da validação documental do PR116
+
+- No head publicado `9822087`, GenAI, Backend, Frontend e Docker Compose passaram; “CI Documentação e configuração” falhou por um link do guia Backend para `0005-backend-python=312-alpine.md`, introduzido em `86d2975`. Caminho corrigido para o arquivo existente `0005-backend-python312-alpine.md`.
+- O mesmo bloco Python do workflow foi executado em cópia limpa dos arquivos versionados com as alterações locais: configurações válidas, seis imports de instruções presentes e links conferidos em 167 documentos. Correção local ainda sem commit/push; não afirma nova execução remota aprovada nem altera estados funcionais.
+
+### 2026-11-03 — IA-05 — indicador de consulta e interpretação
+
+- O aviso do Assistente agora distingue consulta dos dados e preparação da análise pela chegada da prévia. Ao encerrar a interação, resposta/erro final e indicador usam o mesmo ciclo de envio; lateral acompanha essa fase. Nova conversa e abertura do histórico limpam o estado, preservando o descarte de callbacks antigos e o bloqueio de envios simultâneos.
+- `AssistentePage` e `AssistenteSession`: 33 testes passaram, com transição consulta → interpretação → final e erro/recusa. Chromium no portal local, repetindo o retorno Gold já reconciliado sem nova chamada Gemini, confirmou resposta final sem avisos pendentes, lateral pronta, tabela/PNG/CSV e zero erros JS. Build/fronteiras passaram; lint só com aviso preexistente do AuthProvider. Mudança local ainda sem commit/push; estados oficiais preservados.
+
+
+### 2026-11-03 — IA-07 — escolha de gráficos no Assistente
+
+- Correção local: o chat aceitava somente barras e linha, embora a rosca já existisse no Panorama. Backend e decoder passam a aceitar rosca nas distribuições de receita/consumo de uma competência, sem ranking, com valores não negativos, soma positiva e resultado inferior ao limite do plano. Ranking permanece em barras e evolução contínua em linha.
+- Portal reaproveita a rosca existente, agrupa cinco maiores + Demais quando há mais de seis categorias e conserva todos os valores na tabela/CSV. Sem nova chamada ao modelo para desenhar ou selecionar gráfico; estados oficiais e cobertura de Dados preservados.
+- Verificações: 36 testes Backend e 47 frontend passaram; build, fronteiras, Ruff e diff passaram; lint somente com aviso preexistente de AuthProvider. Cinco consultas Gold v2/Gemini reais geraram linha, duas roscas, ranking horizontal e comparação vertical; 41 pontos reconciliados com SQL independente. Chromium repetiu a resposta real reconciliada em 320/390/1440 px, claro/escuro, seis setores/14 linhas, PNG/CSV e sem erros JS; conversa do teste removida. Detalhes no plano de gráficos. Sem commit/push nesta fatia.
+
+
+### 2026-11-03 — IA-05 / histórico — simplificação da conversa salva
+
+- Por solicitação da pessoa usuária, removidos o aviso de respostas salvas e a opção “Retomar com dados atuais” ao abrir histórico. O envio normal segue disponível, sem ativar atualização explícita de contexto. O aviso específico de envio interrompido continua quando aplicável.
+- Removido o estado de interface exclusivo da opção e atualizado o teste de restauração/novo envio. Mudança local na mesma branch de gráficos; sem commit/push.
+
+
+### 2026-11-03 — IA-01 / IA-07 — divisão entre classes sem falso intervalo temporal
+
+- Interpretador reconhece “entre as classes”/“entre os municípios” como agrupamento pelas dimensões autorizadas e retira apenas essa referência da checagem de intervalo temporal. Um intervalo realmente incompleto ainda pede esclarecimento. Sem alteração no escopo, evidência, SQL ou permissões.
+- 334 regressões de interpretação, filtros, períodos, receptividade e planejamento passaram. A pergunta exata “Como a receita faturada de Olinda se divide entre as classes em junho de 2026?” retornou answered com rosca e cinco pontos pela API pública com Gold v2/Gemini reais; todos reconciliados com SQL independente somente leitura. Imagem GenAI reconstruída e aplicada no Docker local; Ruff e diff passaram. Sem commit/push.
+
+### 2026-11-03 — publicação das correções de perguntas, gráficos e histórico
+
+Os três grupos autorizados foram commitados na mesma branch do PR #116: 440b249 fix(ai-agent): interpreta agrupamentos e séries nas consultas Gold; fae2d53 feat(assistente): apresenta distribuições autorizadas em rosca; 8bcc982 fix(assistente): sincroniza progresso e simplifica o histórico. Este registro acompanha a correção documental da ADR-0005. As notas anteriores de ausência de commit descrevem as etapas de validação; os quatro commits estão preparados para push, com verificações observadas registradas nos respectivos corpos. Arquivos privados e segredos permanecem fora do Git. CI remota e merge continuam posteriores à publicação.
+
+
+### 2026-11-03 — IA-04 / IA-07 — composição setorial e leitura contextual do Panorama
+
+- Ajuste de apresentação na branch `feat/genai-graficos-insights-visuais`: o modal deixa de repetir o total/comparação temporal como gráfico. Prioriza principais pontos e conserva apenas rosca de composição válida por município/classe, com tabela e exportações existentes. Recortes sem partição positiva válida não ganham percentuais artificiais.
+- Cartão e modal apresentam valores inicial/final e diferença, além do percentual fornecido pela API. A leitura distingue base zero, estabilidade, ausência de comparação e concentração; composição não oculta a tendência quando ambas existem. Recomendações consideram os filtros já selecionados. Usa os mesmos indicadores/análise autorizados, sem nova chamada ao modelo ou cálculo de métrica no navegador.
+- Verificações: 26 testes passaram em `InsightPresentation.test.tsx`, `GoldInsight.test.tsx`, `PanoramaInsight.test.tsx` e `VisualEvidence.test.tsx`; build, fronteiras em 219 arquivos e lint passaram (lint mantém o aviso anterior em AuthProvider.tsx:108). Chromium: três recortes Gold reais, com competência/comparação/filtros distintos, em 1440/390/320px, sem transbordamento ou erros JS; esses recortes não forneceram partição elegível e mantiveram texto sem gráfico. Rosca e tabela conferidas separadamente com fixture demonstrativa nos dois temas e três larguras. Os erros iniciais de preâmbulo/import React pertenciam ao probe isolado; corrigidos sem mudança de produção.
+- Estados oficiais IA preservados; conferência de UI não homologa cobertura da fonte. Arquivos privados de captura/probe ignorados. Alteração local, sem commit/push nesta rodada; evidência vinculada ao cartão de gráficos.
+
+
+### 2026-11-03 — IA-05 / IA-07 — quatro sugestões para explorar gráficos
+
+- As quatro perguntas iniciais do Assistente passam a oferecer distribuição de receita por município (rosca), ranking municipal de consumo (barras horizontais), comparação de consumo entre janeiro/junho (barras verticais) e evolução mensal de janeiro a junho (linha). São as mesmas formulações exercitadas com Gold v2/Gemini e reconciliadas anteriormente nesta branch; o tipo continua condicionado ao resultado autorizado, sem forçar visualizações.
+- Mantidos quatro botões, envio existente e FAQ sem repetição das sugestões iniciais. Testes existentes da página atualizados: página/FAQ tiveram 32 testes aprovados. Alteração local, sem commit/push.
+
+
+### 2026-11-03 — IA-04 / IA-07 — blocos exportáveis sem resumo duplicado
+
+- Por refinamento solicitado, restaurados os blocos de total/comparação e distribuição com tabela/download no modal. Removido somente o resumo superior “Dado observado”, que repetia o total. Distribuição volta a usar rosca ou barras conforme os dados autorizados; a restrição anterior a somente rosca está superada. Textos aprimorados, recomendações e quatro sugestões de gráficos do chat preservados.
+- 26 testes de apresentação/insight/visualização passaram após atualizar as expectativas do modal; build e fronteiras (219 arquivos) passaram, lint conserva somente o aviso anterior em AuthProvider.tsx:108. `git diff --check` passou. Sem commit/push nesta rodada; estados oficiais preservados.
+
+- Conferência final no Chromium: recortes Gold em 1440/390/320px mostraram blocos exportáveis, ausência do resumo superior duplicado e nenhuma falha temporária ou transbordamento horizontal. Distribuição em barras reapareceu nos recortes elegíveis; município/classe específicos conservaram somente o total exportável, sem fabricar grupos.
+
+### 2026-11-03 — publicação dos refinamentos do modal e das sugestões
+
+Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leitura) e a92d85b (sugestões de gráficos). As notas anteriores de ausência de commit descrevem etapas históricas. Este registro documental acompanha o terceiro commit, com publicação no PR #116 e CI posterior ao push.
+
+
+### 2026-11-03 — IA-03 / IA-04 — expectativas de apresentação no CI dos gráficos
+
+- Ajustados somente testes de síntese e sessão PostgreSQL ao formato numérico vigente; valores, unidades e sinais continuam conferidos. GenAI completo: 4.344 passaram, 4 skips; prova integrada PostgreSQL corrigida: 1 passou. Estados dos requisitos preservados. Detalhes e limites em [evidências dos gráficos](plans/2026-11-03-genai-graficos-insights-visuais.md).
+
+
+### 2026-11-03 — IA-01 / IA-02 / IA-03 — integração local da consistência do chat
+
+- Resolvidos conflitos da branch de consistência com a develop, preservando os gráficos, comparações e formatação pt-BR. Corrigidos exemplo solar com “com com GD” e título “uCs”. GenAI: 4.432 passaram, 4 skips; Backend PostgreSQL: 1.211 passaram, 14 skips.
+- Rodada ampliada Gold v2/Gemini: 33 solicitações, 14 respostas numéricas reconciliadas, 15 esclarecimentos, 2 recusas e 2 falhas transitórias iniciais rechecadas com sucesso. Continuação de comparação que perde indicador e desambiguação de Recife continuam pendentes; não se declara precisão geral nem conclusão dos requisitos. [Evidências e limites](plans/2026-11-03-pr117-integracao-consistencia.md). Alterações ainda locais.
+
+- Complemento da revisão local: corrigida continuação da comparação após resposta com dois meses, preservando indicador/filtros e isolamento de pergunta nova. GenAI final: 4.435 passaram, 4 skips; diálogo Gold/Gemini real respondeu e reconciliou com SQL independente, com gráfico. A ressalva anterior de perda de indicador é histórica para esse caso; a desambiguação de Recife permanece. Sem publicação nesta rodada.
+
+- Ampliação posterior de IA-01/02/03/07: preposições de local seguem a preferência municipal já existente, ambiguidade oferece escolhas explícitas, mês/ano curto usa somente ano inequívoco da cobertura, trimestre com ano vira janela mensal e “comparando” reconhece comparação. “Mês anterior” preserva os filtros do antecedente mensal. Receita por bairro reutiliza fonte autorizada; rankings conservam dimensão/direção/limite. GenAI completo: 4.475 passaram, 4 skips; Ruff aprovado. Rodada adicional Gold v2/Gemini real: 18 solicitações, 13 respostas numéricas reconciliadas com SQL independente, 4 esclarecimentos e 1 recusa, todas com referência de auditoria e contas temporárias removidas. O trimestre retornou série mensal; a expectativa inicial de soma do roteiro foi corrigida para esse contrato. Revisões Standards/Spec sem achados materiais. Estados oficiais preservados, sem nova homologação de cobertura ou alegação de precisão geral; alterações locais sem publicação. Detalhes e limites no plano do PR117.
+
+- Conferência final: publicação das respostas coincide com a capturada pelo leitor restrito para SQL independente. Após tornar a regressão de ranking explícita quanto ao ID da dimensão, os 36 testes de variações passaram; Ruff de código/testes e `git diff --check` também passaram. Nenhum novo commit ou push nesta rodada.
+
+- Consolidação para publicação no PR #117: aproveitado o merge remoto `ff6e7aa` da Laura, preservando seus ajustes de calendário, percentuais e reconciliação de moeda negativa. As melhorias desta revisão ficam em um commit complementar, sem duplicar o merge. Revalidação Linux do conteúdo combinado: 4.478 testes passaram, 4 skips; Ruff e compileall passaram. Estados oficiais preservados; nenhuma nova chamada externa ou alteração de cobertura. Evidências e limites no plano de integração da consistência.

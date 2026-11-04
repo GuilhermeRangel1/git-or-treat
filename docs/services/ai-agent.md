@@ -35,6 +35,8 @@ O ingresso Backend deve aceitar prompt v4 antes de implantar a GenAI v4; eventos
 
 ## Duas formas de IA obrigatórias
 
+Revisão do PR #117 (03/11/2026): notação mensal com ano curto depende de um único ano compatível na cobertura autorizada; trimestres com ano são intervalos de meses completos e continuam sujeitos ao gate temporal. `comparando` preserva os dois extremos; “mês anterior” só herda um antecedente mensal inequívoco. Local com `de/do/da` segue a preferência municipal de `em`, preservando qualificadores explícitos; homônimos sem qualificador oferecem escolha. Ranking de receita por bairro reutiliza a fonte autorizada existente. Implementação, provas e limites em [integração da consistência](../plans/2026-11-03-pr117-integracao-consistencia.md); sem afirmação de cobertura universal.
+
 Operação local Gold v2 (GENAI-15): diagnóstico autenticado em `/api/v1/internal/runtime-status` distingue configuração de geração e liveness; o Backend executa `scripts/check_genai_runtime.py` para conferir banco, papel, publicação, catálogo e auditoria. Logs operacionais contêm somente correlação, tempos/fila e tokens, sem prompt/evidência. O loader exige credencial própria. [Runbook, critérios, carga, custo estimado e falhas observadas](../plans/2026-11-02-genai15-operacao-gold.md).
 
 1. **Agente conversacional Text-to-SQL no portal:** interpreta português cotidiano, consulta Gold e devolve resposta clara, numérica e fundamentada.
@@ -223,7 +225,7 @@ O perfil classifica os campos de evidência por papel, tipo e sensibilidade. A m
 
 `ExecutionController` mantém um prazo total por chamada, prazos separados para fonte e modelo, contadores de chamadas e semáforos compartilhados pela instância do serviço. A espera por vaga consome o prazo. Os padrões são 30 s por solicitação, 10 s para fonte e 20 s para modelo, uma consulta à fonte, até três tentativas de modelo na cadeia, 16 solicitações, 8 fontes e 8 modelos simultâneos por processo. Todas essas opções têm limites de configuração em `Settings` e aparecem no `.env.example`. Prazo ou contagem excedidos geram `limit_exceeded` com `retryable: false`; cancelamento externo propaga para a chamada assíncrona em andamento e libera a vaga. O SDK Gemini recebe timeout próprio e desativa suas tentativas implícitas; o cliente `httpx` do Groq usa o mesmo `GENAI_MODEL_TIMEOUT_MS` e não repete chamadas. Cancelar uma coroutine não comprova que um cliente síncrono ou operação remota interrompeu trabalho; isso deve ser verificado na integração concreta.
 
-O fallback avança somente após `ModelProviderUnavailable`, até o máximo configurado e dentro do prazo total. A pausa entre tentativas pode ser configurada e é limitada a cinco segundos; recusa, resposta inválida e erro inesperado não abrem outro caminho.
+O fallback avança somente após `ModelProviderUnavailable` (429, 5xx, timeout e rede), até o máximo configurado e dentro do prazo total. Como a cota gratuita do Gemini é por modelo, um modelo esgotado em 429 pode ser coberto pelo próximo modelo da cadeia. A pausa entre tentativas pode ser configurada e é limitada a cinco segundos; recusa (por exemplo, 404 de modelo inexistente), resposta inválida e erro inesperado interrompem a cadeia em vez de abrir outro caminho. A causa de cada falha aparece no log `genai_provider_failure`, nos campos `kind` e `status`. `python scripts/check_models.py` confere a cadeia configurada com uma chamada real por modelo, que consome cota; `--list` só mostra a cadeia, sem chamadas.
 
 A cadeia pode atravessar provedores. `GENAI_MODEL_PROVIDER` escolhe o principal (`unavailable`, `gemini` ou `groq`), e `GENAI_MODEL_FALLBACK_PROVIDERS` lista, em ordem, os provedores tentados depois dele (`gemini` e/ou `groq`, por vírgula ou lista JSON), sem repetir provedor nem incluir o principal. Com `GENAI_MODEL_PROVIDER=gemini`, `GENAI_GEMINI_FALLBACK_MODELS=gemini-3.6-flash` e `GENAI_MODEL_FALLBACK_PROVIDERS=groq`, a ordem é Gemini principal, Gemini secundário e Groq (`GENAI_GROQ_MODEL`, chave em `GENAI_GROQ_API_KEY`). Os modelos secundários do Gemini só entram quando ele é o principal. Cada provedor da cadeia exige sua chave, e o total de modelos, somando todos os provedores, precisa caber em `GENAI_MODEL_MAX_CALLS`; a factory recusa a configuração na inicialização. O adaptador Groq usa a API compatível com OpenAI em JSON mode, com o esquema de `GeneratedAnswer` no prompt de sistema, e classifica erros como o do Gemini: 429, 5xx, timeout e rede são indisponibilidade; os demais 4xx são rejeição definitiva; saída vazia ou fora do esquema é resposta inválida. Instale com o extra `groq` (`python -m pip install -e ".[groq]"`).
 
@@ -531,6 +533,10 @@ entidades. Exemplos continuam sujeitos ao mesmo recorte e política; sem candida
 fiel, não se sugere um total mais amplo. Fonte ausente continua indisponível.
 Contrato, medições, comparação isolada com Gemini e evidências reais em
 [entendimento e recuperação](../plans/2026-11-03-genai-entendimento-perguntas.md).
+
+## Perguntas para gráficos — 03/11/2026
+
+O perfil Gold v2 aceita “mês a mês” e “por mês” nas janelas mensais resolvidas com cobertura. Consumo medido pode ser agrupado por município, classe e bairro usando as dimensões/fontes já aprovadas; comparação agrupada continua restrita à capacidade de bairro. Recortes diários/semanais e cobertura ausente mantêm esclarecimento. Exemplos, contrato visual e limites em [evidência visual](../contracts/genai-visual-evidence.md). Respostas numéricas reais usam formatação pt-BR; a comparação liga valores aos meses solicitados, e o resumo de grupos não depende do subconjunto de IDs escolhido pelo modelo.
 
 ## IA-07 — acompanhamento natural
 
