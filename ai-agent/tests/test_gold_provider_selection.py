@@ -21,6 +21,29 @@ from .test_gold_planning_http import HEADERS, PLAN_PATH, SYNTHESIS_PATH, _applic
 from .test_gold_question_filters import _setup
 
 
+def test_gold_screen_uses_minimal_selection_without_query_provenance():
+    from pydantic import ValidationError
+
+    from app.generation.selection import parse_answer, response_model
+    from app.schemas.evidence import EvidenceReference, EvidenceResult
+
+    evidence = EvidenceResult(
+        reference=EvidenceReference(
+            source="gold.local", description="Recorte autorizado.", is_demo=False,
+        ),
+        records=[{"observations": [{"observation_id": "row_1", "value": 100}]}],
+    )
+    assert set(response_model(evidence).model_fields) == {"status", "observation_ids"}
+    result = parse_answer('{"status":"answered","observation_ids":["row_1"]}', evidence)
+    assert result.observation_ids == ("row_1",)
+    assert result.claims == ()
+    with pytest.raises(ValidationError):
+        parse_answer(
+            '{"status":"answered","observation_ids":["row_1"],"answer":"999"}',
+            evidence,
+        )
+
+
 @pytest.mark.parametrize("provider", ["gemini", "groq"])
 @pytest.mark.parametrize("payload,expected", [
     ({"status": "answered", "observation_ids": ["row_1"]}, "answered"),

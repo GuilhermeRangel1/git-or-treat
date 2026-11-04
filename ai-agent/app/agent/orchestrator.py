@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.agent.documentation import DocumentationResponder, conceptual_question
 from app.agent.execution import (
+    GOLD_INTERPRETATION_SECONDS,
     ExecutionController,
     ExecutionLimitExceeded,
     RequestBudget,
@@ -57,7 +58,7 @@ from app.schemas.questions import (
     QuestionStatus,
 )
 from app.schemas.read_plan import LogicalReadPlan
-from app.schemas.responses import FailureCode, map_failure
+from app.schemas.responses import FailureCode, PublicErrorCode, map_failure
 
 logger = logging.getLogger(__name__)
 _Outcome = TypeVar("_Outcome", QuestionResponse, QuestionResponse | PlannedQuestion)
@@ -537,7 +538,28 @@ class QuestionOrchestrator:
                 evidence_chars=_serialized_evidence_chars(evidence),
             )
         assert adapter is not None
-        generated = await self._generate(adapter, request, evidence, budget, trace)
+        try:
+            generated = await self._generate(adapter, request, evidence, budget, trace)
+        except ExecutionLimitExceeded:
+            generated = self._recoverable_error(FailureCode.EXECUTION_LIMIT)
+        if (
+            isinstance(generated, QuestionResponse)
+            and generated.error is not None
+            and (
+                generated.error.code is PublicErrorCode.LIMIT_EXCEEDED
+                or (
+                    generated.error.code is PublicErrorCode.SERVICE_UNAVAILABLE
+                    and generated.error.retryable
+                )
+            )
+            and observations
+            and not evidence.reference.is_demo
+        ):
+            generated = GeneratedAnswer(
+                status="answered",
+                answer="Resposta montada a partir das observações autorizadas.",
+                observation_ids=tuple(list(observations)[:10]),
+            )
         if isinstance(generated, QuestionResponse):
             return generated
 
@@ -780,7 +802,8 @@ class QuestionOrchestrator:
                     request.question,
                     request.context,
                     evidence,
-                )
+                ),
+                timeout_seconds=None if evidence.reference.is_demo else GOLD_INTERPRETATION_SECONDS,
             )
             generated = GeneratedAnswer.model_validate(
                 generated_result.model_dump()

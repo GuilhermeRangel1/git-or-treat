@@ -18,9 +18,14 @@ class ObservationSelection(BaseModel):
 
 
 def response_model(evidence: EvidenceResult) -> type[ObservationSelection] | type[GeneratedAnswer]:
-    """Insight minimizado e demonstração conservam seus contratos existentes."""
-    if (not evidence.reference.is_demo and evidence.provenance is not None
-            and evidence.provenance.source_id.startswith("gold.")):
+    """Gold usa somente IDs; a demonstração conserva a saída textual existente."""
+    if not evidence.reference.is_demo and (
+        evidence.reference.source == "gold.local"
+        or (
+            evidence.provenance is not None
+            and evidence.provenance.source_id.startswith("gold.")
+        )
+    ):
         return ObservationSelection
     return GeneratedAnswer
 

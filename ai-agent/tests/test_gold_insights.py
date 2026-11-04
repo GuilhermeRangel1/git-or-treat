@@ -5,22 +5,39 @@ import asyncio
 import pytest
 
 from app import main
+from app.agent.execution import ExecutionLimitExceeded
 from app.audit import BackendEventSink
 from app.config import Settings
 from app.gold_runtime import create_gold_app
 from app.ports.events import AuditUnavailable
+from app.providers.protocols import (
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
+    ModelProviderUnavailable,
+)
 
 from .conftest import FakeModelAdapter, InProcessClient
 from .test_gold_question_filters import _setup
 
 
-@pytest.mark.parametrize("case", ["answered", "scope", "audit", "token", "public", "v1", "timeout"])
+@pytest.mark.parametrize("case", [
+    "answered", "scope", "audit", "token", "public", "v1", "timeout",
+    "unavailable", "invalid", "rejected", "model_timeout",
+])
 def test_gold_insight_runtime(monkeypatch, case):
     calls = []
 
     class Model(FakeModelAdapter):
         async def generate(self, *args):
             calls.append(args[-1])
+            failures = {
+                "unavailable": ModelProviderUnavailable,
+                "invalid": ModelProviderInvalidResponse,
+                "rejected": ModelProviderRejected,
+                "model_timeout": ExecutionLimitExceeded,
+            }
+            if case in failures:
+                raise failures[case]("private provider detail")
             if case == "timeout":
                 await asyncio.sleep(0.05)
             return await super().generate(*args)
@@ -89,12 +106,15 @@ def test_gold_insight_runtime(monkeypatch, case):
         return
     assert response.status_code == 200
     result = response.json()
-    if case == "answered":
+    if case in {"answered", "unavailable", "invalid", "rejected", "model_timeout"}:
         assert result["status"] == "answered"
         assert result["observation"]["values"][0]["value"] == 0
         assert result["evidence"][0]["is_demo"] is False
         assert result["evidence"][0]["source"] == "gold.local"
-        assert result["limitations"] == body["screen"]["limitations"]
+        assert result["limitations"][:1] == body["screen"]["limitations"]
+        if case != "answered":
+            assert "regras de apresentação" in result["limitations"][-1]
+            assert "private provider detail" not in str(result)
         assert calls[0].reference.is_demo is False
         assert "Olinda" not in str(calls[0].records)
         assert "RESIDENCIAL" not in str(calls[0].records)

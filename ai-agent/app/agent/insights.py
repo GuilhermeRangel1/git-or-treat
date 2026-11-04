@@ -211,8 +211,15 @@ class ScreenInsightOrchestrator:
                 else generated_result
             )
             await trace.emit_async(EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS)
-        except ModelProviderUnavailable:
+        except (ModelProviderUnavailable, ExecutionLimitExceeded) as exc:
+            if (
+                isinstance(exc, ExecutionLimitExceeded)
+                and not isinstance(screen, GoldScreenContext)
+            ):
+                raise
             await trace.emit_async(EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR)
+            if isinstance(screen, GoldScreenContext):
+                return self._observed_fallback(screen)
             failure = map_failure(FailureCode.MODEL_UNAVAILABLE)
             return self._response(
                 screen,
@@ -222,6 +229,8 @@ class ScreenInsightOrchestrator:
             )
         except (ModelProviderRejected, ModelProviderInvalidResponse) as exc:
             await trace.emit_async(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            if isinstance(screen, GoldScreenContext):
+                return self._observed_fallback(screen)
             code = (
                 FailureCode.MODEL_REJECTED
                 if isinstance(exc, ModelProviderRejected)
@@ -234,12 +243,12 @@ class ScreenInsightOrchestrator:
                 message=failure.message,
                 error=failure.error,
             )
-        except ExecutionLimitExceeded:
-            raise
         except AuditUnavailable:
             raise
         except (ValidationError, TypeError, ValueError):
             await trace.emit_async(EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR)
+            if isinstance(screen, GoldScreenContext):
+                return self._observed_fallback(screen)
             failure = map_failure(FailureCode.INVALID_MODEL_OUTPUT)
             return self._response(
                 screen,
@@ -316,6 +325,25 @@ class ScreenInsightOrchestrator:
             message=map_failure(FailureCode.INSIGHT_REFUSAL).message,
             error=map_failure(FailureCode.INSIGHT_REFUSAL).error,
         )
+
+    @classmethod
+    def _observed_fallback(cls, screen: GoldScreenContext) -> ScreenInsightResponse:
+        """Mantém a leitura autorizada sem usar conteúdo do provedor que falhou."""
+        response = cls._response(
+            screen,
+            status=QuestionStatus.ANSWERED,
+            hypothesis=(
+                "Investigue a composição da receita no recorte selecionado. "
+                "Os valores observados não comprovam uma causa."
+            ),
+        )
+        return response.model_copy(update={
+            "limitations": [
+                *response.limitations,
+                "Interpretação complementar por IA indisponível; leitura baseada "
+                "nos indicadores observados e em regras de apresentação.",
+            ],
+        })
 
     @staticmethod
     def _response(
