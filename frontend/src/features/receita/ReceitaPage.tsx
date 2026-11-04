@@ -211,10 +211,10 @@ export default function ReceitaPage() {
       </div>
       <section
         aria-label="Filtros aplicados"
-        className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4"
+        className="mt-2 flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4 xl:flex-nowrap"
       >
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <dl className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-3 text-sm md:grid-cols-3 xl:grid-cols-6">
+          <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-3 xl:grid-cols-6">
             <div className="min-w-0">
               <dt className="text-xs text-muted">Mês inicial</dt>
               <dd className="mt-1 truncate font-medium text-content">

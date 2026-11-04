@@ -205,53 +205,49 @@ export default function MapaPage() {
       ) : null}
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">
-        <div className="grid min-w-0 content-start gap-4">
-          <MunicipalityMap
-            items={metrics}
-            layer={layer}
-            selectedCode={query?.municipio ?? ""}
-            partialCodes={partialCodes}
-            onSelect={(code) => update({ municipio: code })}
-          />
-          <MunicipalityTable
-            items={metrics}
-            selectedCode={query?.municipio ?? ""}
-            layer={layer}
-            partialCodes={partialCodes}
-            dataAvailable={Boolean(summaryEnvelope)}
-            onSelect={(code) => update({ municipio: code })}
-          />
-        </div>
-        <div className="min-w-0">
-          {selected && map.detailRequest && map.detail.isFetching && query ? (
-            <p
-              role="status"
-              className="mb-3 rounded-lg border border-border bg-surface p-3 text-sm text-muted"
-            >
-              Carregando série e bairros de {selected.name}…
-            </p>
-          ) : null}
-          {selected && !map.detailRequest && map.catalog.isSuccess ? (
-            <p
-              role="status"
-              className="mb-3 rounded-lg border border-control bg-surface p-3 text-sm text-muted"
-            >
-              Os dados detalhados deste município não estão disponíveis nesta
-              publicação.
-            </p>
-          ) : null}
-          <MunicipalityPanel
-            municipality={selected}
-            item={selectedItem}
-            detail={detailEnvelope}
-            detailError={detailError && !stalePublication}
-            query={query}
-            layer={layer}
-            revenueHref={revenueHref}
-            onRetryDetail={() => void map.detail.refetch()}
-          />
-        </div>
+        <MunicipalityMap
+          items={metrics}
+          layer={layer}
+          selectedCode={query?.municipio ?? ""}
+          partialCodes={partialCodes}
+          onSelect={(code) => update({ municipio: code })}
+        />
+        <MunicipalityTable
+          items={metrics}
+          selectedCode={query?.municipio ?? ""}
+          layer={layer}
+          partialCodes={partialCodes}
+          dataAvailable={Boolean(summaryEnvelope)}
+          onSelect={(code) => update({ municipio: code })}
+        />
       </div>
+      {selected && map.detailRequest && map.detail.isFetching && query ? (
+        <p
+          role="status"
+          className="rounded-lg border border-border bg-surface p-3 text-sm text-muted"
+        >
+          Carregando série e bairros de {selected.name}…
+        </p>
+      ) : null}
+      {selected && !map.detailRequest && map.catalog.isSuccess ? (
+        <p
+          role="status"
+          className="rounded-lg border border-control bg-surface p-3 text-sm text-muted"
+        >
+          Os dados detalhados deste município não estão disponíveis nesta
+          publicação.
+        </p>
+      ) : null}
+      <MunicipalityPanel
+        municipality={selected}
+        item={selectedItem}
+        detail={detailEnvelope}
+        detailError={detailError && !stalePublication}
+        query={query}
+        layer={layer}
+        revenueHref={revenueHref}
+        onRetryDetail={() => void map.detail.refetch()}
+      />
     </div>
   );
 }

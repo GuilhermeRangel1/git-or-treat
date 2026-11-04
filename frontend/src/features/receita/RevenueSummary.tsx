@@ -15,6 +15,8 @@ const decimal = new Intl.NumberFormat("pt-BR", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const metricTypographyClass =
+  "font-heading text-lg leading-6 font-semibold tracking-tight sm:text-xl sm:leading-7 lg:text-2xl lg:leading-8";
 
 function money(value: number | null) {
   return value === null ? "Indisponível" : currency.format(value);
@@ -38,17 +40,15 @@ function signedMoney(value: number | null) {
 function MetricCard({
   label,
   value,
-  valueClassName,
 }: {
   label: string;
   value: string;
-  valueClassName?: string;
 }) {
   return (
     <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
       <h3 className="text-sm font-medium leading-5 text-muted">{label}</h3>
       <p
-        className={`min-w-0 [overflow-wrap:anywhere] font-heading ${valueClassName ?? "text-2xl lg:text-[36px]"} leading-[30px] lg:leading-[44px] font-semibold tracking-tight ${value.startsWith("-") || value.startsWith("−") ? "text-danger" : "text-content"}`}
+        className={`min-w-0 whitespace-nowrap ${metricTypographyClass} ${value.startsWith("-") || value.startsWith("−") ? "text-danger" : "text-content"}`}
       >
         {value}
       </p>
@@ -83,14 +83,12 @@ export default function RevenueSummary({
         <MetricCard
           label="Preço observado"
           value={price(final.observed_price_brl_per_kwh)}
-          valueClassName="text-2xl lg:text-[36px]"
         />
         <article className="grid min-h-[192px] min-w-0 content-center gap-2 rounded-xl bg-surface px-4 py-5 text-center">
           <h3 className="text-sm font-medium leading-5 text-muted">Variação</h3>
           <p
             className={
-              "flex min-w-0 flex-wrap items-center justify-center gap-2 [overflow-wrap:anywhere] font-heading text-2xl lg:text-[36px] leading-[30px] lg:leading-[44px] font-semibold tracking-tight " +
-              signStyle
+              `flex min-w-0 flex-nowrap items-center justify-center gap-2 whitespace-nowrap ${metricTypographyClass} ${signStyle}`
             }
           >
             <span className="min-w-0">{signedMoney(change)}</span>
