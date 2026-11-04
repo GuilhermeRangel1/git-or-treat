@@ -103,7 +103,7 @@ def test_rankings_never_turn_into_a_total(direction, expected, dimension):
 
 
 def test_quais_article_cardinal_ranking_preserves_dimension_direction_and_limit():
-    result = _plan("Quais os três bairros com maior receita em janeiro de 2001?")
+    result = _plan("Quais os três bairros com maior receita em março de 2025?")
     assert result["status"] == "planned", result
     assert result["plan"]["group_by_dimension_ids"] == ["geography.neighborhood"]
     assert result["plan"]["order"]["direction"] == "desc"
