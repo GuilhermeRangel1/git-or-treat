@@ -1,7 +1,9 @@
 """Cliente interno do serviço GenAI para o contrato conversacional v1."""
 
+import asyncio
 import hashlib
 import json
+import logging
 from collections import OrderedDict
 from time import monotonic
 from typing import Any
@@ -20,6 +22,9 @@ from app.schemas.genai_internal import (
     QuestionPlanResponse,
     QuestionSynthesisRequest,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class GenAIServiceUnavailable(Exception):
@@ -210,7 +215,21 @@ class GenAIInsightClient:
         http_client: httpx.AsyncClient,
         base_url: str | None,
         service_token: str | None,
+        cache_ttl_seconds: float = 120,
+        cache_max_entries: int = 64,
+        cache_max_bytes: int = 1_048_576,
+        cache_namespace: str = "insight-v1",
     ) -> None:
+        if cache_ttl_seconds < 0 or cache_max_entries < 1 or cache_max_bytes < 1:
+            raise ValueError("Limites de cache inválidos.")
+        self._cache_ttl = cache_ttl_seconds
+        self._cache_entries = cache_max_entries
+        self._cache_bytes_limit = cache_max_bytes
+        self._cache_namespace = cache_namespace
+        self._cache_sizes: dict[str, int] = {}
+        self._cache_bytes = 0
+        self._gold_pending: dict[str, asyncio.Task] = {}
+        self._gold_waiters: dict[str, int] = {}
         self._http_client = http_client
         self._base_url = base_url.rstrip("/") if base_url else None
         self._service_token = service_token
@@ -241,21 +260,68 @@ class GenAIInsightClient:
         return result
 
 
+    def _cache_key(self, payload: dict[str, Any]) -> str:
+        return hashlib.sha256(json.dumps(
+            {"namespace": self._cache_namespace, "payload": {
+                k: v for k, v in payload.items() if k != "remaining_timeout_ms"
+            }}, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        ).encode()).hexdigest()
+
+    def _drop_cached(self, key: str) -> None:
+        self._gold_insights.pop(key, None)
+        self._cache_bytes -= self._cache_sizes.pop(key, 0)
+
     async def synthesize_gold(self, payload: dict[str, Any], *, correlation_id: str) -> AIInsightResponse:
+        if self._cache_ttl == 0:
+            return await self._synthesize_gold(payload, correlation_id=correlation_id)
+        key = self._cache_key(payload)
+        task = self._gold_pending.get(key)
+        if task is not None:
+            logger.info("genai_insight_cache outcome=shared")
+        if task is None:
+            if len(self._gold_pending) >= self._cache_entries:
+                return await self._synthesize_gold(payload, correlation_id=correlation_id)
+            task = asyncio.create_task(self._synthesize_gold(payload, correlation_id=correlation_id))
+            self._gold_pending[key] = task
+            def finished(done):
+                if self._gold_pending.get(key) is done:
+                    self._gold_pending.pop(key, None)
+                if not done.cancelled():
+                    done.exception()
+            task.add_done_callback(finished)
+        self._gold_waiters[key] = self._gold_waiters.get(key, 0) + 1
+        try:
+            result = await asyncio.shield(task)
+            return result.model_copy(deep=True, update={
+                "correlation_id": correlation_id, "audit_reference": None,
+            })
+        finally:
+            self._gold_waiters[key] -= 1
+            if self._gold_waiters[key] == 0:
+                self._gold_waiters.pop(key)
+                if not task.done():
+                    self._gold_pending.pop(key, None)
+                    task.cancel()
+
+    async def _synthesize_gold(self, payload: dict[str, Any], *, correlation_id: str) -> AIInsightResponse:
         """Usa a borda interna; o contexto nunca vem diretamente do navegador."""
         # O coordenador sempre refaz autorização, prontidão e leitura antes daqui.
         # O conteúdo completo (incluindo escopo e lote) isola a síntese reutilizada.
-        key = hashlib.sha256(json.dumps(
-            {k: v for k, v in payload.items() if k != "remaining_timeout_ms"},
-            sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-        ).encode()).hexdigest()
+        key = self._cache_key(payload)
+        now = monotonic()
+        for expired_key, (expires, _) in list(self._gold_insights.items()):
+            if expires <= now:
+                self._drop_cached(expired_key)
         cached = self._gold_insights.get(key)
         if cached and cached[0] > monotonic():
+            logger.info("genai_insight_cache outcome=hit entries=%d payload_bytes=%d",
+                        len(self._gold_insights), self._cache_bytes)
             self._gold_insights.move_to_end(key)
             return cached[1].model_copy(deep=True, update={
                 "correlation_id": correlation_id, "audit_reference": None,
             })
-        self._gold_insights.pop(key, None)
+        self._drop_cached(key)
+        logger.info("genai_insight_cache outcome=miss")
         response = await _post_genai_json(
             http_client=self._http_client, base_url=self._base_url,
             service_token=self._service_token,
@@ -281,7 +347,13 @@ class GenAIInsightClient:
             and all(not v.is_demo and v.source == "gold.local" for v in result.evidence)
             and set(screen["limitations"]) <= set(result.limitations)
         ):
-            self._gold_insights[key] = (monotonic() + 120, result.model_copy(deep=True))
-            while len(self._gold_insights) > 64:
-                self._gold_insights.popitem(last=False)
+            size = len(key.encode()) + len(result.model_dump_json().encode())
+            if self._cache_ttl > 0 and size <= self._cache_bytes_limit:
+                self._drop_cached(key)
+                self._gold_insights[key] = (monotonic() + self._cache_ttl, result.model_copy(deep=True))
+                self._cache_sizes[key] = size
+                self._cache_bytes += size
+                while (len(self._gold_insights) > self._cache_entries
+                       or self._cache_bytes > self._cache_bytes_limit):
+                    self._drop_cached(next(iter(self._gold_insights)))
         return result

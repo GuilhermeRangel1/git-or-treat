@@ -133,16 +133,18 @@ def _observe_publication(
         tables = {}
         for name, table in TABLES.items():
             _remaining_sql(connection, expires)
-            has_rows = connection.execute(select(table).limit(1)).first() is not None
             periods = []
             column = table.c.get("competencia")
             if column is not None:
-                _remaining_sql(connection, expires)
-                periods = sorted(value for value in connection.execute(
-                    select(column).where(column.is_not(None)).distinct().limit(1201)
-                ).scalars())
+                # A presença de qualquer competência (inclusive NULL) também prova
+                # existência de linhas; não executar uma segunda consulta por tabela.
+                observed = list(connection.execute(select(column).distinct().limit(1202)).scalars())
+                has_rows = bool(observed)
+                periods = sorted(value for value in observed if value is not None)
                 if len(periods) > 1200:
                     raise ValueError("Cobertura excede o limite do contrato.")
+            else:
+                has_rows = connection.execute(select(1).select_from(table).limit(1)).first() is not None
             tables[name] = {"present": True, "has_rows": has_rows,
                             "batch_ref": context.batch_ref, "periods": periods}
         summary = {}
@@ -150,7 +152,9 @@ def _observe_publication(
         monthly = Counter()
         undated = 0
         c14_ok = c15_ok = True
-        for row in _rows(connection, TABLES["visao_360_uc"], expires):
+        for row in _rows(connection, select(*(TABLES["visao_360_uc"].c[name] for name in (
+            "id_uc", "total_chamados_callcenter", "media_satisfacao_atendimento",
+        ))), expires):
             uc, count, mean = row["id_uc"], row["total_chamados_callcenter"], row["media_satisfacao_atendimento"]
             if (not uc or uc.upper().startswith("TESTE") or uc in summary
                     or not _valid_number(count) or count < 0 or int(count) != count
@@ -158,7 +162,10 @@ def _observe_publication(
                 c14_ok = False
                 continue
             summary[uc] = (count, mean)
-        for row in _rows(connection, TABLES["atendimentos_uc"], expires):
+        for row in _rows(connection, select(*(TABLES["atendimentos_uc"].c[name] for name in (
+            "id_uc", "nota_satisfacao", "protocolo", "_nota_invalida", "_nota_negativa",
+            "data_abertura", "_abertura_futura",
+        ))), expires):
             uc, note = row["id_uc"], row["nota_satisfacao"]
             if (not uc or uc.upper().startswith("TESTE") or not row["protocolo"]
                     or (note is not None and (not _valid_number(note) or note < 0))):

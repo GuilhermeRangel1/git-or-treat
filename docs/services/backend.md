@@ -324,3 +324,8 @@ O chat agora publica `visualization` opcional, montada exclusivamente no Backend
 
 
 Continuação de 03/11: negociação opcional NDJSON preserva os clientes JSON e o histórico. Dados auditados/revalidados aparecem antes da síntese; desconexão antes/depois da prévia cancela o coordenador. A leitura local calcula diferenças/destaques sem causa presumida. Falha do modelo mantém dados somente após nova conferência de acesso/publicação; falha de desenho preserva tabela/CSV. Prova Gold/Gemini e portal, limites e matriz 18/18 em [evidências](../plans/2026-11-03-genai-graficos-insights-visuais.md); publicação concluída no [PR #116](https://github.com/GuilhermeRangel1/git-or-treat/pull/116), sem merge.
+
+
+## Cache e desempenho Gold v2 — implementação local em 04/11/2026
+
+Limites por bytes/entradas, coalescência dos insights, invalidação por contexto/publicação e redução das consultas do observador estão descritos no [plano de cache e desempenho](../plans/2026-11-04-genai-cache-desempenho.md). Autorização, prontidão, SQL e auditoria continuam executados; o cache não guarda permissão nem libera cobertura. Configuração, sincronização do namespace remoto, rollback, medições e limites constam no plano. Implementação no PR #123; CI remoto 41806936506 passou nos cinco jobs.

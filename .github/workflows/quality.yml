@@ -67,6 +67,12 @@ jobs:
           --baseline reports/expanded-regression-baseline.json
           --output reports/expanded-regression-report.json
 
+      - name: Medir cache com provedor artificial
+        if: success()
+        env:
+          PYTHONPATH: .
+        run: python scripts/benchmark_cache.py > reports/cache-benchmark.json
+
       - name: Publicar relatórios GenAI
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -76,6 +82,7 @@ jobs:
             ai-agent/reports/expanded-regression-report.json
             ai-agent/reports/expanded-regression-baseline.json
             ai-agent/reports/backend-evaluation-baseline.json
+            ai-agent/reports/cache-benchmark.json
           if-no-files-found: ignore
           retention-days: 14
 

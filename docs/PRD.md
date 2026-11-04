@@ -254,7 +254,7 @@ Para GenAI Gold v2, Comercial tem as cinco métricas de faturamento/energia e Op
 | IA-05 | Obrigatório | Em validação | **Agente acessível no portal.** Pessoa usuária conversa com a IA sem trocar de ferramenta; erros e indisponibilidade são comunicados. |
 | IA-06 | Obrigatório | Pendente | **Somente leitura e limites.** IA não altera dados, não executa SQL arbitrário fora do esquema autorizado e responde “não sei”/explica insuficiência quando a evidência falta. Testes demonstram bloqueio de escrita e de perguntas fora do escopo. |
 | IA-07 | Diferencial | Concluído | **Follow-up com contexto.** Usuário faz pergunta complementar e o agente mantém período, métrica e filtros relevantes sem confundir conversas. |
-| IA-08 | Diferencial | Em validação | **Avaliação automática.** Conjunto versionado de perguntas e resultados esperados mede correção numérica, fundamentação e recusa adequada, com relatório de regressão. |
+| IA-08 | Diferencial | Concluído | **Avaliação automática.** Conjunto versionado de perguntas e resultados esperados mede correção numérica, fundamentação e recusa adequada, com relatório de regressão. |
 
 ### 6.4 Diagnóstico, documentação e entrega — ENT
 
@@ -3994,3 +3994,18 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 - Na branch `dev15`, a publicação Gold v2 `GOLD_20261103T173853Z_76c37784` (fingerprint `d1e9d3cb4455895155c09da82865807f5f83a608f832246be91e08063d158856`) passou em 56 verificações HTTP/perfil, 508 comparações SQL/API e 228 controles CSV/banco somente leitura. As duas métricas adicionadas pela publicação foram reconciliadas; a estimativa individual de energia recuperável está disponível; filtros e ordenações ascendente/descendente foram conferidos.
 - Regressão Frontend completa: 515 testes em 69 arquivos; build, formatação e fronteiras em 222 arquivos passaram; lint passou com dois avisos preexistentes. Backend completo com `ANALYTICS_SOURCE=synthetic`: 1.187 passaram, 114 ignorados e um aviso preexistente Starlette/httpx. Evidência detalhada e comandos em [resumo da DEV-15](validation/2026-11-03-dev15-resumo.md); JSONs e capturas reprodutíveis permanecem em `work/dev15-validation/`, ignorado pelo Git.
 - A direção descendente padrão da ordenação por energia foi corrigida para corresponder ao Backend; teste de regressão e replay de Inspeções passaram com 8/8 checks em temas claro/escuro, desktop/mobile e teclado. A validação estrutural, funcional e axe das seis páginas já aprovada permanece aplicável: a publicação atual adicionou métricas/dados, sem alterar a apresentação visual das demais jornadas. Os novos valores foram reconciliados por SQL/API e CSV/banco; Inspeções também foi revista no navegador com a estimativa disponível. WEB-01 a WEB-07 passam a `Concluído`, preservando a ressalva de cobertura não certificada para DEC/FEC. DEV-15 concluída localmente; execução do CI remoto depende da publicação da branch.
+
+
+### 2026-11-04 — IA-08 — publicação sanitizada aprovada e planejamento de cache
+
+- IA-08 passa a `Concluído`: amostra e limiar local aprovados pela pessoa usuária; evidências locais e limites no [plano de avaliação](plans/2026-11-03-ia08-avaliacao-ampliada.md). As três falhas legadas continuam contadas; conclusão do avaliador não significa ausência de falhas do agente nem certificação de Dados.
+- [PR #122](https://github.com/GuilhermeRangel1/git-or-treat/pull/122) integrado à develop por merge commit `d825173`, sem squash. [CI 41795628567](https://github.com/GuilhermeRangel1/git-or-treat/actions/runs/41795628567), head `d76c7c4`: cinco checks aprovados (Documentação/configuração, Compose, Backend, GenAI e Frontend).
+- Artefatos publicados: `genai-reports-41795628567-1` e `backend-evaluation-41795628567-1`. Workflow restringe a publicação a JSONs sanitizados e baselines; JUnit bruto e relatório legado detalhado não integram o artefato. CI usa fixtures; Gemini real e reconciliação Gold privada permanecem provas separadas, com os limites registrados.
+- Criado o [planejamento de cache](https://trello.com/c/0TsqnMQH), com dez critérios ainda pendentes: extensão dos caches existentes, isolamento/autorização por hit, invalidação Gold v2, concorrência, capacidade e medição comparável. É uma otimização proposta, sem novo requisito obrigatório e sem afirmar implementação ou ganho de desempenho.
+
+
+### 2026-11-04 — otimização proposta de cache e consultas GenAI
+
+- Implementação na branch `feat/genai-cache-desempenho`, vinculada ao [cartão de cache e desempenho](https://trello.com/c/0TsqnMQH), sem novo requisito obrigatório. Caches existentes receberam limites de bytes, coalescência/cancelamento de insights e configuração; o observador reduz colunas transferidas e consultas redundantes sem remover controles ou ampliar privilégios.
+- Prova real local com Gemini/Gold v2: oito respostas de chat, 46 pontos reconciliados por SQL independente; dois insights respondidos. O hit evita nova geração, mas a prontidão continua dominando o tempo total. Comparação original/atual do observador preservou todos os fatos e reduziu de 71 para 61 comandos SQL. Não se promete ganho universal.
+- Comandos, ambiente, resultados dirigidos/completos, skips, configuração, rollback e limitações no [plano](plans/2026-11-04-genai-cache-desempenho.md). PR #123 aberto contra `develop`; CI remoto 41806936506 concluiu com os cinco jobs aprovados. O resultado será sincronizado no Trello. Estados oficiais IA-01 a IA-08 preservados.

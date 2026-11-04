@@ -76,6 +76,7 @@ def build_model_adapter(settings: Settings, *, client=None, groq_client=None) ->
             adapter,
             ttl_seconds=settings.model_cache_ttl_seconds,
             max_entries=settings.model_cache_max_entries,
+            max_bytes=settings.model_cache_max_bytes,
             namespace=_cache_namespace(providers, chain),
         )
     return adapter
@@ -145,6 +146,7 @@ def build_model_router(
             light_adapter,
             ttl_seconds=settings.model_cache_ttl_seconds,
             max_entries=settings.model_cache_max_entries,
+            max_bytes=settings.model_cache_max_bytes,
             namespace=(
                 f"gemini:{settings.model_light_model}:{prompt_digest}"
                 if len(chain) == 1
