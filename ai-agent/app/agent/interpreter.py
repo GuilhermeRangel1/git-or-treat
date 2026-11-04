@@ -171,6 +171,16 @@ class QuestionInterpreter:
                 and turns[-2].role == "user" and turns[-1].role == "assistant"):
             original = turns[-2].content
             previous = self._interpret(original, None)
+            # Uma resposta com dois períodos completa a comparação pendente;
+            # conserva indicador/filtros e substitui o mês isolado anterior.
+            if (previous.clarification_question == self._profile.clarifications.comparison_baseline
+                    and not self._metric_matches(question)
+                    and len(_find_phrases(question, self._profile.period_phrases)) == 2):
+                for start, end, _ in reversed(
+                    _find_phrases(original, self._profile.period_phrases)
+                ):
+                    original = original[:start] + " " * (end - start) + original[end:]
+                return self._interpret(f"{original} {question}", None)
             if previous.clarification_reason is ClarificationReason.CONFLICTING_RANKING:
                 answer = _normalize(question).strip(" ?!.")
                 choice = {"maiores": "mais", "maior": "mais", "mais": "mais",
@@ -602,9 +612,12 @@ class QuestionInterpreter:
                         )
                     surface = _normalize(matches[-1][2])
                     if surface in matched_surfaces:
+                        choices = [item.label for item in self._profile.dimensions
+                                   if any(surface == _normalize(alias)
+                                          for value in item.values for alias in value.aliases)]
                         return self._clarify(
-                            "O mesmo nome corresponde a mais de uma dimensão; "
-                            "especifique outro recorte sem ambiguidade.",
+                            f"Você quer consultar {matches[-1][2]} como "
+                            f"{_join_labels(choices, 'ou')}? Responda com uma dessas opções.",
                             ClarificationReason.AMBIGUOUS_DIMENSION,
                         )
                     matched_surfaces[surface] = dimension.id
@@ -933,9 +946,9 @@ class QuestionInterpreter:
                     rf"\b{re.escape(_normalize(alias))}\s+(?:(?:de|do|da)\s+)?$", prefix
                 ) for alias in dimension.aliases)
             }
-            # Uma localização introduzida por "em" usa o município quando o
+            # Uma localização introduzida por "em/de/do/da" usa o município quando o
             # nome também existe como bairro. Qualificadores explícitos prevalecem.
-            if not qualified and re.search(r"\bem\s+$", prefix):
+            if not qualified and re.search(r"\b(?:em|de|do|da)\s+$", prefix):
                 parent_ids = {
                     dimension.parent_dimension_id for dimension in self._profile.dimensions
                     if dimension.parent_dimension_id and any(

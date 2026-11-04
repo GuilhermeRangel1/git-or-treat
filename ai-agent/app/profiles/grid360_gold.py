@@ -274,7 +274,7 @@ def _metric(
             "service.satisfaction": "service.accumulated_satisfaction",
         }.get(id_),
         "grouping_dimension_ids": (
-            ("customer.consumption_class", "geography.municipality")
+            ("customer.consumption_class", "geography.municipality", "geography.neighborhood")
             if id_ == "billing.revenue" else
             ("geography.neighborhood", "geography.municipality", "customer.consumption_class")
             if id_ == "energy.consumption" else ()
@@ -599,7 +599,7 @@ def _build_profile() -> DomainProfile:
     # pede a comparação em vez de responder só o mês citado.
     values["comparison_terms"] = (
         *values["comparison_terms"], "perdeu", "variou", "variar", "variaram",
-        "em relação a", "em relação ao",
+        "em relação a", "em relação ao", "comparando",
     )
     values["non_location_phrases"] = ()
     values["ambiguities"] = (

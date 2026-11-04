@@ -74,7 +74,8 @@ def _format_pt_br_number(value: int | float) -> str:
 def _lowercase_title(title: str) -> str:
     """Minusculiza só a primeira letra, preservando siglas como UC e kWh."""
 
-    return title[:1].lower() + title[1:]
+    first = title.split(maxsplit=1)[0] if title else ""
+    return title if any(c.isupper() for c in first[1:]) else title[:1].lower() + title[1:]
 
 
 def _describe_observation(

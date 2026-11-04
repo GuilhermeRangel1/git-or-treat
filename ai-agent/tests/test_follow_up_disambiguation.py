@@ -18,7 +18,7 @@ def test_short_dimension_answer_resolves_shared_name_without_changing_period_or_
     interpreter = QuestionInterpreter(
         GRID360_GOLD_PROFILE.model_copy(update={"dimensions": dimensions})
     )
-    original = "Como ficou a receita de Recife no último ano?"
+    original = "Quanto Recife faturou no último ano?"
     first = interpreter.interpret(original)
     assert first.intent is None
     response = interpreter.interpret(

@@ -131,3 +131,15 @@ def test_explicit_monthly_calendar_preserves_leap_years_and_year_boundaries(
 def test_explicit_years_and_ranges_do_not_fill_gaps_or_allow_invalid_years(phrase, coverage):
     with pytest.raises(TemporalResolutionUnavailable):
         GoldTemporalWindowResolver().resolve(phrase, coverage)
+
+
+@pytest.mark.parametrize("coverage", [(), ("1925-03", "2025-03")])
+def test_short_year_does_not_choose_a_century_without_unique_authorized_year(coverage):
+    from app.agent.temporal import expand_short_calendar_year
+    assert expand_short_calendar_year("consumo em mar/25?", coverage) == "consumo em mar/25?"
+
+
+@pytest.mark.parametrize("question", ["consumo em 10/03/25?", "consumo em 2025-03-10?"])
+def test_short_year_never_rewrites_daily_dates(question):
+    from app.agent.temporal import expand_short_calendar_year
+    assert expand_short_calendar_year(question, ("2025-03",)) == question

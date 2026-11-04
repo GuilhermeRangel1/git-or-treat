@@ -35,6 +35,8 @@ O ingresso Backend deve aceitar prompt v4 antes de implantar a GenAI v4; eventos
 
 ## Duas formas de IA obrigatórias
 
+Revisão do PR #117 (03/11/2026): notação mensal com ano curto depende de um único ano compatível na cobertura autorizada; trimestres com ano são intervalos de meses completos e continuam sujeitos ao gate temporal. `comparando` preserva os dois extremos; “mês anterior” só herda um antecedente mensal inequívoco. Local com `de/do/da` segue a preferência municipal de `em`, preservando qualificadores explícitos; homônimos sem qualificador oferecem escolha. Ranking de receita por bairro reutiliza a fonte autorizada existente. Implementação, provas e limites em [integração da consistência](../plans/2026-11-03-pr117-integracao-consistencia.md); sem afirmação de cobertura universal.
+
 Operação local Gold v2 (GENAI-15): diagnóstico autenticado em `/api/v1/internal/runtime-status` distingue configuração de geração e liveness; o Backend executa `scripts/check_genai_runtime.py` para conferir banco, papel, publicação, catálogo e auditoria. Logs operacionais contêm somente correlação, tempos/fila e tokens, sem prompt/evidência. O loader exige credencial própria. [Runbook, critérios, carga, custo estimado e falhas observadas](../plans/2026-11-02-genai15-operacao-gold.md).
 
 1. **Agente conversacional Text-to-SQL no portal:** interpreta português cotidiano, consulta Gold e devolve resposta clara, numérica e fundamentada.

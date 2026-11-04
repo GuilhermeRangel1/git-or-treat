@@ -286,8 +286,8 @@ def test_whitespace_does_not_lose_metric_or_registered_filter(question):
 @pytest.mark.parametrize("question", [
     "Receita de 2025-13 a 2025-03?", "Receita de 13/2025 a 03/2025?",
     "Receita de 31/03/2025 a 03/2025?", "Receita de janeiro de 2025 até março?",
-    "Receita em 31/03/2025?", "Receita em 03/25?",
-    "Receita de 03/25 a 03/2025?", "Receita de 2025-123 a 2025-03?",
+    "Receita em 31/03/2025?", "Receita em 03/99?",
+    "Receita de 03/99 a 03/2025?", "Receita de 2025-123 a 2025-03?",
     "Receita em 10 março de 2025?", "Receita em 31.03.2025?",
 ])
 def test_invalid_or_daily_dates_cannot_be_shortened_to_a_recognized_month(question):
@@ -647,3 +647,80 @@ def test_examples_respect_read_scope_and_are_omitted_without_published_periods(a
         planned = client.post(PLAN_PATH, json=payload, headers=HEADERS).json()
     assert planned["status"] == "planned", planned
     assert planned["plan"]["metric_id"] == "energy.consumption"
+
+
+@pytest.mark.parametrize("question", [
+    "Quantas UCs com solar em Olinda tiveram queda de consumo acima de 30%?",
+])
+def test_solar_example_replaces_the_qualifier_without_repeating_com(question):
+    coverage = [{"metric_id": "energy.gd_consumption_drop", "kind": "none"}]
+    result = _plan(question, extra_coverage=coverage)
+    assert result["status"] == "needs_clarification"
+    message = result["response"]["message"]
+    example = message.split("Exemplo de pergunta: “", 1)[1].removesuffix("”")
+    assert "com com" not in example
+    assert "UCs com GD em Olinda" in example
+    assert _plan(example, extra_coverage=coverage)["status"] == "planned"
+
+
+def test_gd_synthesis_preserves_initial_acronym_and_published_windows():
+    question = "Quantas UCs com GD em Olinda tiveram queda de consumo acima de 30%?"
+    core, request = _setup(question)
+    payload = request.model_dump(mode="json")
+    payload["temporal_coverage"].append({"metric_id": "energy.gd_consumption_drop", "kind": "none"})
+    with InProcessClient(_application(core)) as client:
+        result = client.post(PLAN_PATH, json=payload, headers=HEADERS).json()
+        assert result["status"] == "planned", result
+        plan = LogicalReadPlan.model_validate(result["plan"])
+        lookup = _lookup(plan, batch_ref=request.batch_ref)
+        lookup.evidence.records = [{"period": plan.window.phrase, "value": 12, "unit": "UCs"}]
+        synthesis = QuestionSynthesisRequest(
+            question=question, access_scope=request.access_scope,
+            remaining_timeout_ms=35000, plan=plan, plan_fingerprint=plan.fingerprint(),
+            lookup=lookup, expected_batch_ref=request.batch_ref,
+            dimension_value_coverage=request.dimension_value_coverage,
+        )
+        response = client.post(
+            SYNTHESIS_PATH, json=synthesis.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+    assert response["status"] == "answered", response
+    assert "Para UCs elegíveis com GD" in response["answer"]
+    assert "12 UCs" in response["answer"]
+    assert response["analysis_context"]["period"] == plan.window.phrase
+
+
+@pytest.mark.parametrize("reply", [
+    "Compare janeiro de 2025 e março de 2025",
+    "entre janeiro de 2025 e março de 2025",
+])
+def test_comparison_baseline_reply_retains_metric_and_filters(reply):
+    question = "Como a receita residencial em Olinda variou em março de 2025?"
+    pending = _plan(question)
+    assert pending["status"] == "needs_clarification"
+    result = _plan(reply, [
+        {"role": "user", "content": question},
+        {"role": "assistant", "content": pending["response"]["message"]},
+    ])
+    assert result["status"] == "planned", result
+    plan = result["plan"]
+    assert plan["metric_id"] == "billing.revenue"
+    assert plan["comparison_periods"] == ["2025-01", "2025-03"]
+    assert {f["dimension_id"]: f["values"] for f in plan["filters"]} == {
+        "geography.municipality": ["Olinda"],
+        "customer.consumption_class": ["RESIDENCIAL"],
+    }
+
+
+def test_new_question_after_comparison_clarification_does_not_inherit_metric():
+    question = "Como a receita residencial em Olinda variou em março de 2025?"
+    pending = _plan(question)
+    result = _plan("Qual foi o consumo em Recife em janeiro de 2025?", [
+        {"role": "user", "content": question},
+        {"role": "assistant", "content": pending["response"]["message"]},
+    ])
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "energy.consumption"
+    assert result["plan"].get("comparison_periods") is None
+    assert result["plan"]["filters"] == [{
+        "dimension_id": "geography.municipality", "operator": "eq", "values": ["Recife"],
+    }]

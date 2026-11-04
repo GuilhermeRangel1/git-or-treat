@@ -21,6 +21,7 @@ from app.agent.read_plan import (
 )
 from app.agent.temporal import (
     complete_contextual_period,
+    expand_short_calendar_year,
     explicit_monthly_phrases,
     monthly_period_label,
     normalize_calendar_phrases,
@@ -69,6 +70,11 @@ def _replace_in_place(question: str, phrases: tuple[str, ...], replacement: str)
     start, end, _ = matches[0]
     before = re.search(r"([\w.]+)\s*$", question[:start])
     after = re.match(r"\s*([\w.]+)", question[end:])
+    # A confirmação pode conter a mesma preposição já escrita antes do termo.
+    if (before is not None and _normalize(before[1]) == "com"
+            and _normalize(replacement).startswith("com ")):
+        start = before.start(1)
+
     if any(match is not None and _normalize(match[1]).rstrip(".") in _DANGLING_CONNECTORS
            for match in (before, after)):
         return None
@@ -345,13 +351,18 @@ class QuestionAnalysisPlanner:
             completed = pending_year_answer(question, context or [], profile)
             if completed is not None:
                 question, context = completed, []
+            competencies = tuple(period for _, periods in (temporal_coverage or {}).values()
+                                 for period in periods)
+            question = expand_short_calendar_year(question, competencies)
             question = normalize_calendar_phrases(question)
-            question = complete_contextual_period(question, context or [])
             context = [
-                turn.model_copy(update={"content": normalize_calendar_phrases(turn.content)})
+                turn.model_copy(update={"content": normalize_calendar_phrases(
+                    expand_short_calendar_year(turn.content, competencies),
+                )})
                 if turn.role == "user" else turn
                 for turn in context or []
             ]
+            question = complete_contextual_period(question, context)
             phrases = tuple(dict.fromkeys(
                 phrase for text in (question, *(turn.content for turn in context or []))
                 for phrase in explicit_monthly_phrases(text)
