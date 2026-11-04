@@ -116,7 +116,11 @@ class ReadPlanBuilder:
                     "Não há uma regra aprovada para aplicar esse filtro."
                 )
             selected_ids.add(key)
-            filters[key] = ReadFilter(dimension_id=key, operator=FilterOperator.EQ, values=(value,))
+            filters[key] = ReadFilter(
+                dimension_id=key,
+                operator=FilterOperator.IN if isinstance(value, tuple) else FilterOperator.EQ,
+                values=value if isinstance(value, tuple) else (value,),
+            )
 
         for key, value in metric.fixed_filter_values.items():
             if key not in filters:

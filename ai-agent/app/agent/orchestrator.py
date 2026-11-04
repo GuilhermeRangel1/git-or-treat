@@ -659,7 +659,21 @@ class QuestionOrchestrator:
             elif read_plan.group_by_dimension_ids and not read_plan.comparison_periods:
                 rows = list(observations.values())
                 smallest = read_plan.order is not None and read_plan.order.direction.value == "asc"
-                if read_plan.order is not None and read_plan.limit > 1:
+                paired_groups = any(
+                    item.operator.value == "in"
+                    and item.dimension_id in read_plan.group_by_dimension_ids
+                    and len(item.values) == 2
+                    for item in read_plan.filters
+                )
+                if paired_groups and read_plan.order is None and len(rows) <= 2:
+                    described = [
+                        _describe_observation(row, labels, human_readable=True) for row in rows
+                    ]
+                    answer = f"Resultados de {_lowercase_title(title)} no recorte:\n"
+                    answer += "\n".join(f"• {line}" for line in described)
+                    if len(rows) == 1:
+                        answer += "\nSó um dos grupos retornou dados para este recorte."
+                elif read_plan.order is not None and read_plan.limit > 1:
                     group_label = " e ".join(
                         labels.get(dimension_id, dimension_id).lower()
                         for dimension_id in read_plan.group_by_dimension_ids

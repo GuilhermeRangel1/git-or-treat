@@ -559,7 +559,7 @@ class QuestionInterpreter:
             filter_question = self._without_grouping_reference(filter_question, breakdown)
             location_question = filter_question
         structured = self._profile.structured_dimension_filters
-        dimension_filters: dict[str, str] = {}
+        dimension_filters: dict[str, str | tuple[str, str]] = {}
         if structured:
             matched_surfaces: dict[str, str] = {}
             known_spans = self._dimension_value_matches(value_question, self._profile.dimensions)
@@ -599,6 +599,40 @@ class QuestionInterpreter:
                         return self._clarify(
                             "Este recorte pede exclusão; informe o valor que deseja incluir."
                         )
+                    if (
+                        len(matches) == 2
+                        and selected_metric is not None
+                        and self._profile.supports_grouping
+                        and dimension.id in (selected_metric.grouping_dimension_ids or ())
+                        and re.search(r"\bentre\s+$", _normalize(question[:matches[0][0]]))
+                        and re.fullmatch(
+                            r"\s+e\s+", _normalize(question[matches[0][1]:matches[1][0]])
+                        )
+                    ):
+                        resolved_values = [
+                            {value.value for value in dimension.values
+                             if any(
+                                 _normalize(surface) == _normalize(alias) for alias in value.aliases
+                             )}
+                            for _, _, surface in matches
+                        ]
+                        ambiguous = any(
+                            _normalize(surface) == _normalize(other_surface)
+                            and (start, end) == (other_start, other_end)
+                            for start, end, surface in matches
+                            for other_dimension in self._profile.dimensions
+                            if other_dimension.id != dimension.id
+                            for other_start, other_end, other_surface in
+                            self._dimension_value_matches(value_question, (other_dimension,))
+                        )
+                        if not ambiguous and all(len(values) == 1 for values in resolved_values):
+                            first, second = (next(iter(values)) for values in resolved_values)
+                            if first != second:
+                                dimension_filters[dimension.id] = (first, second)
+                                if breakdown is None:
+                                    breakdown = dimension
+                                    grouping_allowed = True
+                                continue
                     cited = list(dict.fromkeys(surface for _, _, surface in matches))
                     return self._clarify(
                         f"Consulto um valor de {label} por vez; você citou "
@@ -680,7 +714,11 @@ class QuestionInterpreter:
             for _, _, surface in periods
         )
         normalized_question = _normalize(question)
-        comparison_requested = len(periods) > 1 and " entre " in f" {normalized_question} "
+        paired_filter = any(isinstance(value, tuple) for value in dimension_filters.values())
+        comparison_requested = len(periods) > 1 and (
+            bool(re.search(r"\bentre\s+$", _normalize(question[:periods[0][0]])))
+            if paired_filter else " entre " in f" {normalized_question} "
+        )
         comparison_requested = comparison_requested or self._has_comparison(normalized_question)
         comparison_requested = comparison_requested or configured_comparison_window
         if (selected_metric is not None and selected_metric.requires_published_windows
@@ -748,7 +786,7 @@ class QuestionInterpreter:
 
         if comparison_phrases is not None:
             period_phrase = comparison_phrases[0]
-        filters: dict[str, str] = dict(base_intent.filters) if base_intent else {}
+        filters = dict(base_intent.filters) if base_intent else {}
         filters.update(dimension_filters)
         directions = [
             direction

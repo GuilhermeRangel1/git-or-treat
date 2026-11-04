@@ -29,15 +29,18 @@ def test_target_month_before_its_baseline_keeps_the_requested_change(connector):
     assert result["plan"]["filters"][0]["values"] == ["Recife"]
 
 
-def test_geographical_difference_does_not_redirect_to_documentation():
-    question = "Qual a diferença de faturamento entre Recife e Olinda?"
+def test_geographical_difference_groups_only_the_two_requested_locations():
+    question = "Qual a diferença de faturamento entre Recife e Olinda em março de 2025?"
     assert not conceptual_question(question)
     result = _plan(question)
-    assert result["status"] == "needs_clarification"
-    assert "Recife e Olinda" in result["response"]["message"]
-    assert "Qual quer primeiro?" in result["response"]["message"]
-    assert "Entenda os indicadores" not in result["response"]["message"]
-
+    assert result["status"] == "planned", result
+    plan = result["plan"]
+    assert plan["group_by_dimension_ids"] == ["geography.municipality"]
+    assert plan["filters"] == [{
+        "dimension_id": "geography.municipality",
+        "operator": "in",
+        "values": ["Recife", "Olinda"],
+    }]
 
 @pytest.mark.parametrize("question", [
     "Como se calcula o DEC?", "Como é calculada a receita faturada?",

@@ -44,7 +44,9 @@ class AnalysisIntent(BaseModel):
     period_phrase: str | None = Field(default=None, min_length=1, max_length=160)
     geography_phrase: str | None = Field(default=None, min_length=1, max_length=160)
     class_phrase: str | None = Field(default=None, min_length=1, max_length=120)
-    filters: dict[AnalysisFilterKey, AnalysisFilterValue] = Field(default_factory=dict)
+    filters: dict[AnalysisFilterKey, AnalysisFilterValue | tuple[StrictStr, StrictStr]] = Field(
+        default_factory=dict
+    )
 
     @model_validator(mode="before")
     @classmethod
