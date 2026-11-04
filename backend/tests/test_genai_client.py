@@ -347,7 +347,7 @@ def test_genai_clients_reject_correlation_mismatch(
         asyncio.run(run())
 
 
-@pytest.mark.parametrize("change", ["none", "scope", "batch", "observation", "filters", "expired"])
+@pytest.mark.parametrize("change", ["none", "scope", "batch", "observation", "filters", "expired", "namespace"])
 def test_gold_insight_reuses_only_same_authorized_context(monkeypatch, change):
     from app.services import genai_client as module
     now = [100.0]
@@ -387,9 +387,71 @@ def test_gold_insight_reuses_only_same_authorized_context(monkeypatch, change):
             if change == "filters": newer["screen"]["filters"]["comparacao"] = "ano_anterior"
             if change == "observation": newer["screen"]["observations"][0]["value"] = 123
             if change == "expired": now[0] += 121
+            if change == "namespace": client._cache_namespace = "another-model-prompt-version"
             second = await client.synthesize_gold(newer, correlation_id="b" * 32)
             assert second.correlation_id == "b" * 32
             assert second.hypothesis != "modified locally"
             assert second.audit_reference is None
         assert len(calls) == (1 if change == "none" else 2)
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("mode", ["shared", "disabled", "oversized", "cancel_one", "cancel_all", "failure"])
+def test_gold_insight_cache_concurrency_and_limits(monkeypatch, mode):
+    from app.services import genai_client as module
+    calls = []
+    response = _insight_response()
+    response["evidence"][0].update(source="gold.local", is_demo=False)
+    payload = {"screen": {**response["context"],
+        "observations": response["observation"]["values"],
+        "reference": response["evidence"][0], "limitations": response["limitations"]},
+        "access_scope": {"caller_ref": "reader.one"}, "batch_ref": "batch.one"}
+    started = None
+    release = None
+
+    async def transport(**kwargs):
+        import copy
+        calls.append(1)
+        started.set()
+        await release.wait()
+        if mode == "failure" and len(calls) == 1:
+            raise GenAIServiceUnavailable()
+        result = copy.deepcopy(response)
+        result["correlation_id"] = kwargs["correlation_id"]
+        return result
+    monkeypatch.setattr(module, "_post_genai_json", transport)
+
+    async def run():
+        nonlocal started, release
+        started, release = asyncio.Event(), asyncio.Event()
+        async with httpx.AsyncClient() as http:
+            client = GenAIInsightClient(http_client=http, base_url="http://genai",
+                service_token=SERVICE_TOKEN, cache_ttl_seconds=0 if mode == "disabled" else 120,
+                cache_max_bytes=1 if mode == "oversized" else 1048576)
+            leader = asyncio.create_task(client.synthesize_gold(payload, correlation_id=CORRELATION_ID))
+            await started.wait()
+            follower = asyncio.create_task(client.synthesize_gold(payload, correlation_id="b" * 32))
+            await asyncio.sleep(0)
+            if mode == "cancel_all":
+                leader.cancel()
+                follower.cancel()
+                await asyncio.gather(leader, follower, return_exceptions=True)
+                await asyncio.sleep(0)
+                assert not client._gold_pending and not client._gold_waiters
+                release.set()
+                await client.synthesize_gold(payload, correlation_id="c" * 32)
+                return
+            if mode == "cancel_one":
+                leader.cancel()
+            release.set()
+            results = await asyncio.gather(leader, follower, return_exceptions=True)
+            if mode == "failure":
+                assert all(isinstance(r, GenAIServiceUnavailable) for r in results)
+            else:
+                assert results[1].correlation_id == "b" * 32
+            await client.synthesize_gold(payload, correlation_id="c" * 32)
+            assert not client._gold_pending and not client._gold_waiters
+            assert client._cache_bytes <= client._cache_bytes_limit
+    asyncio.run(run())
+    assert len(calls) == {"shared": 1, "disabled": 3, "oversized": 2,
+                          "cancel_one": 1, "cancel_all": 2, "failure": 2}[mode]

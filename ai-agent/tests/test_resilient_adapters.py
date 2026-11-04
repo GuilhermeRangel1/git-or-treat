@@ -686,3 +686,41 @@ def test_factory_fallback_without_cache_calls_model_each_time() -> None:
     asyncio.run(run())
 
     assert endpoint.models == ["gemini-primary", "gemini-b"] * 2
+
+
+def test_cache_byte_budget_evicts_and_rejects_oversized_answers():
+    answer = _answer()
+    size = 64 + len(answer.model_dump_json().encode())
+    inner = ScriptedAdapter(answer, answer, answer)
+    adapter = CachingModelAdapter(inner, ttl_seconds=60, max_entries=10, max_bytes=size)
+
+    async def run():
+        await adapter.generate("a", [], _evidence())
+        await adapter.generate("b", [], _evidence())
+        await adapter.generate("a", [], _evidence())
+    asyncio.run(run())
+    assert inner.calls == 3
+    assert adapter._bytes <= size
+    assert len(adapter._entries) == 1
+
+    tiny = CachingModelAdapter(ScriptedAdapter(answer, answer), ttl_seconds=60,
+                               max_entries=10, max_bytes=1)
+    async def oversized():
+        await tiny.generate("a", [], _evidence())
+        await tiny.generate("a", [], _evidence())
+    asyncio.run(oversized())
+    assert tiny._inner.calls == 2
+    assert tiny._bytes == 0
+
+
+def test_cache_purges_expired_entries_on_another_key():
+    clock = FakeClock()
+    adapter = CachingModelAdapter(ScriptedAdapter(_answer(), _answer()),
+                                 ttl_seconds=1, max_entries=10, clock=clock)
+    async def run():
+        await adapter.generate("a", [], _evidence())
+        clock.now += 2
+        await adapter.generate("b", [], _evidence())
+    asyncio.run(run())
+    assert len(adapter._entries) == 1
+    assert adapter._bytes == sum(adapter._sizes.values())

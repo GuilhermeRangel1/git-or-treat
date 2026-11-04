@@ -60,12 +60,29 @@ jobs:
         if: always() && steps.deps.outcome == 'success'
         run: python -m tests.test_genai_regression --output reports/synthetic-regression-report.json
 
+      - name: Comparar avaliação ampliada com o baseline
+        if: always() && steps.deps.outcome == 'success'
+        run: >-
+          python -m tests.test_genai_regression --expanded
+          --baseline reports/expanded-regression-baseline.json
+          --output reports/expanded-regression-report.json
+
+      - name: Medir cache com provedor artificial
+        if: success()
+        env:
+          PYTHONPATH: .
+        run: python scripts/benchmark_cache.py > reports/cache-benchmark.json
+
       - name: Publicar relatórios GenAI
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: genai-reports-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ai-agent/reports/
+          path: |
+            ai-agent/reports/expanded-regression-report.json
+            ai-agent/reports/expanded-regression-baseline.json
+            ai-agent/reports/backend-evaluation-baseline.json
+            ai-agent/reports/cache-benchmark.json
           if-no-files-found: ignore
           retention-days: 14
 
@@ -125,7 +142,25 @@ jobs:
         run: psql --host localhost --port 5432 --username venergy_test --dbname v_energy_test --file scripts/prepare_test_postgres.sql
 
       - name: Executar testes e verificar drift entre modelos e migrações
-        run: python -m pytest -q
+        run: python -m pytest -q --junitxml="$RUNNER_TEMP/backend-quality.private.xml"
+
+      - name: Comparar fronteiras GenAI do Backend
+        if: success() || failure()
+        working-directory: ai-agent
+        run: >-
+          python -m tests.test_genai_regression
+          --backend-junit "$RUNNER_TEMP/backend-quality.private.xml"
+          --baseline reports/backend-evaluation-baseline.json
+          --output "$RUNNER_TEMP/backend-evaluation.json"
+
+      - name: Publicar avaliação sanitizada do Backend
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-evaluation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backend-evaluation.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Validar compilação Python
         run: python -m compileall -q app tests scripts
@@ -304,6 +339,8 @@ jobs:
     name: CI Docker Compose
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      COMPOSE_FILE: docker-compose.ci.yml
 
     steps:
       - name: Baixar o repositório
@@ -328,6 +365,22 @@ jobs:
 
       - name: Validar configuração do Compose
         run: docker compose config --quiet
+
+      - name: Validar composição Gold padrão sem dados privados
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          keys = (
+              "DOCKER_DATABASE_PASSWORD", "DOCKER_APP_PASSWORD", "DOCKER_READER_PASSWORD",
+              "DOCKER_CADASTRO_PASSWORD", "DOCKER_SERVICE_TOKEN", "DOCKER_AUDIT_TOKEN",
+          )
+          Path(".env").write_text(
+              "GOLD_CSV_V2_HOST_DIR=.\n" + "\n".join(f"{key}={'a' * 64}" for key in keys) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
 
       - name: Subir os serviços
         run: docker compose up --build --detach

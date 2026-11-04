@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from pathlib import Path
+from tempfile import mkdtemp
 from typing import Protocol
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -181,7 +182,7 @@ def validate_matrix(matrix: dict, catalog: dict) -> dict[str, list[str]]:
         if missing:
             problems.append(f"marcadores sem origem: {sorted(missing)}")
         control = control_for(matrix, case)
-        if executes_numeric(case):
+        if executes_numeric(case) or case["referencias"].get("continuidade_observada"):
             if control is None or not control.get("sql"):
                 problems.append("caso numérico sem SQL de controle")
             else:
@@ -517,6 +518,27 @@ def numeric_divergences(case: dict, body: dict, expected: list[Decimal], toleran
 
 # Execução e classificação --------------------------------------------------------------------
 
+OBSERVED_WARNING = "Valores observados; cobertura do alimentador não certificada."
+OBSERVED_CONTROL = """
+SELECT p.schema_version || ':' || p.lote || ':' || p.publication_id AS batch_ref
+FROM gold_v2.cobertura_dominios AS c
+JOIN gold_v2.indicadores_dec_fec AS i ON i.competencia = c.competencia
+    AND c.recorte = 'ALIMENTADOR:' || i.id_alimentador
+CROSS JOIN gold.publicacao_linhagem AS p
+WHERE c.dominio = 'ocorrencias' AND c.competencia = :competencia
+    AND i.id_alimentador = :alimentador AND i.total_ucs_alimentador > 0
+    AND i."DEC" IS NOT NULL AND i."FEC" IS NOT NULL
+    AND c.estado_cobertura = 'NAO_CERTIFICADA'
+    AND c.natureza_certificacao = 'NAO_CERTIFICADA'
+    AND c.motivo = 'SEM_EVIDENCIA_DE_COBERTURA'
+    AND c.qtd_registros > 0 AND c.qtd_sem_competencia = 0
+    AND c.zero_registros_confirmado IS FALSE
+    AND c.data_corte_evidencia IS NULL AND c.referencia_evidencia IS NULL
+    AND c.reconciliacao_extracao_json IS NULL
+    AND c.run_id_silver = p.run_id_silver AND c.lote_bronze_silver = p.lote_bronze_silver
+"""
+
+
 def run_case(matrix: dict, catalog: dict, case: dict, client: FlowClient | None,
              db: ControlDatabase | None, cache: dict, denied: FlowClient | None = None) -> Outcome:
     outcome = Outcome(case["id"], case["dominio"], case["obrigatorio"],
@@ -534,9 +556,20 @@ def run_case(matrix: dict, catalog: dict, case: dict, client: FlowClient | None,
         asker = denied
     tolerance_rule = matrix["tolerancias"][case["tolerancia"]]
     decimals = catalog_rounding(catalog).get(case["metrica"], 2)
+    observed_batch = None
     try:
         params = resolve_parameters(matrix, case, db, cache)
         outcome.parametros = {key: str(value) for key, value in params.items()}
+        if case["referencias"].get("continuidade_observada"):
+            rows = db.fetch_all("observacao:DEC_FEC", OBSERVED_CONTROL, {
+                key: params[key] for key in ("competencia", "alimentador")
+            })
+            if len(rows) == 1 and str(rows[0].get("batch_ref", "")).startswith("gold-csv-v2:"):
+                observed_batch = rows[0]["batch_ref"]
+                case = {**case, "bloqueio": None, "estado_esperado": "sucesso",
+                        "status_publico_esperado": "answered"}
+                outcome.estado_esperado = "sucesso"
+                outcome.status_publico_esperado = "answered"
         expected: list[Decimal] = []
         numeric = executes_numeric(case)
         if numeric:
@@ -575,6 +608,12 @@ def run_case(matrix: dict, catalog: dict, case: dict, client: FlowClient | None,
         )
         outcome.divergencias.extend(divergences)
         outcome.numeros_extraidos = [str(number) for number in numbers]
+        if observed_batch and (
+            (body.get("analysis_context") or {}).get("batch_reference") != observed_batch
+            or OBSERVED_WARNING not in (body.get("answer") or "")
+            or OBSERVED_WARNING not in body.get("limitations", [])
+        ):
+            outcome.divergencias.append("fundamentacao")
     if outcome.divergencias:
         outcome.classe = "FAIL"
         return _known(matrix, outcome)
@@ -650,8 +689,10 @@ def safe_output_dir(path: Path) -> Path:
 
 
 def write_results(output_dir: Path, outcomes: list[Outcome], summary: dict) -> Path:
-    run_dir = safe_output_dir(output_dir) / datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
-    run_dir.mkdir(parents=True, exist_ok=False)
+    output_dir = safe_output_dir(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    prefix = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ-")
+    run_dir = Path(mkdtemp(prefix=prefix, dir=output_dir))
     payload = [outcome.__dict__ for outcome in outcomes]
     (run_dir / "resultados.json").write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

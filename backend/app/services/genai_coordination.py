@@ -29,7 +29,7 @@ from app.services.genai_client import (
     GenAIServiceUnavailable,
     GenAITimeout,
 )
-from app.services.genai_continuity_coverage import GoldCoverageUnavailable
+from app.services.genai_continuity_coverage import GoldCoverageUnavailable, observed_coverage_valid
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_executor import GoldExecutionDenied, execute_gold_plan
 from app.services.genai_flow import should_synthesize
@@ -69,7 +69,7 @@ def _observed_continuity_quality(
     report: GoldReadinessReport, plan: LogicalReadPlan, batch_ref: str
 ) -> GoldEvidenceQuality | None:
     """Autoriza somente a falha de certificação após os controles C11 passarem."""
-    if plan.metric_id not in _OBSERVED_CONTINUITY_METRICS:
+    if report.batch_ref != batch_ref or plan.metric_id not in _OBSERVED_CONTINUITY_METRICS:
         return None
     periods = _requested_months(plan)
     feeder_filters = [
@@ -352,10 +352,21 @@ def build_readiness_gate(engine: Engine, client: GenAIQuestionClient, approved_c
                     return configured_windows(connection, plan)
             windows = await planned.deadline.run(5, lambda: asyncio.to_thread(read_windows))
             periods = list(window_months(windows)) if windows is not None else []
-        return await client.evaluate_readiness(
+        report = await client.evaluate_readiness(
             engine, requested_periods=tuple(periods),
             approved_controls=frozenset(approved_controls),
             correlation_id=planned.response.correlation_id,
             expected_batch_ref=planned.publication.batch_ref,
         )
+        quality = _observed_continuity_quality(report, plan, planned.publication.batch_ref)
+        if quality is not None:
+            def check_coverage() -> bool:
+                with planned.publication.execution_snapshot(engine) as connection:
+                    timeout = planned.deadline.sql_timeout_ms(5)
+                    connection.exec_driver_sql(f"SET LOCAL statement_timeout = {timeout}")
+                    return observed_coverage_valid(connection, plan, quality)
+
+            if not await planned.deadline.run(5, lambda: asyncio.to_thread(check_coverage)):
+                raise GoldCoverageUnavailable
+        return report
     return evaluate

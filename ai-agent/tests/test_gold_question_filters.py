@@ -14,13 +14,13 @@ from .conftest import FakeModelAdapter
 from .test_gold_catalog_v2 import NoLookup
 
 
-def _setup(question, *, max_rows=100):
+def _setup(question, *, max_rows=100, model_adapter=None):
     profile = GRID360_GOLD_PROFILE
     core = compose_core(
         profile=profile,
         source_id="gold.local",
         evidence_source=NoLookup(),
-        model_adapter=FakeModelAdapter(),
+        model_adapter=model_adapter or FakeModelAdapter(),
         execution_controller=ExecutionController(),
         max_rows=max_rows,
     )

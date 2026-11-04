@@ -399,13 +399,6 @@ def execute_gold_plan(
         )
         if resolve_scope() != current_scope:
             raise GoldExecutionDenied
-        if quality is not None and quality.quality_mode == "observed_uncertified":
-            from app.services.genai_continuity_coverage import (
-                GoldCoverageUnavailable,
-                observed_coverage_valid,
-            )
-            if not observed_coverage_valid(connection, plan, quality):
-                raise GoldCoverageUnavailable
         try:
             rows = connection.execute(statement).mappings().all()
         except DBAPIError as exc:

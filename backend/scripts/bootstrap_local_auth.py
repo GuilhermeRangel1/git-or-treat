@@ -2,9 +2,9 @@
 
 import argparse
 import os
-from pathlib import Path
 import secrets
 import sys
+from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import create_engine, select
@@ -15,10 +15,10 @@ REPOSITORY_ROOT = BACKEND_DIR.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.core.config import settings  # noqa: E402
-from app.core.passwords import hash_password  # noqa: E402
-from app.core.platform_access import PlatformProfile  # noqa: E402
-from app.models.auth import AuthUser  # noqa: E402
+from app.core.config import settings
+from app.core.passwords import hash_password
+from app.core.platform_access import PlatformProfile
+from app.models.auth import AuthUser
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,6 +53,15 @@ def append_private_credentials(path: Path, entries: list[tuple[str, str, str]]) 
 
 def main() -> int:
     args = parse_args()
+    presentation = os.getenv("LOCAL_PRESENTATION_ACCOUNTS", "false") == "true"
+    presentation_password = os.getenv("LOCAL_PRESENTATION_PASSWORD", "")
+    if presentation and (
+        settings.APP_ENV != "development"
+        or os.getenv("DOCKER_BOOTSTRAP") != "true"
+        or len(presentation_password) < 8
+    ):
+        print("Contas de apresentação exigem inicialização Docker local explícita e senha configurada.", file=sys.stderr)
+        return 1
     database_url = args.database_url or settings.DATABASE_URL
     engine_options = {"pool_pre_ping": True}
     if database_url.startswith("sqlite"):
@@ -75,7 +84,7 @@ def main() -> int:
                 existing = db.scalar(select(AuthUser.id).where(AuthUser.username == username))
                 if existing is not None:
                     continue
-                password = secrets.token_urlsafe(32)
+                password = presentation_password if presentation else secrets.token_urlsafe(32)
                 db.add(AuthUser(
                     id=str(uuid4()),
                     username=username,
@@ -92,7 +101,7 @@ def main() -> int:
         else:
             print("As contas locais já existem; nenhuma credencial ou permissão foi alterada.")
         return 0
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - CLI não expõe detalhes de banco/credenciais.
         print(f"Falha ao provisionar contas locais: {type(error).__name__}.", file=sys.stderr)
         return 1
     finally:

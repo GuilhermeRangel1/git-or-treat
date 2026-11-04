@@ -30,7 +30,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
 GRANT USAGE, SELECT ON SEQUENCE public.operational_inspection_orders_id_seq,
     public.operational_order_history_id_seq TO v_energy_app;
 GRANT SELECT ON gold.publicacao_atual, gold.publicacao_linhagem,
-    gold.publicacao_contexto TO v_energy_app;
+    gold.publicacao_contexto, gold.publicacao_analitica TO v_energy_app;
 GRANT SELECT ON gold_v2.diagnostico_receita, gold_v2.indicadores_dec_fec,
     gold_v2.fila_inspecao, gold_v2.visao_360_uc, gold_v2.consumo_receita_bairro,
     gold_v2.variacao_consumo_uc, gold_v2.consumo_mensal_uc, gold_v2.faturas_uc,

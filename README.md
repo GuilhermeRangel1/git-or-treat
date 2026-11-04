@@ -61,31 +61,26 @@ O pipeline Bronze → Silver → Gold roda inteiro no Databricks (PySpark, arqui
 
 ## Executar localmente com Docker
 
-O `docker-compose.yml` sobe portal, API e PostgreSQL. Os arquivos de ambiente são locais e não versionados; sem eles o Compose aborta com `env file ... not found` antes de criar qualquer container.
+A execução padrão inicia PostgreSQL, carga Gold v2, Backend, GenAI e portal compilado no projeto `git-or-treat`. Fonte inválida impede o início da API, sem fallback sintético. Os ambientes antigos e seus volumes são preservados.
 
-```bash
-cp .env.db.example .env.db
-cp backend/.env.example backend/.env
-docker compose up -d db
-docker compose run --rm backend sh -c 'alembic upgrade head && python scripts/bootstrap_local_auth.py'
-docker compose up -d --build
+```powershell
+.\scripts\configure-docker.ps1 -GoldDirectory C:\caminho\para\data -PresentationAccounts
+# Configure GENAI_GEMINI_API_KEY e somente controles já aprovados no .env local.
+docker compose up --build -d
+docker compose ps -a
 ```
 
-O modo padrão do Compose é autenticação individual por sessão. Aplique migrações explicitamente antes da provisão: o comando acima altera o banco configurado. As senhas aleatórias iniciais de `reader` e `operator` ficam em `work/local-auth/credentials.txt` (ignorado pelo Git); preserve esse arquivo e não o publique. Provisione somente o banco operacional local escolhido.
+O configurador gera segredos distintos no `.env` ignorado pelo Git e não sobrescreve configuração existente. O loader prepara automaticamente migrações, carga idempotente, papéis restritos e contas. A opção local `-PresentationAccounts` cria `admin`, `comercial`, `atendimento`, `perdas` e `operacao` com a senha de apresentação aprovada `senha123`. Sem a opção, senhas aleatórias ficam em `work/local-auth/credentials.txt`. Contas existentes nunca têm senha ou perfil substituídos. O cadastro opcional exige seu manifesto em `cadastro_titular_uc/`, pareado com o analítico; não é concedido à GenAI.
 
-| Serviço | URL | Observação |
+| Serviço | Endereço | Execução |
 | --- | --- | --- |
-| Portal web | http://localhost:5173 | Vite com HMR; `/api` usa proxy para o backend |
-| API FastAPI | http://localhost:8000/api/v1 | OpenAPI em http://localhost:8000/docs |
-| PostgreSQL | localhost:5432 | Banco `v_energy`, usuário `v_energy_app` |
+| Portal | http://localhost:5173 | Nginx com build estático e proxy da API |
+| API | http://localhost:8000/api/v1 | Sessão individual, fonte Gold v2 |
+| Banco | Rede interna Docker, porta 5432 | Sem porta publicada no host |
 
-O Compose é um ambiente de desenvolvimento e seleciona explicitamente `ANALYTICS_SOURCE=synthetic` para demonstrar os indicadores; autenticação do portal usa `ORDERS_AUTH_MODE=session`. A API executada fora dele continua com padrão `unavailable`. Para testar indisponibilidade no Compose, defina `ANALYTICS_SOURCE=unavailable` no ambiente do comando e recrie o backend. Os números exibidos são fictícios, sem reconciliação Gold. O contrato de sessão, limites e provisão está em [autenticação local](docs/contracts/local-auth.md).
+O portal normal não usa polling, Node ou HMR em runtime; a API não usa reload. Para editar com HMR, use explicitamente `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d`; a fonte permanece Gold v2. Volte ao comando normal para retornar ao portal compilado. A falta de chave impede a geração de respostas, sem substituir a fonte por demonstração. O PostgreSQL tem teto local de 512 MiB; `POSTGRES_MEMORY_LIMIT=1g` no `.env` permite ampliá-lo para cargas maiores.
 
-O navegador usa a mesma origem do portal (`VITE_API_URL=/`); o Vite encaminha `/api` para `http://backend:8000` dentro do Docker. Assim o cliente não depende do próprio `localhost` para chegar à API. Para abrir no celular da mesma rede, use o endereço da máquina na porta 5173, conforme a conectividade local permitir. O frontend usa polling no volume Docker para refletir alterações feitas no Windows.
-
-Comandos de apoio: `docker compose ps`, `docker compose logs -f backend` e `docker compose down` (o volume `pgdata` é preservado; `docker compose down -v` apaga os dados).
-
-`docker compose` sem `up` apenas exibe a ajuda. O Compose é a forma suportada de subir a stack; rodar `npm run dev` e `uvicorn` na máquina assume que o PostgreSQL local usa as mesmas credenciais de `backend/.env`.
+Use `docker compose logs -f gold-loader` durante a carga e `docker compose logs -f backend` para a API. `docker compose down` preserva o volume `git-or-treat_pgdata16`; não use `down -v` para corrigir inicialização. Preserve também o `.env`, pois ele contém as credenciais desse volume. A composição é HTTP local, não uma publicação pública com HTTPS. [Fluxo, limites e evidências](docs/plans/2026-11-04-docker-gold-inicializacao.md).
 
 ## Preparação dos agentes
 

@@ -4,7 +4,7 @@
 
 **Escopo:** WEB-01 a WEB-10, IA-04 e IA-05 do [PRD](../PRD.md). **Estado:** WEB-01 em validação no Panorama com filtros na URL, 4 KPIs principais, oito métricas auditáveis nos fundamentos, série mensal e API sintética em `GET /api/v1/panorama`. O Assistente envia perguntas ao Backend pelo contrato v1 e mostra evidências e limitações sintéticas. Receita mantém a exploração DEV-03; Inspeções mantém fila e detalhe auditável DEV-05. As demais jornadas seguem seus estados no PRD. A DEV-01 acrescenta uma rota de desenvolvimento para verificar contratos, sem substituir o contrato do Panorama. **Stack adotada:** React + TypeScript com Vite, Tailwind CSS e Lucide.
 
-O ambiente Docker de desenvolvimento seleciona a fonte sintética explicitamente. O navegador consulta a API pela origem do portal, via proxy Vite. As portas são publicadas somente em localhost por segurança; acesso de outro dispositivo exige ingresso configurado deliberadamente. Cabeçalho e área de dados têm largura fluida centralizada; filtros e cartões se reorganizam por breakpoint.
+O Docker padrão e seu overlay de desenvolvimento usam Gold v2 obrigatoriamente. O portal compilado é servido por Nginx; HMR/Vite fica no overlay explícito. As portas são locais. O smoke artificial do CI usa arquivo próprio. [Inicialização Docker](../plans/2026-11-04-docker-gold-inicializacao.md).
 
 ## GENAI-12 — insight do Panorama Gold v2
 

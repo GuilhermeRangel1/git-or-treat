@@ -280,26 +280,66 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("reports/synthetic-regression-report.json"),
     )
     parser.add_argument("--gold-language", action="store_true",
                         help="Avalia interpretação Gold v2 com cobertura artificial, sem provedor.")
     parser.add_argument("--language-holdout", action="store_true",
                         help="Usa as 16 formulações separadas; requer --gold-language.")
+    parser.add_argument("--expanded", action="store_true")
+    parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--real-sample", type=int, default=0,
+                        help="Opt-in Gemini: orçamento máximo de seis casos artificiais.")
+    parser.add_argument("--backend-junit", type=Path)
     args = parser.parse_args()
+    if args.expanded and args.gold_language:
+        parser.error("--expanded e --gold-language são escopos distintos")
+    if args.backend_junit and (args.expanded or args.gold_language):
+        parser.error("--backend-junit é um escopo separado")
+    if args.baseline and not (args.expanded or args.backend_junit):
+        parser.error("--baseline requer --expanded ou --backend-junit")
+    if args.real_sample and not args.expanded:
+        parser.error("--real-sample requer --expanded")
     if args.language_holdout and not args.gold_language:
         parser.error("--language-holdout requer --gold-language")
+    private_root = ROOT.parents[1] / "work"
+    if args.real_sample:
+        output = args.output or private_root / "evaluation" / "gemini-artificial.json"
+        if not output.resolve().is_relative_to(private_root.resolve()):
+            parser.error("O relatório de provedor real deve ficar em work/.")
+    else:
+        name = ("backend-evaluation" if args.backend_junit else
+                "expanded-regression-report" if args.expanded else
+                "gold-language-holdout" if args.language_holdout else
+                "gold-language-report" if args.gold_language else "synthetic-regression-report")
+        output = args.output or Path("reports") / f"{name}.json"
     dataset = "gold_language_holdout.json" if args.language_holdout else "gold_language_eval.json"
-    report = build_gold_language_report(dataset) if args.gold_language else build_report()
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+    if args.backend_junit:
+        from .evaluation_report import summarize_backend_junit
+        report = summarize_backend_junit(args.backend_junit)
+    elif args.expanded:
+        from .expanded_evaluation import build_expanded_report, build_real_report
+        report = (build_real_report(args.real_sample) if args.real_sample
+                  else build_expanded_report())
+    else:
+        report = build_gold_language_report(dataset) if args.gold_language else build_report()
+    if args.baseline:
+        from .evaluation_report import compare_reports
+        report["comparison"] = compare_reports(
+            json.loads(args.baseline.read_text(encoding="utf-8")), report,
+        )
+    output.parent.mkdir(parents=True, exist_ok=True)
     report_json = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
-    args.output.write_text(report_json, encoding="utf-8")
+    output.write_text(report_json, encoding="utf-8")
     print(json.dumps(report["summary"], ensure_ascii=False))
+    if args.baseline and not report["comparison"]["gate_passed"]:
+        raise SystemExit(1)
     if any(result["outcome"] not in ACCEPTED_OUTCOMES for result in report["cases"]):
         raise SystemExit(1)
 
 
-def build_gold_language_report(dataset_name: str = "gold_language_eval.json") -> dict:
+def build_gold_language_report(
+    dataset_name: str = "gold_language_eval.json", *, include_checks: bool = False,
+) -> dict:
     """Usa a mesma borda HTTP Gold da regressão; expectativas vêm da fixture versionada."""
     from .test_gold_language_http import _plan
 
@@ -309,20 +349,29 @@ def build_gold_language_report(dataset_name: str = "gold_language_eval.json") ->
     results = []
     categories = {}
     for case in dataset["cases"]:
-        response = _plan(case["question"])
-        actual = {"status": response["status"]}
-        if response.get("plan"):
-            plan = response["plan"]
-            actual.update({key: plan.get(key) for key in case["expected"] if key != "status"})
-            assert plan["operation"] == "read"
-            assert plan["profile_id"] == "v-energy-grid-360-gold"
-            assert plan["source_id"] == "gold.local"
+        try:
+            response = _plan(case["question"])
+            actual = {"status": response["status"]}
+            if response.get("plan"):
+                plan = response["plan"]
+                actual.update({key: plan.get(key) for key in case["expected"] if key != "status"})
+                assert plan["operation"] == "read"
+                assert plan["profile_id"] == "v-energy-grid-360-gold"
+                assert plan["source_id"] == "gold.local"
+        except Exception:
+            if not include_checks:
+                raise
+            results.append({"id": case["id"], "category": case["category"], "passed": False,
+                            "outcome": "evaluator_error", "checks": {"evaluator_execution": False}})
+            continue
         failures = sorted(key for key, value in case["expected"].items()
                           if actual.get(key) != value)
         passed = not failures
         results.append({"id": case["id"], "category": case["category"], "passed": passed,
                         "outcome": PASSED if passed else UNEXPECTED_FAILURE,
                         "actual_status": response["status"], "failing_checks": failures})
+        if include_checks:
+            results[-1]["checks"] = {key: key not in failures for key in case["expected"]}
         group = categories.setdefault(case["category"], {"total": 0, "passed": 0})
         group["total"] += 1
         group["passed"] += int(passed)

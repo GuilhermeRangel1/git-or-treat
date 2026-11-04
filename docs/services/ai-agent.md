@@ -1,5 +1,7 @@
 # Serviço: agente de inteligência artificial
 
+Execução Docker vigente: a composição padrão inicia toda a stack com Gold v2, papéis separados e bootstrap local. Demonstração fica somente no smoke explícito do CI. Consulte [inicialização Docker](../plans/2026-11-04-docker-gold-inicializacao.md).
+
 ## Busca conceitual autorizada — 03/11/2026
 
 O Assistente também explica as nove definições aprovadas do FAQ Gold v2.
@@ -407,6 +409,8 @@ Esses exemplos não são respostas esperadas; os números só podem ser preenchi
 
 ## Avaliação
 
+O diferencial IA-08 amplia o runner existente com `--expanded` e comparação por categoria via `--baseline`. A avaliação com Gemini usa opt-in e agregados artificiais, e a prova Gold privada tem reconciliação própria. Consulte [comandos, baselines e evidências](../plans/2026-11-03-ia08-avaliacao-ampliada.md).
+
 Preparar casos representativos para consumo, faturamento, rede, atendimento, geografia, classe, GD e perguntas impossíveis. Conferir correção numérica e recusa adequada. IA-08 é diferencial de automação; mesmo sem ele, evidência manual reproduzível é necessária para IA-01 a IA-06.
 
 ## Preparação da identidade de publicação Gold — 28/10/2026
@@ -545,3 +549,8 @@ O Assistente usa a referência curta assinada do Backend para continuar o últim
 ### IA-01 / IA-03 / IA-06 — DEC/FEC observados (03/11/2026)
 
 O contrato interno de evidência aceita `quality_mode=observed_uncertified` apenas com alimentador explícito e modo sem agrupamento. `EvidenceGuard` confere modo, limitação e escopo e rejeita combinação com outras métricas. O texto quantitativo do modelo não pode retirar a ressalva; o Backend a acrescenta deterministicamente na resposta pública e preserva modo/recorte na auditoria. Isso descreve valores observados, sem certificação, fechamento ou conformidade regulatória. A política e os controles estão na [ADR-0024](../decisions/0024-recuperacao-condicional-e-continuidade-observada.md) e no [contrato](../contracts/genai-query-execution.md). A prova integrada com modelo real ainda é necessária para os aceites de IA.
+
+
+## Cache e desempenho Gold v2 — implementação local em 04/11/2026
+
+Limites por bytes/entradas, coalescência dos insights, invalidação por contexto/publicação e redução das consultas do observador estão descritos no [plano de cache e desempenho](../plans/2026-11-04-genai-cache-desempenho.md). Autorização, prontidão, SQL e auditoria continuam executados; o cache não guarda permissão nem libera cobertura. Configuração, sincronização do namespace remoto, rollback, medições e limites constam no plano. Implementação no PR #123; CI remoto 41806936506 passou nos cinco jobs.

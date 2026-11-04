@@ -180,3 +180,40 @@ def test_observed_coverage_reads_only_the_requested_feeder_and_month(monkeypatch
         ).values(estado_cobertura="PARCIAL"))
         assert not coverage.observed_coverage_valid(connection, _plan(), quality)
     engine.dispose()
+
+
+@pytest.mark.parametrize("eligible", [True, False])
+def test_observed_coverage_runs_on_readiness_connection(monkeypatch, eligible):
+    import asyncio
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+
+    from app.services import genai_coordination as coordination
+    from app.services.genai_deadline import GenAIRequestDeadline
+
+    readiness_engine, readiness_connection = object(), Mock()
+
+    @contextmanager
+    def snapshot(engine):
+        assert engine is readiness_engine
+        yield readiness_connection
+
+    planned = SimpleNamespace(
+        response=SimpleNamespace(plan=_plan(), correlation_id="a" * 32),
+        publication=SimpleNamespace(batch_ref=BATCH, execution_snapshot=snapshot),
+        deadline=GenAIRequestDeadline.start(10),
+    )
+    report = _report()
+    client = SimpleNamespace(evaluate_readiness=AsyncMock(return_value=report))
+    read_coverage = Mock(return_value=eligible)
+    monkeypatch.setattr(coordination, "observed_coverage_valid", read_coverage)
+    gate = coordination.build_readiness_gate(readiness_engine, client, {"C11"})
+    if eligible:
+        assert asyncio.run(gate(planned)) == report
+    else:
+        with pytest.raises(coordination.GoldCoverageUnavailable):
+            asyncio.run(gate(planned))
+    assert read_coverage.call_args.args[0] is readiness_connection
+    assert read_coverage.call_args.args[2].batch_ref == BATCH
+    readiness_connection.exec_driver_sql.assert_called_once()
