@@ -13,6 +13,8 @@ Para novos desenvolvimentos, revisões, cenários e aceites de GenAI, chat e ins
 - Preserve fixtures sintéticas para CI e testes de segurança; elas devem usar o contrato v2 quando representam a integração Gold atual. Aceite Gold exige também a publicação v2 autorizada e reconciliação independente.
 - Uma capacidade ausente ou sem cobertura suficiente na v2 mantém o bloqueio/esclarecimento. Não preencher a lacuna com fonte v1, dados sintéticos ou equivalência presumida.
 
+**Exceção delimitada, ADR-0024:** para DEC/FEC por alimentador, o Backend pode admitir `observed_uncertified` quando a única falha de prontidão for falta de certificação e todos os controles observacionais, meses da janela, numeradores, denominadores, autorização e identidade da publicação passarem. A modalidade não certifica cobertura e exige a ressalva pública fixa “Valores observados; cobertura do alimentador não certificada.” Qualquer outra lacuna continua bloqueada; não use esta exceção para outros domínios ou métricas. Consulte [a decisão](../decisions/0024-recuperacao-condicional-e-continuidade-observada.md).
+
 Antes de concluir um PR, registre versão física, catálogo, consumidor e evidência v2. Trechos históricos deste guia descrevem a etapa em que foram escritos; o estado integrado vigente está em `docs/contracts/genai-consolidation.md` e nos guias dos serviços. Remover compatibilidade v1 é uma mudança separada, com inventário de consumidores e migração; esta política não manda apagar migrações ou testes existentes.
 
 ## Estado e decisões de partida — fotografia histórica

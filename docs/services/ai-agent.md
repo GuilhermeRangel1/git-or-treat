@@ -535,3 +535,7 @@ Contrato, medições, comparação isolada com Gemini e evidências reais em
 ## IA-07 — acompanhamento natural
 
 O Assistente usa a referência curta assinada do Backend para continuar o último recorte válido entre mensagens naturais, com replanejamento, autorização e evidência atual a cada consulta. Não persiste conversa nem usa a resposta antiga como fonte de números. Contrato, capacidades suportadas, implantação e provas Gold/API/portal em [acompanhamento com contexto](../contracts/genai-follow-up.md).
+
+### IA-01 / IA-03 / IA-06 — DEC/FEC observados (03/11/2026)
+
+O contrato interno de evidência aceita `quality_mode=observed_uncertified` apenas com alimentador explícito e modo sem agrupamento. `EvidenceGuard` confere modo, limitação e escopo e rejeita combinação com outras métricas. O texto quantitativo do modelo não pode retirar a ressalva; o Backend a acrescenta deterministicamente na resposta pública e preserva modo/recorte na auditoria. Isso descreve valores observados, sem certificação, fechamento ou conformidade regulatória. A política e os controles estão na [ADR-0024](../decisions/0024-recuperacao-condicional-e-continuidade-observada.md) e no [contrato](../contracts/genai-query-execution.md). A prova integrada com modelo real ainda é necessária para os aceites de IA.

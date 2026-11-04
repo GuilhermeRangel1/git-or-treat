@@ -296,6 +296,12 @@ O insight do Panorama pode incluir `analysis.composicaoAtual` (opcional): maior 
 
 Detalhamento por bairro requer a dimensão `geography.neighborhood` no escopo validado e reconciliação da projeção de bairros com o total do KPI. A mesma decisão de autorização é aplicada na consulta e na recomputação da auditoria; sem permissão ou reconciliação, a composição não é publicada.
 
+### Atualização 03/11/2026 — WEB-04 / continuidade observada
+
+Inspeções lê `validacao_recuperacao_json` da fila Gold v2 e expõe a estimativa individual somente após validar o estado/método conhecidos, validação temporal, limites, nível nominal e números finitos não negativos. O relatório bruto não cruza a API. O resumo de elegibilidade é calculado no universo filtrado antes da paginação.
+
+Na GenAI, `observed_uncertified` é uma exceção restrita a DEC/FEC. Só é selecionada quando prontidão falha exclusivamente por cobertura não certificada; o executor confere alimentador e competências exatos na publicação atual, números/denominadores e controles aplicáveis antes de executar. Autorização, escopo, prazo, limite e SQL somente leitura são os controles existentes. A resposta pública e a auditoria preservam o aviso de não certificação; demais falhas continuam bloqueando. Nenhum metadado ou registro Gold é alterado. Ver [ADR-0024](../decisions/0024-recuperacao-condicional-e-continuidade-observada.md) e [contrato de execução](../contracts/genai-query-execution.md).
+
 # Atualização de Receita — 02/11/2026
 
 Os snapshots comparativos incluem `measured_energy_kwh`, agregado do consumo medido por competência, independente de faturas. `billed_energy_kwh` continua distinto e nulo quando não publicado. Preço observado e decomposição preço × volume mantêm receita e consumo da base comparável.

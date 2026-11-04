@@ -3,7 +3,9 @@
 import asyncio
 import json
 import logging
+from calendar import monthrange
 from collections.abc import Awaitable, Callable
+from datetime import date
 from time import monotonic
 
 from sqlalchemy.engine import Engine
@@ -14,7 +16,7 @@ from app.schemas.ai import AIQuestionRequest, AIQuestionResponse
 from app.schemas.genai_audit import BackendAuditEvent
 from app.schemas.genai_evidence import GoldEvidenceQuality
 from app.schemas.genai_internal import AccessScope, QuestionSynthesisRequest
-from app.schemas.genai_plan import QuestionPlanStatus
+from app.schemas.genai_plan import LogicalReadPlan, QuestionPlanStatus, WindowKind
 from app.schemas.gold_readiness import GoldReadinessReport
 from app.services.genai_audit import AuditStore
 from app.services.genai_client import (
@@ -35,6 +37,87 @@ class GoldCoverageUnavailable(GenAIServiceUnavailable):
 
     def __init__(self):
         super().__init__(retryable=False)
+
+
+OBSERVED_CONTINUITY_WARNING = "Valores observados; cobertura do alimentador não certificada."
+_OBSERVED_CONTINUITY_METRICS = frozenset({
+    "network.equivalent_interruption_duration",
+    "network.equivalent_interruption_frequency",
+})
+
+
+def _requested_months(plan: LogicalReadPlan) -> tuple[str, ...]:
+    window = getattr(plan, "window", None)
+    if window is None:
+        return ()
+    if window.kind is not WindowKind.BOUNDED or window.granularity != "month":
+        return ()
+    if (
+        window.start.day != 1
+        or window.end.day != monthrange(window.end.year, window.end.month)[1]
+    ):
+        return ()
+    current = date(window.start.year, window.start.month, 1)
+    end = date(window.end.year, window.end.month, 1)
+    periods = []
+    while current <= end:
+        periods.append(current.strftime("%Y-%m"))
+        current = date(current.year + (current.month == 12), current.month % 12 + 1, 1)
+    return tuple(periods)
+
+
+def _observed_continuity_quality(
+    report: GoldReadinessReport, plan: LogicalReadPlan, batch_ref: str
+) -> GoldEvidenceQuality | None:
+    """Autoriza somente a falha de certificação após os controles C11 passarem."""
+    if plan.metric_id not in _OBSERVED_CONTINUITY_METRICS:
+        return None
+    periods = _requested_months(plan)
+    feeder_filters = [
+        item for item in getattr(plan, "filters", ())
+        if item.dimension_id == "network.feeder"
+    ]
+    if (
+        not periods
+        or len(feeder_filters) != 1
+        or feeder_filters[0].operator.value != "eq"
+        or len(feeder_filters[0].values) != 1
+        or getattr(plan, "group_by_dimension_ids", ())
+    ):
+        return None
+    readiness = report.capabilities.get("interrupcoes.dec_fec")
+    if (
+        readiness is None
+        or readiness.status != "unavailable"
+        or readiness.reasons != ("coverage_incomplete",)
+    ):
+        return None
+    return GoldEvidenceQuality(
+        readiness_version=report.readiness_version,
+        batch_ref=batch_ref,
+        lot_state=report.lot_state,
+        quality_mode="observed_uncertified",
+        available_capability_ids=(),
+        observed_capability_ids=("interrupcoes.dec_fec",),
+        observed_periods=periods,
+    )
+
+
+def _apply_observed_continuity_warning(
+    response: AIQuestionResponse, quality: GoldEvidenceQuality
+) -> AIQuestionResponse:
+    if quality.quality_mode != "observed_uncertified" or response.status != "answered":
+        return response
+    answer = response.answer or ""
+    if OBSERVED_CONTINUITY_WARNING not in answer:
+        suffix = f" {OBSERVED_CONTINUITY_WARNING}"
+        answer = answer.rstrip()
+        answer = answer[:4000 - len(suffix)].rstrip() + suffix
+    limitations = list(response.limitations)
+    if OBSERVED_CONTINUITY_WARNING not in limitations:
+        limitations = limitations[:19]
+        limitations.append(OBSERVED_CONTINUITY_WARNING)
+    return response.model_copy(update={"answer": answer, "limitations": limitations})
 
 
 async def answer_gold_question(
@@ -109,18 +192,27 @@ async def answer_gold_question(
         raise GenAIServiceUnavailable(retryable=False)
     unavailable = [report.capabilities[key] for key in required
                    if report.capabilities[key].status != "available"]
+    quality = None
     if unavailable:
-        coverage_reasons = {"period_missing", "period_insufficient", "coverage_missing",
-                            "coverage_incomplete", "table_empty", "source_not_in_gold"}
-        if all(set(capability.reasons) <= coverage_reasons for capability in unavailable):
-            raise GoldCoverageUnavailable
-        raise GenAIServiceUnavailable(retryable=False)
-    quality = GoldEvidenceQuality(
-        readiness_version=report.readiness_version,
-        batch_ref=report.batch_ref,
-        lot_state=report.lot_state,
-        available_capability_ids=tuple(sorted(required)),
-    )
+        quality = _observed_continuity_quality(
+            report, planned.response.plan, planned.publication.batch_ref
+        )
+        if quality is None:
+            coverage_gap = any(
+                set(capability.reasons)
+                & {"coverage_missing", "coverage_incomplete", "period_missing"}
+                for capability in unavailable
+            )
+            if coverage_gap:
+                raise GoldCoverageUnavailable
+            raise GenAIServiceUnavailable(retryable=False)
+    else:
+        quality = GoldEvidenceQuality(
+            readiness_version=report.readiness_version,
+            batch_ref=report.batch_ref,
+            lot_state=report.lot_state,
+            available_capability_ids=tuple(sorted(required)),
+        )
     metadata = {
         "plan_id": planned.response.plan_fingerprint,
         "catalog_version": planned.response.plan.catalog_version,
@@ -128,6 +220,15 @@ async def answer_gold_question(
         "caller_ref": planned.access_scope.caller_ref,
         "metric_id": planned.response.plan.metric_id,
         "source_id": planned.response.plan.source_id,
+    }
+    quality_audit = {
+        "quality_mode": quality.quality_mode,
+        "observed_capability_ids": quality.observed_capability_ids,
+        "observed_periods": quality.observed_periods,
+        "quality_limitation": (
+            OBSERVED_CONTINUITY_WARNING
+            if quality.quality_mode == "observed_uncertified" else None
+        ),
     }
     await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit("plan", "ready", "success", artifact=execution_artifact(planned), **metadata))
     query_started = monotonic()
@@ -149,7 +250,8 @@ async def answer_gold_question(
         "evidence_bytes": len(lookup.model_dump_json().encode("utf-8")),
     }, separators=(",", ":")))
     await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit(
-        "source", "completed", "success", row_count=row_count, artifact=execution_artifact(planned, lookup=lookup), **metadata,
+        "source", "completed", "success", row_count=row_count,
+        artifact=execution_artifact(planned, lookup=lookup), **metadata, **quality_audit,
     ))
     current_scope = await planned.deadline.run(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope),
@@ -170,6 +272,7 @@ async def answer_gold_question(
     result = await planned.deadline.run(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: client.synthesize(payload, correlation_id=correlation_id),
     )
+    result = _apply_observed_continuity_warning(result, quality)
     current_scope = await planned.deadline.run(
         GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope),
     )
@@ -183,7 +286,7 @@ async def answer_gold_question(
         "refused" if result.status == "refused" else "success"
     )
     reference = await planned.deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: audit(
-        "response", "completed", outcome, row_count=row_count, **metadata,
+        "response", "completed", outcome, row_count=row_count, **metadata, **quality_audit,
     ))
     # A confirmação durável também consome tempo; não publicar com escopo/lote
     # revogados enquanto a transação de auditoria era confirmada.
