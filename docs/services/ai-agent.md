@@ -551,4 +551,4 @@ O contrato interno de evidência aceita `quality_mode=observed_uncertified` apen
 
 ## Cache e desempenho Gold v2 — implementação local em 04/11/2026
 
-Limites por bytes/entradas, coalescência dos insights, invalidação por contexto/publicação e redução das consultas do observador estão descritos no [plano de cache e desempenho](../plans/2026-11-04-genai-cache-desempenho.md). Autorização, prontidão, SQL e auditoria continuam executados; o cache não guarda permissão nem libera cobertura. Configuração, sincronização do namespace remoto, rollback, medições e limites constam no plano. Publicação/CI desta implementação ainda pendentes.
+Limites por bytes/entradas, coalescência dos insights, invalidação por contexto/publicação e redução das consultas do observador estão descritos no [plano de cache e desempenho](../plans/2026-11-04-genai-cache-desempenho.md). Autorização, prontidão, SQL e auditoria continuam executados; o cache não guarda permissão nem libera cobertura. Configuração, sincronização do namespace remoto, rollback, medições e limites constam no plano. Implementação no PR #123; CI remoto 41806936506 passou nos cinco jobs.

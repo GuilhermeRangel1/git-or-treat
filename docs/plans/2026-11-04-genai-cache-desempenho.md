@@ -1,6 +1,6 @@
 # Cache e desempenho das consultas GenAI
 
-Estado: implementação e aceite técnico local; aguardando PR e CI remoto. Cartão: https://trello.com/c/0TsqnMQH. Branch `feat/genai-cache-desempenho`. Nenhum requisito obrigatório novo; extensão do núcleo Gold v2 existente.
+Estado: implementação e aceite técnico local; PR #123 aberto contra `develop`, CI remoto 41806936506 aprovado nos cinco jobs. Cartão: https://trello.com/c/0TsqnMQH. Branch `feat/genai-cache-desempenho`. Nenhum requisito obrigatório novo; extensão do núcleo Gold v2 existente.
 
 ## Caminho e alterações
 
@@ -20,7 +20,7 @@ Os limites de bytes medem payload serializado, não RSS Python; o overhead adici
 
 ## Evidência local em 04/11/2026
 
-Microbenchmark `PYTHONPATH=. python scripts/benchmark_cache.py`, em `ai-agent/`, usa o adaptador real e provedor artificial com atraso de 20 ms. Vinte requisições por cenário: sem cache p50/p95 31,471/32,470 ms e 20 chamadas; frio 31,270/31,966 ms e 20; quente 0,040/0,056 ms e zero; concorrente 29,589/29,756 ms e uma chamada. O scheduler Windows acrescenta atraso; esses tempos não estimam a latência Gemini. O comando falha se a contagem de chamadas divergir, mas não impõe limiar temporal instável. CI preparado para executar e publicar somente o JSON agregado desse benchmark, junto aos relatórios sanitizados existentes.
+Microbenchmark `PYTHONPATH=. python scripts/benchmark_cache.py`, em `ai-agent/`, usa o adaptador real e provedor artificial com atraso de 20 ms. Vinte requisições por cenário: sem cache p50/p95 31,471/32,470 ms e 20 chamadas; frio 31,270/31,966 ms e 20; quente 0,040/0,056 ms e zero; concorrente 29,589/29,756 ms e uma chamada. O scheduler Windows acrescenta atraso; esses tempos não estimam a latência Gemini. O comando falha se a contagem de chamadas divergir, mas não impõe limiar temporal instável. No CI do PR #123, executou e publicou somente o JSON agregado desse benchmark, junto aos relatórios sanitizados existentes.
 
 PostgreSQL 16 local, leitura somente, mesma publicação: cinco execuções por projeção com `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` e `psql` com `COPY (SELECT ...) TO /dev/null`. Nenhum registro foi impresso ou exportado para artefato. Visão UC: 45.000 linhas, payload de 6.582.125 para 2.519.472 bytes; mediana de leitura/serialização de 41,908 para 14,168 ms. Atendimento: 318.871 linhas, 39.335.511 para 23.124.527 bytes; mediana de 309,500 para 155,766 ms. EXPLAIN isolado não mostrou ganho no scan: a projeção acrescenta trabalho no executor; o benefício medido está em serialização/transporte. Não há justificativa para índice novo nessa leitura integral de controles.
 
@@ -36,7 +36,7 @@ A preparação isolada inicialmente usou origem/hostname incorretos, produzindo 
 - Backend completo: 1.193 passaram, 114 skips e uma falha por `openpyxl` ausente no venv. Após instalar a dependência já exigida pelo projeto, cinco testes de arquivos passaram. Não se declara uma segunda suíte completa após essa instalação.
 - Depois da redução de consultas mensais e do namespace: 103 testes dirigidos de prontidão/client/coordenador passaram e um opt-in foi ignorado. A regressão adicional de cancelamento total passou na rodada posterior de 35 testes do cliente.
 - Escopo, catálogo, publicação, filtros, contexto, TTL, LRU, bytes, concorrência, falha e cancelamento exercitados pelas suítes existentes e ampliadas. A interface não recebeu alteração visual nem contrato público novo. Evidências privadas e segredos permanecem em `work/` ignorado.
-- Publicação do código e execução remota do CI ainda pendentes de autorização. Não marcar o cartão como concluído antes dessa evidência; a medição local não certifica cobertura de Dados ou disponibilidade contínua do Gemini.
+- Código publicado no PR #123 e CI remoto 41806936506 aprovado nos cinco jobs. A evidência será sincronizada no Trello; a medição local não certifica cobertura de Dados ou disponibilidade contínua do Gemini.
 
 
 Duas consultas reais simultâneas, na mesma conta temporária comercial, responderam HTTP 200 `answered` em 20.546,74 e 20.527,11 ms, com pontos iguais. Essa amostra confirma execução concorrente correta, mas não demonstra redução do tempo total sob concorrência: os controles de prontidão continuam consumindo CPU e consultas por solicitação. Contas e sessões de teste removidas em `finally`. Os containers temporários e arquivos temporários de ambiente foram removidos ao concluir; o banco iniciado para a rodada foi devolvido ao estado parado, com volume preservado.
@@ -50,4 +50,4 @@ O comparativo de prontidão executou as duas versões de `observe_domain_readine
 
 Rodada final do microbenchmark com `tracemalloc`: sem cache p50/p95 31,128/32,184 ms, frio 31,202/31,807, quente 0,141/0,156 e concorrente 27,060/27,895. Chamadas 20/20/0/1. Payload retido 0/3.160/158/158 bytes; pico de alocações Python 10.765/26.243/9.864/52.524 bytes, respectivamente. Instrumentação altera o custo observado; não equivale a RSS do processo ou vazamento em produção. A contagem de chamadas é o gate determinístico, tempos e memória são evidência descritiva.
 
-Conferência final local: Ruff completo passou; compileall dos módulos afetados passou; YAML válido e o bloco documental do próprio CI conferiu configurações/imports e links em 184 documentos; `git diff --check` passou. Trello permanece em 12/13 até a publicação e aprovação do CI remoto. Esta branch está sendo preparada para commit e push; nenhum resultado do CI remoto foi observado ainda.
+Conferência final local: Ruff completo passou; compileall dos módulos afetados passou; YAML válido e o bloco documental do próprio CI conferiu configurações/imports e links em 184 documentos; `git diff --check` passou. PR #123 e CI remoto 41806936506 aprovados; o resultado será sincronizado no Trello. As evidências locais e remotas não certificam cobertura de Dados ou disponibilidade contínua do Gemini.
