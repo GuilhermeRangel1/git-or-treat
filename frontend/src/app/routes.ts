@@ -1,4 +1,5 @@
-import type { ComponentType } from "react";
+import { lazy } from "react";
+import type { ComponentType, LazyExoticComponent } from "react";
 import {
   Activity,
   Bot,
@@ -7,17 +8,23 @@ import {
   ClipboardCheck,
   ClipboardList,
   LayoutDashboard,
+  Map,
 } from "lucide-react";
 import type { NavItem } from "@/layouts/navigation";
 import PanoramaPage from "@/features/panorama/PanoramaPage";
-import ReceitaPage from "@/features/receita/ReceitaPage";
-import UC360Page from "@/features/uc360/UC360Page";
-import InspecoesPage from "@/features/inspecoes/InspecoesPage";
-import OrdensPage from "@/features/ordens/OrdensPage";
-import OperacaoPage from "@/features/operacao/OperacaoPage";
-import AssistentePage from "@/features/assistente/AssistentePage";
+const ReceitaPage = lazy(() => import("@/features/receita/ReceitaPage"));
+export const UC360Page = lazy(() => import("@/features/uc360/UC360Page"));
+const InspecoesPage = lazy(() => import("@/features/inspecoes/InspecoesPage"));
+const OrdensPage = lazy(() => import("@/features/ordens/OrdensPage"));
+const OperacaoPage = lazy(() => import("@/features/operacao/OperacaoPage"));
+const MapaPage = lazy(() => import("@/features/mapa/MapaPage"));
+const AssistentePage = lazy(
+  () => import("@/features/assistente/AssistentePage"),
+);
 
-type AppRoute = NavItem & { Component: ComponentType };
+type AppRoute = NavItem & {
+  Component: ComponentType | LazyExoticComponent<ComponentType>;
+};
 
 export const routes = [
   {
@@ -25,6 +32,7 @@ export const routes = [
     label: "Panorama",
     subtitle: "Visão executiva e KPIs gerais",
     requirementId: "WEB-01",
+    requiredPermission: "panorama:read",
     icon: LayoutDashboard,
     contentHeading: true,
     Component: PanoramaPage,
@@ -34,8 +42,9 @@ export const routes = [
     label: "Receita",
     title: "Entenda a receita.",
     subtitle:
-      "Compare períodos, investigue territórios e separe preço efetivo de volume faturado.",
+      "Compare períodos, investigue territórios e analise preço observado e consumo medido.",
     requirementId: "WEB-02",
+    requiredPermission: "revenue:read",
     icon: ChartNoAxesCombined,
     Component: ReceitaPage,
   },
@@ -46,17 +55,20 @@ export const routes = [
     section: "Atendimento",
     subtitle: "Localize a UC pelo número informado no atendimento.",
     requirementId: "WEB-03",
+    requiredPermission: "ucs:read",
     icon: Building2,
     Component: UC360Page,
   },
   {
     path: "/inspecoes",
+    contentHeading: true,
     label: "Inspeções",
     title: "Priorize a próxima inspeção.",
     section: "Perdas",
     subtitle:
       "Uma fila explicável para orientar a investigação de perdas. Suspeita não é fraude comprovada.",
     requirementId: "WEB-04",
+    requiredPermission: "inspections:read",
     icon: ClipboardCheck,
     Component: InspecoesPage,
   },
@@ -67,18 +79,31 @@ export const routes = [
     subtitle:
       "Criação, atualização, resultado e cancelamento no mesmo contexto operacional.",
     requirementId: "WEB-05",
+    requiredPermission: "orders:read",
     icon: ClipboardList,
     Component: OrdensPage,
   },
   {
     path: "/operacao",
     label: "Operação",
+    contentHeading: true,
     title: "Continuidade, onde importa.",
     subtitle:
       "Compare alimentadores e investigue os registros que sustentam os indicadores internos.",
     requirementId: "WEB-06",
+    requiredPermission: "operations:read",
     icon: Activity,
     Component: OperacaoPage,
+  },
+  {
+    path: "/mapa",
+    label: "Mapa da RMR",
+    title: "Faturamento e consumo por município.",
+    subtitle:
+      "Localize variações na Região Metropolitana do Recife e continue a análise em Receita.",
+    requiredPermission: "revenue:read",
+    icon: Map,
+    Component: MapaPage,
   },
   {
     path: "/assistente",
@@ -86,6 +111,7 @@ export const routes = [
     contentHeading: true,
     layout: "conversation",
     requirementId: "IA-05",
+    requiredPermission: "ai:ask",
     icon: Bot,
     Component: AssistentePage,
   },

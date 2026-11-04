@@ -1,16 +1,27 @@
 import asyncio
 import json
+import logging
 import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
 from app.config import Settings
-from app.providers.factory import ModelConfigurationError, build_model_adapter
+from app.providers.factory import (
+    ModelConfigurationError,
+    build_model_adapter,
+    build_model_router,
+)
 from app.providers.gemini import GeminiModelAdapter
-from app.providers.protocols import GeneratedAnswer, ModelProviderUnavailable
+from app.providers.protocols import (
+    GeneratedAnswer,
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
+    ModelProviderUnavailable,
+)
+from app.providers.routing import ModelTier
+from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn, EvidenceReference
-from app.tools.evidence import EvidenceResult
 
 
 class FakeModelEndpoint:
@@ -79,6 +90,80 @@ def test_gemini_factory_uses_configured_model_and_secret_without_exposing_it() -
 
     assert isinstance(adapter, GeminiModelAdapter)
     assert "fake-key-for-test" not in repr(settings)
+
+
+def test_configured_model_router_builds_light_and_strong_levels_without_network() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_provider="gemini",
+        gemini_model="gemini-strong-test",
+        gemini_api_key="fake-key-for-test",
+        model_routing_enabled=True,
+        model_light_model="gemini-light-test",
+        model_light_intents=["consumption"],
+        model_max_calls=2,
+    )
+    endpoint = FakeModelEndpoint(response=FakeResponse('{"status":"answered","answer":"ok"}'))
+    client = FakeClient(endpoint)
+
+    strong = build_model_adapter(settings, client=client)
+    router = build_model_router(settings, strong, client=client)
+
+    assert router is not None
+    light_tier, light = router.route(intent="consumption", evidence_records=1, evidence_chars=1)
+    strong_tier, strong_level = router.route(intent=None, evidence_records=1, evidence_chars=1)
+    assert light_tier is ModelTier.LIGHT
+    assert strong_tier is ModelTier.STRONG
+    assert light is not strong_level
+    assert router.adapter_for(ModelTier.STRONG) is strong
+    assert "fake-key-for-test" not in repr(settings)
+
+
+def test_configured_model_router_requires_light_model_when_light_intents_exist() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_provider="gemini",
+        gemini_api_key="fake-key-for-test",
+        model_routing_enabled=True,
+        model_light_intents=["consumption"],
+    )
+    strong = build_model_adapter(settings, client=FakeClient(FakeModelEndpoint()))
+
+    with pytest.raises(ModelConfigurationError, match="GENAI_MODEL_LIGHT_MODEL"):
+        build_model_router(settings, strong, client=FakeClient(FakeModelEndpoint()))
+
+
+def test_configured_model_router_rejects_same_light_and_strong_model() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_provider="gemini",
+        gemini_model="gemini-same-test",
+        gemini_api_key="fake-key-for-test",
+        model_routing_enabled=True,
+        model_light_model="gemini-same-test",
+        model_light_intents=["consumption"],
+    )
+    strong = build_model_adapter(settings, client=FakeClient(FakeModelEndpoint()))
+
+    with pytest.raises(ModelConfigurationError, match="modelos light e strong devem ser distintos"):
+        build_model_router(settings, strong, client=FakeClient(FakeModelEndpoint()))
+
+
+def test_configured_model_router_reserves_budget_for_possible_escalation() -> None:
+    settings = Settings(
+        _env_file=None,
+        model_provider="gemini",
+        gemini_api_key="fake-key-for-test",
+        gemini_fallback_models=["gemini-strong-fallback"],
+        model_routing_enabled=True,
+        model_light_model="gemini-light-test",
+        model_light_intents=["consumption"],
+        model_max_calls=2,
+    )
+    strong = build_model_adapter(settings, client=FakeClient(FakeModelEndpoint()))
+
+    with pytest.raises(ModelConfigurationError, match="GENAI_MODEL_MAX_CALLS"):
+        build_model_router(settings, strong, client=FakeClient(FakeModelEndpoint()))
 
 
 def test_gemini_sdk_client_uses_bounded_timeout_and_disables_retries(monkeypatch) -> None:
@@ -164,7 +249,7 @@ def test_gemini_adapter_rejects_invalid_provider_responses(response_text: str | 
     endpoint = FakeModelEndpoint(response=FakeResponse(response_text))
     adapter = GeminiModelAdapter(model_name="gemini-test-model", client=FakeClient(endpoint))
 
-    with pytest.raises(ModelProviderUnavailable, match="resposta inválida"):
+    with pytest.raises(ModelProviderInvalidResponse, match="resposta inválida"):
         asyncio.run(
             adapter.generate(
                 "Pergunta sintética",
@@ -192,8 +277,106 @@ def test_gemini_adapter_sanitizes_timeout_and_provider_failures(
     endpoint = FakeModelEndpoint(error=failure)
     adapter = GeminiModelAdapter(model_name="gemini-test-model", client=FakeClient(endpoint))
 
-    with pytest.raises(ModelProviderUnavailable) as error:
+    expected = (
+        ModelProviderUnavailable if isinstance(failure, TimeoutError) else ModelProviderRejected
+    )
+    with pytest.raises(expected) as error:
         asyncio.run(adapter.generate("Pergunta sintética", [], demo_evidence))
 
     assert "private" not in str(error.value)
     assert "API key" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("429", ModelProviderUnavailable),
+        (503, ModelProviderUnavailable),
+        (403, ModelProviderRejected),
+    ],
+)
+def test_gemini_classifies_provider_status_for_fallback(status, expected, demo_evidence) -> None:
+    class ProviderError(Exception):
+        status_code = status
+
+    endpoint = FakeModelEndpoint(error=ProviderError("private provider detail"))
+    adapter = GeminiModelAdapter(model_name="gemini-test-model", client=FakeClient(endpoint))
+    with pytest.raises(expected) as error:
+        asyncio.run(adapter.generate("Pergunta sintética", [], demo_evidence))
+    assert "private" not in str(error.value)
+
+
+@pytest.mark.parametrize("reason", ["MAX_TOKENS", "SAFETY", "OTHER"])
+def test_incomplete_completion_rejects_even_valid_json(reason, demo_evidence):
+    response = FakeResponse(GeneratedAnswer(status="answered", answer="texto").model_dump_json())
+    response.candidates = [SimpleNamespace(finish_reason=reason)]
+    adapter = GeminiModelAdapter(model_name="test", client=FakeClient(FakeModelEndpoint(response)))
+    with pytest.raises(ModelProviderInvalidResponse):
+        asyncio.run(adapter.generate("pergunta", [], demo_evidence))
+
+
+FAKE_SECRET = "AQ.fake-secret"
+
+
+def _failure_lines(caplog) -> list[dict[str, object]]:
+    return [
+        json.loads(record.getMessage().removeprefix("genai_provider_failure "))
+        for record in caplog.records
+        if record.getMessage().startswith("genai_provider_failure ")
+    ]
+
+
+def _provider_error(**attributes) -> Exception:
+    error = type("ProviderError", (Exception,), attributes)
+    return error(f"private detail {FAKE_SECRET} Pergunta sintética")
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected", "kind", "status"),
+    [
+        (_provider_error(status_code=429), ModelProviderUnavailable, "quota", 429),
+        (_provider_error(code="503"), ModelProviderUnavailable, "overloaded", 503),
+        (_provider_error(status_code=404), ModelProviderRejected, "model_not_found", 404),
+        (_provider_error(status_code=403), ModelProviderRejected, "rejected", 403),
+        (_provider_error(), ModelProviderRejected, "rejected", None),
+        (TimeoutError(FAKE_SECRET), ModelProviderUnavailable, "timeout_or_network", None),
+        (ConnectionError(FAKE_SECRET), ModelProviderUnavailable, "timeout_or_network", None),
+        (OSError(FAKE_SECRET), ModelProviderUnavailable, "timeout_or_network", None),
+    ],
+)
+def test_gemini_logs_only_the_classified_failure_cause(
+    failure, expected, kind, status, demo_evidence, caplog,
+) -> None:
+    adapter = GeminiModelAdapter(
+        model_name="gemini-test-model", client=FakeClient(FakeModelEndpoint(error=failure)),
+    )
+    with caplog.at_level(logging.INFO), pytest.raises(expected) as error:
+        asyncio.run(adapter.generate("Pergunta sintética", [], demo_evidence))
+
+    assert type(error.value) is expected
+    assert _failure_lines(caplog) == [{
+        "correlation_id": None, "provider": "gemini", "model": "gemini-test-model",
+        "kind": kind, "status": status,
+    }]
+    assert FAKE_SECRET not in caplog.text
+    assert "private detail" not in caplog.text
+    assert "Pergunta sintética" not in caplog.text
+
+
+@pytest.mark.parametrize("response", [
+    FakeResponse(""),
+    FakeResponse("not-json"),
+    FakeResponse('{"status":"answered","answer":"texto","extra":"campo"}'),
+])
+def test_gemini_logs_invalid_response_without_its_content(response, demo_evidence, caplog):
+    adapter = GeminiModelAdapter(
+        model_name="gemini-test-model", client=FakeClient(FakeModelEndpoint(response)),
+    )
+    with caplog.at_level(logging.INFO), pytest.raises(ModelProviderInvalidResponse):
+        asyncio.run(adapter.generate("Pergunta sintética", [], demo_evidence))
+
+    assert _failure_lines(caplog) == [{
+        "correlation_id": None, "provider": "gemini", "model": "gemini-test-model",
+        "kind": "invalid_response", "status": None,
+    }]
+    assert "campo" not in caplog.text and "not-json" not in caplog.text

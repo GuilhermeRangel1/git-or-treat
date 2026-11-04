@@ -1,0 +1,427 @@
+# Dicionário da camada SQL para as 7 tabelas REAIS da Gold (dicionário de dados v1).
+#
+# Fonte: branch origin/develop, commit c9580cd (29/10/2026):
+#   - colunas, grão, unidades e regras: docs/dicionario_gold.md;
+#   - tipos, chaves e colunas anuláveis observados nos CSVs: backend/app/models/gold_v1.py
+#     (snapshot da migração goldv1000001; contrato em docs/contracts/gold-csv-v1.md).
+# Snapshot conferido pelos testes: tests/fixtures/gold_dictionary_v1_snapshot.json.
+#
+# Não substitui dictionary.toml (catálogo artificial). Nenhuma composição da aplicação carrega
+# este arquivo: ele é usado pelos testes contra um SQLite sintético (tests/gold_mock.py) e por
+# scripts/check_gold_dictionary.py, até a Gold ter credencial, permissões e reconciliação
+# homologadas.
+#
+# O carregador (app/sql/dictionary.py) lê apenas version, status, [limits], [policy] e
+# tables.<nome>.columns/description. As demais chaves (grain, key, period_column, metrics,
+# dimensions, excluded_columns, known_values, nullable_columns, [concepts], relationships) são
+# metadados semânticos: hoje só os testes os leem e conferem contra as colunas permitidas.
+#
+# Tipos: string -> text, long -> bigint, double -> double, date -> date, boolean -> boolean,
+# decimal(38,2) mantido. nullable_columns segue o Backend: toda coluna fora da chave é anulável.
+#
+# Nomes das tabelas: o dicionário usa o nome da Gold (diagnostico_receita). O banco do Backend
+# grava as mesmas tabelas com prefixo (gold_diagnostico_receita); ver README, "Pontos abertos".
+
+version = "gold-v1-develop-c9580cd"
+status = "gold-v1-nao-homologado"
+
+# Cruzamentos entre tabelas autorizados. Vazio: o dicionário v1 não declara relacionamento.
+# ATENÇÃO: o validador atual NÃO lê esta lista. Ele aceita JOIN entre quaisquer tabelas daqui
+# (ex.: diagnostico_receita com visao_360_uc por municipio). Ver teste xfail estrito em
+# tests/test_sql_gold_dictionary.py e a seção "Cruzamentos" do README.
+relationships = []
+
+[limits]
+# Mesmos tetos do dictionary.toml; esta mudança não altera regras de limite ou timeout.
+max_rows = 500
+max_tables = 5
+timeout_ms = 5000
+max_sql_chars = 4000
+
+[policy]
+allowed_functions = [
+    "count",
+    "sum",
+    "avg",
+    "min",
+    "max",
+    "round",
+    "abs",
+    "coalesce",
+    "nullif",
+    "lower",
+    "upper",
+]
+allowed_cast_types = ["int", "bigint", "smallint", "decimal", "double", "float", "text", "varchar", "date"]
+# Recusadas em qualquer identificador, inclusive alias, e negadas pelo autorizador do SQLite.
+# Nenhuma das 7 tabelas projeta essas colunas; a lista continua como defesa caso uma versão
+# futura da Gold ou um alias tente reintroduzi-las.
+sensitive_columns = [
+    # Pessoais, mesmo mascaradas (decisão GenAI: não expor nem a máscara).
+    "cpf_cnpj",
+    "nome_titular",
+    "logradouro",
+    "numero",
+    "cep",
+    "latitude",
+    "longitude",
+    # Metadados de pipeline da Silver (prefixo "_"). Não são pessoais, mas não fazem parte do
+    # contrato analítico; as flags *_conflitante derivam de CPF e nome. Listados um a um
+    # porque reservar o prefixo "_" recusaria também os aliases gerados pelo sqlglot
+    # (_col_0, _q_0) na revalidação do executor.
+    "_cpf_cnpj_conflitante",
+    "_nome_titular_conflitante",
+    "_geo_invalida",
+    "_ligacao_futura",
+    "_ligacao_sentinela",
+    "_arquivo_origem",
+    "_ordem_na_origem",
+    "_lote_id",
+    "_id_registro",
+    "_data_processamento",
+    "_run_id",
+    # Genéricos herdados do dictionary.toml, sem coluna correspondente na Gold v1.
+    "cpf",
+    "cnpj",
+    "nome_cliente",
+    "email",
+    "telefone",
+    "celular",
+    "endereco",
+    "numero_endereco",
+    "complemento",
+    "data_nascimento",
+    "rg",
+]
+reserved_prefixes = ["pg_", "sqlite_", "information_schema"]
+
+# Mesmo conceito, nomes diferentes por tabela no dicionário v1. NÃO há alias nas colunas:
+# cada tabela usa o nome físico real. Os testes conferem que cada valor é coluna permitida.
+[concepts.geracao_distribuida]
+# Valores "Sim" / "Não": presença de linha de GD, sem vigência temporal.
+diagnostico_receita = "possui_gd"
+visao_360_uc = "possui_gd"
+variacao_consumo_uc = "possui_gd"
+fila_inspecao = "possui_geracao_solar"
+
+[concepts.classe_consumo]
+diagnostico_receita = "classe_consumo"
+consumo_receita_bairro = "classe_consumo"
+visao_360_uc = "classe"
+fila_inspecao = "classe"
+
+[concepts.subgrupo_tarifario]
+diagnostico_receita = "subgrupo_tarifario"
+visao_360_uc = "subgrupo"
+fila_inspecao = "subgrupo"
+
+[concepts.alimentador]
+indicadores_dec_fec = "id_alimentador"
+visao_360_uc = "alimentador"
+fila_inspecao = "alimentador"
+
+# ---------------------------------------------------------------------------------------
+# Métricas: aggregation = "sum" (somável entre linhas do mesmo período), "count" (contagem
+# de linhas da chave) ou "ratio" (razão/média já calculada; não somar nem tirar média entre
+# linhas: ler somente no grão da chave). Unidades conforme docs/dicionario_gold.md.
+# known_values só para domínios fechados pela regra da Gold; categorias que o dicionário cita
+# como exemplo da origem (classe, subgrupo, bandeira) não são listadas.
+# ---------------------------------------------------------------------------------------
+
+[tables.diagnostico_receita]
+description = "Receita faturada, consumo e tarifa efetiva por competência e segmentação tarifária."
+grain = "competência × município × classe × subgrupo tarifário × bandeira × GD"
+key = ["competencia", "municipio", "classe_consumo", "subgrupo_tarifario", "bandeira_tarifaria", "possui_gd"]
+period_column = "competencia"
+dimensions = ["municipio", "classe_consumo", "subgrupo_tarifario", "bandeira_tarifaria", "possui_gd"]
+excluded_columns = []
+nullable_columns = [
+    "qtd_ucs_distintas_faturadas_no_mes",
+    "soma_faturamentos_mensais",
+    "consumo_total_kwh",
+    "receita_total_reais",
+    "ticket_medio_reais_por_uc",
+    "consumo_medio_kwh_por_uc",
+    "tarifa_media_efetiva",
+]
+
+[tables.diagnostico_receita.columns]
+competencia = "text"
+municipio = "text"
+classe_consumo = "text"
+subgrupo_tarifario = "text"
+bandeira_tarifaria = "text"
+possui_gd = "text"
+qtd_ucs_distintas_faturadas_no_mes = "bigint"
+soma_faturamentos_mensais = "bigint"
+consumo_total_kwh = "double"
+receita_total_reais = "decimal(38,2)"
+ticket_medio_reais_por_uc = "double"
+consumo_medio_kwh_por_uc = "double"
+tarifa_media_efetiva = "double"
+
+[tables.diagnostico_receita.metrics]
+qtd_ucs_distintas_faturadas_no_mes = { unit = "UCs", aggregation = "sum" }
+soma_faturamentos_mensais = { unit = "faturas", aggregation = "sum" }
+consumo_total_kwh = { unit = "kWh", aggregation = "sum" }
+receita_total_reais = { unit = "R$", aggregation = "sum" }
+ticket_medio_reais_por_uc = { unit = "R$/UC", aggregation = "ratio" }
+consumo_medio_kwh_por_uc = { unit = "kWh/UC", aggregation = "ratio" }
+tarifa_media_efetiva = { unit = "R$/kWh", aggregation = "ratio" }
+
+[tables.diagnostico_receita.known_values]
+possui_gd = ["Sim", "Não"]
+
+[tables.indicadores_dec_fec]
+description = "DEC e FEC simplificados por alimentador e competência com ocorrência, com o município atendido."
+grain = "alimentador × competência"
+key = ["id_alimentador", "competencia"]
+period_column = "competencia"
+dimensions = ["id_alimentador", "municipio"]
+excluded_columns = []
+nullable_columns = [
+    "municipio",
+    "total_ucs_alimentador",
+    "ucs_interrompidas",
+    "frequencia_total_interrupcoes",
+    "duracao_total_interrupcoes_horas",
+    "dec",
+    "fec",
+]
+
+[tables.indicadores_dec_fec.columns]
+id_alimentador = "text"
+municipio = "text"
+competencia = "text"
+total_ucs_alimentador = "bigint"
+ucs_interrompidas = "bigint"
+frequencia_total_interrupcoes = "bigint"
+duracao_total_interrupcoes_horas = "double"
+# Na Gold e no CSV as colunas se chamam DEC e FEC (maiúsculas), e o Backend as cria com esse
+# nome. O carregador exige identificador em minúsculas. SQLite e Spark resolvem nomes de coluna
+# sem diferenciar caixa; no PostgreSQL do Backend a coluna fica "DEC" entre aspas e uma
+# referência dec sem aspas NÃO a encontra. Ponto aberto com o Backend (README, "Pontos abertos").
+dec = "double"
+fec = "double"
+
+[tables.indicadores_dec_fec.metrics]
+total_ucs_alimentador = { unit = "UCs", aggregation = "sum" }
+ucs_interrompidas = { unit = "UCs", aggregation = "sum" }
+frequencia_total_interrupcoes = { unit = "pares UC–ocorrência", aggregation = "sum" }
+duracao_total_interrupcoes_horas = { unit = "horas", aggregation = "sum" }
+dec = { unit = "horas por UC", aggregation = "ratio" }
+fec = { unit = "interrupções por UC", aggregation = "ratio" }
+
+[tables.fila_inspecao]
+description = "Uma linha por UC com sinais e prioridade de inspeção de campo; não é diagnóstico de fraude."
+grain = "UC"
+key = ["id_uc"]
+dimensions = [
+    "id_uc",
+    "municipio",
+    "bairro",
+    "uf",
+    "classe",
+    "subgrupo",
+    "alimentador",
+    "status",
+    "possui_geracao_solar",
+    "prioridade_inspecao",
+]
+excluded_columns = []
+nullable_columns = [
+    "municipio",
+    "bairro",
+    "uf",
+    "classe",
+    "subgrupo",
+    "alimentador",
+    "data_ligacao",
+    "status",
+    "possui_geracao_solar",
+    "total_inspecoes_realizadas",
+    "total_inspecoes_irregulares",
+    "media_consumo_historico",
+    "prioridade_inspecao",
+]
+
+[tables.fila_inspecao.columns]
+id_uc = "text"
+municipio = "text"
+bairro = "text"
+uf = "text"
+classe = "text"
+subgrupo = "text"
+alimentador = "text"
+data_ligacao = "date"
+status = "text"
+possui_geracao_solar = "text"
+total_inspecoes_realizadas = "bigint"
+total_inspecoes_irregulares = "bigint"
+media_consumo_historico = "double"
+prioridade_inspecao = "text"
+
+[tables.fila_inspecao.metrics]
+id_uc = { unit = "UCs", aggregation = "count" }
+total_inspecoes_realizadas = { unit = "inspeções", aggregation = "sum" }
+total_inspecoes_irregulares = { unit = "inspeções", aggregation = "sum" }
+media_consumo_historico = { unit = "kWh por leitura", aggregation = "ratio" }
+
+[tables.fila_inspecao.known_values]
+# Hierarquia aplicada pelo notebook, na ordem do dicionário.
+prioridade_inspecao = [
+    "ALTA - HISTORICO IRREGULAR",
+    "REVISAR - SEM HISTORICO DE CONSUMO",
+    "ALTA - CONSUMO ZERO",
+    "MEDIA - NUNCA INSPECIONADO",
+    "BAIXA",
+]
+possui_geracao_solar = ["Sim", "Não"]
+
+[tables.visao_360_uc]
+description = "Uma linha por UC com cadastro não pessoal, atendimento, interrupções, consumo e GD."
+grain = "UC"
+key = ["id_uc"]
+dimensions = [
+    "id_uc",
+    "municipio",
+    "bairro",
+    "uf",
+    "classe",
+    "subgrupo",
+    "alimentador",
+    "status",
+    "possui_gd",
+]
+excluded_columns = []
+nullable_columns = [
+    "municipio",
+    "bairro",
+    "uf",
+    "classe",
+    "subgrupo",
+    "alimentador",
+    "data_ligacao",
+    "status",
+    "possui_gd",
+    "total_chamados_callcenter",
+    "media_satisfacao_atendimento",
+    "total_interrupcoes_sofridas",
+    "duracao_total_interrupcoes_horas",
+    "media_consumo_historico",
+]
+
+[tables.visao_360_uc.columns]
+id_uc = "text"
+municipio = "text"
+bairro = "text"
+uf = "text"
+classe = "text"
+subgrupo = "text"
+alimentador = "text"
+data_ligacao = "date"
+status = "text"
+possui_gd = "text"
+total_chamados_callcenter = "bigint"
+media_satisfacao_atendimento = "double"
+total_interrupcoes_sofridas = "bigint"
+duracao_total_interrupcoes_horas = "double"
+media_consumo_historico = "double"
+
+[tables.visao_360_uc.metrics]
+id_uc = { unit = "UCs", aggregation = "count" }
+total_chamados_callcenter = { unit = "protocolos", aggregation = "sum" }
+media_satisfacao_atendimento = { unit = "nota", aggregation = "ratio" }
+total_interrupcoes_sofridas = { unit = "ocorrências", aggregation = "sum" }
+duracao_total_interrupcoes_horas = { unit = "horas", aggregation = "sum" }
+media_consumo_historico = { unit = "kWh por leitura", aggregation = "ratio" }
+
+[tables.visao_360_uc.known_values]
+possui_gd = ["Sim", "Não"]
+
+[tables.consumo_receita_bairro]
+description = "Receita faturada e consumo por competência, município, bairro e classe; ausência de cadastro vira 'Não informado'."
+grain = "competência × município × bairro × classe"
+key = ["competencia", "municipio", "bairro", "classe_consumo"]
+period_column = "competencia"
+dimensions = ["municipio", "bairro", "classe_consumo"]
+excluded_columns = []
+nullable_columns = ["consumo_total_kwh", "receita_total_reais", "qtd_ucs_distintas_faturadas_no_mes"]
+
+[tables.consumo_receita_bairro.columns]
+competencia = "text"
+municipio = "text"
+bairro = "text"
+classe_consumo = "text"
+consumo_total_kwh = "double"
+receita_total_reais = "decimal(38,2)"
+qtd_ucs_distintas_faturadas_no_mes = "bigint"
+
+[tables.consumo_receita_bairro.metrics]
+consumo_total_kwh = { unit = "kWh", aggregation = "sum" }
+receita_total_reais = { unit = "R$", aggregation = "sum" }
+qtd_ucs_distintas_faturadas_no_mes = { unit = "UCs", aggregation = "sum" }
+
+[tables.variacao_consumo_uc]
+description = "Consumo mensal médio de cada UC entre P1 (07/2022 a 06/2023) e P2 (07/2025 a 06/2026)."
+grain = "UC"
+key = ["id_uc"]
+# Sem period_column: as janelas P1 e P2 são fixas e já estão nas colunas.
+dimensions = ["id_uc", "municipio", "bairro", "possui_gd", "queda_consumo_superior_30_pct"]
+excluded_columns = []
+nullable_columns = [
+    "municipio",
+    "bairro",
+    "possui_gd",
+    "consumo_medio_inicial",
+    "meses_com_leitura_p1",
+    "consumo_medio_final",
+    "meses_com_leitura_p2",
+    "variacao_kwh",
+    "variacao_pct",
+    "queda_consumo_superior_30_pct",
+]
+
+[tables.variacao_consumo_uc.columns]
+id_uc = "text"
+municipio = "text"
+bairro = "text"
+possui_gd = "text"
+consumo_medio_inicial = "double"
+meses_com_leitura_p1 = "bigint"
+consumo_medio_final = "double"
+meses_com_leitura_p2 = "bigint"
+variacao_kwh = "double"
+variacao_pct = "double"
+queda_consumo_superior_30_pct = "boolean"
+
+[tables.variacao_consumo_uc.metrics]
+# meses_com_leitura_p1/p2 qualificam a comparação de cada UC e não são métricas: false na
+# flag também pode significar comparação indisponível.
+id_uc = { unit = "UCs", aggregation = "count" }
+consumo_medio_inicial = { unit = "kWh por mês observado", aggregation = "ratio" }
+consumo_medio_final = { unit = "kWh por mês observado", aggregation = "ratio" }
+variacao_kwh = { unit = "kWh", aggregation = "ratio" }
+variacao_pct = { unit = "%", aggregation = "ratio" }
+
+[tables.variacao_consumo_uc.known_values]
+possui_gd = ["Sim", "Não"]
+
+[tables.consumo_mensal_uc]
+description = "Consumo e receita faturada por UC e competência, só para pares com fatura e leitura."
+grain = "UC × competência"
+key = ["id_uc", "competencia"]
+period_column = "competencia"
+dimensions = ["id_uc"]
+excluded_columns = []
+nullable_columns = ["consumo_kwh", "receita_reais"]
+
+[tables.consumo_mensal_uc.columns]
+id_uc = "text"
+competencia = "text"
+consumo_kwh = "double"
+receita_reais = "decimal(38,2)"
+
+[tables.consumo_mensal_uc.metrics]
+consumo_kwh = { unit = "kWh", aggregation = "sum" }
+receita_reais = { unit = "R$", aggregation = "sum" }

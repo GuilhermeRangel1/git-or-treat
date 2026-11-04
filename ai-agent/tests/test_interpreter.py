@@ -1,10 +1,13 @@
+import pytest
+
 from app.agent.interpreter import QuestionInterpreter
+from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.schemas.interpretation import InterpretationStatus
 from app.schemas.questions import ConversationTurn
 
 
 def test_interprets_business_synonyms_and_preserves_filter_phrases() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Quanto cresceu a receita comercial em Jaboatão entre o ano passado e este ano?"
     )
 
@@ -18,7 +21,9 @@ def test_interprets_business_synonyms_and_preserves_filter_phrases() -> None:
 
 
 def test_maps_everyday_power_outage_phrase_to_network_interruptions() -> None:
-    result = QuestionInterpreter().interpret("Houve falta de luz em Olinda no último ano?")
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Houve falta de luz em Olinda no último ano?"
+    )
 
     assert result.status is InterpretationStatus.READY
     assert result.intent is not None
@@ -28,7 +33,7 @@ def test_maps_everyday_power_outage_phrase_to_network_interruptions() -> None:
 
 
 def test_plural_service_synonym_maps_to_attendance_domain() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Quantos atendimentos ocorreram no período de demonstração?"
     )
 
@@ -38,8 +43,87 @@ def test_plural_service_synonym_maps_to_attendance_domain() -> None:
     assert result.intent.metric_phrase == "atendimentos"
 
 
+@pytest.mark.parametrize(
+    ("question", "domain", "metric", "period"),
+    [
+        (
+            "Qual é o indicador sintético de consumo no cenário de demonstração?",
+            "consumption",
+            "consumo",
+            "período de demonstração",
+        ),
+        (
+            "Compare o indicador fictício de receita entre dois períodos de demonstração.",
+            "revenue",
+            "receita",
+            "dois períodos de demonstração",
+        ),
+        (
+            "Quantas interrupções existem no cenário de demonstração?",
+            "network",
+            "interrupções",
+            "período de demonstração",
+        ),
+    ],
+)
+def test_assistant_suggestion_phrases_resolve_to_catalogued_intents(
+    question: str, domain: str, metric: str, period: str
+) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.domain == domain
+    assert result.intent.metric_phrase == metric
+    assert result.intent.period_phrase == period
+
+
+@pytest.mark.parametrize(
+    ("question", "domain", "metric"),
+    [
+        (
+            "Quanto de consumo fict\u00edcio aparece na demonstra\u00e7\u00e3o?",
+            "consumption",
+            "consumo",
+        ),
+        (
+            "Quantas interrup\u00e7\u00f5es de fornecimento aparecem na demonstra\u00e7\u00e3o?",
+            "network",
+            "interrup\u00e7\u00f5es de fornecimento",
+        ),
+        (
+            "Quantas faltas de luz existem no cen\u00e1rio sint\u00e9tico?",
+            "network",
+            "faltas de luz",
+        ),
+        (
+            "Quantas faltas de energia h\u00e1 na demonstra\u00e7\u00e3o?",
+            "network",
+            "faltas de energia",
+        ),
+        (
+            "Qual n\u00famero de chamados foi usado na demonstra\u00e7\u00e3o?",
+            "service",
+            "chamados",
+        ),
+    ],
+)
+def test_demo_questions_with_standalone_demonstration_and_plural_aliases_are_recognized(
+    question: str, domain: str, metric: str
+) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.domain == domain
+    assert result.intent.metric_phrase == metric
+    assert result.intent.period_phrase == "per\u00edodo de demonstra\u00e7\u00e3o"
+
+
 def test_asks_what_account_of_light_means_instead_of_guessing() -> None:
-    result = QuestionInterpreter().interpret("Minha conta de luz subiu?")
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Minha conta de luz subiu?"
+    )
 
     assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
     assert result.intent is None
@@ -48,7 +132,21 @@ def test_asks_what_account_of_light_means_instead_of_guessing() -> None:
 
 
 def test_requests_a_period_when_a_quantitative_question_omits_it() -> None:
-    result = QuestionInterpreter().interpret("Compare a receita comercial em Jaboatão.")
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Compare a receita comercial em Jaboatão."
+    )
+
+    assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
+    assert result.intent is None
+    assert "período" in result.clarification_question
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["Como está o consumo?", "Me passe uma receita de bolo de cenoura."],
+)
+def test_demo_default_period_does_not_apply_without_demo_context(question: str) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
 
     assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
     assert result.intent is None
@@ -56,15 +154,28 @@ def test_requests_a_period_when_a_quantitative_question_omits_it() -> None:
 
 
 def test_requests_a_comparison_baseline_instead_of_assuming_one() -> None:
-    result = QuestionInterpreter().interpret("Quanto cresceu a receita no último ano?")
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Quanto cresceu a receita no último ano?"
+    )
 
     assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
     assert result.intent is None
     assert "comparação" in result.clarification_question
 
 
+def test_demo_comparison_alias_uses_the_configured_two_period_window() -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        "Que valores de faturamento foram usados na comparação demonstrativa?"
+    )
+
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.domain == "revenue"
+    assert result.intent.period_phrase == "dois períodos de demonstração"
+
+
 def test_correction_replaces_the_previous_geography_phrase() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Qual foi a receita em Olinda, não, em Jaboatão no último ano?"
     )
 
@@ -74,7 +185,7 @@ def test_correction_replaces_the_previous_geography_phrase() -> None:
 
 
 def test_asks_when_multiple_geographies_are_not_marked_as_a_correction() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Compare a receita em Olinda e Jaboatão no último ano."
     )
 
@@ -84,7 +195,7 @@ def test_asks_when_multiple_geographies_are_not_marked_as_a_correction() -> None
 
 
 def test_unknown_capitalized_location_is_not_silently_dropped() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Qual foi o consumo em Recife no último ano?"
     )
 
@@ -93,8 +204,26 @@ def test_unknown_capitalized_location_is_not_silently_dropped() -> None:
     assert "local" in result.clarification_question
 
 
+@pytest.mark.parametrize(
+    ("question", "geography", "classification"),
+    [
+        ("Qual foi o consumo na classe residencial no último ano?", None, "residencial"),
+        ("Qual foi o consumo no município de Olinda no último ano?", "Olinda", None),
+    ],
+)
+def test_known_business_and_dimension_phrases_are_not_unknown_places(
+    question: str, geography: str | None, classification: str | None
+) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.geography_phrase == geography
+    assert result.intent.class_phrase == classification
+
+
 def test_preserves_direction_and_percentage_threshold_without_calculating_them() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Quais UCs tiveram queda de consumo acima de 30% em Olinda entre o ano passado e este ano?"
     )
 
@@ -107,8 +236,32 @@ def test_preserves_direction_and_percentage_threshold_without_calculating_them()
     }
 
 
+@pytest.mark.parametrize("question", ["Na verdade, no último ano.", "Corrigindo: no último ano."])
+def test_explicit_period_correction_preserves_metric_and_filters(question: str) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
+        question,
+        [ConversationTurn(
+            role="user",
+            content="Qual foi o consumo residencial em Olinda no período de demonstração?",
+        )],
+    )
+    assert result.status is InterpretationStatus.READY
+    assert result.intent is not None
+    assert result.intent.metric_id == "energy.consumption"
+    assert result.intent.period_phrase == "último ano"
+    assert result.intent.geography_phrase == "Olinda"
+    assert result.intent.class_phrase == "residencial"
+
+
+@pytest.mark.parametrize("question", ["Na verdade, no último ano.", "E em Olinda?"])
+def test_incomplete_follow_up_without_antecedent_requests_clarification(question: str) -> None:
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(question)
+    assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
+    assert result.intent is None
+
+
 def test_follow_up_inherits_intent_and_applies_explicit_geography_correction() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "E em Olinda, não, em Jaboatão?",
         [
             ConversationTurn(
@@ -128,7 +281,7 @@ def test_follow_up_inherits_intent_and_applies_explicit_geography_correction() -
 
 
 def test_follow_up_does_not_reuse_an_older_intent_after_ambiguous_latest_user_turn() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "E em Jaboatão?",
         [
             ConversationTurn(
@@ -145,7 +298,7 @@ def test_follow_up_does_not_reuse_an_older_intent_after_ambiguous_latest_user_tu
 
 
 def test_unrelated_question_does_not_inherit_previous_filters() -> None:
-    result = QuestionInterpreter().interpret(
+    result = QuestionInterpreter(profile=GRID360_DEMO_PROFILE).interpret(
         "Quais bairros tiveram maior variação?",
         [
             ConversationTurn(

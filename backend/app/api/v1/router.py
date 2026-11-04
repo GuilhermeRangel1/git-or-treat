@@ -1,20 +1,37 @@
 from fastapi import APIRouter
+
 from app.api.v1.endpoints import (
+    ai,
+    ai_conversations,
+    ai_visualizations,
+    analytics_options,
+    auth,
+    genai_audit,
     health,
+    inspections,
     kpis,
+    operations,
+    panorama,
     revenue,
     ucs,
-    inspections,
-    operations,
-    ai,
 )
 
 api_router = APIRouter()
+api_router.include_router(analytics_options.router, prefix="/analytics", tags=["Catálogo analítico"])
 
+api_router.include_router(genai_audit.router, prefix="/internal", tags=["Interno"])
+
+api_router.include_router(auth.router, prefix="/auth", tags=["Autenticação"])
 api_router.include_router(health.router, tags=["Health"])
 api_router.include_router(kpis.router, prefix="/kpis", tags=["Indicadores"])
+api_router.include_router(panorama.router, prefix="/panorama", tags=["Panorama"])
 api_router.include_router(revenue.router, prefix="/revenue", tags=["Receita"])
 api_router.include_router(ucs.router, prefix="/ucs", tags=["Unidades Consumidoras"])
 api_router.include_router(inspections.router, prefix="/inspections", tags=["Inspeções"])
 api_router.include_router(operations.router, prefix="/operations", tags=["Operação / Continuidade"])
 api_router.include_router(ai.router, prefix="/ai", tags=["Agente IA"])
+api_router.include_router(ai.questions_router, prefix="/ai", tags=["Agente IA"])
+api_router.include_router(ai_conversations.router, prefix="/ai", tags=["Histórico IA"])
+api_router.include_router(ai.insights_router, prefix="/ai", tags=["Agente IA"])
+
+api_router.include_router(ai_visualizations.router, prefix="/ai", tags=["Visualizações IA"])

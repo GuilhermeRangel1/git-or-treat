@@ -1,0 +1,172 @@
+from pydantic import BaseModel, Field
+
+from app.schemas.analytics import AnalyticsMetadata, InspectionQueueItem, Pagination
+from app.schemas.gold import GoldMetadata
+
+
+class SignalEvidence(BaseModel):
+    id: str
+    label: str
+    weight: float = Field(ge=0, le=1)
+
+
+class EstimateEvidence(BaseModel):
+    baseline_kwh: float | None = Field(ge=0)
+    observed_kwh: float | None = Field(ge=0)
+    horizon_months: int | None = Field(ge=1)
+    reference: str
+    unavailable_reason: str | None = None
+
+
+class HistoricalRecoveryReference(BaseModel):
+    mean_kwh_per_inspection: float = Field(ge=0)
+    lower_kwh_per_inspection: float = Field(ge=0)
+    upper_kwh_per_inspection: float = Field(ge=0)
+    reference: str
+
+
+class ConsumptionComparison(BaseModel):
+    baseline_start: str
+    baseline_end: str
+    recent_start: str
+    recent_end: str
+    baseline_kwh: float | None
+    recent_kwh: float | None
+    change_percent: float | None
+    unavailable_reason: str | None
+
+
+class InvestigationPotential(BaseModel):
+    baseline_start: str
+    baseline_end: str
+    recent_start: str
+    recent_end: str
+    baseline_kwh: float | None = Field(ge=0)
+    recent_kwh: float | None = Field(ge=0)
+    potential_kwh: float | None = Field(ge=0)
+    unavailable_reason: str | None
+
+
+class SuspicionDetail(InspectionQueueItem):
+    rule_version: str
+    signals: list[SignalEvidence]
+    estimate_evidence: EstimateEvidence
+    historical_recovery: HistoricalRecoveryReference | None = None
+    consumption_comparison: ConsumptionComparison | None = None
+    limitations: list[str]
+
+
+class InspectionCandidate(InspectionQueueItem):
+    signals: list[SignalEvidence]
+
+
+class QueueSummary(BaseModel):
+    total_units: int = Field(ge=0)
+    highest_priority: float | None = Field(ge=0, le=1)
+    estimated_units: int = Field(ge=0)
+    unavailable_estimate_units: int = Field(ge=0)
+
+
+class QueueData(BaseModel):
+    items: list[InspectionCandidate]
+    filter_options: dict[str, list[str]]
+    neighborhoods: list[dict[str, str]] = Field(default_factory=list)
+    summary: QueueSummary
+
+
+class QueueResponse(BaseModel):
+    data: QueueData
+    pagination: Pagination
+    metadata: AnalyticsMetadata
+
+
+class SuspicionResponse(BaseModel):
+    data: SuspicionDetail
+    metadata: AnalyticsMetadata
+
+
+class GoldInspectionVariation(BaseModel):
+    p1_start: str = "2022-07"
+    p1_end: str = "2023-06"
+    p1_months_observed: int | None
+    p1_average_kwh_per_month: float | None
+    p2_start: str = "2025-07"
+    p2_end: str = "2026-06"
+    p2_months_observed: int | None
+    p2_average_kwh_per_month: float | None
+    variation_kwh: float | None
+    variation_pct: float | None
+    drop_over_30_pct: bool | None
+
+
+class GoldInspectionEvidence(BaseModel):
+    inspections_performed: int | None
+    confirmed_irregular_inspections: int | None
+    historical_average_kwh_per_reading: float | None
+    distributed_generation_present: str | None
+    cadastral_status: str | None
+    call_center_contacts: int | None
+    interruptions: int | None
+    priority_order: int | None
+    historical_recovery_mean_kwh_per_inspection: float | None
+    historical_recovery_interval_lower_kwh: float | None
+    historical_recovery_interval_upper_kwh: float | None
+    historical_recovery_reference: str | None
+    historical_recovery_status: str
+    estimated_recoverable_energy_kwh: float | None
+    recovery_interval_lower_kwh: float | None
+    recovery_interval_upper_kwh: float | None
+    recovery_estimate_status: str | None
+    recovery_estimate_method: str | None
+    recovery_estimate_confidence_level: float | None = None
+    recovery_estimate_window_anchor: str | None = None
+    recovery_estimate_window_months: int | None = None
+    recovery_estimate_minimum_window_months: int | None = None
+
+
+class GoldInspectionItem(BaseModel):
+    uc_id: str
+    municipality: str | None
+    neighborhood: str | None
+    class_name: str | None
+    feeder_id: str | None
+    category: str | None
+    reason: str | None
+    queue_position: int
+    potential_recoverable_energy_kwh: float | None = None
+    recovery_unavailable_reason: str | None = None
+    evidence: GoldInspectionEvidence
+    variation: GoldInspectionVariation | None
+
+
+class GoldInspectionSummary(BaseModel):
+    total_units: int = Field(ge=0)
+    categories: dict[str, int]
+    uncategorized_units: int = Field(ge=0)
+    estimated_units: int = Field(default=0, ge=0)
+    unavailable_estimate_units: int = Field(ge=0)
+
+
+class GoldInspectionQueueData(BaseModel):
+    items: list[GoldInspectionItem]
+    filter_options: dict[str, list[str]]
+    neighborhoods: list[dict[str, str]] = Field(default_factory=list)
+    summary: GoldInspectionSummary
+
+
+class GoldInspectionQueueResponse(BaseModel):
+    data: GoldInspectionQueueData
+    pagination: Pagination
+    metadata: GoldMetadata
+
+
+class GoldSuspicionDetail(GoldInspectionItem):
+    rule_version: str
+    limitations: list[str]
+    consumption_comparison: ConsumptionComparison | None = None
+    investigation_potential: InvestigationPotential | None = None
+
+
+class GoldSuspicionResponse(BaseModel):
+    data: GoldSuspicionDetail
+    metadata: GoldMetadata

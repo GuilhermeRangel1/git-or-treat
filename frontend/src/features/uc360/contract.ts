@@ -1,0 +1,637 @@
+import type { UCHistorySection } from "./uc360-state";
+
+export const UC_STATES = [
+  "available",
+  "empty",
+  "partial",
+  "unavailable",
+] as const;
+export type UCStatus = (typeof UC_STATES)[number];
+
+export type UCSource = {
+  kind: string;
+  version: string;
+  is_demo: boolean;
+  updated_at: string;
+};
+export type UCPeriod = { start: string; end: string; granularity: "month" };
+export type UCMetadata = {
+  contract_version: "1.1.0";
+  status: UCStatus;
+  period: UCPeriod;
+  filters: Record<string, unknown>;
+  source: UCSource;
+  limitations: string[];
+};
+export type UCMeter = {
+  meter_id: string;
+  installed_at: string;
+  removed_at: string | null;
+};
+export type UCProfile = {
+  uc_id: string;
+  customer_reference: string | null;
+  customer_name: string | null;
+  customer_identification_status?:
+    "available" | "absent" | "conflict" | "unavailable";
+  municipio: string;
+  bairro: string;
+  classe: string;
+  alimentador: string;
+  status: string;
+};
+export type UCMeasure = {
+  value: number | null;
+  status: UCStatus;
+  limitations: string[];
+};
+export type UCChange = {
+  delta: number | null;
+  percent_change: number | null;
+  status: UCStatus;
+  limitations: string[];
+};
+export type UCOverview = {
+  data: {
+    profile: UCProfile;
+    period: UCPeriod;
+    comparison: {
+      initial: {
+        competencia: string;
+        measured_energy_kwh: UCMeasure;
+        billed_energy_kwh: UCMeasure;
+        billed_amount: UCMeasure;
+        paid_amount: UCMeasure;
+      };
+      final: {
+        competencia: string;
+        measured_energy_kwh: UCMeasure;
+        billed_energy_kwh: UCMeasure;
+        billed_amount: UCMeasure;
+        paid_amount: UCMeasure;
+      };
+      measured_energy_kwh: UCChange;
+      billed_energy_kwh: UCChange;
+      billed_amount: UCChange;
+      paid_amount: UCChange;
+    };
+    open_invoices: {
+      count: number | null;
+      status: UCStatus;
+      limitations: string[];
+    };
+    current_meter: {
+      item: UCMeter | null;
+      status: UCStatus;
+      limitations: string[];
+    };
+    distributed_generation: {
+      items: Array<{ capacity_kw: number; status: string }>;
+      status: UCStatus;
+      limitations: string[];
+    };
+    gold_generation?: {
+      capacity_kwp: number | null;
+      connection_date: string | null;
+      modality: string | null;
+    } | null;
+    gold_generation_record?: boolean | null;
+    section_status: Record<string, UCStatus>;
+  };
+  metadata: UCMetadata;
+};
+export type UCSearchItem = {
+  uc_id: string;
+  municipio: string;
+  bairro: string;
+  classe: string;
+  alimentador: string;
+  status: string;
+};
+export type UCSearchResponse = {
+  data: { items: UCSearchItem[] };
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
+  metadata: {
+    status: UCStatus;
+    provenance?: Pick<UCMetadata, "source" | "period" | "limitations">;
+  };
+};
+export type UCConsumptionItem = Record<string, unknown> & {
+  competencia: string;
+  measured_energy_kwh: number | null;
+  billed_amount?: number | null;
+  status: UCStatus;
+};
+export type UCInvoiceItem = Record<string, unknown> & {
+  invoice_id: string;
+  competencia: string;
+  billed_amount: number | null;
+  paid_amount: number | null;
+  billed_energy_kwh: number | null;
+  due_date: string | null;
+  payment_date: string | null;
+  payment_status: "paid" | "partial" | "unpaid" | "unknown";
+  declared_status?: string | null;
+  declared_open_amount?: number | null;
+  declared_payment_date?: string | null;
+  currency_unit: "BRL";
+};
+export type UCMeterHistoryItem = Record<string, unknown> & {
+  meter_id: string;
+  installed_at: string;
+  removed_at: string | null;
+};
+export type UCGenerationItem = Record<string, unknown> & {
+  capacity_kw: number;
+  status: string;
+};
+export type UCInterruptionItem = Record<string, unknown> & {
+  event_id: string;
+  feeder_id: string;
+  competencia: string;
+  duration_hours: number;
+};
+export type UCCallItem = Record<string, unknown> & {
+  call_id: string;
+  opened_at: string;
+  category: string;
+};
+export type UCTreatmentItem = Record<string, unknown> & {
+  call_id: string;
+  position: number;
+  treatment_date: string | null;
+  action_category: string;
+  channel: string;
+};
+export type UCHistoryItem =
+  | UCConsumptionItem
+  | UCInvoiceItem
+  | UCMeterHistoryItem
+  | UCGenerationItem
+  | UCInterruptionItem
+  | UCCallItem
+  | UCTreatmentItem;
+export type UCHistory = {
+  data: { items: UCHistoryItem[] };
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
+  metadata: UCMetadata;
+};
+
+export class UCContractError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UCContractError";
+  }
+}
+type Obj = Record<string, unknown>;
+type UCPagination = UCSearchResponse["pagination"];
+function obj(value: unknown, path: string): Obj {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new UCContractError(`${path} deve ser objeto.`);
+  return value as Obj;
+}
+function str(value: unknown, path: string): string {
+  if (typeof value !== "string")
+    throw new UCContractError(`${path} deve ser texto.`);
+  return value;
+}
+function n(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value))
+    throw new UCContractError(`${path} deve ser número finito.`);
+  return value;
+}
+function nullableN(value: unknown, path: string): number | null {
+  return value === null ? null : n(value, path);
+}
+function strings(value: unknown, path: string): string[] {
+  if (!Array.isArray(value))
+    throw new UCContractError(`${path} deve ser lista.`);
+  return value.map((item, i) => str(item, `${path}[${i}]`));
+}
+function pagination(value: unknown, path: string): UCPagination {
+  const input = obj(value, path);
+  const integer = (raw: unknown, field: string) => {
+    const parsed = n(raw, `${path}.${field}`);
+    if (!Number.isInteger(parsed) || parsed < 0)
+      throw new UCContractError(`${path}.${field} inválido.`);
+    return parsed;
+  };
+  const page = integer(input.page, "page");
+  const pageSize = integer(input.page_size, "page_size");
+  const total = integer(input.total, "total");
+  const totalPages = integer(input.total_pages, "total_pages");
+  if (page < 1)
+    throw new UCContractError(`${path}.page deve ser pelo menos 1.`);
+  if (pageSize < 1 || pageSize > 100)
+    throw new UCContractError(`${path}.page_size deve estar entre 1 e 100.`);
+  const expectedTotalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+  if (totalPages !== expectedTotalPages)
+    throw new UCContractError(`${path}.total_pages não corresponde ao total.`);
+  return {
+    page,
+    page_size: pageSize,
+    total,
+    total_pages: totalPages,
+  };
+}
+function state(value: unknown, path: string): UCStatus {
+  if (!(UC_STATES as readonly unknown[]).includes(value))
+    throw new UCContractError(`${path} contém estado inválido.`);
+  return value as UCStatus;
+}
+function month(value: unknown, path: string) {
+  const parsed = str(value, path);
+  if (!/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(parsed))
+    throw new UCContractError(`${path} deve usar YYYY-MM.`);
+  return parsed;
+}
+function period(value: unknown, path: string): UCPeriod {
+  const input = obj(value, path);
+  if (input.granularity !== "month")
+    throw new UCContractError(`${path}.granularity inválida.`);
+  const start = month(input.start, `${path}.start`);
+  const end = month(input.end, `${path}.end`);
+  if (start > end) throw new UCContractError(`${path} está invertido.`);
+  return { start, end, granularity: "month" };
+}
+function sourceMetadata(value: unknown, path: string): UCSource {
+  const source = obj(value, path);
+  if (typeof source.is_demo !== "boolean")
+    throw new UCContractError(`${path}.is_demo inválido.`);
+  const updated_at = str(source.updated_at, `${path}.updated_at`);
+  if (!Number.isFinite(Date.parse(updated_at)))
+    throw new UCContractError(`${path}.updated_at inválido.`);
+  return {
+    kind: str(source.kind, `${path}.kind`),
+    version: str(source.version, `${path}.version`),
+    is_demo: source.is_demo,
+    updated_at,
+  };
+}
+function meta(value: unknown, path: string): UCMetadata {
+  const input = obj(value, path);
+  if (input.contract_version !== "1.1.0")
+    throw new UCContractError(`${path}.contract_version incompatível.`);
+  return {
+    contract_version: "1.1.0",
+    status: state(input.status, `${path}.status`),
+    period: period(input.period, `${path}.period`),
+    filters: obj(input.filters, `${path}.filters`),
+    source: sourceMetadata(input.source, `${path}.source`),
+    limitations: strings(input.limitations, `${path}.limitations`),
+  };
+}
+function measure(value: unknown, path: string): UCMeasure {
+  const input = obj(value, path);
+  const status = state(input.status, `${path}.status`);
+  const number = nullableN(input.value, `${path}.value`);
+  if (status === "available" && number === null)
+    throw new UCContractError(`${path}.value deve existir quando disponível.`);
+  if ((status === "empty" || status === "unavailable") && number !== null)
+    throw new UCContractError(`${path}.value não corresponde ao estado.`);
+  return {
+    value: number,
+    status,
+    limitations: strings(input.limitations, `${path}.limitations`),
+  };
+}
+function change(value: unknown, path: string): UCChange {
+  const input = obj(value, path);
+  const status = state(input.status, `${path}.status`);
+  const delta = nullableN(input.delta, `${path}.delta`);
+  const percent = nullableN(input.percent_change, `${path}.percent_change`);
+  if (
+    (status === "available" && delta === null) ||
+    ((status === "empty" || status === "unavailable") &&
+      (delta !== null || percent !== null)) ||
+    (delta === null && percent !== null)
+  )
+    throw new UCContractError(`${path}.delta não corresponde ao estado.`);
+  return {
+    delta,
+    percent_change: percent,
+    status,
+    limitations: strings(input.limitations, `${path}.limitations`),
+  };
+}
+function profile(value: unknown): UCProfile {
+  const p = obj(value, "data.profile");
+  for (const key of ["customer_reference", "customer_name"] as const)
+    if (p[key] !== null && typeof p[key] !== "string")
+      throw new UCContractError(`data.profile.${key} deve ser texto ou null.`);
+  const identificationStatus =
+    p.customer_identification_status ?? "unavailable";
+  if (
+    !(["available", "absent", "conflict", "unavailable"] as unknown[]).includes(
+      identificationStatus,
+    )
+  )
+    throw new UCContractError(
+      "data.profile.customer_identification_status inválido.",
+    );
+  return {
+    uc_id: str(p.uc_id, "profile.uc_id"),
+    customer_reference: p.customer_reference as string | null,
+    customer_name: p.customer_name as string | null,
+    customer_identification_status:
+      identificationStatus as UCProfile["customer_identification_status"],
+    municipio: str(p.municipio, "profile.municipio"),
+    bairro: str(p.bairro, "profile.bairro"),
+    classe: str(p.classe, "profile.classe"),
+    alimentador: str(p.alimentador, "profile.alimentador"),
+    status: str(p.status, "profile.status"),
+  };
+}
+function meter(value: unknown, path: string): UCMeter {
+  const m = obj(value, path);
+  const removed = m.removed_at;
+  if (removed !== null && typeof removed !== "string")
+    throw new UCContractError(`${path}.removed_at inválido.`);
+  return {
+    meter_id: str(m.meter_id, `${path}.meter_id`),
+    installed_at: str(m.installed_at, `${path}.installed_at`),
+    removed_at: removed as string | null,
+  };
+}
+export function decodeUCOverview(value: unknown): UCOverview {
+  const root = obj(value, "response"),
+    data = obj(root.data, "data"),
+    cmp = obj(data.comparison, "comparison");
+  const snapshot = (raw: unknown, path: string) => {
+    const s = obj(raw, path);
+    return {
+      competencia: month(s.competencia, `${path}.competencia`),
+      measured_energy_kwh: measure(
+        s.measured_energy_kwh,
+        `${path}.measured_energy_kwh`,
+      ),
+      billed_energy_kwh: measure(
+        s.billed_energy_kwh,
+        `${path}.billed_energy_kwh`,
+      ),
+      billed_amount: measure(s.billed_amount, `${path}.billed_amount`),
+      paid_amount: measure(s.paid_amount, `${path}.paid_amount`),
+    };
+  };
+  const open = obj(data.open_invoices, "open_invoices"),
+    current = obj(data.current_meter, "current_meter"),
+    gd = obj(data.distributed_generation, "distributed_generation"),
+    statuses = obj(data.section_status, "section_status");
+  if (!Array.isArray(gd.items))
+    throw new UCContractError("distributed_generation.items deve ser lista.");
+  const section_status = Object.fromEntries(
+    Object.entries(statuses).map(([key, value]) => [
+      key,
+      state(value, `section_status.${key}`),
+    ]),
+  );
+  const count = nullableN(open.count, "open_invoices.count");
+  if (count !== null && (!Number.isInteger(count) || count < 0))
+    throw new UCContractError("open_invoices.count inválido.");
+  if (
+    (open.status === "unavailable" && count !== null) ||
+    (open.status === "available" && count === null)
+  )
+    throw new UCContractError("open_invoices.count não corresponde ao estado.");
+  const item =
+    current.item === null ? null : meter(current.item, "current_meter.item");
+  const goldGeneration =
+    data.gold_generation == null
+      ? null
+      : obj(data.gold_generation, "data.gold_generation");
+  if (
+    data.gold_generation_record != null &&
+    typeof data.gold_generation_record !== "boolean"
+  )
+    throw new UCContractError("gold_generation_record inválido.");
+  return {
+    data: {
+      profile: profile(data.profile),
+      period: period(data.period, "data.period"),
+      comparison: {
+        initial: snapshot(cmp.initial, "comparison.initial"),
+        final: snapshot(cmp.final, "comparison.final"),
+        measured_energy_kwh: change(
+          cmp.measured_energy_kwh,
+          "comparison.measured_energy_kwh",
+        ),
+        billed_energy_kwh: change(
+          cmp.billed_energy_kwh,
+          "comparison.billed_energy_kwh",
+        ),
+        billed_amount: change(cmp.billed_amount, "comparison.billed_amount"),
+        paid_amount: change(cmp.paid_amount, "comparison.paid_amount"),
+      },
+      open_invoices: {
+        count,
+        status: state(open.status, "open_invoices.status"),
+        limitations: strings(open.limitations, "open_invoices.limitations"),
+      },
+      current_meter: {
+        item,
+        status: state(current.status, "current_meter.status"),
+        limitations: strings(current.limitations, "current_meter.limitations"),
+      },
+      gold_generation: goldGeneration
+        ? {
+            capacity_kwp: nullableN(
+              goldGeneration.capacity_kwp,
+              "gold_generation.capacity_kwp",
+            ),
+            connection_date:
+              goldGeneration.connection_date === null
+                ? null
+                : str(
+                    goldGeneration.connection_date,
+                    "gold_generation.connection_date",
+                  ),
+            modality:
+              goldGeneration.modality === null
+                ? null
+                : str(goldGeneration.modality, "gold_generation.modality"),
+          }
+        : null,
+      gold_generation_record: data.gold_generation_record as
+        boolean | null | undefined,
+      distributed_generation: {
+        items: gd.items.map((raw, index) => {
+          const item = obj(raw, `generation[${index}]`);
+          return {
+            capacity_kw: n(
+              item.capacity_kw,
+              `generation[${index}].capacity_kw`,
+            ),
+            status: str(item.status, `generation[${index}].status`),
+          };
+        }),
+        status: state(gd.status, "generation.status"),
+        limitations: strings(gd.limitations, "generation.limitations"),
+      },
+      section_status,
+    },
+    metadata: meta(root.metadata, "metadata"),
+  };
+}
+export function decodeUCSearch(value: unknown): UCSearchResponse {
+  const root = obj(value, "response"),
+    data = obj(root.data, "data"),
+    p = obj(root.pagination, "pagination"),
+    m = obj(root.metadata, "metadata");
+  if (!Array.isArray(data.items))
+    throw new UCContractError("data.items deve ser lista.");
+  return {
+    data: {
+      items: data.items.map((raw, index) => {
+        const item = obj(raw, `items[${index}]`);
+        return {
+          uc_id: str(item.uc_id, "uc_id"),
+          municipio: str(item.municipio, "municipio"),
+          bairro: str(item.bairro, "bairro"),
+          classe: str(item.classe, "classe"),
+          alimentador: str(item.alimentador, "alimentador"),
+          status: str(item.status, "status"),
+        };
+      }),
+    },
+    pagination: pagination(p, "pagination"),
+    metadata: {
+      status: state(m.status, "metadata.status"),
+      ...(m.source === undefined
+        ? {}
+        : {
+            provenance: {
+              source: sourceMetadata(m.source, "metadata.source"),
+              period: period(m.period, "metadata.period"),
+              limitations: strings(m.limitations, "metadata.limitations"),
+            },
+          }),
+    },
+  };
+}
+export function decodeUCHistory(
+  value: unknown,
+  section: UCHistorySection,
+): UCHistory {
+  const root = obj(value, "response"),
+    data = obj(root.data, "data"),
+    p = obj(root.pagination, "pagination");
+  if (!Array.isArray(data.items))
+    throw new UCContractError("data.items deve ser lista.");
+  const items = data.items.map((raw, index) => {
+    const item = obj(raw, `items[${index}]`);
+    const required = (key: string) => {
+      if (!(key in item))
+        throw new UCContractError(`items[${index}].${key} ausente.`);
+    };
+    const text = (key: string) => {
+      required(key);
+      return str(item[key], `items[${index}].${key}`);
+    };
+    const number = (key: string) => {
+      required(key);
+      return n(item[key], `items[${index}].${key}`);
+    };
+    const nullableNumber = (key: string) => {
+      required(key);
+      return nullableN(item[key], `items[${index}].${key}`);
+    };
+    switch (section) {
+      case "consumption":
+        if ("billed_amount" in item) nullableNumber("billed_amount");
+        text("competencia");
+        month(item.competencia, `items[${index}].competencia`);
+        const measuredEnergy = nullableNumber("measured_energy_kwh");
+        const consumptionStatus = state(item.status, `items[${index}].status`);
+        if (
+          (consumptionStatus === "available" && measuredEnergy === null) ||
+          ((consumptionStatus === "partial" ||
+            consumptionStatus === "unavailable") &&
+            measuredEnergy !== null)
+        )
+          throw new UCContractError(
+            `items[${index}] tem status incompatível com measured_energy_kwh.`,
+          );
+        break;
+      case "invoices":
+        text("invoice_id");
+        text("competencia");
+        month(item.competencia, `items[${index}].competencia`);
+        nullableNumber("billed_amount");
+        nullableNumber("paid_amount");
+        nullableNumber("billed_energy_kwh");
+        if ("declared_open_amount" in item)
+          nullableNumber("declared_open_amount");
+        if ("declared_status" in item && item.declared_status !== null)
+          text("declared_status");
+        if (
+          "declared_payment_date" in item &&
+          item.declared_payment_date !== null
+        )
+          text("declared_payment_date");
+        if (
+          !["paid", "partial", "unpaid", "unknown"].includes(
+            text("payment_status"),
+          )
+        )
+          throw new UCContractError(`items[${index}].payment_status inválido.`);
+        if (item.currency_unit !== "BRL")
+          throw new UCContractError(
+            `items[${index}].currency_unit deve ser BRL.`,
+          );
+        for (const key of ["due_date", "payment_date"]) {
+          required(key);
+          if (item[key] !== null) text(key);
+        }
+        break;
+      case "meters":
+        text("meter_id");
+        required("installed_at");
+        if (item.installed_at !== null) text("installed_at");
+        required("removed_at");
+        if (item.removed_at !== null) text("removed_at");
+        break;
+      case "distributed_generation":
+        number("capacity_kw");
+        text("status");
+        break;
+      case "interruptions":
+        text("event_id");
+        text("feeder_id");
+        text("competencia");
+        month(item.competencia, `items[${index}].competencia`);
+        nullableNumber("duration_hours");
+        break;
+      case "calls":
+        text("call_id");
+        text("opened_at");
+        text("category");
+        break;
+      case "treatments":
+        text("call_id");
+        number("position");
+        required("treatment_date");
+        if (item.treatment_date !== null) text("treatment_date");
+        text("action_category");
+        text("channel");
+        break;
+    }
+    return item as unknown as UCHistoryItem;
+  });
+  return {
+    data: {
+      items,
+    },
+    pagination: pagination(p, "pagination"),
+    metadata: meta(root.metadata, "metadata"),
+  };
+}

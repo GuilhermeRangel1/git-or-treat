@@ -1,0 +1,36 @@
+# Dicionário usado só nos testes. "cadastro_teste" existe no banco de teste com colunas
+# sensíveis fictícias que NÃO estão liberadas aqui, para provar que o dicionário restringe.
+
+version = "teste-1"
+status = "teste"
+
+[limits]
+max_rows = 50
+max_tables = 5
+timeout_ms = 2000
+max_sql_chars = 2000
+
+[policy]
+allowed_functions = ["count", "sum", "avg", "min", "max", "round", "coalesce", "nullif", "lower", "upper", "abs"]
+allowed_cast_types = ["int", "bigint", "decimal", "double", "text", "varchar"]
+sensitive_columns = ["cpf_cnpj", "nome_titular", "email", "telefone"]
+reserved_prefixes = ["pg_", "sqlite_", "information_schema"]
+
+[tables.gold_indicadores]
+description = "Indicadores fictícios."
+
+[tables.gold_indicadores.columns]
+competencia = "text"
+municipio = "text"
+bairro = "text"
+classe = "text"
+receita_total = "decimal"
+energia_consumida_kwh = "decimal"
+ucs_ativas = "int"
+
+[tables.cadastro_teste]
+description = "Cadastro fictício; só uc_id e municipio são liberados."
+
+[tables.cadastro_teste.columns]
+uc_id = "text"
+municipio = "text"

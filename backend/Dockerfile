@@ -1,14 +1,19 @@
-﻿FROM python:3.14-slim
+FROM dhi.io/python:3.12-alpine3.24-dev
 
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
+
 ENV PYTHONUNBUFFERED=1
 
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade "pip==26.2.2" \
+    && python -m pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
+COPY docs/contracts/examples/gold-publication-v1.json /docs/contracts/examples/gold-publication-v1.json
+COPY docs/contracts/examples/genai-plan-fingerprints-v1.json /docs/contracts/examples/genai-plan-fingerprints-v1.json
+COPY docs/contracts/examples/genai-internal-contract-v1.json /docs/contracts/examples/genai-internal-contract-v1.json
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,109 @@
+.rmr-page {
+  --map-seq-1: #e7ecd9;
+  --map-seq-2: #cedbb2;
+  --map-seq-3: #adc786;
+  --map-seq-4: #86aa5e;
+  --map-seq-5: #60823e;
+  --map-neg-1: #f0dce0;
+  --map-neg-2: #dfadb5;
+  --map-neg-3: #c77c87;
+  --map-neg-4: #a2505d;
+  --map-pos-1: #e2eddc;
+  --map-pos-2: #bfd8b1;
+  --map-pos-3: #93bd7d;
+  --map-pos-4: #69974f;
+  --map-zero: #efe6c9;
+  --map-missing: #938b88;
+}
+
+[data-theme="dark"] .rmr-page {
+  --map-seq-1: #394133;
+  --map-seq-2: #4c5a3a;
+  --map-seq-3: #637747;
+  --map-seq-4: #819953;
+  --map-seq-5: #a1b96c;
+  --map-neg-1: #4c3338;
+  --map-neg-2: #70414a;
+  --map-neg-3: #985360;
+  --map-neg-4: #c16a79;
+  --map-pos-1: #354335;
+  --map-pos-2: #465d3d;
+  --map-pos-3: #5d7949;
+  --map-pos-4: #779959;
+  --map-zero: #615a43;
+  --map-missing: #786d70;
+}
+
+.rmr-map {
+  position: relative;
+  z-index: 0;
+  min-height: 440px;
+  width: 100%;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  isolation: isolate;
+}
+
+.rmr-map.leaflet-container {
+  background: var(--bg-page);
+  font-family: var(--font-sans);
+}
+
+.rmr-map .leaflet-control-zoom a {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-control);
+  font-family: var(--font-sans);
+  font-weight: 600;
+}
+
+.rmr-map .leaflet-tooltip {
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.rmr-map .leaflet-interactive {
+  cursor: pointer;
+  transition:
+    fill-opacity 120ms ease,
+    stroke-width 120ms ease;
+}
+
+.rmr-map .leaflet-interactive:focus-visible {
+  outline: 3px solid var(--accent-goiaba);
+  outline-offset: 2px;
+}
+
+.rmr-legend__swatch {
+  display: inline-block;
+  width: 18px;
+  height: 14px;
+  border: 1px solid var(--border-control);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.rmr-legend__limits {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+@media (max-width: 640px) {
+  .rmr-map {
+    min-height: 330px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rmr-map .leaflet-interactive {
+    transition: none;
+  }
+}

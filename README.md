@@ -1,6 +1,6 @@
 # V-Energy Grid 360
 
-Plataforma integrada para a distribuidora V-Energy, proposta no case final Visagio Rocket Lab 2026.2. Este repositório reúne a **fonte de verdade textual** do produto e as instruções de trabalho para humanos e agentes. Nesta etapa, ainda não há implementação da aplicação.
+Plataforma integrada para a distribuidora V-Energy, proposta no case final Visagio Rocket Lab 2026.2. Este repositório reúne o código da solução (pipeline de dados, backend, frontend e agente de IA), a **fonte de verdade textual** do produto e as instruções de trabalho para humanos e agentes. O estado oficial de cada requisito está na tabela do [PRD](docs/PRD.md).
 
 > O material do case traz marcação de confidencialidade e, ao mesmo tempo, pede repositório público como entrega. Antes de publicar, o time deve confirmar com a organização o tratamento permitido dos dados e do enunciado. Não versionar o dataset bruto nem credenciais sem autorização explícita.
 
@@ -12,10 +12,16 @@ Plataforma integrada para a distribuidora V-Energy, proposta no case final Visag
 4. [Fluxo de desenvolvimento e qualidade](docs/agents/workflow.md): como concluir e comprovar requisitos.
 5. [Integrações e hooks](docs/agents/tooling.md): skills, Context7, Figma e automações de proteção.
 6. [Acompanhamento no Trello](docs/agents/issue-tracker.md): cartões dos requisitos obrigatórios sincronizados com o PRD.
-7. [Diagnóstico da receita](docs/revenue-diagnosis.md) e [status report](docs/status-report.md): estruturas a preencher com evidências reais.
-8. [Protótipo visual](docs/design/grid360-prototype.md): arquivo Figma, temas, componentes, jornadas e limites da demonstração.
+7. [Diagnóstico da receita](docs/revenue-diagnosis.md) e [status report](docs/status-report.md).
+8. [Engenharia de Dados: Workflow, dicionário e suposições](#engenharia-de-dados-workflow-dicionário-e-suposições): print do run limpo, links e decisões da camada de dados.
+9. [Protótipo visual](docs/design/grid360-prototype.md): arquivo Figma, temas, componentes, jornadas e limites da demonstração.
+10. [CSVs da Gold v2 do grupo](https://drive.google.com/drive/folders/1FGlA80LKOayaM7MWrgCoMh3YZAjTVWG4?usp=sharing): pacote para a carga local.
 
-## Estrutura planejada
+## Arquitetura da entrega
+
+O Databricks processa os dados em camadas Bronze, Silver e Gold. A exportação Gold v2 alimenta o PostgreSQL local. O portal React acessa a API FastAPI, que aplica as permissões por perfil. O Backend executa as consultas analíticas autorizadas e envia ao serviço GenAI apenas as evidências necessárias à resposta.
+
+## Estrutura do repositório
 
 ```text
 data-engineering/  pipeline Databricks e documentação local
@@ -29,10 +35,101 @@ docs/              PRD, diagnóstico, dicionário e decisões
 .hooks/            scripts compartilhados pelos três clientes
 ```
 
-As pastas de serviços são apenas esqueletos documentais. A solução será construída em entregas verificáveis, seguindo os IDs do PRD. O dataset mencionado no case será disponibilizado separadamente na plataforma da atividade; o repositório não o contém.
+Cada pasta de serviço tem seu guia em [docs/services](docs/services/README.md). O dataset do case é disponibilizado separadamente na plataforma da atividade; o repositório não o contém.
+
+## Engenharia de Dados: Workflow, dicionário e suposições
+
+O pipeline Bronze → Silver → Gold roda inteiro no Databricks (PySpark, arquitetura Medalhão) e é orquestrado pelo Job `v-energy-grid-360`, com seis tarefas encadeadas: `Landing_to_Bronze`, `Bronze_perfilamento`, `Bronze_to_Silver`, `Cobertura_Declaracao`, `Silver_to_gold` e `Exportacao_Gold`. A exportação gera CSVs das tabelas Gold (contrato [`gold-csv-v2`](docs/contracts/gold-csv-v2.md)) que alimentam o backend; o cadastro com dados pessoais sai em pacote separado e restrito, nunca neste repositório.
+
+**Execução bem-sucedida do Workflow** (run de ponta a ponta, seis tarefas `Succeeded`, sem tarefas isoladas): [registro do run](data-engineering/evidencias/workflow/run-limpo-250327107715287.md).
+
+![Execução bem-sucedida do Workflow v-energy-grid-360](data-engineering/evidencias/workflow/workflow-run-limpo.png)
+
+| O que | Onde |
+| --- | --- |
+| Dicionário de dados da Gold | [docs/dicionario_gold.md](docs/dicionario_gold.md) |
+| Diagnóstico da variação de receita | [docs/revenue-diagnosis.md](docs/revenue-diagnosis.md) |
+| Notebooks e YAML do Workflow | [data-engineering/](data-engineering/README.md) |
+| Decisões técnicas e o porquê de cada número | [data-engineering/decisoes-tecnicas.md](data-engineering/decisoes-tecnicas.md) |
+| Estratégia de agendamento (proposta, não ativada) | [data-engineering/README.md](data-engineering/README.md#estratégia-de-agendamento-proposta-não-ativada) |
+
+**Suposições da camada de dados** (onde o case não era explícito):
+
+- **Receita é a faturada, não a recebida.** Fatura em aberto usa o valor declarado em aberto, sem afirmar pagamento.
+- **Não há kWh faturado na fonte.** A tabela de faturas traz valores, não energia. O volume do diagnóstico é o consumo medido nos pares UC/mês com fatura, e não energia faturada; a limitação consta no diagnóstico e no dicionário.
+- **Preço é o preço efetivo observado** (receita ÷ consumo medido nos mesmos pares UC/mês), não a tarifa homologada.
+- **Recorte geográfico e de classe vem do cadastro atual**, sem histórico de mudanças.
+- **DEC e FEC** seguem a definição simplificada do case: servem para comparar alimentadores e períodos, não para comparar com limites regulatórios reais.
+- **Cobertura:** consumo e faturamento têm cobertura certificada (`FECHADO`); domínios sem evidência de fechamento ficam `NAO_CERTIFICADA`, e a Gold e o portal mostram esse estado em vez de esconder a lacuna.
+- **Energia recuperável por UC:** a estimativa individual só é publicada quando passa em validação temporal; sem isso o campo fica nulo e o portal mostra apenas a referência histórica, rotulada como tal.
+- **Confidencialidade:** o case é confidencial e o repositório é público. Não são versionados dataset bruto, valores em R$, contagens de registros nem identificadores de UC; as evidências trazem apenas estados e percentuais.
+
+## Inteligência artificial no portal
+
+- **Assistente:** receba respostas em português sobre consumo, faturamento, interrupções e atendimento. O agente interpreta termos do dia a dia, como “conta de luz”, e pede esclarecimento quando houver mais de uma interpretação.
+- **Insights no Panorama:** a IA ajuda a interpretar os indicadores exibidos com base no período e nos filtros selecionados, sem precisar abrir o chat.
+- **Fundamento e limites:** o FastAPI executa consultas autorizadas de somente leitura no PostgreSQL alimentado pela Gold v2. As respostas quantitativas indicam fonte, período, recorte e unidade, com trilha de auditoria. Se faltar evidência, o agente informa a limitação.
+- **Diferenciais:** perguntas de acompanhamento na mesma conversa e avaliação automatizada da qualidade das respostas. Veja a [matriz de perguntas](docs/gold-question-matrix.md) e o [guia do agente](docs/services/ai-agent.md).
+
+## Executar localmente com Docker
+
+**Pré-requisitos:** Windows com PowerShell, Docker Desktop e Compose ativos, portas 5173 e 8000 livres e pacote Gold v2 autorizado, obtido por canal privado. A pasta deve conter `manifest.json` e quinze diretórios analíticos; cadastro pareado é opcional. A primeira carga pode levar vários minutos e requer espaço para imagens e banco. Para respostas do assistente, configure chave Gemini e somente controles Gold já aprovados. Não inclua pacotes ou segredos no Git.
+
+O [roteiro de demonstração](docs/demo-roteiro.md) reúne verificações e jornadas. Para gerar a Gold no Databricks, siga o [guia de dados](data-engineering/README.md); o Compose consome uma exportação existente.
+
+### Passo a passo: execução integrada com Gold
+
+1. Instale Git e Docker Desktop, inicie o Docker Desktop e aguarde o engine ficar disponível. No PowerShell, confira `git --version`, `docker --version` e `docker compose version`; `docker info` deve terminar sem erro. Os serviços são construídos pelo Docker: não é preciso instalar Python ou Node no computador para este caminho.
+2. Clone o repositório e entre na pasta criada:
+
+   ```powershell
+   git clone https://github.com/GuilhermeRangel1/git-or-treat.git
+   cd git-or-treat
+   ```
+
+3. Obtenha o pacote exportado Gold v2 na [pasta de CSVs do grupo](https://drive.google.com/drive/folders/1FGlA80LKOayaM7MWrgCoMh3YZAjTVWG4?usp=sharing). Se o acesso estiver restrito, solicite permissão à equipe. Extraia-o em uma pasta local acessível ao Docker. Confirme que o arquivo `manifest.json` está diretamente nessa pasta, junto aos quinze diretórios analíticos. O cadastro opcional deve estar em `cadastro_titular_uc/` com manifesto pareado. Sem o pacote não é possível executar esta modalidade; use a demo sintética abaixo para explorar fila e ordens.
+4. Na raiz do repositório, substitua o caminho de exemplo pela pasta que contém o manifesto e execute:
+
+   ```powershell
+   .\scripts\configure-docker.ps1 -GoldDirectory "C:\caminho\para\data" -PresentationAccounts
+   ```
+
+   O comando cria `.env` local com segredos. Ele recusa sobrescrever um `.env` existente: nesse caso preserve-o e confira as configurações antes de continuar. A opção de apresentação cria as contas locais `admin`, `comercial`, `atendimento`, `perdas` e `operacao`, todas com senha `senha123`, apenas se ainda não existirem. Sem a opção, senhas geradas ficam em `work/local-auth/credentials.txt`; contas existentes não são alteradas.
+5. Para testar o assistente, abra o `.env` local em um editor, preencha `GENAI_GEMINI_API_KEY` e configure `GENAI_GOLD_APPROVED_CONTROLS` somente com controles previamente aprovados. Sem chave ou controles aplicáveis, a geração pode ficar indisponível; a aplicação não muda para dados sintéticos. Não compartilhe nem versione o `.env` ou as credenciais.
+6. Construa e inicie a composição, na raiz:
+
+   ```powershell
+   docker compose up --build -d
+   docker compose ps -a
+   docker compose logs -f gold-loader
+   ```
+
+   A primeira carga pode levar vários minutos. Saia da visualização de logs com Ctrl+C: isso não interrompe os serviços. Em `docker compose ps -a`, aguarde `gold-loader` terminar com código 0 e os serviços permanentes ficarem saudáveis. Se falhar, veja `docker compose logs --tail 100 gold-loader backend ai-agent`; corrija a causa e repita a subida. Portas 5173 e 8000 devem estar livres.
+7. Abra [o portal](http://localhost:5173), entre com a conta do perfil necessário e siga o [roteiro de demonstração](docs/demo-roteiro.md). A saúde da API está em http://localhost:8000/api/v1/health. O banco fica apenas na rede interna Docker. Para gerar a exportação, consulte o [guia de dados](data-engineering/README.md): o Compose não executa o Workflow Databricks.
+8. Ao terminar, execute `docker compose down`. Isso preserva o volume e as contas; preserve também o `.env`, cujas credenciais correspondem ao banco. Não use `down -v` para corrigir inicialização. Para iniciar novamente, use `docker compose up -d`.
+
+### Demonstração sintética
+
+No Windows, para explorar fila e ordens sem pacote Gold, instale Python 3.12 e Node.js 22 e, na raiz do repositório, execute:
+
+```powershell
+py -3.12 -m venv backend\.venv
+.\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+npm --prefix frontend ci
+.\scripts\start-orders-demo.ps1
+```
+
+Abra http://localhost:5173/inspecoes, escolha uma suspeita e crie uma ordem; acompanhe em http://localhost:5173/ordens. Os dados são artificiais e não estão conectados à Gold; as ordens ficam em SQLite local. O script informa conflito de portas e aceita `-BackendPort 8010 -FrontendPort 5180`; nesse caso use a porta 5180 no navegador. Logs e identificação dos processos ficam em `work/dev06-demo/`. A demo não comprova o assistente ou o diagnóstico real. Detalhes no [guia do frontend](frontend/README.md#abrir-ordens-dev-06-com-persistência-local). `docker-compose.ci.yml` é para smoke descartável de CI.
+O portal normal não usa polling, Node ou HMR em runtime; a API não usa reload. Para editar com HMR, use explicitamente `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d`; a fonte permanece Gold v2. Volte ao comando normal para retornar ao portal compilado. A falta de chave impede a geração de respostas, sem substituir a fonte por demonstração. O PostgreSQL tem teto local de 512 MiB; `POSTGRES_MEMORY_LIMIT=1g` no `.env` permite ampliá-lo para cargas maiores.
+
+Use `docker compose logs -f gold-loader` durante a carga e `docker compose logs -f backend` para a API. `docker compose down` preserva o volume `git-or-treat_pgdata16`; não use `down -v` para corrigir inicialização. Preserve também o `.env`, pois ele contém as credenciais desse volume. A composição é HTTP local, não uma publicação pública com HTTPS. [Fluxo, limites e evidências](docs/plans/2026-11-04-docker-gold-inicializacao.md).
 
 ## Preparação dos agentes
 
-Codex, Claude Code e Antigravity compartilham os `AGENTS.md`, as skills compatíveis em `.agents/skills/` e os scripts em `.hooks/`. Cada cliente tem configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e nenhum item funcional foi concluído nesta fase.
+Codex, Claude Code e Antigravity compartilham os `AGENTS.md`, as skills compatíveis em `.agents/skills/` e os scripts em `.hooks/`. Cada cliente tem configuração própria de hooks e MCPs. Consulte [o estado de validação e os passos de ativação](docs/agents/tooling.md#ativacao-e-verificacao) antes de depender das automações. O PRD continua sendo a referência dos requisitos e de seus estados.
 
-O GitHub Actions em `.github/workflows/quality.yml` roda em pull requests, na branch `main` e manualmente. Por enquanto, valida configurações dos agentes (incluindo hooks e MCPs do Antigravity), imports compartilhados, links locais da documentação e sintaxe dos hooks. Ele não implementa funcionalidades nem cria branches ou pull requests.
+O GitHub Actions em `.github/workflows/quality.yml` roda em pull requests, na branch `main` e manualmente. Ele executa verificações por módulo e de documentação; consulte o workflow para a lista vigente de jobs.
+
+### Compatibilidade do volume PostgreSQL local
+
+O Compose usa PostgreSQL 16 e volume novo `pgdata16`. Um volume anterior de PostgreSQL 18 (`pgdata`) é preservado e não deve ser montado diretamente no 16. Antes de trocar um ambiente com dados úteis, siga a [orientação de migração, preservação e carga](docs/contracts/gold-load-dev12.md#preparação-para-genai-01-schema-origem-e-publicação); não use `down -v` para resolver incompatibilidade. Após preparar o banco novo, aplique as migrações antes de usar as rotas operacionais.

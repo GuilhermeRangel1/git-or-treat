@@ -1,0 +1,260 @@
+import { Search } from "lucide-react";
+import type { RefObject } from "react";
+import type { UCHistory, UCOverview, UCStatus } from "./contract";
+import { ErrorMessage, EvidenceDialog, HistoryPanel } from "./UC360History";
+import UC360OverviewTable from "./UC360OverviewTable";
+import UC360Series from "./UC360Series";
+import UC360Interpretation from "./UC360Interpretation";
+import { UC360Comparison, UC360SupportMetrics } from "./UC360Metrics";
+import UC360PeriodForm from "./UC360PeriodForm";
+import { currentMeterMessage } from "./uc360-format";
+import type { UCHistorySection } from "./uc360-state";
+
+function recordsStatus(subject: string, status: UCStatus) {
+  switch (status) {
+    case "available":
+      return `Histórico de ${subject} consultado para o período.`;
+    case "empty":
+      return `Nenhum registro de ${subject} no período consultado.`;
+    case "partial":
+      return `O histórico de ${subject} pode estar incompleto neste período.`;
+    case "unavailable":
+      return `Não foi possível consultar ${subject}; isso não confirma que não houve registros.`;
+  }
+}
+
+type Props = {
+  unit: {
+    id: string;
+    overview: {
+      data: UCOverview | undefined;
+      pending: boolean;
+      fetching: boolean;
+      error: Error | null;
+    };
+    history: {
+      data: UCHistory | undefined;
+      pending: boolean;
+      error: Error | null;
+    };
+    series: {
+      data:
+        | {
+            items: Array<{
+              competencia: string;
+              measured_energy_kwh: number | null;
+            }>;
+          }
+        | undefined;
+      pending: boolean;
+      error: Error | null;
+    };
+    previousSeries?: {
+      data?: {
+        items: Array<{
+          competencia: string;
+          measured_energy_kwh: number | null;
+        }>;
+      };
+      pending: boolean;
+      error: Error | null;
+    };
+    filters: {
+      start: string;
+      end: string;
+      section: UCHistorySection | "";
+      historyPage: number;
+      invalid: boolean;
+      historyOpen: boolean;
+    };
+  };
+  disclosureRef: RefObject<HTMLDetailsElement | null>;
+  actions: {
+    onOverviewRetry: () => void;
+    onHistoryRetry: () => void;
+    onSeriesRetry: () => void;
+    onNewSearch: () => void;
+    onHistoryOpen: (open: boolean) => void;
+    onSelectHistory: (section: UCHistorySection) => void;
+    onHistorySection: (section: UCHistorySection) => void;
+    onHistoryPage: (page: number) => void;
+    onPeriodApply: (start: string, end: string) => void;
+  };
+};
+
+export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
+  const selected = unit.overview.data?.data;
+  const metadata = unit.overview.data?.metadata;
+
+  return (
+    <>
+      <header className="grid min-w-0 gap-2">
+        <h1 className="font-heading text-[26px] leading-[34px] font-semibold [overflow-wrap:anywhere] text-content lg:text-[32px] lg:leading-10">
+          {selected?.profile.uc_id ?? unit.id}
+        </h1>
+        {selected ? (
+          <p className="text-sm [overflow-wrap:anywhere] text-muted">
+            {selected.profile.customer_name?.trim() && (
+              <>{selected.profile.customer_name.trim()} · </>
+            )}
+            {selected.profile.municipio} / {selected.profile.bairro} ·{" "}
+            {selected.profile.classe}
+          </p>
+        ) : (
+          <p className="text-sm text-muted">UC {unit.id}</p>
+        )}
+        {metadata?.source.is_demo && (
+          <p className="mt-4 text-xs text-muted">
+            Demonstração · dados sintéticos
+          </p>
+        )}
+        {selected &&
+          metadata?.source.kind === "gold_csv" &&
+          (selected.profile.customer_identification_status ?? "unavailable") !==
+            "available" && (
+            <p className="text-sm text-muted">
+              {selected.profile.customer_identification_status === "absent"
+                ? "Titular sem nome informado na origem."
+                : selected.profile.customer_identification_status === "conflict"
+                  ? "A origem aponta conflito na identificação do titular."
+                  : "Cadastro restrito indisponível para esta UC."}
+            </p>
+          )}
+      </header>
+      {!unit.filters.invalid && (
+        <>
+          {unit.overview.pending && (
+            <p
+              role="status"
+              className="rounded-lg bg-surface p-4 text-sm text-muted"
+            >
+              Carregando cadastro e comparação…
+            </p>
+          )}
+          {unit.overview.error && (
+            <div className="grid justify-items-start gap-3">
+              <ErrorMessage
+                error={unit.overview.error}
+                retry={actions.onOverviewRetry}
+              />
+              {!selected && (
+                <button
+                  type="button"
+                  onClick={actions.onNewSearch}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control px-4 text-sm text-content focus-visible:outline-2 focus-visible:outline-brand"
+                >
+                  <Search size={16} aria-hidden="true" />
+                  Nova busca
+                </button>
+              )}
+            </div>
+          )}
+          {selected && metadata && (
+            <>
+              <UC360PeriodForm
+                appliedStart={unit.filters.start}
+                appliedEnd={unit.filters.end}
+                period={selected.period}
+                onApply={actions.onPeriodApply}
+              />
+              <section className="rounded-xl bg-surface p-4 sm:p-5">
+                <h2 className="font-heading text-lg font-semibold">
+                  Resumo por competência
+                </h2>
+                <UC360OverviewTable comparison={selected.comparison} />
+              </section>
+              <UC360SupportMetrics data={selected} />
+              <UC360Series
+                data={unit.series.data}
+                previous={unit.previousSeries}
+                pending={unit.series.pending}
+                error={unit.series.error}
+                onRetry={actions.onSeriesRetry}
+              />
+              <details className="rounded-xl bg-surface p-4 sm:p-5">
+                <summary className="cursor-pointer font-heading font-semibold">
+                  Ver detalhes da comparação
+                </summary>
+                <UC360Comparison comparison={selected.comparison} />
+              </details>
+              <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
+                <h2 className="font-heading text-lg font-semibold">
+                  Medidor, interrupções e chamados
+                </h2>
+                <ul className="grid gap-1 text-sm text-content">
+                  <li>
+                    {currentMeterMessage(
+                      selected.current_meter.item,
+                      selected.current_meter.status,
+                    )}
+                  </li>
+                  <li>
+                    {recordsStatus(
+                      "interrupções",
+                      selected.section_status.interruptions ?? "unavailable",
+                    )}
+                  </li>
+                  <li>
+                    {recordsStatus(
+                      "chamados",
+                      selected.section_status.calls ?? "unavailable",
+                    )}
+                  </li>
+                </ul>
+                <div className="flex flex-wrap gap-2">
+                  <EvidenceDialog
+                    sectionStatus={selected.section_status}
+                    limitations={[
+                      ...new Set([
+                        ...metadata.limitations,
+                        ...selected.current_meter.limitations,
+                        ...selected.distributed_generation.limitations,
+                      ]),
+                    ]}
+                    onSelectHistory={actions.onSelectHistory}
+                  />
+                  <button
+                    type="button"
+                    onClick={actions.onNewSearch}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control px-4 text-sm text-content"
+                  >
+                    <Search size={16} aria-hidden="true" />
+                    Nova busca
+                  </button>
+                </div>
+              </section>
+              <details
+                ref={disclosureRef}
+                open={unit.filters.historyOpen}
+                onToggle={(event) =>
+                  actions.onHistoryOpen(event.currentTarget.open)
+                }
+                className="grid min-w-0 gap-3 rounded-xl bg-surface p-4 sm:p-5"
+              >
+                <summary className="cursor-pointer font-heading text-lg font-semibold">
+                  Consultar históricos
+                </summary>
+                <HistoryPanel
+                  section={unit.filters.section || "consumption"}
+                  history={unit.history.data}
+                  pending={unit.history.pending}
+                  error={unit.history.error}
+                  historyPage={unit.filters.historyPage}
+                  onRetry={actions.onHistoryRetry}
+                  onSelectSection={actions.onHistorySection}
+                  onPageChange={actions.onHistoryPage}
+                />
+              </details>
+              {unit.overview.fetching && !unit.overview.pending && (
+                <p role="status" className="text-sm text-muted">
+                  Atualizando período…
+                </p>
+              )}
+              <UC360Interpretation data={selected} />
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+}

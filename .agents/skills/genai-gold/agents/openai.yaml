@@ -1,0 +1,4 @@
+interface:
+  display_name: "GenAI e Gold"
+  short_description: "Integração Gold pelo núcleo GenAI existente"
+  default_prompt: "Use $genai-gold para desenvolver esta fatia da integração Gold reutilizando o núcleo e comprovando o fluxo executado."

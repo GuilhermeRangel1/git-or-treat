@@ -1,53 +1,44 @@
-"""
-Script idempotente para carregar CSVs da camada Gold (ou mocks locais) no banco analítico.
-
-Uso:
-    python scripts/load_gold.py
-"""
-import sys
+"""Carga explícita dos CSVs Gold em banco previamente migrado."""
+import argparse
 import csv
+import json
+import sys
 from pathlib import Path
+from sqlalchemy.exc import SQLAlchemyError
 
-# Adiciona o diretório backend ao sys.path para importação de app
-backend_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(backend_dir))
-
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.core.config import settings
-from app.core.database import SessionLocal, engine, Base
-from app.models.analytical import GoldIndicador
+from app.core.database import engine
+from app.services.gold_import import GoldImportError, import_gold
+from app.services.gold_import_v2 import import_gold_v2
 
 
-def load_gold_data():
-    data_dir = Path(settings.GOLD_DATA_DIR)
-    print(f"[*] Verificando diretório de dados Gold: {data_dir.resolve()}")
-
-    if not data_dir.exists():
-        print(f"[!] Diretório {data_dir} não encontrado. Crie a pasta e adicione os CSVs.")
-        return
-
-    csv_files = list(data_dir.glob("*.csv"))
-    if not csv_files:
-        print(f"[i] Nenhum arquivo .csv encontrado em {data_dir}. Coloque seus mocks ou a Gold exportada aqui.")
-        return
-
-    print(f"[+] Arquivos encontrados: {[f.name for f in csv_files]}")
-
-    # Inicializa sessão
-    db = SessionLocal()
-
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--directory", type=Path, default=settings.GOLD_DATA_DIR / "v1")
+    parser.add_argument("--cadastro-directory", type=Path, help="Pacote cadastral restrito gold-cadastro-v1 pareado com o manifesto Gold v2.")
+    parser.add_argument("--batch", help="Conferência opcional do run_id do manifesto; não substitui a origem.")
+    parser.add_argument(
+        "--schema-version", choices=("gold-csv-v1", "gold-csv-v2"),
+        help="Versão explícita; v2 carrega somente as quinze tabelas analíticas.",
+    )
+    args = parser.parse_args()
+    if args.cadastro_directory is not None and args.schema_version != "gold-csv-v2":
+        parser.error("--cadastro-directory exige --schema-version gold-csv-v2")
     try:
-        # Exemplo de leitura e carga idempotente para PostgreSQL
-        for csv_path in csv_files:
-            print(f"[*] Processando: {csv_path.name}")
-            # Dica PostgreSQL: Em produção com grandes volumes, use lote/batch:
-            # db.bulk_insert_mappings(Model, rows) ou COPY / insert().on_conflict_do_update()
-        print("[✔] Carga analítica concluída com sucesso.")
-    except Exception as e:
-        db.rollback()
-        print(f"[✘] Erro durante a carga: {e}")
-    finally:
-        db.close()
+        if args.schema_version == "gold-csv-v2":
+            result = import_gold_v2(engine, args.directory, args.batch, args.cadastro_directory)
+        else:
+            result = import_gold(engine, args.directory, args.batch, args.schema_version)
+    except (GoldImportError, SQLAlchemyError, OSError, UnicodeError, csv.Error) as error:
+        message = str(error) if isinstance(error, GoldImportError) else "Falha de leitura ou persistência. Confira o banco migrado e os arquivos."
+        if isinstance(error, GoldImportError):
+            message = f"{message} Código: {error.code}. Tentativa: {error.attempt_id}."
+        print(message, file=sys.stderr)
+        return 1
+    print(json.dumps(result, ensure_ascii=True))
+    return 0
 
 
 if __name__ == "__main__":
-    load_gold_data()
+    raise SystemExit(main())

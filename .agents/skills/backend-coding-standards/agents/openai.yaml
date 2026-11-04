@@ -1,0 +1,4 @@
+interface:
+  display_name: "Padrões de backend"
+  short_description: "Arquitetura, contratos e qualidade em FastAPI"
+  default_prompt: "Use $backend-coding-standards para orientar esta alteração no backend FastAPI do projeto."

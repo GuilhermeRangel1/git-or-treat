@@ -1,7 +1,10 @@
-from typing import List, Union
-from pydantic import AnyHttpUrl, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+from typing import Literal
+
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 
 
 class Settings(BaseSettings):
@@ -10,38 +13,102 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=True,
+        hide_input_in_errors=True,
     )
 
     PROJECT_NAME: str = "V-Energy Grid 360 API"
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
 
+    AI_AGENT_BASE_URL: AnyHttpUrl | None = None
+    AI_AGENT_SERVICE_API_TOKEN: SecretStr | None = None
+    AI_AGENT_TIMEOUT_SECONDS: float = Field(default=GOLD_REQUEST_TIMEOUT_SECONDS, ge=0.1, le=120.0)
+    GENAI_AUDIT_WRITE_TOKEN: SecretStr | None = None
+    GENAI_CONVERSATION_MEMORY_ENABLED: bool = True
+    GENAI_INSIGHT_CACHE_TTL_SECONDS: int = Field(default=120, ge=0, le=86400)
+    GENAI_INSIGHT_CACHE_MAX_ENTRIES: int = Field(default=64, ge=1, le=10000)
+    GENAI_INSIGHT_CACHE_MAX_BYTES: int = Field(default=1_048_576, ge=1024, le=67_108_864)
+    # Atualize ao implantar outro prompt/modelo no serviço remoto sem reiniciar o Backend.
+    GENAI_INSIGHT_CACHE_NAMESPACE: str = Field(default="insight-v1", min_length=1, max_length=160)
+
+    @field_validator("GENAI_AUDIT_WRITE_TOKEN")
+    @classmethod
+    def validate_audit_token(cls, value):
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError("Credencial de auditoria deve ter ao menos 32 caracteres.")
+        return value
+
+    # Explicitly opt in to the in-memory demonstration analytics source.
+    ANALYTICS_SOURCE: str = "unavailable"
+
+    ORDERS_READ_TOKEN: SecretStr | None = None
+    ORDERS_WRITE_TOKEN: SecretStr | None = None
+    APP_ENV: Literal["development", "production"] = "development"
+    ORDERS_AUTH_MODE: Literal["demo", "service", "session"] = "session"
+    AUTH_SESSION_LIFETIME_SECONDS: int = Field(default=3600, ge=300, le=86400)
+    AUTH_LOGIN_ATTEMPTS: int = Field(default=5, ge=1, le=100)
+    AUTH_LOGIN_WINDOW_SECONDS: int = Field(default=60, ge=1, le=3600)
+
+    @model_validator(mode="after")
+    def validate_order_tokens(self):
+        tokens = [token.get_secret_value() for token in (self.ORDERS_READ_TOKEN, self.ORDERS_WRITE_TOKEN) if token is not None]
+        if any(len(token) < 32 for token in tokens):
+            raise ValueError("Credenciais de ordens devem ter ao menos 32 caracteres.")
+        if len(tokens) == 2 and tokens[0] == tokens[1]:
+            raise ValueError("Credenciais de leitura e escrita devem ser distintas.")
+        if self.APP_ENV == "production" and self.ORDERS_AUTH_MODE != "session":
+            raise ValueError("Produção exige autenticação individual por sessão.")
+        if self.ORDERS_AUTH_MODE == "demo" and self.ANALYTICS_SOURCE != "synthetic":
+            raise ValueError("Modo demo exige fonte exclusivamente sintética.")
+        if self.ORDERS_AUTH_MODE == "session" and tokens:
+            raise ValueError("Modo session não aceita credenciais compartilhadas de serviço em paralelo.")
+        if self.AI_AGENT_BASE_URL is not None:
+            if self.AI_AGENT_SERVICE_API_TOKEN is None:
+                raise ValueError("AI_AGENT_SERVICE_API_TOKEN é obrigatório quando AI_AGENT_BASE_URL é configurada.")
+            if len(self.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()) < 32:
+                raise ValueError("AI_AGENT_SERVICE_API_TOKEN deve ter ao menos 32 caracteres.")
+        return self
+
     # Database (PostgreSQL com driver psycopg 3)
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/v_energy"
+    GOLD_CADASTRO_DATABASE_URL: SecretStr | None = None
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
     DB_POOL_RECYCLE: int = 1800
     DB_ECHO: bool = False
+    GENAI_GOLD_DATABASE_URL: SecretStr | None = None
+    # Credencial operacional do CLI administrativo; nunca usada pela API.
+    GENAI_AUDIT_DATABASE_URL: SecretStr | None = None
+    GENAI_GOLD_APPROVED_CONTROLS: list[str] = []
 
     # Data directory (Mocks now, Gold exported CSVs later)
     GOLD_DATA_DIR: Path = Path(__file__).resolve().parent.parent.parent / "data" / "gold"
 
+    BACKEND_ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1", "backend", "testserver"]
+
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = [
+    BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
     ]
 
-    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @field_validator("BACKEND_CORS_ORIGINS", "BACKEND_ALLOWED_HOSTS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+    def assemble_cors_origins(cls, v: str | list[str]) -> list[str]:
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, (list, str)):
             return v
         raise ValueError(v)
+
+    @field_validator("ANALYTICS_SOURCE")
+    @classmethod
+    def validate_analytics_source(cls, value: str) -> str:
+        if value not in {"unavailable", "synthetic", "gold"}:
+            raise ValueError("ANALYTICS_SOURCE must be 'unavailable', 'synthetic' or 'gold'")
+        return value
 
 
 settings = Settings()

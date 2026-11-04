@@ -1,0 +1,339 @@
+import type { RefObject } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getOrderDetail, type Order } from "@/shared/api/orders";
+import Button from "@/shared/ui/Button";
+import Modal from "@/shared/ui/Modal";
+import { orderErrorMessage, readOrderFoundation } from "./order-actions";
+import { formatOrderCode, orderPriorityLabel } from "./ordens-query";
+
+type OrderFoundationsDialogProps = {
+  order: Order | null;
+  open: boolean;
+  onClose: () => void;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+};
+
+export default function OrderFoundationsDialog({
+  order,
+  open,
+  onClose,
+  triggerRef,
+}: OrderFoundationsDialogProps) {
+  const orderId = order?.id;
+  const detail = useQuery({
+    queryKey: ["orders", "detail", orderId],
+    queryFn: ({ signal }) => getOrderDetail(orderId as number, signal),
+    enabled: open && orderId !== undefined,
+  });
+  const current =
+    detail.data &&
+    !detail.isFetching &&
+    !detail.isError &&
+    detail.data.id === orderId
+      ? detail.data
+      : null;
+  const foundation = current ? readOrderFoundation(current) : null;
+
+  return (
+    <Modal
+      open={open && Boolean(order)}
+      onClose={onClose}
+      triggerRef={triggerRef}
+      title={`Fundamentos da ordem ${order ? formatOrderCode(order.id) : ""}`}
+      closeLabel="Fechar fundamentos da ordem"
+      size="sm"
+      header="inline"
+      className="grid gap-5 p-5 sm:gap-6 sm:p-6"
+    >
+      <div className="grid gap-5">
+        {detail.isPending && (
+          <p role="status" className="text-sm text-muted">
+            Consultando fundamentos preservados…
+          </p>
+        )}
+        {detail.isError && (
+          <div
+            className="grid gap-3 rounded-lg p-4 text-sm"
+            role="alert"
+            style={dangerNoticeStyle}
+          >
+            <p>{orderErrorMessage(detail.error)}</p>
+            <Button
+              variant="neutral"
+              size="sm"
+              disabled={detail.isFetching}
+              onClick={() => void detail.refetch()}
+            >
+              Tentar novamente
+            </Button>
+          </div>
+        )}
+        {detail.isFetching && !detail.isPending && (
+          <p role="status" className="text-xs text-muted">
+            Atualizando os dados do servidor…
+          </p>
+        )}
+        {current && foundation && (
+          <>
+            <div className="grid gap-4">
+              <Detail label="Unidade consumidora" value={current.uc_id} />
+              <Detail label="Motivo registrado" value={current.reason} />
+              <Detail
+                label="Prioridade registrada na criação"
+                value={orderPriorityLabel(current.priority)}
+              />
+              <Detail
+                label="Criada em"
+                value={formatTimestamp(current.created_at)}
+              />
+            </div>
+            {foundation.origin !== "gold" ? (
+              <Detail
+                label="Referência da suspeita"
+                value={
+                  current.suspicion_reference ?? "Não preservada nesta ordem."
+                }
+                mono
+              />
+            ) : null}
+
+            {!foundation.available ? (
+              <p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted">
+                A ordem não possui snapshot de fundamentos disponível.
+              </p>
+            ) : !foundation.supported ? (
+              <p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted">
+                O formato deste snapshot ainda não pode ser interpretado. Os
+                dados originais foram preservados sem adaptação.
+              </p>
+            ) : (
+              <section
+                className="grid gap-4 rounded-xl border border-border bg-surface p-4"
+                aria-label="Evidências da suspeita"
+              >
+                <h3 className="font-heading text-lg font-semibold">
+                  Evidências preservadas
+                </h3>
+                {foundation.legacy && (
+                  <p className="rounded-md border border-border px-3 py-2 text-sm text-muted">
+                    Snapshot legado sem versão de esquema explícita; campos
+                    reconhecidos são apresentados quando válidos.
+                  </p>
+                )}
+                {foundation.origin === "gold" ? (
+                  <>
+                    <Detail
+                      label="Categoria de triagem"
+                      value={
+                        foundation.category ?? "Não informada no snapshot."
+                      }
+                    />
+                    <div className="grid gap-2">
+                      <h4 className="text-sm font-medium">
+                        Dados registrados na triagem
+                      </h4>
+                      <dl className="grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
+                        {foundation.goldEvidence.map((item) => (
+                          <div key={item.label}>
+                            <dt className="text-muted">{item.label}</dt>
+                            <dd className="mt-1 font-medium">{item.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                    {foundation.goldVariation.length > 0 ? (
+                      <div className="grid gap-2">
+                        <h4 className="text-sm font-medium">
+                          Janelas e variação preservadas
+                        </h4>
+                        <dl className="grid gap-3 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
+                          {foundation.goldVariation.map((item) => (
+                            <div key={item.label}>
+                              <dt className="text-muted">{item.label}</dt>
+                              <dd className="mt-1 font-medium">{item.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
+                {foundation.origin !== "gold" && foundation.period ? (
+                  <Detail
+                    label="Período da análise"
+                    value={`${formatDate(foundation.period.start)} a ${formatDate(foundation.period.end)}`}
+                  />
+                ) : foundation.origin !== "gold" ? (
+                  <Detail
+                    label="Período da análise"
+                    value="Não disponível no snapshot."
+                  />
+                ) : null}
+                {foundation.origin !== null ? (
+                  <Detail
+                    label={
+                      foundation.origin === "gold"
+                        ? "Energia estimada a recuperar"
+                        : "Energia potencialmente recuperável"
+                    }
+                    value={
+                      foundation.estimateUnavailable
+                        ? "Indisponível; ausência não representa zero."
+                        : `${formatNumber(foundation.estimateKwh!)} kWh`
+                    }
+                  />
+                ) : null}
+                {foundation.recoveryEstimateRange ? (
+                  <div className="grid gap-2 rounded-lg bg-canvas p-4 text-sm">
+                    <Detail
+                      label={`Faixa nominal de ${Math.round(foundation.recoveryEstimateRange.confidenceLevel * 100)}%`}
+                      value={`${formatNumber(foundation.recoveryEstimateRange.lowerKwh)} a ${formatNumber(foundation.recoveryEstimateRange.upperKwh)} kWh`}
+                    />
+                    <Detail
+                      label="Janela de aplicação"
+                      value={`${foundation.recoveryEstimateRange.windowMonths} meses até ${foundation.recoveryEstimateRange.windowAnchor} (mínimo: ${foundation.recoveryEstimateRange.minimumWindowMonths} meses)`}
+                    />
+                    <p className="text-xs text-muted">
+                      Estimativa se a irregularidade se confirmar. A faixa foi
+                      validada temporalmente e não garante recuperação nesta UC.
+                    </p>
+                  </div>
+                ) : null}
+                {foundation.estimateEvidence && (
+                  <Detail
+                    label="Base da estimativa"
+                    value={foundation.estimateEvidence}
+                  />
+                )}
+                {foundation.origin !== "gold" ? (
+                  <div className="grid gap-2">
+                    <h4 className="text-sm font-medium">Sinais validados</h4>
+                    {foundation.signals.length > 0 ? (
+                      <ul className="grid gap-2">
+                        {foundation.signals.map((signal, index) => (
+                          <li
+                            className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border pb-2 text-sm last:border-0"
+                            key={`${signal.id ?? signal.label}-${index}`}
+                          >
+                            <span>{signal.label}</span>
+                            {signal.weight !== undefined && (
+                              <span className="text-xs text-muted">
+                                Peso {formatNumber(signal.weight)}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted">
+                        Nenhum sinal estruturado válido foi preservado.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+                {(foundation.origin === "gold" ||
+                  foundation.limitations.length > 0) && (
+                  <div className="grid gap-2">
+                    <h4 className="text-sm font-medium">
+                      {foundation.origin === "gold"
+                        ? "Sobre os dados da inspeção"
+                        : "Limites registrados"}
+                    </h4>
+                    {foundation.origin === "gold" ? (
+                      <p className="text-sm text-muted">
+                        A fila retrata o cadastro no momento da triagem. A
+                        categoria orienta a análise, mas não confirma
+                        irregularidade nem determina despacho.
+                        {foundation.category?.toUpperCase().includes("REVISAR")
+                          ? " “REVISAR” é uma categoria própria."
+                          : ""}{" "}
+                        {foundation.estimateUnavailable
+                          ? "Estimativa individual indisponível; a variação de consumo permanece apenas como contexto histórico."
+                          : "A energia exibida é uma estimativa condicional, não confirma irregularidade nem garante recuperação; a variação de consumo permanece como contexto separado."}
+                      </p>
+                    ) : (
+                      <ul className="grid list-disc gap-1 pl-5 text-sm text-muted">
+                        {foundation.limitations.map((limitation, index) => (
+                          <li key={`${limitation}-${index}`}>{limitation}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+            {foundation.origin !== "gold" && foundation.source ? (
+              <div className="grid gap-3 rounded-lg border border-border bg-surface p-4">
+                <Detail
+                  label="Fonte"
+                  value={`${foundation.source.kind} · ${foundation.source.version}${foundation.source.isDemo ? " · demonstração sintética" : ""}`}
+                />
+                {foundation.source.updatedAt ? (
+                  <Detail
+                    label="Atualizada em"
+                    value={formatTimestamp(foundation.source.updatedAt)}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function Detail({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <dl className="grid min-w-0 gap-1">
+      <dt className="text-sm font-medium">{label}</dt>
+      <dd
+        className={`break-words text-sm leading-[22px] text-muted ${mono ? "font-mono text-xs" : ""}`}
+      >
+        {value}
+      </dd>
+    </dl>
+  );
+}
+
+function formatDate(value: string) {
+  const competence = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
+  if (!competence) return "Período não disponível.";
+  const month = new Intl.DateTimeFormat("pt-BR", {
+    month: "short",
+    timeZone: "UTC",
+  })
+    .format(new Date(`${value}-01T00:00:00Z`))
+    .replace(/\.$/, "")
+    .toLocaleLowerCase("pt-BR");
+  return `${month}/${competence[1]}`;
+}
+
+function formatTimestamp(value: string) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(date)
+    : "Data não disponível.";
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(
+    value,
+  );
+}
+
+const dangerNoticeStyle = {
+  backgroundColor: "var(--action-danger-bg)",
+  color: "var(--action-danger-text)",
+};

@@ -1,0 +1,141 @@
+.panorama-series-chart {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  padding: 16px;
+  color: var(--text-primary);
+}
+
+@media (min-width: 640px) {
+  .panorama-series-chart {
+    padding: 20px;
+  }
+}
+
+.panorama-series-chart__title {
+  margin: 0;
+  font-family: var(--font-heading, Manrope, sans-serif);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.panorama-series-chart__figure {
+  min-width: 0;
+  margin: 0;
+}
+
+.panorama-series-chart__chart-enter {
+  animation: panorama-chart-enter 420ms ease-out both;
+}
+
+.panorama-series-chart__line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: panorama-chart-draw 900ms ease-out forwards;
+}
+
+.panorama-series-chart__point {
+  cursor: crosshair;
+  outline: none;
+}
+
+.panorama-series-chart__point:focus-visible {
+  filter: drop-shadow(0 0 4px var(--accent-goiaba));
+}
+
+.panorama-series-chart__summary {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.panorama-series-chart__details-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  align-self: flex-start;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.panorama-series-chart__details-link:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.panorama-series-chart__table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.panorama-series-chart__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+}
+
+.panorama-series-chart__table th,
+.panorama-series-chart__table td {
+  border-bottom: 1px solid var(--line-subtle);
+  padding: 10px 8px;
+}
+
+.panorama-series-chart__table th {
+  font-weight: 500;
+}
+
+.panorama-series-chart__table thead th:last-child {
+  text-align: right;
+}
+
+.panorama-series-chart__table td {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.panorama-series-chart__table tfoot th,
+.panorama-series-chart__table tfoot td {
+  border-bottom: 0;
+  font-weight: 600;
+}
+
+@keyframes panorama-chart-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes panorama-chart-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panorama-series-chart__chart-enter,
+  .panorama-series-chart__line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

@@ -1,9 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.questions import EvidenceReference
-from app.schemas.scenarios import AnalysisDomain, AnalysisIntent, SyntheticScenario
-from app.tools.evidence import EvidenceResult
+from app.schemas.analysis import AnalysisIntent
+from app.schemas.evidence import EvidenceReference, EvidenceResult
+from app.schemas.scenarios import SyntheticScenario
 from app.tools.synthetic_analytics import (
     SyntheticComparisonRequest,
     SyntheticObservation,
@@ -18,7 +18,7 @@ def test_scenario_tool_returns_the_demo_evidence_for_a_supported_intent() -> Non
     result = SyntheticScenarioTool().execute(
         SyntheticScenarioRequest(
             intent=AnalysisIntent(
-                domain=AnalysisDomain.CONSUMPTION,
+                domain="consumption",
                 metric_phrase="consumo",
             )
         )
@@ -35,7 +35,7 @@ def test_scenario_tool_does_not_apply_filters_absent_from_the_fixture() -> None:
     result = SyntheticScenarioTool().execute(
         SyntheticScenarioRequest(
             intent=AnalysisIntent(
-                domain=AnalysisDomain.CONSUMPTION,
+                domain="consumption",
                 metric_phrase="consumo",
                 period_phrase="último ano",
                 geography_phrase="Olinda",
@@ -49,9 +49,7 @@ def test_scenario_tool_does_not_apply_filters_absent_from_the_fixture() -> None:
 
 
 def test_unknown_scenario_returns_no_evidence_instead_of_zero() -> None:
-    result = SyntheticScenarioTool().execute(
-        SyntheticScenarioRequest(scenario_id="unknown_demo")
-    )
+    result = SyntheticScenarioTool().execute(SyntheticScenarioRequest(scenario_id="unknown_demo"))
 
     assert result.status is ToolStatus.NO_EVIDENCE
     assert result.evidence is None
@@ -62,7 +60,7 @@ def test_empty_demo_scenario_returns_no_evidence_instead_of_zero() -> None:
     empty_scenario = SyntheticScenario(
         scenario_id="empty_results_demo",
         question="Pergunta sem registros no cenário artificial.",
-        intent=AnalysisIntent(domain=AnalysisDomain.CONSUMPTION),
+        intent=AnalysisIntent(domain="consumption"),
         evidence=EvidenceResult(
             reference=EvidenceReference(
                 source="synthetic_fixture:empty_results_demo",

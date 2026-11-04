@@ -1,40 +1,63 @@
+# Referências da camada Gold
+
+As definições atuais das tabelas e métricas estão no [dicionário detalhado da Gold](dicionario_gold.md).
+O contexto histórico abaixo registra a disponibilização inicial dos CSVs v1; as descrições
+sobre o estado do dicionário naquele momento foram substituídas pela documentação atual.
+
+<details>
+<summary>Contexto histórico da integração CSV v1 — 27/10/2026</summary>
+
 # Dicionário de dados Gold
 
-**Estado:** estrutura pronta; campos reais não conhecidos até o dataset ser recebido. Este arquivo será preenchido durante DE-08. Nunca inventar esquema.
+**Estado:** os sete CSVs Gold v1 foram disponibilizados localmente em 27/10/2026. O [contrato físico observado](contracts/gold-csv-v1.md) orienta a carga provisória ao banco; não homologa as métricas. Este dicionário canônico continua pendente de definição e revisão pela engenharia de dados durante DE-08. O documento `dicionario_gold.md` da branch Gold é uma referência em elaboração e contém divergências em relação aos CSVs.
 
-## Modelo de tabela Gold
+Os [contratos de consumo DEV-01](contracts/analytics-api.md) e as definições de suas fixtures sintéticas são propostas de aplicação, separadas deste dicionário Gold. Sua existência não comprova nomes de colunas, fórmulas ou granularidades do dataset. A integração futura deve revisar os pontos provisórios indicados no catálogo antes de apresentar métricas reais.
 
-| Campo | Descrição |
-| --- | --- |
-| Nome e finalidade | Quem usa e qual pergunta atende |
-| Granularidade | Uma linha representa exatamente o quê |
-| Chave primária/única | Comprovação de unicidade |
-| Chaves de relação | Cardinalidade e vigência temporal |
-| Fonte Bronze/Silver | Arquivos, abas e colunas de origem |
-| Atualização | Frequência, competência e data do lote |
-| Tratamentos | Filtros, deduplicação, imputação, quarentena |
-| Limitações | Cobertura, nulos, uso indevido a evitar |
 
-## Modelo de métrica
+</details>
 
-| Campo | Descrição |
-| --- | --- |
-| Nome e definição | Significado para o negócio |
-| Fórmula | Numerador, denominador, sinais e arredondamento |
-| Unidade | R$, kWh, horas/UC, interrupções/UC, %, contagem etc. |
-| Granularidade e filtros | Competência, UC, classe, geografia, alimentador |
-| Fonte | Tabelas e colunas Gold |
-| Reconciliação | Consulta/cálculo de controle e resultado |
-| Limites | Divisão por zero, base pequena, faltantes, estimativas |
+## Documentação atual — Gold CSV v2
 
-## Métricas a definir
+A referência de aceite é **Gold CSV v2**, com quinze projeções analíticas no schema
+`gold_v2`, mais o pacote cadastral restrito separado. O contrato físico e de exportação
+está em [gold-csv-v2.md](contracts/gold-csv-v2.md); definições de negócio, grão,
+chaves, fórmulas, nulidade e limitações estão no [dicionário Gold detalhado](dicionario_gold.md), implementado no notebook
+[Silver_to_gold](../data-engineering/notebook/Silver_to_gold.ipynb). O pacote local e
+a prontidão são documentados em [gold-readiness.md](gold-readiness.md) e
+[gold-catalog.md](gold-catalog.md).
 
-- Receita residencial e comercial; valor faturado versus pago.
-- Energia consumida, energia faturada e preço médio efetivo.
-- Decomposição preço-volume e contribuição por recorte.
-- UCs ativas, UCs com GD, queda de consumo.
-- Suspeita/prioridade de inspeção e energia potencialmente recuperável.
-- DEC e FEC simplificados por alimentador/período.
-- Indicadores de atendimento e satisfação, se exibidos.
+O conteúdo dentro do bloco histórico abaixo explica a versão v1 e não define critérios,
+fórmulas, populações, chaves ou aceite da v2. Para os requisitos atuais, prevalecem o
+PRD e os documentos v2 indicados acima. O envelope de contratos internos pode manter
+versão própria sem alterar a versão do esquema dos dados.
 
-Uma métrica só pode alimentar portal, IA ou apresentação final depois de ter fórmula e validação registradas aqui.
+## Métricas e cobertura v2
+
+| Tema | Definição corrente v2 | Limite de uso |
+| --- | --- | --- |
+| Receita e faturamento | Total de faturas elegíveis, com parcelas separadas por presença de leitura; a ausência de leitura não exclui uma fatura. | Faturamento não significa recebimento ou pagamento. |
+| Consumo | Leituras observadas, inclusive em UC/mês sem fatura; ausência de consumo é preservada como nula. | Consumo medido não é energia efetivamente faturada. |
+| Preço observado | Receita dividida pelo consumo da mesma base comparável, com fatura e todas as leituras observadas válidas. | Não é tarifa homologada; decomposição por janelas tem estados e cobertura próprios. |
+| Ticket médio | Receita sobre UCs faturadas em cada mês do recorte, como razão de somas das parcelas mensais. | O denominador representa UC-mês faturada, não UCs distintas no período inteiro. |
+| Consumo médio por UC | Consumo medido sobre UCs com leitura em cada mês, como razão de somas. | Não usa UCs faturadas como denominador. |
+| DEC/FEC | Numeradores de interrupção divididos pelas UCs do alimentador no cadastro atual; grão alimentador/competência. | Indicadores simplificados; linhas ausentes não significam zero e os valores não se somam entre alimentadores/meses. |
+| Atendimento | Contagem por protocolo e média de notas individuais; atendimento mensal projeta `data_abertura` em UTC, enquanto acumulados não inventam datas. | Nota zero é válida; notas ausentes continuam ausentes. Atendimento mensal exige controles e cobertura do recorte. |
+| Cobertura | `cobertura_dominios` e C14/C15 distinguem reconciliação da extração, estados de cobertura e disponibilidade por domínio. | Declaração de extração não certifica completude externa, conformidade ou semântica de negócio. |
+
+O resumo acima não substitui as definições coluna a coluna do dicionário detalhado,
+nem os controles independentes e o estado oficial do PRD. Medidas não existentes ou
+não demonstradas na v2 — como valor recebido e energia efetivamente faturada — não
+podem ser inferidas de campos próximos.
+
+## Relação com os contratos da aplicação
+
+Os [contratos de consumo DEV-01](contracts/analytics-api.md) e suas fixtures sintéticas
+descrevem a interface da aplicação. A integração com a Gold deve mapear explicitamente
+esses contratos para as colunas e fórmulas documentadas e reconciliar o lote carregado
+com a fonte antes de apresentar métricas reais. O contrato da aplicação não altera
+automaticamente a semântica das tabelas Gold.
+
+O [contrato de entrada Silver](services/data-engineering.md#contrato-de-entrada-da-gold)
+define grãos, chaves, cobertura, linhagem e limites das vistas `silver_publicada.*`
+usadas pelo notebook Gold. Consulte-o para rastrear a origem das métricas e a população
+excluída em cada etapa.

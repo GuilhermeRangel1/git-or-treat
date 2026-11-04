@@ -9,7 +9,7 @@ Produza um protótipo editável do portal interno V-Energy Grid 360, rastreável
 
 ## Contexto e escopo
 
-Leia [AGENTS.md](../../../AGENTS.md), [PRD](../../../docs/PRD.md) (§3, §6–9, §12 e §14), [guia frontend](../../../docs/services/frontend.md) e [dicionário](../../../docs/data-dictionary.md). Para ordens ou IA, consulte também os respectivos guias [backend](../../../docs/services/backend.md) e [IA](../../../docs/services/ai-agent.md). Leia as regras da área antes de editar sua documentação. Resolva divergências antes de construir.
+Leia [AGENTS.md](../../../AGENTS.md), [PRD](../../../docs/PRD.md) (§3, §6–9, §12 e §14), [guia frontend](../../../docs/services/frontend.md) e [dicionário](../../../docs/dicionario_gold.md). Para ordens ou IA, consulte também os respectivos guias [backend](../../../docs/services/backend.md) e [IA](../../../docs/services/ai-agent.md). Leia as regras da área antes de editar sua documentação. Resolva divergências antes de construir.
 
 O PRD governa requisitos; as cinco referências visuais orientam alternativas. Apple HIG, Material Design 3 e WCAG 2.2 orientam usabilidade e acessibilidade na revisão solicitada. Campos, fórmulas, transições de ordens e contratos ausentes permanecem hipóteses identificadas. Use conteúdo sintético marcado como **ilustrativo**, sem dados reais ou imagens do enunciado. Separe faturado/pago, consumido/faturado, competência/pagamento, suspeita/irregularidade e DEC/FEC simplificados/conformidade regulatória.
 

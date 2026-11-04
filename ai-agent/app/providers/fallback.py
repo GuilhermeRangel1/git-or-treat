@@ -9,8 +9,8 @@ from app.providers.protocols import (
     ModelAdapter,
     ModelProviderUnavailable,
 )
+from app.schemas.evidence import EvidenceResult
 from app.schemas.questions import ConversationTurn
-from app.tools.evidence import EvidenceResult
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +18,11 @@ logger = logging.getLogger(__name__)
 class FallbackModelAdapter:
     """Tenta cada adaptador em ordem até um responder, dentro de um prazo total opcional.
 
-    Só ``ModelProviderUnavailable`` aciona o próximo adaptador; outros erros sobem intactos
-    para não mascarar defeitos. Hoje todos os modelos usam o mesmo provedor e a mesma chave,
-    então a cadeia não protege contra fim de cota nem queda do provedor. Cada novo provedor
-    entrará como um adaptador novo na lista.
+    Só ``ModelProviderUnavailable`` (429, 5xx, timeout e rede) aciona o próximo adaptador;
+    rejeição, como 404 de modelo inexistente, e resposta inválida sobem intactas e encerram
+    a cadeia. A cota gratuita do Gemini é por modelo, então outro modelo da cadeia pode cobrir
+    um 429; a queda do provedor só é coberta por outro provedor, como o Groq. A causa de cada
+    falha aparece no log ``genai_provider_failure`` (campos ``kind`` e ``status``).
     """
 
     def __init__(
@@ -29,11 +30,22 @@ class FallbackModelAdapter:
         adapters: Sequence[ModelAdapter],
         *,
         total_timeout_seconds: float | None = None,
+        backoff_seconds: float = 0,
     ) -> None:
         if not adapters:
             raise ValueError("Informe ao menos um adaptador de modelo.")
+        if total_timeout_seconds is not None and total_timeout_seconds <= 0:
+            raise ValueError("Prazo da cadeia de modelos deve ser positivo.")
+        if not 0 <= backoff_seconds <= 5:
+            raise ValueError("Backoff deve ficar entre zero e cinco segundos.")
         self._adapters = tuple(adapters)
         self._total_timeout_seconds = total_timeout_seconds
+        self._backoff_seconds = backoff_seconds
+
+    @property
+    def max_attempts(self) -> int:
+        """Máximo de chamadas subjacentes em uma geração, inclusive cadeias aninhadas."""
+        return sum(getattr(adapter, "max_attempts", 1) for adapter in self._adapters)
 
     async def generate(
         self,
@@ -69,4 +81,6 @@ class FallbackModelAdapter:
                     total,
                     type(adapter).__name__,
                 )
+                if position < total and self._backoff_seconds:
+                    await asyncio.sleep(min(self._backoff_seconds * 2 ** (position - 1), 5))
         raise ModelProviderUnavailable("O provedor de modelo está temporariamente indisponível.")

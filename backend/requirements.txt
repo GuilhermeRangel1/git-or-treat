@@ -7,3 +7,6 @@ pydantic-settings
 httpx
 python-dotenv
 pytest
+pwdlib[argon2]
+openpyxl>=3.1.5,<4
+defusedxml>=0.7.1

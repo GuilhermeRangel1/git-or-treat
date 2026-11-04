@@ -5,7 +5,8 @@ import httpx
 from app.config import Settings
 from app.main import create_app
 from app.providers.protocols import GeneratedAnswer
-from app.tools.evidence import EvidenceResult
+from app.schemas.evidence import EvidenceResult
+from app.schemas.questions import ConversationTurn
 
 
 class InProcessClient:
@@ -14,19 +15,36 @@ class InProcessClient:
     def __init__(self, application) -> None:
         self._application = application
 
-    async def _send(self, method: str, path: str, json: dict | None = None) -> httpx.Response:
+    async def _send(
+        self,
+        method: str,
+        path: str,
+        json: dict | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
         transport = httpx.ASGITransport(app=self._application)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-            return await client.request(method, path, json=json)
+            return await client.request(method, path, json=json, headers=headers)
 
-    def request(self, method: str, path: str, json: dict | None = None) -> httpx.Response:
-        return asyncio.run(self._send(method, path, json))
+    def request(
+        self,
+        method: str,
+        path: str,
+        json: dict | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        return asyncio.run(self._send(method, path, json, headers))
 
     def get(self, path: str) -> httpx.Response:
         return self.request("GET", path)
 
-    def post(self, path: str, json: dict | None = None) -> httpx.Response:
-        return self.request("POST", path, json)
+    def post(
+        self,
+        path: str,
+        json: dict | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        return self.request("POST", path, json, headers)
 
     def __enter__(self):
         return self
@@ -44,13 +62,14 @@ class FakeModelAdapter:
         self.result = result or GeneratedAnswer(
             status="answered",
             answer="Resposta de demonstração.",
+            observation_ids=("row_1",),
         )
         self.error = error
 
     async def generate(
         self,
         question: str,
-        context: list[dict[str, str]],
+        context: list[ConversationTurn],
         evidence: EvidenceResult,
     ) -> GeneratedAnswer:
         if self.error:
@@ -59,4 +78,6 @@ class FakeModelAdapter:
 
 
 def client_factory() -> InProcessClient:
-    return InProcessClient(create_app(settings=Settings(_env_file=None)))
+    return InProcessClient(
+        create_app(settings=Settings(_env_file=None, environment="local", enable_demo_access=True))
+    )

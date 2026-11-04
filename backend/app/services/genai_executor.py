@@ -1,0 +1,510 @@
+"""Execução controlada dos planos lógicos sobre a Gold v2 no Backend."""
+
+import calendar
+import json
+from collections.abc import Callable
+from datetime import UTC, date, datetime, time, timedelta
+from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
+from hashlib import sha256
+from math import isfinite
+
+from sqlalchemy import case, exists, func, literal, or_, select, text, union_all
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import DBAPIError
+
+from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
+from app.models.gold_v2 import TABLES
+from app.schemas.genai_evidence import (
+    EvidenceLookupResult,
+    EvidenceLookupStatus,
+    EvidenceProvenance,
+    EvidenceResult,
+    GoldEvidenceQuality,
+)
+from app.schemas.genai_internal import AccessScope
+from app.schemas.genai_plan import (
+    LogicalReadPlan,
+    QuestionPlanStatus,
+    WindowKind,
+    normalized_filters,
+)
+from app.services.genai_client import GenAIResponseInvalid
+from app.services.genai_plan import validate_gold_genai_plan
+from app.services.genai_planning import GoldPlanningResult, _admit_plan
+from app.services.gold_catalog import (
+    GoldCatalogIncompatible,
+    gold_physical_catalog,
+    load_gold_catalog,
+)
+
+MAX_EVIDENCE_ROWS = 100
+MAX_EVIDENCE_BYTES = 16_384
+SQL_STATEMENT_TIMEOUT = "5000ms"
+# undefined_column, undefined_table, undefined_function, datatype_mismatch
+_SCHEMA_DRIFT_SQLSTATES = frozenset({"42703", "42P01", "42883", "42804"})
+
+_DIMENSION_FIELDS = {
+    "geography.municipality": "municipality",
+    "geography.neighborhood": "neighborhood",
+    "customer.consumption_class": "consumption_class",
+    "tariff.subgroup": "tariff_subgroup",
+    "tariff.flag": "tariff_flag",
+    "generation.distributed": "distributed_generation",
+    "network.feeder": "feeder",
+}
+
+
+class GoldExecutionDenied(Exception):
+    """Plano sem autorização atual ou fora do subconjunto compilável."""
+
+
+def _query(plan: LogicalReadPlan, source, metric):
+    if plan.window.kind is WindowKind.BOUNDED and (
+        source.temporal_column is None
+        or plan.window.granularity not in ("month", "year")
+    ):
+        raise GoldExecutionDenied
+
+    table = TABLES[source.table]
+    filters = []
+    period_column = table.c[source.temporal_column] if source.temporal_column else None
+    if plan.window.kind is WindowKind.BOUNDED:
+        assert period_column is not None
+        if plan.window.granularity == "month":
+            if (
+                plan.window.start.day != 1
+                or plan.window.end.day != calendar.monthrange(
+                    plan.window.end.year, plan.window.end.month
+                )[1]
+            ):
+                raise GoldExecutionDenied
+        elif (
+            plan.window.start.month != 1
+            or plan.window.start.day != 1
+            or plan.window.end.month != 12
+            or plan.window.end.day != 31
+        ):
+            raise GoldExecutionDenied
+
+        if source.temporal_transform == "identity":
+            period = (
+                func.substr(period_column, 1, 4)
+                if plan.window.granularity == "year"
+                else period_column
+            )
+            filters.extend((
+                period_column >= plan.window.start.strftime("%Y-%m"),
+                period_column <= plan.window.end.strftime("%Y-%m"),
+            ))
+        else:
+            period = func.to_char(
+                func.timezone("UTC", period_column),
+                "YYYY" if plan.window.granularity == "year" else "YYYY-MM",
+            )
+            start = datetime.combine(plan.window.start, time.min, tzinfo=UTC)
+            end = datetime.combine(
+                plan.window.end + timedelta(days=1), time.min, tzinfo=UTC
+            )
+            filters.extend((period_column >= start, period_column < end))
+    else:
+        if (
+            plan.window.phrase not in metric.accumulated_period_phrases
+        ):
+            raise GoldExecutionDenied
+        # Uma expressão acumulada é mapeada pelo catálogo e não ganha um filtro
+        # temporal físico que a fonte não oferece.
+        period = literal(plan.window.phrase)
+
+    if plan.comparison_periods is not None:
+        if period_column is None:
+            raise GoldExecutionDenied
+        filters.append(period.in_(plan.comparison_periods))
+    for item in plan.filters:
+        column_name = source.dimension_columns.get(item.dimension_id)
+        if column_name is None:
+            raise GoldExecutionDenied
+        column = table.c[column_name]
+        if item.operator.value == "eq":
+            filters.append(column == item.values[0])
+        elif item.operator.value == "in":
+            filters.append(column.in_(item.values))
+        else:
+            raise GoldExecutionDenied
+
+    selected = [period.label("period")]
+    dimensions = {}
+    for dimension_id in plan.group_by_dimension_ids:
+        field_name = _DIMENSION_FIELDS.get(dimension_id)
+        column_name = source.dimension_columns.get(dimension_id)
+        if field_name is None or column_name is None:
+            raise GoldExecutionDenied
+        dimensions[dimension_id] = table.c[column_name]
+        selected.append(table.c[column_name].label(field_name))
+
+    aggregation = metric.aggregation
+    if aggregation == "published_decomposition":
+        from app.services.gold_price_volume import decomposition_query
+        if plan.window.kind is not WindowKind.CATALOG_PHRASE or dimensions:
+            raise GoldExecutionDenied
+        return decomposition_query(plan)
+    if aggregation == "count_gd_drop":
+        if plan.window.kind is not WindowKind.CATALOG_PHRASE or dimensions:
+            raise GoldExecutionDenied
+        eligible = (
+            (table.c.possui_gd == "Sim")
+            & (table.c.meses_com_leitura_p1 >= 6) & (table.c.meses_com_leitura_p2 >= 6)
+            & table.c.consumo_medio_inicial.is_not(None)
+            & table.c.consumo_medio_final.is_not(None)
+            & table.c.queda_consumo_superior_30_pct.is_(True)
+        )
+        value = func.count(case((eligible, 1)))
+        statement = select(*selected, value.label("value")).where(*filters)
+    elif aggregation in ("sum", "count_non_null", "average_non_null", "count_distinct"):
+        if source.measure_column is None:
+            raise GoldExecutionDenied
+        measure = table.c[source.measure_column]
+        if aggregation == "sum":
+            value = func.sum(measure)
+        elif aggregation == "count_distinct":
+            value = func.count(func.distinct(measure))
+        elif aggregation == "count_non_null":
+            value = func.count(measure)
+        else:
+            value = func.avg(measure)
+        selected.append(value.label("value"))
+        grouped_columns = [] if plan.window.kind is WindowKind.CATALOG_PHRASE else [period]
+        grouped_columns.extend(dimensions.values())
+        statement = select(*selected).where(*filters)
+        if grouped_columns:
+            statement = statement.group_by(*grouped_columns)
+    elif aggregation == "ratio_of_sums":
+        if source.numerator_column is None or source.denominator_column is None:
+            raise GoldExecutionDenied
+        numerator = func.sum(table.c[source.numerator_column])
+        denominator = func.sum(table.c[source.denominator_column])
+        value = numerator / func.nullif(denominator, 0)
+        selected.append(value.label("value"))
+        grouped_columns = [] if plan.window.kind is WindowKind.CATALOG_PHRASE else [period]
+        grouped_columns.extend(dimensions.values())
+        statement = select(*selected).where(*filters)
+        if grouped_columns:
+            statement = statement.group_by(*grouped_columns)
+    elif aggregation == "key_grain_read":
+        if (
+            plan.window.kind is not WindowKind.BOUNDED
+            or source.measure_column is None
+            or plan.group_by_dimension_ids
+        ):
+            raise GoldExecutionDenied
+        # DEC/FEC são leituras já agregadas por alimentador e mês; não se somam
+        # entre competências nem alimentadores. Só selecionamos a chave aprovada.
+        key_columns = [column for column in source.grain if column != source.temporal_column]
+        for column_name in key_columns:
+            dimension_id = next(
+                (key for key, value in source.dimension_columns.items() if value == column_name),
+                None,
+            )
+            field_name = _DIMENSION_FIELDS.get(dimension_id or "")
+            if dimension_id not in plan.dimension_ids or field_name is None:
+                raise GoldExecutionDenied
+            if dimension_id not in dimensions:
+                dimensions[dimension_id] = table.c[column_name]
+                selected.append(table.c[column_name].label(field_name))
+        value = table.c[source.measure_column]
+        selected.append(value.label("value"))
+        statement = select(*selected).where(*filters)
+    else:
+        raise GoldExecutionDenied
+
+    if plan.comparison_periods is not None and plan.group_by_dimension_ids:
+        # Agrupa e classifica todos os bairros no banco antes do LIMIT de saída.
+        monthly = statement.subquery("monthly")
+        field = _DIMENSION_FIELDS[plan.group_by_dimension_ids[0]]
+        baseline, target = plan.comparison_periods
+        pairs = select(
+            monthly.c[field],
+            func.max(case((monthly.c.period == baseline, monthly.c.value))).label("initial"),
+            func.max(case((monthly.c.period == target, monthly.c.value))).label("final"),
+        ).group_by(monthly.c[field]).cte("pairs")
+        incomplete = exists(select(literal(1)).select_from(pairs).where(or_(
+            pairs.c.initial.is_(None), pairs.c.final.is_(None),
+        )))
+        winner = select(pairs).where(~incomplete).order_by(
+            (pairs.c.final - pairs.c.initial).asc(), pairs.c[field].asc(),
+        ).limit(1).cte("winner")
+        return union_all(
+            select(literal(baseline).label("period"), winner.c[field],
+                   winner.c.initial.label("value")),
+            select(literal(target).label("period"), winner.c[field],
+                   winner.c.final.label("value")),
+        ).order_by("period")
+
+    order_by = []
+    if plan.order is not None and plan.comparison_periods is None:
+        if plan.order.field_id == plan.metric_id:
+            order_expression = value
+        else:
+            order_expression = dimensions.get(plan.order.field_id)
+        if order_expression is None:
+            raise GoldExecutionDenied
+        order = order_expression.desc() if plan.order.direction == "desc" else order_expression.asc()
+        order_by.append(order.nulls_last())
+    # Desempate estável antes do LIMIT, inclusive quando o plano ordena pela métrica.
+    if plan.window.kind is WindowKind.BOUNDED:
+        order_by.append(period.asc())
+    order_by.extend(column.asc() for column in dimensions.values())
+    # Um ranking explícito pede somente os primeiros grupos. Nos demais casos,
+    # a linha adicional detecta um resultado incompleto que não pode ser publicado.
+    extra_row = (0 if plan.order is not None and plan.group_by_dimension_ids
+                 and plan.comparison_periods is None else 1)
+    statement = statement.order_by(*order_by).limit(min(plan.limit, MAX_EVIDENCE_ROWS) + extra_row)
+    return statement
+
+
+def _rounded_number(value: object, decimals: int) -> float | None:
+    if value is None:
+        return None
+    try:
+        rounded = Decimal(str(value)).quantize(
+            Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_EVEN
+        )
+        result = float(rounded)
+    except (InvalidOperation, ValueError, OverflowError):
+        raise GoldExecutionDenied from None
+    if not isfinite(result):
+        raise GoldExecutionDenied
+    return result
+
+
+def _clarification(message: str) -> EvidenceLookupResult:
+    return EvidenceLookupResult(
+        status=EvidenceLookupStatus.NEEDS_CLARIFICATION,
+        message=message,
+    )
+
+
+def _exceeds_evidence_byte_limit(result: EvidenceLookupResult) -> bool:
+    serialized = json.dumps(
+        result.model_dump(mode="json"), ensure_ascii=False, allow_nan=False
+    )
+    return len(serialized.encode("utf-8")) > MAX_EVIDENCE_BYTES
+
+
+def _validate_observed_continuity_rows(
+    rows, plan: LogicalReadPlan, quality: GoldEvidenceQuality
+) -> None:
+    """Exige uma linha mensal observada por competência e alimentador solicitado."""
+    if quality.quality_mode != "observed_uncertified":
+        return
+    if (
+        plan.metric_id not in {
+            "network.equivalent_interruption_duration",
+            "network.equivalent_interruption_frequency",
+        }
+        or plan.window.kind is not WindowKind.BOUNDED
+        or plan.window.granularity != "month"
+        or plan.group_by_dimension_ids
+    ):
+        raise GoldExecutionDenied
+    feeder_filters = [item for item in plan.filters if item.dimension_id == "network.feeder"]
+    if (
+        len(feeder_filters) != 1
+        or feeder_filters[0].operator.value != "eq"
+        or len(feeder_filters[0].values) != 1
+    ):
+        raise GoldExecutionDenied
+    start, end = plan.window.start, plan.window.end
+    if (
+        start is None
+        or end is None
+        or start.day != 1
+        or end.day != calendar.monthrange(end.year, end.month)[1]
+    ):
+        raise GoldExecutionDenied
+    expected = set(quality.observed_periods)
+    if not expected:
+        raise GoldExecutionDenied
+    requested = date(start.year, start.month, 1)
+    last_requested = date(end.year, end.month, 1)
+    requested_periods = set()
+    while requested <= last_requested:
+        requested_periods.add(requested.strftime("%Y-%m"))
+        requested = date(requested.year + (requested.month == 12), requested.month % 12 + 1, 1)
+    if plan.comparison_periods is not None:
+        requested_periods = set(plan.comparison_periods)
+    if expected != requested_periods:
+        raise GoldExecutionDenied
+    months = set()
+    for row in rows:
+        period = str(row.get("period"))
+        feeder = row.get("feeder")
+        if feeder != feeder_filters[0].values[0] or period in months:
+            raise GoldExecutionDenied
+        months.add(period)
+    if months != expected:
+        raise GoldExecutionDenied
+
+
+def execute_gold_plan(
+    engine: Engine,
+    planned: GoldPlanningResult,
+    *,
+    resolve_scope: Callable[[], AccessScope],
+    quality: GoldEvidenceQuality | None = None,
+) -> EvidenceLookupResult:
+    """Revalida identidade, plano e lote; compila somente operações aprovadas.
+
+    Recebe um engine analítico restrito e nunca recebe SQL do modelo. A consulta
+    e a materialização ficam dentro do snapshot READ ONLY da publicação.
+    """
+    response = planned.response
+    if (
+        response.status is not QuestionPlanStatus.PLANNED
+        or response.plan is None
+        or response.plan_fingerprint is None
+        or planned.access_scope is None
+        or planned.deadline is None
+        or (quality is not None and quality.batch_ref != planned.publication.batch_ref)
+    ):
+        raise GoldExecutionDenied
+
+    try:
+        plan = validate_gold_genai_plan(
+            response.plan.model_dump(mode="json"), response.plan_fingerprint
+        )
+    except GenAIResponseInvalid:
+        raise GoldExecutionDenied from None
+
+    planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
+    current_scope = resolve_scope()
+    if current_scope != planned.access_scope:
+        raise GoldExecutionDenied
+    try:
+        source = _admit_plan(plan, current_scope)
+    except (GenAIResponseInvalid, GoldCatalogIncompatible, ValueError):
+        # Após a admissão no planejamento, métrica fora do catálogo é adulteração.
+        raise GoldExecutionDenied from None
+    catalog = load_gold_catalog()
+    metric = next((item for item in catalog.metrics if item.metric_id == plan.metric_id), None)
+    if metric is None:
+        raise GoldExecutionDenied
+    statement = _query(plan, source, metric)
+
+    published = None
+    with planned.publication.execution_snapshot(engine) as connection:
+        connection.execute(
+            text("SELECT set_config('statement_timeout', :timeout, true)"),
+            {"timeout": str(min(
+                int(SQL_STATEMENT_TIMEOUT.removesuffix("ms")),
+                planned.deadline.sql_timeout_ms(5),
+            )) + "ms"},
+        )
+        if resolve_scope() != current_scope:
+            raise GoldExecutionDenied
+        try:
+            rows = connection.execute(statement).mappings().all()
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) in _SCHEMA_DRIFT_SQLSTATES:
+                # Coluna/tabela renomeada ou tipo alterado: incompatível, não transitório.
+                raise GoldCatalogIncompatible from None
+            raise
+        if quality is not None:
+            _validate_observed_continuity_rows(rows, plan, quality)
+        if metric.aggregation == "published_decomposition":
+            from app.repositories.gold_publication import publication_lineage
+            origin = publication_lineage(connection, planned.publication.batch_ref)
+
+    planned.deadline.remaining_seconds(GOLD_REQUEST_TIMEOUT_SECONDS)
+    if resolve_scope() != current_scope:
+        raise GoldExecutionDenied
+    if len(rows) > min(plan.limit, MAX_EVIDENCE_ROWS):
+        return _clarification(
+            "O recorte excede o limite de linhas; reduza o período ou aplique filtros."
+        )
+
+    records = []
+    if metric.aggregation == "published_decomposition":
+        from app.services.gold_price_volume import decomposition_records
+        try:
+            records, published = decomposition_records(rows, plan, origin)
+        except (ValueError, TypeError, KeyError):
+            return _clarification("A decomposição publicada não tem base comum e reconciliação "
+                                  "válidas para um único par de janelas. Informe outro recorte.")
+    for row in (() if published is not None else rows):
+        raw_value = row.get("value")
+        if plan.comparison_periods is not None and raw_value is not None:
+            value = float(raw_value)
+            if not isfinite(value):
+                raise GoldExecutionDenied
+        else:
+            value = _rounded_number(raw_value, metric.rounding.decimals)
+        if value is None:
+            return _clarification(
+                "O recorte contém medida nula ou razão sem denominador válido; "
+                "não é possível tratá-la como zero nem apresentar um resultado parcial."
+            )
+        record = {"value": value, "unit": plan.unit, "period": str(row["period"])}
+        for field_name in _DIMENSION_FIELDS.values():
+            if field_name in row:
+                record[field_name] = row[field_name]
+        records.append(record)
+
+    if not records and plan.comparison_periods is not None:
+        return _clarification("Não há dois meses completos em todos os grupos do recorte.")
+    if not records:
+        return EvidenceLookupResult(
+            status=EvidenceLookupStatus.NO_EVIDENCE,
+            message="Não há evidência disponível para o recorte solicitado.",
+        )
+
+    provenance = EvidenceProvenance(
+        source_id=plan.source_id,
+        reference_source=plan.source_id,
+        plan_fingerprint=plan.fingerprint(),
+        catalog_version=plan.catalog_version,
+        metric_id=plan.metric_id,
+        unit=plan.unit,
+        window=plan.window,
+        filters=plan.filters,
+        dimension_ids=plan.dimension_ids,
+        batch_ref=planned.publication.batch_ref,
+        quality=quality,
+        published_windows=published,
+        physical_catalog=gold_physical_catalog(),
+    )
+    cache_payload = json.dumps(
+        {
+            "caller": current_scope.caller_ref,
+            "profile": current_scope.profile_id,
+            "source": current_scope.source_id,
+            "operations": sorted(current_scope.allowed_operations),
+            "metrics": sorted(current_scope.allowed_metric_ids),
+            "dimensions": sorted(current_scope.allowed_dimension_ids),
+            # Filtros normalizados só na chave; o fingerprint do plano não muda.
+            "plan": {
+                **plan.model_dump(mode="json"),
+                "filters": normalized_filters(plan.filters),
+            },
+            "batch": planned.publication.batch_ref,
+            "catalog": gold_physical_catalog().model_dump(mode="json"),
+            "readiness": quality.readiness_version if quality is not None else None,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    evidence = EvidenceResult(
+        reference={
+            "source": plan.source_id,
+            "description": "Evidência agregada da publicação Gold validada.",
+            "is_demo": False,
+        },
+        records=records,
+        provenance=provenance,
+        cache_scope=sha256(cache_payload.encode("utf-8")).hexdigest(),
+    )
+    result = EvidenceLookupResult(status=EvidenceLookupStatus.AVAILABLE, evidence=evidence)
+    if _exceeds_evidence_byte_limit(result):
+        return _clarification(
+            "O recorte excede o limite de tamanho da evidência; reduza o período ou filtros."
+        )
+    return result

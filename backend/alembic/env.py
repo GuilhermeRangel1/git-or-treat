@@ -2,6 +2,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy import MetaData
 
 from alembic import context
 
@@ -14,7 +15,7 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 import sys
 from pathlib import Path
@@ -25,13 +26,16 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 from app.core.config import settings
-from app.core.database import Base
+from app.db.base import Base
 import app.models  # Garante registro de todos os modelos
 
 target_metadata = Base.metadata
 
-# Sobrescreve sqlalchemy.url com a URL configurada no Settings (.env)
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Respeita URL explicitamente passada pelo chamador e usa Settings no fluxo CLI.
+database_url = config.get_main_option("sqlalchemy.url")
+if not database_url or database_url.startswith("driver://"):
+    database_url = settings.DATABASE_URL
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
@@ -58,6 +62,30 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def configure_online(connection):
+    metadata = target_metadata
+    if connection.dialect.name == "sqlite":
+        connection.execution_options(
+            schema_translate_map={
+                "gold": None,
+                "gold_v2": None,
+                "gold_cadastro": None,
+            }
+        )
+        metadata = MetaData()
+        for table in target_metadata.tables.values():
+            if table.schema == "gold_cadastro":
+                continue
+            table.to_metadata(metadata, schema=None)
+    context.configure(
+        connection=connection, target_metadata=metadata,
+        compare_type=True, compare_server_default=True,
+        include_schemas=connection.dialect.name == "postgresql",
+        include_name=lambda name, type_, parent: type_ != "schema"
+        or name in {None, "gold", "gold_v2", "gold_cadastro"},
+    )
+
+
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
@@ -65,6 +93,13 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    connection = config.attributes.get("connection")
+    if connection is not None:
+        configure_online(connection)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -72,9 +107,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        configure_online(connection)
 
         with context.begin_transaction():
             context.run_migrations()

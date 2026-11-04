@@ -1,0 +1,18 @@
+BEGIN TRANSACTION READ ONLY;
+SELECT lote, schema_version, importado_em FROM gold_carga_atual;
+SELECT 'mensal' AS fonte, count(*) AS linhas, min(competencia) AS inicio, max(competencia) AS fim, count(DISTINCT competencia) AS meses, count(DISTINCT id_uc) AS ucs FROM gold_consumo_mensal_uc;
+SELECT 'diagnostico' AS fonte, count(*) AS linhas, min(competencia) AS inicio, max(competencia) AS fim, sum(receita_total_reais) AS receita, sum(consumo_total_kwh) AS consumo FROM gold_diagnostico_receita;
+SELECT 'bairro' AS fonte, count(*) AS linhas, min(competencia) AS inicio, max(competencia) AS fim, sum(receita_total_reais) AS receita, sum(consumo_total_kwh) AS consumo FROM gold_consumo_receita_bairro;
+SELECT prioridade_inspecao, count(*) FROM gold_fila_inspecao GROUP BY 1 ORDER BY 1;
+SELECT status, count(*) FROM gold_visao_360_uc GROUP BY 1 ORDER BY 1;
+SELECT count(*) AS linhas, count(DISTINCT id_alimentador) AS alimentadores, min(competencia) AS inicio, max(competencia) AS fim, count(DISTINCT competencia) AS meses FROM gold_indicadores_dec_fec;
+SELECT min(meses) AS minimo_meses_por_alimentador, max(meses) AS maximo_meses_por_alimentador FROM (SELECT id_alimentador, count(*) AS meses FROM gold_indicadores_dec_fec GROUP BY 1) s;
+SELECT count(*) AS denominadores_variaveis FROM (SELECT id_alimentador FROM gold_indicadores_dec_fec GROUP BY 1 HAVING count(DISTINCT total_ucs_alimentador)>1) s;
+SELECT count(*) AS mensal_sem_cadastro FROM gold_consumo_mensal_uc m LEFT JOIN gold_visao_360_uc u USING(id_uc) WHERE u.id_uc IS NULL;
+SELECT count(*) AS fila_sem_visao FROM gold_fila_inspecao f LEFT JOIN gold_visao_360_uc u USING(id_uc) WHERE u.id_uc IS NULL;
+SELECT count(*) AS fila_sem_variacao FROM gold_fila_inspecao f LEFT JOIN gold_variacao_consumo_uc v USING(id_uc) WHERE v.id_uc IS NULL;
+SELECT count(*) AS ucs, count(*) FILTER (WHERE meses_com_leitura_p1 = 12 AND meses_com_leitura_p2 = 12) AS janelas_12_meses, count(*) FILTER (WHERE variacao_pct IS NULL) AS variacoes_nulas FROM gold_variacao_consumo_uc;
+SELECT tablename, indexdef FROM pg_indexes WHERE schemaname='public' AND (tablename LIKE 'gold_%' OR tablename LIKE 'operational_%') ORDER BY tablename,indexname;
+SELECT (SELECT count(*) FROM operational_inspection_orders) AS ordens, (SELECT count(*) FROM operational_order_history) AS eventos;
+WITH d AS (SELECT competencia,sum(receita_total_reais) AS r,sum(consumo_total_kwh) AS e FROM gold_diagnostico_receita GROUP BY 1), b AS (SELECT competencia,sum(receita_total_reais) AS r,sum(consumo_total_kwh) AS e FROM gold_consumo_receita_bairro GROUP BY 1), m AS (SELECT competencia,sum(receita_reais) AS r,sum(consumo_kwh) AS e FROM gold_consumo_mensal_uc GROUP BY 1) SELECT count(*) AS meses, max(abs(d.r-b.r)) AS residuo_receita_bairro, max(abs(d.r-m.r)) AS residuo_receita_mensal, max(abs(d.e-b.e)) AS residuo_energia_bairro, max(abs(d.e-m.e)) AS residuo_energia_mensal FROM d JOIN b USING(competencia) JOIN m USING(competencia);
+COMMIT;

@@ -1,15 +1,15 @@
 """Cenários artificiais para desenvolver e demonstrar contratos do agente."""
 
-from app.schemas.questions import EvidenceReference
-from app.schemas.scenarios import AnalysisDomain, AnalysisIntent, SyntheticScenario
-from app.tools.evidence import EvidenceResult
+from app.schemas.analysis import AnalysisIntent
+from app.schemas.evidence import EvidenceReference, EvidenceResult
+from app.schemas.scenarios import SyntheticScenario
 
 SYNTHETIC_SCENARIOS = (
     SyntheticScenario(
         scenario_id="revenue_comparison_demo",
         question="Compare o indicador fictício de receita entre dois períodos de demonstração.",
         intent=AnalysisIntent(
-            domain=AnalysisDomain.REVENUE,
+            domain="revenue",
             metric_phrase="receita",
             period_phrase="dois períodos de demonstração",
         ),
@@ -20,21 +20,30 @@ SYNTHETIC_SCENARIOS = (
                 is_demo=True,
             ),
             records=[
-                {"period_label": "período A", "value": 100, "unit": "unidades fictícias"},
-                {"period_label": "período B", "value": 95, "unit": "unidades fictícias"},
+                {
+                    "period": "2025-01",
+                    "value": 100,
+                    "unit": "unidades fictícias",
+                },
+                {
+                    "period": "2025-02",
+                    "value": 95,
+                    "unit": "unidades fictícias",
+                },
             ],
         ),
         limitations=[
-            "Valores inventados; não representam faturamento, receita ou fórmula oficial "
-            "da V-Energy."
+            "Períodos e valores inventados; não representam faturamento, receita ou fórmula "
+            "oficial da V-Energy."
         ],
     ),
     SyntheticScenario(
         scenario_id="consumption_demo",
         question="Qual é o indicador sintético de consumo no cenário de demonstração?",
         intent=AnalysisIntent(
-            domain=AnalysisDomain.CONSUMPTION,
+            domain="consumption",
             metric_phrase="consumo",
+            period_phrase="período de demonstração",
         ),
         evidence=EvidenceResult(
             reference=EvidenceReference(
@@ -52,8 +61,9 @@ SYNTHETIC_SCENARIOS = (
         scenario_id="network_interruptions_demo",
         question="Quantas interrupções existem no cenário de demonstração?",
         intent=AnalysisIntent(
-            domain=AnalysisDomain.NETWORK,
+            domain="network",
             metric_phrase="interrupções",
+            period_phrase="período de demonstração",
         ),
         evidence=EvidenceResult(
             reference=EvidenceReference(
@@ -71,8 +81,9 @@ SYNTHETIC_SCENARIOS = (
         scenario_id="service_attendance_demo",
         question="Quantos atendimentos aparecem no cenário sintético?",
         intent=AnalysisIntent(
-            domain=AnalysisDomain.SERVICE,
+            domain="service",
             metric_phrase="atendimentos",
+            period_phrase="período de demonstração",
         ),
         evidence=EvidenceResult(
             reference=EvidenceReference(
