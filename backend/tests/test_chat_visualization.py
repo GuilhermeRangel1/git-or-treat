@@ -98,6 +98,13 @@ def test_public_points_and_line_are_copied_from_authorized_evidence(scenario):
     assert published.visualization.title == "Receita faturada"
 
 
+def test_single_observation_note_uses_singular(scenario):
+    plan, lookup, response = scenario
+    lookup.evidence.records = lookup.evidence.records[:1]
+    visual = build_chat_visualization(plan, lookup, response)
+    assert visual.note == "1 observação retornada pela consulta autorizada."
+
+
 @pytest.mark.parametrize(
     "row_patch",
     [{"unit": "kWh"}, {"value": True}, {"value": float("inf")}, {"period": "2026-05"}],
