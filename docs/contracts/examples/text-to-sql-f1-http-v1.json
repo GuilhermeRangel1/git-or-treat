@@ -1,0 +1,57 @@
+{
+  "request": {
+    "generation_contract_version": "text-to-sql-f1-v1",
+    "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "contents": "{\"context_version\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"generation_contract_version\": \"text-to-sql-f1-v1\", \"dialect\": \"postgres\", \"question\": \"Qual foi o faturamento de Recife em junho de 2026?\"}",
+    "remaining_timeout_ms": 30000
+  },
+  "response": {
+    "generation_contract_version": "text-to-sql-f1-v1",
+    "correlation_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "sql_candidate",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+      "parameters": {
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        },
+        "competency": {
+          "type": "string",
+          "value": "2026-06"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-06-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": []
+      },
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ]
+    }
+  }
+}

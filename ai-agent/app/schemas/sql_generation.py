@@ -4,6 +4,7 @@ Contrato independente espelhado no Backend e verificado por fixtures comuns.
 Não importa planner, HTTP, provedor nem conexão de banco.
 """
 
+import json
 from calendar import monthrange
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -204,3 +205,31 @@ class SqlGenerationCandidate(ClosedModel):
                     or (self.status == "unsupported") != (self.unsupported_reason is not None)):
                 raise ValueError("estado exige explicação específica compatível")
         return self
+
+
+class SqlGenerationRequest(ClosedModel):
+    generation_contract_version: Literal["text-to-sql-f1-v1"] = "text-to-sql-f1-v1"
+    context_version: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")]
+    contents: Annotated[str, StringConstraints(strict=True, min_length=1, max_length=65536)]
+    remaining_timeout_ms: Annotated[int, Field(strict=True, ge=1, le=60000)]
+
+    @model_validator(mode="after")
+    def check_context_envelope(self) -> Self:
+        if len(self.contents.encode("utf-8")) > 65536:
+            raise ValueError("contexto excede limite de bytes")
+        try:
+            context = json.loads(self.contents)
+        except ValueError:
+            raise ValueError("contexto deve ser JSON válido") from None
+        if (not isinstance(context, dict)
+                or context.get("context_version") != self.context_version
+                or context.get("generation_contract_version") != self.generation_contract_version
+                or context.get("dialect") != "postgres"):
+            raise ValueError("contexto incompatível com envelope F1")
+        return self
+
+
+class SqlGenerationResponse(ClosedModel):
+    generation_contract_version: Literal["text-to-sql-f1-v1"] = "text-to-sql-f1-v1"
+    correlation_id: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{32}$")]
+    candidate: SqlGenerationCandidate

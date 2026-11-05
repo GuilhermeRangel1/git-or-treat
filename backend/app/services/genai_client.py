@@ -22,7 +22,7 @@ from app.schemas.genai_internal import (
     QuestionPlanResponse,
     QuestionSynthesisRequest,
 )
-
+from app.schemas.sql_generation import SqlGenerationRequest, SqlGenerationResponse
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +124,29 @@ class GenAIQuestionClient:
         self._http_client = http_client
         self._base_url = base_url.rstrip("/") if base_url else None
         self._service_token = service_token
+
+    async def generate_sql_candidate(
+        self, payload: SqlGenerationRequest, *, correlation_id: str,
+    ) -> SqlGenerationResponse:
+        """Recebe proposta não confiável; nunca chama o executor Gold."""
+        try:
+            async with asyncio.timeout(payload.remaining_timeout_ms / 1000):
+                response_payload = await _post_genai_json(
+                    http_client=self._http_client, base_url=self._base_url,
+                    service_token=self._service_token,
+                    path="/api/v1/internal/sql-candidates", payload=payload,
+                    correlation_id=correlation_id,
+                )
+        except TimeoutError:
+            raise GenAITimeout from None
+        try:
+            result = SqlGenerationResponse.model_validate(response_payload)
+        except ValidationError:
+            raise GenAIResponseInvalid from None
+        if (result.correlation_id != correlation_id
+                or result.candidate.context_version != payload.context_version):
+            raise GenAIResponseInvalid
+        return result
 
     async def ask(
         self,

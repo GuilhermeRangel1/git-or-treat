@@ -15,6 +15,24 @@ class ModelConfigurationError(ValueError):
     """Sinaliza configuração incompleta ou dependência opcional ausente."""
 
 
+def build_sql_generator(settings: Settings, *, client=None):
+    """Flag habilita só geração privada; não muda o coordenador/executor público."""
+    if not settings.sql_generation_enabled:
+        return None
+    if settings.model_provider != "gemini":
+        raise ModelConfigurationError("Geração SQL F1 exige provedor Gemini.")
+    _require_api_key(settings, "gemini")
+    from app.providers.sql_generator import GeminiSqlGenerator
+    if client is None:
+        from google import genai
+        client = genai.Client(
+            api_key=settings.gemini_api_key.get_secret_value(),
+            http_options={"timeout": min(settings.model_timeout_ms, 20000),
+                          "retry_options": {"attempts": 1}},
+        )
+    return GeminiSqlGenerator(client=client, model_name=settings.gemini_model)
+
+
 _API_KEY_SETTINGS: dict[ModelProviderName, tuple[str, str]] = {
     "gemini": ("gemini_api_key", "GENAI_GEMINI_API_KEY"),
     "groq": ("groq_api_key", "GENAI_GROQ_API_KEY"),
