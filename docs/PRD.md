@@ -4098,3 +4098,9 @@ O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por municípi
 - ADR-0025 registra a direção autorizada de SQL proposto pelo modelo, mantendo validação final, autorização e execução no Backend. A ADR-0002 preserva o fluxo implantado até integração e ativação explícita; não houve mudança de aceite dos requisitos.
 - Matriz de consumidores e testes, contrato candidato F1 e vetores compartilhados em [contrato F1](contracts/text-to-sql-f1.md). Guias dos serviços e skills locais alinhados à transição. SQL candidato não equivale a consulta aprovada.
 - Verificações documentais: caminhos e links locais conferidos; `git diff --check` passou. Esta parte registra preparação/decisão, sem habilitar endpoint generativo, executor ou acesso a novos dados.
+
+### 05/11/2026 — IA-02/03/06/08 — contrato e contexto autorizados da F1
+
+- Adicionados schemas independentes de candidato SQL nos dois serviços, parâmetros estritos, estados coerentes, janelas mensais e metadados de resultado. Fixtures comuns com três válidos e dez inválidos têm aceitação/rejeição e JSON Schema comparados entre serviços.
+- Contexto F1 seleciona apenas receita e colunas/dimensões autorizadas do catálogo instalado; digest vincula identidade, escopo, pergunta, conversa, publicação e cobertura sem divulgar a identidade ao modelo. Excesso de tamanho falha sem truncar restrições.
+- Verificações observadas: testes de contrato com 28 casos aprovados, nove testes de contexto Backend aprovados e Ruff dirigido passou. Não certifica prontidão/schema vivo nem autoriza/executa SQL; transporte e composição runtime permanecem pendentes.
