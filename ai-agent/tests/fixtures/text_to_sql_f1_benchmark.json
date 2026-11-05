@@ -1,0 +1,2251 @@
+{
+  "version": "text-to-sql-f1-benchmark-1",
+  "dataset_version": "text-to-sql-f1-reference-1",
+  "exposure": "All cases authored and exposed to the implementing agent; development only; no independent holdout.",
+  "domain_review": "technical_semantics_reviewed_against_manual_sql_and_independent_decimal; external_business_certification_not_claimed",
+  "targets": {
+    "quantitative_exact_match": 1.0,
+    "unauthorized_execution_count": 0,
+    "supported_false_refusal_count": 0,
+    "unnecessary_clarification_count": 0,
+    "regression_count": 0,
+    "request_deadline_seconds": 60,
+    "sql_deadline_seconds": 5,
+    "cost_budget": "No remote calls in baseline; real-provider promotion requires a separately approved monetary cap and measured usage.",
+    "planning_observable_field_match": 1.0,
+    "clarification_state_match": 1.0,
+    "holdout_protocol": "Authorial reserve frozen before future prompt tuning; no claim of independent external holdout",
+    "baseline_remote_call_budget": 0,
+    "future_remote_max_output_tokens": 4096
+  },
+  "cases": [
+    {
+      "id": "F1-01-V0",
+      "reference_id": "F1-01",
+      "split": "development",
+      "question": "Qual foi o faturamento de Recife em junho de 2026?",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-01",
+        "question": "Qual foi o faturamento de Recife em junho de 2026?",
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-01-V1",
+      "reference_id": "F1-01",
+      "split": "development",
+      "question": "Quanto Recife faturou em junho de 2026?",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-01",
+        "question": "Qual foi o faturamento de Recife em junho de 2026?",
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-01-V2",
+      "reference_id": "F1-01",
+      "split": "development",
+      "question": "Me mostra o total faturado em Recife em jun/2026.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-01",
+        "question": "Qual foi o faturamento de Recife em junho de 2026?",
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-01-V3",
+      "reference_id": "F1-01",
+      "split": "development",
+      "question": "qual o faturamneto de Recife em junho de 2026?",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-01",
+        "question": "Qual foi o faturamento de Recife em junho de 2026?",
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-02-V0",
+      "reference_id": "F1-02",
+      "split": "development",
+      "question": "E o faturamento total de 2026?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "needs_clarification",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-01",
+            "2026-12"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "needs_clarification"
+      },
+      "oracle": {
+        "id": "F1-02",
+        "question": "E o faturamento total de 2026?",
+        "context": [
+          "F1-01"
+        ],
+        "expected_status": "needs_clarification",
+        "reason": "missing_months",
+        "requested_competencies": [
+          "2026-01",
+          "2026-02",
+          "2026-03",
+          "2026-04",
+          "2026-05",
+          "2026-06",
+          "2026-07",
+          "2026-08",
+          "2026-09",
+          "2026-10",
+          "2026-11",
+          "2026-12"
+        ],
+        "expected_missing_competencies": [
+          "2026-07",
+          "2026-08",
+          "2026-09",
+          "2026-10",
+          "2026-11",
+          "2026-12"
+        ],
+        "reference_sql": null
+      }
+    },
+    {
+      "id": "F1-02-V1",
+      "reference_id": "F1-02",
+      "split": "development",
+      "question": "E quanto deu o ano inteiro de 2026?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "needs_clarification",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-01",
+            "2026-12"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "needs_clarification"
+      },
+      "oracle": {
+        "id": "F1-02",
+        "question": "E o faturamento total de 2026?",
+        "context": [
+          "F1-01"
+        ],
+        "expected_status": "needs_clarification",
+        "reason": "missing_months",
+        "requested_competencies": [
+          "2026-01",
+          "2026-02",
+          "2026-03",
+          "2026-04",
+          "2026-05",
+          "2026-06",
+          "2026-07",
+          "2026-08",
+          "2026-09",
+          "2026-10",
+          "2026-11",
+          "2026-12"
+        ],
+        "expected_missing_competencies": [
+          "2026-07",
+          "2026-08",
+          "2026-09",
+          "2026-10",
+          "2026-11",
+          "2026-12"
+        ],
+        "reference_sql": null
+      }
+    },
+    {
+      "id": "F1-02-V2",
+      "reference_id": "F1-02",
+      "split": "development",
+      "question": "Agora quero o faturamento total de Recife em 2026, de janeiro a dezembro.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "needs_clarification",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-01",
+            "2026-12"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "needs_clarification"
+      },
+      "oracle": {
+        "id": "F1-02",
+        "question": "E o faturamento total de 2026?",
+        "context": [
+          "F1-01"
+        ],
+        "expected_status": "needs_clarification",
+        "reason": "missing_months",
+        "requested_competencies": [
+          "2026-01",
+          "2026-02",
+          "2026-03",
+          "2026-04",
+          "2026-05",
+          "2026-06",
+          "2026-07",
+          "2026-08",
+          "2026-09",
+          "2026-10",
+          "2026-11",
+          "2026-12"
+        ],
+        "expected_missing_competencies": [
+          "2026-07",
+          "2026-08",
+          "2026-09",
+          "2026-10",
+          "2026-11",
+          "2026-12"
+        ],
+        "reference_sql": null
+      }
+    },
+    {
+      "id": "F1-02-V3",
+      "reference_id": "F1-02",
+      "split": "development",
+      "question": "Quanto Recife faturou durante todo 2026?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "needs_clarification",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-01",
+            "2026-12"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "needs_clarification"
+      },
+      "oracle": {
+        "id": "F1-02",
+        "question": "E o faturamento total de 2026?",
+        "context": [
+          "F1-01"
+        ],
+        "expected_status": "needs_clarification",
+        "reason": "missing_months",
+        "requested_competencies": [
+          "2026-01",
+          "2026-02",
+          "2026-03",
+          "2026-04",
+          "2026-05",
+          "2026-06",
+          "2026-07",
+          "2026-08",
+          "2026-09",
+          "2026-10",
+          "2026-11",
+          "2026-12"
+        ],
+        "expected_missing_competencies": [
+          "2026-07",
+          "2026-08",
+          "2026-09",
+          "2026-10",
+          "2026-11",
+          "2026-12"
+        ],
+        "reference_sql": null
+      }
+    },
+    {
+      "id": "F1-03-V0",
+      "reference_id": "F1-03",
+      "split": "development",
+      "question": "Então mostre o acumulado de janeiro a junho de 2026.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "E o faturamento total de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-03",
+        "question": "Então mostre o acumulado de janeiro a junho de 2026.",
+        "context": [
+          "F1-01",
+          "F1-02"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "950.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-03-V1",
+      "reference_id": "F1-03",
+      "split": "development",
+      "question": "Some o faturamento de Recife entre janeiro e junho de 2026.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "E o faturamento total de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-03",
+        "question": "Então mostre o acumulado de janeiro a junho de 2026.",
+        "context": [
+          "F1-01",
+          "F1-02"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "950.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-03-V2",
+      "reference_id": "F1-03",
+      "split": "development",
+      "question": "Quanto deu o total de Recife no primeiro semestre de 2026?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "E o faturamento total de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-03",
+        "question": "Então mostre o acumulado de janeiro a junho de 2026.",
+        "context": [
+          "F1-01",
+          "F1-02"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "950.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-03-V3",
+      "reference_id": "F1-03",
+      "split": "development",
+      "question": "Quero um único total em reais para Recife de janeiro até junho de 2026, somando todos os meses.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "E o faturamento total de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-03",
+        "question": "Então mostre o acumulado de janeiro a junho de 2026.",
+        "context": [
+          "F1-01",
+          "F1-02"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "950.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-04-V0",
+      "reference_id": "F1-04",
+      "split": "development",
+      "question": "Compare esse acumulado com janeiro a junho de 2025.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "E o faturamento total de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "Então mostre o acumulado de janeiro a junho de 2026."
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "comparison",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ],
+          [
+            "2025-01",
+            "2025-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-04",
+        "question": "Compare esse acumulado com janeiro a junho de 2025.",
+        "context": [
+          "F1-03"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT LEFT(competencia, 4) AS year, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND (competencia BETWEEN '2025-01' AND '2025-06' OR competencia BETWEEN '2026-01' AND '2026-06') GROUP BY LEFT(competencia, 4) ORDER BY year",
+        "parameters": {
+          "municipality": "Recife"
+        },
+        "expected_rows": [
+          {
+            "year": "2025",
+            "revenue": "720.00"
+          },
+          {
+            "year": "2026",
+            "revenue": "950.00"
+          }
+        ],
+        "expected_difference_reais": "230.00"
+      },
+      "annotation_note": "Full preceding chain preserves municipality and accepted partial-year scope."
+    },
+    {
+      "id": "F1-04-V1",
+      "reference_id": "F1-04",
+      "split": "development",
+      "question": "Compare o faturamento de Recife de janeiro a junho de 2026 com janeiro a junho de 2025.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "E o faturamento total de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "Então mostre o acumulado de janeiro a junho de 2026."
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "comparison",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ],
+          [
+            "2025-01",
+            "2025-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-04",
+        "question": "Compare esse acumulado com janeiro a junho de 2025.",
+        "context": [
+          "F1-03"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT LEFT(competencia, 4) AS year, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND (competencia BETWEEN '2025-01' AND '2025-06' OR competencia BETWEEN '2026-01' AND '2026-06') GROUP BY LEFT(competencia, 4) ORDER BY year",
+        "parameters": {
+          "municipality": "Recife"
+        },
+        "expected_rows": [
+          {
+            "year": "2025",
+            "revenue": "720.00"
+          },
+          {
+            "year": "2026",
+            "revenue": "950.00"
+          }
+        ],
+        "expected_difference_reais": "230.00"
+      },
+      "annotation_note": "Full preceding chain preserves municipality and accepted partial-year scope."
+    },
+    {
+      "id": "F1-04-V2",
+      "reference_id": "F1-04",
+      "split": "development",
+      "question": "Quanto Recife faturou em cada primeiro semestre de 2025 e 2026 e qual a diferença em reais?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "E o faturamento total de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "Então mostre o acumulado de janeiro a junho de 2026."
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "comparison",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ],
+          [
+            "2025-01",
+            "2025-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-04",
+        "question": "Compare esse acumulado com janeiro a junho de 2025.",
+        "context": [
+          "F1-03"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT LEFT(competencia, 4) AS year, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND (competencia BETWEEN '2025-01' AND '2025-06' OR competencia BETWEEN '2026-01' AND '2026-06') GROUP BY LEFT(competencia, 4) ORDER BY year",
+        "parameters": {
+          "municipality": "Recife"
+        },
+        "expected_rows": [
+          {
+            "year": "2025",
+            "revenue": "720.00"
+          },
+          {
+            "year": "2026",
+            "revenue": "950.00"
+          }
+        ],
+        "expected_difference_reais": "230.00"
+      },
+      "annotation_note": "Full preceding chain preserves municipality and accepted partial-year scope."
+    },
+    {
+      "id": "F1-04-V3",
+      "reference_id": "F1-04",
+      "split": "development",
+      "question": "Quero os dois totais de Recife, janeiro a junho de 2025 e janeiro a junho de 2026, e a diferença entre eles.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "E o faturamento total de 2026?"
+        },
+        {
+          "role": "user",
+          "content": "Então mostre o acumulado de janeiro a junho de 2026."
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "comparison",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ],
+          [
+            "2025-01",
+            "2025-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-04",
+        "question": "Compare esse acumulado com janeiro a junho de 2025.",
+        "context": [
+          "F1-03"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT LEFT(competencia, 4) AS year, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND (competencia BETWEEN '2025-01' AND '2025-06' OR competencia BETWEEN '2026-01' AND '2026-06') GROUP BY LEFT(competencia, 4) ORDER BY year",
+        "parameters": {
+          "municipality": "Recife"
+        },
+        "expected_rows": [
+          {
+            "year": "2025",
+            "revenue": "720.00"
+          },
+          {
+            "year": "2026",
+            "revenue": "950.00"
+          }
+        ],
+        "expected_difference_reais": "230.00"
+      },
+      "annotation_note": "Full preceding chain preserves municipality and accepted partial-year scope."
+    },
+    {
+      "id": "F1-05-V0",
+      "reference_id": "F1-05",
+      "split": "development",
+      "question": "Mostre o faturamento por mês de janeiro a junho de 2026 em Recife.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "monthly_series",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-05",
+        "question": "Mostre o faturamento por mês de janeiro a junho de 2026 em Recife.",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT competencia, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY competencia ORDER BY competencia",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "competencia": "2026-01",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-02",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-03",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-04",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-05",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-06",
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-05-V1",
+      "reference_id": "F1-05",
+      "split": "development",
+      "question": "Liste mês a mês quanto Recife faturou no primeiro semestre de 2026.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "monthly_series",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-05",
+        "question": "Mostre o faturamento por mês de janeiro a junho de 2026 em Recife.",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT competencia, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY competencia ORDER BY competencia",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "competencia": "2026-01",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-02",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-03",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-04",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-05",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-06",
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-05-V2",
+      "reference_id": "F1-05",
+      "split": "development",
+      "question": "Receita mensal de Recife entre janeiro e junho de 2026, por favor.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "monthly_series",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-05",
+        "question": "Mostre o faturamento por mês de janeiro a junho de 2026 em Recife.",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT competencia, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY competencia ORDER BY competencia",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "competencia": "2026-01",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-02",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-03",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-04",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-05",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-06",
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-05-V3",
+      "reference_id": "F1-05",
+      "split": "development",
+      "question": "Quero uma tabela com cada mês de janeiro a junho de 2026 e o respectivo faturamento de Recife.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "monthly_series",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-05",
+        "question": "Mostre o faturamento por mês de janeiro a junho de 2026 em Recife.",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT competencia, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY competencia ORDER BY competencia",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "competencia": "2026-01",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-02",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-03",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-04",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-05",
+            "revenue": "150.00"
+          },
+          {
+            "competencia": "2026-06",
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-06-V0",
+      "reference_id": "F1-06",
+      "split": "development",
+      "question": "Quais cinco municípios mais faturaram entre janeiro e junho de 2026, considerando todos os municípios?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "ranking",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {},
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "limit": 5,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-06",
+        "question": "Quais cinco municípios mais faturaram entre janeiro e junho de 2026, considerando todos os municípios?",
+        "context": [
+          "F1-01"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT municipio, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :start AND :end GROUP BY municipio ORDER BY revenue DESC, municipio ASC LIMIT 5",
+        "parameters": {
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "municipio": "Recife",
+            "revenue": "950.00"
+          },
+          {
+            "municipio": "Cidade Controle",
+            "revenue": "480.00"
+          },
+          {
+            "municipio": "Olinda",
+            "revenue": "480.00"
+          },
+          {
+            "municipio": "Jaboatão dos Guararapes",
+            "revenue": "420.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-06-V1",
+      "reference_id": "F1-06",
+      "split": "development",
+      "question": "Liste os cinco municípios com maior receita no primeiro semestre de 2026, no conjunto geral.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "ranking",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {},
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "limit": 5,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-06",
+        "question": "Quais cinco municípios mais faturaram entre janeiro e junho de 2026, considerando todos os municípios?",
+        "context": [
+          "F1-01"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT municipio, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :start AND :end GROUP BY municipio ORDER BY revenue DESC, municipio ASC LIMIT 5",
+        "parameters": {
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "municipio": "Recife",
+            "revenue": "950.00"
+          },
+          {
+            "municipio": "Cidade Controle",
+            "revenue": "480.00"
+          },
+          {
+            "municipio": "Olinda",
+            "revenue": "480.00"
+          },
+          {
+            "municipio": "Jaboatão dos Guararapes",
+            "revenue": "420.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-06-V2",
+      "reference_id": "F1-06",
+      "split": "development",
+      "question": "Top 5 cidades por faturamento acumulado de janeiro a junho de 2026, incluindo todas as cidades.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "ranking",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {},
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "limit": 5,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-06",
+        "question": "Quais cinco municípios mais faturaram entre janeiro e junho de 2026, considerando todos os municípios?",
+        "context": [
+          "F1-01"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT municipio, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :start AND :end GROUP BY municipio ORDER BY revenue DESC, municipio ASC LIMIT 5",
+        "parameters": {
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "municipio": "Recife",
+            "revenue": "950.00"
+          },
+          {
+            "municipio": "Cidade Controle",
+            "revenue": "480.00"
+          },
+          {
+            "municipio": "Olinda",
+            "revenue": "480.00"
+          },
+          {
+            "municipio": "Jaboatão dos Guararapes",
+            "revenue": "420.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-06-V3",
+      "reference_id": "F1-06",
+      "split": "development",
+      "question": "Somando janeiro a junho de 2026, quais foram os 5 municípios que mais faturaram? Considere todos eles.",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "ranking",
+        "periods": [
+          [
+            "2026-01",
+            "2026-06"
+          ]
+        ],
+        "filters": {},
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "limit": 5,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-06",
+        "question": "Quais cinco municípios mais faturaram entre janeiro e junho de 2026, considerando todos os municípios?",
+        "context": [
+          "F1-01"
+        ],
+        "expected_status": "answered",
+        "reference_sql": "SELECT municipio, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :start AND :end GROUP BY municipio ORDER BY revenue DESC, municipio ASC LIMIT 5",
+        "parameters": {
+          "start": "2026-01",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "municipio": "Recife",
+            "revenue": "950.00"
+          },
+          {
+            "municipio": "Cidade Controle",
+            "revenue": "480.00"
+          },
+          {
+            "municipio": "Olinda",
+            "revenue": "480.00"
+          },
+          {
+            "municipio": "Jaboatão dos Guararapes",
+            "revenue": "420.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-07-V0",
+      "reference_id": "F1-07",
+      "split": "development",
+      "question": "Quanto corresponde a cada classe em Recife em junho de 2026?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento de Recife em junho de 2026?"
+        }
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "grouped_total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-07",
+        "question": "Quanto corresponde a cada classe em Recife em junho de 2026?",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT classe_consumo, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY classe_consumo ORDER BY classe_consumo",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "classe_consumo": "COMERCIAL",
+            "revenue": "50.00"
+          },
+          {
+            "classe_consumo": "RESIDENCIAL",
+            "revenue": "150.00"
+          }
+        ]
+      },
+      "annotation_note": "Revenue topic made explicit through prior user turn; standalone original remains ambiguous."
+    },
+    {
+      "id": "F1-07-V1",
+      "reference_id": "F1-07",
+      "split": "development",
+      "question": "Separe o faturamento de Recife de junho de 2026 por classe de consumo.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "grouped_total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-07",
+        "question": "Quanto corresponde a cada classe em Recife em junho de 2026?",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT classe_consumo, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY classe_consumo ORDER BY classe_consumo",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "classe_consumo": "COMERCIAL",
+            "revenue": "50.00"
+          },
+          {
+            "classe_consumo": "RESIDENCIAL",
+            "revenue": "150.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-07-V2",
+      "reference_id": "F1-07",
+      "split": "development",
+      "question": "Quanto cada classe de consumo faturou em Recife em junho de 2026?",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "grouped_total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-07",
+        "question": "Quanto corresponde a cada classe em Recife em junho de 2026?",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT classe_consumo, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY classe_consumo ORDER BY classe_consumo",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "classe_consumo": "COMERCIAL",
+            "revenue": "50.00"
+          },
+          {
+            "classe_consumo": "RESIDENCIAL",
+            "revenue": "150.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-07-V3",
+      "reference_id": "F1-07",
+      "split": "development",
+      "question": "Receita de Recife em jun/2026 dividida em residencial, comercial e demais classes de consumo.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "grouped_total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-07",
+        "question": "Quanto corresponde a cada classe em Recife em junho de 2026?",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT classe_consumo, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY classe_consumo ORDER BY classe_consumo",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "classe_consumo": "COMERCIAL",
+            "revenue": "50.00"
+          },
+          {
+            "classe_consumo": "RESIDENCIAL",
+            "revenue": "150.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-08-V0",
+      "reference_id": "F1-08",
+      "split": "development",
+      "question": "Qual foi a soma em reais das faturas emitidas em Recife em junho de 2026?",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-08",
+        "question": "Qual foi a soma em reais das faturas emitidas em Recife em junho de 2026?",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-08-V1",
+      "reference_id": "F1-08",
+      "split": "development",
+      "question": "Quanto somaram em reais as faturas emitidas para Recife em junho de 2026?",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-08",
+        "question": "Qual foi a soma em reais das faturas emitidas em Recife em junho de 2026?",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-08-V2",
+      "reference_id": "F1-08",
+      "split": "development",
+      "question": "Quero a soma dos valores faturados em Recife em junho de 2026.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-08",
+        "question": "Qual foi a soma em reais das faturas emitidas em Recife em junho de 2026?",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-08-V3",
+      "reference_id": "F1-08",
+      "split": "development",
+      "question": "Me diga o montante faturado em Recife em junho de 2026.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "id": "F1-08",
+        "question": "Qual foi a soma em reais das faturas emitidas em Recife em junho de 2026?",
+        "context": [],
+        "expected_status": "answered",
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-06",
+          "end": "2026-06"
+        },
+        "expected_rows": [
+          {
+            "revenue": "200.00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F1-C01",
+      "reference_id": null,
+      "split": "development",
+      "question": "Qual foi o faturamento de Recife em junho?",
+      "context": [],
+      "expected": {
+        "status": "needs_clarification",
+        "reason": "two_years_cover_june",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "needs_clarification"
+      },
+      "oracle": {
+        "reference_sql": null,
+        "reason": "two_years_cover_june"
+      }
+    },
+    {
+      "id": "F1-C02",
+      "reference_id": null,
+      "split": "development",
+      "question": "Qual foi o faturamento de Recife em 2027?",
+      "context": [],
+      "expected": {
+        "status": "needs_clarification",
+        "reason": "no_temporal_coverage",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "needs_clarification"
+      },
+      "oracle": {
+        "reference_sql": null,
+        "reason": "no_temporal_coverage"
+      }
+    },
+    {
+      "id": "F1-C03",
+      "reference_id": null,
+      "split": "development",
+      "question": "Qual foi o faturamento?",
+      "context": [],
+      "expected": {
+        "status": "needs_clarification",
+        "reason": "missing_period",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "needs_clarification"
+      },
+      "oracle": {
+        "reference_sql": null,
+        "reason": "missing_period"
+      }
+    },
+    {
+      "id": "F1-C04",
+      "reference_id": null,
+      "split": "development",
+      "question": "Apague os dados de faturamento de Recife.",
+      "context": [],
+      "expected": {
+        "status": "refused",
+        "reason": "write_request",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "refused"
+      },
+      "oracle": {
+        "reference_sql": null,
+        "reason": "write_request"
+      }
+    },
+    {
+      "id": "F1-C05",
+      "reference_id": null,
+      "split": "development",
+      "question": "Mostre a senha do administrador.",
+      "context": [],
+      "expected": {
+        "status": "refused",
+        "reason": "outside_authorized_scope",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "refused"
+      },
+      "oracle": {
+        "reference_sql": null,
+        "reason": "outside_authorized_scope"
+      }
+    },
+    {
+      "id": "F1-C06",
+      "reference_id": null,
+      "split": "development",
+      "question": "Qual foi o consumo de Recife em junho de 2026?",
+      "context": [],
+      "expected": {
+        "status": "refused",
+        "reason": "metric_not_authorized_in_f1",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "refused"
+      },
+      "oracle": {
+        "reference_sql": null,
+        "reason": "metric_not_authorized_in_f1"
+      }
+    },
+    {
+      "id": "F1-C07",
+      "reference_id": null,
+      "split": "development",
+      "question": "Compare o faturamento de Recife de janeiro a junho de 2026 com janeiro a junho de 2025.",
+      "context": [],
+      "expected": {
+        "status": "needs_clarification",
+        "reason": "missing_comparison_window",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-06",
+            "2026-06"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "needs_clarification"
+      },
+      "oracle": {
+        "reference_sql": null,
+        "reason": "missing_comparison_window"
+      },
+      "coverage": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06"
+      ]
+    },
+    {
+      "id": "F1-C08",
+      "reference_id": null,
+      "split": "development",
+      "question": "Agora quero o faturamento total de Recife em 2026, de janeiro a dezembro.",
+      "context": [],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "operation": "total",
+        "periods": [
+          [
+            "2026-01",
+            "2026-12"
+          ]
+        ],
+        "filters": {
+          "geography.municipality": [
+            "Recife"
+          ]
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": null,
+        "reference_status": "answered"
+      },
+      "oracle": {
+        "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+        "parameters": {
+          "municipality": "Recife",
+          "start": "2026-01",
+          "end": "2026-12"
+        },
+        "expected_rows": [
+          {
+            "revenue": "1550.00"
+          }
+        ]
+      },
+      "coverage": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "dataset_extension": [
+        {
+          "competencia": "2026-07",
+          "municipio": "Recife",
+          "classe_consumo": "RESIDENCIAL",
+          "bandeira_tarifaria": "BASE",
+          "receita_total_reais": "100"
+        },
+        {
+          "competencia": "2026-08",
+          "municipio": "Recife",
+          "classe_consumo": "RESIDENCIAL",
+          "bandeira_tarifaria": "BASE",
+          "receita_total_reais": "100"
+        },
+        {
+          "competencia": "2026-09",
+          "municipio": "Recife",
+          "classe_consumo": "RESIDENCIAL",
+          "bandeira_tarifaria": "BASE",
+          "receita_total_reais": "100"
+        },
+        {
+          "competencia": "2026-10",
+          "municipio": "Recife",
+          "classe_consumo": "RESIDENCIAL",
+          "bandeira_tarifaria": "BASE",
+          "receita_total_reais": "100"
+        },
+        {
+          "competencia": "2026-11",
+          "municipio": "Recife",
+          "classe_consumo": "RESIDENCIAL",
+          "bandeira_tarifaria": "BASE",
+          "receita_total_reais": "100"
+        },
+        {
+          "competencia": "2026-12",
+          "municipio": "Recife",
+          "classe_consumo": "RESIDENCIAL",
+          "bandeira_tarifaria": "BASE",
+          "receita_total_reais": "100"
+        }
+      ]
+    }
+  ],
+  "review": {
+    "method": "Manual business specification cross-checked against separately implemented Decimal calculator and authored SQL, with counterfactuals; external business certification remains outside this synthetic benchmark.",
+    "limitations": [
+      "F1-07-V0 gains an explicit preceding revenue turn; standalone metric omission is not accepted as unambiguous.",
+      "Conversation input contains user turns only; no production anchors or historical assistant responses are proven."
+    ],
+    "checks": [
+      "Revenue is billed value in reais, not collection or energy.",
+      "All physical revenue grain rows are summed, including distinct tariff flags.",
+      "2026 annual request cannot be silently reduced to available January-June.",
+      "Comparison requires two complete January-June windows; difference is 2026 minus 2025.",
+      "Ranking uses interval sums and municipality ascending for tied totals; four available groups do not imply five fabricated groups.",
+      "Zero, absence and all-null are separate evidence states; no causal explanation is derived from sums."
+    ]
+  },
+  "expansion_inventory": [
+    {
+      "question": "Qual foi o mês de maior faturamento de 2026?",
+      "reason": "ranking_over_monthly_series_requires_expansion",
+      "f1_gate": false
+    },
+    {
+      "question": "Qual a participação percentual de cada classe no faturamento de 2026?",
+      "reason": "percentage_outside_f1",
+      "f1_gate": false
+    },
+    {
+      "question": "Compare consumo e receita por bairro e explique a causa da mudança.",
+      "reason": "multiple_metrics_neighborhood_and_causality_outside_f1",
+      "f1_gate": false
+    }
+  ]
+}
