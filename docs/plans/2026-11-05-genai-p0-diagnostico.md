@@ -31,7 +31,7 @@ python -c "import json; from tests.test_genai_regression import build_gold_langu
 
 Execução observada: 40 casos, 36 conformes e quatro divergentes; sem erros do avaliador. Uma inspeção auxiliar das respostas falhou ao ler `response=null`; foi corrigida e os casos restantes inspecionados. Não afeta o relatório da execução completa. No Windows desta sessão, o ASGI exigiu execução fora do sandbox por bloqueio de sockets locais.
 
-## P0 ainda aberto
+## Estado na primeira rodada — P0 ainda aberto naquele momento
 
 Faltam perguntas reais sanitizadas, acompanhamento com contexto, casos de autorização específicos deste conjunto, oráculos de intenção/motivo mais fortes, referência numérica independente, classificação por frequência real e avaliação reservada. SQL, dados, síntese, portal, custo e latência ponta a ponta não foram medidos. A etapa seguinte é corrigir a força dos oráculos e completar essas categorias antes de escolher uma expansão ampla do contrato. Os campos semânticos esperados usados nos casos novos não são uma decisão de formato do contrato HTTP.
 
@@ -53,7 +53,7 @@ Relatório: `ai-agent/reports/genai-p0-planning-baseline-v1.1.json`. Reproduçã
 
 Verificações: `python -m pytest tests/test_gold_language_evaluation.py -q -p no:cacheprovider --tb=short`, no diretório `ai-agent` com as mesmas variáveis, passou em 3 testes (4,74 s); a execução direta dos 46 casos terminou sem erro. `git diff --check` passou. A inspeção das quatro respostas sintéticas confirmou a classificação das falhas, sem SQL ou provedor.
 
-Próxima prioridade do P0: anotar métricas de falha por etapa e ampliar a prova de cobertura para 12 meses artificiais, separando explicitamente perda de intenção e operação ainda não representável. Ainda não há evidência de frequência real nem benchmark numérico ponta a ponta. P0 continua aberto.
+Naquela etapa, a próxima prioridade do P0 era anotar métricas de falha por etapa e ampliar a prova de cobertura para 12 meses artificiais, separando explicitamente perda de intenção e operação ainda não representável. Ainda não havia evidência de frequência real nem benchmark numérico ponta a ponta. O diagnóstico global permanecia aberto naquele momento.
 
 
 ## Reprodução após reiniciar da main limpa
@@ -135,14 +135,14 @@ Resultado estruturado: `ai-agent/reports/genai-p0-postgres-baseline.json`. O con
 
 Amostra de planejamento: 46 casos de desenvolvimento, mais sete casos dirigidos pelos relatos reais (com controles), sem misturar denominadores. Síntese numérica: 14/14; execução PostgreSQL: 1 teste integrado aprovado. As causas por etapa e o impacto já justificam investigar interpretação/retomada e ranking temporal. A contagem de incidentes refere-se aos conjuntos autorais; a alegação de falha generalizada relatada não foi convertida em taxa de produção.
 
-Ainda faltam reserva inédita independente e revisão humana da utilidade das respostas medidas. O escopo de métricas reais de modelo/portal depende de ambiente de avaliação configurado; custo e tokens com modelo falso não podem ser reportados como números reais. P0 continua aberto enquanto essas condições permanecerem declaradas no roteiro.
+Naquele momento ainda faltavam reserva inédita independente e revisão humana da utilidade das respostas medidas. O escopo de métricas reais de modelo/portal dependia de ambiente de avaliação configurado; custo e tokens com modelo falso não podiam ser reportados como números reais. A revisão humana foi recebida depois, como registrado abaixo; as demais lacunas continuam sendo gates de qualidade do produto e não reabrem o diagnóstico inicial.
 
 
 ## Pacote para revisão humana baseado no case
 
 O PDF fornecido foi lido localmente (10 páginas) via pypdf 6.21.4 instalado apenas na venv de validação. Não foi copiado para o repositório. Foram elaborados e executados 24 cenários de diretoria, comercial, atendimento, operação, perdas, causalidade e continuidade, usando cobertura artificial de julho/2022 a junho/2026. A aplicação produziu 18 esclarecimentos e seis planos; esses números não são acurácia.
 
-Artefatos: `gold_p0_case_review.json` em fixtures, `genai-p0-case-review.json` em reports e `2026-11-05-genai-p0-revisao-humana.md` nesta pasta. Reprodução em `ai-agent`: `python -m tests.p0_case_review`, com `GENAI_MODEL_PROVIDER=unavailable`, dependências do agente e autorização para sockets locais se o sandbox Windows os bloquear. O runner foi executado com sucesso nos 24 casos; não consulta SQL ou provedor. A avaliação humana está pendente e será solicitada no chat.
+Artefatos: `gold_p0_case_review.json` em fixtures, `genai-p0-case-review.json` em reports e `2026-11-05-genai-p0-revisao-humana.md` nesta pasta. Reprodução em `ai-agent`: `python -m tests.p0_case_review`, com `GENAI_MODEL_PROVIDER=unavailable`, dependências do agente e autorização para sockets locais se o sandbox Windows os bloquear. O runner foi executado com sucesso nos 24 casos; não consulta SQL ou provedor. Na data desse registro, a avaliação humana estava pendente; ela foi recebida em 05/11/2026 e está registrada na seção seguinte.
 
 Achados para revisão: CASE-05 recusa percentual mesmo em uma comparação que pede reais e variação; CASE-08 planeja grupos mensais para um pedido de totais no intervalo; CASE-18 pede indicador em vez de comunicar o limite somente leitura (nenhuma alteração foi executada). CASE-23 pede outro período diante de cobertura ausente, comportamento potencialmente adequado. Uma mensagem inadequada não é, por si só, violação de autorização.
 
