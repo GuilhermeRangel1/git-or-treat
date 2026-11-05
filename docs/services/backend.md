@@ -344,3 +344,8 @@ Continuação de 03/11: negociação opcional NDJSON preserva os clientes JSON e
 ## Cache e desempenho Gold v2 — implementação local em 04/11/2026
 
 Limites por bytes/entradas, coalescência dos insights, invalidação por contexto/publicação e redução das consultas do observador estão descritos no [plano de cache e desempenho](../plans/2026-11-04-genai-cache-desempenho.md). Autorização, prontidão, SQL e auditoria continuam executados; o cache não guarda permissão nem libera cobertura. Configuração, sincronização do namespace remoto, rollback, medições e limites constam no plano. Implementação no PR #123; CI remoto 41806936506 passou nos cinco jobs.
+
+
+Atualização Text-to-SQL de 05/11/2026: o caso de uso interno `genai_sql_observation.observe_sql_generation` liga contexto, cliente e revisão sob prazo absoluto compartilhado. A revisão inclui comparação de dois totais e diferença com linhagem por alias. Ainda não há chamador público, executor ou autorização de execução generativa; detalhes no contrato F1.
+
+Admissão Text-to-SQL (05/11/2026): `prepare_sql_candidate` compõe geração e admissão; `genai_sql_admission` reaproveita publicação/metadados e cliente de prontidão, vincula revisão e validade por digest e exige revalidação sem renovar prazo. Preparação interna sem chamador público ou executor; testes com I/O artificial não encerram Gold/grants. Detalhes no contrato F1.

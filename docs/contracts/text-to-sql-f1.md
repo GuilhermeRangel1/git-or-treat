@@ -118,6 +118,28 @@ Pydantic 2 é o padrão existente. Uso de `ConfigDict(extra='forbid')`, tipos es
 
 ## Transporte privado de candidatos — 05/11/2026
 
+### Conferência SQL/intenção — 05/11/2026
+
+`genai_sql_semantics.review_sql_semantics` chama primeiro a revisão estrutural e confere os recortes SQL contra `SqlInterpretation`. Verifica cobertura mensal completa dos períodos, igualdade dos filtros de município/classe, dimensões agrupadas, direção e tamanho do ranking. Rankings exigem NULLS LAST para não promover receita ausente. Consultas sem ranking não podem usar LIMIT para truncar os grupos.
+
+Recortes temporais são comparados como conjuntos de competências, aceitando igualdade, IN, BETWEEN e limites inclusivos/exclusivos; dimensões aceitam igualdade/IN. AND intersecta restrições, OR só une alternativas da mesma coluna. OR entre eixos diferentes ainda é rejeitado. Fora de uma operação de comparação, medidas condicionais continuam recusadas.
+
+Para comparar duas janelas distintas, o subconjunto F1 exige três medidas sem agrupamento: total da janela 0, total da janela 1 e diferença 0 menos 1. A AST determina a linhagem de cada alias em `SqlSemanticReview.measure_semantics`; nomes livres não definem a fórmula. O WHERE global deve selecionar exatamente a união dos períodos e os filtros comuns. Cada SUM FILTER precisa corresponder ao respectivo recorte após interseção com esse WHERE, e ambas as janelas precisam de cobertura completa. Ausência de um total, diferença invertida, LIMIT e ranking são recusados. Não há COALESCE para transformar ausência/nulo em zero. Comparações agrupadas e alternativas com CTE/UNION ficam fora desta fatia.
+
+`genai_sql_observation.observe_sql_generation` compõe contexto Backend → cliente interno → revisão estrutural/semântica. Recebe o prazo absoluto já iniciado e o reduz pelo saldo do envelope; criação de contexto, provedor e revisão consomem o mesmo orçamento. Retorna esclarecimento/capacidade sem revisão, propaga falhas e não repete chamadas. É um caso de uso interno opt-in, ainda sem chamador no coordenador público, sem executor ou aprovação de acesso. Testes usam o cliente HTTP real com transporte artificial; não comprovam qualidade Gemini.
+
+Esta checagem compara SQL e intenção declarada pelo modelo; não comprova que a intenção corresponde ao pedido em linguagem natural. Ainda depende de contexto conversacional validado, prontidão/grants, política de recortes, referência numérica independente e artefato final ligado à sessão/publicação. Nenhuma das revisões autoriza execução ou está conectada ao coordenador público.
+
+### Admissão interna e revalidação — 05/11/2026
+
+`genai_sql_admission.admit_sql_candidate` recebe engine analítico, publicação capturada pelo servidor, resolvedor de escopo atual e controles aprovados da configuração. Confere escopo antes/depois das fronteiras assíncronas, relê cobertura/vocabulário com `GoldPublicationContext.planning_fields` e refaz a revisão contra esse contexto. Usa o cliente de prontidão existente para todos os meses de todas as janelas; exige `faturamento.receita` disponível sem razões. Lote misto, obsoleto, vazio, inválido ou indisponível é recusado. Lote parcial só é admitido se a capacidade de receita estiver disponível. A exceção de continuidade observada de DEC/FEC não libera receita.
+
+O retorno `SqlAdmission` liga por digest a revisão canônica, parâmetros, candidato completo, contexto (identidade/escopo/catálogo), publicação, relatório de prontidão, controles aprovados, versão da política e validade monotônica. Usa cópias privadas validadas e detecta mutação dos objetos originais durante a admissão. É interno ao processo, não é token de navegador nem contrato público. Não possui concessão de acesso a banco por si só.
+
+`revalidate_sql_admission` refaz admissão/metadados/prontidão sob o prazo original e exige igualdade integral do artefato. Não renova aprovação expirada com um prazo novo; troca de usuário, SQL, parâmetros, controles, política ou relatório invalida a reutilização. Alteração de publicação é propagada pelo controle existente. Ainda será necessário revalidar dentro da fronteira apropriada de execução e checar novamente publicação/escopo após materializar os resultados.
+
+`genai_sql_observation.prepare_sql_candidate` compõe conferência inicial de escopo/publicação → geração → revisão → admissão sob o mesmo prazo. Esclarecimento não gera admissão. Não há executor, rota pública ou nova flag de ativação dessa preparação. Os testes desta rodada usam fronteiras I/O artificiais: comprovam composição e rejeições, não observação real Gold, grants ou cancelamento de SQL. A prova numérica PostgreSQL e o aceite Gold permanecem pendentes.
+
 `POST /api/v1/internal/sql-candidates` recebe `SqlGenerationRequest` e retorna `SqlGenerationResponse`. Exige autenticação de serviço Gold, contexto versionado e orçamento restante; o cliente Backend confere correlação e versão do contexto. As fixtures HTTP comuns estão em `examples/text-to-sql-f1-http-v1.json`.
 
 `GENAI_SQL_GENERATION_ENABLED=false` é o padrão. A habilitação compõe o adaptador Gemini somente na fábrica Gold, com auditoria durável e limites compartilhados de execução/modelo. A instância demonstrativa de `app.main:app` permanece sem geração SQL. O coordenador público ainda não chama esta rota; nenhum candidato é executado ou apresentado como evidência.
