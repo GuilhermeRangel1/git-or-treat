@@ -574,3 +574,7 @@ O contrato interno de evidência aceita `quality_mode=observed_uncertified` apen
 ## Cache e desempenho Gold v2 — implementação local em 04/11/2026
 
 Limites por bytes/entradas, coalescência dos insights, invalidação por contexto/publicação e redução das consultas do observador estão descritos no [plano de cache e desempenho](../plans/2026-11-04-genai-cache-desempenho.md). Autorização, prontidão, SQL e auditoria continuam executados; o cache não guarda permissão nem libera cobertura. Configuração, sincronização do namespace remoto, rollback, medições e limites constam no plano. Implementação no PR #123; CI remoto 41806936506 passou nos cinco jobs.
+
+### Catálogo Gold v2 para Text-to-SQL
+
+`ai-agent/app/profiles/grid360_gold_mapping.py` é a fonte de autoria do mapeamento semântico e físico v2, validada contra o perfil e readiness. O JSON de execução do Backend é derivado: da raiz, execute `python scripts/generate-gold-v2-catalog.py`; use `--check` para conferir drift sem escrever. Tabela presente não libera capacidade. A F1 recebe apenas a definição aprovada de receita em `diagnostico_receita`; consumo, razões, DEC/FEC e cadastro seguem suas próprias definições/capacidades. O contexto F1 declara que sua base são modelos instalados, não introspecção da instância publicada.
