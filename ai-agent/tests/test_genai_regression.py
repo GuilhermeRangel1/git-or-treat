@@ -385,7 +385,9 @@ def build_gold_language_report(
         if include_checks:
             results[-1]["checks"] = {key: key not in failures for key in case["expected"]}
             if case.get("expected_message_any"):
-                results[-1]["checks"]["clarification_reason"] = "clarification_reason" not in failures
+                results[-1]["checks"]["clarification_reason"] = (
+                    "clarification_reason" not in failures
+                )
         group = categories.setdefault(case["category"], {"total": 0, "passed": 0})
         group["total"] += 1
         group["passed"] += int(passed)
