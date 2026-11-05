@@ -343,14 +343,17 @@ def build_gold_language_report(
     """Usa a mesma borda HTTP Gold da regressão; expectativas vêm da fixture versionada."""
     from .test_gold_language_http import _plan
 
-    if dataset_name not in {"gold_language_eval.json", "gold_language_holdout.json"}:
+    if dataset_name not in {
+        "gold_language_eval.json", "gold_language_holdout.json",
+        "gold_p0_diagnostic.json", "gold_p0_diagnostic_v1.0.json",
+    }:
         raise ValueError("conjunto de avaliação desconhecido")
     dataset = json.loads((ROOT / "fixtures" / dataset_name).read_text(encoding="utf-8"))
     results = []
     categories = {}
     for case in dataset["cases"]:
         try:
-            response = _plan(case["question"])
+            response = _plan(case["question"], context=case.get("context", ()))
             actual = {"status": response["status"]}
             if response.get("plan"):
                 plan = response["plan"]
@@ -366,12 +369,19 @@ def build_gold_language_report(
             continue
         failures = sorted(key for key, value in case["expected"].items()
                           if actual.get(key) != value)
+        if case.get("expected_message_any"):
+            message = (response.get("response") or {}).get("message", "").split("\n\n")[0]
+            if not any(term.casefold() in message.casefold()
+                       for term in case["expected_message_any"]):
+                failures.append("clarification_reason")
         passed = not failures
         results.append({"id": case["id"], "category": case["category"], "passed": passed,
                         "outcome": PASSED if passed else UNEXPECTED_FAILURE,
                         "actual_status": response["status"], "failing_checks": failures})
         if include_checks:
             results[-1]["checks"] = {key: key not in failures for key in case["expected"]}
+            if case.get("expected_message_any"):
+                results[-1]["checks"]["clarification_reason"] = "clarification_reason" not in failures
         group = categories.setdefault(case["category"], {"total": 0, "passed": 0})
         group["total"] += 1
         group["passed"] += int(passed)
