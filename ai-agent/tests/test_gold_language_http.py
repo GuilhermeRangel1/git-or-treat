@@ -12,11 +12,15 @@ from .test_gold_planning_http import HEADERS, PLAN_PATH, SYNTHESIS_PATH, _applic
 from .test_gold_question_filters import _setup
 
 
-def _plan(question, context=(), *, dimension_values=None, extra_coverage=()):
+def _plan(question, context=(), *, dimension_values=None, extra_coverage=(), competencies=None):
     core, request = _setup(question)
     payload = request.model_dump(mode="json")
     payload["context"] = list(context)
     payload["temporal_coverage"].extend(extra_coverage)
+    if competencies is not None:
+        for coverage in payload["temporal_coverage"]:
+            if coverage["kind"] == "monthly":
+                coverage["competencies"] = list(competencies)
     if dimension_values is not None:
         payload["dimension_value_coverage"] = dimension_values
     with InProcessClient(_application(core)) as client:

@@ -1,0 +1,74 @@
+{
+  "reference": "748376c",
+  "coverage": [
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2024-08",
+    "2024-09",
+    "2024-10",
+    "2024-11",
+    "2024-12",
+    "2025-01",
+    "2025-02",
+    "2025-03"
+  ],
+  "scope": "directed diagnostic experiment, artificial monthly coverage only; not an accuracy score or real coverage certification",
+  "cases": [
+    {
+      "id": "YEAR-01",
+      "question": "Qual foi o faturamento nos últimos 12 meses?",
+      "status": "planned",
+      "message": null,
+      "plan": {
+        "metric_id": "billing.revenue",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2024-04-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "YEAR-02",
+      "question": "Nos últimos 12 meses, olhando o recorte geral de faturamento do ano, quanto foi dividido o faturamento das classes?",
+      "status": "needs_clarification",
+      "message": "Há um valor não reconhecido de classe de consumo. Informe somente os valores autorizados que deseja consultar.",
+      "plan": null
+    },
+    {
+      "id": "YEAR-03",
+      "question": "Qual classe teve o maior faturamento nos últimos 12 meses?",
+      "status": "needs_clarification",
+      "message": "Escolha uma única competência para este agrupamento ordenado.\n\nExemplo de pergunta: “Top 1 classe com maior faturamento em março de 2025?”",
+      "plan": null
+    },
+    {
+      "id": "YEAR-04",
+      "question": "Mostre o faturamento por classe nos últimos 12 meses.",
+      "status": "planned",
+      "message": null,
+      "plan": {
+        "metric_id": "billing.revenue",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2024-04-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "order": null,
+        "limit": 100
+      }
+    }
+  ]
+}

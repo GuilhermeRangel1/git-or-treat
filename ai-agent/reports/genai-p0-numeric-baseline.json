@@ -1,0 +1,223 @@
+{
+  "reference": "748376c",
+  "scope": "Gold v2 internal HTTP planning and synthesis; artificial preaggregated evidence; fake model; no SQL, no real Gold",
+  "summary": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0
+  },
+  "latency": {
+    "p50_ms": 29.947,
+    "p95_ms": 175.734,
+    "scope": "single cold execution per case, includes test composition; not runtime or provider latency"
+  },
+  "provider": "fake, no external call; tokens/cost not measured",
+  "cases": [
+    {
+      "id": "NUM-REV",
+      "category": "revenue",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "numeric": true,
+        "grounding": true,
+        "status": true
+      },
+      "duration_ms": 62.276,
+      "passed": true
+    },
+    {
+      "id": "NUM-CONS",
+      "category": "consumption",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "numeric": true,
+        "grounding": true,
+        "status": true
+      },
+      "duration_ms": 30.854,
+      "passed": true
+    },
+    {
+      "id": "NUM-DEC",
+      "category": "network",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "numeric": true,
+        "grounding": true,
+        "status": true
+      },
+      "duration_ms": 32.654,
+      "passed": true
+    },
+    {
+      "id": "NUM-FEC",
+      "category": "network",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "numeric": true,
+        "grounding": true,
+        "status": true
+      },
+      "duration_ms": 29.947,
+      "passed": true
+    },
+    {
+      "id": "NUM-ATE",
+      "category": "service",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "numeric": true,
+        "grounding": true,
+        "status": true
+      },
+      "duration_ms": 29.34,
+      "passed": true
+    },
+    {
+      "id": "NUM-ZERO",
+      "category": "consumption",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "numeric": true,
+        "grounding": true,
+        "status": true
+      },
+      "duration_ms": 30.109,
+      "passed": true
+    },
+    {
+      "id": "DENY-REV",
+      "category": "authorization",
+      "checks": {
+        "http": true,
+        "status": true,
+        "privacy": true
+      },
+      "duration_ms": 23.876,
+      "passed": true
+    },
+    {
+      "id": "BATCH-REV",
+      "category": "provenance",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "status": true,
+        "privacy": true
+      },
+      "duration_ms": 27.53,
+      "passed": true
+    },
+    {
+      "id": "FAIL-EMPTY",
+      "category": "absence",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "status": true,
+        "privacy": true
+      },
+      "duration_ms": 54.561,
+      "passed": true
+    },
+    {
+      "id": "FAIL-PROVIDER",
+      "category": "provider_failure",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "status": true,
+        "privacy": true
+      },
+      "duration_ms": 28.91,
+      "passed": true
+    },
+    {
+      "id": "NUM-DEC-OBS",
+      "category": "observed_continuity",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "numeric": true,
+        "grounding": true,
+        "status": true
+      },
+      "duration_ms": 29.59,
+      "passed": true
+    },
+    {
+      "id": "NUM-FEC-OBS",
+      "category": "observed_continuity",
+      "checks": {
+        "http": true,
+        "interpretation": true,
+        "filters": true,
+        "period": true,
+        "authorization": true,
+        "numeric": true,
+        "grounding": true,
+        "status": true
+      },
+      "duration_ms": 29.169,
+      "passed": true
+    },
+    {
+      "id": "CLARIFY-BILLED",
+      "category": "metric_semantics",
+      "checks": {
+        "http": true,
+        "status": true,
+        "privacy": true
+      },
+      "duration_ms": 32.795,
+      "passed": true
+    },
+    {
+      "id": "CLARIFY-RECOVER",
+      "category": "metric_semantics",
+      "checks": {
+        "http": true,
+        "status": true,
+        "privacy": true
+      },
+      "duration_ms": 175.734,
+      "passed": true
+    }
+  ]
+}

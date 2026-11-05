@@ -56,4 +56,9 @@
 
 ## Skills locais mais relevantes
 
+- [genai-architecture](.agents/skills/genai-architecture/SKILL.md) para diagnóstico e evolução da arquitetura GenAI.
+- [genai-evaluation](.agents/skills/genai-evaluation/SKILL.md) para baselines e avaliação de regressões do Assistente e dos insights.
+- [genai-tool-design](.agents/skills/genai-tool-design/SKILL.md) para capacidades analíticas e contratos de ferramentas.
+- [genai-conversational-quality](.agents/skills/genai-conversational-quality/SKILL.md) para síntese, esclarecimentos e continuidade conversacional.
+
 `grill-with-docs` (com `grilling`) para decisões difíceis; `to-spec` e `to-tickets` para quebrar trabalho; `domain-modeling` para cadastro/medição/faturamento; `research` para dúvidas técnicas; `writing-for-agents` para manter esta documentação; `tdd` e `code-review` na implementação; `vercel-react-best-practices` no frontend; `supabase-postgres-best-practices` se o banco escolhido for PostgreSQL. Veja `docs/agents/tooling.md` para origem e limites.

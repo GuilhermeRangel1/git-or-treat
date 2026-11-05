@@ -1,0 +1,22 @@
+{
+  "reference": "748376c",
+  "command": "python -m pytest tests/test_genai_session_postgres.py::test_session_selects_reader_and_database_denies_prohibited_access -q -p no:cacheprovider --tb=short",
+  "result": {
+    "passed": 1,
+    "duration_seconds": 205.42
+  },
+  "database": "PostgreSQL 16 disposable, password authentication",
+  "scope": [
+    "real Backend authenticated session and coordinator",
+    "real SQL through restricted Gold reader",
+    "GenAI internal HTTP ASGI subprocess with fake model",
+    "evidence and audit",
+    "independent fixed SQL sum matched executor and synthetic reference 12.0"
+  ],
+  "limitations": [
+    "artificial Gold v2 data and controlled readiness",
+    "fake model, no actual Gemini inference",
+    "not production coverage, cost, latency or portal acceptance"
+  ],
+  "cleanup": "temporary --rm container stopped and removed"
+}

@@ -1,0 +1,160 @@
+{
+  "report_type": "gold_language_planning",
+  "synthetic": true,
+  "dataset_version": "user-reported-1.0.0",
+  "scenario_scope": "Two real reported failures, four authored controls, one clarification continuation; artificial complete coverage",
+  "provider": "none; interpretation only",
+  "limitations": [
+    "Reported usage has no denominator: do not infer all unevaluated questions fail.",
+    "Original sectors ambiguity is not converted into a universal alias; user explicitly confirmed consumption classes.",
+    "No SQL, numerical answer or provider measured.",
+    "Plan expectations of controls describe logical fields only; no returned value validated."
+  ],
+  "summary": {
+    "total": 7,
+    "passed": 4,
+    "failed": 3
+  },
+  "categories": {
+    "reported": {
+      "total": 2,
+      "passed": 0
+    },
+    "canonical_control": {
+      "total": 1,
+      "passed": 1
+    },
+    "aggregation_control": {
+      "total": 1,
+      "passed": 1
+    },
+    "period_control": {
+      "total": 1,
+      "passed": 1
+    },
+    "dimension_control": {
+      "total": 1,
+      "passed": 1
+    },
+    "user_clarification": {
+      "total": 1,
+      "passed": 0
+    }
+  },
+  "cases": [
+    {
+      "id": "REAL-01",
+      "category": "reported",
+      "passed": false,
+      "outcome": "unexpected_failure",
+      "actual_status": "needs_clarification",
+      "failing_checks": [
+        "clarification_reason"
+      ],
+      "checks": {
+        "status": true,
+        "clarification_reason": false
+      }
+    },
+    {
+      "id": "REAL-01A",
+      "category": "canonical_control",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": [],
+      "checks": {
+        "status": true,
+        "metric_id": true,
+        "window": true,
+        "group_by_dimension_ids": true,
+        "order": true,
+        "limit": true
+      }
+    },
+    {
+      "id": "REAL-01B",
+      "category": "aggregation_control",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": [],
+      "checks": {
+        "status": true,
+        "metric_id": true,
+        "window": true,
+        "group_by_dimension_ids": true,
+        "order": true,
+        "limit": true
+      }
+    },
+    {
+      "id": "REAL-02",
+      "category": "reported",
+      "passed": false,
+      "outcome": "unexpected_failure",
+      "actual_status": "needs_clarification",
+      "failing_checks": [
+        "clarification_reason"
+      ],
+      "checks": {
+        "status": true,
+        "clarification_reason": false
+      }
+    },
+    {
+      "id": "REAL-02A",
+      "category": "period_control",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": [],
+      "checks": {
+        "status": true,
+        "metric_id": true,
+        "window": true,
+        "group_by_dimension_ids": true,
+        "order": true,
+        "limit": true
+      }
+    },
+    {
+      "id": "REAL-02B",
+      "category": "dimension_control",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": [],
+      "checks": {
+        "status": true,
+        "metric_id": true,
+        "window": true,
+        "group_by_dimension_ids": true,
+        "order": true,
+        "limit": true
+      }
+    },
+    {
+      "id": "REAL-02C",
+      "category": "user_clarification",
+      "passed": false,
+      "outcome": "unexpected_failure",
+      "actual_status": "needs_clarification",
+      "failing_checks": [
+        "group_by_dimension_ids",
+        "limit",
+        "metric_id",
+        "status",
+        "window"
+      ],
+      "checks": {
+        "status": false,
+        "metric_id": false,
+        "window": false,
+        "group_by_dimension_ids": false,
+        "order": true,
+        "limit": false
+      }
+    }
+  ]
+}
