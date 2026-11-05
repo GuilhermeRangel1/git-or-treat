@@ -7,7 +7,7 @@
 
 Implementações independentes: `ai-agent/app/schemas/sql_generation.py` e `backend/app/schemas/sql_generation.py`. Exemplos comuns: [vetores JSON](examples/text-to-sql-f1-v1.json). Teste cruzado compara schema, aceita os três exemplos válidos e rejeita os dez vetores inválidos em ambos os serviços, usando subprocesso Backend sem importar um serviço pelo outro.
 
-Transporte decidido na ADR: futuras rotas internas `/api/v1/internal/sql-candidates` e `/api/v1/internal/sql-syntheses`, com autenticação técnica/correlação e saldo do prazo. Ainda não existem rotas implementadas. Contrato do candidato é independente do envelope de transporte e dos contratos públicos, que permanecem atuais.
+Transporte decidido na ADR: `/api/v1/internal/sql-candidates` implementada com habilitação desligada por padrão; `/api/v1/internal/sql-syntheses` pendente. Exige autenticação técnica/correlação e saldo do prazo. Contrato do candidato é independente do envelope de transporte e dos contratos públicos, que permanecem atuais.
 
 - `sql_candidate`: exige SQL não vazio, interpretação e colunas com aliases únicos e ao menos uma medida. Sem esclarecimento/limite misturados.
 - `needs_clarification`: exige pergunta e campos pendentes; não admite SQL, parâmetros, interpretação pronta ou colunas.
@@ -18,7 +18,7 @@ Transporte decidido na ADR: futuras rotas internas `/api/v1/internal/sql-candida
 - SQL: até 16.000 caracteres. Colunas propostas: até 32. Esses são limites do envelope inicial; orçamento operacional e política SQL são independentes.
 - F1 representa total, série mensal, total agrupado, ranking e comparação. Janelas são meses completos, ordenadas, e comparação exige duas janelas. Cobertura efetiva ainda depende da prontidão Backend.
 
-O contrato valida estrutura e coerência local. Uma string DELETE pode ser um candidato estruturalmente válido e **deve ser rejeitada pelo futuro validador Backend**. Teste explícito preserva essa distinção. Placeholders/AST, dependências reais, alinhamento SQL/intenção, autorização e colunas retornadas ainda precisam de validação independente.
+O contrato valida estrutura e coerência local. Uma string DELETE pode ser um candidato estruturalmente válido e é rejeitada pela revisão AST Backend. Testes preservam essa distinção. A análise estrutural independente descrita abaixo não substitui a validação de intenção, período, cobertura, prontidão e autorização final de execução.
 
 ## Contexto preparado no Backend
 
@@ -33,6 +33,20 @@ O contexto indica que deriva de modelos/catalogo instalados, não de introspecç
 `GeminiSqlGenerator` recebe cliente configurado, modelo, conteúdo e versão esperada. Usa schema fechado e prompt `text-to-sql-f1-1`; saída configurável até 4.096 tokens, temperatura de 0 a 1 (padrão 0) e timeout de até 20 s, reduzível pelo chamador. Não executa SQL nem faz retries próprios. O cliente SDK deve ter sua política de retries configurada pela composição antes do aceite operacional.
 
 Testes com provedor falso cobrem candidato, JSON inválido, contexto divergente, truncamento, 429/503, rejeição e timeout. Não são evidência de qualidade do Gemini real nem de composição runtime. A fábrica `create_gold_app` ainda usa o planner antigo.
+
+## Revisão estrutural Backend — etapa intermediária
+
+`genai_sql_structure.review_sql_structure` reconstrói o contexto autorizado a partir do pedido Backend e confere seu digest contra o candidato. Analisa PostgreSQL com SQLGlot 30.24.0 (dependência Backend `>=30.24.0,<30.25`), usando lista positiva de nós e atributos. Aceita apenas um SELECT sobre a fonte física do contexto, sem CTE, JOIN, subconsulta, escrita, locks, funções externas ou casts. A resolução de colunas considera o único alias da fonte e as dimensões autorizadas; o resultado exige aliases iguais aos declarados no contrato.
+
+O subconjunto inclui SUM da receita, agrupamento por competência/município/classe, comparações parametrizadas, IN, BETWEEN, AND/OR, ordenação por alias/dimensão agrupada, LIMIT literal de 1 a 100, SUM FILTER e subtração de medidas. Outros literais e comentários são recusados. Máximo de 512 nós e profundidade 32. Estes são limites do subconjunto inicial, não um cálculo de custo da consulta.
+
+Os nomes dos parâmetros vêm da AST e devem coincidir exatamente com o envelope. Valores não são interpolados. A regeneração PostgreSQL produz placeholders `%(nome)s` para psycopg, verifica round-trip da AST e preserva parâmetros em tupla imutável. A diferença interna de representação de `:nome` e `%(nome)s` é normalizada apenas para essa comparação. Filtros da fonte F1 usam string porque competência e dimensões são textuais; a conversão genérica de date/Decimal permanece disponível para futuras fontes compatíveis.
+
+O retorno `SqlStructureReview` é intermediário e **não pode autorizar execução**. Ainda faltam confrontar período/filtros/agrupamento/ranking com a intenção, validar cobertura e prontidão da publicação, impor os recortes efetivos de sessão e criar um artefato final vinculado à política. Uma estrutura permitida pode consultar um período errado ou omitir o período. A revisão não é chamada pelo coordenador público nem por um executor.
+
+Inventário do validador demonstrativo: `ai-agent/app/sql/validator.py` e `test_sql_validator.py` já possuem traversal, qualificação, verificação de funções/limites e testes SQLite/PostgreSQL. Seus dicionários e parâmetros posicionais, bem como seu `ValidatedQuery`, não comprovam autorização por sessão/publicação Gold v2; não foram importados no Backend. Reutilizados os princípios de análise AST, regeneração e falha fechada, com fronteira Backend e parâmetros nomeados próprios.
+
+API do parser conferida via Context7 na [documentação oficial SQLGlot](https://github.com/tobymao/sqlglot) em 05/11/2026: parse PostgreSQL, traversal de expressões, placeholders e geração com rejeição de construções não suportadas. Nenhum banco, grant ou role foi alterado.
 
 ## Matriz de consumidores e migração
 

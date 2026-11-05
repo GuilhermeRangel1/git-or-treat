@@ -4120,3 +4120,18 @@ O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por municípi
 - Integração executável entre cliente Backend e fábrica Gold para geração de candidatos, com autenticação de serviço, correlação/contexto versionados, auditoria durável e orçamento compartilhado. Configuração desligada por padrão; caminho público e execução SQL não integrados.
 - Evidências: `ai-agent/tests/test_sql_candidate_http.py`, `backend/tests/test_genai_sql_client.py` e fixtures HTTP comuns. 145 testes dirigidos GenAI e 52 Backend aprovados, incluindo fronteira entre processos com modelo artificial.
 - Suíte GenAI completa: 4.608 aprovados, 17 skips e uma falha de importação no experimento local anterior `intent_proposer.py`. Sem nova chamada real ao Gemini, consulta PostgreSQL ou jornada portal. Estados oficiais dos requisitos preservados; esta fatia não encerra aceite Gold.
+
+
+### 05/11/2026 — preparação de parâmetros no Backend
+
+- Adicionado `backend/app/services/genai_sql_parameters.py`: exige igualdade entre parâmetros do envelope e nomes fornecidos pelo futuro analisador; converte datas e Decimal sem interpolação ou perda de precisão. Não conectado ao executor.
+- Cinco testes passaram (0,19 s), cobrindo precisão decimal, data, preservação do envelope e parâmetros ausentes/extras/substituídos.
+- TSQL-06 permanece aberto: extração AST, autorização física e artefato aprovado ainda pendentes. Esta função isolada não aprova SQL.
+
+
+### 05/11/2026 — IA-03/06/08 e WEB-10: revisão estrutural SQL no Backend
+
+- Implementada `backend/app/services/genai_sql_structure.py`, independente do executor: contexto reconstruído pelo Backend e digest conferido; uma fonte física autorizada; allowlist positiva de nós e atributos PostgreSQL; aliases, agrupamentos, SUM/FILTER/subtração, filtros nomeados, ordenação e LIMIT do subconjunto F1. CTE/JOIN/subconsultas/escrita/locks/casts/funções externas são recusados.
+- Parâmetros extraídos da AST conferem exatamente com o envelope, sem interpolação. SQL canônico usa placeholders psycopg e passa por round-trip; resultado imutável não retém o dicionário mutável do candidato. SQLGlot fixado em `>=30.24.0,<30.25`, observado 30.24.0; API conferida via Context7 e fonte instalada. Logs do fallback não copiam trechos do SQL.
+- Verificações: `work/p0-validation-venv/Scripts/python.exe -m pytest backend/tests/test_genai_sql_structure.py backend/tests/test_genai_sql_parameters.py backend/tests/test_genai_sql_context.py -q -p no:cacheprovider --tb=short --junitxml=work/text-to-sql-structure-only.xml`: 79 passaram em 1,04 s. Clientes `test_genai_sql_client.py` e `test_genai_client.py`: 43 passaram em 6,56 s, em rodada separada fora da restrição local que parou a tentativa combinada. Total dirigido: 122; não é suíte Backend completa. Ruff dirigido e diff aprovados.
+- Sem SQL executado, banco/grants alterados, provedor real ou jornada portal nesta rodada. O retorno é `SqlStructureReview`, não autorização. TSQL-06 permanece aberto: validar intenção/período/recortes, cobertura/prontidão e criar artefato final vinculado à política/publicação antes de integrar executor. Estados oficiais dos requisitos preservados; próximos aceites exigem essas provas.

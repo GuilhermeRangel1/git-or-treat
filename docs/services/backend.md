@@ -43,6 +43,8 @@ O ingresso Backend deve aceitar prompt v3 antes de implantar a GenAI v3. O contr
 
 ## Responsabilidade
 
+Preparação Text-to-SQL (05/11/2026): `genai_sql_structure.review_sql_structure` analisa candidatos F1 com contexto recomposto pelo Backend, allowlist de nós/atributos, resolução de fonte/colunas e parâmetros extraídos da AST. Retorna inspeção intermediária imutável, sem conexão ou aprovação de execução. O coordenador público mantém sua estratégia vigente. Período, cobertura, recortes, prontidão e artefato final continuam pendentes; detalhes e limites no [contrato F1](../contracts/text-to-sql-f1.md#revisão-estrutural-backend--etapa-intermediária).
+
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
 As ordens têm persistência operacional inicial, separada da Gold analítica. As rotas de Panorama, fila/Ordens e Operação podem consultar a fonte sintética explícita ou, em `ANALYTICS_SOURCE=gold`, a publicação CSV v2 após autenticação e validação de lote. `/ai/query` continua indisponível e devolve 503 para entradas válidas, sem simular resultado Gold. As cargas v1 e v2 são transacionais, conforme os [contratos provisórios v1](../contracts/gold-csv-v1.md) e [v2](../contracts/gold-csv-v2.md). O health check preserva a resposta atual e sinaliza falha de conexão no corpo. Swagger UI e ReDoc estão em `/docs` e `/redoc`.
