@@ -5,6 +5,11 @@ description: Diagnostique limitações arquiteturais do GenAI e planeje evoluç�
 
 # Evolução arquitetural do GenAI
 
+## Transição Text-to-SQL autorizada
+
+Ao desenvolver SQL generativo, siga a [ADR-0025](../../../docs/decisions/0025-text-to-sql-generativo.md) e o [contrato F1](../../../docs/contracts/text-to-sql-f1.md). Nesse escopo o modelo propõe SQL candidato, com validação/execução finais no Backend. As orientações abaixo sobre intenção/plano lógico descrevem o caminho legado, preservado até integração e ativação comprovadas. Catálogo, semântica, autorização, prontidão, orçamento e evidência continuam obrigatórios na transição.
+
+
 Use a [genai-gold](../genai-gold/SKILL.md) para localizar requisitos, composição e fronteiras de validação. Relacione a mudança aos IDs IA do [PRD](../../../docs/PRD.md) e às decisões vigentes. Uma proposta de arquitetura precisa distinguir hipótese de diagnóstico observado.
 
 ## Localizar a falha

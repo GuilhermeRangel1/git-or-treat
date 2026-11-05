@@ -1,5 +1,10 @@
 # Desenvolvimento GenAI com a Gold
 
+## Transição Text-to-SQL — 05/11/2026
+
+A [ADR-0025](../decisions/0025-text-to-sql-generativo.md) autoriza a direção de SQL candidato gerado pelo modelo, com validação/execução finais no Backend. [Contrato e matriz de consumidores](../contracts/text-to-sql-f1.md). Há preparação de schemas, contexto e adaptador; o caminho quantitativo implantado continua determinístico até integração e ativação explícitas. Não há liberação de SQL generativo pela simples validação do envelope. Referências abaixo ao fluxo antigo continuam descrevendo o runtime vigente e seu histórico.
+
+
 Este guia orienta a execução dos cartões do quadro [GenAI — Gold real](https://trello.com/b/Vlnppr77/genai-gold-real) sobre o código existente. O [PRD](../PRD.md), os guias de [GenAI](../services/ai-agent.md) e [Backend](../services/backend.md), o [dicionário Gold](../dicionario_gold.md) e as decisões aprovadas continuam canônicos. O quadro de adaptação não altera o aceite obrigatório IA-01 a IA-06; IA-07 e IA-08 continuam diferenciais. Testes de regressão permanecem necessários à qualidade das mudanças.
 
 ## Referência obrigatória Gold v2

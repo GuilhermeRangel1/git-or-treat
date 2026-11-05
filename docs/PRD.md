@@ -4092,3 +4092,9 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 ### 2026-11-04 — IA-01 / IA-02 / IA-03 — ranking de unidades com GD
 
 O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por município no lote. A API autenticada local retornou Recife, 1.420 UCs, reconciliadas com uma agregação SQL independente usando o leitor restrito. A suíte de linguagem de GD e continuidade passou com 18 testes, incluindo confirmação de GD e do limiar de queda sem perder o município. A métrica cadastral não descreve vigência histórica nem comprova origem solar.
+
+### 05/11/2026 — IA-01/03/05/06/07/08 — decisão e fronteiras Text-to-SQL
+
+- ADR-0025 registra a direção autorizada de SQL proposto pelo modelo, mantendo validação final, autorização e execução no Backend. A ADR-0002 preserva o fluxo implantado até integração e ativação explícita; não houve mudança de aceite dos requisitos.
+- Matriz de consumidores e testes, contrato candidato F1 e vetores compartilhados em [contrato F1](contracts/text-to-sql-f1.md). Guias dos serviços e skills locais alinhados à transição. SQL candidato não equivale a consulta aprovada.
+- Verificações documentais: caminhos e links locais conferidos; `git diff --check` passou. Esta parte registra preparação/decisão, sem habilitar endpoint generativo, executor ou acesso a novos dados.

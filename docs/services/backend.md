@@ -1,5 +1,10 @@
 # Serviço: backend e banco local
 
+## Transição Text-to-SQL — 05/11/2026
+
+A [ADR-0025](../decisions/0025-text-to-sql-generativo.md) autoriza a direção de SQL candidato gerado pelo modelo, com validação/execução finais no Backend. [Contrato e matriz de consumidores](../contracts/text-to-sql-f1.md). Há preparação de schemas, contexto e adaptador; o caminho quantitativo implantado continua determinístico até integração e ativação explícitas. Não há liberação de SQL generativo pela simples validação do envelope. Referências abaixo ao fluxo antigo continuam descrevendo o runtime vigente e seu histórico.
+
+
 Execução Docker vigente: a composição padrão inicia toda a stack com Gold v2, papéis separados e bootstrap local. Demonstração fica somente no smoke explícito do CI. Consulte [inicialização Docker](../plans/2026-11-04-docker-gold-inicializacao.md).
 
 Memória de conversas longas (03/11/2026): a rota existente de histórico recupera,
