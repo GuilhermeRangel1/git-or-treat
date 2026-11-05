@@ -346,6 +346,7 @@ def build_gold_language_report(
     if dataset_name not in {
         "gold_language_eval.json", "gold_language_holdout.json",
         "gold_p0_diagnostic.json", "gold_p0_diagnostic_v1.0.json",
+        "gold_p0_user_reported.json",
     }:
         raise ValueError("conjunto de avaliação desconhecido")
     dataset = json.loads((ROOT / "fixtures" / dataset_name).read_text(encoding="utf-8"))
@@ -353,7 +354,10 @@ def build_gold_language_report(
     categories = {}
     for case in dataset["cases"]:
         try:
-            response = _plan(case["question"], context=case.get("context", ()))
+            response = _plan(
+                case["question"], context=case.get("context", ()),
+                competencies=case.get("competencies"),
+            )
             actual = {"status": response["status"]}
             if response.get("plan"):
                 plan = response["plan"]
