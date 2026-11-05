@@ -39,4 +39,4 @@ São necessárias mudanças em evidência, síntese, contexto/histórico, cache,
 
 ## Estado de validação
 
-Nesta entrega existem contratos testados, construtor de contexto e adaptador de geração em preparação. Não há endpoint generativo habilitado nem novo executor Gold. Aceite exige composição real, SQL validado no Backend, prova numérica independente, Gold autorizado e jornada portal no escopo da F1. Os estados oficiais IA/ENT do PRD permanecem preservados.
+Existem contratos testados, construtor de contexto, adaptador e transporte privado de geração na fábrica Gold, desligado por padrão. O coordenador público ainda não chama a geração e não há novo executor Gold. Aceite exige composição real, SQL validado no Backend, prova numérica independente, Gold autorizado e jornada portal no escopo da F1. Os estados oficiais IA/ENT do PRD permanecem preservados.

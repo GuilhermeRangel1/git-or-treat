@@ -4113,3 +4113,10 @@ O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por municípi
 - Referências manuais artificiais para F1-01 a F1-08 e testes PostgreSQL cobrem total/grupos/ranking/comparação, grão adicional, ano completo/incompleto, nulo/zero/ausência/estorno. Não são execução de candidatos do modelo nem revisão humana independente da metodologia.
 - Verificações: 50 testes dirigidos GenAI em 5,56 s; nove de contexto Backend em 0,14 s; 13 de referências PostgreSQL 16 em 130,56 s; Ruff dos arquivos novos e `git diff --check` passaram. Containers descartáveis sem volume removidos após provas. Uma geração real sobre contexto artificial passou no contrato em 2.770,03 ms, com 1.118 tokens reportados; AST offline SELECT, nenhum SQL candidato executado. JUnit/probe privados em `work/`.
 - Versões observadas: Pydantic 2.13.4, google-genai 2.31.0, SQLGlot 30.24.0; documentação Pydantic consultada via Context7 com fontes no contrato F1. Não houve execução da suíte completa, novo aceite de Gold real/portal ou ativação do gerador. Próximos marcos: transporte/composição, validador Backend, executor generativo e integração F1. Os três TODOs continuam locais sem commit/push.
+
+
+### 05/11/2026 — IA-01/02/06/08: transporte privado de candidatos SQL
+
+- Integração executável entre cliente Backend e fábrica Gold para geração de candidatos, com autenticação de serviço, correlação/contexto versionados, auditoria durável e orçamento compartilhado. Configuração desligada por padrão; caminho público e execução SQL não integrados.
+- Evidências: `ai-agent/tests/test_sql_candidate_http.py`, `backend/tests/test_genai_sql_client.py` e fixtures HTTP comuns. 145 testes dirigidos GenAI e 52 Backend aprovados, incluindo fronteira entre processos com modelo artificial.
+- Suíte GenAI completa: 4.608 aprovados, 17 skips e uma falha de importação no experimento local anterior `intent_proposer.py`. Sem nova chamada real ao Gemini, consulta PostgreSQL ou jornada portal. Estados oficiais dos requisitos preservados; esta fatia não encerra aceite Gold.

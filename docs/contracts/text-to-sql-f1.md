@@ -1,6 +1,6 @@
 # Contrato generativo F1 e consumidores
 
-**Estado:** preparação implementada, sem endpoint ou execução habilitados.
+**Estado:** contratos e transporte privado implementados; geração desligada por padrão e execução de SQL ainda não integrada.
 **Decisão:** [ADR-0025](../decisions/0025-text-to-sql-generativo.md).
 
 ## Candidato: `text-to-sql-f1-v1`
@@ -100,3 +100,12 @@ Pydantic 2 é o padrão existente. Uso de `ConfigDict(extra='forbid')`, tipos es
 - Tentativa anterior do probe falhou na codificação do subprocesso antes de chamar o provedor; corrigida com Python UTF-8. Não é contada como chamada Gemini.
 - Versões observadas: Python 3.12, Pydantic 2.13.4, google-genai 2.31.0, SQLGlot 30.24.0. Ruff dirigido aprovado. Testes completos dos dois serviços e jornada portal não foram executados nesta rodada.
 - Tentativa suplementar de `SHOW server_version` no banco do portal encontrou o container parado. Não houve reinício nem inspeção do lote real; a evidência do dialeto alvo continua sendo ADR/configuração/fábrica e o PostgreSQL descartável.
+
+
+## Transporte privado de candidatos — 05/11/2026
+
+`POST /api/v1/internal/sql-candidates` recebe `SqlGenerationRequest` e retorna `SqlGenerationResponse`. Exige autenticação de serviço Gold, contexto versionado e orçamento restante; o cliente Backend confere correlação e versão do contexto. As fixtures HTTP comuns estão em `examples/text-to-sql-f1-http-v1.json`.
+
+`GENAI_SQL_GENERATION_ENABLED=false` é o padrão. A habilitação compõe o adaptador Gemini somente na fábrica Gold, com auditoria durável e limites compartilhados de execução/modelo. A instância demonstrativa de `app.main:app` permanece sem geração SQL. O coordenador público ainda não chama esta rota; nenhum candidato é executado ou apresentado como evidência.
+
+Verificações desta fatia: 145 testes dirigidos GenAI e 52 Backend aprovados, incluindo chamada entre cliente Backend e aplicação Gold em processo separado com provedor artificial. A suíte GenAI completa registrou 4.608 aprovados, 17 skips e uma falha em `test_concrete_adapters_do_not_import_the_agent_or_composition_root`: o experimento local anterior `intent_proposer.py` importa `app.agent.access`. A pendência foi preservada; a suíte completa não está aprovada. Não houve chamada Gemini real nem execução PostgreSQL nesta rodada.
