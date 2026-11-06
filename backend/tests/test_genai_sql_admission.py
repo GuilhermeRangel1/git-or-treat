@@ -206,6 +206,22 @@ def test_missing_revenue_capability_is_denied(sql_request):
         env.admit(query(sql_request))
 
 
+def test_observed_dec_fec_readiness_cannot_authorize_billing_sql(sql_request):
+    env = Environment(sql_request)
+    env.report["lot_state"] = "partial"
+    env.report["capabilities"] = {
+        "faturamento.receita": {
+            "status": "unavailable", "reasons": ["coverage_incomplete"]},
+        "interrupcoes.dec_fec": {
+            "status": "unavailable", "reasons": ["coverage_incomplete"]},
+    }
+
+    with pytest.raises(SqlAdmissionDenied):
+        env.admit(query(sql_request))
+
+    assert not any(item[0] == "publication" for item in env.events)
+
+
 def test_report_from_different_publication_is_denied(sql_request):
     env = Environment(sql_request)
     env.report["batch_ref"] = env.batch_ref.replace("12345678", "22345678")
