@@ -31,8 +31,73 @@ it("mostra apenas exportação em Inspeções e apenas resultados em Ordens", ()
     screen.getByRole("button", { name: "Selecionar planilha" }),
   ).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Baixar modelo de resultados" }),
+    screen.getByRole("button", { name: "Baixar modelo" }),
   ).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "Registrar resultados por planilha" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByLabelText("Importar resultados de campo"),
+  ).toHaveAccessibleDescription(
+    "Baixe o modelo, preencha a coluna resultado e envie de volta. XLSX ou CSV, até 1 MB, 500 ordens.",
+  );
+  expect(screen.queryByText("Planilha preenchida")).not.toBeInTheDocument();
+  expect(screen.queryByText(/Cada linha válida/)).not.toBeInTheDocument();
+});
+
+it("no modo de resultados só orienta a correção quando a importação tem erros", async () => {
+  const fetch = vi
+    .fn<() => Promise<Response>>()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ imported: 2, errors: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          imported: 1,
+          errors: [{ line: 3, message: "Ordem alterada." }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+  vi.stubGlobal("fetch", fetch);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <FieldFiles mode="results" />
+    </QueryClientProvider>,
+  );
+  const user = userEvent.setup();
+  const file = new File(["ordem;resultado"], "resultados.csv", {
+    type: "text/csv",
+  });
+  Object.defineProperty(file, "text", {
+    value: async () => "ordem;resultado",
+  });
+  const input = screen.getByLabelText("Importar resultados de campo");
+
+  await user.upload(input, file);
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "2 resultado(s) registrado(s)",
+  );
+  expect(screen.queryByText(/Cada linha válida/)).not.toBeInTheDocument();
+
+  await user.upload(input, file);
+  expect(await screen.findByText(/Cada linha válida/)).toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Linha 3: Ordem alterada",
+  );
+
+  await user.upload(
+    input,
+    new File(["x".repeat(1_000_001)], "grande.csv", { type: "text/csv" }),
+  );
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "O arquivo deve ter até 1 MB.",
+  );
+  expect(screen.queryByText(/Cada linha válida/)).not.toBeInTheDocument();
 });
 
 it("pergunta o formato antes de solicitar o modelo e mantém explicação de erro no diálogo", async () => {
