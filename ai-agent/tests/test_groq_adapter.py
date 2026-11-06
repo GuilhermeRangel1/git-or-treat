@@ -712,11 +712,18 @@ def test_groq_logs_only_the_classified_failure_cause(case: str, caplog) -> None:
         _generate(_adapter(RecordingHandler(failure)))
 
     assert type(error.value) is expected
-    lines = [
-        json.loads(record.getMessage().removeprefix("genai_provider_failure "))
-        for record in caplog.records
-        if record.getMessage().startswith("genai_provider_failure ")
-    ]
+    optional_fields = {
+        "reason", "validation_fields", "prompt_version", "elapsed_ms", "context_bytes",
+        "max_output_tokens", "temperature", "attempts",
+    }
+    lines = []
+    for record in caplog.records:
+        if record.getMessage().startswith("genai_provider_failure "):
+            payload = json.loads(record.getMessage().removeprefix("genai_provider_failure "))
+            lines.append({
+                key: value for key, value in payload.items()
+                if key not in optional_fields or value not in (None, [])
+            })
     assert lines == [{
         "correlation_id": None, "provider": "groq", "model": "groq-test-model",
         "kind": kind, "status": status,

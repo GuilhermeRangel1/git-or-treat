@@ -63,6 +63,13 @@ def normalize_calendar_phrases(text: str) -> str:
         r"\s+trimestre\s+(?:de\s+)?(?P<year>[0-9]{4})(?![\w/-])",
         calendar_quarter, text, flags=re.IGNORECASE,
     )
+    text = re.sub(
+        r"\bde\s+(?P<year>[0-9]{4})\s+(?:em\s+)?(?P<month>"
+        + _SHARED_MONTH_NAME + r")\b",
+        lambda match: f"{match['month']} de {match['year']}",
+        text,
+        flags=re.IGNORECASE,
+    )
     # Somente abreviações acompanhadas de ano: não altera nomes de locais nem
     # completa mês/ano ausente. A resolução posterior continua validando cobertura.
     abbreviations = dict(zip(
@@ -253,14 +260,44 @@ def _explicit_bounds(phrase: str) -> tuple[tuple[int, int], tuple[int, int]] | N
 class GoldTemporalWindowResolver:
     """Converte janelas relativas em limites mensais inclusivos, sem preencher lacunas."""
 
-    _TWELVE_MONTHS = frozenset({_normalize("últimos 12 meses"), _normalize("último ano")})
-    _THREE_MONTHS = frozenset(
-        {
-            _normalize("último trimestre"),
-            _normalize("últimos três meses"),
-            _normalize("últimos 3 meses"),
-        }
-    )
+    _ROLLING_MONTHS = {
+        _normalize("últimos 12 meses"): 12,
+        _normalize("último ano"): 12,
+        _normalize("último trimestre"): 3,
+        _normalize("últimos três meses"): 3,
+        _normalize("últimos 3 meses"): 3,
+        _normalize("últimos seis meses"): 6,
+        _normalize("últimos 6 meses"): 6,
+        _normalize("últimos nove meses"): 9,
+        _normalize("últimos 9 meses"): 9,
+    }
+    _MONTH_COUNTS = {
+        "um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4,
+        "cinco": 5, "seis": 6, "sete": 7, "oito": 8, "nove": 9, "dez": 10,
+        "onze": 11, "doze": 12, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
+        "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, "11": 11, "12": 12,
+    }
+
+    @classmethod
+    def _months_ago(cls, phrase: str) -> int | None:
+        normalized = _normalize(phrase).strip()
+        if normalized in {"mes retrasado", "mes retrasada"}:
+            return 2
+        counts = "|".join(sorted(cls._MONTH_COUNTS, key=len, reverse=True))
+        match = re.fullmatch(
+            rf"(?:(?:ha)\s+)?(?P<count>{counts})\s+mes(?:es)?(?:\s+atras)?",
+            normalized,
+        )
+        if match is None or not (normalized.startswith("ha ") or normalized.endswith(" atras")):
+            return None
+        return cls._MONTH_COUNTS[match["count"]]
+
+    @classmethod
+    def _rolling_month_count(cls, phrase: str) -> int | None:
+        normalized = _normalize(phrase).strip()
+        counts = "|".join(sorted(cls._MONTH_COUNTS, key=len, reverse=True))
+        match = re.fullmatch(rf"ultimos\s+(?P<count>{counts})\s+meses?", normalized)
+        return cls._MONTH_COUNTS[match["count"]] if match is not None else None
 
     def resolve(
         self,
@@ -291,17 +328,18 @@ class GoldTemporalWindowResolver:
             if (end[0] - start[0]) * 12 + end[1] - start[1] >= 1200:
                 raise TemporalResolutionUnavailable("O intervalo excede o limite de competências.")
             expected = _months_between(start, end)
-        elif normalized in self._TWELVE_MONTHS:
-            start = _shift_month(year, month, -11)
+        elif (months := self._ROLLING_MONTHS.get(normalized)
+              or self._rolling_month_count(normalized)) is not None:
+            start = _shift_month(year, month, -(months - 1))
             expected = _months_between(start, (year, month))
         elif normalized == _normalize("ano passado"):
             start = (year - 1, 1)
             expected = _months_between(start, (year - 1, 12))
-        elif normalized in self._THREE_MONTHS:
-            start = _shift_month(year, month, -2)
-            expected = _months_between(start, (year, month))
         elif normalized == _normalize("mês passado"):
             start = _shift_month(year, month, -1)
+            expected = [start]
+        elif (months_ago := self._months_ago(normalized)) is not None:
+            start = _shift_month(year, month, -months_ago)
             expected = [start]
         elif normalized == _normalize("este ano"):
             start = (year, 1)

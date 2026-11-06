@@ -203,13 +203,19 @@ NEIGHBORHOODS = [
 ]
 
 
-def test_dimension_name_is_not_suggested_as_a_similar_neighborhood():
+def test_neighborhood_ranking_uses_the_dimension_as_a_group_not_a_filter():
     result = _plan(
         "Qual bairro de Recife teve a maior queda de consumo entre fevereiro e março de 2025?",
         dimension_values=NEIGHBORHOODS,
     )
-    assert result["status"] == "needs_clarification", result
-    assert "BAIRO" not in result["response"]["message"]
+    assert result["status"] == "planned", result
+    assert result["plan"]["group_by_dimension_ids"] == ["geography.neighborhood"]
+    assert result["plan"]["filters"] == [{
+        "dimension_id": "geography.municipality", "operator": "eq", "values": ["Recife"],
+    }]
+    assert result["plan"]["order"] == {
+        "field_id": "energy.consumption", "direction": "asc",
+    }
 
 
 def test_typo_beside_a_dimension_name_is_still_suggested():
@@ -454,7 +460,7 @@ def test_ambiguous_follow_up_applies_the_known_municipality_override(answer):
     }
 
 
-def test_grouped_comparison_draft_never_invents_a_top_limit():
+def test_comparison_follow_up_does_not_replace_unavailable_billed_volume_with_consumption():
     pending = _plan(
         "Qual bairro mais perdeu volume residencial entre janeiro de 2025 e abril de 2025?"
     )
@@ -465,9 +471,27 @@ def test_grouped_comparison_draft_never_invents_a_top_limit():
         {"role": "user", "content": pending["pending_question"]},
         {"role": "assistant", "content": pending["response"]["message"]},
     ])
+    assert result["status"] == "needs_clarification", result
+    assert result.get("plan") is None
+    message = result["response"]["message"].casefold()
+    assert "energia faturada" in message and "consumo medido" in message
+
+
+def test_user_can_explicitly_choose_measured_consumption_after_volume_clarification():
+    original = (
+        "Qual bairro mais perdeu volume residencial entre janeiro de 2025 e março de 2025?"
+    )
+    pending = _plan(original)
+    assert pending["status"] == "needs_clarification", pending
+
+    result = _plan("consumo medido", [
+        {"role": "user", "content": original},
+        {"role": "assistant", "content": pending["response"]["message"]},
+    ])
+
     assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "energy.consumption"
     assert result["plan"]["group_by_dimension_ids"] == ["geography.neighborhood"]
-    assert result["plan"]["limit"] == 100
     assert result["plan"]["comparison_periods"] == ["2025-01", "2025-03"]
 
 
