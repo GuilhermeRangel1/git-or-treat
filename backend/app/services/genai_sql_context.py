@@ -6,6 +6,7 @@ Não certifica prontidão nem autoriza candidato SQL.
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 
 from app.models.gold_v2 import TABLES
@@ -21,11 +22,24 @@ F1_DIMENSIONS = {
 class SqlContextUnavailable(ValueError):
     """Contexto insuficiente ou escopo incompatível com a primeira fatia."""
 
+    def __init__(self, message: str, *, reason: str, context_bytes: int | None = None):
+        super().__init__(message)
+        self.reason = reason
+        self.context_bytes = context_bytes
+
 
 @dataclass(frozen=True)
 class SqlGenerationContext:
     context_version: str
     contents: str
+    mapping_version: str
+    dictionary_version: str
+    metric_ids: tuple[str, ...]
+    dimension_ids: tuple[str, ...]
+    column_names: tuple[str, ...]
+    coverage_months: int
+    dimension_value_count: int
+    context_bytes: int
 
 
 def _canonical(value) -> str:
@@ -36,12 +50,14 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
     scope = request.access_scope
     if (scope.profile_id != "v-energy-grid-360-gold" or scope.source_id != "gold.local"
             or scope.allowed_operations != frozenset({"read"})
+            or re.fullmatch(r"session:[a-f0-9]{64}", scope.caller_ref) is None
             or "billing.revenue" not in scope.allowed_metric_ids or request.batch_ref is None):
-        raise SqlContextUnavailable("Escopo F1 indisponível.")
+        raise SqlContextUnavailable("Escopo F1 indisponível.", reason="scope_unavailable")
     coverage = next((item for item in request.temporal_coverage
                      if item.metric_id == "billing.revenue"), None)
     if coverage is None or coverage.kind != "monthly" or not coverage.competencies:
-        raise SqlContextUnavailable("Cobertura mensal F1 indisponível.")
+        raise SqlContextUnavailable("Cobertura mensal F1 indisponível.",
+                                    reason="coverage_unavailable")
     catalog = load_gold_catalog()
     metric = next(item for item in catalog.metrics if item.metric_id == "billing.revenue")
     source = next(item for item in metric.sources
@@ -91,6 +107,20 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
     }
     digest = hashlib.sha256((_canonical(scope_material) + "\n" + _canonical(payload)).encode()).hexdigest()
     contents = _canonical({"context_version": digest, **payload})
-    if len(contents.encode("utf-8")) > 65536:
-        raise SqlContextUnavailable("Contexto F1 excede o limite.")
-    return SqlGenerationContext(context_version=digest, contents=contents)
+    context_bytes = len(contents.encode("utf-8"))
+    if context_bytes > 65536:
+        raise SqlContextUnavailable("Contexto F1 excede o limite.",
+                                    reason="context_too_large", context_bytes=context_bytes)
+    return SqlGenerationContext(
+        context_version=digest,
+        contents=contents,
+        mapping_version=catalog.mapping_version,
+        dictionary_version=catalog.dictionary_version,
+        metric_ids=(metric.metric_id,),
+        dimension_ids=tuple(sorted(dimensions)),
+        column_names=tuple(columns),
+        coverage_months=len(coverage.competencies),
+        dimension_value_count=sum(len(item.values) for item in request.dimension_value_coverage
+                                  if item.dimension_id in dimensions),
+        context_bytes=context_bytes,
+    )

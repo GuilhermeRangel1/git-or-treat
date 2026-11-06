@@ -1,7 +1,7 @@
 """Admissão interna F1 com publicação/prontidão atuais; não executa consulta.
 
 O artefato é interno ao processo, não um token de autorização do navegador.
-Um futuro executor deve revalidá-lo e usar snapshot/papel de leitura próprios.
+O executor deve revalidá-lo e usar snapshot/papel de leitura próprios.
 """
 
 import asyncio
@@ -63,7 +63,7 @@ def _periods(candidate: SqlGenerationCandidate) -> tuple[str, ...]:
 
 async def admit_sql_candidate(
     candidate: SqlGenerationCandidate, request: QuestionPlanRequest, *,
-    engine: Engine, publication: GoldPublicationContext, client: GenAIQuestionClient,
+    engine: Engine, readiness_engine: Engine, publication: GoldPublicationContext, client: GenAIQuestionClient,
     resolve_scope: Callable[[], AccessScope], approved_controls: frozenset[str],
     deadline: GenAIRequestDeadline, correlation_id: str,
 ) -> SqlAdmission:
@@ -90,7 +90,7 @@ async def admit_sql_candidate(
     context = build_sql_generation_context(fresh_request)
     periods = _periods(candidate)
     report = await deadline.run(60, lambda: client.evaluate_readiness(
-        engine, requested_periods=periods, approved_controls=approved_controls,
+        readiness_engine, requested_periods=periods, approved_controls=approved_controls,
         correlation_id=correlation_id, expected_batch_ref=publication.batch_ref))
     _require(report.batch_ref == publication.batch_ref
              and report.lot_state in ("ready", "partial"))
@@ -119,7 +119,7 @@ async def admit_sql_candidate(
 
 async def revalidate_sql_admission(
     admitted: SqlAdmission, candidate: SqlGenerationCandidate, request: QuestionPlanRequest, *,
-    engine: Engine, publication: GoldPublicationContext, client: GenAIQuestionClient,
+    engine: Engine, readiness_engine: Engine, publication: GoldPublicationContext, client: GenAIQuestionClient,
     resolve_scope: Callable[[], AccessScope], approved_controls: frozenset[str],
     deadline: GenAIRequestDeadline, correlation_id: str,
 ) -> SqlAdmission:
@@ -128,7 +128,7 @@ async def revalidate_sql_admission(
     # Mantém a validade original, mesmo que o chamador apresente um prazo novo.
     bounded = GenAIRequestDeadline(min(deadline.expires_at, admitted.expires_at), deadline.clock)
     fresh = await admit_sql_candidate(
-        candidate, request, engine=engine, publication=publication, client=client,
+        candidate, request, engine=engine, readiness_engine=readiness_engine, publication=publication, client=client,
         resolve_scope=resolve_scope, approved_controls=approved_controls,
         deadline=bounded, correlation_id=correlation_id)
     _require(fresh == admitted)

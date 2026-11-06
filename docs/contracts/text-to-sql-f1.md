@@ -1,6 +1,6 @@
 # Contrato generativo F1 e consumidores
 
-**Estado:** contratos e transporte privado implementados; geração desligada por padrão e execução de SQL ainda não integrada.
+**Estado:** contratos, transporte privado e executor interno implementados; geração desligada por padrão e fluxo público generativo ainda não integrado.
 **Decisão:** [ADR-0025](../decisions/0025-text-to-sql-generativo.md).
 
 ## Candidato: `text-to-sql-f1-v1`
@@ -24,15 +24,17 @@ O contrato valida estrutura e coerência local. Uma string DELETE pode ser um ca
 
 `build_sql_generation_context` recebe `QuestionPlanRequest` com escopo/cobertura já resolvidos pelo Backend. Seleciona no catálogo instalado somente receita em `diagnostico_receita`; libera `competencia`, `receita_total_reais` e colunas de município/classe autorizadas. Ignora outras fontes/métricas e valores de UC.
 
-O digest incorpora pergunta, conversa, cobertura, publicação, catálogo, identidade e escopo. Identidade e concessões externas à F1 entram no digest, sem serem incluídas como objetos/credenciais no conteúdo enviado ao modelo. Ordem de conjuntos e redução do saldo de tempo não alteram a identidade semântica do contexto. O prazo é controlado separadamente pelo coordenador.
+O digest incorpora pergunta, conversa, cobertura, publicação, catálogo, identidade e escopo. Identidade e concessões externas à F1 entram no digest, sem serem incluídas como objetos/credenciais no conteúdo enviado ao modelo. Ordem de conjuntos e redução do saldo de tempo não alteram a identidade semântica do contexto. O prazo é controlado separadamente pelo coordenador. Para F1, `caller_ref` precisa ser o pseudônimo `session:<sha256>` produzido pelo Backend; `prepare_sql_candidate` re-resolve o escopo atual e compara a publicação antes da geração, recusando revogação ou troca de lote.
 
 O contexto indica que deriva de modelos/catalogo instalados, não de introspecção do banco vivo. Limite de 64 KiB: excesso falha explicitamente, sem truncar cobertura ou restrições. Construção do contexto não consulta dados nem certifica grants/prontidão.
 
+Na admissão Backend, `assert_live_f1_catalog` confere no PostgreSQL ativo todas as colunas/tipos da projeção F1, Decimal/escala, grão/chave e privilégios `USAGE`/`SELECT` das colunas liberadas. A conferência é repetida dentro do snapshot somente leitura imediatamente antes da execução; divergência falha fechada. `check_genai_runtime.py` usa o mesmo controle. Os testes locais usam schema sintético; enquanto a URL/leitor da publicação ativa não estiver configurado, isso não comprova metadados/grants efetivos daquela instância. Nenhum JOIN é habilitado.
+
 ## Adaptador Gemini
 
-`GeminiSqlGenerator` recebe cliente configurado, modelo, conteúdo e versão esperada. Usa schema fechado e prompt `text-to-sql-f1-1`; saída configurável até 4.096 tokens, temperatura de 0 a 1 (padrão 0) e timeout de até 20 s, reduzível pelo chamador. Não executa SQL nem faz retries próprios. O cliente SDK deve ter sua política de retries configurada pela composição antes do aceite operacional.
+`GeminiSqlGenerator` recebe cliente configurado, modelo, conteúdo e versão esperada. Usa schema fechado e prompt `text-to-sql-f1-9`, com formas SQL concretas por operação, regras de parâmetros e separação entre esclarecimento e operação não suportada. O schema enviado ao Gemini é reduzido às palavras-chave JSON Schema suportadas; a resposta continua sendo validada localmente pelo modelo Pydantic completo, que aplica limites, nomes de parâmetros, datas e coerência. Revisado com `google-genai 2.31.0` instalado e documentação oficial consultada via Context7 em 05/11/2026: [`response_json_schema` na documentação do SDK](https://github.com/googleapis/python-genai/blob/main/docs/source/index.rst) suporta apenas um subconjunto explícito; `patternProperties`, `const`, defaults, padrões e limites de texto não são enviados como restrições do provedor. A versão do prompt é emitida nos eventos de sucesso/uso e falha, junto de modelo, latência, tamanho do contexto, limite de saída, temperatura e tentativas; tokens permanecem nulos quando o provedor não os informa. Respostas inválidas recebem razão categórica limitada (`invalid_json`, `contract_validation`, `incomplete_generation`, `context_version_mismatch` ou `invalid_response_shape`), sem logar entrada, saída, SQL ou detalhes de validação. Conteúdo, pergunta, histórico, digest de contexto, parâmetros SQL e detalhes de exceção não são registrados. Saída configurável até 4.096 tokens, temperatura de 0 a 1 (padrão 0) e timeout de até 20 s, reduzível pelo chamador. O adaptador não repete chamadas; a composição SDK fixa uma tentativa e a chamada respeita o saldo do `ExecutionController` compartilhado.
 
-Testes com provedor falso cobrem candidato, JSON inválido, contexto divergente, truncamento, 429/503, rejeição e timeout. Não são evidência de qualidade do Gemini real nem de composição runtime. A fábrica `create_gold_app` ainda usa o planner antigo.
+Testes com provedor falso cobrem candidato, JSON inválido, contexto divergente, truncamento, 429/503, rejeição e timeout. A prova do prompt verifica a instrução e que pergunta/histórico não a substituem, mas não mede se o Gemini segue a política. Na avaliação sintética f1-2, 28/40 interpretações coincidiram e o revisor rejeitou 34/34 candidatos SQL; nenhum candidato foi executado. O piloto de f1-3 em seis casos teve três saídas inválidas e um 503, sem candidato válido. Estes resultados reprovam a qualidade atual e não devem ser tratados como aceite do gerador. `create_gold_app` compõe o candidato somente na rota interna opt-in; o coordenador público continua no planner antigo.
 
 ## Revisão estrutural Backend — etapa intermediária
 
@@ -118,6 +120,16 @@ Pydantic 2 é o padrão existente. Uso de `ConfigDict(extra='forbid')`, tipos es
 
 ## Transporte privado de candidatos — 05/11/2026
 
+### Evidência SQL independente do plano legado — 05/11/2026
+
+`text-to-sql-f1-evidence-v1` é implementado independentemente em `backend/app/schemas/sql_evidence.py` e `ai-agent/app/schemas/sql_evidence.py`. Os [exemplos compartilhados](examples/text-to-sql-f1-evidence-v1.json) são artificiais, não oráculos numéricos de negócio. Seis exemplos válidos e nove inválidos são conferidos nos dois serviços, com igualdade do JSON Schema e round-trip. Nenhum esquema de plano legado é criado para transportar a evidência SQL.
+
+`genai_sql_evidence.build_sql_evidence` confere candidato/contexto/revisão contra a admissão e a execução, além do prazo e escopo atuais. Transporta referência Gold v2, métrica/fonte, períodos/filtros, versões de catálogo/dicionário, colunas/unidades e linhagem de medidas/dimensões derivada da AST. Valores monetários atravessam o contrato como decimais canônicos em texto, sem conversão para float ou arredondamento. Fonte/colunas são fechadas; campos SQL/plano extras são recusados. Empty, all_measures_null e available preservam ausência, nulo e zero sem inferir causas.
+
+O executor agora calcula `result_digest` sobre colunas, linhagem, linhas exatas e estado. O digest de execução inclui esse resultado, a admissão e o SQL canônico. O envelope valida novamente o digest das linhas e o `evidence_digest` do conteúdo completo. Esses hashes detectam divergência, não autenticam um chamador: o futuro transporte de síntese continua exigindo autenticação técnica, contexto autorizado e controles de publicação. O envelope admite até 100 linhas, 32 colunas por linha e 32 KiB incluindo proveniência/digests; o materializador mantém seu teto anterior de 16 KiB.
+
+Prova desta etapa: total e comparação realmente executados no PostgreSQL 16 com papel restrito/snapshot foram convertidos em evidência, mantendo 150.03, 80.00 e 70.03 no caso artificial. Metadados/prontidão de admissão continuam substituídos nesse teste, sem aceite Gold real. Não foi implementada a rota `/api/v1/internal/sql-syntheses`, e não há resposta pública ou nova chamada Gemini nesta rodada.
+
 ### Conferência SQL/intenção — 05/11/2026
 
 `genai_sql_semantics.review_sql_semantics` chama primeiro a revisão estrutural e confere os recortes SQL contra `SqlInterpretation`. Verifica cobertura mensal completa dos períodos, igualdade dos filtros de município/classe, dimensões agrupadas, direção e tamanho do ranking. Rankings exigem NULLS LAST para não promover receita ausente. Consultas sem ranking não podem usar LIMIT para truncar os grupos.
@@ -126,9 +138,27 @@ Recortes temporais são comparados como conjuntos de competências, aceitando ig
 
 Para comparar duas janelas distintas, o subconjunto F1 exige três medidas sem agrupamento: total da janela 0, total da janela 1 e diferença 0 menos 1. A AST determina a linhagem de cada alias em `SqlSemanticReview.measure_semantics`; nomes livres não definem a fórmula. O WHERE global deve selecionar exatamente a união dos períodos e os filtros comuns. Cada SUM FILTER precisa corresponder ao respectivo recorte após interseção com esse WHERE, e ambas as janelas precisam de cobertura completa. Ausência de um total, diferença invertida, LIMIT e ranking são recusados. Não há COALESCE para transformar ausência/nulo em zero. Comparações agrupadas e alternativas com CTE/UNION ficam fora desta fatia.
 
-`genai_sql_observation.observe_sql_generation` compõe contexto Backend → cliente interno → revisão estrutural/semântica. Recebe o prazo absoluto já iniciado e o reduz pelo saldo do envelope; criação de contexto, provedor e revisão consomem o mesmo orçamento. Retorna esclarecimento/capacidade sem revisão, propaga falhas e não repete chamadas. É um caso de uso interno opt-in, ainda sem chamador no coordenador público, sem executor ou aprovação de acesso. Testes usam o cliente HTTP real com transporte artificial; não comprovam qualidade Gemini.
+`genai_sql_observation.observe_sql_generation` compõe contexto Backend → cliente interno → revisão estrutural/semântica. Recebe o prazo absoluto já iniciado e o reduz pelo saldo do envelope; criação de contexto, provedor e revisão consomem o mesmo orçamento. Registra correlação, versões, IDs/colunas autorizados, contagens, tamanho e estado de truncamento; não registra pergunta, turnos, valores de dimensão, credenciais ou evidência. Recusa de contexto registra motivo tipado e tamanho sem conteúdo. Retorna esclarecimento/capacidade sem revisão, propaga falhas e não repete chamadas. É um caso de uso interno opt-in, ainda sem chamador no coordenador público, sem executor ou aprovação de acesso. Testes usam o cliente HTTP real com transporte artificial; não comprovam qualidade Gemini.
 
 Esta checagem compara SQL e intenção declarada pelo modelo; não comprova que a intenção corresponde ao pedido em linguagem natural. Ainda depende de contexto conversacional validado, prontidão/grants, política de recortes, referência numérica independente e artefato final ligado à sessão/publicação. Nenhuma das revisões autoriza execução ou está conectada ao coordenador público.
+
+### Executor interno e prova PostgreSQL — 05/11/2026
+
+`genai_sql_executor.execute_sql_admission` revalida a admissão e entrega somente o SQL canônico/parametrizado ao driver psycopg. Exige engine PostgreSQL+psycopg com login `venergy_genai_reader` e parâmetros ocultos. Dentro de `GoldPublicationContext.execution_snapshot`, confere papel efetivo, ausência de superuser/bypass-RLS e transação READ ONLY; aplica statement_timeout de até 5 s reduzido pelo saldo, habilita cursor server-side com buffer unitário e chama o materializador. Escopo é conferido antes/depois; a saída do snapshot confere novamente a publicação. O resultado interno inclui digests de admissão/execução sem expor SQL no contrato público.
+
+Admissão/preparação/execução agora exigem `engine` analítico e `readiness_engine` separados: o cliente de prontidão usa o observador operacional existente, enquanto os metadados/publicação e a consulta usam a credencial quantitativa. Não se transfere a credencial operacional ao executor candidato.
+
+Cancelamento sinaliza parada da materialização e aguarda encerramento da thread/snapshot antes de devolver controle. SQL bloqueado depende do statement_timeout; não há promessa de cancelamento imediato. O teste artificial cobre cancelamento assíncrono; a prova PostgreSQL cobre timeout por bloqueio, rollback e conexão reutilizável, sem comprovar todas as falhas de rede/driver.
+
+Quatro testes reais em PostgreSQL 16 descartável passaram: total com Decimal, dois totais e diferença, recusa de DELETE pelo papel leitor e timeout por lock com checkout final zero. A execução e o snapshot/publicação são reais, com verificação de cursor server-side; metadados e prontidão da admissão são substituídos explicitamente. Isso não prova carga Gold certificada, sessão real ou HTTP público. Versões: SQLAlchemy 2.0.52 e psycopg 3.3.6; streaming conferido via Context7 na [documentação oficial](https://docs.sqlalchemy.org/en/20/core/connections.html#using-server-side-cursors-a-k-a-stream-results). Container sem volume removido ao final.
+
+### Materialização F1 — contrato e limites
+
+`genai_sql_result.materialize_sql_result` recebe cursor e revisão semântica; não abre conexão nem executa SQL. Confere nomes/ordem/unicidade das colunas e converte cada linha para tuplas imutáveis. Medidas exigem Decimal finito, dimensões exigem texto/nulo. Valores numéricos com expoente/ordem de grandeza acima de 100 são recusados antes de formatar; não há conversão para float nem arredondamento nesta etapa.
+
+A leitura incremental limita o resultado a 100 linhas e 16.384 bytes do envelope JSON (Decimal em string fixa). Excesso descarta tudo: não retorna parcial como total. Cursor fecha no sucesso e nas falhas. Os estados `empty`, `all_measures_null` e `available` distinguem ausência de linhas, medidas nulas e valores válidos, incluindo zero e estorno. O futuro adaptador de evidência ainda precisa interpretar esses estados e explicar suas causas conforme a fonte.
+
+Limitação: fetchmany limita a materialização da aplicação; não comprova cursor server-side, memória do driver/banco, cancelamento ou devolução da conexão. O executor deve manter o snapshot, prazo SQL e papel restrito enquanto lê e revalidar publicação/escopo antes de divulgar resultado. Testes isolados do materializador usam cursores artificiais; a prova integrada PostgreSQL está descrita acima.
 
 ### Admissão interna e revalidação — 05/11/2026
 
@@ -138,7 +168,7 @@ O retorno `SqlAdmission` liga por digest a revisão canônica, parâmetros, cand
 
 `revalidate_sql_admission` refaz admissão/metadados/prontidão sob o prazo original e exige igualdade integral do artefato. Não renova aprovação expirada com um prazo novo; troca de usuário, SQL, parâmetros, controles, política ou relatório invalida a reutilização. Alteração de publicação é propagada pelo controle existente. Ainda será necessário revalidar dentro da fronteira apropriada de execução e checar novamente publicação/escopo após materializar os resultados.
 
-`genai_sql_observation.prepare_sql_candidate` compõe conferência inicial de escopo/publicação → geração → revisão → admissão sob o mesmo prazo. Esclarecimento não gera admissão. Não há executor, rota pública ou nova flag de ativação dessa preparação. Os testes desta rodada usam fronteiras I/O artificiais: comprovam composição e rejeições, não observação real Gold, grants ou cancelamento de SQL. A prova numérica PostgreSQL e o aceite Gold permanecem pendentes.
+`genai_sql_observation.prepare_sql_candidate` compõe conferência inicial de escopo/publicação → geração → revisão → admissão sob o mesmo prazo. Esclarecimento não gera admissão. A preparação não executa SQL; o executor interno separado ainda não tem chamador público ou flag de ativação. Os testes desta rodada usam fronteiras I/O artificiais: comprovam composição e rejeições, não observação real Gold, grants ou cancelamento de SQL. A prova numérica PostgreSQL e o aceite Gold permanecem pendentes.
 
 `POST /api/v1/internal/sql-candidates` recebe `SqlGenerationRequest` e retorna `SqlGenerationResponse`. Exige autenticação de serviço Gold, contexto versionado e orçamento restante; o cliente Backend confere correlação e versão do contexto. As fixtures HTTP comuns estão em `examples/text-to-sql-f1-http-v1.json`.
 

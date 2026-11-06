@@ -3,6 +3,7 @@ import copy
 from dataclasses import replace
 
 import pytest
+
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.schemas.gold_readiness import GoldReadinessReport
 from app.schemas.sql_generation import SqlGenerationResponse
@@ -14,9 +15,11 @@ from app.services.genai_sql_admission import (
     revalidate_sql_admission,
 )
 from app.services.genai_sql_context import build_sql_generation_context
-from app.services.genai_sql_observation import prepare_sql_candidate
+from app.services.genai_sql_observation import (
+    assert_current_sql_request_context,
+    prepare_sql_candidate,
+)
 from app.services.genai_sql_structure import SqlStructureRejected
-
 from tests.test_genai_sql_comparison import comparison
 from tests.test_genai_sql_semantics import query
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
@@ -29,6 +32,8 @@ class Environment:
 
     def __init__(self, request):
         self.request = request
+        self.analytic_engine = object()
+        self.readiness_engine = object()
         self.batch_ref = request.batch_ref
         self.scope = request.access_scope
         self.now = [0.0]
@@ -44,6 +49,7 @@ class Environment:
         self.on_publication_check = lambda: None
 
     def planning_fields(self, engine, scope):
+        assert engine is self.analytic_engine
         self.events.append("metadata")
         assert scope == self.request.access_scope
         return copy.deepcopy(self.fields)
@@ -53,12 +59,13 @@ class Environment:
         self.on_publication_check()
 
     async def evaluate_readiness(self, engine, **kwargs):
+        assert engine is self.readiness_engine
         self.events.append(("readiness", kwargs))
         self.on_readiness()
         return GoldReadinessReport.model_validate(self.report)
 
     def kwargs(self):
-        return {"engine": object(), "publication": self, "client": self,
+        return {"engine": self.analytic_engine, "readiness_engine": self.readiness_engine, "publication": self, "client": self,
                 "resolve_scope": lambda: self.scope, "approved_controls": frozenset({"control"}),
                 "deadline": self.deadline, "correlation_id": "b" * 32}
 
@@ -241,6 +248,30 @@ def test_preparation_composes_generation_and_admission_without_executor(sql_requ
         assert result.admission.requested_periods == ("2026-06",)
         assert "metadata" in env.events
         assert env.events[-1] == "publication"
+
+
+def test_generation_context_is_rejected_after_current_session_scope_changes(sql_request):
+    env = Environment(sql_request)
+    env.scope = env.scope.model_copy(update={"caller_ref": "session:" + "b" * 64})
+
+    with pytest.raises(SqlAdmissionDenied, match="antes da geração"):
+        assert_current_sql_request_context(
+            sql_request, resolve_scope=lambda: env.scope, publication=env,
+        )
+
+    assert env.events == []
+
+
+def test_generation_context_is_rejected_after_publication_changes(sql_request):
+    env = Environment(sql_request)
+    env.batch_ref = "gold-csv-v2:GOLD_20000101T000000Z_bbbbbbbb:12345678-1234-4123-8123-123456789abc"
+
+    with pytest.raises(SqlAdmissionDenied, match="antes da geração"):
+        assert_current_sql_request_context(
+            sql_request, resolve_scope=lambda: env.scope, publication=env,
+        )
+
+    assert env.events == []
 
 
 def test_old_admission_is_not_transferable_to_another_authorized_caller(sql_request):
