@@ -283,28 +283,6 @@ export default function PanoramaPage() {
                 onRefresh={() => void refetch()}
               />
             </div>
-            <aside
-              role="note"
-              className="rounded-xl bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
-            >
-              <h2 className="font-semibold">Continuidade interna</h2>
-              <p className="mt-1 leading-5">
-                DEC{" "}
-                {data.metricas.continuidadeDec.valorAtual?.toLocaleString(
-                  "pt-BR",
-                  { maximumFractionDigits: 2 },
-                ) ?? "indisponível"}{" "}
-                h/UC
-                <span aria-hidden="true"> · </span>
-                FEC{" "}
-                {data.metricas.continuidadeFec.valorAtual?.toLocaleString(
-                  "pt-BR",
-                  { maximumFractionDigits: 2 },
-                ) ?? "indisponível"}{" "}
-                interrupções/UC. Indicadores simplificados para uso interno, não
-                regulatórios.
-              </p>
-            </aside>
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div className="flex flex-wrap items-center gap-2">
                 <PanoramaFoundations data={data} />
