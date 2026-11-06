@@ -1,27 +1,14 @@
 import { Search } from "lucide-react";
 import type { RefObject } from "react";
-import type { UCHistory, UCOverview, UCStatus } from "./contract";
-import { ErrorMessage, EvidenceDialog, HistoryPanel } from "./UC360History";
+import type { UCHistory, UCOverview } from "./contract";
+import { ErrorMessage, HistoryPanel } from "./UC360History";
 import UC360OverviewTable from "./UC360OverviewTable";
 import UC360Series from "./UC360Series";
 import UC360Interpretation from "./UC360Interpretation";
-import { UC360Comparison, UC360SupportMetrics } from "./UC360Metrics";
+import { UC360SupportMetrics } from "./UC360Metrics";
 import UC360PeriodForm from "./UC360PeriodForm";
 import { currentMeterMessage } from "./uc360-format";
 import type { UCHistorySection } from "./uc360-state";
-
-function recordsStatus(subject: string, status: UCStatus) {
-  switch (status) {
-    case "available":
-      return `Histórico de ${subject} consultado para o período.`;
-    case "empty":
-      return `Nenhum registro de ${subject} no período consultado.`;
-    case "partial":
-      return `O histórico de ${subject} pode estar incompleto neste período.`;
-    case "unavailable":
-      return `Não foi possível consultar ${subject}; isso não confirma que não houve registros.`;
-  }
-}
 
 type Props = {
   unit: {
@@ -68,7 +55,7 @@ type Props = {
       historyOpen: boolean;
     };
   };
-  disclosureRef: RefObject<HTMLDetailsElement | null>;
+  disclosureRef: RefObject<HTMLDivElement | null>;
   actions: {
     onOverviewRetry: () => void;
     onHistoryRetry: () => void;
@@ -82,6 +69,87 @@ type Props = {
   };
 };
 
+function ConsumptionAnswer({
+  series,
+  previous,
+}: {
+  series: Props["unit"]["series"];
+  previous: Props["unit"]["previousSeries"];
+}) {
+  const latest = [...(series.data?.items ?? [])].sort((a, b) =>
+    b.competencia.localeCompare(a.competencia),
+  )[0];
+  const priorMonth = latest
+    ? `${String(Number(latest.competencia.slice(0, 4)) - 1).padStart(4, "0")}${latest.competencia.slice(4)}`
+    : "";
+  const prior = previous?.data?.items.find(
+    (item) => item.competencia === priorMonth,
+  );
+  const currentValue = latest?.measured_energy_kwh;
+  const priorValue = prior?.measured_energy_kwh;
+  const available =
+    !series.pending &&
+    !series.error &&
+    !previous?.pending &&
+    !previous?.error &&
+    currentValue != null &&
+    priorValue != null;
+  const format = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
+  const delta = available ? currentValue - priorValue : null;
+  const tone =
+    delta === null || delta === 0
+      ? "text-content"
+      : delta > 0
+        ? "text-success"
+        : "text-danger";
+  return (
+    <section
+      aria-label="Comparação com o ano anterior"
+      className="rounded-xl border border-control bg-surface p-4 sm:p-5"
+    >
+      <h2 className="font-heading text-lg font-semibold text-content">
+        Consumo em comparação ao ano anterior
+      </h2>
+      {available && delta !== null ? (
+        <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-3">
+          <div>
+            <p className={`font-heading text-xl font-semibold ${tone}`}>
+              {delta > 0
+                ? "↑ Consumo aumentou"
+                : delta < 0
+                  ? "↓ Consumo diminuiu"
+                  : "Consumo permaneceu igual"}
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              {delta === 0
+                ? "Sem diferença"
+                : `${format.format(Math.abs(delta))} kWh ${delta > 0 ? "a mais" : "a menos"}`}{" "}
+              em relação ao mesmo mês do ano anterior
+            </p>
+          </div>
+          <p className="text-sm text-content">
+            {latest.competencia.slice(5)}/{latest.competencia.slice(0, 4)}:{" "}
+            <strong>{format.format(currentValue)} kWh</strong>
+            <br />
+            <span className="text-muted">
+              Mesmo mês do ano anterior: {format.format(priorValue)} kWh
+            </span>
+          </p>
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-muted">
+          {series.pending || previous?.pending
+            ? "Carregando comparação com o ano anterior…"
+            : "Não há dados suficientes para comparar o consumo com o mesmo mês do ano anterior."}
+        </p>
+      )}
+      <p className="mt-3 text-xs text-muted">
+        O consumo medido, por si só, não explica a variação do valor da fatura.
+      </p>
+    </section>
+  );
+}
+
 export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
   const selected = unit.overview.data?.data;
   const metadata = unit.overview.data?.metadata;
@@ -93,13 +161,17 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
           {selected?.profile.uc_id ?? unit.id}
         </h1>
         {selected ? (
-          <p className="text-sm [overflow-wrap:anywhere] text-muted">
+          <div>
             {selected.profile.customer_name?.trim() && (
-              <>{selected.profile.customer_name.trim()} · </>
+              <p className="font-heading text-xl font-semibold text-content [overflow-wrap:anywhere]">
+                {selected.profile.customer_name.trim()}
+              </p>
             )}
-            {selected.profile.municipio} / {selected.profile.bairro} ·{" "}
-            {selected.profile.classe}
-          </p>
+            <p className="text-sm text-muted">
+              {selected.profile.municipio} / {selected.profile.bairro} ·{" "}
+              {selected.profile.classe}
+            </p>
+          </div>
         ) : (
           <p className="text-sm text-muted">UC {unit.id}</p>
         )}
@@ -157,83 +229,20 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                 period={selected.period}
                 onApply={actions.onPeriodApply}
               />
+              <ConsumptionAnswer
+                series={unit.series}
+                previous={unit.previousSeries}
+              />
               <section className="rounded-xl bg-surface p-4 sm:p-5">
                 <h2 className="font-heading text-lg font-semibold">
                   Resumo por competência
                 </h2>
                 <UC360OverviewTable comparison={selected.comparison} />
               </section>
-              <UC360SupportMetrics data={selected} />
-              <UC360Series
-                data={unit.series.data}
-                previous={unit.previousSeries}
-                pending={unit.series.pending}
-                error={unit.series.error}
-                onRetry={actions.onSeriesRetry}
-              />
-              <details className="rounded-xl bg-surface p-4 sm:p-5">
-                <summary className="cursor-pointer font-heading font-semibold">
-                  Ver detalhes da comparação
-                </summary>
-                <UC360Comparison comparison={selected.comparison} />
-              </details>
-              <section className="grid gap-3 rounded-xl bg-surface p-4 sm:p-5">
-                <h2 className="font-heading text-lg font-semibold">
-                  Medidor, interrupções e chamados
-                </h2>
-                <ul className="grid gap-1 text-sm text-content">
-                  <li>
-                    {currentMeterMessage(
-                      selected.current_meter.item,
-                      selected.current_meter.status,
-                    )}
-                  </li>
-                  <li>
-                    {recordsStatus(
-                      "interrupções",
-                      selected.section_status.interruptions ?? "unavailable",
-                    )}
-                  </li>
-                  <li>
-                    {recordsStatus(
-                      "chamados",
-                      selected.section_status.calls ?? "unavailable",
-                    )}
-                  </li>
-                </ul>
-                <div className="flex flex-wrap gap-2">
-                  <EvidenceDialog
-                    sectionStatus={selected.section_status}
-                    limitations={[
-                      ...new Set([
-                        ...metadata.limitations,
-                        ...selected.current_meter.limitations,
-                        ...selected.distributed_generation.limitations,
-                      ]),
-                    ]}
-                    onSelectHistory={actions.onSelectHistory}
-                  />
-                  <button
-                    type="button"
-                    onClick={actions.onNewSearch}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control px-4 text-sm text-content"
-                  >
-                    <Search size={16} aria-hidden="true" />
-                    Nova busca
-                  </button>
-                </div>
-              </section>
-              <details
+              <div
                 ref={disclosureRef}
-                open={unit.filters.historyOpen}
-                onToggle={(event) =>
-                  actions.onHistoryOpen(event.currentTarget.open)
-                }
-                className="grid min-w-0 gap-3 rounded-xl bg-surface p-4 sm:p-5"
+                className="min-w-0 rounded-xl bg-surface"
               >
-                <summary className="cursor-pointer font-heading text-lg font-semibold">
-                  Consultar históricos
-                </summary>
                 <HistoryPanel
                   section={unit.filters.section || "consumption"}
                   history={unit.history.data}
@@ -244,7 +253,25 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                   onSelectSection={actions.onHistorySection}
                   onPageChange={actions.onHistoryPage}
                 />
-              </details>
+                <div className="grid gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
+                  <p className="text-sm text-content">
+                    {currentMeterMessage(
+                      selected.current_meter.item,
+                      selected.current_meter.status,
+                    )}
+                  </p>
+                  {unit.filters.section === "distributed_generation" && (
+                    <UC360SupportMetrics data={selected} />
+                  )}
+                </div>
+              </div>
+              <UC360Series
+                data={unit.series.data}
+                previous={unit.previousSeries}
+                pending={unit.series.pending}
+                error={unit.series.error}
+                onRetry={actions.onSeriesRetry}
+              />
               {unit.overview.fetching && !unit.overview.pending && (
                 <p role="status" className="text-sm text-muted">
                   Atualizando período…

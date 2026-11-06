@@ -191,7 +191,7 @@ it("mantém informações úteis da UC sem expor identificadores técnicos", () 
   };
   render(
     <UC360Detail
-      disclosureRef={createRef<HTMLDetailsElement>()}
+      disclosureRef={createRef<HTMLDivElement>()}
       unit={{
         id: "FAKE-A",
         overview: {
@@ -205,7 +205,7 @@ it("mantém informações úteis da UC sem expor identificadores técnicos", () 
         filters: {
           start: period.start,
           end: period.end,
-          section: "consumption",
+          section: "distributed_generation",
           historyPage: 1,
           invalid: false,
           historyOpen: false,

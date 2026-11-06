@@ -1,9 +1,11 @@
 import { useId, useRef, useState, type FormEvent } from "react";
+import { SlidersHorizontal } from "lucide-react";
+import Button from "@/shared/ui/Button";
+import Modal from "@/shared/ui/Modal";
+import MonthYearField from "@/shared/ui/MonthYearField";
 import type { UCPeriod } from "./contract";
 import { formatUCCompetence } from "./uc360-format";
 
-const inputClass =
-  "min-h-11 rounded-lg border border-control bg-canvas px-3 text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 const validCompetence = /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/;
 
 type ValidationError = { message: string; start: boolean; end: boolean };
@@ -15,12 +17,63 @@ type Props = {
   onApply: (start: string, end: string) => void;
 };
 
-export default function UC360PeriodForm({
-  appliedStart,
-  appliedEnd,
-  period,
-  onApply,
-}: Props) {
+export default function UC360PeriodForm(props: Props) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <section
+        aria-label="Período consultado"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-surface p-4 sm:p-5"
+      >
+        <div className="flex flex-wrap gap-x-16 gap-y-3">
+          <div>
+            <p className="text-sm text-muted">Início</p>
+            <p className="font-medium text-content">
+              {formatUCCompetence(props.period.start)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted">Fim</p>
+            <p className="font-medium text-content">
+              {formatUCCompetence(props.period.end)}
+            </p>
+          </div>
+        </div>
+        <Button
+          ref={triggerRef}
+          variant="control"
+          onClick={() => setOpen(true)}
+          leftIcon={<SlidersHorizontal size={16} aria-hidden="true" />}
+        >
+          Ajustar filtros
+        </Button>
+      </section>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        triggerRef={triggerRef}
+        title="Ajustar filtros"
+        description="Escolha o período para consultar a unidade."
+        closeLabel="Fechar filtros"
+        size="md"
+        header="inline"
+      >
+        {open && (
+          <PeriodFields
+            {...props}
+            onApply={(start, end) => {
+              props.onApply(start, end);
+              setOpen(false);
+            }}
+          />
+        )}
+      </Modal>
+    </>
+  );
+}
+
+function PeriodFields({ appliedStart, appliedEnd, period, onApply }: Props) {
   const applied = `${appliedStart}/${appliedEnd}`;
   const [draft, setDraft] = useState({
     applied,
@@ -28,8 +81,6 @@ export default function UC360PeriodForm({
     end: appliedEnd || period.end,
   });
   const [validation, setValidation] = useState<ValidationError | null>(null);
-  const startId = useId();
-  const endId = useId();
   const validationId = useId();
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
@@ -63,53 +114,47 @@ export default function UC360PeriodForm({
       aria-label="Período da consulta"
       className="grid gap-3 rounded-xl border border-control bg-surface p-4 sm:p-5"
     >
-      <div>
-        <h2 className="font-heading text-base font-semibold text-content">
-          Período consultado
-        </h2>
-        <p className="mt-1 text-xs text-muted">
-          Escolha o período para atualizar o consumo, os valores e os
-          históricos.
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-heading text-base font-semibold text-content">
+            Período consultado
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            Escolha o período para atualizar o consumo, os valores e os
+            históricos.
+          </p>
+        </div>
+        <p className="w-fit rounded-md bg-canvas px-3 py-2 text-sm text-content">
+          <span className="font-medium">Período aplicado:</span>{" "}
+          {formatUCCompetence(period.start)} a {formatUCCompetence(period.end)}
         </p>
       </div>
       <fieldset
         role="group"
         aria-label="Selecionar período"
-        className="flex min-w-0 flex-wrap items-end gap-3"
+        className="flex min-w-0 flex-wrap items-end justify-between gap-3"
       >
         <legend className="sr-only">Selecionar período</legend>
-        <label className="grid gap-1 text-xs font-medium text-muted">
-          Início
-          <input
-            ref={startInputRef}
-            id={startId}
-            className={inputClass}
-            aria-label="Competência inicial"
-            aria-invalid={validation?.start || undefined}
-            aria-describedby={validation?.start ? validationId : undefined}
-            type="month"
-            value={start}
-            onChange={(event) =>
-              setDraft({ applied, start: event.target.value, end })
-            }
-          />
-        </label>
-        <label className="grid gap-1 text-xs font-medium text-muted">
-          Fim
-          <input
-            ref={endInputRef}
-            id={endId}
-            className={inputClass}
-            aria-label="Competência final"
-            aria-invalid={validation?.end || undefined}
-            aria-describedby={validation?.end ? validationId : undefined}
-            type="month"
-            value={end}
-            onChange={(event) =>
-              setDraft({ applied, start, end: event.target.value })
-            }
-          />
-        </label>
+        <MonthYearField
+          label="Início"
+          monthLabel="Mês inicial"
+          yearLabel="Ano inicial"
+          value={start}
+          yearRef={startInputRef}
+          invalid={validation?.start}
+          describedBy={validation?.start ? validationId : undefined}
+          onChange={(value) => setDraft({ applied, start: value, end })}
+        />
+        <MonthYearField
+          label="Fim"
+          monthLabel="Mês final"
+          yearLabel="Ano final"
+          value={end}
+          yearRef={endInputRef}
+          invalid={validation?.end}
+          describedBy={validation?.end ? validationId : undefined}
+          onChange={(value) => setDraft({ applied, start, end: value })}
+        />
         <button
           className="min-h-11 rounded-lg bg-content px-4 text-sm font-medium text-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           type="submit"
@@ -117,10 +162,6 @@ export default function UC360PeriodForm({
           Aplicar período
         </button>
       </fieldset>
-      <p className="w-fit rounded-md bg-canvas px-3 py-2 text-sm text-content">
-        <span className="font-medium">Período aplicado:</span>{" "}
-        {formatUCCompetence(period.start)} a {formatUCCompetence(period.end)}
-      </p>
       {validation && (
         <span
           id={validationId}
