@@ -178,7 +178,7 @@ def test_fat09_con06_compare_only_the_two_requested_months(label, metric, initia
 
 def test_con07_ranks_neighborhoods_by_change_instead_of_final_consumption():
     core, request = _setup(
-        "Qual bairro de Olinda mais perdeu volume residencial "
+        "Qual bairro de Olinda mais perdeu consumo medido residencial "
         "entre janeiro de 2025 e março de 2025?"
     )
     with InProcessClient(_application(core)) as client:
