@@ -245,33 +245,35 @@ export default function InspecoesPage() {
             </>
           ) : queue.data ? (
             <>
-              {queue.data.metadata.contract_version !== "2.0.0" ? (
-                <aside
-                  className="flex flex-col items-start justify-center gap-1 rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
-                  aria-label="Prioridade demonstrativa"
-                >
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {metadata.source.is_demo
-                        ? "Prioridade demonstrativa"
-                        : "Prioridade publicada"}
-                    </p>
-                    <p className="mt-1 text-sm leading-[22px]">
-                      {metadata.source.is_demo
-                        ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
-                        : "A fila não informa uma janela temporal própria. A fonte não fornece estimativa individual de energia recuperável."}
-                    </p>
-                  </div>
-                </aside>
-              ) : null}
+              <div className="flex flex-wrap items-end gap-3">
+                {queue.data.metadata.contract_version !== "2.0.0" ? (
+                  <aside
+                    className="flex w-full min-w-0 flex-col items-start justify-center gap-1 rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)] md:w-auto md:flex-1"
+                    aria-label="Prioridade demonstrativa"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {metadata.source.is_demo
+                          ? "Prioridade demonstrativa"
+                          : "Prioridade publicada"}
+                      </p>
+                      <p className="mt-1 text-sm leading-[22px]">
+                        {metadata.source.is_demo
+                          ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
+                          : "A fila não informa uma janela temporal própria. A fonte não fornece estimativa individual de energia recuperável."}
+                      </p>
+                    </div>
+                  </aside>
+                ) : null}
+                {parsed ? (
+                  <FieldFiles mode="export" request={parsed.request} />
+                ) : null}
+              </div>
               <InspectionQueue
                 result={queue.data}
                 params={params}
                 onChange={setParams}
               />
-              {parsed ? (
-                <FieldFiles mode="export" request={parsed.request} />
-              ) : null}
             </>
           ) : null}
 

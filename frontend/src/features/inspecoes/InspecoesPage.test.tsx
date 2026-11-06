@@ -1448,3 +1448,39 @@ it.each([
     expect(request.searchParams.get("page_size")).toBe(size);
   },
 );
+
+it("mostra só o botão de exportar entre o aviso e a tabela da fila", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(envelope())),
+  );
+  mount("/inspecoes");
+
+  const table = await screen.findByRole("table", { name: /Suspeitas/ });
+  const notice = screen.getByRole("complementary", {
+    name: "Prioridade demonstrativa",
+  });
+  const button = screen.getByRole("button", { name: "Exportar fila" });
+  const follows = (first: Element, second: Element) =>
+    first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING;
+  expect(follows(notice, button)).toBeTruthy();
+  expect(follows(button, table)).toBeTruthy();
+  expect(screen.queryByText("Enviar a fila para a equipe")).toBeNull();
+  expect(screen.queryByText(/Prepare a fila de inspeção/)).toBeNull();
+});
+
+it("mantém o botão de exportar antes da tabela na fila Gold", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldQueue)),
+  );
+  mount("/inspecoes");
+
+  const header = await screen.findByRole("columnheader", {
+    name: "Posição / UC / categoria",
+  });
+  const button = screen.getByRole("button", { name: "Exportar fila" });
+  expect(
+    button.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
