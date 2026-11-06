@@ -27,9 +27,13 @@ export interface VisualEvidenceData {
 export default function VisualEvidence({
   data,
   canExport = () => true,
+  exportsEnabled = true,
+  tableEnabled = true,
 }: {
   data: VisualEvidenceData;
   canExport?: () => boolean | Promise<boolean>;
+  exportsEnabled?: boolean;
+  tableEnabled?: boolean;
 }) {
   const id = useId();
   const svg = useRef<SVGSVGElement>(null);
@@ -135,20 +139,22 @@ export default function VisualEvidence({
             {data.scope}
           </p>
         </div>
-        <button
-          type="button"
-          aria-expanded={table}
-          aria-controls={`${id}-table`}
-          onClick={() => setTable(!table)}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-divider px-3 text-xs font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-brand"
-        >
-          <Table2 className="size-4" aria-hidden="true" />
-          {table
-            ? "Ocultar tabela"
-            : tablePoints.length > data.points.length
-              ? `Ver lista completa (${tablePoints.length})`
-              : "Ver tabela"}
-        </button>
+        {tableEnabled && (
+          <button
+            type="button"
+            aria-expanded={table}
+            aria-controls={`${id}-table`}
+            onClick={() => setTable(!table)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-divider px-3 text-xs font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-brand"
+          >
+            <Table2 className="size-4" aria-hidden="true" />
+            {table
+              ? "Ocultar tabela"
+              : tablePoints.length > data.points.length
+                ? `Ver lista completa (${tablePoints.length})`
+                : "Ver tabela"}
+          </button>
+        )}
       </div>
       <ChartBoundary>
         {comparable ? (
@@ -404,31 +410,33 @@ export default function VisualEvidence({
           )}
         </div>
       )}
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-divider pt-3">
-        {comparable && (
+      {exportsEnabled && (
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-divider pt-3">
+          {comparable && (
+            <button
+              type="button"
+              disabled={exporting}
+              onClick={() => void download("png")}
+              className="inline-flex min-h-10 items-center gap-2 rounded-md px-1 text-xs font-semibold text-brand focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50"
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Baixar gráfico (PNG)
+            </button>
+          )}
           <button
             type="button"
             disabled={exporting}
-            onClick={() => void download("png")}
+            onClick={() => void download("csv")}
             className="inline-flex min-h-10 items-center gap-2 rounded-md px-1 text-xs font-semibold text-brand focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50"
           >
             <Download className="size-4" aria-hidden="true" />
-            Baixar gráfico (PNG)
+            Baixar dados (CSV)
           </button>
-        )}
-        <button
-          type="button"
-          disabled={exporting}
-          onClick={() => void download("csv")}
-          className="inline-flex min-h-10 items-center gap-2 rounded-md px-1 text-xs font-semibold text-brand focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50"
-        >
-          <Download className="size-4" aria-hidden="true" />
-          Baixar dados (CSV)
-        </button>
-        <span className="text-xs text-muted">
-          {data.isDemo ? "Dados de demonstração" : "Fonte de dados interna"}
-        </span>
-      </div>
+          <span className="text-xs text-muted">
+            {data.isDemo ? "Dados de demonstração" : "Fonte de dados interna"}
+          </span>
+        </div>
+      )}
       {error && (
         <p role="alert" className="mt-2 text-sm text-[var(--status-danger)]">
           {error}

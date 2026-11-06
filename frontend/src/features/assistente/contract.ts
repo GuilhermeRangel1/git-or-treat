@@ -1,5 +1,6 @@
 import {
   decodeChatVisualization,
+  sqlAnalysisVisualization,
   type ChatVisualization,
 } from "./visualization";
 export type AIConversationTurn = {
@@ -27,6 +28,34 @@ export type AIEvidenceReference = {
 export type AIQuestionError = {
   code: string;
   retryable: boolean;
+};
+
+export type SqlAnalysisPresentation = {
+  contract_version: "text-to-sql-f1-presentation-v1";
+  state: "ready" | "empty" | "all_measures_null";
+  operation:
+    "total" | "monthly_series" | "grouped_total" | "ranking" | "comparison";
+  answer: string;
+  period: string;
+  filters: string[];
+  universe: string[];
+  limitations: string[];
+  columns: {
+    key: string;
+    label: string;
+    role: "dimension" | "measure";
+    semantic_id:
+      | "competency"
+      | "municipality"
+      | "consumption_class"
+      | "revenue_total"
+      | "period_0_total"
+      | "period_1_total"
+      | "period_0_minus_period_1";
+    unit: "R$" | null;
+  }[];
+  rows: { observation_id: string; cells: (string | null)[] }[];
+  evidence_digest: string;
 };
 
 export type AIAnalysisContext = {
@@ -59,6 +88,8 @@ export type AIQuestionResponse = {
   analysis_context?: AIAnalysisContext | null;
   continuation_token?: string | null;
   visualization?: ChatVisualization;
+  sql_analysis_mode?: boolean;
+  sql_presentation?: SqlAnalysisPresentation;
 };
 
 export type AIQuestionErrorResponse = {
@@ -71,6 +102,9 @@ export type AIQuestionErrorResponse = {
 
 const IDENTIFIER = /^[a-z][a-z0-9]*(?:[._:-][a-z0-9]+)*$/;
 const CORRELATION_ID = /^[a-f0-9]{32}$/;
+const SQL_F1_LIMITATIONS = [
+  "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -294,6 +328,295 @@ export function decodeAIQuestionResponse(value: unknown): AIQuestionResponse {
     continuation_token: continuationToken as string | null | undefined,
     ...(visualization ? { visualization } : {}),
   };
+}
+
+function decodeSqlAnalysisPresentation(
+  value: unknown,
+): SqlAnalysisPresentation {
+  const fail = (): never => {
+    throw new Error("Resposta Text-to-SQL inválida.");
+  };
+  if (!isRecord(value)) return fail();
+  const keys = [
+    "contract_version",
+    "state",
+    "operation",
+    "answer",
+    "period",
+    "filters",
+    "universe",
+    "limitations",
+    "columns",
+    "rows",
+    "evidence_digest",
+  ];
+  if (
+    Object.keys(value).some((key) => !keys.includes(key)) ||
+    value.contract_version !== "text-to-sql-f1-presentation-v1" ||
+    !["ready", "empty", "all_measures_null"].includes(String(value.state)) ||
+    ![
+      "total",
+      "monthly_series",
+      "grouped_total",
+      "ranking",
+      "comparison",
+    ].includes(String(value.operation)) ||
+    !isText(value.answer, 4000) ||
+    !isText(value.period, 100) ||
+    !Array.isArray(value.filters) ||
+    value.filters.length > 20 ||
+    !value.filters.every((filter) => isText(filter, 500)) ||
+    !Array.isArray(value.universe) ||
+    value.universe.length > 3 ||
+    !value.universe.every((item) => isText(item, 250)) ||
+    !Array.isArray(value.limitations) ||
+    JSON.stringify(value.limitations) !== JSON.stringify(SQL_F1_LIMITATIONS) ||
+    !/^[a-f0-9]{64}$/.test(String(value.evidence_digest)) ||
+    !Array.isArray(value.columns) ||
+    value.columns.length < 1 ||
+    value.columns.length > 32 ||
+    !Array.isArray(value.rows) ||
+    value.rows.length > 100
+  )
+    return fail();
+  const columns = value.columns.map((item) => {
+    if (
+      !isRecord(item) ||
+      Object.keys(item).some(
+        (key) => !["key", "label", "role", "semantic_id", "unit"].includes(key),
+      ) ||
+      !isText(item.key, 120) ||
+      !isText(item.label, 120) ||
+      !["dimension", "measure"].includes(String(item.role)) ||
+      ![
+        "competency",
+        "municipality",
+        "consumption_class",
+        "revenue_total",
+        "period_0_total",
+        "period_1_total",
+        "period_0_minus_period_1",
+      ].includes(String(item.semantic_id)) ||
+      (item.unit !== null && item.unit !== "R$") ||
+      (item.role === "measure") !== (item.unit === "R$")
+    )
+      return fail();
+    return item as SqlAnalysisPresentation["columns"][number];
+  });
+  if (
+    new Set(columns.map((column) => column.key)).size !== columns.length ||
+    columns.some(
+      (column) =>
+        (column.role === "dimension") !==
+        ["competency", "municipality", "consumption_class"].includes(
+          column.semantic_id,
+        ),
+    )
+  )
+    return fail();
+  const rows = value.rows.map((item, index) => {
+    if (
+      !isRecord(item) ||
+      Object.keys(item).some(
+        (key) => !["observation_id", "cells"].includes(key),
+      ) ||
+      item.observation_id !== `row_${index + 1}` ||
+      !Array.isArray(item.cells) ||
+      item.cells.length !== columns.length ||
+      !item.cells.every(
+        (cell, cellIndex) =>
+          cell === null ||
+          (typeof cell === "string" &&
+            cell.length <= 16384 &&
+            (columns[cellIndex].role !== "measure" ||
+              /^-?(?:0|[1-9][0-9]{0,100})(?:\.[0-9]{1,100})?$/.test(cell))),
+      )
+    )
+      return fail();
+    return item as SqlAnalysisPresentation["rows"][number];
+  });
+  if (value.state === "empty" && rows.length !== 0) return fail();
+  const measureIndexes = columns.flatMap((column, index) =>
+    column.role === "measure" ? [index] : [],
+  );
+  const hasMeasureValue = rows.some((row) =>
+    measureIndexes.some((index) => row.cells[index] !== null),
+  );
+  if (
+    (value.state === "ready" && (!rows.length || !hasMeasureValue)) ||
+    (value.state === "all_measures_null" && (!rows.length || hasMeasureValue))
+  )
+    return fail();
+  return {
+    contract_version: "text-to-sql-f1-presentation-v1",
+    state: value.state as SqlAnalysisPresentation["state"],
+    operation: value.operation as SqlAnalysisPresentation["operation"],
+    answer: value.answer,
+    period: value.period,
+    filters: value.filters as string[],
+    universe: value.universe as string[],
+    limitations: value.limitations as string[],
+    columns,
+    rows,
+    evidence_digest: value.evidence_digest as string,
+  };
+}
+
+export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
+  const fail = (): never => {
+    throw new Error("Resposta Text-to-SQL inválida.");
+  };
+  if (
+    !isRecord(value) ||
+    Object.keys(value).some(
+      (key) =>
+        ![
+          "correlation_id",
+          "audit_reference",
+          "status",
+          "evidence",
+          "presentation",
+          "clarification",
+          "unsupported_reason",
+        ].includes(key),
+    ) ||
+    !/^[a-f0-9]{32}$/.test(String(value.correlation_id))
+  )
+    return fail();
+  if (value.status === "answered") {
+    const evidence = value.evidence;
+    if (
+      !isRecord(evidence) ||
+      typeof value.audit_reference !== "string" ||
+      !/^[a-f0-9]{32}$/.test(value.audit_reference) ||
+      typeof evidence.batch_ref !== "string" ||
+      !evidence.batch_ref.startsWith("gold-csv-v2:") ||
+      evidence.batch_ref.length > 200 ||
+      typeof evidence.evidence_digest !== "string" ||
+      !/^[a-f0-9]{64}$/.test(evidence.evidence_digest) ||
+      !Array.isArray(evidence.columns) ||
+      !Array.isArray(evidence.rows)
+    )
+      return fail();
+    const evidenceColumns = evidence.columns as unknown[];
+    const evidenceRows = evidence.rows as unknown[];
+    const presentation = decodeSqlAnalysisPresentation(value.presentation);
+    if (
+      presentation.evidence_digest !== evidence.evidence_digest ||
+      presentation.columns.length !== evidenceColumns.length ||
+      presentation.rows.length !== evidenceRows.length ||
+      presentation.columns.some((column, index) => {
+        const sourceColumn = evidenceColumns[index];
+        return (
+          !isRecord(sourceColumn) ||
+          column.key !== sourceColumn.name ||
+          column.role !== sourceColumn.role ||
+          column.unit !== sourceColumn.unit
+        );
+      }) ||
+      presentation.rows.some((row, index) => {
+        const sourceRow = evidenceRows[index];
+        return (
+          !Array.isArray(sourceRow) ||
+          sourceRow.length !== row.cells.length ||
+          row.cells.some((cell, cellIndex) => cell !== sourceRow[cellIndex])
+        );
+      })
+    )
+      return fail();
+    const rawVisualization = sqlAnalysisVisualization(presentation);
+    const analysisContext: AIAnalysisContext = {
+      batch_reference: evidence.batch_ref,
+      metric: "billing.revenue",
+      metric_label: "Faturamento",
+      unit: "R$",
+      period: presentation.period,
+      filters: {},
+    };
+    const base = decodeAIQuestionResponse({
+      contract_version: "v1",
+      correlation_id: value.correlation_id,
+      audit_reference: value.audit_reference,
+      status: "answered",
+      answer: presentation.answer,
+      evidence: [
+        {
+          source: "gold.local",
+          description: "Faturamento na publicação Gold v2.",
+          is_demo: false,
+        },
+      ],
+      limitations: [
+        ...presentation.limitations,
+        ...(presentation.state === "ready"
+          ? []
+          : [
+              presentation.state === "empty"
+                ? "A consulta não retornou linhas para o recorte."
+                : "As linhas retornadas não contêm valores de faturamento disponíveis.",
+            ]),
+      ],
+      analysis_context: analysisContext,
+      ...(rawVisualization ? { visualization: rawVisualization } : {}),
+    });
+    return { ...base, sql_analysis_mode: true, sql_presentation: presentation };
+  }
+  if (value.status === "needs_clarification") {
+    if (
+      !isRecord(value.clarification) ||
+      typeof value.audit_reference !== "string" ||
+      !/^[a-f0-9]{32}$/.test(value.audit_reference) ||
+      !isText(value.clarification.question, 1000) ||
+      (value.evidence !== undefined && value.evidence !== null) ||
+      (value.presentation !== undefined && value.presentation !== null) ||
+      (value.unsupported_reason !== undefined &&
+        value.unsupported_reason !== null)
+    )
+      return fail();
+    return {
+      ...decodeAIQuestionResponse({
+        contract_version: "v1",
+        correlation_id: value.correlation_id,
+        audit_reference: value.audit_reference,
+        status: "needs_clarification",
+        message: value.clarification.question,
+        evidence: [],
+        limitations: [],
+      }),
+      sql_analysis_mode: true,
+    };
+  }
+  if (value.status === "unsupported") {
+    if (
+      !isRecord(value.unsupported_reason) ||
+      typeof value.audit_reference !== "string" ||
+      !/^[a-f0-9]{32}$/.test(value.audit_reference) ||
+      !isText(value.unsupported_reason.message, 1000) ||
+      ![
+        "metric_outside_f1",
+        "operation_outside_f1",
+        "source_outside_f1",
+      ].includes(String(value.unsupported_reason.code)) ||
+      (value.evidence !== undefined && value.evidence !== null) ||
+      (value.presentation !== undefined && value.presentation !== null) ||
+      (value.clarification !== undefined && value.clarification !== null)
+    )
+      return fail();
+    return {
+      ...decodeAIQuestionResponse({
+        contract_version: "v1",
+        correlation_id: value.correlation_id,
+        audit_reference: value.audit_reference,
+        status: "refused",
+        message: value.unsupported_reason.message,
+        error: { code: "unsupported_operation", retryable: false },
+        evidence: [],
+        limitations: [],
+      }),
+      sql_analysis_mode: true,
+    };
+  }
+  return fail();
 }
 
 export function decodeAIQuestionErrorResponse(

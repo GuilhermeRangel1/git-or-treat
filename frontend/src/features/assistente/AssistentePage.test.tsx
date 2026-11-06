@@ -51,7 +51,107 @@ function renderPage() {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   resetGoldPublication();
+});
+
+it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resposta", async () => {
+  vi.stubEnv("VITE_GENAI_SQL_ANALYSIS_ENABLED", "true");
+  const response = {
+    correlation_id: "0123456789abcdef0123456789abcdef",
+    audit_reference: "abcdef0123456789abcdef0123456789",
+    status: "answered",
+    evidence: {
+      batch_ref:
+        "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+      evidence_digest: "a".repeat(64),
+      columns: [
+        { name: "municipality", role: "dimension", unit: null },
+        { name: "revenue", role: "measure", unit: "R$" },
+      ],
+      rows: [
+        ["Recife", "1234.50"],
+        ["Olinda", "975.25"],
+      ],
+    },
+    presentation: {
+      contract_version: "text-to-sql-f1-presentation-v1",
+      state: "ready",
+      operation: "grouped_total",
+      answer: "O faturamento por município está detalhado na tabela.",
+      period: "2025-01 a 2025-12",
+      filters: ["Classe de consumo: Residencial"],
+      universe: ["Municípios: todos os valores disponíveis no recorte"],
+      limitations: [
+        "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
+      ],
+      columns: [
+        {
+          key: "municipality",
+          label: "Município",
+          role: "dimension",
+          semantic_id: "municipality",
+          unit: null,
+        },
+        {
+          key: "revenue",
+          label: "Faturamento",
+          role: "measure",
+          semantic_id: "revenue_total",
+          unit: "R$",
+        },
+      ],
+      rows: [
+        { observation_id: "row_1", cells: ["Recife", "1234.50"] },
+        { observation_id: "row_2", cells: ["Olinda", "975.25"] },
+      ],
+      evidence_digest: "a".repeat(64),
+    },
+  };
+  const fetchMock = vi.fn().mockResolvedValue(jsonResponse(response));
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+
+  const toggle = screen.getByRole("checkbox", {
+    name: "Testar faturamento F1",
+  });
+  await user.click(toggle);
+  await user.type(
+    screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+    "Quanto foi o faturamento por município em 2025?",
+  );
+  await user.keyboard("{Enter}");
+
+  expect(await screen.findByText(response.presentation.answer)).toBeVisible();
+  const resultTable = screen.getByRole("table");
+  expect(resultTable).toBeVisible();
+  expect(within(resultTable).getByText("R$ 1.234,50")).toBeVisible();
+  expect(within(resultTable).getByText("R$ 975,25")).toBeVisible();
+  expect(screen.getAllByText(/Universo: Municípios: todos/)).toHaveLength(2);
+  expect(
+    screen.getByText(/não confirma recebimento ou pagamento/),
+  ).toBeVisible();
+  expect(
+    screen.getByLabelText("Resultados em tabela; use as setas para rolar"),
+  ).toHaveAttribute("tabindex", "0");
+  expect(
+    screen.getByText(
+      /Fonte: Diagnóstico de receita · Gold v2, publicação de 06\/11\/2026/,
+    ),
+  ).toBeVisible();
+  expect(screen.getByText(/Registro de auditoria confirmado/)).toBeVisible();
+  expect(
+    screen.getByRole("region", { name: "Faturamento por município" }),
+  ).toBeVisible();
+  const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/v1/ai/sql-analyses");
+  expect(JSON.parse(String(options.body))).toEqual({
+    contract_version: "v1",
+    question: "Quanto foi o faturamento por município em 2025?",
+    context: [],
+  });
+  expect(toggle).toBeDisabled();
 });
 
 it.each(["success", "model_failure", "denied"])(

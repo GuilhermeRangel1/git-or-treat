@@ -1,4 +1,5 @@
 import type { AIAnalysisContext } from "./contract";
+import type { SqlAnalysisPresentation } from "./contract";
 import {
   decodeVisualReading,
   type VisualReading,
@@ -226,5 +227,118 @@ export function chatChartPoints(
       percentage: p.percentage,
     })),
     tablePoints,
+  };
+}
+
+const SQL_DIMENSION_IDS: Record<string, string> = {
+  competency: "time.competency",
+  municipality: "geography.municipality",
+  consumption_class: "customer.consumption_class",
+};
+
+/** Derives chart geometry from the exact rows shown in the F1 table. */
+export function sqlAnalysisVisualization(
+  presentation: SqlAnalysisPresentation,
+): ChatVisualization | undefined {
+  const kind =
+    presentation.operation === "monthly_series"
+      ? "line"
+      : presentation.operation === "ranking"
+        ? "horizontal"
+        : presentation.operation === "grouped_total"
+          ? "bars"
+          : undefined;
+  if (!kind || presentation.state !== "ready" || !presentation.rows.length)
+    return undefined;
+  const dimensions = presentation.columns.filter(
+    (column) => column.role === "dimension",
+  );
+  const measure = presentation.columns.find(
+    (column) => column.semantic_id === "revenue_total",
+  );
+  if (!dimensions.length || !measure || measure.unit !== "R$") return undefined;
+  if (kind === "line" && dimensions.length !== 1) return undefined;
+  if (kind === "line") {
+    const monthIndexes = presentation.rows.map((row) => {
+      const value = row.cells[presentation.columns.indexOf(dimensions[0])];
+      const match = value?.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+      return match ? Number(match[1]) * 12 + Number(match[2]) - 1 : Number.NaN;
+    });
+    if (
+      monthIndexes.some(
+        (month, index) =>
+          !Number.isFinite(month) ||
+          (index > 0 && month !== monthIndexes[index - 1] + 1),
+      )
+    )
+      return undefined;
+  }
+  const precision = Math.max(
+    0,
+    ...presentation.rows.map((row) => {
+      const value = row.cells[presentation.columns.indexOf(measure)];
+      return value?.split(".")[1]?.length ?? 0;
+    }),
+  );
+  if (precision > 6) return undefined;
+  const safeIntegerLimit = BigInt(Number.MAX_SAFE_INTEGER);
+  if (
+    presentation.rows.some((row) => {
+      const value = row.cells[presentation.columns.indexOf(measure)];
+      if (value === null) return true;
+      const [integer, fraction = ""] = value.split(".");
+      const scaled = BigInt(`${integer}${fraction.padEnd(precision, "0")}`);
+      return scaled > safeIntegerLimit || scaled < -safeIntegerLimit;
+    })
+  )
+    return undefined;
+  const points = presentation.rows.map((row) => {
+    const value = row.cells[presentation.columns.indexOf(measure)];
+    const numeric = value === null ? Number.NaN : Number(value);
+    return {
+      observation_id: row.observation_id,
+      label: dimensions
+        .map((dimension) => {
+          const cell = row.cells[presentation.columns.indexOf(dimension)];
+          return cell ?? "Sem identificação";
+        })
+        .join(" · "),
+      value: numeric,
+    };
+  });
+  if (
+    points.some((point) => !Number.isFinite(point.value)) ||
+    presentation.rows.some((row) => {
+      const value = row.cells[presentation.columns.indexOf(measure)];
+      return value === null || Number(value).toFixed(precision) !== value;
+    })
+  )
+    return undefined;
+  const dimensionIds = dimensions.map(
+    (column) => SQL_DIMENSION_IDS[column.semantic_id],
+  );
+  if (dimensionIds.some((id) => !id)) return undefined;
+  const plotPoints = kind === "line" ? points.slice(-24) : points.slice(0, 24);
+  return {
+    contract_version: "v1",
+    kind,
+    metric: "billing.revenue",
+    title:
+      kind === "line"
+        ? "Faturamento mensal"
+        : kind === "horizontal"
+          ? "Ranking de faturamento"
+          : `Faturamento por ${dimensions.map((item) => item.label.toLocaleLowerCase("pt-BR")).join(" e ")}`,
+    unit: measure.unit,
+    dimension_ids: dimensionIds,
+    precision,
+    period: presentation.period,
+    category_label: dimensions.map((item) => item.label).join(" · "),
+    note:
+      points.length > plotPoints.length
+        ? `Gráfico com ${plotPoints.length} de ${points.length} linhas; a tabela mantém todos os resultados exatos.`
+        : "Gráfico e tabela usam as mesmas linhas; a tabela preserva os valores exatos.",
+    points,
+    plot_points: plotPoints,
   };
 }

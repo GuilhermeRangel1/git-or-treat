@@ -108,7 +108,11 @@ services:
     logging: *logging
 
   frontend:
-    build: {context: ., dockerfile: frontend/Dockerfile}
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_GENAI_SQL_ANALYSIS_ENABLED: ${VITE_GENAI_SQL_ANALYSIS_ENABLED:-false}
     ports: ["127.0.0.1:5173:5173"]
     depends_on:
       backend: {condition: service_healthy}
