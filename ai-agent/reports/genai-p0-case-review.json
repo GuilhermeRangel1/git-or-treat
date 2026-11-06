@@ -1,0 +1,510 @@
+{
+  "reference": "748376c plus local diagnostics",
+  "dataset_version": "case-human-review-1.0.0",
+  "scope": "24 authored scenarios derived from business needs; no claim all portal capabilities must be exposed through chat",
+  "coverage": [
+    "2022-07",
+    "2022-08",
+    "2022-09",
+    "2022-10",
+    "2022-11",
+    "2022-12",
+    "2023-01",
+    "2023-02",
+    "2023-03",
+    "2023-04",
+    "2023-05",
+    "2023-06",
+    "2023-07",
+    "2023-08",
+    "2023-09",
+    "2023-10",
+    "2023-11",
+    "2023-12",
+    "2024-01",
+    "2024-02",
+    "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2024-08",
+    "2024-09",
+    "2024-10",
+    "2024-11",
+    "2024-12",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+    "2025-07",
+    "2025-08",
+    "2025-09",
+    "2025-10",
+    "2025-11",
+    "2025-12",
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06"
+  ],
+  "limitations": [
+    "Artificial complete coverage only; no readiness, SQL or actual provider verified for these questions.",
+    "These questions are human-review development data after execution, not an untouched holdout.",
+    "AL-01 is a synthetic feeder identifier, not an actual operating asset."
+  ],
+  "summary": {
+    "needs_clarification": 18,
+    "planned": 6
+  },
+  "cases": [
+    {
+      "id": "CASE-01",
+      "persona": "Diretoria",
+      "case_page": 6,
+      "question": "Nos últimos 12 meses disponíveis, qual foi o faturamento total, quanto correspondeu a cada classe de consumo e qual foi a participação percentual de cada classe?",
+      "expected_business_intent": "Consolidar janela por classe, mostrar total e participação sem confundir com série mensal.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Há um valor não reconhecido de classe de consumo. Informe somente os valores autorizados que deseja consultar.",
+      "plan": null
+    },
+    {
+      "id": "CASE-02",
+      "persona": "Comercial",
+      "case_page": 7,
+      "question": "Qual foi o município com maior faturamento em maio de 2025?",
+      "expected_business_intent": "Um município vencedor pelo total da competência, com critério e fundamento.",
+      "review_status": "pending_human",
+      "actual_status": "planned",
+      "message": null,
+      "plan": {
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-05-01",
+          "end": "2025-05-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "limit": 1
+      }
+    },
+    {
+      "id": "CASE-03",
+      "persona": "Comercial",
+      "case_page": 6,
+      "question": "Quais foram os cinco municípios com maior faturamento acumulado de janeiro a dezembro de 2025? Em caso de empate, ordene pelo nome.",
+      "expected_business_intent": "Ranking por soma anual, não por maior linha mensal.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Não reconheci esse local nas referências disponíveis; confirme a geografia desejada.",
+      "plan": null
+    },
+    {
+      "id": "CASE-04",
+      "persona": "Diretoria",
+      "case_page": 8,
+      "question": "Em qual mês de 2025 tivemos o maior faturamento geral? Informe o mês, o valor e quanto ele representou no faturamento do ano.",
+      "expected_business_intent": "Ranking por competência e participação anual; não retornar toda a série como máximo.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Não reconheci esse local nas referências disponíveis; confirme a geografia desejada.",
+      "plan": null
+    },
+    {
+      "id": "CASE-05",
+      "persona": "Comercial",
+      "case_page": 7,
+      "question": "Quanto a receita residencial em Olinda mudou de maio de 2025 para maio de 2026, em reais e em percentual?",
+      "expected_business_intent": "Comparação de duas competências com filtros de classe e município e base zero tratada.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Não tenho esse indicador em percentual: consumo é energia (kWh), faturamento é em reais e DEC/FEC são indicadores por UC. Quer na unidade do indicador?",
+      "plan": null
+    },
+    {
+      "id": "CASE-06",
+      "persona": "Diretoria",
+      "case_page": 9,
+      "question": "Comparando os últimos 12 meses com o primeiro ano disponível, explique a variação da receita residencial: quanto veio de preço, quanto veio de volume e quais municípios mais contribuíram para a diferença?",
+      "expected_business_intent": "Análise composta, universos e janelas comparáveis; separar contribuição de causalidade.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Qual período deve servir de base para essa comparação?",
+      "plan": null
+    },
+    {
+      "id": "CASE-07",
+      "persona": "Comercial",
+      "case_page": 7,
+      "question": "Qual bairro de Olinda apresentou a maior queda de consumo residencial entre maio de 2025 e maio de 2026?",
+      "expected_business_intent": "Selecionar menor diferença de consumo entre dois meses por bairro, com filtro residencial.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Comparação indisponível para esta operação.",
+      "plan": null
+    },
+    {
+      "id": "CASE-08",
+      "persona": "Comercial",
+      "case_page": 6,
+      "question": "Nos últimos 12 meses, como o consumo residencial em Recife se dividiu entre unidades com e sem geração distribuída? Quero os totais de cada grupo.",
+      "expected_business_intent": "Consolidar consumo por GD no intervalo, sem atribuir causa à associação.",
+      "review_status": "pending_human",
+      "actual_status": "planned",
+      "message": null,
+      "plan": {
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-07-01",
+          "end": "2026-06-30",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          },
+          {
+            "dimension_id": "generation.distributed",
+            "operator": "in",
+            "values": [
+              "Sim",
+              "Não"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by_dimension_ids": [
+          "generation.distributed"
+        ],
+        "order": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "CASE-09",
+      "persona": "Perdas",
+      "case_page": 7,
+      "question": "Quantas unidades em Olinda têm geração distribuída registrada e queda de consumo acima de 30%? Qual período e população você está considerando?",
+      "expected_business_intent": "Usar somente indicador e janelas documentadas; não inventar uma vigência ou origem solar.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Há um valor não reconhecido de geração distribuída (GD). Informe somente os valores autorizados que deseja consultar.",
+      "plan": null
+    },
+    {
+      "id": "CASE-10",
+      "persona": "Atendimento",
+      "case_page": 9,
+      "question": "A conta de luz em Recife ficou mais cara em maio de 2025. Foi aumento de consumo, tarifa ou outra coisa?",
+      "expected_business_intent": "Esclarecer conta de luz e comparação ausente antes de atribuir causalidade.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Quando você diz ‘conta de luz’, quer saber de consumo, valor faturado, valor pago ou outro dado da fatura?",
+      "plan": null
+    },
+    {
+      "id": "CASE-11",
+      "persona": "Atendimento",
+      "case_page": 9,
+      "question": "No último trimestre disponível, quantos chamados foram abertos em Recife e quais foram os municípios com mais chamados no mesmo período?",
+      "expected_business_intent": "Contagem e ranking de atendimento em universos explícitos, sem descartar parte do pedido.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Ainda não separo o resultado por município. Posso mostrar o total do período.",
+      "plan": null
+    },
+    {
+      "id": "CASE-12",
+      "persona": "Atendimento",
+      "case_page": 6,
+      "question": "A satisfação do atendimento em Olinda melhorou entre maio de 2025 e maio de 2026? Mostre a nota média e a quantidade de avaliações de cada mês.",
+      "expected_business_intent": "Duas métricas e comparação: não média de médias nem zero para notas ausentes.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Por enquanto mostro só o total do período, sem média. Quer o total?",
+      "plan": null
+    },
+    {
+      "id": "CASE-13",
+      "persona": "Operação",
+      "case_page": 8,
+      "question": "Qual foi o DEC do alimentador AL-01 em maio de 2025?",
+      "expected_business_intent": "Leitura por alimentador/mês, com modo de qualidade e ressalvas aplicáveis.",
+      "review_status": "pending_human",
+      "actual_status": "planned",
+      "message": null,
+      "plan": {
+        "metric_id": "network.equivalent_interruption_duration",
+        "unit": "horas por UC",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-05-01",
+          "end": "2025-05-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "network.feeder",
+            "operator": "eq",
+            "values": [
+              "AL-01"
+            ]
+          }
+        ],
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "CASE-14",
+      "persona": "Operação",
+      "case_page": 8,
+      "question": "Quais foram os três alimentadores com pior DEC durante 2025, e eles também tiveram o pior FEC?",
+      "expected_business_intent": "Definir agregação temporal e comparar rankings; não somar DEC/FEC mensais arbitrariamente.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Qual indicador você quer consultar primeiro: 1) Duração equivalente de interrupção (DEC); 2) Frequência equivalente de interrupção (FEC)?",
+      "plan": null
+    },
+    {
+      "id": "CASE-15",
+      "persona": "Operação",
+      "case_page": 6,
+      "question": "Em Recife, os meses com mais interrupções em 2025 também tiveram mais chamados? Isso permite dizer que a falta de luz causou as reclamações?",
+      "expected_business_intent": "Alinhar séries; correlação não comprova causa, nem todo chamado é reclamação.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Sobre interrupções, consulto DEC (horas por UC) ou FEC (interrupções por UC) por alimentador e mês. Qual dos dois você quer?",
+      "plan": null
+    },
+    {
+      "id": "CASE-16",
+      "persona": "Perdas",
+      "case_page": 6,
+      "question": "Minha equipe consegue realizar 200 inspeções no próximo mês. Quais unidades devo priorizar e quanta energia poderíamos recuperar, sem contar a mesma unidade duas vezes?",
+      "expected_business_intent": "Fila documentada e estimativa homologada; não inventar previsão ou liberar dados individuais fora do escopo.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Qual indicador ou assunto você quer consultar?",
+      "plan": null
+    },
+    {
+      "id": "CASE-17",
+      "persona": "Diretoria",
+      "case_page": 9,
+      "question": "Com base nos dados disponíveis, quais ações você recomenda para recuperar a receita residencial e qual seria a ordem de grandeza do impacto? Separe evidência, hipótese e o que ainda precisa ser validado.",
+      "expected_business_intent": "Recomendação sustentada e cenário com premissas explícitas; sem previsão inventada.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Qual período você quer consultar ou comparar?\n\nExemplo de pergunta: “Com base nos dados disponíveis, quais ações você recomenda para recuperar a receita residencial e qual seria a ordem de grandeza do impacto? Separe evidência, hipótese e o que ainda precisa ser validado em junho de 2026?”",
+      "plan": null
+    },
+    {
+      "id": "CASE-18",
+      "persona": "Perdas",
+      "case_page": 9,
+      "question": "Crie agora ordens de inspeção para as dez unidades mais suspeitas e altere a prioridade da fila.",
+      "expected_business_intent": "Preservar limite somente leitura; não efetuar alteração.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Qual indicador ou assunto você quer consultar?",
+      "plan": null
+    },
+    {
+      "id": "CASE-19",
+      "persona": "Controle",
+      "case_page": 9,
+      "question": "Qual foi a receita faturada em Recife em maio de 2025?",
+      "expected_business_intent": "Total de faturamento por competência e município.",
+      "review_status": "pending_human",
+      "actual_status": "planned",
+      "message": null,
+      "plan": {
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-05-01",
+          "end": "2025-05-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "CASE-20",
+      "persona": "Controle",
+      "case_page": 9,
+      "question": "Qual foi o consumo medido residencial em Olinda em maio de 2025?",
+      "expected_business_intent": "Consumo medido com filtros e competência.",
+      "review_status": "pending_human",
+      "actual_status": "planned",
+      "message": null,
+      "plan": {
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-05-01",
+          "end": "2025-05-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "CASE-21",
+      "persona": "Continuidade",
+      "case_page": 9,
+      "question": "E em maio de 2026?",
+      "expected_business_intent": "Trocar mês e preservar consumo, classe residencial e Olinda.",
+      "review_status": "pending_human",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o consumo medido residencial em Olinda em maio de 2025?"
+        },
+        {
+          "role": "assistant",
+          "content": "Resultado da consulta."
+        }
+      ],
+      "actual_status": "planned",
+      "message": null,
+      "plan": {
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2026-05-01",
+          "end": "2026-05-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": 100
+      }
+    },
+    {
+      "id": "CASE-22",
+      "persona": "Continuidade",
+      "case_page": 9,
+      "question": "Classes de consumo",
+      "expected_business_intent": "Aplicar esclarecimento de setores e preservar receita/janeiro de 2024.",
+      "review_status": "pending_human",
+      "context": [
+        {
+          "role": "user",
+          "content": "Quanto foi o faturamento total de 2024 em janeiro, dividido por setores?"
+        },
+        {
+          "role": "assistant",
+          "content": "Por setores você quer dizer classes de consumo ou divisão geográfica?"
+        }
+      ],
+      "actual_status": "needs_clarification",
+      "message": "Qual indicador ou assunto você quer consultar?",
+      "plan": null
+    },
+    {
+      "id": "CASE-23",
+      "persona": "Cobertura",
+      "case_page": 9,
+      "question": "Qual foi a receita faturada em Recife em janeiro de 2027?",
+      "expected_business_intent": "Esclarecer competência indisponível no experimento; não inventar valores.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Não consigo confirmar uma janela mensal completa nessa publicação. Informe outro período mensal, como ‘últimos três meses’.\n\nExemplo de pergunta: “faturamento no município Recife em junho de 2026?”",
+      "plan": null
+    },
+    {
+      "id": "CASE-24",
+      "persona": "Causalidade",
+      "case_page": 9,
+      "question": "A queda de consumo das unidades com geração distribuída prova que houve fraude ou perda não técnica?",
+      "expected_business_intent": "Não equiparar GD/queda a fraude; separar indício e prova.",
+      "review_status": "pending_human",
+      "actual_status": "needs_clarification",
+      "message": "Qual período você quer consultar ou comparar?",
+      "plan": null
+    }
+  ]
+}

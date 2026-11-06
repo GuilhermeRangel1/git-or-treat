@@ -1,0 +1,204 @@
+{
+  "source": "Explicit user evaluation in chat",
+  "date": "2026-11-05",
+  "limitations": [
+    "Human review of clarification messages and summarized plans; not numerical answer validation.",
+    "No performance score inferred from mixed assessments.",
+    "CASE-16 remains undecided.",
+    "CASE-08 positive feedback does not validate annual totals or shares."
+  ],
+  "cases": [
+    {
+      "id": "CASE-01",
+      "assessment": "inadequate",
+      "business_expectation": "Entregar valores e tabela de total e distribuição por classe.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-02",
+      "assessment": "adequate",
+      "business_expectation": "Plano de maior município por faturamento adequado.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-03",
+      "assessment": "inadequate",
+      "business_expectation": "Resolver e apresentar o ranking solicitado.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-04",
+      "assessment": "inadequate",
+      "business_expectation": "Retornar o resultado de maior mês e sua participação.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-05",
+      "assessment": "inadequate",
+      "business_expectation": "Responder à comparação solicitada em reais e percentual.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-06",
+      "assessment": "inadequate",
+      "business_expectation": "Responder à análise solicitada; esclarecer apenas ambiguidades essenciais.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-07",
+      "assessment": "inadequate",
+      "business_expectation": "Avaliação: totalmente inadequado; responder bairro de maior queda.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-08",
+      "assessment": "adequate",
+      "business_expectation": "Considerado adequado e ideal; usar esse estilo de formulação. Avaliação é do plano apresentado, sem prova numérica da consolidação.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-09",
+      "assessment": "clarification_expected",
+      "business_expectation": "Usuário aceita esclarecimento; campos exatos a esclarecer ainda não especificados.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-10",
+      "assessment": "inadequate",
+      "business_expectation": "Deveria conseguir responder; distinguir evidência disponível de atribuição causal não demonstrada.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-11",
+      "assessment": "inadequate",
+      "business_expectation": "Responder contagem e ranking solicitados.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-12",
+      "assessment": "inadequate",
+      "business_expectation": "Responder comparação de satisfação e quantidades de avaliações.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-13",
+      "assessment": "adequate",
+      "business_expectation": "Plano DEC por alimentador/mês adequado.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-14",
+      "assessment": "inadequate",
+      "business_expectation": "Responder ao pedido de ranking/comparação, com definição temporal válida.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-15",
+      "assessment": "partial_answer_expected",
+      "business_expectation": "Responder associação entre séries quando sustentada; explicitar que não consegue concluir causalidade na segunda parte.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-16",
+      "assessment": "business_decision_pending",
+      "business_expectation": "Usuário não aprova nem reprova; depende de lógica de negócio para priorização e estimativa.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-17",
+      "assessment": "inadequate",
+      "business_expectation": "Deveria conseguir apresentar recomendações; manter hipótese e impacto estimado explícitos e fundamentados.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-18",
+      "assessment": "read_only_refusal_expected",
+      "business_expectation": "Não executar alterações; comunicar claramente que não consegue criar ordens ou mudar prioridade.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-19",
+      "assessment": "adequate_with_caveat",
+      "business_expectation": "Consulta simples adequada; avaliar variantes de maior receita no ano e erro de digitação maio/maior, sem pressupor equivalência de operações.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-20",
+      "assessment": "adequate",
+      "business_expectation": "Plano de consumo residencial adequado.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-21",
+      "assessment": "adequate_with_caveat",
+      "business_expectation": "Continuação adequada; reforçar qualidade e testar variações.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-22",
+      "assessment": "inadequate",
+      "business_expectation": "Deveria aplicar esclarecimento de classes e responder preservando o contexto.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-23",
+      "assessment": "acceptable_deferred",
+      "business_expectation": "Esclarecimento aceitável; aperfeiçoamento posterior.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    },
+    {
+      "id": "CASE-24",
+      "assessment": "causal_limitation_expected",
+      "business_expectation": "Explicitar que não sabe inferir fraude a partir apenas de GD e queda de consumo.",
+      "reviewer": "user",
+      "date": "2026-11-05",
+      "scope": "Messages or plan summaries shown in chat, not numerical results or actual model inference"
+    }
+  ]
+}
