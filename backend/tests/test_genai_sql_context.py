@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
@@ -87,6 +88,21 @@ def test_context_digest_is_repeatable_for_set_order_and_budget_change():
     assert build(payload) == previous
 
 
+def test_context_includes_resolved_turns_and_versions_them_into_digest():
+    payload = request_payload()
+    payload["context"] = [{
+        "role": "user",
+        "content": "E no mês anterior, mantendo Recife?",
+    }]
+    previous = build(payload)
+    body = json.loads(previous.contents)
+    assert body["context"] == payload["context"]
+
+    payload["context"][0]["content"] = "E no mês seguinte, mantendo Recife?"
+    current = build(payload)
+    assert current.context_version != previous.context_version
+
+
 def test_context_refuses_absent_metric_and_empty_coverage():
     payload = request_payload()
     payload["access_scope"]["allowed_metric_ids"] = []
@@ -96,6 +112,15 @@ def test_context_refuses_absent_metric_and_empty_coverage():
     payload = request_payload()
     payload["temporal_coverage"][0]["competencies"] = []
     with pytest.raises(SqlContextUnavailable):
+        build(payload)
+
+
+@pytest.mark.parametrize("caller_ref", ["caller", "user:" + "a" * 64,
+                                        "session:" + "z" * 64])
+def test_context_requires_backend_session_pseudonym(caller_ref):
+    payload = request_payload()
+    payload["access_scope"]["caller_ref"] = caller_ref
+    with pytest.raises(SqlContextUnavailable, match="Escopo"):
         build(payload)
 
 

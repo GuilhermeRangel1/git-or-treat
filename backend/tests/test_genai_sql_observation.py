@@ -1,17 +1,26 @@
 import asyncio
 import json
+import logging
 
 import httpx
 import pytest
+
 from app.services.genai_client import (
     GenAIQuestionClient,
     GenAIServiceUnavailable,
     GenAITimeout,
 )
 from app.services.genai_deadline import GenAIRequestDeadline
-from app.services.genai_sql_observation import observe_sql_generation
+from app.services.genai_sql_context import (
+    SqlContextUnavailable,
+    build_sql_generation_context,
+)
+from app.services.genai_sql_observation import (
+    log_sql_context_ready,
+    log_sql_context_unavailable,
+    observe_sql_generation,
+)
 from app.services.genai_sql_structure import SqlStructureRejected
-
 from tests.test_genai_sql_semantics import query
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
@@ -57,6 +66,52 @@ def run(request, *, status="sql_candidate", mutation=None, http_status=200, expi
 def test_generation_and_semantic_review_share_backend_context_and_budget(sql_request):
     result = run(sql_request)
     assert result.review.measure_semantics == (("revenue", "revenue_total"),)
+
+
+def test_context_telemetry_contains_versions_and_shape_but_not_prompt_or_values(
+    sql_request, caplog,
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "geography.municipality",
+        "values": ["Recife"],
+    }]
+    request = type(sql_request).model_validate(payload)
+    with caplog.at_level(logging.INFO, logger="app.services.genai_sql_observation"):
+        log_sql_context_ready(build_sql_generation_context(request), "b" * 32)
+
+    message = caplog.text
+    assert "genai_sql_context outcome=ready" in message
+    assert "correlation_id=" + "b" * 32 in message
+    assert "mapping_version=" in message
+    assert "dictionary_version=" in message
+    assert "billing.revenue" in message
+    assert "receita_total_reais" in message
+    assert "dimension_value_count=1" in message
+    assert "truncation=none" in message
+    assert request.question not in message
+    assert "Recife" not in message
+    assert request.access_scope.caller_ref not in message
+
+
+def test_context_rejection_logs_only_reason_and_size_not_context_values(sql_request, caplog):
+    payload = sql_request.model_dump(mode="json")
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "geography.municipality",
+        "values": [f"Municipio{i:04}" + "x" * 100 for i in range(700)],
+    }]
+    oversized = type(sql_request).model_validate(payload)
+    with caplog.at_level(logging.WARNING, logger="app.services.genai_sql_observation"):
+        with pytest.raises(SqlContextUnavailable) as error:
+            build_sql_generation_context(oversized)
+        log_sql_context_unavailable(error.value, "b" * 32)
+
+    message = caplog.text
+    assert "outcome=unavailable" in message
+    assert "reason=context_too_large" in message
+    assert "context_bytes=" in message
+    assert "Municipio" not in message
+    assert sql_request.access_scope.caller_ref not in message
 
 
 def test_clarification_does_not_generate_review_or_trigger_execution(sql_request):
