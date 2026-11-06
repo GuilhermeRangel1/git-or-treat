@@ -17,6 +17,7 @@ from app.schemas.genai_internal import (
 )
 from app.schemas.gold_publication import PublicationReference
 from app.services.genai_client import GenAITimeout
+from app.services.genai_sql_live_catalog import assert_live_f1_catalog
 from app.services.gold_catalog import load_gold_catalog
 
 
@@ -62,7 +63,11 @@ class GoldPublicationContext:
             raise ValueError("perfil fora do catálogo Gold v2 aprovado")
 
         if engine.dialect.name == "postgresql":
-            with self.execution_snapshot(engine) as connection:
+            with self.execution_snapshot(
+                engine,
+                validate_f1_catalog="billing.revenue" in access_scope.allowed_metric_ids,
+                dimension_ids=access_scope.allowed_dimension_ids,
+            ) as connection:
                 fields = _planning_metadata(connection, access_scope, catalog)
         else:
             self.assert_current(engine)
@@ -72,7 +77,10 @@ class GoldPublicationContext:
         return {"batch_ref": self.batch_ref, **fields}
 
     @contextmanager
-    def execution_snapshot(self, engine: Engine) -> Iterator[Connection]:
+    def execution_snapshot(
+        self, engine: Engine, *, validate_f1_catalog: bool = False,
+        dimension_ids: frozenset[str] = frozenset(),
+    ) -> Iterator[Connection]:
         """Leitura PostgreSQL consistente; descarta o resultado se a publicação mudou.
 
         O futuro executor deve materializar os resultados dentro deste bloco e
@@ -89,6 +97,8 @@ class GoldPublicationContext:
         ):
             connection.exec_driver_sql("SET TRANSACTION READ ONLY")
             current_publication(connection, self.batch_ref)
+            if validate_f1_catalog:
+                assert_live_f1_catalog(connection, dimension_ids)
             yield connection
         self.assert_current(engine)
 

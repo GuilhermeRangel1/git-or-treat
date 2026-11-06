@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from app.config import Settings
 from app.schemas.sql_generation import (
     SqlGenerationCandidate,
     SqlGenerationRequest,
@@ -157,12 +158,21 @@ def test_transport_envelopes_match_independent_backend_schema():
     )
     code = """
 import json,sys
+from pydantic import ValidationError
 from app.schemas.sql_generation import SqlGenerationRequest,SqlGenerationResponse
 sample=json.load(sys.stdin)
+rejected=[]
+for row in sample['invalid']:
+    model=SqlGenerationRequest if row['type']=='request' else SqlGenerationResponse
+    try:
+        model.model_validate(row['payload'])
+    except ValidationError:
+        rejected.append(row['id'])
 print(json.dumps({'request_schema':SqlGenerationRequest.model_json_schema(),
  'response_schema':SqlGenerationResponse.model_json_schema(),
  'request':SqlGenerationRequest.model_validate(sample['request']).model_dump(mode='json'),
- 'response':SqlGenerationResponse.model_validate(sample['response']).model_dump(mode='json')}))
+ 'response':SqlGenerationResponse.model_validate(sample['response']).model_dump(mode='json'),
+ 'rejected':rejected}))
 """
     run = subprocess.run(
         [sys.executable, "-X", "utf8", "-c", code],
@@ -183,3 +193,12 @@ print(json.dumps({'request_schema':SqlGenerationRequest.model_json_schema(),
     assert actual["response"] == SqlGenerationResponse.model_validate(
         sample["response"]
     ).model_dump(mode="json")
+    assert actual["rejected"] == [row["id"] for row in sample["invalid"]]
+    for row in sample["invalid"]:
+        model = SqlGenerationRequest if row["type"] == "request" else SqlGenerationResponse
+        with pytest.raises(ValidationError):
+            model.model_validate(row["payload"])
+
+
+def test_generation_stays_disabled_by_default_while_contract_rollout_is_prepared():
+    assert Settings(_env_file=None).sql_generation_enabled is False

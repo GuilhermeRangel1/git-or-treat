@@ -4,6 +4,8 @@
 
 A [ADR-0025](../decisions/0025-text-to-sql-generativo.md) autoriza a direção de SQL candidato gerado pelo modelo, com validação/execução finais no Backend. [Contrato e matriz de consumidores](../contracts/text-to-sql-f1.md). Há preparação de schemas, contexto e adaptador; o caminho quantitativo implantado continua determinístico até integração e ativação explícitas. Não há liberação de SQL generativo pela simples validação do envelope. Referências abaixo ao fluxo antigo continuam descrevendo o runtime vigente e seu histórico.
 
+Na admissão/executor interno F1, o Backend compara schema ativo, tipos, grão/chave e privilégios de leitura com o catálogo antes de admitir e novamente dentro do snapshot antes do SQL. A readiness operacional compartilha essa checagem. O comando `scripts/check_genai_runtime.py` requer configuração da publicação/leitor reais; sem isso, evidência local de fixture não fecha TSQL-03 nem o aceite Gold.
+
 
 Execução Docker vigente: a composição padrão inicia toda a stack com Gold v2, papéis separados e bootstrap local. Demonstração fica somente no smoke explícito do CI. Consulte [inicialização Docker](../plans/2026-11-04-docker-gold-inicializacao.md).
 
@@ -349,3 +351,11 @@ Limites por bytes/entradas, coalescência dos insights, invalidação por contex
 Atualização Text-to-SQL de 05/11/2026: o caso de uso interno `genai_sql_observation.observe_sql_generation` liga contexto, cliente e revisão sob prazo absoluto compartilhado. A revisão inclui comparação de dois totais e diferença com linhagem por alias. Ainda não há chamador público, executor ou autorização de execução generativa; detalhes no contrato F1.
 
 Admissão Text-to-SQL (05/11/2026): `prepare_sql_candidate` compõe geração e admissão; `genai_sql_admission` reaproveita publicação/metadados e cliente de prontidão, vincula revisão e validade por digest e exige revalidação sem renovar prazo. Preparação interna sem chamador público ou executor; testes com I/O artificial não encerram Gold/grants. Detalhes no contrato F1.
+
+Executor Text-to-SQL interno (05/11/2026): `execute_sql_admission` revalida admissão, usa papel leitor/snapshot READ ONLY, timeout e cursor server-side, materializa com limites e descarta resultados após mudança de escopo/publicação. Engines analítico e de prontidão são argumentos distintos. Prova PostgreSQL descartável passou; admissão real completa, evidência e HTTP público ainda pendentes. Consulte o contrato F1.
+
+Evidência SQL F1 (05/11/2026): `build_sql_evidence` transforma execução admitida em contrato espelhado `text-to-sql-f1-evidence-v1`, com Decimal em texto, proveniência/linhagem e digests de resultado/execução/conteúdo. Não cria plano legado. Síntese generativa, auditoria e coordenação pública ainda não consomem esse envelope; detalhes e limites no contrato F1.
+
+### Catálogo Gold v2 para Text-to-SQL
+
+O Backend carrega `backend/app/catalogs/gold_v2.json`, derivado de `ai-agent/app/profiles/grid360_gold_mapping.py`. Gere pela raiz com `python scripts/generate-gold-v2-catalog.py`; `--check` detecta derivações desatualizadas e é exercitado pelo contrato entre serviços. `load_gold_catalog()` compara catálogo, readiness autorizada e modelos SQLAlchemy. Esta checagem local não substitui introspecção do schema/grants da publicação aprovada; o runtime deve negar candidato se a publicação não estiver pronta ou se sua identidade/capacidades não conferirem.
