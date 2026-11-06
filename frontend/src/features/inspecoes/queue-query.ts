@@ -4,6 +4,7 @@ export const filterLabels: Record<string, string> = {
   classe: "Classe",
   alimentador: "Alimentador",
 };
+export const DEFAULT_PAGE_SIZE = 5;
 export function queueQuery(params: URLSearchParams): {
   request: string;
   detail: string | null;
@@ -32,7 +33,7 @@ export function queueQuery(params: URLSearchParams): {
     }
   }
   const page = params.get("page") ?? "1",
-    size = params.get("page_size") ?? "10";
+    size = params.get("page_size") ?? String(DEFAULT_PAGE_SIZE);
   if (
     !/^[1-9]\d*$/.test(page) ||
     !Number.isSafeInteger(Number(page)) ||
