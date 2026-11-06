@@ -406,6 +406,33 @@ describe("OrderActionsDialog", () => {
     },
   );
 
+  it.each(["PENDENTE", "EM_ANDAMENTO", "CONCLUIDA", "CANCELADA"] as const)(
+    "não oferece exclusão para ordem no estado %s",
+    async (status) => {
+      const current = { ...order, status };
+      api.getOrderDetail.mockResolvedValue(current);
+      renderDialog(current);
+
+      await screen.findByText("Ordem criada pela fila.");
+      await waitFor(() =>
+        expect(
+          screen.queryByText(/Atualizando o estado confirmado/),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.queryByRole("button", { name: /excluir/i })).toBeNull();
+      expect(screen.queryByText(/excluir|exclusão/i)).toBeNull();
+    },
+  );
+
+  it("mantém cancelar como a única forma de encerrar sem resultado", async () => {
+    renderDialog();
+
+    expect(
+      await screen.findByRole("button", { name: "Cancelar ordem" }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /excluir/i })).toBeNull();
+  });
+
   it("consulta novamente o detalhe ao reabrir uma ordem cancelada", async () => {
     const finalOrder = { ...order, status: "CANCELADA" as const };
     api.getOrderDetail.mockResolvedValue(finalOrder);

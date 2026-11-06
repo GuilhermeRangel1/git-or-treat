@@ -187,6 +187,19 @@ it("alinha ações e fundamentos em colunas próprias da tabela", async () => {
   ).toHaveLength(5);
 });
 
+it("não oferece exclusão de ordem na tabela nem nos cartões", async () => {
+  renderPage();
+  await firstOrderAction();
+
+  expect(
+    screen.getAllByRole("button", {
+      name: "Ações da ordem OS-000041 da UC UC-1041",
+    }),
+  ).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: /excluir/i })).toBeNull();
+  expect(screen.queryByText(/excluir|excluída|exclusão/i)).toBeNull();
+});
+
 it("abre exatamente a OS indicada por order_id no link de acompanhamento", async () => {
   const current = order();
   vi.stubGlobal(
