@@ -1,3 +1,4 @@
+import { ArrowRight } from "lucide-react";
 import Button from "@/shared/ui/Button";
 import { Link } from "react-router-dom";
 import type { OperationMetric } from "./contract";
@@ -10,6 +11,9 @@ import { formatNumber } from "./operation-format";
 import OperationSeries from "./OperationSeries";
 import GoldOperationFoundations from "./GoldOperationFoundations";
 import GoldOccurrences from "./GoldOccurrences";
+import NumberedPagination from "./NumberedPagination";
+
+const cardLabelClass = "text-xs font-medium uppercase tracking-wide text-muted";
 
 function stateLabel(state: string) {
   return (
@@ -207,8 +211,10 @@ export default function GoldOperationView({
               ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <article className="rounded-xl bg-surface p-5">
-                  <h2>DEC · {stateLabel(s.dec_status)}</h2>
-                  <p className="my-2 text-2xl font-semibold">
+                  <h2 className={cardLabelClass}>
+                    DEC · {stateLabel(s.dec_status)}
+                  </h2>
+                  <p className="my-2 text-2xl font-semibold tabular-nums">
                     {value(s.dec_hours_per_uc, "h/UC")}
                   </p>
                   <p className="text-sm text-muted">
@@ -228,8 +234,10 @@ export default function GoldOperationView({
                   </div>
                 </article>
                 <article className="rounded-xl bg-surface p-5">
-                  <h2>FEC · {stateLabel(s.fec_status)}</h2>
-                  <p className="my-2 text-2xl font-semibold">
+                  <h2 className={cardLabelClass}>
+                    FEC · {stateLabel(s.fec_status)}
+                  </h2>
+                  <p className="my-2 text-2xl font-semibold tabular-nums">
                     {value(s.fec_interruptions_per_uc, "interrupções/UC")}
                   </p>
                   <p className="text-sm text-muted">
@@ -257,31 +265,33 @@ export default function GoldOperationView({
                 Alimentadores ·{" "}
                 {ranking?.data.metric.toUpperCase() ?? metric.toUpperCase()}
               </h2>
-              <div className="flex gap-2">
-                <Button
-                  variant={metric === "dec" ? "accent" : "outline"}
-                  onClick={() => {
-                    const p = new URLSearchParams(search);
-                    p.set("metric", "dec");
-                    p.delete("feeder_id");
-                    p.delete("ranking_page");
-                    onMetricChange(p);
-                  }}
-                >
-                  Ordenar por DEC
-                </Button>
-                <Button
-                  variant={metric === "fec" ? "accent" : "outline"}
-                  onClick={() => {
-                    const p = new URLSearchParams(search);
-                    p.set("metric", "fec");
-                    p.delete("feeder_id");
-                    p.delete("ranking_page");
-                    onMetricChange(p);
-                  }}
-                >
-                  Ordenar por FEC
-                </Button>
+              <div
+                role="group"
+                aria-label="Indicador usado para ordenar o ranking"
+                className="inline-flex gap-1 rounded-lg border border-border bg-canvas p-1"
+              >
+                {(["dec", "fec"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-label={`Ordenar por ${option.toUpperCase()}`}
+                    aria-pressed={metric === option}
+                    className={`min-h-9 min-w-16 cursor-pointer rounded-md px-4 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                      metric === option
+                        ? "bg-brand text-[var(--accent-goiaba-text)]"
+                        : "text-muted hover:bg-surface-hover hover:text-content"
+                    }`}
+                    onClick={() => {
+                      const p = new URLSearchParams(search);
+                      p.set("metric", option);
+                      p.delete("feeder_id");
+                      p.delete("ranking_page");
+                      onMetricChange(p);
+                    }}
+                  >
+                    {option.toUpperCase()}
+                  </button>
+                ))}
               </div>
             </div>
             {rankingLoading && !ranking ? (
@@ -331,13 +341,13 @@ export default function GoldOperationView({
                           className="w-full min-w-[760px] table-fixed bg-surface text-left text-sm"
                         >
                           <colgroup>
-                            <col className="w-[7%]" />
+                            <col className="w-[6%]" />
+                            <col className="w-[17%]" />
                             <col className="w-[18%]" />
-                            <col className="w-[18%]" />
-                            <col className="w-[16%]" />
-                            <col className="w-[16%]" />
-                            <col className="w-[13%]" />
+                            <col className="w-[14%]" />
+                            <col className="w-[14%]" />
                             <col className="w-[12%]" />
+                            <col className="w-[19%]" />
                           </colgroup>
                           <thead className="font-sans text-xs leading-[18px] text-muted">
                             <tr className="h-11 border-b border-border">
@@ -350,17 +360,29 @@ export default function GoldOperationView({
                               <th scope="col" className="pr-2 font-normal">
                                 Município
                               </th>
-                              <th scope="col" className="pr-2 font-normal">
+                              <th
+                                scope="col"
+                                className="pr-4 text-right font-normal"
+                              >
                                 DEC
                               </th>
-                              <th scope="col" className="pr-2 font-normal">
+                              <th
+                                scope="col"
+                                className="pr-4 text-right font-normal"
+                              >
                                 FEC
                               </th>
-                              <th scope="col" className="pr-2 font-normal">
+                              <th
+                                scope="col"
+                                className="pr-4 text-right font-normal"
+                              >
                                 Base
                               </th>
-                              <th scope="col" className="font-normal">
-                                Detalhes
+                              <th
+                                scope="col"
+                                className="text-right font-normal"
+                              >
+                                Ação
                               </th>
                             </tr>
                           </thead>
@@ -380,16 +402,16 @@ export default function GoldOperationView({
                                 <td className="break-words py-3 pr-2">
                                   {p.municipality || "não informado"}
                                 </td>
-                                <td className="py-3 pr-2">
+                                <td className="py-3 pr-4 text-right tabular-nums">
                                   {value(p.dec_hours_per_uc, "h/UC")}
                                 </td>
-                                <td className="py-3 pr-2">
+                                <td className="py-3 pr-4 text-right tabular-nums">
                                   {value(p.fec_interruptions_per_uc, "int./UC")}
                                 </td>
-                                <td className="py-3 pr-2">
+                                <td className="py-3 pr-4 text-right tabular-nums">
                                   {base(p.denominator_uc_count)}
                                 </td>
-                                <td className="align-top py-1">
+                                <td className="py-1 text-right">
                                   <Link
                                     to={`?${(() => {
                                       const params = new URLSearchParams(
@@ -399,9 +421,13 @@ export default function GoldOperationView({
                                       params.delete("page");
                                       return params.toString();
                                     })()}`}
-                                    className="inline-flex min-h-11 items-center gap-1 rounded-md py-2 pl-0 pr-2 text-sm font-medium text-content underline decoration-border underline-offset-4 hover:decoration-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                    className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium whitespace-nowrap text-content transition-colors hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                                   >
-                                    Detalhes
+                                    Ver detalhes
+                                    <ArrowRight
+                                      aria-hidden="true"
+                                      className="size-4"
+                                    />
                                   </Link>
                                 </td>
                               </tr>
@@ -421,26 +447,11 @@ export default function GoldOperationView({
                           )}{" "}
                           de {ranking.data.items.length}
                         </p>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            disabled={currentRankingPage <= 1}
-                            onClick={() =>
-                              onRankingPage(currentRankingPage - 1)
-                            }
-                          >
-                            Anterior
-                          </Button>
-                          <Button
-                            variant="outline"
-                            disabled={currentRankingPage >= pageCount}
-                            onClick={() =>
-                              onRankingPage(currentRankingPage + 1)
-                            }
-                          >
-                            Próxima
-                          </Button>
-                        </div>
+                        <NumberedPagination
+                          page={currentRankingPage}
+                          pageCount={pageCount}
+                          onPageChange={onRankingPage}
+                        />
                       </nav>
                     </>
                   ) : null}
