@@ -23,6 +23,35 @@ function periodLabel(value: string) {
   return `${months[Number(month) - 1] ?? month} de ${year}`;
 }
 
+function RecoveryHighlight({
+  value,
+  notice,
+  children,
+}: {
+  value: number | null;
+  notice: string;
+  children?: ReactNode;
+}) {
+  return (
+    <section
+      className="rounded-xl border border-border bg-surface p-4 sm:p-6"
+      aria-labelledby="recovery-title"
+    >
+      <h2
+        id="recovery-title"
+        className="text-xs leading-[18px] font-medium text-muted"
+      >
+        Energia a recuperar (estimativa)
+      </h2>
+      <p className="mt-1 font-heading text-4xl font-semibold [overflow-wrap:anywhere] text-brand">
+        {energy(value)}
+      </p>
+      <p className="mt-2 text-sm leading-[22px]">{notice}</p>
+      {children}
+    </section>
+  );
+}
+
 export default function SuspicionDetail({
   data,
   metadata,
@@ -48,6 +77,39 @@ export default function SuspicionDetail({
         aria-labelledby="suspicion-title"
       >
         {action}
+        <RecoveryHighlight
+          value={data.potential_recoverable_energy_kwh}
+          notice={
+            data.potential_recoverable_energy_kwh === null
+              ? (data.recovery_unavailable_reason ??
+                "A Gold não publicou uma estimativa válida para esta UC.")
+              : "Estimativa se a irregularidade se confirmar; não garante recuperação nesta UC."
+          }
+        >
+          {data.potential_recoverable_energy_kwh !== null &&
+          evidence.recovery_interval_lower_kwh !== null &&
+          evidence.recovery_interval_upper_kwh !== null &&
+          evidence.recovery_estimate_confidence_level !== null ? (
+            <p className="mt-2 text-xs text-muted">
+              Faixa nominal de{" "}
+              {Math.round(evidence.recovery_estimate_confidence_level * 100)}%:{" "}
+              {energy(evidence.recovery_interval_lower_kwh)} a{" "}
+              {energy(evidence.recovery_interval_upper_kwh)}. A faixa foi
+              validada temporalmente.
+            </p>
+          ) : null}
+          {data.potential_recoverable_energy_kwh !== null &&
+          evidence.recovery_estimate_window_anchor &&
+          evidence.recovery_estimate_window_months &&
+          evidence.recovery_estimate_minimum_window_months ? (
+            <p className="mt-1 text-xs text-muted">
+              Janela de aplicação: {evidence.recovery_estimate_window_months}{" "}
+              meses até {periodLabel(evidence.recovery_estimate_window_anchor)}{" "}
+              (mínimo: {evidence.recovery_estimate_minimum_window_months}{" "}
+              meses).
+            </p>
+          ) : null}
+        </RecoveryHighlight>
         <section
           className="rounded-xl bg-surface p-4 sm:p-6"
           aria-labelledby="suspicion-title"
@@ -283,56 +345,6 @@ export default function SuspicionDetail({
               </p>
             )}
           </section>
-          <section
-            className={`mt-5 rounded-lg p-4 text-sm ${data.potential_recoverable_energy_kwh === null ? "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]" : "bg-canvas"}`}
-            aria-label="Estimativa condicional de energia a recuperar"
-          >
-            <h3 className="font-medium">
-              {data.potential_recoverable_energy_kwh === null
-                ? "Energia recuperável indisponível"
-                : "Energia estimada a recuperar"}
-            </h3>
-            {data.potential_recoverable_energy_kwh === null ? (
-              <p className="mt-1">
-                {data.recovery_unavailable_reason ??
-                  "A Gold não publicou uma estimativa válida para esta UC."}
-              </p>
-            ) : (
-              <>
-                <p className="mt-1 text-lg font-semibold">
-                  {energy(data.potential_recoverable_energy_kwh)}
-                </p>
-                <p className="mt-1 text-muted">
-                  Estimativa de energia a recuperar se a irregularidade se
-                  confirmar. A faixa foi validada temporalmente e não garante
-                  recuperação nesta UC.
-                </p>
-                {evidence.recovery_interval_lower_kwh !== null &&
-                evidence.recovery_interval_upper_kwh !== null &&
-                evidence.recovery_estimate_confidence_level !== null ? (
-                  <p className="mt-2">
-                    Faixa nominal de{" "}
-                    {Math.round(
-                      evidence.recovery_estimate_confidence_level * 100,
-                    )}
-                    %: {energy(evidence.recovery_interval_lower_kwh)} a{" "}
-                    {energy(evidence.recovery_interval_upper_kwh)}.
-                  </p>
-                ) : null}
-                {evidence.recovery_estimate_window_anchor &&
-                evidence.recovery_estimate_window_months &&
-                evidence.recovery_estimate_minimum_window_months ? (
-                  <p className="mt-1 text-xs text-muted">
-                    Janela de aplicação:{" "}
-                    {evidence.recovery_estimate_window_months} meses até{" "}
-                    {periodLabel(evidence.recovery_estimate_window_anchor)}{" "}
-                    (mínimo: {evidence.recovery_estimate_minimum_window_months}{" "}
-                    meses).
-                  </p>
-                ) : null}
-              </>
-            )}
-          </section>
         </section>
         <aside
           className="rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
@@ -356,6 +368,22 @@ export default function SuspicionDetail({
       aria-labelledby="suspicion-title"
     >
       {action}
+      <RecoveryHighlight
+        value={data.potential_recoverable_energy_kwh}
+        notice={
+          metadata.source.is_demo
+            ? "Estimativa demonstrativa, sem confirmação de recuperação."
+            : "Estimativa não fornecida nesta consulta."
+        }
+      >
+        {metadata.source.is_demo &&
+        data.potential_recoverable_energy_kwh === null ? (
+          <p className="mt-1 text-xs text-muted">
+            {data.estimate_evidence.unavailable_reason ??
+              "Insumos indisponíveis"}
+          </p>
+        ) : null}
+      </RecoveryHighlight>
       <section
         className="rounded-xl bg-surface p-4 sm:p-6"
         aria-labelledby="suspicion-title"
@@ -401,18 +429,6 @@ export default function SuspicionDetail({
               {data.priority === null
                 ? "Categoria publicada; regra provisória aguardando homologação."
                 : "Pontuação de priorização da fila; não é probabilidade de irregularidade."}
-            </p>
-          </div>
-
-          <div className="mt-4">
-            <p className="font-medium">Energia potencialmente recuperável</p>
-            <p className="mt-1 text-lg font-semibold text-brand">
-              {energy(data.potential_recoverable_energy_kwh)}
-            </p>
-            <p className="text-xs leading-[18px] text-muted">
-              {metadata.source.is_demo
-                ? "Estimativa demonstrativa, sem confirmação de recuperação."
-                : "Estimativa não fornecida nesta consulta."}
             </p>
           </div>
 

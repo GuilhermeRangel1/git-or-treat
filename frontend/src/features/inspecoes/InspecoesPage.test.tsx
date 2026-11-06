@@ -362,8 +362,10 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
     screen.getAllByRole("link", { name: "Ver evidência de UC-GOLD" })[0],
   );
   expect(
-    await screen.findByText("Energia recuperável indisponível"),
-  ).toBeVisible();
+    await screen.findByRole("region", {
+      name: "Energia a recuperar (estimativa)",
+    }),
+  ).toHaveTextContent("Estimativa indisponível");
   expect(
     screen.getByText(/fotografia cadastral, sem competência mensal/),
   ).toBeVisible();
@@ -634,9 +636,17 @@ it("mostra a estimativa condicional e sua faixa na fila e no detalhe Gold", asyn
   );
   expect(
     await screen.findByRole("region", {
-      name: "Estimativa condicional de energia a recuperar",
+      name: "Energia a recuperar (estimativa)",
     }),
   ).toHaveTextContent("125,5 kWh");
+  expect(
+    screen.getByText(
+      "Estimativa se a irregularidade se confirmar; não garante recuperação nesta UC.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/A faixa foi validada temporalmente/),
+  ).toHaveTextContent(/Faixa nominal de 90%: 100 kWh a 151 kWh/);
   expect(
     screen.getByText(
       /Janela de aplicação: 12 meses até junho de 2026 \(mínimo: 6 meses\)/,
@@ -1608,4 +1618,143 @@ it("mantém dados sintéticos na linha do detalhe, onde não há aviso", async (
   expect(await screen.findByText(/atualização ilustrativa/)).toHaveTextContent(
     "Demonstração · dados sintéticos · atualização ilustrativa: 21/10/2026 · cobertura parcial",
   );
+});
+
+function recoveryBlock() {
+  return screen.getByRole("region", {
+    name: "Energia a recuperar (estimativa)",
+  });
+}
+
+function expectBefore(first: Element, second: Element) {
+  expect(
+    first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+}
+
+it("destaca a energia da demonstração acima do motivo, com o aviso junto ao valor", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(detail)),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  const heading = await screen.findByRole("heading", {
+    name: "O que motivou a investigação",
+  });
+  const block = recoveryBlock();
+  expectBefore(block, heading);
+  expect(within(block).getByText("45 kWh")).toHaveClass("text-4xl");
+  expect(
+    within(block).getByText(
+      "Estimativa demonstrativa, sem confirmação de recuperação.",
+    ),
+  ).toBeVisible();
+  expect(screen.getAllByText("45 kWh")).toHaveLength(1);
+  expect(screen.queryByText("Energia potencialmente recuperável")).toBeNull();
+  expect(screen.getByLabelText("Limite da evidência")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+  ).toBeInTheDocument();
+});
+
+it("na demonstração sem valor mantém o aviso e mostra a razão da indisponibilidade", async () => {
+  const unavailable = (reason: string | null) => ({
+    ...detail,
+    data: {
+      ...detail.data,
+      potential_recoverable_energy_kwh: null,
+      estimate_evidence: {
+        ...detail.data.estimate_evidence,
+        unavailable_reason: reason,
+      },
+    },
+  });
+  const fetch = vi.fn(async () =>
+    respond(unavailable("Sem leitura comparável.")),
+  );
+  vi.stubGlobal("fetch", fetch);
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  const block = recoveryBlock();
+  expect(within(block).getByText("Estimativa indisponível")).toHaveClass(
+    "text-4xl",
+  );
+  expect(block).not.toHaveTextContent(/\d/);
+  expect(
+    within(block).getByText(
+      "Estimativa demonstrativa, sem confirmação de recuperação.",
+    ),
+  ).toBeVisible();
+  expect(within(block).getByText("Sem leitura comparável.")).toBeVisible();
+});
+
+it("usa Insumos indisponíveis quando a demonstração não informa a razão", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      respond({
+        ...detail,
+        data: {
+          ...detail.data,
+          potential_recoverable_energy_kwh: null,
+          estimate_evidence: {
+            ...detail.data.estimate_evidence,
+            unavailable_reason: null,
+          },
+        },
+      }),
+    ),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  expect(
+    within(recoveryBlock()).getByText("Insumos indisponíveis"),
+  ).toBeVisible();
+});
+
+it("na fonte publicada sem estimativa mantém a informação de valor não fornecido", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      respond({
+        ...detail,
+        data: { ...detail.data, potential_recoverable_energy_kwh: null },
+        metadata: {
+          ...metadata,
+          source: { ...metadata.source, kind: "gold_csv", is_demo: false },
+        },
+      }),
+    ),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  const block = recoveryBlock();
+  expect(block).toHaveTextContent("Estimativa indisponível");
+  expect(block).toHaveTextContent("Estimativa não fornecida nesta consulta.");
+});
+
+it("no Gold sem estimativa mostra o bloco acima da triagem, com a razão publicada", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldDetail)),
+  );
+  mount("/inspecoes?uc=UC-GOLD");
+
+  const heading = await screen.findByRole("heading", {
+    name: "O que consta na triagem",
+  });
+  const block = recoveryBlock();
+  expectBefore(block, heading);
+  expect(within(block).getByText("Estimativa indisponível")).toHaveClass(
+    "text-4xl",
+  );
+  expect(block).toHaveTextContent(
+    "A Gold publicada não contém uma estimativa de energia recuperável.",
+  );
+  expect(screen.queryByText("Energia recuperável indisponível")).toBeNull();
+  expect(screen.getByLabelText("Limite da evidência")).toBeVisible();
 });
