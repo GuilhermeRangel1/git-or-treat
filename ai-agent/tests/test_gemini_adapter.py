@@ -319,11 +319,19 @@ FAKE_SECRET = "AQ.fake-secret"
 
 
 def _failure_lines(caplog) -> list[dict[str, object]]:
-    return [
-        json.loads(record.getMessage().removeprefix("genai_provider_failure "))
-        for record in caplog.records
-        if record.getMessage().startswith("genai_provider_failure ")
-    ]
+    optional_fields = {
+        "reason", "validation_fields", "prompt_version", "elapsed_ms", "context_bytes",
+        "max_output_tokens", "temperature", "attempts",
+    }
+    lines = []
+    for record in caplog.records:
+        if record.getMessage().startswith("genai_provider_failure "):
+            payload = json.loads(record.getMessage().removeprefix("genai_provider_failure "))
+            lines.append({
+                key: value for key, value in payload.items()
+                if key not in optional_fields or value not in (None, [])
+            })
+    return lines
 
 
 def _provider_error(**attributes) -> Exception:
