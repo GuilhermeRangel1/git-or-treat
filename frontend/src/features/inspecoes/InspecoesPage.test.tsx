@@ -334,8 +334,16 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(
     screen.queryByText("Prioridade demonstrativa"),
   ).not.toBeInTheDocument();
-  expect(screen.getByLabelText("Ordenar por")).toHaveValue("queue_position");
-  expect(screen.getByLabelText("Direção da ordenação")).toHaveValue("asc");
+  expect(screen.getByLabelText("Ordenar por")).toHaveValue(
+    "queue_position:asc",
+  );
+  expect(screen.queryByLabelText("Direção da ordenação")).toBeNull();
+  expect(
+    screen.getByRole("columnheader", { name: "Posição / UC / categoria" }),
+  ).toHaveAttribute("aria-sort", "ascending");
+  expect(
+    screen.getByRole("columnheader", { name: "Energia a recuperar" }),
+  ).toHaveAttribute("aria-sort", "none");
   await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
   const filterDialog = screen.getByRole("dialog", { name: "Ajustar filtros" });
   expect(within(filterDialog).getByLabelText("Município")).toBeVisible();
@@ -411,13 +419,13 @@ it("oferece ordenar a fila Gold pela energia recuperável estimada", async () =>
   const ordering = await screen.findByLabelText("Ordenar por");
   expect(
     within(ordering).getByRole("option", {
-      name: "Energia recuperável estimada",
+      name: "Energia recuperável estimada (decrescente)",
     }),
   ).toBeEnabled();
-  await user.selectOptions(ordering, "potential_recoverable_energy_kwh");
+  await user.selectOptions(ordering, "potential_recoverable_energy_kwh:desc");
   await waitFor(() =>
     expect(screen.getByLabelText("URL atual")).toHaveTextContent(
-      "order_by=potential_recoverable_energy_kwh",
+      "order_by=potential_recoverable_energy_kwh&direction=desc",
     ),
   );
   await waitFor(() =>
@@ -929,23 +937,9 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   await firstEvidenceLink();
   expect(screen.queryByText("Competência")).not.toBeInTheDocument();
   expect(screen.queryByText("Comparar com")).not.toBeInTheDocument();
-  await user.selectOptions(
-    screen.getByLabelText("Ordenar por"),
-    "potential_recoverable_energy_kwh",
-  );
-  await user.selectOptions(screen.getByLabelText("Ordenar por"), "uc_id");
-  await user.selectOptions(
-    screen.getByLabelText("Direção da ordenação"),
-    "asc",
-  );
-  await user.selectOptions(
-    screen.getByLabelText("Direção da ordenação"),
-    "desc",
-  );
-  await user.selectOptions(
-    screen.getByLabelText("Direção da ordenação"),
-    "asc",
-  );
+  await user.click(screen.getByRole("button", { name: "Energia estimada" }));
+  await user.click(screen.getByRole("button", { name: "UC / prioridade" }));
+  await user.click(screen.getByRole("button", { name: "UC / prioridade" }));
   await user.selectOptions(screen.getByLabelText("UCs por página"), "20");
   await user.selectOptions(screen.getByLabelText("UCs por página"), "50");
   await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
@@ -958,7 +952,7 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   ).toBeVisible();
   const url = new URL(fetch.mock.calls.at(-1)![0], window.location.origin);
   expect(url.searchParams.get("municipio")).toBe("Olinda");
-  expect(url.searchParams.get("order_by")).toBe("uc_id");
+  expect(url.searchParams.get("order_by")).toBe("priority");
   expect(url.searchParams.get("direction")).toBe("asc");
   expect(url.searchParams.get("page_size")).toBe("50");
   expect(url.searchParams.get("page")).toBe("1");
@@ -1236,9 +1230,11 @@ it("uses descending as the default direction for Gold recovery estimates", async
 
   expect(await screen.findByLabelText("Ordenar por")).toBeVisible();
   expect(screen.getByLabelText("Ordenar por")).toHaveValue(
-    "potential_recoverable_energy_kwh",
+    "potential_recoverable_energy_kwh:desc",
   );
-  expect(screen.getByLabelText(/Dire/)).toHaveValue("desc");
+  expect(
+    screen.getByRole("columnheader", { name: "Energia a recuperar" }),
+  ).toHaveAttribute("aria-sort", "descending");
 
   const request = new URL(fetch.mock.calls.at(-1)![0], window.location.origin);
   expect(request.searchParams.get("order_by")).toBe(
@@ -1246,3 +1242,120 @@ it("uses descending as the default direction for Gold recovery estimates", async
   );
   expect(request.searchParams.get("direction")).toBeNull();
 });
+
+it("ordena a fila de demonstração pelo cabeçalho, voltando à página 1", async () => {
+  const fetch = vi.fn(async (_url: string) =>
+    respond(envelope([item, second], 3, 10, 30)),
+  );
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes?page=3");
+
+  const priority = await screen.findByRole("columnheader", {
+    name: "UC / prioridade",
+  });
+  const energyHeader = screen.getByRole("columnheader", {
+    name: "Energia estimada",
+  });
+  expect(priority).toHaveAttribute("aria-sort", "descending");
+  expect(energyHeader).toHaveAttribute("aria-sort", "none");
+  expect(
+    screen.queryByRole("button", { name: "Motivo da suspeita" }),
+  ).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Energia estimada" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "page=1&order_by=potential_recoverable_energy_kwh&direction=desc",
+    ),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("columnheader", { name: "Energia estimada" }),
+    ).toHaveAttribute("aria-sort", "descending"),
+  );
+  await user.click(screen.getByRole("button", { name: "Energia estimada" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "direction=asc",
+    ),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("columnheader", { name: "Energia estimada" }),
+    ).toHaveAttribute("aria-sort", "ascending"),
+  );
+  await user.click(screen.getByRole("button", { name: "UC / prioridade" }));
+  await waitFor(() => {
+    const request = new URL(
+      fetch.mock.calls.at(-1)![0],
+      window.location.origin,
+    );
+    expect(request.searchParams.get("order_by")).toBe("priority");
+    expect(request.searchParams.get("direction")).toBe("desc");
+    expect(request.searchParams.get("page")).toBe("1");
+  });
+});
+
+it("ordena a fila Gold com a posição mais promissora primeiro e alterna a direção", async () => {
+  const fetch = vi.fn(async (_url: string) => respond(goldQueue));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  const position = await screen.findByRole("button", {
+    name: "Posição / UC / categoria",
+  });
+  await user.click(position);
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "order_by=queue_position&direction=desc",
+    ),
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Energia a recuperar" }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "order_by=potential_recoverable_energy_kwh&direction=desc",
+    ),
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Posição / UC / categoria" }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "order_by=queue_position&direction=asc",
+    ),
+  );
+});
+
+it.each([
+  ["uc_id", "asc", "Número da UC (crescente)"],
+  ["category", "desc", "Categoria (decrescente)"],
+])(
+  "mantém links com order_by=%s sem cabeçalho ativo",
+  async (order, direction, option) => {
+    const fetch = vi.fn(async (_url: string) => respond(goldQueue));
+    vi.stubGlobal("fetch", fetch);
+    mount(`/inspecoes?order_by=${order}&direction=${direction}`);
+
+    const header = await screen.findByRole("columnheader", {
+      name: "Posição / UC / categoria",
+    });
+    expect(header).toHaveAttribute("aria-sort", "none");
+    expect(
+      screen.getByRole("columnheader", { name: "Energia a recuperar" }),
+    ).toHaveAttribute("aria-sort", "none");
+    expect(screen.getByLabelText("Ordenar por")).toHaveValue(
+      `${order}:${direction}`,
+    );
+    expect(screen.getByRole("option", { name: option })).toBeInTheDocument();
+    const request = new URL(
+      fetch.mock.calls.at(-1)![0],
+      window.location.origin,
+    );
+    expect(request.searchParams.get("order_by")).toBe(order);
+    expect(request.searchParams.get("direction")).toBe(direction);
+  },
+);

@@ -1,5 +1,8 @@
 import {
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
+  ArrowUpDown,
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
@@ -156,6 +159,66 @@ function GoldRecoverySummary({ item }: { item: GoldInspectionItem }) {
   );
 }
 
+const ENERGY_FIELD = "potential_recoverable_energy_kwh";
+
+// Na fila Gold, a posição 1 é a mais promissora: "mais relevante primeiro" é
+// crescente nesse campo e decrescente em prioridade e energia.
+function relevantDirection(column: string) {
+  return column === "queue_position" ? "asc" : "desc";
+}
+
+function QueueHeader({
+  label,
+  column,
+  field,
+  direction,
+  onSort,
+  className,
+}: {
+  label: string;
+  column?: string;
+  field: string;
+  direction: string;
+  onSort: (column: string) => void;
+  className: string;
+}) {
+  if (!column) {
+    return (
+      <th scope="col" className={className}>
+        {label}
+      </th>
+    );
+  }
+  const active = field === column;
+  const Icon = !active
+    ? ArrowUpDown
+    : direction === "asc"
+      ? ArrowUp
+      : ArrowDown;
+  return (
+    <th
+      scope="col"
+      className={className}
+      aria-sort={
+        !active ? "none" : direction === "asc" ? "ascending" : "descending"
+      }
+    >
+      <button
+        type="button"
+        className="inline-flex min-h-11 items-center gap-1 text-left font-normal hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        onClick={() => onSort(column)}
+      >
+        {label}
+        <Icon
+          size={14}
+          aria-hidden="true"
+          className={active ? "shrink-0" : "shrink-0 opacity-50"}
+        />
+      </button>
+    </th>
+  );
+}
+
 export default function InspectionQueue({
   result,
   params,
@@ -174,6 +237,34 @@ export default function InspectionQueue({
   const direction =
     params.get("direction") ??
     (gold && field === "queue_position" ? "asc" : "desc");
+  const sortLabels: Record<string, string> = gold
+    ? {
+        queue_position: "Posição oficial da fila",
+        [ENERGY_FIELD]: "Energia recuperável estimada",
+        uc_id: "Número da UC",
+        category: "Categoria",
+      }
+    : {
+        priority: "Prioridade demonstrativa",
+        [ENERGY_FIELD]: "Energia estimada",
+        uc_id: "Número da UC",
+        category: "Categoria",
+      };
+  const sortColumns = gold
+    ? ["queue_position", ENERGY_FIELD]
+    : legacyGold
+      ? ["priority"]
+      : ["priority", ENERGY_FIELD];
+  const sortChoices = sortColumns.flatMap((column) => {
+    const first = relevantDirection(column);
+    return [first, first === "asc" ? "desc" : "asc"].map((choice) => ({
+      column,
+      choice,
+    }));
+  });
+  // Links com UC ou categoria não têm opção fixa: o controle mostra a ordem real.
+  if (!sortColumns.includes(field))
+    sortChoices.push({ column: field, choice: direction });
 
   function goTo(number: number) {
     const next = new URLSearchParams(params);
@@ -188,6 +279,25 @@ export default function InspectionQueue({
     onChange(next);
   }
 
+  function updateSort(column: string, nextDirection: string) {
+    const next = new URLSearchParams(params);
+    next.set("order_by", column);
+    next.set("direction", nextDirection);
+    next.set("page", "1");
+    onChange(next);
+  }
+
+  function sortBy(column: string) {
+    updateSort(
+      column,
+      column !== field
+        ? relevantDirection(column)
+        : direction === "asc"
+          ? "desc"
+          : "asc",
+    );
+  }
+
   return (
     <section
       aria-label="Fila de inspeção"
@@ -200,51 +310,28 @@ export default function InspectionQueue({
         aria-label="Controles da fila"
         className="grid gap-3 rounded-xl bg-surface p-4 sm:grid-cols-2 lg:grid-cols-3"
       >
-        <label className="space-y-2 text-sm">
+        <label className="space-y-2 text-sm md:hidden">
           <span>Ordenar por</span>
           <select
             aria-label="Ordenar por"
             className={inspectionControl}
-            value={field}
-            onChange={(event) =>
-              updateQueueOption("order_by", event.target.value)
-            }
+            value={`${field}:${direction}`}
+            onChange={(event) => {
+              const [column, choice] = event.target.value.split(":");
+              updateSort(column, choice);
+            }}
           >
-            {gold ? (
-              <>
-                <option value="queue_position">Posição oficial da fila</option>
-                <option value="potential_recoverable_energy_kwh">
-                  Energia recuperável estimada
-                </option>
-                <option value="uc_id">Número da UC</option>
-                <option value="category">Categoria</option>
-              </>
-            ) : (
-              <>
-                <option value="priority">Prioridade demonstrativa</option>
-                <option
-                  value="potential_recoverable_energy_kwh"
-                  disabled={legacyGold}
-                >
-                  Energia estimada{legacyGold ? " (indisponível)" : ""}
-                </option>
-                <option value="uc_id">Número da UC</option>
-              </>
+            {sortChoices.map(({ column, choice }) => (
+              <option key={`${column}:${choice}`} value={`${column}:${choice}`}>
+                {sortLabels[column] ?? column} (
+                {choice === "asc" ? "crescente" : "decrescente"})
+              </option>
+            ))}
+            {legacyGold && (
+              <option value="" disabled>
+                Energia estimada (indisponível)
+              </option>
             )}
-          </select>
-        </label>
-        <label className="space-y-2 text-sm">
-          <span>Direção</span>
-          <select
-            aria-label="Direção da ordenação"
-            className={inspectionControl}
-            value={direction}
-            onChange={(event) =>
-              updateQueueOption("direction", event.target.value)
-            }
-          >
-            <option value="desc">Decrescente</option>
-            <option value="asc">Crescente</option>
           </select>
         </label>
         <label className="space-y-2 text-sm">
@@ -326,18 +413,23 @@ export default function InspectionQueue({
                   <thead className="font-sans text-xs leading-[18px] text-muted">
                     <tr className="h-11">
                       {[
-                        "Posição / UC / categoria",
-                        "Motivo",
-                        "Energia a recuperar",
-                        "Ação",
-                      ].map((label) => (
-                        <th
-                          scope="col"
-                          className="pr-2 text-left font-normal"
+                        {
+                          label: "Posição / UC / categoria",
+                          column: "queue_position",
+                        },
+                        { label: "Motivo" },
+                        { label: "Energia a recuperar", column: ENERGY_FIELD },
+                        { label: "Ação" },
+                      ].map(({ label, column }) => (
+                        <QueueHeader
                           key={label}
-                        >
-                          {label}
-                        </th>
+                          label={label}
+                          column={column}
+                          field={field}
+                          direction={direction}
+                          onSort={sortBy}
+                          className="pr-2 text-left font-normal"
+                        />
                       ))}
                     </tr>
                   </thead>
@@ -403,18 +495,22 @@ export default function InspectionQueue({
                 <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
                   <tr>
                     {[
-                      "UC / prioridade",
-                      "Motivo da suspeita",
-                      ...(!legacyGold ? ["Energia estimada"] : []),
-                      "Ação",
-                    ].map((label) => (
-                      <th
-                        scope="col"
-                        className="px-3 pb-3 text-left font-normal"
+                      { label: "UC / prioridade", column: "priority" },
+                      { label: "Motivo da suspeita" },
+                      ...(!legacyGold
+                        ? [{ label: "Energia estimada", column: ENERGY_FIELD }]
+                        : []),
+                      { label: "Ação" },
+                    ].map(({ label, column }) => (
+                      <QueueHeader
                         key={label}
-                      >
-                        {label}
-                      </th>
+                        label={label}
+                        column={column}
+                        field={field}
+                        direction={direction}
+                        onSort={sortBy}
+                        className="px-3 pb-3 text-left font-normal"
+                      />
                     ))}
                   </tr>
                 </thead>
