@@ -11,6 +11,7 @@ import PanoramaMetricCard from "./PanoramaMetricCard";
 import PanoramaFoundations from "./PanoramaFoundations";
 import PanoramaStatus from "./PanoramaStatus";
 import AIInsightCard from "./AIInsightCard";
+import PanoramaRevenueDiagnosis from "./PanoramaRevenueDiagnosis";
 import PanoramaSeriesChart from "./PanoramaSeriesChart";
 import { usePanoramaInsight } from "./usePanoramaInsight";
 import { formatCompetenciaLabel } from "../../shared/analytics/syntheticData";
@@ -248,6 +249,16 @@ export default function PanoramaPage() {
               onRefreshIndicators={() => void refetch()}
             />
           </div>
+
+          {canNavigate("revenue:read") && data.origem?.kind === "gold" ? (
+            <PanoramaRevenueDiagnosis
+              municipio={filters.municipio}
+              classe={filters.classe}
+              latestPeriod={
+                data.opcoesFiltros?.competencias.at(-1) ?? filters.periodo
+              }
+            />
+          ) : null}
 
           <footer className="space-y-6">
             <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:flex-wrap sm:items-center">
