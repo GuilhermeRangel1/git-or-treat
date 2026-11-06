@@ -21,6 +21,7 @@ import {
   inspectionControl,
   inspectionPrimary,
 } from "./inspection-ui";
+import { DEFAULT_PAGE_SIZE } from "./queue-query";
 
 function evidenceUrl(params: URLSearchParams, uc: string) {
   const next = new URLSearchParams(params);
@@ -219,6 +220,40 @@ function QueueHeader({
   );
 }
 
+function PageSizeSelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: number;
+  onChange: (size: string) => void;
+  className: string;
+}) {
+  // Links com outro page_size válido mantêm o valor: a opção só entra nesse caso.
+  const sizes = Array.from(new Set([5, 10, 20, 50, value])).sort(
+    (left, right) => left - right,
+  );
+  return (
+    <label className={className}>
+      <span>Por página</span>
+      <span className="block w-20">
+        <select
+          aria-label="Por página"
+          className={inspectionControl}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {sizes.map((size) => (
+            <option key={size} value={size}>
+              {size}
+            </option>
+          ))}
+        </select>
+      </span>
+    </label>
+  );
+}
+
 export default function InspectionQueue({
   result,
   params,
@@ -230,6 +265,7 @@ export default function InspectionQueue({
 }) {
   const { items } = result.data;
   const page = result.pagination;
+  const pageSize = Number(params.get("page_size") ?? DEFAULT_PAGE_SIZE);
   const gold = result.metadata.contract_version === "2.0.0";
   const legacyGold = result.metadata.source.kind === "gold_csv";
   const field =
@@ -308,9 +344,9 @@ export default function InspectionQueue({
       </h2>
       <div
         aria-label="Controles da fila"
-        className="grid gap-3 rounded-xl bg-surface p-4 sm:grid-cols-2 lg:grid-cols-3"
+        className="flex items-end gap-3 md:hidden"
       >
-        <label className="space-y-2 text-sm md:hidden">
+        <label className="min-w-0 flex-1 space-y-2 text-sm">
           <span>Ordenar por</span>
           <select
             aria-label="Ordenar por"
@@ -334,33 +370,11 @@ export default function InspectionQueue({
             )}
           </select>
         </label>
-        <label className="space-y-2 text-sm">
-          <span>UCs por página</span>
-          <select
-            aria-label="UCs por página"
-            className={inspectionControl}
-            value={params.get("page_size") ?? String(page.page_size)}
-            onChange={(event) =>
-              updateQueueOption("page_size", event.target.value)
-            }
-          >
-            {Array.from(
-              new Set([
-                1,
-                10,
-                20,
-                50,
-                Number(params.get("page_size") ?? page.page_size),
-              ]),
-            )
-              .sort((left, right) => left - right)
-              .map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-          </select>
-        </label>
+        <PageSizeSelect
+          className="block shrink-0 space-y-2 text-sm"
+          value={pageSize}
+          onChange={(size) => updateQueueOption("page_size", size)}
+        />
       </div>
       {items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-2 py-10 text-center">
@@ -585,6 +599,11 @@ export default function InspectionQueue({
             Página {page.page} de {page.total_pages} · {page.total} UC(s) no
             recorte
           </p>
+          <PageSizeSelect
+            className="ml-auto hidden items-center gap-2 text-sm md:flex"
+            value={pageSize}
+            onChange={(size) => updateQueueOption("page_size", size)}
+          />
           <div className="flex gap-2">
             <button
               className={inspectionAction}

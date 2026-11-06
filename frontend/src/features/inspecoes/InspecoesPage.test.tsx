@@ -351,7 +351,7 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(within(filterDialog).getByLabelText("Classe")).toBeVisible();
   expect(within(filterDialog).getByLabelText("Alimentador")).toBeVisible();
   expect(within(filterDialog).queryByLabelText("Ordenar por")).toBeNull();
-  expect(within(filterDialog).queryByLabelText("UCs por página")).toBeNull();
+  expect(within(filterDialog).queryByLabelText("Por página")).toBeNull();
   expect(
     within(filterDialog).queryByRole("option", {
       name: "Posição oficial da fila",
@@ -940,8 +940,10 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   await user.click(screen.getByRole("button", { name: "Energia estimada" }));
   await user.click(screen.getByRole("button", { name: "UC / prioridade" }));
   await user.click(screen.getByRole("button", { name: "UC / prioridade" }));
-  await user.selectOptions(screen.getByLabelText("UCs por página"), "20");
-  await user.selectOptions(screen.getByLabelText("UCs por página"), "50");
+  const pagination = () =>
+    within(screen.getByRole("navigation", { name: "Paginação da fila" }));
+  await user.selectOptions(pagination().getByLabelText("Por página"), "20");
+  await user.selectOptions(pagination().getByLabelText("Por página"), "50");
   await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
   await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
   await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
@@ -1357,5 +1359,92 @@ it.each([
     );
     expect(request.searchParams.get("order_by")).toBe(order);
     expect(request.searchParams.get("direction")).toBe(direction);
+  },
+);
+
+function sizeOptions(select: HTMLElement) {
+  return within(select)
+    .getAllByRole("option")
+    .map((option) => option.textContent);
+}
+
+const pageSizeLayouts = [
+  ["Gold", () => respond(goldQueue)],
+  ["demonstração", () => respond(envelope())],
+] as const;
+
+it.each(pageSizeLayouts)(
+  "pede 5 UCs por padrão e oferece 5, 10, 20 e 50 na fila %s",
+  async (_layout, reply) => {
+    const fetch = vi.fn(async (_url: string) => reply());
+    vi.stubGlobal("fetch", fetch);
+    mount("/inspecoes");
+
+    const footer = await screen.findByRole("navigation", {
+      name: "Paginação da fila",
+    });
+    const request = new URL(
+      fetch.mock.calls.at(-1)![0],
+      window.location.origin,
+    );
+    expect(request.searchParams.get("page_size")).toBe("5");
+    const controls = screen.getByLabelText("Controles da fila");
+    for (const select of [
+      within(footer).getByLabelText("Por página"),
+      within(controls).getByLabelText("Por página"),
+    ]) {
+      expect(select).toHaveValue("5");
+      expect(sizeOptions(select)).toEqual(["5", "10", "20", "50"]);
+    }
+    expect(within(controls).getByLabelText("Ordenar por")).toBeInTheDocument();
+    expect(screen.queryByLabelText("UCs por página")).toBeNull();
+  },
+);
+
+it.each(pageSizeLayouts)(
+  "volta à página 1 ao mudar Por página na fila %s",
+  async (_layout, reply) => {
+    const fetch = vi.fn(async (_url: string) => reply());
+    vi.stubGlobal("fetch", fetch);
+    const user = userEvent.setup();
+    mount("/inspecoes?page=3");
+
+    const footer = await screen.findByRole("navigation", {
+      name: "Paginação da fila",
+    });
+    await user.selectOptions(within(footer).getByLabelText("Por página"), "20");
+    await waitFor(() => {
+      const request = new URL(
+        fetch.mock.calls.at(-1)![0],
+        window.location.origin,
+      );
+      expect(request.searchParams.get("page_size")).toBe("20");
+      expect(request.searchParams.get("page")).toBe("1");
+    });
+  },
+);
+
+it.each([
+  ["10", ["5", "10", "20", "50"]],
+  ["100", ["5", "10", "20", "50", "100"]],
+  ["1", ["1", "5", "10", "20", "50"]],
+])(
+  "mantém links antigos com page_size=%s e só acrescenta a opção se faltar",
+  async (size, options) => {
+    const fetch = vi.fn(async (_url: string) => respond(envelope()));
+    vi.stubGlobal("fetch", fetch);
+    mount(`/inspecoes?page_size=${size}`);
+
+    const footer = await screen.findByRole("navigation", {
+      name: "Paginação da fila",
+    });
+    const select = within(footer).getByLabelText("Por página");
+    expect(select).toHaveValue(size);
+    expect(sizeOptions(select)).toEqual(options);
+    const request = new URL(
+      fetch.mock.calls.at(-1)![0],
+      window.location.origin,
+    );
+    expect(request.searchParams.get("page_size")).toBe(size);
   },
 );
