@@ -15,11 +15,18 @@ import { inspectionAction } from "./inspection-ui";
 import type { Metadata } from "./contract";
 import { useOrderAccess, useSession } from "@/shared/auth/useSession";
 
-function DemonstrationLine({ metadata }: { metadata: Metadata }) {
+function DemonstrationLine({
+  metadata,
+  noticeVisible,
+}: {
+  metadata: Metadata;
+  noticeVisible: boolean;
+}) {
   if (!metadata.source.is_demo) return null;
   return (
     <p className="text-xs leading-[18px] text-muted">
-      Demonstração · dados sintéticos · atualização ilustrativa:{" "}
+      Demonstração{noticeVisible ? "" : " · dados sintéticos"} · atualização
+      ilustrativa:{" "}
       {new Intl.DateTimeFormat("pt-BR", {
         day: "2-digit",
         month: "2-digit",
@@ -145,7 +152,14 @@ export default function InspecoesPage() {
         </p>
       </header>
 
-      {metadata ? <DemonstrationLine metadata={metadata} /> : null}
+      {metadata ? (
+        <DemonstrationLine
+          metadata={metadata}
+          noticeVisible={
+            !parsed?.detail && queue.data?.metadata.contract_version !== "2.0.0"
+          }
+        />
+      ) : null}
 
       {invalid ? (
         <div
@@ -259,7 +273,7 @@ export default function InspecoesPage() {
                       </p>
                       <p className="mt-1 text-sm leading-[22px]">
                         {metadata.source.is_demo
-                          ? "Motivos e estimativas são sintéticos. Critério final de priorização e energia recuperável dependem de validação com as fontes."
+                          ? "Dados sintéticos; priorização final e energia recuperável dependem de validação com as fontes."
                           : "A fila não informa uma janela temporal própria. A fonte não fornece estimativa individual de energia recuperável."}
                       </p>
                     </div>

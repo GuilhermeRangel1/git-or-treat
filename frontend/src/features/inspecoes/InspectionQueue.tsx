@@ -1,3 +1,4 @@
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowRight,
@@ -6,6 +7,7 @@ import {
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
+  Info,
   Search,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -168,9 +170,96 @@ function relevantDirection(column: string) {
   return column === "queue_position" ? "asc" : "desc";
 }
 
+// Textos do dicionário Gold (posicao_fila_inspecao) e da tela de fundamentos.
+const PRIORITY_RULE_GOLD =
+  "Posição única na fila, de 1 a N. Ordena pela categoria (ALTA - HISTORICO IRREGULAR, ALTA - CONSUMO ZERO, MEDIA - NUNCA INSPECIONADO, BAIXA e, por último, REVISAR - SEM HISTORICO DE CONSUMO), depois mais inspeções irregulares, depois maior média de consumo histórico (ausente por último) e, por fim, UC. É ordem de triagem, não estimativa de recuperação nem a prioridade escolhida para a ordem de serviço.";
+const PRIORITY_RULE_DEMO =
+  "Pontuação de priorização da fila; não é probabilidade de irregularidade. Soma dos pesos dos sinais presentes, limitada a 1 e arredondada a duas casas.";
+const PRIORITY_RULE_PUBLISHED =
+  "Categoria publicada na Gold. Não há score nem pesos fornecidos nesta versão.";
+
+function PriorityInfo({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const focusFromPointer = useRef(false);
+  const panelId = useId();
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    // Posição fixa: os contêineres das tabelas cortam o que passa da borda.
+    function place() {
+      if (!button.current || !panel.current) return;
+      const anchor = button.current.getBoundingClientRect();
+      const box = panel.current.getBoundingClientRect();
+      const fitsBelow = anchor.bottom + 6 + box.height <= innerHeight - 8;
+      panel.current.style.left = `${Math.max(8, Math.min(anchor.left, innerWidth - box.width - 8))}px`;
+      panel.current.style.top = `${fitsBelow ? anchor.bottom + 6 : Math.max(8, anchor.top - box.height - 6)}px`;
+    }
+    function closeOutside(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!button.current?.contains(target) && !panel.current?.contains(target))
+        setOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        aria-label="Como a prioridade é calculada"
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-describedby={panelId}
+        className="inline-flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        onPointerDown={() => {
+          focusFromPointer.current = true;
+        }}
+        onClick={() => {
+          focusFromPointer.current = false;
+          setOpen((current) => !current);
+        }}
+        onFocus={() => {
+          if (!focusFromPointer.current) setOpen(true);
+        }}
+        onBlur={(event) => {
+          if (event.relatedTarget) setOpen(false);
+        }}
+      >
+        <Info size={14} aria-hidden="true" />
+      </button>
+      <div
+        ref={panel}
+        id={panelId}
+        role="tooltip"
+        hidden={!open}
+        className="fixed z-50 w-72 max-w-[calc(100vw-1rem)] rounded-lg border border-border bg-surface p-3 text-left text-sm leading-5 font-normal text-content shadow-md"
+      >
+        {text}
+      </div>
+    </>
+  );
+}
+
 function QueueHeader({
   label,
   column,
+  info,
   field,
   direction,
   onSort,
@@ -178,6 +267,7 @@ function QueueHeader({
 }: {
   label: string;
   column?: string;
+  info?: string;
   field: string;
   direction: string;
   onSort: (column: string) => void;
@@ -200,22 +290,26 @@ function QueueHeader({
     <th
       scope="col"
       className={className}
+      aria-label={info ? label : undefined}
       aria-sort={
         !active ? "none" : direction === "asc" ? "ascending" : "descending"
       }
     >
-      <button
-        type="button"
-        className="inline-flex min-h-11 items-center gap-1 text-left font-normal hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-        onClick={() => onSort(column)}
-      >
-        {label}
-        <Icon
-          size={14}
-          aria-hidden="true"
-          className={active ? "shrink-0" : "shrink-0 opacity-50"}
-        />
-      </button>
+      <span className="flex items-center gap-1">
+        <button
+          type="button"
+          className="inline-flex min-h-11 min-w-0 items-center gap-1 text-left font-normal hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          onClick={() => onSort(column)}
+        >
+          {label}
+          <Icon
+            size={14}
+            aria-hidden="true"
+            className={active ? "shrink-0" : "shrink-0 opacity-50"}
+          />
+        </button>
+        {info ? <PriorityInfo text={info} /> : null}
+      </span>
     </th>
   );
 }
@@ -273,6 +367,11 @@ export default function InspectionQueue({
   const direction =
     params.get("direction") ??
     (gold && field === "queue_position" ? "asc" : "desc");
+  const priorityRule = gold
+    ? PRIORITY_RULE_GOLD
+    : result.metadata.source.is_demo
+      ? PRIORITY_RULE_DEMO
+      : PRIORITY_RULE_PUBLISHED;
   const sortLabels: Record<string, string> = gold
     ? {
         queue_position: "Posição oficial da fila",
@@ -430,15 +529,17 @@ export default function InspectionQueue({
                         {
                           label: "Posição / UC / categoria",
                           column: "queue_position",
+                          info: priorityRule,
                         },
                         { label: "Motivo" },
                         { label: "Energia a recuperar", column: ENERGY_FIELD },
                         { label: "Ação" },
-                      ].map(({ label, column }) => (
+                      ].map(({ label, column, info }) => (
                         <QueueHeader
                           key={label}
                           label={label}
                           column={column}
+                          info={info}
                           field={field}
                           direction={direction}
                           onSort={sortBy}
@@ -509,17 +610,22 @@ export default function InspectionQueue({
                 <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
                   <tr>
                     {[
-                      { label: "UC / prioridade", column: "priority" },
+                      {
+                        label: "UC / prioridade",
+                        column: "priority",
+                        info: priorityRule,
+                      },
                       { label: "Motivo da suspeita" },
                       ...(!legacyGold
                         ? [{ label: "Energia estimada", column: ENERGY_FIELD }]
                         : []),
                       { label: "Ação" },
-                    ].map(({ label, column }) => (
+                    ].map(({ label, column, info }) => (
                       <QueueHeader
                         key={label}
                         label={label}
                         column={column}
+                        info={info}
                         field={field}
                         direction={direction}
                         onSort={sortBy}

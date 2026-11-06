@@ -1484,3 +1484,128 @@ it("mantém o botão de exportar antes da tabela na fila Gold", async () => {
     button.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
 });
+
+const INFO_NAME = "Como a prioridade é calculada";
+
+it("abre a regra pelo ícone sem ordenar e fecha com Esc e ao clicar fora", async () => {
+  const fetch = vi.fn(async (_url: string) => respond(envelope()));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  const info = await screen.findByRole("button", { name: INFO_NAME });
+  const calls = fetch.mock.calls.length;
+  const url = screen.getByLabelText("URL atual").textContent;
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  expect(info).toHaveAccessibleDescription(
+    /Pontuação de priorização da fila; não é probabilidade de irregularidade/,
+  );
+
+  await user.click(info);
+  expect(screen.getByRole("tooltip")).toHaveTextContent(
+    "Soma dos pesos dos sinais presentes, limitada a 1 e arredondada a duas casas.",
+  );
+  expect(info).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByLabelText("URL atual").textContent).toBe(url);
+  expect(fetch.mock.calls.length).toBe(calls);
+  expect(
+    screen.getByRole("columnheader", { name: "UC / prioridade" }),
+  ).toHaveAttribute("aria-sort", "descending");
+
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  await user.click(info);
+  await user.click(screen.getByRole("heading", { level: 1 }));
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  await user.click(info);
+  await user.click(info);
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
+it("abre a regra ao focar pelo teclado e fecha ao sair do botão", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(envelope())),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  const sort = await screen.findByRole("button", { name: "UC / prioridade" });
+  sort.focus();
+  await user.tab();
+  expect(screen.getByRole("button", { name: INFO_NAME })).toHaveFocus();
+  expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  await user.tab();
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
+it("explica a fila Gold pela regra publicada, sem falar em pontuação", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldQueue)),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  await user.click(await screen.findByRole("button", { name: INFO_NAME }));
+  const rule = screen.getByRole("tooltip");
+  expect(rule).toHaveTextContent(/É ordem de triagem/);
+  expect(rule).not.toHaveTextContent(/Pontuação/);
+  expect(
+    screen.getByRole("columnheader", { name: "Posição / UC / categoria" }),
+  ).toHaveAttribute("aria-sort", "ascending");
+});
+
+it("informa que a fonte publicada não fornece pesos", async () => {
+  const published = envelope();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      respond({
+        ...published,
+        metadata: {
+          ...metadata,
+          source: { ...metadata.source, kind: "gold_csv", is_demo: false },
+        },
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  await user.click(await screen.findByRole("button", { name: INFO_NAME }));
+  expect(screen.getByRole("tooltip")).toHaveTextContent(
+    "Categoria publicada na Gold. Não há score nem pesos fornecidos nesta versão.",
+  );
+});
+
+it("resume o aviso da demonstração e tira da linha só o que ele já diz", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(envelope())),
+  );
+  mount("/inspecoes");
+
+  expect(
+    await screen.findByText(
+      "Dados sintéticos; priorização final e energia recuperável dependem de validação com as fontes.",
+    ),
+  ).toBeVisible();
+  const line = screen.getByText(/atualização ilustrativa/);
+  expect(line).toHaveTextContent(
+    "Demonstração · atualização ilustrativa: 21/10/2026 · cobertura parcial",
+  );
+  expect(screen.queryByText(/Motivos e estimativas/)).toBeNull();
+});
+
+it("mantém dados sintéticos na linha do detalhe, onde não há aviso", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(detail)),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  expect(await screen.findByText(/atualização ilustrativa/)).toHaveTextContent(
+    "Demonstração · dados sintéticos · atualização ilustrativa: 21/10/2026 · cobertura parcial",
+  );
+});
