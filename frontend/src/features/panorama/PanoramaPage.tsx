@@ -206,12 +206,9 @@ export default function PanoramaPage() {
               comparison={filters.comparacao}
             />
             <PanoramaMetricCard
-              metric={data.metricas.ucsAtivas}
-              title={
-                data.origem?.kind === "gold"
-                  ? "UCs cadastradas no lote"
-                  : "Base de UCs"
-              }
+              metric={data.metricas.precoMedioEfetivo}
+              title="Preço observado"
+              subtitle="Receita ÷ consumo · não é tarifa"
               comparison={filters.comparacao}
             />
             <PanoramaMetricCard

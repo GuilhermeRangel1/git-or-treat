@@ -573,12 +573,21 @@ describe("PanoramaPage (WEB-01)", () => {
     // Aguarda o carregamento dos dados e verifica os valores do benchmark (PRD WEB-01)
     expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
     expect(screen.getByText("90 MWh")).toBeVisible();
-    expect(screen.getByText("1.248 UCs")).toBeVisible();
-    expect(screen.getByText("Valor faturado")).toBeVisible();
-    expect(screen.getByText("Consumo apurado")).toBeVisible();
-    expect(screen.getByText("Base de UCs")).toBeVisible();
-    expect(screen.getByText("UCs faturadas no mês")).toBeVisible();
-    expect(screen.getAllByRole("article")).toHaveLength(4);
+    expect(screen.getByText(/^R\$ \d+,\d{2}\/kWh$/)).toBeVisible();
+    expect(screen.getByText("Receita ÷ consumo · não é tarifa")).toBeVisible();
+    const cards = screen.getAllByRole("article");
+    expect(cards).toHaveLength(4);
+    expect(
+      cards.map((card) => within(card).getByRole("heading").textContent),
+    ).toEqual([
+      "Valor faturado",
+      "Consumo apurado",
+      "Preço observado",
+      "UCs faturadas no mês",
+    ]);
+    expect(screen.queryByText("Base de UCs")).toBeNull();
+    expect(screen.queryByText("UCs cadastradas no lote")).toBeNull();
+    expect(screen.queryByText("1.248 UCs")).toBeNull();
     await userEvent.click(
       screen.getByRole("button", { name: "Ver fundamentos" }),
     );
@@ -610,9 +619,9 @@ describe("PanoramaPage (WEB-01)", () => {
     await user.selectOptions(municipioSelect, "Recife");
     expect(screen.getByText(/R\$ 76,5 mil/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
-    // Recife soma R$ 38 mil e 620 UCs
+    // Recife soma R$ 38 mil, e o consumo deixa de ser o total da rede.
     expect(await screen.findByText(/R\$ 38 mil/)).toBeVisible();
-    expect(screen.getByText(/620 UCs/)).toBeVisible();
+    expect(screen.queryByText("90 MWh")).toBeNull();
   });
 
   it("exibe aviso de período incompleto na competência 2024-05", async () => {
