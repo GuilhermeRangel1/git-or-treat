@@ -314,25 +314,19 @@ export default function FieldFiles({
   return (
     <section
       aria-label="Arquivos de campo"
-      className="overflow-hidden rounded-xl border border-border bg-surface"
+      className={
+        mode === "results"
+          ? "contents"
+          : "overflow-hidden rounded-xl border border-border bg-surface"
+      }
     >
       {mode === "results" ? (
-        <div className="space-y-4 p-5 sm:p-6">
-          <div>
-            <h2 className="font-heading text-lg font-semibold text-content">
-              Registrar resultados por planilha
-            </h2>
-            <p
-              id="field-file-help"
-              className="mt-1 text-sm leading-6 text-muted"
-            >
-              Baixe o modelo, preencha a coluna resultado e envie de volta. XLSX
-              ou CSV, até 1 MB, 500 ordens.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col items-end gap-1.5 max-md:w-full max-md:items-start md:pt-1">
+          <div className="flex flex-wrap gap-3 max-md:w-full">
             <Button
               variant="secondary"
+              size="sm"
+              className="min-h-11 whitespace-nowrap text-sm! max-md:grow md:min-h-9"
               disabled={busy}
               leftIcon={<Download size={16} aria-hidden="true" />}
               ref={templateTrigger}
@@ -340,8 +334,22 @@ export default function FieldFiles({
             >
               Baixar modelo
             </Button>
-            {selectFileButton}
+            <Button
+              variant="primary"
+              size="sm"
+              className="min-h-11 whitespace-nowrap text-sm! max-md:grow md:min-h-9"
+              disabled={busy}
+              aria-describedby="field-file-help"
+              leftIcon={<Upload size={16} aria-hidden="true" />}
+              onClick={() => uploadRef.current?.click()}
+            >
+              Importar resultados
+            </Button>
           </div>
+          <p id="field-file-help" className="text-xs text-muted md:text-right">
+            Baixe o modelo, preencha a coluna resultado e importe de volta. XLSX
+            ou CSV, até 1 MB, 500 ordens.
+          </p>
           {fileInput}
         </div>
       ) : (
@@ -638,7 +646,11 @@ export default function FieldFiles({
       {!open && !templateOpen && (busy || message) ? (
         <p
           role="status"
-          className="border-t border-border bg-canvas px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
+          className={
+            mode === "results"
+              ? "min-w-0 basis-full rounded-xl border border-border bg-surface px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
+              : "border-t border-border bg-canvas px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
+          }
         >
           {busy ? "Processando arquivo…" : message}
           {mode === "results" && !busy && hasLineErrors ? (

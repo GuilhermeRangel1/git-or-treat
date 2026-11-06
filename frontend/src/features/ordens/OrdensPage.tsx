@@ -107,16 +107,21 @@ export default function OrdensPage() {
 
   return (
     <div className="mt-5 space-y-5 pb-6 lg:mt-6 lg:space-y-6">
-      <nav aria-label="Navegação das ordens">
-        <Link
-          ref={backToQueueRef}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-          to="/inspecoes"
-        >
-          <ArrowLeft size={16} aria-hidden="true" />
-          Voltar à fila
-        </Link>
-      </nav>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <nav aria-label="Navegação das ordens">
+          <Link
+            ref={backToQueueRef}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            to="/inspecoes"
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
+            Voltar à fila
+          </Link>
+        </nav>
+        {!session.configured || access.data?.canWrite === true ? (
+          <FieldFiles mode="results" />
+        ) : null}
+      </div>
 
       {session.configured && access.isPending ? (
         <p role="status" className="text-sm text-muted">
@@ -309,10 +314,6 @@ export default function OrdensPage() {
             </>
           ) : null}
         </>
-      ) : null}
-
-      {!session.configured || access.data?.canWrite === true ? (
-        <FieldFiles mode="results" />
       ) : null}
 
       {selectedOrder ? (

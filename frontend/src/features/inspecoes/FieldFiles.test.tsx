@@ -27,20 +27,19 @@ it("mostra apenas exportação em Inspeções e apenas resultados em Ordens", ()
   expect(
     screen.queryByRole("button", { name: "Exportar fila" }),
   ).not.toBeInTheDocument();
+  const help =
+    "Baixe o modelo, preencha a coluna resultado e importe de volta. XLSX ou CSV, até 1 MB, 500 ordens.";
   expect(
-    screen.getByRole("button", { name: "Selecionar planilha" }),
-  ).toBeInTheDocument();
+    screen.getByRole("button", { name: "Importar resultados" }),
+  ).toHaveAccessibleDescription(help);
   expect(
     screen.getByRole("button", { name: "Baixar modelo" }),
   ).toBeInTheDocument();
-  expect(
-    screen.getByRole("heading", { name: "Registrar resultados por planilha" }),
-  ).toBeInTheDocument();
+  expect(screen.queryByRole("heading")).not.toBeInTheDocument();
   expect(
     screen.getByLabelText("Importar resultados de campo"),
-  ).toHaveAccessibleDescription(
-    "Baixe o modelo, preencha a coluna resultado e envie de volta. XLSX ou CSV, até 1 MB, 500 ordens.",
-  );
+  ).toHaveAccessibleDescription(help);
+  expect(screen.getByText(help)).toBeVisible();
   expect(screen.queryByText("Planilha preenchida")).not.toBeInTheDocument();
   expect(screen.queryByText(/Cada linha válida/)).not.toBeInTheDocument();
 });

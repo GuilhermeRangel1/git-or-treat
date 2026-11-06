@@ -198,6 +198,25 @@ it("não oferece exclusão de ordem na tabela nem nos cartões", async () => {
   expect(screen.queryByText(/excluir|excluída|exclusão/i)).toBeNull();
 });
 
+it("mostra importar resultados na linha do Voltar à fila, antes dos filtros e da tabela", async () => {
+  renderPage();
+  await firstOrderAction();
+
+  const back = screen.getByRole("link", { name: "Voltar à fila" });
+  const importButton = screen.getByRole("button", {
+    name: "Importar resultados",
+  });
+  const row = back.closest("nav")?.parentElement;
+  expect(row).toContainElement(
+    screen.getByRole("button", { name: "Baixar modelo" }),
+  );
+  expect(row).toContainElement(importButton);
+  expect(row).not.toContainElement(screen.getByRole("table"));
+  expect(
+    screen.queryByText("Registrar resultados por planilha"),
+  ).not.toBeInTheDocument();
+});
+
 it("abre exatamente a OS indicada por order_id no link de acompanhamento", async () => {
   const current = order();
   vi.stubGlobal(
