@@ -1,6 +1,6 @@
 """Checagem somente de metadados da fonte Gold usada pela SQL F1."""
 
-from sqlalchemy import Numeric, inspect, text
+from sqlalchemy import Float, Numeric, inspect, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -57,7 +57,9 @@ def assert_live_f1_catalog(
             raise GoldCatalogIncompatible(
                 "Tipo físico Gold divergente do catálogo autorizado."
             )
-        if isinstance(expected_type, Numeric) and (
+        # Float herda Numeric no SQLAlchemy, mas PostgreSQL reflete FLOAT como
+        # DOUBLE PRECISION(53). Essa precisão binária não é escala decimal.
+        if isinstance(expected_type, Numeric) and not isinstance(expected_type, Float) and (
             actual_type.precision,
             actual_type.scale,
         ) != (expected_type.precision, expected_type.scale):
