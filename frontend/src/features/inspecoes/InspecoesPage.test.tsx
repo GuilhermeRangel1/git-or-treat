@@ -322,8 +322,12 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
     screen.getByRole("columnheader", { name: "Energia a recuperar" }),
   ).toBeVisible();
   expect(
-    screen.getAllByText(/Contatos ao atendimento: indisponível/),
-  ).toHaveLength(2);
+    screen.queryByRole("columnheader", { name: "Evidências publicadas" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("Evidências publicadas")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/Contatos ao atendimento: indisponível/),
+  ).not.toBeInTheDocument();
   expect(
     screen.queryByText(/Diferença observada não é estimativa/),
   ).not.toBeInTheDocument();
@@ -1056,7 +1060,7 @@ it("mantém filtros como rascunho no diálogo e fecha com Escape devolvendo foco
   ).toHaveValue("Recife");
 });
 
-it("apresenta os cinco campos da fila e registros mobile sem faixa de prioridade inventada", async () => {
+it("apresenta os quatro campos da fila e registros mobile sem faixa de prioridade inventada", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(envelope())));
   mount();
   expect(
@@ -1065,7 +1069,6 @@ it("apresenta os cinco campos da fila e registros mobile sem faixa de prioridade
   for (const heading of [
     "UC / prioridade",
     "Motivo da suspeita",
-    "Indicador usado",
     "Energia estimada",
     "Ação",
   ]) {
@@ -1073,13 +1076,17 @@ it("apresenta os cinco campos da fila e registros mobile sem faixa de prioridade
       screen.getByRole("columnheader", { name: heading }),
     ).toBeInTheDocument();
   }
+  expect(
+    screen.queryByRole("columnheader", { name: "Indicador usado" }),
+  ).not.toBeInTheDocument();
   const mobileCard = screen.getByRole("article", { name: "Suspeita UC-1004" });
   expect(
     within(mobileCard).getByText("Lacuna de leitura e medidor retirado"),
   ).toBeVisible();
+  expect(within(mobileCard).queryByText("Indicador usado")).toBeNull();
   expect(
-    within(mobileCard).getByText("Lacuna de leitura · Medidor retirado"),
-  ).toBeVisible();
+    within(mobileCard).queryByText("Lacuna de leitura · Medidor retirado"),
+  ).toBeNull();
   expect(screen.queryByText(/Alta|Média/)).not.toBeInTheDocument();
 });
 

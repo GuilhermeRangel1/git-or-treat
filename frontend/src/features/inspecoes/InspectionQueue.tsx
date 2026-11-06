@@ -69,18 +69,10 @@ function ItemCard({
           {item.priority_label ?? formatNumber(item.priority ?? 0)}
         </span>
       </h3>
-      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+      <div className="mt-4 grid gap-3 text-sm">
         <div>
           <p className="text-xs text-muted">Motivo da suspeita</p>
           <p className="mt-1 leading-5">{item.reason}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted">Indicador usado</p>
-          <p className="mt-1 leading-5">
-            {item.signals.length
-              ? item.signals.map((signal) => signal.label).join(" · ")
-              : "Sem indicador informado"}
-          </p>
         </div>
       </div>
       <div className="mt-4 grid gap-2">
@@ -103,30 +95,6 @@ function ItemCard({
   );
 }
 
-function goldEvidence(item: GoldInspectionItem) {
-  const evidence = item.evidence;
-  const text = (value: string | null) => value ?? "indisponível";
-  return [
-    evidence.inspections_performed === null
-      ? "Inspeções realizadas: indisponível"
-      : `Inspeções realizadas: ${formatNumber(evidence.inspections_performed)}`,
-    evidence.confirmed_irregular_inspections === null
-      ? "Irregularidades confirmadas: indisponível"
-      : `Irregularidades confirmadas: ${formatNumber(evidence.confirmed_irregular_inspections)}`,
-    evidence.historical_average_kwh_per_reading === null
-      ? "Média histórica: indisponível"
-      : `Média histórica: ${formatNumber(evidence.historical_average_kwh_per_reading)} kWh/leitura`,
-    `Geração distribuída: ${text(evidence.distributed_generation_present)}`,
-    `Situação cadastral: ${text(evidence.cadastral_status)}`,
-    evidence.call_center_contacts === null
-      ? "Contatos ao atendimento: indisponível"
-      : `Contatos ao atendimento: ${formatNumber(evidence.call_center_contacts)}`,
-    evidence.interruptions === null
-      ? "Interrupções: indisponível"
-      : `Interrupções: ${formatNumber(evidence.interruptions)}`,
-  ];
-}
-
 function GoldItemCard({
   item,
   params,
@@ -134,7 +102,6 @@ function GoldItemCard({
   item: GoldInspectionItem;
   params: URLSearchParams;
 }) {
-  const evidence = goldEvidence(item);
   return (
     <article
       aria-label={`UC ${item.uc_id}`}
@@ -151,12 +118,6 @@ function GoldItemCard({
         <div>
           <p className="text-xs text-muted">Motivo registrado</p>
           <p className="mt-1 leading-5">{item.reason ?? "Não informado"}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted">Evidências publicadas</p>
-          <p className="mt-1 leading-5">
-            {evidence.join(" · ") || "Sem evidências disponíveis"}
-          </p>
         </div>
         <GoldRecoverySummary item={item} />
       </div>
@@ -352,14 +313,14 @@ export default function InspectionQueue({
                       estimativa válida.
                     </span>
                     <span className="sr-only">
-                      Categorias, motivos, evidências e acesso ao detalhe
+                      Categorias, motivos, energia a recuperar e acesso ao
+                      detalhe
                     </span>
                   </caption>
                   <colgroup>
-                    <col className="w-[19%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[22%]" />
-                    <col className="w-[27%]" />
+                    <col className="w-[26%]" />
+                    <col className="w-[26%]" />
+                    <col className="w-[32%]" />
                     <col className="w-[16%]" />
                   </colgroup>
                   <thead className="font-sans text-xs leading-[18px] text-muted">
@@ -367,7 +328,6 @@ export default function InspectionQueue({
                       {[
                         "Posição / UC / categoria",
                         "Motivo",
-                        "Evidências publicadas",
                         "Energia a recuperar",
                         "Ação",
                       ].map((label) => (
@@ -400,10 +360,6 @@ export default function InspectionQueue({
                         <td className="break-words py-3 pr-2">
                           {item.reason ?? "Não informado"}
                         </td>
-                        <td className="py-3 pr-2 text-muted">
-                          {goldEvidence(item).join(" · ") ||
-                            "Sem evidências disponíveis"}
-                        </td>
                         <td className="py-3 pr-2 text-sm">
                           <GoldRecoverySummary item={item} />
                         </td>
@@ -435,22 +391,20 @@ export default function InspectionQueue({
             <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
               <table className="w-full table-fixed text-left text-sm">
                 <caption className="sr-only">
-                  Suspeitas com prioridade, motivo, indicadores usados, energia
-                  estimada e acesso às evidências
+                  Suspeitas com prioridade, motivo, energia estimada e acesso ao
+                  detalhe
                 </caption>
                 <colgroup>
-                  <col className="w-[15%]" />
-                  <col className="w-[25%]" />
-                  <col className="w-[17%]" />
-                  {!legacyGold && <col className="w-[19%]" />}
-                  <col className="w-[24%]" />
+                  <col className={legacyGold ? "w-[25%]" : "w-[20%]"} />
+                  <col className={legacyGold ? "w-[50%]" : "w-[36%]"} />
+                  {!legacyGold && <col className="w-[22%]" />}
+                  <col className={legacyGold ? "w-[25%]" : "w-[22%]"} />
                 </colgroup>
                 <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
                   <tr>
                     {[
                       "UC / prioridade",
                       "Motivo da suspeita",
-                      "Indicador usado",
                       ...(!legacyGold ? ["Energia estimada"] : []),
                       "Ação",
                     ].map((label) => (
@@ -481,13 +435,6 @@ export default function InspectionQueue({
                         </p>
                       </th>
                       <td className="px-3 py-3 leading-5">{item.reason}</td>
-                      <td className="px-3 py-3 text-sm leading-5 text-muted">
-                        {item.signals.length
-                          ? item.signals
-                              .map((signal) => signal.label)
-                              .join(" · ")
-                          : "Sem indicador informado"}
-                      </td>
                       {!legacyGold && (
                         <td className="px-3 py-3">
                           <p className="font-medium">
