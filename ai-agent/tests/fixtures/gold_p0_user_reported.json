@@ -1,5 +1,5 @@
 {
-  "dataset_version": "user-reported-1.0.0",
+  "dataset_version": "user-reported-1.0.0-oracle-audit-1",
   "scope": "Two real reported failures, four authored controls, one clarification continuation; artificial complete coverage",
   "limitations": [
     "Reported usage has no denominator: do not infer all unevaluated questions fail.",
@@ -80,7 +80,8 @@
           "field_id": "billing.revenue",
           "direction": "desc"
         },
-        "limit": 1
+        "limit": 1,
+        "filters": []
       }
     },
     {
@@ -118,7 +119,8 @@
         },
         "group_by_dimension_ids": [],
         "order": null,
-        "limit": 100
+        "limit": 100,
+        "filters": []
       }
     },
     {
@@ -189,7 +191,8 @@
         },
         "group_by_dimension_ids": [],
         "order": null,
-        "limit": 100
+        "limit": 100,
+        "filters": []
       }
     },
     {
@@ -229,7 +232,8 @@
           "customer.consumption_class"
         ],
         "order": null,
-        "limit": 100
+        "limit": 100,
+        "filters": []
       }
     },
     {
@@ -279,7 +283,8 @@
           "customer.consumption_class"
         ],
         "order": null,
-        "limit": 100
+        "limit": 100,
+        "filters": []
       },
       "expected_business_intent": "Aplicar confirmação expressa do usuário sem perder receita ou janeiro de 2024."
     }
