@@ -1,18 +1,22 @@
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
-
 from app.core.config import settings
 from app.core.genai_gold_database import get_question_gold_resources
 from app.models.gold_v2 import TABLES
 from app.schemas.genai_internal import AccessScope
 from app.schemas.gold_readiness import GoldReadinessReport
 from app.schemas.sql_generation import SqlGenerationResponse
+from app.services.genai_audit import AuditStore
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SQLAlchemyError
+
+from tests.support.database import test_engine
 from tests.support.platform_auth import login_as_profile
 from tests.test_genai_sql_structure import candidate as make_candidate
 
@@ -184,6 +188,10 @@ def _benchmark_candidate(case_id, request):
     return type(value).model_validate(data)
 
 
+@pytest.mark.skipif(
+    not os.getenv("TEST_TEXT_TO_SQL_URL"),
+    reason="Configure PostgreSQL descartável em TEST_TEXT_TO_SQL_URL.",
+)
 def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
     client, monkeypatch,
 ):
@@ -242,14 +250,33 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
                 "question": case["question"], "context": context})
             assert response.status_code == 200, f"{case['id']}: {response.text}"
             body = response.json()
+            assert re.fullmatch(r"[a-f0-9]{32}", body["audit_reference"])
+            audit_events = AuditStore(test_engine).read_reference(body["audit_reference"])
+            assert audit_events
+            assert audit_events[-1]["event"]["stage"] == "response"
+            assert audit_events[-1]["event"]["outcome"] in {"success", "refused"}
+            assert not any(
+                key in audit_events[-1]["event"]
+                for key in ("question", "sql", "parameters", "filters")
+            )
             if case["expected_status"] == "needs_clarification":
                 assert body["status"] == "needs_clarification", case["id"]
                 assert body["evidence"] is None, case["id"]
+                assert body["presentation"] is None, case["id"]
+                assert body["unsupported_reason"] is None, case["id"]
                 assert body["clarification"]["missing_fields"] == ["period"], case["id"]
                 continue
 
             assert body["status"] == "answered", case["id"]
             assert "sql" not in body and "parameters" not in body["evidence"]
+            presentation = body["presentation"]
+            assert presentation["evidence_digest"] == body["evidence"]["evidence_digest"]
+            assert [row["cells"] for row in presentation["rows"]] == body["evidence"]["rows"]
+            assert [column["key"] for column in presentation["columns"]] == [
+                column["name"] for column in body["evidence"]["columns"]
+            ]
+            assert presentation["period"]
+            assert presentation["answer"]
             with owner.connect() as control:
                 oracle = control.execute(text(case["reference_sql"]), case["parameters"]).mappings().all()
             if case["id"] == "F1-04":
@@ -260,6 +287,119 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
                 expected = [[format(value, ".2f") if value is not None and not isinstance(value, str)
                              else value for value in row.values()] for row in oracle]
             assert body["evidence"]["rows"] == expected, case["id"]
+
+        original_client = app.state.genai_question_client
+
+        class EmptyResultClient(BenchmarkCandidateClient):
+            async def generate_sql_candidate(self, payload, *, correlation_id):
+                context = json.loads(payload.contents)
+                request = _candidate_request(
+                    context["question"],
+                    context,
+                    context["temporal_coverage"]["competencies"],
+                )
+                candidate = _benchmark_candidate("F1-07", request)
+                data = candidate.model_dump(mode="json")
+                data["parameters"]["municipality"]["value"] = "Cidade apenas janeiro"
+                data["interpretation"]["filters"][0]["values"] = [
+                    "Cidade apenas janeiro"
+                ]
+                result = type(candidate).model_validate(data)
+                return SqlGenerationResponse(
+                    correlation_id=correlation_id, candidate=result
+                )
+
+        with owner.begin() as connection:
+            connection.execute(
+                TABLES["diagnostico_receita"].insert(),
+                {
+                    "competencia": "2026-01",
+                    "municipio": "Cidade apenas janeiro",
+                    "classe_consumo": "RESIDENCIAL",
+                    "subgrupo_tarifario": "FIXTURE",
+                    "bandeira_tarifaria": "BASE",
+                    "possui_gd": "NAO",
+                    "receita_total_reais": 0.01,
+                },
+            )
+        app.state.genai_question_client = EmptyResultClient(fixture["cases"])
+        empty_response = strict_client.post(
+            "/api/v1/ai/sql-analyses",
+            json={
+                "question": "Qual foi o faturamento de Cidade apenas janeiro em junho de 2026?",
+                "context": [],
+            },
+        )
+        assert empty_response.status_code == 200, empty_response.text
+        empty_body = empty_response.json()
+        assert empty_body["status"] == "answered"
+        assert empty_body["evidence"]["status"] == "empty"
+        assert empty_body["evidence"]["rows"] == []
+        assert empty_body["presentation"]["state"] == "empty"
+        assert "Não há linhas" in empty_body["presentation"]["answer"]
+        app.state.genai_question_client = original_client
+
+        from app.services.genai_client import GenAIServiceUnavailable
+
+        class UnavailableClient:
+            async def generate_sql_candidate(self, _payload, *, correlation_id):
+                raise GenAIServiceUnavailable(retryable=True)
+
+        app.state.genai_question_client = UnavailableClient()
+        unavailable = strict_client.post(
+            "/api/v1/ai/sql-analyses",
+            json={"question": fixture["cases"][0]["question"], "context": []},
+        )
+        assert unavailable.status_code == 503
+        assert "evidence" not in unavailable.json()
+        assert "presentation" not in unavailable.json()
+        app.state.genai_question_client = original_client
+
+        class ChangingPublicationClient(BenchmarkCandidateClient):
+            async def generate_sql_candidate(self, payload, *, correlation_id):
+                response = await super().generate_sql_candidate(
+                    payload, correlation_id=correlation_id
+                )
+                with owner.begin() as connection:
+                    connection.exec_driver_sql(
+                        "UPDATE gold.publicacao_atual "
+                        "SET lote = 'GOLD_20261107T000000Z_bbbbbbbb'"
+                    )
+                return response
+
+        app.state.genai_question_client = ChangingPublicationClient(fixture["cases"])
+        changed = strict_client.post(
+            "/api/v1/ai/sql-analyses",
+            json={"question": fixture["cases"][0]["question"], "context": []},
+        )
+        assert changed.status_code == 409
+        assert "evidence" not in changed.json()
+        assert "presentation" not in changed.json()
+        with owner.begin() as connection:
+            connection.exec_driver_sql(
+                "UPDATE gold.publicacao_atual "
+                "SET lote = 'GOLD_20261106T000000Z_aaaaaaaa'"
+            )
+        app.state.genai_question_client = original_client
+
+        record_audit = AuditStore.record
+        attempted_audit_stages = []
+
+        def fail_response_audit(self, event, *, service="genai", now=None):
+            attempted_audit_stages.append(event.stage)
+            if event.stage == "response":
+                raise SQLAlchemyError("synthetic audit failure")
+            return record_audit(self, event, service=service, now=now)
+
+        monkeypatch.setattr(AuditStore, "record", fail_response_audit)
+        audit_failure = strict_client.post(
+            "/api/v1/ai/sql-analyses",
+            json={"question": fixture["cases"][0]["question"], "context": []},
+        )
+        assert audit_failure.status_code == 503
+        assert "evidence" not in audit_failure.json()
+        assert "presentation" not in audit_failure.json()
+        assert attempted_audit_stages[:3] == ["request", "source", "response"]
     finally:
         app.dependency_overrides = overrides
         reader.dispose()

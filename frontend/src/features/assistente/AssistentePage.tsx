@@ -48,6 +48,7 @@ type RetryRequest = Pick<
   | "history_request_id"
   | "refresh_context"
 > & {
+  sqlF1Mode: boolean;
   userMessageId: number;
   assistantMessageId: number;
 };
@@ -139,6 +140,31 @@ function updateConversationInteraction(
 
 function formatFilterValue(value: string | number | boolean) {
   return typeof value === "boolean" ? (value ? "Sim" : "Não") : String(value);
+}
+
+function formatExactDecimal(value: string, unit: string | null) {
+  if (!/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(value))
+    return "Valor indisponível";
+  const negative = value.startsWith("-");
+  const unsigned = negative ? value.slice(1) : value;
+  const [integer, fraction] = unsigned.split(".");
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const formatted = `${negative ? "−" : ""}${grouped}${fraction ? `,${fraction}` : ""}`;
+  return unit === "R$" ? `R$ ${formatted}` : formatted;
+}
+
+function formatSqlPublication(batchReference: string | null | undefined) {
+  const match = batchReference?.match(
+    /^gold-csv-v2:GOLD_(\d{4})(\d{2})(\d{2})T/,
+  );
+  if (!match) return "Gold v2";
+  const date = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+  );
+  return `Gold v2, publicação de ${new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeZone: "UTC",
+  }).format(date)}`;
 }
 
 const PERIOD_MONTHS = [
@@ -294,19 +320,129 @@ function AssistantResult({
             title: response.visualization.title,
             unit: response.visualization.unit,
             precision: response.visualization.precision,
-            scope: [
-              formatPeriod(response.visualization.period),
-              ...Object.entries(response.analysis_context?.filters ?? {}).map(
-                ([key, value]) =>
-                  `${response.analysis_context?.filter_labels?.[key] ?? "Filtro aplicado"}: ${formatFilterValue(value)}`,
-              ),
-            ].join(" · "),
+            scope: response.sql_presentation
+              ? [
+                  formatPeriod(response.sql_presentation.period),
+                  ...response.sql_presentation.filters,
+                  ...response.sql_presentation.universe.map(
+                    (item) => `Universo: ${item}`,
+                  ),
+                ].join(" · ")
+              : [
+                  formatPeriod(response.visualization.period),
+                  ...Object.entries(
+                    response.analysis_context?.filters ?? {},
+                  ).map(
+                    ([key, value]) =>
+                      `${response.analysis_context?.filter_labels?.[key] ?? "Filtro aplicado"}: ${formatFilterValue(value)}`,
+                  ),
+                ].join(" · "),
             categoryLabel: response.visualization.category_label,
             note: response.visualization.note,
             ...chatChartPoints(response.visualization, formatVisualLabel),
           }}
+          exportsEnabled={!response.sql_presentation}
+          tableEnabled={!response.sql_presentation}
         />
       )}
+      {answered && response.sql_presentation && (
+        <section
+          aria-label="Tabela do resultado Text-to-SQL"
+          className="overflow-hidden rounded-xl border border-divider bg-surface"
+        >
+          <div className="border-b border-divider px-4 py-3">
+            <h3 className="font-semibold text-content">Resultado detalhado</h3>
+            <p className="mt-1 text-sm text-muted">
+              Período: {formatPeriod(response.sql_presentation.period)}
+            </p>
+            {response.sql_presentation.filters.map((filter) => (
+              <p key={filter} className="mt-1 text-sm text-muted">
+                {filter}
+              </p>
+            ))}
+            {response.sql_presentation.universe.map((item) => (
+              <p key={item} className="mt-1 text-sm text-muted">
+                Universo: {item}
+              </p>
+            ))}
+          </div>
+          <div
+            tabIndex={0}
+            aria-label="Resultados em tabela; use as setas para rolar"
+            className="max-h-96 max-w-full overflow-auto focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
+          >
+            <table className="min-w-full border-collapse text-left text-sm">
+              <caption className="sr-only">
+                Valores retornados pela consulta Text-to-SQL
+              </caption>
+              <thead className="sticky top-0 bg-canvas text-xs text-muted">
+                <tr>
+                  {response.sql_presentation.columns.map((column) => (
+                    <th
+                      key={column.key}
+                      scope="col"
+                      className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold"
+                    >
+                      {column.label}
+                      {column.unit ? ` (${column.unit})` : ""}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {response.sql_presentation.rows.map((row) => (
+                  <tr
+                    key={row.observation_id}
+                    className="border-b border-divider last:border-0"
+                  >
+                    {row.cells.map((cell, index) => {
+                      const column = response.sql_presentation!.columns[index];
+                      const display =
+                        cell === null
+                          ? "Sem valor disponível"
+                          : column.role === "measure"
+                            ? formatExactDecimal(cell, column.unit)
+                            : formatVisualLabel(cell);
+                      return (
+                        <td
+                          key={`${row.observation_id}-${column.key}`}
+                          className="whitespace-nowrap px-3 py-2 text-content"
+                        >
+                          {display}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                {response.sql_presentation.rows.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={response.sql_presentation.columns.length}
+                      className="px-3 py-4 text-muted"
+                    >
+                      {response.sql_presentation.state === "empty"
+                        ? "A consulta não retornou linhas neste recorte."
+                        : "Não há valores de faturamento disponíveis nas linhas retornadas."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      {answered &&
+        response.sql_presentation?.state === "ready" &&
+        !response.visualization &&
+        ["monthly_series", "grouped_total", "ranking"].includes(
+          response.sql_presentation.operation,
+        ) && (
+          <p className="text-sm text-muted">
+            O gráfico foi omitido porque a série pode conter lacunas ou os
+            valores excedem a precisão segura de visualização. A tabela mantém
+            os valores exatos retornados.
+          </p>
+        )}
       {response.evidence.some((item) => item.is_demo) && (
         <p className="flex items-center gap-2 text-sm font-medium text-[var(--status-warning-text)]">
           <Info aria-hidden="true" className="size-4" />
@@ -327,6 +463,12 @@ function AssistantResult({
                 ? "Documentação interna"
                 : "Fonte de dados interna"}
           </p>
+          {response.sql_analysis_mode && response.analysis_context && (
+            <p className="break-words">
+              Fonte: Diagnóstico de receita ·{" "}
+              {formatSqlPublication(response.analysis_context.batch_reference)}
+            </p>
+          )}
           {response.evidence
             .filter(
               (item) =>
@@ -338,6 +480,11 @@ function AssistantResult({
               </p>
             ))}
         </div>
+      )}
+      {response.sql_analysis_mode && response.audit_reference && (
+        <p className="break-all text-xs text-muted">
+          Registro de auditoria confirmado · {response.audit_reference}
+        </p>
       )}
       <AnalysisContext response={response} />
       {response.limitations.length > 0 && (
@@ -458,6 +605,8 @@ function MessageCard({
 }
 
 export default function AssistentePage() {
+  const sqlF1ModeAvailable =
+    import.meta.env.VITE_GENAI_SQL_ANALYSIS_ENABLED === "true";
   const session = useSession();
   const historyEnabled = session.configured && Boolean(session.user);
   const queryClient = useQueryClient();
@@ -475,6 +624,7 @@ export default function AssistentePage() {
   >("idle");
   const isSending = requestPhase !== "idle";
   const [draft, setDraft] = useState("");
+  const [sqlF1Mode, setSqlF1Mode] = useState(false);
   const [conversationId, setConversationId] = useState<string>(() =>
     crypto.randomUUID(),
   );
@@ -488,7 +638,14 @@ export default function AssistentePage() {
       request: Parameters<typeof askAIQuestion>[0];
       onData: (response: AIQuestionResponse) => void;
       signal: AbortSignal;
-    }) => askAIQuestion(input.request, input.onData, input.signal),
+      sqlF1Mode: boolean;
+    }) =>
+      askAIQuestion(
+        input.request,
+        input.onData,
+        input.signal,
+        input.sqlF1Mode ? "sql_f1" : "legacy",
+      ),
     retry: false,
   });
   const identityKey = `${user?.id ?? ""}:${user?.profile ?? ""}:${user?.permissions.join(",") ?? ""}`;
@@ -577,6 +734,7 @@ export default function AssistentePage() {
             refresh_context: false,
           }
         : {}),
+      sqlF1Mode,
       continuation_token:
         [...messages]
           .reverse()
@@ -608,14 +766,15 @@ export default function AssistentePage() {
     requestAbort.current = abortController;
     setRequestPhase("consulting");
     try {
-      if (historyEnabled && !savedIdRef.current) {
+      const saveHistory = historyEnabled && !retryRequest.sqlF1Mode;
+      if (saveHistory && !savedIdRef.current) {
         const created = await createConversation(conversationId);
         if (!current()) return;
         savedIdRef.current = created.id;
         setActiveSavedId(created.id);
         setConversationId(created.id);
       }
-      if (historyEnabled) retryRequest.conversation_id = savedIdRef.current!;
+      if (saveHistory) retryRequest.conversation_id = savedIdRef.current!;
       const response = await mutation.mutateAsync({
         request: {
           contract_version: "v1",
@@ -631,6 +790,7 @@ export default function AssistentePage() {
             : {}),
         },
         signal: abortController.signal,
+        sqlF1Mode: retryRequest.sqlF1Mode,
         onData: (data) => {
           if (!current()) return;
           setRequestPhase("interpreting");
@@ -881,6 +1041,20 @@ export default function AssistentePage() {
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           <IndicatorHelp screen="assistente" />
+          {sqlF1ModeAvailable && (
+            <label className="inline-flex min-h-10 items-center gap-2 rounded-md px-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                checked={sqlF1Mode}
+                disabled={hasMessages || isSending}
+                onChange={(event) => setSqlF1Mode(event.currentTarget.checked)}
+                className="size-4 accent-[var(--brand)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              />
+              <span title="A F1 cobre somente análises de faturamento Gold v2.">
+                Testar faturamento F1
+              </span>
+            </label>
+          )}
           {hasMessages && (
             <Button
               variant="ghost"
@@ -1029,6 +1203,12 @@ export default function AssistentePage() {
               {!isSending && <Send aria-hidden="true" className="size-6" />}
             </Button>
           </div>
+          {sqlF1Mode && (
+            <p className="mt-2 px-1 text-xs leading-4 text-muted">
+              Modo experimental: somente faturamento Gold v2; esta conversa não
+              será salva.
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs leading-4 text-muted">
             <span>Enter envia · Shift + Enter quebra linha</span>
             <span className="inline-flex items-center gap-1.5">
@@ -1037,7 +1217,11 @@ export default function AssistentePage() {
                 <>
                   <span aria-hidden="true">·</span>
                   <Check aria-hidden="true" className="size-3.5" />
-                  {historyEnabled ? "histórico privado" : "conversa temporária"}
+                  {sqlF1Mode
+                    ? "conversa temporária (F1)"
+                    : historyEnabled
+                      ? "histórico privado"
+                      : "conversa temporária"}
                 </>
               )}
             </span>

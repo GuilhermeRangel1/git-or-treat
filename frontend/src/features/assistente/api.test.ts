@@ -29,6 +29,74 @@ afterEach(() => {
 });
 
 describe("cliente do chat", () => {
+  it("usa a rota F1 sem streaming legado nem publicação fornecida pelo navegador", async () => {
+    const response = {
+      correlation_id: "0123456789abcdef0123456789abcdef",
+      audit_reference: "abcdef0123456789abcdef0123456789",
+      status: "answered",
+      evidence: {
+        batch_ref:
+          "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        evidence_digest: "a".repeat(64),
+        columns: [{ name: "revenue", role: "measure", unit: "R$" }],
+        rows: [["1234.50"]],
+      },
+      presentation: {
+        contract_version: "text-to-sql-f1-presentation-v1",
+        state: "ready",
+        operation: "total",
+        answer: "O faturamento total foi R$ 1.234,50.",
+        period: "2026-06",
+        filters: [],
+        universe: [],
+        limitations: [
+          "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
+        ],
+        columns: [
+          {
+            key: "revenue",
+            label: "Faturamento",
+            role: "measure",
+            semantic_id: "revenue_total",
+            unit: "R$",
+          },
+        ],
+        rows: [{ observation_id: "row_1", cells: ["1234.50"] }],
+        evidence_digest: "a".repeat(64),
+      },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onData = vi.fn();
+    const result = await askAIQuestion(
+      {
+        contract_version: "v1",
+        question: "Faturamento total de Recife em junho?",
+        context: [{ role: "user", content: "Faturamento anterior" }],
+      },
+      onData,
+      undefined,
+      "sql_f1",
+    );
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/v1/ai/sql-analyses");
+    expect(new Headers(options.headers).get("Accept")).not.toBe(
+      "application/x-ndjson",
+    );
+    expect(JSON.parse(String(options.body))).toEqual({
+      contract_version: "v1",
+      question: "Faturamento total de Recife em junho?",
+      context: [{ role: "user", content: "Faturamento anterior" }],
+    });
+    expect(result.sql_analysis_mode).toBe(true);
+    expect(onData).not.toHaveBeenCalled();
+  });
+
   it("expiração do contexto não invalida os dados do portal", async () => {
     vi.stubGlobal(
       "fetch",
