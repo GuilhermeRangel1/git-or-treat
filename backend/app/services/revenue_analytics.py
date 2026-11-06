@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Iterable, Literal
 
 from app.repositories.analytics import AnalyticsRepository, RevenueCoverage
 from app.schemas.analytics import AnalyticsFilters, AnalyticsStatus
 from app.services.analytics import AnalyticsAPIError
-
 
 MISSING_DIMENSION = "__grid360_missing__"
 MISSING_LABEL = "Não informado"
@@ -521,11 +520,12 @@ def build_revenue(
     end: str,
     filters: AnalyticsFilters,
     group_by: GroupBy = "municipio",
+    *, include_diagnosis: bool = False,
 ) -> dict:
     from app.repositories.gold import GoldAnalyticsRepository
     if isinstance(repository, GoldAnalyticsRepository):
         from app.services.gold_revenue import build_gold_revenue
-        return build_gold_revenue(repository, start, end, filters, group_by)
+        return build_gold_revenue(repository, start, end, filters, group_by, include_diagnosis=include_diagnosis)
     months = _month_sequence(start, end)
     units = _validate_and_filter_units(repository.units, filters)
     unit_ids = {unit["uc_id"] for unit in units}

@@ -2,6 +2,7 @@ import { apiClient } from "@/shared/api/client";
 import { decodeRevenueEnvelope, type RevenueEnvelope } from "./revenueContract";
 
 export type RevenueRequest = {
+  include_diagnosis?: boolean;
   competencia_inicio: string;
   competencia_fim: string;
   municipio: string;
@@ -48,6 +49,7 @@ export async function fetchRevenue(
     competencia_fim: request.competencia_fim,
     group_by: request.group_by,
   });
+  if (request.include_diagnosis) params.set("include_diagnosis", "true");
   for (const key of ["municipio", "bairro", "classe", "alimentador"] as const) {
     const value = request[key];
     if (value) params.set(key, value);
