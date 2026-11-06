@@ -357,28 +357,6 @@ export default function OrderActionsDialog({
                 </div>
               ) : null}
 
-              {canEdit && isPending ? (
-                <Button
-                  variant="neutral"
-                  className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
-                  leftIcon={<ClipboardCheck size={18} aria-hidden="true" />}
-                  isLoading={
-                    mutation.isPending && mutation.variables?.kind === "start"
-                  }
-                  loadingLabel="Iniciando…"
-                  disabled={locked}
-                  onClick={() =>
-                    submit({
-                      orderId: current.id,
-                      kind: "start",
-                      version: current.version,
-                    })
-                  }
-                >
-                  Iniciar ordem
-                </Button>
-              ) : null}
-
               <div className="grid gap-2">
                 <label htmlFor="order-result" className="text-sm font-medium">
                   Resultado de campo
@@ -423,33 +401,56 @@ export default function OrderActionsDialog({
                   </p>
                 )}
               </div>
-              {canEdit && isRunning ? (
-                <Button
-                  variant="secondary"
-                  className="min-h-11 w-fit min-w-[220px] max-[639px]:w-full"
-                  leftIcon={<Check size={18} aria-hidden="true" />}
-                  isLoading={resultPending}
-                  loadingLabel="Concluindo…"
-                  disabled={locked}
-                  onClick={saveResult}
-                >
-                  Registrar resultado e concluir
-                </Button>
-              ) : null}
-
               {canEdit && !finalOrder ? (
-                <Button
-                  variant="danger"
-                  className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
-                  leftIcon={<X size={18} aria-hidden="true" />}
-                  disabled={locked}
-                  onClick={() => {
-                    setValidationError(null);
-                    setConfirmCancellation(true);
-                  }}
-                >
-                  Cancelar ordem
-                </Button>
+                <div className="flex flex-wrap items-center gap-3 max-[639px]:flex-col">
+                  {isPending ? (
+                    <Button
+                      variant="neutral"
+                      className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
+                      leftIcon={<ClipboardCheck size={18} aria-hidden="true" />}
+                      isLoading={
+                        mutation.isPending &&
+                        mutation.variables?.kind === "start"
+                      }
+                      loadingLabel="Iniciando…"
+                      disabled={locked}
+                      onClick={() =>
+                        submit({
+                          orderId: current.id,
+                          kind: "start",
+                          version: current.version,
+                        })
+                      }
+                    >
+                      Iniciar ordem
+                    </Button>
+                  ) : null}
+                  {isRunning ? (
+                    <Button
+                      variant="secondary"
+                      className="min-h-11 w-fit min-w-[220px] max-[639px]:w-full"
+                      leftIcon={<Check size={18} aria-hidden="true" />}
+                      isLoading={resultPending}
+                      loadingLabel="Concluindo…"
+                      disabled={locked}
+                      onClick={saveResult}
+                    >
+                      Registrar resultado e concluir
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="danger"
+                    className="min-h-11 w-fit min-w-[180px] max-[639px]:w-full"
+                    leftIcon={<X size={18} aria-hidden="true" />}
+                    disabled={locked}
+                    onClick={() => {
+                      setValidationError(null);
+                      setConfirmCancellation(true);
+                    }}
+                  >
+                    Cancelar ordem
+                  </Button>
+                </div>
               ) : finalOrder ? (
                 <p role="status" className="text-sm text-muted">
                   Esta ordem está encerrada e não aceita novos resultados.
