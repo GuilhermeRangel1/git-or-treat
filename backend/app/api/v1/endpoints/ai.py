@@ -13,12 +13,12 @@ from sqlalchemy.orm import Session
 from app.api.progressive import progressive_handler
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.platform_identity import require_permission
 from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
     get_question_gold_resources,
 )
 from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
+from app.core.platform_identity import require_permission
 from app.repositories.gold_publication import (
     GoldPublicationChanged,
     GoldPublicationUnavailable,
@@ -36,7 +36,8 @@ from app.schemas.ai_insight import (
     PanoramaInsightRequest,
 )
 from app.schemas.ai_question_publication import AIQuestionPublicRequest
-from app.schemas.genai_internal import AccessScope
+from app.schemas.genai_internal import AccessScope, QuestionPlanRequest
+from app.schemas.sql_analysis import SqlAnalysisRequest, SqlAnalysisResponse
 from app.services.analytics import AnalyticsAPIError
 from app.services.genai_audit import AuditStore
 from app.services.genai_client import (
@@ -62,6 +63,8 @@ from app.services.genai_expected_publication import (
     ExpectedPublicationMismatch,
     resolve_expected_batch_ref,
 )
+from app.services.genai_publication import GoldPublicationContext
+from app.services.genai_sql_pipeline import run_sql_question
 from app.services.gold_catalog import GoldCatalogIncompatible
 from app.services.gold_panorama_coordination import generate_gold_panorama_insight
 from app.services.panorama_insights import (
@@ -71,6 +74,56 @@ from app.services.panorama_insights import (
 )
 
 router = APIRouter(dependencies=[Depends(require_permission("ai:ask"))])
+
+
+def get_sql_genai_question_client(request: Request) -> GenAIQuestionClient:
+    return request.app.state.genai_question_client
+
+
+@router.post("/sql-analyses", response_model=SqlAnalysisResponse)
+async def run_f1_sql_analysis(
+    payload: SqlAnalysisRequest,
+    request: Request,
+    genai: Annotated[GenAIQuestionClient, Depends(get_sql_genai_question_client)],
+    gold_resources: Annotated[tuple[Engine, Callable[[], AccessScope]] | None,
+                              Depends(get_question_gold_resources)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    """Rota autenticada opt-in; entrega evidência sem expor SQL interno."""
+    if not settings.GENAI_SQL_EXECUTION_ENABLED or settings.ANALYTICS_SOURCE != "gold":
+        raise HTTPException(503, "Análise SQL indisponível.")
+    if gold_resources is None or gold_resources[0] is None:
+        raise HTTPException(503, "Leitura Gold indisponível.")
+    engine, resolve_scope = gold_resources
+
+    def resolve_f1_scope():
+        current = resolve_scope()
+        return current.model_copy(update={
+            "allowed_metric_ids": frozenset({"billing.revenue"}),
+            "allowed_dimension_ids": current.allowed_dimension_ids & {
+                "geography.municipality", "customer.consumption_class",
+            },
+        })
+
+    scope = resolve_f1_scope()
+    if "billing.revenue" not in scope.allowed_metric_ids:
+        raise HTTPException(403, "Métrica fora do acesso atual.")
+    publication = GoldPublicationContext.capture(engine)
+    fields = publication.planning_fields(engine, scope)
+    remaining_ms = min(int(GOLD_REQUEST_TIMEOUT_SECONDS * 1000),
+                       int(settings.AI_AGENT_TIMEOUT_SECONDS * 1000))
+    plan_request = QuestionPlanRequest.model_validate({
+        **payload.model_dump(mode="json"), "access_scope": scope.model_dump(mode="json"),
+        "remaining_timeout_ms": remaining_ms, **fields,
+    })
+    deadline = GenAIRequestDeadline.start(remaining_ms / 1000)
+    run = await run_sql_question(
+        plan_request, engine=engine, readiness_engine=db.get_bind(),
+        publication=publication, client=genai, resolve_scope=resolve_f1_scope,
+        approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+        deadline=deadline, correlation_id=request.state.correlation_id,
+    )
+    return SqlAnalysisResponse.from_run(request.state.correlation_id, run)
 
 class AIQuestionRoute(APIRoute):
     """Retorna erro de validação estável sem ecoar valores da pergunta."""

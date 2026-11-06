@@ -4326,3 +4326,36 @@ O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por municípi
 - A seção detalhada TSQL-02 já registrava benchmark artificial e baseline concluídos, mas a tabela inicial do TODO ainda os indicava pendentes. O resumo foi sincronizado com os critérios/evidências existentes; nenhuma implementação ou meta foi alterada.
 - Conferência de integridade: os três arquivos de benchmark/referência/reserva coincidem com o SHA-256 congelado. Relatórios preservam denominador 40: planner antigo 17 correspondências observáveis/23 divergências; SQL legado 8 coincidências/5 divergências/27 não executados. Não são métricas da geração final.
 - Holdout independente, revisão externa e aceite de produção seguem fora dessa conclusão, na promoção TSQL-12. Estados oficiais IA preservados. Fonte: docs/plans/2026-11-05-text-to-sql-f1-benchmark.md e seção TSQL-02 do TODO_3 local. Verificação documental e de hashes; sem nova chamada ao provedor ou execução de testes/banco nesta rodada.
+
+### 06/11/2026 — IA-03/06/08 e WEB-10 — validação interna SQL F1
+
+- Corrigida introspecção Float/Numeric e atualizada a fixture PostgreSQL para o schema Gold v2 completo. Matriz estrutural/semântica/admissão/executor: 151 testes passaram, incluindo 13 PostgreSQL; Ruff e compileall dirigidos passaram.
+- Mutações de SQL, parâmetro, identidade, publicação lógica, política, prazo e digest impedem comandos ao leitor; grant revogado e drift físico impedem execução do candidato dentro do snapshot. Um teste prova que DEC/FEC `observed_uncertified` não habilita consulta de faturamento. Evidência e comandos em [validação TSQL-06](plans/2026-11-06-tsql06-validacao-final.md).
+- Entrega de integração interna do validador F1; prontidão/metadados da admissão ainda artificiais nessa prova. Sem chamada Gemini, chat/portal generativo ou aceite Gold real; estados oficiais preservados.
+
+### 06/11/2026 — TSQL-07 — composição interna de execução F1
+
+- `run_sql_question` compõe geração, admissão, execução restrita e evidência no mesmo prazo/escopo; candidato de teste é artificial, execução PostgreSQL é real no container descartável. Total e comparação reconciliados em R$ 150,03, R$ 80,00 e R$ 70,03; 13 testes PostgreSQL passaram.
+- A composição ainda não tem endpoint público autenticado, síntese ou portal; sem lote Gold real. Marco interno E1 somente; estados oficiais preservados. Ver TODO 3 e testes `test_genai_sql_executor_postgres.py`.
+
+### 06/11/2026 — TSQL-07 — rota autenticada opt-in
+
+- Criada `POST /api/v1/ai/sql-analyses`, com permissão individual `ai:ask`, Gold v2, leitor restrito, escopo atual e resposta sem SQL/parâmetros. `GENAI_SQL_EXECUTION_ENABLED=false` por padrão e no Compose; teste confirma autenticação e estado desligado.
+- A rota delega à composição interna de execução/evidência. Execução bem-sucedida pelo endpoint ainda não foi provada; teste PostgreSQL atual chama a pipeline diretamente. Não ativar a flag antes dessa prova. Estados oficiais permanecem inalterados.
+
+### 06/11/2026 — TSQL-07 — prova HTTP autenticada e SQL PostgreSQL
+
+- `POST /api/v1/ai/sql-analyses` passou com sessão individual, escopo F1 reduzido a receita/dimensões permitidas, SQL executado pelo leitor restrito em PostgreSQL 16 e evidência reconciliada por SELECT de controle independente. 4 testes da rota e 13 testes da fronteira PostgreSQL passaram. Gemini e readiness foram substituídos; banco artificial.
+- SQL e parâmetros não aparecem na resposta pública. A configuração permanece desligada por padrão. Faltam teste com integração real Gemini/readiness e aceite de lote Gold autorizado; estados oficiais preservados.
+
+### 06/11/2026 — TSQL-07 — evidência da chamada autenticada
+
+- Evidência detalhada da rota E1 em [integração HTTP TSQL-07](plans/2026-11-06-tsql07-integracao-http-e1.md): 19 testes passaram, incluindo execução do SQL via rota autenticada em PostgreSQL descartável e reconciliação independente. Provedor/readiness foram simulados e a flag permanece desligada por padrão.
+- Não comprova lote Gold real, qualidade Gemini ou todos os casos F1; TSQL-07 continua aberta.
+
+### 06/11/2026 — TSQL-07 — execução F1 reconciliada e encerramento do escopo
+
+- A rota autenticada percorreu os sete oráculos numéricos da F1 e um caso de ano incompleto. No PostgreSQL 16 sintético, os sete resultados coincidiram exatamente com consultas independentes do fixture; o oitavo retornou esclarecimento de período sem executar SQL. Evidência/JUnit privado em `work/tsql07-backend.xml`; suíte Backend dirigida: 19 passaram.
+- `EvidenceGuard.validate_sql_evidence` revalida digest, publicação, contexto, catálogo, métrica/dimensões autorizadas e tamanho no envelope Text-to-SQL, inclusive comparação composta, sem construir plano determinístico legado. Suíte GenAI dirigida: 27 passaram; JUnit privado em `work/tsql07-genai.xml`.
+- Gold v2 ativa conferida separadamente em transação READ ONLY, sob `venergy_genai_reader`: seis meses atuais e seis comparáveis tinham cobertura; série, total por mês, total por classe, comparação e ranking passaram controles SQL independentes. Só estados/contagens foram retidos; fingerprint sanitizado da publicação: `0efb887c4bd7f24a0c29e5e3555c69c0`.
+- **TSQL-07 concluída para execução/evidência F1.** Os testes HTTP usam candidato e prontidão artificiais; a Gold ativa foi consultada por SQL direto, não pela rota. Não houve chamada Gemini, auditoria durável ou jornada do portal. Síntese/tabela/portal seguem em TSQL-08; auditoria/rollout e serviço real permanecem nas etapas correspondentes. Estados oficiais dos requisitos IA/DE não foram alterados.
