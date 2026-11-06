@@ -6,6 +6,11 @@ type PanoramaMetricCardProps = {
   comparison: ComparisonType;
 };
 
+const STABLE_VARIATION_LIMIT_PERCENT = 0.5;
+const COMPARISON_UNAVAILABLE_TEXT = "Comparação indisponível neste recorte";
+const PILL_CLASS =
+  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium";
+
 function compactValue(metric: KpiMetric) {
   const value = metric.valorAtual;
   if (value == null) return "Indisponível";
@@ -48,18 +53,59 @@ function absoluteVariation(metric: KpiMetric) {
   return `${sign}${absolute.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} ${metric.unidade}`;
 }
 
+function percentVariation(variation: number) {
+  const sign = variation < 0 ? "−" : "+";
+  const absolute = Math.abs(variation).toLocaleString("pt-BR", {
+    maximumFractionDigits: 2,
+  });
+  return `${sign}${absolute}%`;
+}
+
+function variationTrend(metric: KpiMetric, comparison: ComparisonType) {
+  const variation = metric.variacaoPercentual;
+  if (
+    metric.id === "ucs_atv" ||
+    comparison === "nenhuma" ||
+    metric.valorAnterior == null ||
+    variation == null
+  )
+    return null;
+  if (Math.abs(variation) < STABLE_VARIATION_LIMIT_PERCENT)
+    return {
+      symbol: "●",
+      text: "Estável",
+      className: "bg-[var(--status-info-bg)] text-[var(--status-info-text)]",
+    };
+
+  const absolute = absoluteVariation(metric);
+  const detail = `${absolute ? `${absolute} · ` : ""}${percentVariation(variation)}`;
+  return variation > 0
+    ? {
+        symbol: "▲",
+        text: `Em alta · ${detail}`,
+        className:
+          "bg-[var(--status-success-bg)] text-[var(--status-success-text)]",
+      }
+    : {
+        symbol: "▼",
+        text: `Em queda · ${detail}`,
+        className:
+          "bg-[var(--action-danger-bg)] text-[var(--action-danger-text)]",
+      };
+}
+
 export default function PanoramaMetricCard({
   metric,
   title,
   comparison,
 }: PanoramaMetricCardProps) {
-  const variation = metric.variacaoPercentual;
-  const supportsComparison = metric.id !== "ucs_atv";
-  const absolute = supportsComparison ? absoluteVariation(metric) : null;
+  const hasValue = metric.valorAtual != null;
+  const trend = variationTrend(metric, comparison);
+  const comparisonText = trend?.text ?? COMPARISON_UNAVAILABLE_TEXT;
 
   return (
     <article
-      aria-label={`${title}: ${compactValue(metric)}`}
+      aria-label={`${title}: ${compactValue(metric)}${hasValue ? `. ${comparisonText}` : ""}`}
       className="flex min-h-[168px] min-w-0 flex-col justify-center gap-2 rounded-xl bg-surface p-4 text-left lg:items-center lg:gap-3 lg:p-5 lg:text-center"
     >
       <h2 className="text-sm font-medium leading-5 text-muted">{title}</h2>
@@ -67,29 +113,16 @@ export default function PanoramaMetricCard({
         {compactValue(metric)}
       </p>
       <div className="text-xs leading-[18px]">
-        {metric.valorAtual == null ? (
+        {!hasValue ? (
           <p className="text-muted">
             {metric.limitacoes?.[0] ?? "Valor não disponível nesta fonte."}
           </p>
-        ) : null}
-        {metric.valorAtual == null ||
-        metric.id === "ucs_atv" ||
-        comparison === "nenhuma" ||
-        metric.valorAnterior == null ||
-        variation == null ? null : (
-          <p
-            className={
-              variation > 0
-                ? "text-success"
-                : variation < 0
-                  ? "text-[var(--status-danger)]"
-                  : "text-muted"
-            }
-          >
-            {variation > 0 ? "+" : ""}
-            {absolute ? `${absolute} · ` : ""}
-            {variation.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
+        ) : trend ? (
+          <p className={`${PILL_CLASS} ${trend.className}`}>
+            <span aria-hidden="true">{trend.symbol}</span> {trend.text}
           </p>
+        ) : (
+          <p className="text-muted">{COMPARISON_UNAVAILABLE_TEXT}</p>
         )}
       </div>
     </article>
