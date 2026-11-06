@@ -171,15 +171,6 @@ export function UC360SupportMetrics({ data }: { data: UCOverview["data"] }) {
           }
           limitations={data.distributed_generation.limitations}
         />
-        <SummaryMetric
-          title="Faturas marcadas como em aberto"
-          value={
-            data.open_invoices.count?.toLocaleString("pt-BR") ?? "Sem dado"
-          }
-          detail={`${formatUCCompetence(data.period.start)} a ${formatUCCompetence(data.period.end)} · o saldo atualizado não foi confirmado`}
-          status={data.open_invoices.status}
-          limitations={data.open_invoices.limitations}
-        />
       </div>
     </section>
   );
