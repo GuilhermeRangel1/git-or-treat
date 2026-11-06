@@ -369,6 +369,9 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(
     screen.getByText(/fotografia cadastral, sem competência mensal/),
   ).toBeVisible();
+  await user.click(screen.getByText("Potencial estimado para investigação"));
+  await user.click(screen.getByText("Referência histórica de recuperação"));
+  await user.click(screen.getByText("Comparação proposta de consumo"));
   expect(
     screen.getByRole("region", {
       name: "Potencial estimado para investigação",
@@ -753,6 +756,9 @@ it("na Gold v2 desativa ordenação por energia e preserva a volta do detalhe", 
   expect(
     screen.getByText("Média histórica de recuperação por inspeção"),
   ).toBeVisible();
+  await user.click(
+    screen.getByText("Média histórica de recuperação por inspeção"),
+  );
   expect(screen.getByText(/não é estimativa para esta UC/)).toBeVisible();
   expect(
     screen.getByText(/A fila não informa uma janela temporal própria/),
@@ -1679,7 +1685,7 @@ it("na demonstração sem valor mantém o aviso e mostra a razão da indisponibi
   await screen.findByRole("heading", { name: "O que motivou a investigação" });
   const block = recoveryBlock();
   expect(within(block).getByText("Estimativa indisponível")).toHaveClass(
-    "text-4xl",
+    "text-2xl",
   );
   expect(block).not.toHaveTextContent(/\d/);
   expect(
@@ -1750,11 +1756,147 @@ it("no Gold sem estimativa mostra o bloco acima da triagem, com a razão publica
   const block = recoveryBlock();
   expectBefore(block, heading);
   expect(within(block).getByText("Estimativa indisponível")).toHaveClass(
-    "text-4xl",
+    "text-2xl",
   );
   expect(block).toHaveTextContent(
     "A Gold publicada não contém uma estimativa de energia recuperável.",
   );
   expect(screen.queryByText("Energia recuperável indisponível")).toBeNull();
   expect(screen.getByLabelText("Limite da evidência")).toBeVisible();
+});
+
+const GUIDANCE_TEXT =
+  "Verificar cadastro, medição, histórico e eventual geração própria antes de concluir.";
+
+function collapsedSummaries() {
+  const details = [...document.querySelectorAll("article details")];
+  expect(details.every((item) => !item.hasAttribute("open"))).toBe(true);
+  return details.map((item) => item.querySelector("summary")?.textContent);
+}
+
+it("mostra Estimativa indisponível como texto neutro, sem parecer um valor", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldDetail)),
+  );
+  mount("/inspecoes?uc=UC-GOLD");
+
+  await screen.findByRole("heading", { name: "O que consta na triagem" });
+  const text = within(recoveryBlock()).getByText("Estimativa indisponível");
+  expect(text).toHaveClass("text-2xl", "text-content");
+  expect(text).not.toHaveClass("text-4xl");
+  expect(text).not.toHaveClass("text-brand");
+});
+
+it("mantém o valor em destaque quando há número", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(detail)),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  expect(within(recoveryBlock()).getByText("45 kWh")).toHaveClass(
+    "text-4xl",
+    "text-brand",
+  );
+});
+
+it("no Gold recolhe a fundamentação e mantém evidências, orientação e limite visíveis", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldDetail)),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes?uc=UC-GOLD");
+
+  await screen.findByRole("heading", { name: "O que consta na triagem" });
+  expect(collapsedSummaries()).toEqual([
+    "Referência histórica de recuperação",
+    "Potencial estimado para investigação",
+    "Comparação proposta de consumo",
+    "Variação de consumo observada",
+  ]);
+  expect(screen.getByText("Motivo registrado")).toBeVisible();
+  expect(screen.getByText("Evidências publicadas")).toBeVisible();
+  expect(screen.getByText("Inspeções realizadas")).toBeVisible();
+  expect(screen.getByText(GUIDANCE_TEXT)).toBeVisible();
+  expect(screen.getByLabelText("Limite da evidência")).toBeVisible();
+  expect(
+    screen.getByText(/fotografia cadastral, sem competência mensal/),
+  ).toBeVisible();
+  expect(screen.getByText(/Não é energia recuperada/)).not.toBeVisible();
+
+  await user.click(screen.getByText("Potencial estimado para investigação"));
+  expect(screen.getByText(/Não é energia recuperada/)).toBeVisible();
+  await user.click(screen.getByText("Potencial estimado para investigação"));
+  expect(screen.getByText(/Não é energia recuperada/)).not.toBeVisible();
+});
+
+it("na demonstração mantém o chip e o aviso visíveis e recolhe a explicação e a janela", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(detail)),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  expect(collapsedSummaries()).toEqual([
+    "Como a prioridade é calculada",
+    "Janela da evidência",
+  ]);
+  expect(
+    screen.getByLabelText("Prioridade analítica: 0,92 de 1"),
+  ).toBeVisible();
+  expect(
+    screen.getByText("Não é probabilidade de irregularidade."),
+  ).toBeVisible();
+  expect(screen.getByText("Motivo da suspeita")).toBeVisible();
+  expect(screen.getByText("Sinais observados")).toBeVisible();
+  expect(screen.getByText(GUIDANCE_TEXT)).toBeVisible();
+  expect(screen.getByLabelText("Limite da evidência")).toBeVisible();
+
+  const explanation = screen.getByText(/Pontuação de priorização da fila/);
+  const period = screen.getByText("janeiro de 2025 a fevereiro de 2025");
+  expect(explanation).not.toBeVisible();
+  expect(period).not.toBeVisible();
+  await user.click(screen.getByText("Como a prioridade é calculada"));
+  expect(explanation).toBeVisible();
+  await user.click(screen.getByText("Janela da evidência"));
+  expect(period).toBeVisible();
+});
+
+it("na fonte publicada deixa visível o que limita a evidência", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      respond({
+        ...detail,
+        data: {
+          ...detail.data,
+          priority: null,
+          priority_label: "ALTA",
+          potential_recoverable_energy_kwh: null,
+        },
+        metadata: {
+          ...metadata,
+          source: { ...metadata.source, kind: "gold_csv", is_demo: false },
+        },
+      }),
+    ),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  expect(collapsedSummaries()).toEqual([
+    "Como a prioridade é calculada",
+    "Cobertura do consumo no lote",
+  ]);
+  expect(
+    screen.getByText("Regra provisória aguardando homologação."),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/A fila não informa uma janela temporal própria/),
+  ).toBeVisible();
 });

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import type { DetailEnvelope, Metadata } from "./contract";
 import { energy } from "./format";
 import { signedValueTone } from "@/shared/ui/signedValue";
@@ -23,6 +24,36 @@ function periodLabel(value: string) {
   return `${months[Number(month) - 1] ?? month} de ${year}`;
 }
 
+const GUIDANCE =
+  "Verificar cadastro, medição, histórico e eventual geração própria antes de concluir.";
+
+function CollapsibleSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="group rounded-lg border border-border">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm font-medium hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand [&::-webkit-details-marker]:hidden">
+        <ChevronRight
+          size={16}
+          aria-hidden="true"
+          className="shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"
+        />
+        {title}
+      </summary>
+      <section
+        aria-label={title}
+        className="border-t border-border p-4 text-sm leading-[22px]"
+      >
+        {children}
+      </section>
+    </details>
+  );
+}
+
 function RecoveryHighlight({
   value,
   notice,
@@ -43,7 +74,9 @@ function RecoveryHighlight({
       >
         Energia a recuperar (estimativa)
       </h2>
-      <p className="mt-1 font-heading text-4xl font-semibold [overflow-wrap:anywhere] text-brand">
+      <p
+        className={`mt-1 font-heading font-semibold [overflow-wrap:anywhere] ${value === null ? "text-2xl text-content" : "text-4xl text-brand"}`}
+      >
         {energy(value)}
       </p>
       <p className="mt-2 text-sm leading-[22px]">{notice}</p>
@@ -142,37 +175,6 @@ export default function SuspicionDetail({
               <dd className="mt-1">{data.feeder_id ?? "Indisponível"}</dd>
             </div>
           </dl>
-          {evidence.historical_recovery_status ===
-            "DISPONIVEL_REFERENCIA_HISTORICA" &&
-            evidence.historical_recovery_reference !== null &&
-            ["global", "0", "1"].includes(
-              evidence.historical_recovery_reference,
-            ) &&
-            evidence.historical_recovery_mean_kwh_per_inspection !== null &&
-            evidence.historical_recovery_interval_lower_kwh !== null &&
-            evidence.historical_recovery_interval_upper_kwh !== null &&
-            evidence.historical_recovery_interval_lower_kwh <=
-              evidence.historical_recovery_interval_upper_kwh && (
-              <section
-                className="mt-5 rounded-lg bg-canvas p-4 text-sm"
-                aria-label="Referência histórica de recuperação"
-              >
-                <h3 className="font-medium">
-                  Média histórica de recuperação por inspeção
-                </h3>
-                <p className="mt-1">
-                  {energy(evidence.historical_recovery_mean_kwh_per_inspection)}{" "}
-                  por inspeção · intervalo{" "}
-                  {energy(evidence.historical_recovery_interval_lower_kwh)} a{" "}
-                  {energy(evidence.historical_recovery_interval_upper_kwh)}
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  Referência{" "}
-                  {evidence.historical_recovery_reference ?? "não informada"};
-                  método candidato, não é estimativa para esta UC.
-                </p>
-              </section>
-            )}
           <p className="mt-5 font-medium">Evidências publicadas</p>
           <dl className="mt-2 grid gap-4 rounded-lg bg-canvas p-4 text-sm sm:grid-cols-2">
             {metric("Inspeções realizadas", evidence.inspections_performed)}
@@ -200,151 +202,173 @@ export default function SuspicionDetail({
               </dd>
             </div>
           </dl>
-          {data.investigation_potential && (
-            <section
-              className="mt-5 rounded-lg bg-canvas p-4 text-sm"
-              aria-label="Potencial estimado para investigação"
-            >
-              <h3 className="font-medium">
-                Potencial estimado para investigação
-              </h3>
-              <p className="mt-1 text-xs text-muted">
-                {periodLabel(data.investigation_potential.baseline_start)} a{" "}
-                {periodLabel(data.investigation_potential.baseline_end)}{" "}
-                comparado com{" "}
-                {periodLabel(data.investigation_potential.recent_start)} a{" "}
-                {periodLabel(data.investigation_potential.recent_end)}.
-              </p>
-              {data.investigation_potential.potential_kwh !== null ? (
-                <>
-                  <p className="mt-2 font-semibold">
-                    {energy(data.investigation_potential.potential_kwh)} nos
-                    três meses analisados
+          <p className="mt-4 text-sm leading-[22px] text-muted">{GUIDANCE}</p>
+          <div className="mt-5 space-y-2">
+            {evidence.historical_recovery_status ===
+              "DISPONIVEL_REFERENCIA_HISTORICA" &&
+              evidence.historical_recovery_reference !== null &&
+              ["global", "0", "1"].includes(
+                evidence.historical_recovery_reference,
+              ) &&
+              evidence.historical_recovery_mean_kwh_per_inspection !== null &&
+              evidence.historical_recovery_interval_lower_kwh !== null &&
+              evidence.historical_recovery_interval_upper_kwh !== null &&
+              evidence.historical_recovery_interval_lower_kwh <=
+                evidence.historical_recovery_interval_upper_kwh && (
+                <CollapsibleSection title="Referência histórica de recuperação">
+                  <p className="font-medium">
+                    Média histórica de recuperação por inspeção
                   </p>
                   <p className="mt-1">
-                    Consumo medido:{" "}
-                    {energy(data.investigation_potential.baseline_kwh)} →{" "}
-                    {energy(data.investigation_potential.recent_kwh)}.
+                    {energy(
+                      evidence.historical_recovery_mean_kwh_per_inspection,
+                    )}{" "}
+                    por inspeção · intervalo{" "}
+                    {energy(evidence.historical_recovery_interval_lower_kwh)} a{" "}
+                    {energy(evidence.historical_recovery_interval_upper_kwh)}
                   </p>
-                </>
-              ) : (
-                <p className="mt-1">
-                  {data.investigation_potential.unavailable_reason}
-                </p>
+                  <p className="mt-1 text-xs text-muted">
+                    Referência{" "}
+                    {evidence.historical_recovery_reference ?? "não informada"};
+                    método candidato, não é estimativa para esta UC.
+                  </p>
+                </CollapsibleSection>
               )}
-              <p className="mt-2 text-xs text-muted">
-                Diferença de consumo, limitada a zero quando houve aumento. Não
-                é energia recuperada, previsão validada nem prova de
-                irregularidade; um resultado zero não descarta irregularidade. A
-                cobertura das leituras não é certificada e mudanças de
-                atividade, ocupação ou medidor podem influenciar a comparação.
-              </p>
-              {evidence.distributed_generation_present?.trim().toLowerCase() ===
-                "sim" && (
-                <p className="mt-2 text-xs text-muted">
-                  Há geração distribuída cadastrada; ela pode influenciar a
-                  queda de consumo.
+            {data.investigation_potential && (
+              <CollapsibleSection title="Potencial estimado para investigação">
+                <p className="text-xs text-muted">
+                  {periodLabel(data.investigation_potential.baseline_start)} a{" "}
+                  {periodLabel(data.investigation_potential.baseline_end)}{" "}
+                  comparado com{" "}
+                  {periodLabel(data.investigation_potential.recent_start)} a{" "}
+                  {periodLabel(data.investigation_potential.recent_end)}.
                 </p>
-              )}
-            </section>
-          )}
-          {data.consumption_comparison && (
-            <section
-              className="mt-5 rounded-lg bg-canvas p-4 text-sm"
-              aria-label="Comparação proposta de consumo"
-            >
-              <h3 className="font-medium">Comparação proposta de consumo</h3>
-              <p className="mt-1 text-xs text-muted">
-                {periodLabel(data.consumption_comparison.baseline_start)} a{" "}
-                {periodLabel(data.consumption_comparison.baseline_end)}{" "}
-                comparado com{" "}
-                {periodLabel(data.consumption_comparison.recent_start)} a{" "}
-                {periodLabel(data.consumption_comparison.recent_end)}.
-              </p>
-              {data.consumption_comparison.baseline_kwh !== null &&
-                data.consumption_comparison.recent_kwh !== null && (
+                {data.investigation_potential.potential_kwh !== null ? (
+                  <>
+                    <p className="mt-2 font-semibold">
+                      {energy(data.investigation_potential.potential_kwh)} nos
+                      três meses analisados
+                    </p>
+                    <p className="mt-1">
+                      Consumo medido:{" "}
+                      {energy(data.investigation_potential.baseline_kwh)} →{" "}
+                      {energy(data.investigation_potential.recent_kwh)}.
+                    </p>
+                  </>
+                ) : (
                   <p className="mt-1">
-                    {energy(data.consumption_comparison.baseline_kwh)} →{" "}
-                    {energy(data.consumption_comparison.recent_kwh)}
-                    {data.consumption_comparison.change_percent !== null && (
-                      <span
-                        className={signedValueTone(
-                          data.consumption_comparison.change_percent,
-                        )}
-                      >{` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`}</span>
-                    )}
+                    {data.investigation_potential.unavailable_reason}
                   </p>
                 )}
-              {data.consumption_comparison.unavailable_reason && (
-                <p className="mt-1 text-muted">
-                  {data.consumption_comparison.unavailable_reason}
+                <p className="mt-2 text-xs text-muted">
+                  Diferença de consumo, limitada a zero quando houve aumento.
+                  Não é energia recuperada, previsão validada nem prova de
+                  irregularidade; um resultado zero não descarta irregularidade.
+                  A cobertura das leituras não é certificada e mudanças de
+                  atividade, ocupação ou medidor podem influenciar a comparação.
+                </p>
+                {evidence.distributed_generation_present
+                  ?.trim()
+                  .toLowerCase() === "sim" && (
+                  <p className="mt-2 text-xs text-muted">
+                    Há geração distribuída cadastrada; ela pode influenciar a
+                    queda de consumo.
+                  </p>
+                )}
+              </CollapsibleSection>
+            )}
+            {data.consumption_comparison && (
+              <CollapsibleSection title="Comparação proposta de consumo">
+                <p className="text-xs text-muted">
+                  {periodLabel(data.consumption_comparison.baseline_start)} a{" "}
+                  {periodLabel(data.consumption_comparison.baseline_end)}{" "}
+                  comparado com{" "}
+                  {periodLabel(data.consumption_comparison.recent_start)} a{" "}
+                  {periodLabel(data.consumption_comparison.recent_end)}.
+                </p>
+                {data.consumption_comparison.baseline_kwh !== null &&
+                  data.consumption_comparison.recent_kwh !== null && (
+                    <p className="mt-1">
+                      {energy(data.consumption_comparison.baseline_kwh)} →{" "}
+                      {energy(data.consumption_comparison.recent_kwh)}
+                      {data.consumption_comparison.change_percent !== null && (
+                        <span
+                          className={signedValueTone(
+                            data.consumption_comparison.change_percent,
+                          )}
+                        >{` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`}</span>
+                      )}
+                    </p>
+                  )}
+                {data.consumption_comparison.unavailable_reason && (
+                  <p className="mt-1 text-muted">
+                    {data.consumption_comparison.unavailable_reason}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-muted">
+                  Regra proposta: três meses contra os três anteriores. Leituras
+                  observadas não certificam cobertura completa; a comparação não
+                  define prioridade nem comprova irregularidade.
+                </p>
+              </CollapsibleSection>
+            )}
+            <CollapsibleSection title="Variação de consumo observada">
+              {data.variation ? (
+                <>
+                  <p className="text-xs text-muted">
+                    Comparação descritiva das janelas publicadas; não é
+                    estimativa de recuperação.
+                  </p>
+                  <dl className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
+                    {metric(
+                      `Média P1 · ${data.variation.p1_start} a ${data.variation.p1_end}`,
+                      data.variation.p1_average_kwh_per_month,
+                      " kWh/mês",
+                    )}
+                    {metric(
+                      `Média P2 · ${data.variation.p2_start} a ${data.variation.p2_end}`,
+                      data.variation.p2_average_kwh_per_month,
+                      " kWh/mês",
+                    )}
+                    {metric(
+                      "Meses observados em P1",
+                      data.variation.p1_months_observed,
+                    )}
+                    {metric(
+                      "Meses observados em P2",
+                      data.variation.p2_months_observed,
+                    )}
+                    {metric(
+                      "Diferença observada",
+                      data.variation.variation_kwh,
+                      " kWh/mês",
+                    )}
+                    {metric(
+                      "Variação percentual observada",
+                      data.variation.variation_pct,
+                      "%",
+                    )}
+                    <div>
+                      <dt className="text-xs text-muted">
+                        Queda superior a 30%
+                      </dt>
+                      <dd className="mt-1 font-medium">
+                        {data.variation.drop_over_30_pct === null
+                          ? "Indisponível"
+                          : data.variation.drop_over_30_pct
+                            ? "Sim"
+                            : "Não"}
+                      </dd>
+                    </div>
+                  </dl>
+                </>
+              ) : (
+                <p className="text-sm text-muted">
+                  A variação não está disponível nesta publicação.
                 </p>
               )}
-              <p className="mt-1 text-xs text-muted">
-                Regra proposta: três meses contra os três anteriores. Leituras
-                observadas não certificam cobertura completa; a comparação não
-                define prioridade nem comprova irregularidade.
-              </p>
-            </section>
-          )}
-          <section
-            className="mt-5 rounded-lg border border-border p-4"
-            aria-label="Variação de consumo observada"
-          >
-            <h3 className="font-medium">Variação de consumo observada</h3>
-            {data.variation ? (
-              <>
-                <p className="mt-1 text-xs text-muted">
-                  Comparação descritiva das janelas publicadas; não é estimativa
-                  de recuperação.
-                </p>
-                <dl className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
-                  {metric(
-                    `Média P1 · ${data.variation.p1_start} a ${data.variation.p1_end}`,
-                    data.variation.p1_average_kwh_per_month,
-                    " kWh/mês",
-                  )}
-                  {metric(
-                    `Média P2 · ${data.variation.p2_start} a ${data.variation.p2_end}`,
-                    data.variation.p2_average_kwh_per_month,
-                    " kWh/mês",
-                  )}
-                  {metric(
-                    "Meses observados em P1",
-                    data.variation.p1_months_observed,
-                  )}
-                  {metric(
-                    "Meses observados em P2",
-                    data.variation.p2_months_observed,
-                  )}
-                  {metric(
-                    "Diferença observada",
-                    data.variation.variation_kwh,
-                    " kWh/mês",
-                  )}
-                  {metric(
-                    "Variação percentual observada",
-                    data.variation.variation_pct,
-                    "%",
-                  )}
-                  <div>
-                    <dt className="text-xs text-muted">Queda superior a 30%</dt>
-                    <dd className="mt-1 font-medium">
-                      {data.variation.drop_over_30_pct === null
-                        ? "Indisponível"
-                        : data.variation.drop_over_30_pct
-                          ? "Sim"
-                          : "Não"}
-                    </dd>
-                  </div>
-                </dl>
-              </>
-            ) : (
-              <p className="mt-2 text-sm text-muted">
-                A variação não está disponível nesta publicação.
-              </p>
-            )}
-          </section>
+            </CollapsibleSection>
+          </div>
         </section>
         <aside
           className="rounded-lg bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
@@ -394,17 +418,8 @@ export default function SuspicionDetail({
         >
           O que motivou a investigação
         </h2>
-        <p className="mt-4 text-xs leading-[18px] text-muted">
-          {metadata.source.kind === "gold_csv"
-            ? "Cobertura do consumo no lote"
-            : "Janela da evidência"}
-          :{" "}
-          {metadata.period
-            ? `${periodLabel(metadata.period.start)} a ${periodLabel(metadata.period.end)}`
-            : "Não informado"}
-        </p>
         {metadata.source.kind === "gold_csv" && (
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-4 text-xs text-muted">
             A fila não informa uma janela temporal própria para esta suspeita.
           </p>
         )}
@@ -427,8 +442,8 @@ export default function SuspicionDetail({
             </span>
             <p className="mt-1 text-xs leading-[18px] text-muted">
               {data.priority === null
-                ? "Categoria publicada; regra provisória aguardando homologação."
-                : "Pontuação de priorização da fila; não é probabilidade de irregularidade."}
+                ? "Regra provisória aguardando homologação."
+                : "Não é probabilidade de irregularidade."}
             </p>
           </div>
 
@@ -447,77 +462,96 @@ export default function SuspicionDetail({
             )}
           </div>
 
-          {data.consumption_comparison && (
-            <div className="mt-4 rounded-lg bg-canvas p-3">
-              <p className="font-medium">Comparação proposta de consumo</p>
-              <p className="mt-1 text-xs text-muted">
-                {periodLabel(data.consumption_comparison.baseline_start)} a{" "}
-                {periodLabel(data.consumption_comparison.baseline_end)}{" "}
-                comparado com{" "}
-                {periodLabel(data.consumption_comparison.recent_start)} a{" "}
-                {periodLabel(data.consumption_comparison.recent_end)}.
+          <p className="mt-4 text-muted">{GUIDANCE}</p>
+
+          <div className="mt-5 space-y-2">
+            <CollapsibleSection title="Como a prioridade é calculada">
+              <p>
+                {data.priority === null
+                  ? "Categoria publicada na Gold. Não há score nem pesos fornecidos nesta versão."
+                  : metadata.source.is_demo
+                    ? "Pontuação de priorização da fila. Soma dos pesos dos sinais presentes, limitada a 1 e arredondada a duas casas."
+                    : "Pontuação de priorização da fila."}
               </p>
-              {data.consumption_comparison.baseline_kwh !== null &&
-                data.consumption_comparison.recent_kwh !== null && (
-                  <p className="mt-1">
-                    {energy(data.consumption_comparison.baseline_kwh)} →{" "}
-                    {energy(data.consumption_comparison.recent_kwh)}
-                    {data.consumption_comparison.change_percent !== null && (
-                      <span
-                        className={signedValueTone(
-                          data.consumption_comparison.change_percent,
-                        )}
-                      >{` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`}</span>
-                    )}
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              title={
+                metadata.source.kind === "gold_csv"
+                  ? "Cobertura do consumo no lote"
+                  : "Janela da evidência"
+              }
+            >
+              <p>
+                {metadata.period
+                  ? `${periodLabel(metadata.period.start)} a ${periodLabel(metadata.period.end)}`
+                  : "Não informado"}
+              </p>
+            </CollapsibleSection>
+
+            {data.consumption_comparison && (
+              <CollapsibleSection title="Comparação proposta de consumo">
+                <p className="text-xs text-muted">
+                  {periodLabel(data.consumption_comparison.baseline_start)} a{" "}
+                  {periodLabel(data.consumption_comparison.baseline_end)}{" "}
+                  comparado com{" "}
+                  {periodLabel(data.consumption_comparison.recent_start)} a{" "}
+                  {periodLabel(data.consumption_comparison.recent_end)}.
+                </p>
+                {data.consumption_comparison.baseline_kwh !== null &&
+                  data.consumption_comparison.recent_kwh !== null && (
+                    <p className="mt-1">
+                      {energy(data.consumption_comparison.baseline_kwh)} →{" "}
+                      {energy(data.consumption_comparison.recent_kwh)}
+                      {data.consumption_comparison.change_percent !== null && (
+                        <span
+                          className={signedValueTone(
+                            data.consumption_comparison.change_percent,
+                          )}
+                        >{` (${data.consumption_comparison.change_percent.toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "exceptZero" })}%)`}</span>
+                      )}
+                    </p>
+                  )}
+                {data.consumption_comparison.unavailable_reason && (
+                  <p className="mt-1 text-muted">
+                    {data.consumption_comparison.unavailable_reason}
                   </p>
                 )}
-              {data.consumption_comparison.unavailable_reason && (
-                <p className="mt-1 text-muted">
-                  {data.consumption_comparison.unavailable_reason}
+                <p className="mt-1 text-xs text-muted">
+                  Regra proposta: três meses contra os três anteriores,
+                  terminando na última competência da publicação. Dados
+                  observados não certificam cobertura completa. Esta comparação
+                  não define a prioridade nem comprova irregularidade.
                 </p>
-              )}
-              <p className="mt-1 text-xs text-muted">
-                Regra proposta: três meses contra os três anteriores, terminando
-                na última competência da publicação. Dados observados não
-                certificam cobertura completa. Esta comparação não define a
-                prioridade nem comprova irregularidade.
-              </p>
-            </div>
-          )}
+              </CollapsibleSection>
+            )}
 
-          {data.historical_recovery ? (
-            <div className="mt-4 rounded-lg bg-canvas p-3">
-              <p className="font-medium">
-                Média histórica de recuperação por inspeção
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {energy(data.historical_recovery.mean_kwh_per_inspection)} por
-                inspeção
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                Intervalo histórico:{" "}
-                {energy(data.historical_recovery.lower_kwh_per_inspection)} a{" "}
-                {energy(data.historical_recovery.upper_kwh_per_inspection)} por
-                inspeção. Referência:{" "}
-                {data.historical_recovery.reference === "global"
-                  ? "geral"
-                  : data.historical_recovery.reference === "1"
-                    ? "com histórico anterior de irregularidade"
-                    : "sem histórico anterior de irregularidade"}
-                .
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                Referência candidata baseada em inspeções anteriores; não é
-                estimativa para esta UC nem garantia de recuperação. Método
-                sujeito a homologação.
-              </p>
-            </div>
-          ) : null}
-
-          <p className="mt-4 text-muted">
-            Verificar cadastro, medição, histórico e eventual geração própria
-            antes de concluir.
-          </p>
+            {data.historical_recovery ? (
+              <CollapsibleSection title="Média histórica de recuperação por inspeção">
+                <p className="text-lg font-semibold">
+                  {energy(data.historical_recovery.mean_kwh_per_inspection)} por
+                  inspeção
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Intervalo histórico:{" "}
+                  {energy(data.historical_recovery.lower_kwh_per_inspection)} a{" "}
+                  {energy(data.historical_recovery.upper_kwh_per_inspection)}{" "}
+                  por inspeção. Referência:{" "}
+                  {data.historical_recovery.reference === "global"
+                    ? "geral"
+                    : data.historical_recovery.reference === "1"
+                      ? "com histórico anterior de irregularidade"
+                      : "sem histórico anterior de irregularidade"}
+                  .
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Referência candidata baseada em inspeções anteriores; não é
+                  estimativa para esta UC nem garantia de recuperação. Método
+                  sujeito a homologação.
+                </p>
+              </CollapsibleSection>
+            ) : null}
+          </div>
         </div>
       </section>
       <aside
