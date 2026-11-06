@@ -1,7 +1,7 @@
 """Consultas Gold parametrizadas; nenhuma reconstrução de fatos de demonstração."""
-from datetime import timezone
+from datetime import date, timedelta, timezone
 
-from sqlalchemy import case, func, select, text
+from sqlalchemy import Integer, and_, case, cast, func, select, text
 from sqlalchemy.orm import Session
 
 from app.models.gold_load import BATCH, TABLES
@@ -152,6 +152,49 @@ class GoldAnalyticsRepository:
         conditions = [func.coalesce(columns[field], MISSING) == value
                       for field, value in filters.model_dump(exclude_none=True).items() if field in columns]
         return self.rows(select(table).where(*conditions))
+
+    def revenue_billed_population(self, filters, windows):
+        monthly, uc = self.tables["consumo_mensal_uc"], self.tables["visao_360_uc"]
+        statement = select(
+            func.count(func.distinct(case((and_(monthly.c.tem_fatura.is_(True), monthly.c.competencia.between(windows[0], windows[1])), monthly.c.id_uc)))).label("initial"),
+            func.count(func.distinct(case((and_(monthly.c.tem_fatura.is_(True), monthly.c.competencia.between(windows[2], windows[3])), monthly.c.id_uc)))).label("final"),
+        ).select_from(monthly.join(uc, monthly.c.id_uc == uc.c.id_uc)).where(*self.conditions(uc, filters))
+        return self.rows(statement)[0]
+
+    def revenue_gd_cohort_rows(self, filters, windows):
+        """Uma consulta agregada; pareia a mesma UC/posição mensal do V3."""
+        a, b = self.tables["consumo_mensal_uc"].alias("a"), self.tables["consumo_mensal_uc"].alias("b")
+        uc, gd = self.tables["visao_360_uc"], self.tables["gd_uc"]
+        def index(column):
+            return cast(func.substr(column, 1, 4), Integer) * 12 + cast(func.substr(column, 6, 2), Integer)
+        offset = (int(windows[2][:4]) - int(windows[0][:4])) * 12 + int(windows[2][5:]) - int(windows[0][5:])
+        pairs = select(
+            a.c.id_uc, func.sum(a.c.receita_base_comparavel_reais).label("r0"),
+            func.sum(a.c.consumo_base_comparavel_kwh).label("q0"), func.sum(b.c.consumo_base_comparavel_kwh).label("q1"),
+        ).select_from(a.join(b, and_(a.c.id_uc == b.c.id_uc, index(b.c.competencia) - index(a.c.competencia) == offset)).join(uc, a.c.id_uc == uc.c.id_uc)).where(
+            a.c.competencia.between(windows[0], windows[1]), b.c.competencia.between(windows[2], windows[3]),
+            a.c.receita_base_comparavel_reais.is_not(None), b.c.receita_base_comparavel_reais.is_not(None),
+            a.c.consumo_base_comparavel_kwh.is_not(None), b.c.consumo_base_comparavel_kwh.is_not(None),
+            *self.conditions(uc, filters),
+        ).group_by(a.c.id_uc).having(func.count() >= 6, func.sum(a.c.consumo_base_comparavel_kwh) > 0,
+                                   func.sum(b.c.consumo_base_comparavel_kwh) > 0).cte("paired")
+        def first_day(month):
+            return date.fromisoformat(month + "-01")
+        def last_day(month):
+            day = first_day(month)
+            return date(day.year + (day.month == 12), day.month % 12 + 1, 1) - timedelta(days=1)
+        valid_date = and_(gd.c.flag_conexao_futura.is_not(True), gd.c.flag_conexao_sentinela.is_not(True))
+        cohort = case(
+            (and_(valid_date, gd.c.data_conexao <= first_day(windows[0])), "prior"),
+            (and_(valid_date, gd.c.data_conexao > last_day(windows[1]), gd.c.data_conexao < first_day(windows[2])), "connected_between"),
+            (and_(valid_date, gd.c.data_conexao.between(first_day(windows[2]), last_day(windows[3]))), "connected_during"),
+            (and_(gd.c.id_uc.is_(None), func.lower(func.trim(uc.c.possui_gd)).in_(("false", "0", "nao", "não"))), "no_record"),
+            else_="unknown",
+        )
+        return self.rows(select(
+            cohort.label("cohort"), uc.c.classe.label("class_name"), func.count().label("uc_count"), func.sum(pairs.c.q0).label("q0"), func.sum(pairs.c.q1).label("q1"),
+            func.sum(pairs.c.r0 / pairs.c.q0 * (pairs.c.q1 - pairs.c.q0)).label("volume_effect"),
+        ).select_from(pairs.join(uc, pairs.c.id_uc == uc.c.id_uc).outerjoin(gd, pairs.c.id_uc == gd.c.id_uc)).group_by(cohort, uc.c.classe).order_by(cohort, uc.c.classe))
 
     def queue_options(self):
         table = self.tables["fila_inspecao"]

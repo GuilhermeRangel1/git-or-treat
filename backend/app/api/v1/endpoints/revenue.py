@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 
@@ -6,7 +6,12 @@ from app.api.v1.analytics_route import AnalyticsRoute, repeated_query_parameters
 from app.core.platform_identity import require_permission
 from app.repositories.analytics import AnalyticsRepository, get_analytics_repository
 from app.schemas.analytics import RevenueResponse
-from app.services.analytics import AnalyticsAPIError, filters_model, metadata, validate_period
+from app.services.analytics import (
+    AnalyticsAPIError,
+    filters_model,
+    metadata,
+    validate_period,
+)
 from app.services.revenue_analytics import build_revenue, revenue_metadata_status
 
 router = APIRouter(route_class=AnalyticsRoute, dependencies=[Depends(require_permission("revenue:read"))])
@@ -15,6 +20,7 @@ router = APIRouter(route_class=AnalyticsRoute, dependencies=[Depends(require_per
 @router.get("", response_model=RevenueResponse, summary="Série de receita e decomposição demonstrativa preço-volume")
 def get_revenue_analysis(
     request: Request,
+    repository: Annotated[AnalyticsRepository, Depends(get_analytics_repository)],
     competencia_inicio: str | None = Query(None, max_length=7),
     competencia_fim: str | None = Query(None, max_length=7),
     municipio: str | None = Query(None, max_length=100),
@@ -22,7 +28,7 @@ def get_revenue_analysis(
     classe: str | None = Query(None, max_length=100),
     alimentador: str | None = Query(None, max_length=100),
     group_by: Literal["municipio", "bairro", "classe"] = Query("municipio"),
-    repository: AnalyticsRepository = Depends(get_analytics_repository),
+    include_diagnosis: bool = Query(False),
 ):
     repeated = repeated_query_parameters(request.query_params)
     if repeated:
@@ -41,7 +47,7 @@ def get_revenue_analysis(
         competencia_fim = competencia_fim or months[-1]
     start, end = validate_period(competencia_inicio, competencia_fim)
     filters = filters_model(municipio, bairro, classe, alimentador)
-    data = build_revenue(repository, start, end, filters, group_by=group_by)
+    data = build_revenue(repository, start, end, filters, group_by=group_by, include_diagnosis=include_diagnosis)
     state = revenue_metadata_status(data, start, end)
     result_metadata = metadata(repository, state, start, end, filters)
     if isinstance(repository, GoldAnalyticsRepository):

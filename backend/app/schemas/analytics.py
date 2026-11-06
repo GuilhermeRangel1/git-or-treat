@@ -1,8 +1,13 @@
 from math import isfinite
-from typing import Generic, Literal, Optional, TypeVar
+from typing import Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer, model_validator
-
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 AnalyticsStatus = Literal["available", "empty", "partial", "unavailable"]
 T = TypeVar("T")
@@ -15,10 +20,10 @@ class AnalyticsPeriod(BaseModel):
 
 
 class AnalyticsFilters(BaseModel):
-    municipio: Optional[str] = None
-    bairro: Optional[str] = None
-    classe: Optional[str] = None
-    alimentador: Optional[str] = None
+    municipio: str | None = None
+    bairro: str | None = None
+    classe: str | None = None
+    alimentador: str | None = None
 
 
 class AnalyticsSource(BaseModel):
@@ -154,6 +159,10 @@ class RevenueDecomposition(BaseModel):
 
 
 class RevenueWindowDecomposition(BaseModel):
+    initial_amount_brl: float | None = None
+    final_amount_brl: float | None = None
+    change_percent: float | None = None
+    component_percentage_points: dict[str, float] = Field(default_factory=dict)
     status: AnalyticsStatus
     windows: list[str]
     method: str | None
@@ -163,6 +172,13 @@ class RevenueWindowDecomposition(BaseModel):
     group_count: int
     incomplete_groups: int
     limitations: list[str]
+
+
+class RevenueWindowBreakdownItem(BaseModel):
+    key: str
+    label: str
+    filters: AnalyticsFilters
+    decomposition: RevenueWindowDecomposition
 
 
 class RevenueBreakdownItem(BaseModel):
@@ -201,7 +217,42 @@ class RevenueFilterOptions(BaseModel):
     classes: list[str]
 
 
+class RevenueGDCohort(BaseModel):
+    group: Literal["prior", "connected_between", "connected_during", "no_record", "unknown"]
+    uc_count: int = Field(ge=0)
+    measured_energy_change_percent: float | None
+
+
+class RevenueGDFinding(BaseModel):
+    status: AnalyticsStatus
+    cohorts: list[RevenueGDCohort]
+    share_negative_volume_percent: float | None
+    limitations: list[str] = Field(default_factory=list)
+
+
+class RevenuePopulationFinding(BaseModel):
+    initial_billed_uc_count: int = Field(ge=0)
+    final_billed_uc_count: int = Field(ge=0)
+    change_percent: float | None
+
+
+class RevenueConcentrationFinding(BaseModel):
+    dimension: Literal["municipio", "bairro", "classe_consumo"]
+    labels: list[str]
+    share_negative_volume_percent: float
+
+
+class RevenueDiagnosis(BaseModel):
+    status: AnalyticsStatus
+    volume_offset_percent: float | None
+    population: RevenuePopulationFinding | None
+    concentration: RevenueConcentrationFinding | None
+    gd: RevenueGDFinding
+    limitations: list[str]
+
+
 class RevenueData(BaseModel):
+    diagnosis: RevenueDiagnosis | None = None
     currency_unit: Literal["BRL"] = "BRL"
     energy_unit: Literal["kWh"] = "kWh"
     total_billed_amount: float | None
@@ -213,6 +264,7 @@ class RevenueData(BaseModel):
     comparison: RevenueComparison
     price_volume: RevenueDecomposition
     window_decomposition: RevenueWindowDecomposition | None = None
+    window_breakdown: list[RevenueWindowBreakdownItem] = Field(default_factory=list)
     coverage: RevenueCoverage
     quality: RevenueQuality
     breakdown: RevenueBreakdown
