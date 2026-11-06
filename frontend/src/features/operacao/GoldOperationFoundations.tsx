@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { ArrowRight } from "lucide-react";
 import Button from "@/shared/ui/Button";
 import Modal from "@/shared/ui/Modal";
 import type { GoldMetadata } from "@/shared/analytics/goldContract";
@@ -60,8 +61,10 @@ export default function GoldOperationFoundations({
         {visibleIndicator !== "fec" ? (
           <Button
             ref={decTriggerRef}
-            variant="ghost"
+            variant="outline"
+            size="sm"
             className="w-fit"
+            rightIcon={<ArrowRight aria-hidden="true" className="size-4" />}
             onClick={() => setIndicator("dec")}
           >
             Ver base do DEC
@@ -70,8 +73,10 @@ export default function GoldOperationFoundations({
         {visibleIndicator !== "dec" ? (
           <Button
             ref={fecTriggerRef}
-            variant="ghost"
+            variant="outline"
+            size="sm"
             className="w-fit"
+            rightIcon={<ArrowRight aria-hidden="true" className="size-4" />}
             onClick={() => setIndicator("fec")}
           >
             Ver base do FEC
