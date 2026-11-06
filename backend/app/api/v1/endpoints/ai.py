@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Callable
+from time import monotonic
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -36,6 +37,7 @@ from app.schemas.ai_insight import (
     PanoramaInsightRequest,
 )
 from app.schemas.ai_question_publication import AIQuestionPublicRequest
+from app.schemas.genai_audit import BackendAuditEvent
 from app.schemas.genai_internal import AccessScope, QuestionPlanRequest
 from app.schemas.sql_analysis import SqlAnalysisRequest, SqlAnalysisResponse
 from app.services.analytics import AnalyticsAPIError
@@ -117,13 +119,98 @@ async def run_f1_sql_analysis(
         "remaining_timeout_ms": remaining_ms, **fields,
     })
     deadline = GenAIRequestDeadline.start(remaining_ms / 1000)
-    run = await run_sql_question(
-        plan_request, engine=engine, readiness_engine=db.get_bind(),
-        publication=publication, client=genai, resolve_scope=resolve_f1_scope,
-        approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
-        deadline=deadline, correlation_id=request.state.correlation_id,
-    )
-    return SqlAnalysisResponse.from_run(request.state.correlation_id, run)
+    audit_store = AuditStore(db.get_bind())
+    started = monotonic()
+
+    async def record_audit(stage, code, outcome, *, row_count=0, evidence_ref=None,
+                           model_calls=0, source_calls=0):
+        event = BackendAuditEvent(
+            correlation_id=request.state.correlation_id,
+            stage=stage,
+            code=code,
+            outcome=outcome,
+            duration_ms=max(0, int((monotonic() - started) * 1000)),
+            row_count=row_count,
+            model_calls=model_calls,
+            source_calls=source_calls,
+            batch_ref=publication.batch_ref,
+            caller_ref=scope.caller_ref,
+            metric_id="billing.revenue",
+            source_id=scope.source_id,
+            evidence_ref=evidence_ref,
+        )
+        try:
+            return await deadline.run(
+                GOLD_REQUEST_TIMEOUT_SECONDS,
+                lambda: asyncio.to_thread(audit_store.record, event, service="backend"),
+            )
+        except (SQLAlchemyError, ValueError, GenAITimeout):
+            raise GenAIServiceUnavailable(retryable=False) from None
+
+    try:
+        await record_audit("request", "started", "started")
+    except GenAIServiceUnavailable:
+        raise HTTPException(503, "A trilha de auditoria está indisponível.") from None
+
+    async def record_failure(stage, code, outcome, *, model_calls=0):
+        try:
+            await record_audit(stage, code, outcome, model_calls=model_calls)
+        except (GenAIServiceUnavailable, GenAITimeout):
+            # O erro primário continua sem resposta quantitativa se a própria
+            # trilha de auditoria também estiver indisponível.
+            return
+
+    try:
+        run = await run_sql_question(
+            plan_request, engine=engine, readiness_engine=db.get_bind(),
+            publication=publication, client=genai, resolve_scope=resolve_f1_scope,
+            approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+            deadline=deadline, correlation_id=request.state.correlation_id,
+        )
+        publication.assert_current(engine)
+        current_scope = resolve_f1_scope()
+        if current_scope != scope:
+            raise GoldExecutionDenied
+        if run.evidence is not None:
+            await record_audit(
+                "source", "completed", "success", row_count=len(run.evidence.rows),
+                evidence_ref=run.evidence.evidence_digest, source_calls=1,
+            )
+            outcome, code = "success", "available"
+        elif run.candidate.status == "needs_clarification":
+            outcome, code = "success", "clarification"
+        else:
+            outcome, code = "refused", "refused"
+        audit_reference = await record_audit(
+            "response", code, outcome,
+            row_count=len(run.evidence.rows) if run.evidence is not None else 0,
+            evidence_ref=run.evidence.evidence_digest if run.evidence is not None else None,
+            model_calls=1,
+        )
+        publication.assert_current(engine)
+        if resolve_f1_scope() != scope:
+            raise GoldExecutionDenied
+        return SqlAnalysisResponse.from_run(
+            request.state.correlation_id, run, audit_reference=audit_reference,
+        )
+    except GoldExecutionDenied:
+        await record_failure("policy", "denied", "refused")
+        raise HTTPException(403, "A consulta não está autorizada com o acesso atual.") from None
+    except GoldPublicationChanged:
+        await record_failure("source", "invalid", "error")
+        raise HTTPException(409, "A publicação Gold mudou. Refaça a pergunta.") from None
+    except (GoldPublicationUnavailable, GoldCoverageUnavailable, SQLAlchemyError):
+        await record_failure("source", "unavailable", "error")
+        raise HTTPException(503, "A análise Gold está temporariamente indisponível.") from None
+    except GenAIServiceUnavailable:
+        await record_failure("response", "unavailable", "error")
+        raise HTTPException(503, "O serviço de resposta está temporariamente indisponível.") from None
+    except GenAITimeout:
+        await record_failure("response", "limit", "error")
+        raise HTTPException(504, "O serviço de resposta excedeu o tempo limite.") from None
+    except GenAIResponseInvalid:
+        await record_failure("response", "invalid", "error")
+        raise HTTPException(502, "O serviço de resposta não retornou um resultado válido.") from None
 
 class AIQuestionRoute(APIRoute):
     """Retorna erro de validação estável sem ecoar valores da pergunta."""
