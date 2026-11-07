@@ -266,7 +266,15 @@ def test_preparation_composes_generation_and_admission_without_executor(sql_requ
         assert env.events[-1] == "publication"
 
 
-def test_out_of_scope_semantic_intent_is_observed_without_admission_or_sql(sql_request):
+@pytest.mark.parametrize("metric_id", [
+    "energy.consumption",
+    "service.attendance",
+    "network.equivalent_interruption_duration",
+    "network.equivalent_interruption_frequency",
+])
+def test_out_of_scope_semantic_intent_is_observed_without_admission_or_sql(
+    sql_request, metric_id,
+):
     env = Environment(sql_request)
 
     async def generate(payload, *, correlation_id):
@@ -282,7 +290,7 @@ def test_out_of_scope_semantic_intent_is_observed_without_admission_or_sql(sql_r
                     "message": "Consumo medido ainda não está disponível na F1.",
                 },
                 "semantic_intent": {
-                    "metric_id": "energy.consumption",
+                    "metric_id": metric_id,
                     "periods": [{"start": "2026-06-01", "end": "2026-06-30"}],
                     "filters": [],
                 },
@@ -292,7 +300,7 @@ def test_out_of_scope_semantic_intent_is_observed_without_admission_or_sql(sql_r
     env.generate_sql_candidate = generate
     result = asyncio.run(prepare_sql_candidate(sql_request, **env.kwargs()))
 
-    assert result.candidate.semantic_intent.metric_id == "energy.consumption"
+    assert result.candidate.semantic_intent.metric_id == metric_id
     assert result.candidate.sql is None
     assert result.admission is None
     assert env.events == ["publication", "generation"]

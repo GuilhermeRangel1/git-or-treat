@@ -15,7 +15,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-18"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-19"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id", "$defs", "$ref", "$anchor", "type", "format", "title",
@@ -202,8 +202,18 @@ No estado sql_candidate, interpretation deve obedecer a estas combinações:
   ambos campos ranking nulos.
 - ranking: uma janela, group_by com a dimensão pedida, ranking_direction="desc"
   (ou "asc" se pedido) e ranking_limit inteiro. Nunca use nomes físicos no group_by.
-- comparison: exatamente duas janelas, group_by=[], ranking_direction=null,
-  ranking_limit=null. As duas janelas pertencem à lista periods, não a campos extras.
+- comparison: exatamente duas janelas. Pode usar group_by=[] para totais ou
+  agrupar por municipality e/ou consumption_class. Para comparação agrupada,
+  projete cada dimensão solicitada e retorne dois totais e a diferença em reais
+  por grupo. Sem ranking, ranking_direction e ranking_limit
+  ficam null e não use ORDER BY/LIMIT. Ranking só é permitido em comparação
+  agrupada pela diferença em reais: direção asc
+  para maiores quedas/valores mais negativos ou desc para maiores aumentos,
+  limite inteiro explícito. Ordene primeiro pelo alias da diferença na direção
+  pedida com NULLS LAST; desempate por todos os aliases de dimensão em ordem
+  ascendente e NULLS LAST. Se a pergunta pedir ranking por variação percentual,
+  retorne unsupported com operation_outside_f1. As duas janelas pertencem à lista
+  periods.
 Todas as janelas usam start/end como datas completas YYYY-MM-DD, começando no
 primeiro dia e terminando no último dia do mês, inclusive fevereiro.
 Essas datas completas pertencem APENAS a `interpretation.periods`. A coluna física

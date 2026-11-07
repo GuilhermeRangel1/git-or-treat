@@ -83,7 +83,7 @@ class SqlEvidence(ClosedModel):
                 "text-to-sql-f1-evidence-v2"
                 if has_growth else "text-to-sql-f1-evidence-v1"
             )
-            if (len(measures) != len(expected_meanings) or dimensions
+            if (len(measures) != len(expected_meanings)
                     or set(self.measure_semantics.values()) != expected_meanings
                     or self.evidence_contract_version != expected_version):
                 raise ValueError("comparação exige dois totais e diferença com linhagem")

@@ -91,6 +91,10 @@ def test_accepts_two_filtered_sums_and_difference(sql_request):
     TOTAL.replace(SOURCE, "pg_catalog.pg_authid"),
     TOTAL.replace(SOURCE, "gold_v2.faturas_uc"),
     TOTAL.replace(SOURCE, f"{SOURCE} JOIN {SOURCE} r ON true"),
+    (
+        f"SELECT SUM(a.receita_total_reais) AS revenue FROM {SOURCE} AS a "
+        f"JOIN {SOURCE} AS b ON a.competencia = b.competencia"
+    ),
     TOTAL.replace(SOURCE, f"(SELECT * FROM {SOURCE}) r"),
     TOTAL + " UNION ALL " + TOTAL,
     TOTAL.replace("SUM(receita_total_reais)", "pg_sleep(100)"),
@@ -126,6 +130,17 @@ def test_rejects_sql_outside_structural_subset(sql_request, sql):
         review_sql_structure(candidate(sql_request, sql), sql_request)
     assert sql not in str(exc.value)
     assert "private-value" not in str(exc.value)
+
+
+@pytest.mark.parametrize("sql", [
+    TOTAL + " HAVING SUM(receita_total_reais) > 0",
+    TOTAL + " UNION ALL " + TOTAL,
+    TOTAL.replace("SUM(receita_total_reais)", "SUM(receita_total_reais) OVER ()"),
+    f"SELECT revenue FROM ({TOTAL}) AS nested",
+])
+def test_advanced_constructs_without_an_approved_f1_use_remain_rejected(sql_request, sql):
+    with pytest.raises(SqlStructureRejected):
+        review_sql_structure(candidate(sql_request, sql), sql_request)
 
 
 @pytest.mark.parametrize("parameters", [{}, {"wrong": {"type": "string", "value": "2026-06"}},

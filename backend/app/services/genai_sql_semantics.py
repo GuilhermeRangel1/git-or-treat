@@ -51,10 +51,13 @@ def _semantic_review(reviewed, meanings):
 
 def _review_comparison(tree, candidate, reviewed, available):
     intent = candidate.interpretation
-    _require(not intent.group_by and tree.args.get("group") is None,
-             "Comparação F1 exige totais sem agrupamento.")
-    _require(tree.args.get("limit") is None and tree.args.get("order") is None,
-             "Comparação de totais não admite truncamento ou ranking.")
+    _require("competency" not in intent.group_by,
+             "Comparação não pode agrupar pelas competências das janelas.")
+    expected_groups = {_GROUPS[item] for item in intent.group_by}
+    group = tree.args.get("group")
+    actual_groups = {item.name for item in group.expressions} if group else set()
+    _require(actual_groups == expected_groups,
+             "Agrupamento da comparação diverge da interpretação estruturada.")
     periods = [_period_months(period) for period in intent.periods]
     _require(periods[0] != periods[1], "Comparação exige janelas distinguíveis.")
     _require(all(months <= available for months in periods),
@@ -80,8 +83,14 @@ def _review_comparison(tree, candidate, reviewed, available):
         return matches[0]
 
     meanings = []
-    for output in tree.expressions:
+    dimensions = {}
+    for output, declared in zip(tree.expressions, candidate.result_columns, strict=True):
         expression = _unparen(output.this)
+        if declared.role == "dimension":
+            _require(type(expression) is exp.Column and expression.name in expected_groups,
+                     "Dimensão projetada diverge do agrupamento solicitado.")
+            dimensions[declared.name] = expression.name
+            continue
         if type(expression) is exp.Sub:
             _require(period_index(expression.this) == 0
                      and period_index(expression.expression) == 1,
@@ -90,9 +99,37 @@ def _review_comparison(tree, candidate, reviewed, available):
         else:
             meaning = f"period_{period_index(expression)}_total"
         meanings.append((output.alias, meaning))
+    _require(set(dimensions.values()) == expected_groups,
+             "Comparação exige todas as dimensões agrupadas no resultado.")
     _require({meaning for _, meaning in meanings} == {
         "period_0_total", "period_1_total", "period_0_minus_period_1",
     } and len(meanings) == 3, "Comparação exige dois totais e uma diferença em reais.")
+    order, limit = tree.args.get("order"), tree.args.get("limit")
+    if intent.ranking_direction is None:
+        _require(order is None and limit is None,
+                 "Comparação agrupada sem ranking não admite ordenação ou truncamento.")
+    else:
+        _require(order is not None
+                 and limit is not None and len(order.expressions) == len(dimensions) + 1,
+                 "Ranking de comparação exige diferença e desempate por todas as dimensões.")
+        delta_alias = next(alias for alias, meaning in meanings
+                           if meaning == "period_0_minus_period_1")
+        first = order.expressions[0]
+        _require(type(first.this) is exp.Column and not first.this.table
+                 and first.this.name == delta_alias
+                 and bool(first.args.get("desc")) == (intent.ranking_direction == "desc")
+                 and first.args.get("nulls_first") is False,
+                 "Ordenação do ranking diverge da diferença solicitada.")
+        remaining_aliases = set(dimensions)
+        for term in order.expressions[1:]:
+            _require(type(term.this) is exp.Column and not term.this.table
+                     and term.this.name in remaining_aliases
+                     and term.args.get("desc") is False
+                     and term.args.get("nulls_first") is False,
+                     "Desempate deve ordenar cada dimensão ascendente e com nulos ao final.")
+            remaining_aliases.remove(term.this.name)
+        _require(int(limit.expression.this) == intent.ranking_limit,
+                 "Limite SQL diverge do ranking solicitado.")
     return _semantic_review(reviewed, meanings)
 
 

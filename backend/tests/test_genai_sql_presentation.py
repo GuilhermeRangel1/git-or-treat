@@ -5,6 +5,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+
 from app.schemas.sql_analysis import SqlAnalysisResponse
 from app.schemas.sql_evidence import SqlEvidence, sql_evidence_digest
 from app.schemas.sql_generation import SqlInterpretation, SqlResultColumn
@@ -14,6 +15,7 @@ from app.services.genai_sql_presentation import present_sql_evidence
 def _evidence(
     *, rows, status, grouped=False, operation=None, dimension="municipality",
     period_start="2025-01-01", period_end="2025-12-31", growth=False,
+    ranking_direction=None,
 ):
     if operation == "comparison":
         columns = [
@@ -31,6 +33,10 @@ def _evidence(
                 "name": "growth", "role": "measure", "value_type": "decimal", "unit": "%",
             })
             measure_semantics["growth"] = "period_0_growth_percent"
+        if grouped:
+            columns.insert(0, {
+                "name": dimension, "role": "dimension", "value_type": "string",
+            })
     else:
         columns = (
             [
@@ -75,8 +81,12 @@ def _evidence(
             ),
             "filters": [],
             "group_by": [dimension] if grouped else [],
-            "ranking_direction": "desc" if operation == "ranking" else None,
-            "ranking_limit": 5 if operation == "ranking" else None,
+            "ranking_direction": ranking_direction or (
+                "desc" if operation == "ranking" else None
+            ),
+            "ranking_limit": (
+                5 if operation == "ranking" else 10 if ranking_direction else None
+            ),
         },
         "columns": columns,
         "measure_semantics": measure_semantics,
@@ -167,7 +177,6 @@ def test_single_month_answer_uses_natural_portuguese_period():
             period_end="2025-06-30",
         )
     )
-
     assert presentation.answer == (
         "O faturamento total no período junho de 2025 foi R$ 950,00."
     )
@@ -180,12 +189,52 @@ def test_comparison_answer_uses_both_periods_and_exact_difference():
             operation="comparison",
         )
     )
-
     assert presentation.answer == (
         "O faturamento foi R$ 950,00 de janeiro a dezembro de 2025 e R$ 800,00 de "
         "janeiro a dezembro de 2024. A diferença (primeiro período − segundo período) "
         "foi R$ 150,00."
     )
+
+
+def test_grouped_comparison_presents_universe_and_both_periods():
+    evidence = _evidence(
+        rows=[["Recife", "150.03", "80.00", "70.03", "87.54"]],
+        status="available", operation="comparison", grouped=True, growth=True,
+    )
+
+    presentation = present_sql_evidence(evidence)
+
+    assert "Município" in presentation.answer
+    assert "2025-01 a 2025-12 vs. 2024-01 a 2024-12" in presentation.answer
+    assert presentation.universe == ("Municípios: todos os valores disponíveis no recorte",)
+    assert presentation.rows[0].cells == evidence.rows[0]
+
+
+def test_ranked_comparison_explains_direction_and_scope():
+    evidence = _evidence(
+        rows=[["Recife", "150.03", "180.00", "-29.97", "-16.65"]],
+        status="available", operation="comparison", grouped=True, growth=True,
+        ranking_direction="asc",
+    )
+
+    presentation = present_sql_evidence(evidence)
+
+    assert "menores diferenças" in presentation.answer
+    assert "primeiro período − segundo período" in presentation.answer
+
+
+@pytest.mark.parametrize(
+    ("rows", "status", "expected"),
+    [([], "empty", "Não há linhas"),
+     ([["Recife", None, None, None, None]], "all_measures_null", "não trouxe valores")],
+)
+def test_grouped_comparison_empty_states_name_both_windows(rows, status, expected):
+    presentation = present_sql_evidence(_evidence(
+        rows=rows, status=status, operation="comparison", grouped=True, growth=True,
+    ))
+
+    assert expected in presentation.answer
+    assert "nos períodos 2025-01 a 2025-12 vs. 2024-01 a 2024-12" in presentation.answer
 
 
 def test_monthly_series_is_presented_as_rows_not_derived_from_prose():

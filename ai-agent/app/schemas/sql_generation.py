@@ -147,7 +147,8 @@ class SqlInterpretation(ClosedModel):
             if not ranked or not self.group_by:
                 raise ValueError("ranking exige direção, limite e agrupamento")
         elif self.ranking_direction is not None or self.ranking_limit is not None:
-            raise ValueError("metadados de ranking exigem operação ranking")
+            if self.operation != "comparison" or not ranked or not self.group_by:
+                raise ValueError("ranking de comparação exige agrupamento, direção e limite")
         if len(set(self.group_by)) != len(self.group_by):
             raise ValueError("agrupamento duplicado")
         if len({item.dimension_id for item in self.filters}) != len(self.filters):
@@ -165,13 +166,13 @@ class SqlResultColumn(ClosedModel):
     name: ParameterName
     role: Literal["measure", "dimension"]
     value_type: Literal["decimal", "string"]
-    unit: Literal["R$"] | None = None
+    unit: Literal["R$", "%"] | None = None
 
     @model_validator(mode="after")
     def check_role(self) -> Self:
         if self.role == "measure":
-            if self.value_type != "decimal" or self.unit != "R$":
-                raise ValueError("medida F1 exige decimal e R$")
+            if self.value_type != "decimal" or self.unit not in {"R$", "%"}:
+                raise ValueError("medida F1 exige decimal e unidade monetária ou percentual")
         elif self.value_type != "string" or self.unit is not None:
             raise ValueError("dimensão F1 exige string sem unidade monetária")
         return self

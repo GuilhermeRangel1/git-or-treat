@@ -147,7 +147,8 @@ class SqlInterpretation(ClosedModel):
             if not ranked or not self.group_by:
                 raise ValueError("ranking exige direção, limite e agrupamento")
         elif self.ranking_direction is not None or self.ranking_limit is not None:
-            raise ValueError("metadados de ranking exigem operação ranking")
+            if self.operation != "comparison" or not ranked or not self.group_by:
+                raise ValueError("ranking de comparação exige agrupamento, direção e limite")
         if len(set(self.group_by)) != len(self.group_by):
             raise ValueError("agrupamento duplicado")
         if len({item.dimension_id for item in self.filters}) != len(self.filters):
