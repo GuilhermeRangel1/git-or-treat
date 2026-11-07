@@ -339,10 +339,12 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
             assert re.fullmatch(r"[a-f0-9]{32}", body["audit_reference"])
             audit_events = AuditStore(test_engine).read_reference(body["audit_reference"])
             assert audit_events
-            assert audit_events[-1]["event"]["stage"] == "response"
-            assert audit_events[-1]["event"]["outcome"] in {"success", "refused"}
+            response_event = next(
+                item for item in audit_events if item["event"]["stage"] == "response"
+            )
+            assert response_event["event"]["outcome"] in {"success", "refused"}
             assert not any(
-                key in audit_events[-1]["event"]
+                key in response_event["event"]
                 for key in ("question", "sql", "parameters", "filters")
             )
             if case["expected_status"] == "needs_clarification":
@@ -594,3 +596,95 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
         pressure_reader.dispose()
         reader.dispose()
         owner.dispose()
+
+
+
+@pytest.mark.parametrize(("question", "expected", "model_calls"), [
+    ("Qual a receita de miojo de janeiro de 2026?", "unsupported", 0),
+    ("Qual a receita de miojo?", "unsupported", 0),
+    ("Como fazer uma receita de bolo?", "unsupported", 0),
+    ("Qual a receita de lasanha em janeiro?", "unsupported", 0),
+    ("Qual foi a receita?", "needs_clarification", 0),
+    ("Qual a receita de energia e de miojo em janeiro?", "unsupported", 0),
+    ("Qual o consumo de energia em junho?", "unsupported", 1),
+    ("Quanto foi em junho?", "needs_clarification", 1),
+])
+def test_public_route_domain_policy_without_sql(
+    client, monkeypatch, question, expected, model_calls,
+):
+    from app.api.v1.endpoints import ai as endpoint
+    from app.services import genai_sql_pipeline as pipeline
+
+    batch = (
+        "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:"
+        "12345678-1234-4123-8123-123456789abc"
+    )
+    scope = _candidate_request(question, {
+        "context": [], "publication": batch, "dimension_values": [],
+    }, ["2026-06"]).access_scope
+
+    class Publication:
+        batch_ref = batch
+
+        def planning_fields(self, engine, scope):
+            return {
+                "batch_ref": batch,
+                "temporal_coverage": [{
+                    "metric_id": "billing.revenue", "kind": "monthly",
+                    "competencies": ["2026-06"],
+                }],
+            }
+
+        def assert_current(self, engine):
+            pass
+
+    calls = []
+
+    class Generator:
+        async def generate_sql_candidate(self, payload, *, correlation_id):
+            calls.append(json.loads(payload.contents)["question"])
+            assert model_calls == 1
+            candidate = {
+                "generation_contract_version": "text-to-sql-f1-v1",
+                "context_version": payload.context_version,
+                "status": expected,
+            }
+            if expected == "unsupported":
+                candidate["semantic_intent"] = {"metric_id": "energy.consumption"}
+                candidate["unsupported_reason"] = {
+                    "code": "metric_outside_f1", "message": "Consumo fora da F1.",
+                }
+            else:
+                candidate["clarification"] = {
+                    "question": "Qual medida?", "missing_fields": ["metric"],
+                }
+            return SqlGenerationResponse(correlation_id=correlation_id, candidate=candidate)
+
+    def record(_store, event, **_kwargs):
+        audits.append(event)
+        return "a" * 32
+
+    audits = []
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
+    monkeypatch.setattr(endpoint.GoldPublicationContext, "capture",
+                        classmethod(lambda _cls, _engine: Publication()))
+    monkeypatch.setattr(endpoint.AuditStore, "record", record)
+    monkeypatch.setattr(pipeline, "execute_sql_admission",
+                        lambda *args, **kwargs: pytest.fail("Pedido sem candidato executou SQL"))
+    monkeypatch.setitem(client.app.dependency_overrides, get_question_gold_resources,
+                        lambda: (test_engine, lambda: scope))
+    monkeypatch.setitem(client.app.dependency_overrides, endpoint.get_sql_genai_question_client,
+                        Generator)
+    login_as_profile(client, monkeypatch, "commercial", username="sql-domain")
+
+    response = client.post("/api/v1/ai/sql-analyses", json={"question": question})
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == expected
+    assert body["evidence"] is None and body["presentation"] is None
+    assert "sql" not in body and "parameters" not in body
+    assert calls == ([question] if model_calls else [])
+    assert audits[-1].stage == "response" and audits[-1].model_calls == model_calls
+    assert audits[-1].source_calls == 0

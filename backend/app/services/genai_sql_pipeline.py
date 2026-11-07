@@ -30,6 +30,7 @@ class SqlQuestionRun:
     candidate: SqlGenerationCandidate
     evidence: SqlEvidence | None
     audit_artifact: SqlF1AuditArtifact | None = None
+    model_calls: int = 1
 
 
 async def run_sql_question(
@@ -61,7 +62,7 @@ async def run_sql_question(
         if resolve_scope() != request.access_scope:
             raise SqlAdmissionDenied("Escopo mudou após geração SQL sem consulta.")
         publication.assert_current(engine)
-        return SqlQuestionRun(prepared.candidate, None)
+        return SqlQuestionRun(prepared.candidate, None, model_calls=prepared.model_calls)
 
     execution = await execute_sql_admission(
         prepared.admission,

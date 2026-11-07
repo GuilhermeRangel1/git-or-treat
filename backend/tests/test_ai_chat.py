@@ -88,6 +88,57 @@ def test_ai_question_endpoint_forwards_versioned_contract_and_correlation(client
     assert correlation_id == response.headers["x-correlation-id"]
 
 
+@pytest.mark.parametrize("question", [
+    "Qual a receita de miojo de janeiro de 2026?",
+    "Qual a receita de energia e de miojo em janeiro de 2026?",
+])
+def test_public_question_refuses_explicit_outside_domain_before_genai(
+    client, monkeypatch, question,
+):
+    from app.services.genai_audit import AuditStore
+
+    gateway = FakeQuestionGateway()
+    audit_events = []
+
+    def record(_store, event, **_kwargs):
+        audit_events.append(event)
+        return "a" * 32
+
+    monkeypatch.setattr(AuditStore, "record", record)
+    monkeypatch.setattr(app.state, "genai_question_client", gateway, raising=False)
+
+    response = client.post("/api/v1/ai/questions", json={"question": question})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "refused"
+    assert body["error"] == {"code": "out_of_scope", "retryable": False}
+    assert "fora do domínio de energia elétrica" in body["message"]
+    assert body["correlation_id"] == response.headers["x-correlation-id"]
+    assert gateway.calls == []
+    assert len(audit_events) == 1
+    assert audit_events[0].stage == "policy"
+    assert audit_events[0].code == "refused"
+    assert audit_events[0].model_calls == audit_events[0].source_calls == 0
+
+
+def test_public_question_keeps_energy_revenue_in_scope(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "synthetic")
+    gateway = FakeQuestionGateway()
+    monkeypatch.setattr(app.state, "genai_question_client", gateway, raising=False)
+
+    response = client.post(
+        "/api/v1/ai/questions",
+        json={"question": "Qual a receita de energia em janeiro de 2026?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "answered"
+    assert len(gateway.calls) == 1
+
+
 def test_session_authorization_transaction_is_closed_before_genai_call(
     client, monkeypatch
 ):

@@ -161,6 +161,35 @@ def test_send_replay_and_refresh_restore_association(client):
     assert restored["exchanges"][0]["response"]["message"] == "Qual período?"
 
 
+def test_legacy_conversation_refuses_external_subject_before_gold_or_genai(client):
+    web, db, calls = client
+    AUDIT_EVENTS.create(db.get_bind(), checkfirst=True)
+    conversation = create(web)
+    response = web.post(
+        f"/api/v1/ai/conversations/{conversation}/questions",
+        json={
+            "request_id": str(uuid4()),
+            "question": "Qual a receita de miojo de janeiro de 2026?",
+            "strategy": "legacy",
+        },
+        headers=ORIGIN,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "refused"
+    assert response.json()["error"] == {"code": "out_of_scope", "retryable": False}
+    assert "fora do domínio de energia elétrica" in response.json()["message"]
+    assert calls == []
+    event = db.execute(
+        select(AUDIT_EVENTS).where(
+            AUDIT_EVENTS.c.correlation_id == response.json()["correlation_id"]
+        )
+    ).mappings().one()
+    assert event["event"]["stage"] == "policy"
+    assert event["event"]["code"] == "refused"
+    assert event["event"]["model_calls"] == event["event"]["source_calls"] == 0
+
+
 def test_sql_f1_saved_conversation_regenerates_context_and_replays_audited_response(
     client, monkeypatch,
 ):

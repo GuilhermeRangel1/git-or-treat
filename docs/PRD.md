@@ -471,6 +471,16 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-11-07 — IA-01/02/06 — proteção de domínio na F1
+
+- O Backend e o prompt F1-17 preservam o assunto inteiro e recusam assuntos externos explícitos, inclusive pedidos mistos com receita e período.
+- Verificações anteriores: suíte de observação e rota passou (16 testes, 1 ignorado), rota com PostgreSQL 16 descartável passou (12) e gerador passou (22).
+- A captura manual do portal em Docker, em 07/11/2026, mostrou “Qual a receita de miojo de janeiro de 2026?” recebendo resposta de faturamento. A investigação identificou que a interface pode usar a rota padrão `/api/v1/ai/questions`, que não passava pela guarda exclusiva do TSQL F1.
+- Correção posterior: a política determinística foi centralizada e aplicada antes das dependências Gold tanto na rota padrão como no envio de perguntas do histórico legado; a rota F1 mantém defesa no pipeline. Os testes direcionados no Docker confirmam recusa no padrão e no legado sem chamada ao modelo, recusa no F1 e preservação da observação para perguntas de energia. O teste completo de observação passou (14).
+- TSQL-10A permanece aberta até confirmar pela tela os modos padrão e TSQL F1. O controle de navegador local do Work estava desativado nesta sessão; essa verificação visual não foi substituída pelos testes HTTP. A medição de assuntos inéditos com Gemini real continua planejada para TSQL-12.
+- A regra local cobre expressões explícitas. A avaliação de assuntos inéditos com Gemini real segue pendente; os estados oficiais foram preservados.
+
+
 ### 2026-11-05 — TSQL-05 — observabilidade da geração em preparação
 
 - Evoluído o prompt F1 para `text-to-sql-f1-2`, explicitando política contra instruções externas e os formatos das operações; adicionados logs sanitizados de versão/modelo, parâmetros, latência, tamanho do contexto, tokens disponíveis e falhas tipadas. Probe de chamada real passou a registrar parâmetros/tamanho, limitado a uma solicitação e sem execução SQL.
