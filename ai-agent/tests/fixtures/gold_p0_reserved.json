@@ -1,11 +1,13 @@
 {
   "version": "1.0.0",
-  "status": "reserved_not_executed",
-  "purpose": "Future validation after changes, excluded from current evaluator whitelist",
+  "status": "exploratory_unblinded_partial",
+  "purpose": "Exploratory validation after implementation; no longer a blind holdout and excluded from promotion gates",
   "authorship": "Authored by the same assistant after user criteria; not an independently authored blind benchmark",
-  "expected_semantics_status": "Draft business intents, to be reviewed before use; not wire-contract decisions",
+  "expected_semantics_status": "Draft business intents refined from the user-provided validation plan on 2026-11-07; still requires human approval and is not a wire-contract decision",
+  "review_basis": "User-provided GenAI validation and improvements plan; applied to make metric definitions, comparison rules, out-of-scope behavior, causal limits, and response expectations explicit.",
   "limitations": [
     "No evidence of these cases passing.",
+    "RES-07 and RES-08 were partially exercised against the local Gold v2 chat flow; this set is no longer blind.",
     "AL-01 is synthetic.",
     "Do not promote results to real Gold/model/portal acceptance."
   ],
@@ -27,7 +29,9 @@
         "metric": "billing.revenue",
         "period": "2025-01",
         "group": "customer.consumption_class",
-        "operation": "distribution_and_share"
+        "operation": "distribution_and_share",
+        "response": "Show the billed revenue amount and percentage for each class.",
+        "share_denominator": "total billed revenue across all classes in January 2025"
       }
     },
     {
@@ -55,7 +59,9 @@
           "municipality": "Olinda",
           "class": "COMERCIAL"
         },
-        "operation": "compare_two_months"
+        "operation": "compare_two_months",
+        "response": "Show February and March billed revenue, absolute change, and percentage change.",
+        "change_reference": "March 2025 minus February 2025; percentage uses February 2025 as the base."
       }
     },
     {
@@ -78,7 +84,9 @@
         "metric": "energy.consumption",
         "period": "2025-01..2025-12",
         "group": "customer.consumption_class",
-        "operation": "sum_window_then_top_3"
+        "operation": "sum_window_then_top_3",
+        "metric_must_remain": "energy.consumption (measured kWh)",
+        "if_capability_or_coverage_is_missing": "Recognize the requested metric and filters, report OUT_OF_SCOPE or unavailable coverage as appropriate, generate no plan for unsupported execution, and never substitute billed energy or revenue."
       }
     },
     {
@@ -115,7 +123,8 @@
         "filters": {
           "municipality": "Olinda"
         },
-        "operation": "clarify_missing_comparison_and_limit_causal_inference"
+        "operation": "clarify_missing_comparison_and_limit_causal_inference",
+        "response": "Describe only an observed temporal relationship supported by data; ask for a comparison window or missing definition if needed; do not claim the interruption caused the consumption drop."
       }
     },
     {
@@ -127,7 +136,8 @@
         "filters": {
           "feeder": "AL-01"
         },
-        "operation": "read_plus_approved_definition"
+        "operation": "unavailable_for_synthetic_identifier",
+        "response": "Explain that AL-01 is a synthetic identifier and cannot establish a real Gold result. Validate an actual feeder separately, selected only from authorized Gold coverage."
       }
     },
     {

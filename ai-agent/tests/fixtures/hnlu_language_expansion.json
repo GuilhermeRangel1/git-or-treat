@@ -1,0 +1,436 @@
+{
+  "dataset_version": "1.0.0",
+  "status": "development_not_reserved",
+  "scope": "Gold v2 intent proposals and planner outcomes; artificial coverage; no SQL or numeric execution",
+  "limitations": [
+    "Authored for development from user-approved vocabulary and temporal rules; human review is still needed for unresolved business rules.",
+    "Measures the raw Gemini intent separately from planner capability and outcome.",
+    "Does not measure Gold data availability, SQL execution, numeric reconciliation, or response synthesis."
+  ],
+  "cases": [
+    {
+      "id": "VOL-01",
+      "category": "everyday_volume",
+      "question": "Qual foi o volume em Recife em março de 2025?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": ["geography.municipality"],
+        "filters": {"geography.municipality": "Recife"},
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "VOL-02",
+      "category": "everyday_volume_and_class",
+      "question": "Quanto foi o volume residencial em Recife em 2025-03?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "CLS-01",
+      "category": "everyday_class_alias",
+      "question": "Qual foi a receita das casas em Recife em março de 2025?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "CLS-02",
+      "category": "everyday_class_alias",
+      "question": "Quanto faturaram as famílias em Olinda em mar/2025?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Olinda"
+        },
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "CLS-03",
+      "category": "everyday_class_alias",
+      "question": "Quanto foi a receita das residências em Recife em março de 2025?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "CLS-04",
+      "category": "everyday_class_alias",
+      "question": "Qual foi a receita de clientes residenciais em Recife no mês 03 de 2025?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "CLS-05",
+      "category": "everyday_class_alias",
+      "question": "Qual foi o consumo das unidades residenciais em Olinda em março de 2025?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Olinda"
+        },
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "AMB-01",
+      "category": "everyday_ambiguity",
+      "question": "Quanto deu a conta de luz em Recife em março de 2025?",
+      "expected_semantics": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      },
+      "expected": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      }
+    },
+    {
+      "id": "AMB-02",
+      "category": "everyday_ambiguity",
+      "question": "Teve falta de luz em Olinda em março de 2025?",
+      "expected_semantics": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      },
+      "expected": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      }
+    },
+    {
+      "id": "DAT-01",
+      "category": "date_paraphrase",
+      "question": "Qual faturamento em Recife em 2025-03?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["geography.municipality"],
+        "filters": {"geography.municipality": "Recife"},
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "DAT-02",
+      "category": "date_paraphrase",
+      "question": "Qual faturamento em Recife mar/2025?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["geography.municipality"],
+        "filters": {"geography.municipality": "Recife"},
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "DAT-03",
+      "category": "date_paraphrase",
+      "question": "Qual faturamento em Recife em 03/2025?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["geography.municipality"],
+        "filters": {"geography.municipality": "Recife"},
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "TMP-01",
+      "category": "relative_period",
+      "question": "Qual receita faturada nos últimos 12 meses?",
+      "coverage_competencies": [
+        "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+        "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
+        "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+        "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {"start": "2025-07-01", "end": "2026-06-30"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "TMP-02",
+      "category": "relative_period",
+      "question": "Quanto foi receita no ano passado?",
+      "coverage_competencies": [
+        "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+        "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
+        "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+        "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {"start": "2025-01-01", "end": "2025-12-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "TMP-03",
+      "category": "relative_period",
+      "question": "Quanto foi receita mês passado?",
+      "coverage_competencies": [
+        "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+        "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
+        "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+        "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {"start": "2026-05-01", "end": "2026-05-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "TMP-04",
+      "category": "relative_period",
+      "question": "Qual foi receita no primeiro semestre de 2026?",
+      "coverage_competencies": [
+        "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+        "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
+        "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+        "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {"start": "2026-01-01", "end": "2026-06-30"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "TMP-05",
+      "category": "relative_period",
+      "question": "Qual foi receita no segundo semestre de 2025?",
+      "coverage_competencies": [
+        "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+        "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
+        "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+        "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {"start": "2025-07-01", "end": "2025-12-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "RANK-01",
+      "category": "everyday_ranking",
+      "question": "Qual município faturou mais em março de 2025?",
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["geography.municipality"],
+        "group_by_dimension_ids": ["geography.municipality"],
+        "ranking_direction": "desc",
+        "ranking_limit": 1,
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "RANK-02",
+      "category": "change_ranking_capability",
+      "question": "Qual bairro mais perdeu volume nos últimos 12 meses?",
+      "coverage_competencies": [
+        "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+        "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
+        "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+        "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": ["geography.neighborhood"],
+        "group_by_dimension_ids": ["geography.neighborhood"],
+        "ranking_direction": "asc",
+        "comparison_periods": {"prior_months": 12},
+        "period": {"start": "2025-07-01", "end": "2026-06-30"}
+      },
+      "expected": {
+        "status": "needs_clarification",
+        "clarification_reason": "unsupported_comparison"
+      }
+    },
+    {
+      "id": "PAY-01",
+      "category": "everyday_ambiguity",
+      "question": "Quanto entrou no caixa em Recife em maio de 2025?",
+      "expected_semantics": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      },
+      "expected": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      }
+    },
+    {
+      "id": "FUP-01",
+      "category": "conversation_follow_up",
+      "question": "E somente residencial?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento de Recife em março de 2025?"},
+        {"role": "assistant", "content": "Resposta fundamentada."}
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {"start": "2025-03-01", "end": "2025-03-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "FUP-02",
+      "category": "conversation_follow_up",
+      "question": "E no ano anterior?",
+      "context": [
+        {"role": "user", "content": "Qual foi a receita residencial de Recife no ano de 2026?"},
+        {"role": "assistant", "content": "Resposta fundamentada."}
+      ],
+      "coverage_competencies": [
+        "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+        "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
+        "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
+        "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {"start": "2025-01-01", "end": "2025-12-31"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "FUP-03",
+      "category": "conversation_follow_up",
+      "question": "E no mês anterior?",
+      "context": [
+        {"role": "user", "content": "Qual foi a receita residencial de Recife em março de 2025?"},
+        {"role": "assistant", "content": "Resposta fundamentada."}
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {"start": "2025-02-01", "end": "2025-02-28"}
+      },
+      "expected": {"status": "planned"}
+    },
+    {
+      "id": "FUP-04",
+      "category": "conversation_follow_up",
+      "question": "E só no comércio, mantendo o mesmo mês e a mesma cidade?",
+      "context": [
+        {"role": "user", "content": "Quanto faturamos em Recife em fevereiro de 2025?"},
+        {"role": "assistant", "content": "Resposta fundamentada."}
+      ],
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": ["customer.consumption_class", "geography.municipality"],
+        "filters": {
+          "customer.consumption_class": "COMERCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {"start": "2025-02-01", "end": "2025-02-28"}
+      },
+      "expected": {"status": "needs_clarification"},
+      "expected_planner": {"status": "planned"}
+    }
+  ]
+}
