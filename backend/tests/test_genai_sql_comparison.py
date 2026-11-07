@@ -38,6 +38,26 @@ def test_derives_meaning_from_expressions_without_relying_on_aliases(sql_request
         "a": "period_0_total", "b": "period_1_total", "delta": "period_0_minus_period_1"}
 
 
+def test_sql_candidate_cannot_label_backend_derived_measure_as_percent(sql_request):
+    request, value = comparison(sql_request)
+    result_columns = list(value.result_columns)
+    result_columns[0] = result_columns[0].model_copy(update={"unit": "%"})
+
+    with pytest.raises(SqlStructureRejected, match="percentuais são derivados no Backend"):
+        review_sql_semantics(value.model_copy(update={"result_columns": result_columns}), request)
+
+
+def test_sql_candidate_cannot_claim_reserved_backend_derived_alias(sql_request):
+    request, value = comparison(sql_request)
+    payload = value.model_dump(mode="json")
+    payload["sql"] = payload["sql"].replace("AS a,", "AS period_0_growth_percent,", 1)
+    payload["result_columns"][0]["name"] = "period_0_growth_percent"
+    candidate_with_reserved_alias = type(value).model_validate(payload)
+
+    with pytest.raises(SqlStructureRejected, match="Alias reservado"):
+        review_sql_semantics(candidate_with_reserved_alias, request)
+
+
 @pytest.mark.parametrize("old,new", [
     ("(:current, :previous)", "(:current)"),
     ("WHERE competencia = :previous", "WHERE competencia = :current"),

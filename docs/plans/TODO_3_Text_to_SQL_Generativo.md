@@ -1,6 +1,6 @@
 # TODO 3 — Transição do V-Energy para Text-to-SQL generativo
 
-**Data:** 07/11/2026. **Versão:** 1.24 — TSQL-09 concluída; critérios de observabilidade, pricebook, alertas, locks de dependências e recuperação foram avançados em TSQL-10. Revisão humana TSQL-08 e avaliação das 596 invocações permanecem em TSQL-12.
+**Data:** 07/11/2026. **Versão:** 1.25 — TSQL-09 concluída; critérios de observabilidade, pricebook, alertas, locks de dependências e recuperação foram avançados em TSQL-10. Primeira ampliação TSQL-11 deriva variação percentual em comparação existente; agrupamentos, outros domínios, JOIN e reparo continuam pendentes. Revisão humana TSQL-08 e avaliação das 596 invocações permanecem em TSQL-12.
 **Estado:** TSQL-07 concluída no escopo de execução/evidência F1. TSQL-08 tem integração sintética e requer revisão humana de clareza/acessibilidade. TSQL-09 concluída: continuidade assinada, armazenamento privado F1, isolamento, revogação, auditoria, replay, reconhecimento semântico fora da F1 sem autorizar SQL, regressão Gemini f1-16 e compatibilidade segura em implantação/rollback entre versões. A bateria Gemini acertou 13/13 estados/intenção; 11 candidatos SQL passaram pela revisão semântica e dois estados sem SQL corresponderam aos oráculos. A prova de deploy usou banco descartável e referência Gold v2 sintética de metadados, sem linhas analíticas; não representa aceite de dados Gold. TSQL-10 tem logs correlacionados, auditoria privilegiada do template F1, resumo sanitizado p50/p95/tokens, pricebook público conservador, limiares/procedimento, locks de dependências, carga local da rota, webhook local, checagem Gold e um 429 real com resposta posterior sem novo 429. A sequência não comprovou resposta F1 válida após o rate limit; carga representativa do ambiente operacional permanece pendente. A bateria de 596 invocações e revisão final permanecem em TSQL-12.
 **Branch de trabalho:** `feat/genai-text-to-sql`, criada de `feat/genai-interpretacao` em `c1911d1`, com trabalho local preservado.
 **Referência da inspeção inicial:** `feat/genai-interpretacao`, commit `c1911d1`, com alterações locais. Não representa o head corrente da implementação.
@@ -22,7 +22,7 @@ Os números identificam frentes e dependências; não significam terminar todas 
 | TSQL-05/06 | Geração e validação juntas, guiadas pelo benchmark | TSQL-05 concluída em observação na f1-12; TSQL-06 mantém seus critérios próprios de integração/aceite |
 | TSQL-07/08 e âncora mínima de TSQL-09 | Uma fatia vertical: execução → evidência → resposta/tabela → conversa no portal | TSQL-07 concluída para execução/evidência F1. TSQL-08: jornada unificada Edge→sessão→rota→PostgreSQL descartável concluída; candidato e readiness simulados. Pedidos independentes fora da F1. Revisão humana de clareza e acessibilidade pendente |
 | TSQL-10 | Desde os primeiros contratos e chamadas | Acompanha todas as etapas; inclui rastros, custo, limites, carga e operação |
-| TSQL-11 | Depois da F1 comprovada | Ampliações adiadas |
+| TSQL-11 | Depois da F1 comprovada | Primeira ampliação de comparação implementada no Backend; verificação no portal pendente. Outras ampliações permanecem adiadas |
 | TSQL-12 | Final do escopo a promover | Avaliação final, rollout e retirada de legado; reutiliza o benchmark criado em TSQL-02 |
 
 **Situação consolidada em 06/11/2026:** TSQL-01 a 07 concluídas nos respectivos escopos delimitados. TSQL-07 fecha a rota Backend e a evidência F1 com oráculos sintéticos, mais controles somente leitura na Gold ativa; não é aceite Gemini, prontidão automatizada real, jornada do portal, holdout independente ou homologação de outros domínios.
@@ -703,7 +703,9 @@ Aceitar nessa triagem significa reconhecer uma pergunta de energia. A execução
 
 **Dependência:** primeira fatia comprovada, TSQL-02/06/07/10. **IDs:** IA-01/02/03/06/08, ENT-01.
 
-- [ ] Ampliar as comparações da F1 para outros recortes, crescimento percentual, tratamento de base zero e ranking por variação; comparação mensal de totais e diferença em reais já integra a F1.
+- [ ] Ampliar comparações da F1 a recortes agrupados e ranking por variação; essas formas continuam fora da execução aprovada.
+- [x] Em comparações existentes de totais, derivar no Backend a variação percentual `(período 1 - período 2) / período 2 * 100`, arredondada a duas casas com `ROUND_HALF_EVEN`. Base ausente, zero ou negativa produz percentual nulo, sem divisão por zero ou interpretação enganosa. O SQL candidato continua limitado aos dois totais e à diferença em reais; a tabela/resposta recebem a medida derivada por evidência v2.
+- [ ] Validar no Frontend o contrato de apresentação v2 e a renderização do percentual na tabela do Assistente; o teste foi adicionado, mas não iniciou porque `vitest` não está instalado no `frontend/node_modules` disponível nesta worktree.
 - [ ] Expandir consumo, atendimento e continuidade conforme regras e cobertura, sem presumir equivalência com faturamento.
 - [ ] Habilitar JOIN por relações/grãos aprovados, com prova de cardinalidade, população e reconciliação; testar fatos com múltiplas linhas por chave.
 - [ ] Exigir agregação antes de unir fatos quando necessária; não aceitar `DISTINCT` como correção genérica de fan-out.
@@ -744,6 +746,8 @@ Aceitar nessa triagem significa reconhecer uma pergunta de energia. A execução
 - [ ] Escopo/catálogo/prontidão e contexto enviado foram atualizados juntos; expansão não libera objetos/construções adicionais por inferência.
 
 **Evidência mínima:** Uma ficha por ampliação com diff, referências, testes de cardinalidade/negativos, comparação antes/depois e custo.
+
+**Evidência da primeira ampliação:** `backend/app/services/genai_sql_evidence.py` deriva o percentual somente depois da validação e execução dos dois totais aprovados. Referência independente: R$ 150,03 contra base de R$ 80,00 resulta em 87,54%; base R$ 0,00 não tem percentual; ausência e base negativa também ficam nulas. Contratos de evidência/apresentação v2 preservam compatibilidade de leitura v1. Testes de evidência e apresentação cobrem resultado e base zero; integração com Gemini real e Gold ativa não foi alegada.
 
 **Impede o fechamento:** Sem referência independente, JOIN duplicando valores, erro semântico oculto ou reparo ampliando permissões.
 

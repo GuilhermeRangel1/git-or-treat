@@ -22,6 +22,12 @@ O contrato valida estrutura e coerência local. Uma string DELETE pode ser um ca
 
 ## Contexto preparado no Backend
 
+### Comparação com variação percentual derivada — evidência v2
+
+Para comparações de dois totais aprovadas pelo subconjunto F1, o candidato SQL continua retornando somente os dois totais e a diferença em reais. Depois da execução, o Backend deriva `(período 1 - período 2) / período 2 * 100`, arredondado a duas casas com `ROUND_HALF_EVEN`; o período 1 é o mais recente e o período 2 é a referência anterior. A medida derivada não é SQL proposto pelo modelo. Se a referência anterior estiver ausente, for zero ou negativa, a variação percentual é indefinida e aparece como nula; não há divisão por zero nem substituição de nulo por zero.
+
+A evidência/resultados novos desse caso usam `text-to-sql-f1-evidence-v2` e `text-to-sql-f1-presentation-v2`, com unidade `%`. Os leitores continuam aceitando contratos v1 já persistidos no histórico. O digest de execução continua cobrindo os resultados SQL brutos; o digest da evidência v2 também cobre a medida derivada pelo Backend. Isso não habilita comparação agrupada, ranking por variação ou JOIN.
+
 `build_sql_generation_context` recebe `QuestionPlanRequest` com escopo/cobertura já resolvidos pelo Backend. Seleciona no catálogo instalado somente receita em `diagnostico_receita`; libera `competencia`, `receita_total_reais` e colunas de município/classe autorizadas. Ignora outras fontes/métricas e valores de UC.
 
 O digest incorpora pergunta, conversa, cobertura, publicação, catálogo, identidade e escopo. Identidade e concessões externas à F1 entram no digest, sem serem incluídas como objetos/credenciais no conteúdo enviado ao modelo. Ordem de conjuntos e redução do saldo de tempo não alteram a identidade semântica do contexto. O prazo é controlado separadamente pelo coordenador. Para F1, `caller_ref` precisa ser o pseudônimo `session:<sha256>` produzido pelo Backend; `prepare_sql_candidate` re-resolve o escopo atual e compara a publicação antes da geração, recusando revogação ou troca de lote.

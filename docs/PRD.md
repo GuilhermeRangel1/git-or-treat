@@ -471,6 +471,14 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-11-07 — IA-01 / TSQL-11 — variação percentual em comparação F1
+
+- Em comparações já aprovadas de totais, o Backend deriva `(período 1 - período 2) / período 2 * 100` a partir dos totais e da diferença executados; arredonda a duas casas com `ROUND_HALF_EVEN`. Base ausente, zero ou negativa resulta em percentual nulo, com texto que explica a indefinição para zero/negativo.
+- Evidência e apresentação v2 acrescentam unidade `%`; leitores preservam respostas v1 do histórico. O candidato SQL e a autorização continuam limitados aos três resultados SQL existentes; percentual é cálculo Backend rastreado pelo digest da evidência.
+- Verificação em Docker: `python -m pytest -q -p no:cacheprovider tests/test_genai_sql_evidence.py tests/test_genai_sql_presentation.py tests/test_genai_sql_result.py tests/test_genai_sql_comparison.py tests/test_genai_sql_semantics.py tests/test_genai_sql_public_route.py -k "not sql_analysis_route_is_disabled_by_default_for_authenticated_user"` — 95 passaram, 1 foi ignorado e 1 foi excluído. `python -m compileall -q app tests` passou.
+- O teste de contrato Frontend para v2 foi incluído, mas não iniciou: `npm run test -- src/features/assistente/contract.test.ts` — `vitest` não está instalado no `frontend/node_modules` disponível. A execução Backend sem excluir `test_sql_analysis_route_is_disabled_by_default_for_authenticated_user` falhou porque a dependência Gold retorna `Leitura Gold indisponível.` antes da rota, divergindo da mensagem esperada `Análise SQL indisponível.`; esse comportamento já havia sido observado antes desta ampliação. Próximo passo: corrigir/validar a precedência de disponibilidade da rota e rodar os testes do Frontend.
+- Esta entrega conclui somente a derivação da comparação não agrupada no Backend. TSQL-11 continua aberta; comparação agrupada/ranking por variação, novos domínios, JOINs, análise composta, reparo e validação portal/Gemini permanecem pendentes. Estados oficiais IA/WEB foram preservados.
+
 ### 2026-11-07 — IA-01/02/06 — proteção de domínio na F1
 
 - O Backend e o prompt F1-17 preservam o assunto inteiro e recusam assuntos externos explícitos, inclusive pedidos mistos com receita e período.

@@ -25,6 +25,7 @@ class SqlPresentationColumn(BaseModel):
         "period_0_total",
         "period_1_total",
         "period_0_minus_period_1",
+        "period_0_growth_percent",
     ]
     unit: str | None = Field(default=None, max_length=20)
 
@@ -41,7 +42,9 @@ class SqlAnalysisPresentation(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    contract_version: Literal["text-to-sql-f1-presentation-v1"]
+    contract_version: Literal[
+        "text-to-sql-f1-presentation-v1", "text-to-sql-f1-presentation-v2",
+    ]
     state: Literal["ready", "empty", "all_measures_null"]
     operation: Literal[
         "total", "monthly_series", "grouped_total", "ranking", "comparison"

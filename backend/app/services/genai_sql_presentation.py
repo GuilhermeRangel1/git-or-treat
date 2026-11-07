@@ -19,6 +19,7 @@ _MEASURES = {
     "period_0_total": "Faturamento no período 1",
     "period_1_total": "Faturamento no período 2",
     "period_0_minus_period_1": "Diferença (período 1 − período 2)",
+    "period_0_growth_percent": "Variação percentual",
 }
 _FILTER_DIMENSIONS = {
     "geography.municipality": "Município",
@@ -142,11 +143,33 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         first_period = _period_phrase(windows[0].start, windows[0].end)
         second_period = _period_phrase(windows[1].start, windows[1].end)
         filter_scope = f" para {'; '.join(filters)}" if filters else ""
-        return (
+        answer = (
             f"O faturamento foi R$ {_decimal_pt_br(first)} de {first_period} e "
             f"R$ {_decimal_pt_br(second)} de {second_period}. A diferença "
             f"(primeiro período − segundo período) foi R$ "
             f"{_decimal_pt_br(difference)}{filter_scope}."
+        )
+        if "period_0_growth_percent" not in evidence.measure_semantics.values():
+            return answer
+        growth = values.get("period_0_growth_percent")
+        if growth is not None:
+            return (
+                answer + " A variação percentual sobre o período de referência foi "
+                f"{_decimal_pt_br(growth)}%."
+            )
+        if Decimal(second) == 0:
+            return (
+                answer + " A variação percentual não é definida porque "
+                "o período de referência tem base zero."
+            )
+        if Decimal(second) < 0:
+            return (
+                answer + " A variação percentual não é definida porque "
+                "o período de referência não é positivo."
+            )
+        return (
+            answer + " A variação percentual não pôde ser calculada porque "
+            "falta valor em um dos períodos."
         )
 
     dimensions = tuple(_DIMENSIONS[item] for item in evidence.interpretation.group_by)
@@ -219,7 +242,11 @@ def present_sql_evidence(evidence: SqlEvidence) -> SqlAnalysisPresentation:
         "all_measures_null": "all_measures_null",
     }[evidence.status]
     return SqlAnalysisPresentation(
-        contract_version="text-to-sql-f1-presentation-v1",
+        contract_version=(
+            "text-to-sql-f1-presentation-v2"
+            if evidence.evidence_contract_version == "text-to-sql-f1-evidence-v2"
+            else "text-to-sql-f1-presentation-v1"
+        ),
         state=state,
         operation=evidence.interpretation.operation,
         answer=_answer(evidence, filters),

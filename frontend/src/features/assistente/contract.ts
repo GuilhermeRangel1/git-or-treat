@@ -31,7 +31,9 @@ export type AIQuestionError = {
 };
 
 export type SqlAnalysisPresentation = {
-  contract_version: "text-to-sql-f1-presentation-v1";
+  contract_version:
+    | "text-to-sql-f1-presentation-v1"
+    | "text-to-sql-f1-presentation-v2";
   state: "ready" | "empty" | "all_measures_null";
   operation:
     "total" | "monthly_series" | "grouped_total" | "ranking" | "comparison";
@@ -51,8 +53,9 @@ export type SqlAnalysisPresentation = {
       | "revenue_total"
       | "period_0_total"
       | "period_1_total"
-      | "period_0_minus_period_1";
-    unit: "R$" | null;
+      | "period_0_minus_period_1"
+      | "period_0_growth_percent";
+    unit: "R$" | "%" | null;
   }[];
   rows: { observation_id: string; cells: (string | null)[] }[];
   evidence_digest: string;
@@ -352,7 +355,10 @@ function decodeSqlAnalysisPresentation(
   ];
   if (
     Object.keys(value).some((key) => !keys.includes(key)) ||
-    value.contract_version !== "text-to-sql-f1-presentation-v1" ||
+    ![
+      "text-to-sql-f1-presentation-v1",
+      "text-to-sql-f1-presentation-v2",
+    ].includes(String(value.contract_version)) ||
     !["ready", "empty", "all_measures_null"].includes(String(value.state)) ||
     ![
       "total",
@@ -396,9 +402,13 @@ function decodeSqlAnalysisPresentation(
         "period_0_total",
         "period_1_total",
         "period_0_minus_period_1",
+        "period_0_growth_percent",
       ].includes(String(item.semantic_id)) ||
-      (item.unit !== null && item.unit !== "R$") ||
-      (item.role === "measure") !== (item.unit === "R$")
+      (item.unit !== null && item.unit !== "R$" && item.unit !== "%") ||
+      (item.role === "measure") !== (item.unit !== null) ||
+      (item.role === "measure" &&
+        item.unit !==
+          (item.semantic_id === "period_0_growth_percent" ? "%" : "R$"))
     )
       return fail();
     return item as SqlAnalysisPresentation["columns"][number];
@@ -412,6 +422,13 @@ function decodeSqlAnalysisPresentation(
           column.semantic_id,
         ),
     )
+  )
+    return fail();
+  const hasGrowth = columns.some(
+    (column) => column.semantic_id === "period_0_growth_percent",
+  );
+  if (
+    (value.contract_version === "text-to-sql-f1-presentation-v2") !== hasGrowth
   )
     return fail();
   const rows = value.rows.map((item, index) => {
@@ -448,7 +465,7 @@ function decodeSqlAnalysisPresentation(
   )
     return fail();
   return {
-    contract_version: "text-to-sql-f1-presentation-v1",
+    contract_version: value.contract_version as SqlAnalysisPresentation["contract_version"],
     state: value.state as SqlAnalysisPresentation["state"],
     operation: value.operation as SqlAnalysisPresentation["operation"],
     answer: value.answer,
@@ -505,6 +522,13 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
     const evidenceRows = evidence.rows as unknown[];
     const presentation = decodeSqlAnalysisPresentation(value.presentation);
     if (
+      (evidence.evidence_contract_version != null &&
+        ![
+          "text-to-sql-f1-evidence-v1",
+          "text-to-sql-f1-evidence-v2",
+        ].includes(String(evidence.evidence_contract_version))) ||
+      (evidence.evidence_contract_version === "text-to-sql-f1-evidence-v2") !==
+        (presentation.contract_version === "text-to-sql-f1-presentation-v2") ||
       presentation.evidence_digest !== evidence.evidence_digest ||
       presentation.columns.length !== evidenceColumns.length ||
       presentation.rows.length !== evidenceRows.length ||
