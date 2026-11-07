@@ -23,6 +23,9 @@ class ClarificationReason(StrEnum):
     AMBIGUOUS_DIMENSION = "ambiguous_dimension"
     MULTIPLE_METRICS = "multiple_metrics"
     CONFLICTING_RANKING = "conflicting_ranking"
+    UNSUPPORTED_FILTER = "unsupported_filter"
+    UNSUPPORTED_COMPARISON = "unsupported_comparison"
+    UNIT_MISMATCH = "unit_mismatch"
 
 
 class IntentInterpretation(BaseModel):

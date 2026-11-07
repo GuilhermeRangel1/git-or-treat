@@ -8,7 +8,12 @@ from math import isfinite
 from pydantic import ValidationError
 
 from app.agent.access import ReadAccessPolicy
-from app.agent.temporal import GoldTemporalWindowResolver, TemporalResolutionUnavailable
+from app.agent.temporal import (
+    GoldTemporalWindowResolver,
+    TemporalResolutionUnavailable,
+    explicit_monthly_phrases,
+    normalize_calendar_phrases,
+)
 from app.ports.evidence import EvidenceAccessDenied
 from app.schemas.access import AccessContext
 from app.schemas.analysis import AnalysisIntent
@@ -74,9 +79,15 @@ class ReadPlanBuilder:
         )
         if metric is None or metric.domain_id != intent.domain:
             raise PlanCapabilityUnavailable("O indicador solicitado não está neste catálogo.")
-        if intent.period_phrase is None or _normalize(intent.period_phrase) not in {
-            _normalize(item) for item in self._profile.period_phrases
-        }:
+        approved_periods = {_normalize(item) for item in self._profile.period_phrases}
+        explicit_period = (
+            explicit_monthly_phrases(normalize_calendar_phrases(intent.period_phrase))
+            if intent.period_phrase is not None else ()
+        )
+        if intent.period_phrase is None or (
+            _normalize(intent.period_phrase) not in approved_periods
+            and not (temporal_coverage is not None and explicit_period)
+        ):
             raise PlanCapabilityUnavailable(
                 "Não há uma janela aprovada para esse período; reformule a consulta."
             )
@@ -116,15 +127,26 @@ class ReadPlanBuilder:
             )
 
         for key, value in intent.filters.items():
-            if key not in dimensions or key in filters:
+            if key not in dimensions:
                 raise PlanCapabilityUnavailable(
                     "Não há uma regra aprovada para aplicar esse filtro."
                 )
+            requested_values = value if isinstance(value, tuple) else (value,)
+            if key in filters:
+                # A structured phrase (e.g. ``class_phrase``) and the explicit
+                # filter map can describe the same value. Accept that redundant
+                # representation only when it resolves to the identical value;
+                # conflicting duplicate filters still fail closed.
+                if filters[key].values != requested_values:
+                    raise PlanCapabilityUnavailable(
+                        "O filtro solicitado foi informado com valores conflitantes."
+                    )
+                continue
             selected_ids.add(key)
             filters[key] = ReadFilter(
                 dimension_id=key,
                 operator=FilterOperator.IN if isinstance(value, tuple) else FilterOperator.EQ,
-                values=value if isinstance(value, tuple) else (value,),
+                values=requested_values,
             )
 
         for key, value in metric.fixed_filter_values.items():

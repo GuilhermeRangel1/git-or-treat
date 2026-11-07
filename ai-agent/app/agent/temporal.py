@@ -79,6 +79,17 @@ def normalize_calendar_phrases(text: str) -> str:
         r"\b(?:no\s+)?m[eê]s\s+(0?[1-9]|1[0-2])\s+de\s+([0-9]{4})(?!\w)",
         lambda match: f"em {match[2]}-{int(match[1]):02d}", text, flags=re.IGNORECASE,
     )
+    text = re.sub(
+        r"\b(?P<semester>primeiro|segundo|1[ºo]?|2[ºo]?)\s+semestre\s+"
+        r"(?:de\s+|do\s+ano\s+de\s+)?(?P<year>[0-9]{4})(?![\w/-])",
+        lambda match: (
+            f"de {match['year']}-01 a {match['year']}-06"
+            if _normalize(match["semester"]) in {"primeiro", "1", "1º", "1o"}
+            else f"de {match['year']}-07 a {match['year']}-12"
+        ),
+        text,
+        flags=re.IGNORECASE,
+    )
     text = _SHARED_YEAR.sub(
         lambda match: (
             f"{match['first']} de {match['year']}{match['link']}"
@@ -185,11 +196,9 @@ def explicit_monthly_phrases(text: str) -> tuple[str, ...]:
 def normalize_proposed_period_phrase(phrase: str) -> str:
     """Adapta variações explícitas de mês/ano à frase canônica do resolvedor Gold."""
     normalized = normalize_calendar_phrases(phrase).strip(" ?!.")
-    if re.search(r"\s+(?:a|ate)\s+", normalized):
-        return normalized
-    candidate = normalized[3:] if normalized.casefold().startswith("em ") else normalized
-    if len(explicit_monthly_phrases(candidate)) == 1:
-        return candidate
+    normalized = re.sub(
+        r"^(?:(?:em|no|na|nos|nas)\s+)+", "", normalized, flags=re.IGNORECASE,
+    )
     return normalized
 
 
@@ -305,13 +314,13 @@ class GoldTemporalWindowResolver:
         elif normalized in self._TWELVE_MONTHS:
             start = _shift_month(year, month, -11)
             expected = _months_between(start, (year, month))
-        elif normalized == _normalize("ano passado"):
+        elif normalized in {_normalize("ano passado"), _normalize("ano anterior")}:
             start = (year - 1, 1)
             expected = _months_between(start, (year - 1, 12))
         elif normalized in self._THREE_MONTHS:
             start = _shift_month(year, month, -2)
             expected = _months_between(start, (year, month))
-        elif normalized == _normalize("mês passado"):
+        elif normalized in {_normalize("mês passado"), _normalize("mês anterior")}:
             start = _shift_month(year, month, -1)
             expected = [start]
         elif normalized == _normalize("este ano"):

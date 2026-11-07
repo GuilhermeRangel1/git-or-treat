@@ -635,7 +635,8 @@ class QuestionInterpreter:
                     if any(_EXCLUDED_VALUE_PREFIX.search(_normalize(question[:start]))
                            for start, _, _ in matches):
                         return self._clarify(
-                            "Este recorte pede exclusão; informe o valor que deseja incluir."
+                            "Este recorte pede exclusão; informe o valor que deseja incluir.",
+                            ClarificationReason.UNSUPPORTED_FILTER,
                         )
                     if (
                         len(matches) == 2
@@ -681,7 +682,8 @@ class QuestionInterpreter:
                     prefix = _normalize(question[:matches[-1][0]])
                     if _EXCLUDED_VALUE_PREFIX.search(prefix):
                         return self._clarify(
-                            "Este recorte pede exclusão; informe o valor que deseja incluir."
+                            "Este recorte pede exclusão; informe o valor que deseja incluir.",
+                            ClarificationReason.UNSUPPORTED_FILTER,
                         )
                     surface = _normalize(matches[-1][2])
                     if surface in matched_surfaces:
@@ -712,10 +714,15 @@ class QuestionInterpreter:
         unit_surface = self._incompatible_unit(question, selected_metric)
         unit_message = self._profile.clarifications.unit_mismatch
         if unit_surface is not None and unit_message is not None:
-            return self._clarify(unit_message.replace("{unit}", unit_surface))
+            return self._clarify(
+                unit_message.replace("{unit}", unit_surface),
+                ClarificationReason.UNIT_MISMATCH,
+            )
         detail_clarification = self._unsupported_detail(filter_question)
         if detail_clarification is not None:
-            return self._clarify(detail_clarification)
+            return self._clarify(
+                detail_clarification, ClarificationReason.UNSUPPORTED_FILTER,
+            )
         class_phrase = self._dimension_value_matches(question, self._classification_dimensions)
         if not structured and self._has_unresolved_multiple_values(question, geography):
             return self._clarify(self._profile.clarifications.multiple_geographies)
@@ -785,9 +792,15 @@ class QuestionInterpreter:
                 self._profile.clarifications.missing_period, ClarificationReason.MISSING_PERIOD,
             )
         if not periods and comparison_requested:
-            return self._clarify(self._profile.clarifications.comparison_baseline)
+            return self._clarify(
+                self._profile.clarifications.comparison_baseline,
+                ClarificationReason.UNSUPPORTED_COMPARISON,
+            )
         if comparison_requested and len(periods) < 2 and not configured_comparison_window:
-            return self._clarify(self._profile.clarifications.comparison_baseline)
+            return self._clarify(
+                self._profile.clarifications.comparison_baseline,
+                ClarificationReason.UNSUPPORTED_COMPARISON,
+            )
         if len(periods) > 1 and not comparison_requested:
             return self._clarify(self._profile.clarifications.multiple_periods)
         comparison_phrases = (
@@ -797,7 +810,10 @@ class QuestionInterpreter:
         )
         if (comparison_phrases is not None and selected_metric is not None
                 and not selected_metric.supports_comparison):
-            return self._clarify(self._profile.clarifications.comparison_baseline)
+            return self._clarify(
+                self._profile.clarifications.comparison_baseline,
+                ClarificationReason.UNSUPPORTED_COMPARISON,
+            )
         if self._profile.structured_dimension_filters and comparison_requested:
             from app.agent.temporal import explicit_monthly_phrases
             explicit = explicit_monthly_phrases(question)

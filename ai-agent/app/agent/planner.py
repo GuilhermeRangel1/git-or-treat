@@ -487,9 +487,14 @@ class QuestionAnalysisPlanner:
                     pending_temporal = previous.intent
                 except PlanCapabilityUnavailable:
                     pass
-        interpretation = interpretation_override or interpreter.interpret(
+        deterministic_interpretation = interpreter.interpret(
             question, context, pending_temporal_intent=pending_temporal,
         )
+        interpretation = interpretation_override or deterministic_interpretation
+        if interpretation_override is not None:
+            interpretation = self._reconcile_with_deterministic_evidence(
+                interpretation, deterministic_interpretation,
+            )
         if interpretation_override is not None and interpretation.intent is not None:
             intent = interpretation.intent
             update = {}
@@ -529,6 +534,79 @@ class QuestionAnalysisPlanner:
                 ),
             )
         return PlannedQuestion(interpretation=interpretation, read_plan=approved)
+
+    def _reconcile_with_deterministic_evidence(
+        self,
+        proposed: IntentInterpretation,
+        deterministic: IntentInterpretation,
+    ) -> IntentInterpretation:
+        """Preserve explicit safety clarifications and recover unambiguous ranking fields.
+
+        The model still chooses the metric and period. The deterministic interpreter
+        contributes ranking fields only when it independently recognizes the same
+        metric and period. It also prevents ready proposals from bypassing explicit
+        unsupported-exclusion and unit-mismatch clarifications.
+        """
+        if (
+            proposed.intent is not None
+            and deterministic.status is InterpretationStatus.NEEDS_CLARIFICATION
+            and deterministic.clarification_reason in {
+                ClarificationReason.AMBIGUOUS_METRIC,
+                ClarificationReason.MULTIPLE_METRICS,
+                ClarificationReason.CONFLICTING_RANKING,
+                ClarificationReason.UNSUPPORTED_FILTER,
+                ClarificationReason.UNSUPPORTED_COMPARISON,
+                ClarificationReason.UNIT_MISMATCH,
+            }
+        ):
+            return deterministic
+        if deterministic.intent is not None and any(
+            dimension_id not in {item.id for item in self.profile.dimensions}
+            for dimension_id in deterministic.intent.filters
+        ):
+            return IntentInterpretation(
+                status=InterpretationStatus.NEEDS_CLARIFICATION,
+                clarification_question=(
+                    "Ainda não consigo aplicar essa condição ao recorte. Reformule a pergunta "
+                    "sem o filtro por valor."
+                ),
+                clarification_reason=ClarificationReason.UNSUPPORTED_FILTER,
+                pending_question=proposed.pending_question,
+            )
+        if proposed.intent is None or deterministic.intent is None:
+            return proposed
+        model_intent, lexical_intent = proposed.intent, deterministic.intent
+        if (
+            model_intent.metric_id != lexical_intent.metric_id
+            or model_intent.domain != lexical_intent.domain
+            or model_intent.period_phrase is None
+            or lexical_intent.period_phrase is None
+            or _normalize(model_intent.period_phrase) != _normalize(lexical_intent.period_phrase)
+            or lexical_intent.ranking_direction is None
+            or not lexical_intent.group_by_dimension_ids
+            or lexical_intent.comparison_period_phrases is not None
+            or model_intent.comparison_period_phrases is not None
+        ):
+            return proposed
+
+        if (
+            model_intent.group_by_dimension_ids
+            and model_intent.group_by_dimension_ids != lexical_intent.group_by_dimension_ids
+        ):
+            return IntentInterpretation(
+                status=InterpretationStatus.NEEDS_CLARIFICATION,
+                clarification_question=(
+                    "As dimensões do ranking não coincidem. Qual grupo quer comparar?"
+                ),
+                clarification_reason=ClarificationReason.CONFLICTING_RANKING,
+            )
+
+        intent = model_intent.model_copy(update={
+            "group_by_dimension_ids": lexical_intent.group_by_dimension_ids,
+            "ranking_direction": lexical_intent.ranking_direction,
+            "ranking_limit": lexical_intent.ranking_limit,
+        })
+        return proposed.model_copy(update={"intent": intent})
 
     def _profile_with_dimension_values(
         self, coverage: Mapping[str, tuple[str, ...]] | None

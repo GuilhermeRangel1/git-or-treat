@@ -152,6 +152,61 @@ def test_followup_without_approved_antecedent_does_not_guess_metric_or_period():
     assert result.interpretation.clarification_reason is ClarificationReason.MISSING_METRIC
 
 
+def test_comercio_followup_alias_preserves_city_month_and_sets_commercial_class():
+    result = _plan_followup(
+        "Quanto faturamos em Recife em fevereiro de 2025?",
+        "E só no comércio, mantendo o mesmo mês e a mesma cidade?",
+        {
+            "domain": "revenue",
+            "metric_id": "billing.revenue",
+            "period_phrase": "fevereiro de 2025",
+            "dimension_ids": [
+                "geography.municipality", "customer.consumption_class",
+            ],
+            "geography_phrase": "Recife",
+            "class_phrase": "comércio",
+            "filters": {
+                "geography.municipality": "Recife",
+                "customer.consumption_class": "COMERCIAL",
+            },
+        },
+    )
+
+    assert result.read_plan is not None
+    assert result.read_plan.metric_id == "billing.revenue"
+    assert result.read_plan.window.start.isoformat() == "2025-02-01"
+    assert result.read_plan.window.end.isoformat() == "2025-02-28"
+    assert {item.dimension_id: item.values[0] for item in result.read_plan.filters} == {
+        "geography.municipality": "Recife",
+        "customer.consumption_class": "COMERCIAL",
+    }
+
+
+def test_conflicting_duplicate_class_phrase_and_filter_still_requires_clarification():
+    result = _plan_followup(
+        "Quanto faturamos em Recife em fevereiro de 2025?",
+        "E só no comércio, mantendo o mesmo mês e a mesma cidade?",
+        {
+            "domain": "revenue",
+            "metric_id": "billing.revenue",
+            "period_phrase": "fevereiro de 2025",
+            "dimension_ids": [
+                "geography.municipality", "customer.consumption_class",
+            ],
+            "geography_phrase": "Recife",
+            "class_phrase": "comércio",
+            "filters": {
+                "geography.municipality": "Recife",
+                "customer.consumption_class": "RESIDENCIAL",
+            },
+        },
+    )
+
+    assert result.read_plan is None
+    assert result.clarification is not None
+    assert "conflitantes" in result.clarification.message
+
+
 def test_previous_year_followup_with_missing_coverage_does_not_shorten_the_window():
     result = _plan_followup(
         "Receita comercial em Recife em março de 2025?",
@@ -218,6 +273,8 @@ def test_model_context_includes_specific_ambiguity_rules_and_relative_time_contr
     assert "conta de luz" in rules[0]["matched_phrases"]
     assert "consumo" in rules[0]["clarification"]
     assert any("mês completo mais recente" in rule for rule in payload["temporal_rules"])
+    assert any("soma dos N meses" in rule for rule in payload["temporal_rules"])
+    assert any("comparison_period_phrases" in rule for rule in payload["temporal_rules"])
     assert "a frase mais específica prevalece" in client.aio.models.request[
         "config"
     ]["system_instruction"]
@@ -231,6 +288,33 @@ def test_model_context_includes_specific_ambiguity_rules_and_relative_time_contr
         "config"
     ]["system_instruction"]
     assert client.aio.models.request["config"]["max_output_tokens"] == 512
+
+
+def test_explicit_geography_and_class_values_bind_only_their_unique_dimensions():
+    client = _Client(json.dumps({
+        "status": "ready",
+        "intent": {
+            "domain": "revenue",
+            "metric_id": "billing.revenue",
+            "period_phrase": "março de 2025",
+            "geography_phrase": "Recife",
+            "class_phrase": "famílias",
+        },
+    }, ensure_ascii=False))
+    _, request = _setup("Qual foi a receita das famílias em Recife em março de 2025?")
+
+    result = asyncio.run(GeminiIntentProposer(
+        client=client,
+        model="test-model",
+        profile=GRID360_GOLD_PROFILE,
+        request=request,
+        access_authorizer=ReadAccessPolicy(GRID360_GOLD_PROFILE, "gold.local"),
+    ).propose())
+
+    assert result.intent is not None
+    assert set(result.intent.dimension_ids) == {
+        "customer.consumption_class", "geography.municipality",
+    }
 
 
 def test_provider_overrides_ready_model_guess_for_unresolved_residential_volume():
@@ -266,6 +350,178 @@ def test_provider_clarifies_energy_spending_without_choosing_currency_or_consump
     assert result.status.value == "needs_clarification"
     assert "kWh" in result.clarification_question
     assert "R$" in result.clarification_question
+
+
+def test_explicit_ranking_from_deterministic_interpreter_completes_model_plan():
+    question = "Mostre os cinco municípios com mais receita residencial em março de 2025."
+    core, request = _setup(question)
+    proposal = IntentInterpretation.model_validate({
+        "status": "ready",
+        "intent": {
+            "domain": "revenue",
+            "metric_id": "billing.revenue",
+            "period_phrase": "março de 2025",
+            "class_phrase": "RESIDENCIAL",
+        },
+    })
+    coverage = {
+        item.metric_id: (item.kind, item.competencies)
+        for item in request.temporal_coverage
+    }
+    dimensions = {
+        item.dimension_id: item.values
+        for item in request.dimension_value_coverage
+    }
+
+    result = core.question._analysis_planner.plan(
+        question,
+        [],
+        request.access_scope.to_context("00000000000040008000000000000001"),
+        temporal_coverage=coverage,
+        dimension_value_coverage=dimensions,
+        interpretation_override=proposal,
+    )
+
+    assert result.read_plan is not None
+    assert result.read_plan.group_by_dimension_ids == ("geography.municipality",)
+    assert result.read_plan.order.field_id == "billing.revenue"
+    assert result.read_plan.order.direction.value == "desc"
+    assert result.read_plan.limit == 5
+
+
+def test_explicit_deterministic_ranking_wins_over_conflicting_model_direction():
+    question = "Mostre os cinco municípios com mais receita residencial em março de 2025."
+    core, request = _setup(question)
+    proposal = IntentInterpretation.model_validate({
+        "status": "ready",
+        "intent": {
+            "domain": "revenue",
+            "metric_id": "billing.revenue",
+            "period_phrase": "março de 2025",
+            "class_phrase": "RESIDENCIAL",
+            "group_by_dimension_ids": ["geography.municipality"],
+            "ranking_direction": "asc",
+            "ranking_limit": 5,
+        },
+    })
+    coverage = {
+        item.metric_id: (item.kind, item.competencies)
+        for item in request.temporal_coverage
+    }
+    dimensions = {
+        item.dimension_id: item.values
+        for item in request.dimension_value_coverage
+    }
+
+    result = core.question._analysis_planner.plan(
+        question,
+        [],
+        request.access_scope.to_context("00000000000040008000000000000001"),
+        temporal_coverage=coverage,
+        dimension_value_coverage=dimensions,
+        interpretation_override=proposal,
+    )
+
+    assert result.read_plan is not None
+    assert result.read_plan.order.direction.value == "desc"
+    assert result.read_plan.limit == 5
+
+
+@pytest.mark.parametrize(
+    ("question", "intent", "expected_reason"),
+    [
+        (
+            "Receita exceto residencial em março de 2025?",
+            {
+                "domain": "revenue",
+                "metric_id": "billing.revenue",
+                "period_phrase": "março de 2025",
+                "class_phrase": "RESIDENCIAL",
+            },
+            "unsupported_filter",
+        ),
+        (
+            "Quanto foi faturado em kWh em Recife em março de 2025?",
+            {
+                "domain": "revenue",
+                "metric_id": "billing.revenue",
+                "period_phrase": "março de 2025",
+                "geography_phrase": "Recife",
+                "dimension_ids": ["geography.municipality"],
+            },
+            "unit_mismatch",
+        ),
+        (
+            "Receita acima de R$ 100 em março de 2025?",
+            {
+                "domain": "revenue",
+                "metric_id": "billing.revenue",
+                "period_phrase": "março de 2025",
+            },
+            "unsupported_filter",
+        ),
+        (
+            "Quanto deu a conta de luz em Recife em março de 2025?",
+            {
+                "domain": "revenue",
+                "metric_id": "billing.revenue",
+                "period_phrase": "março de 2025",
+                "geography_phrase": "Recife",
+                "dimension_ids": ["geography.municipality"],
+            },
+            "ambiguous_metric",
+        ),
+        (
+            "Receita e consumo em Recife em março de 2025?",
+            {
+                "domain": "revenue",
+                "metric_id": "billing.revenue",
+                "period_phrase": "março de 2025",
+                "geography_phrase": "Recife",
+                "dimension_ids": ["geography.municipality"],
+            },
+            "multiple_metrics",
+        ),
+        (
+            "Qual bairro mais perdeu volume nos últimos 12 meses?",
+            {
+                "domain": "consumption",
+                "metric_id": "energy.consumption",
+                "period_phrase": "últimos 12 meses",
+                "dimension_ids": ["geography.neighborhood"],
+                "group_by_dimension_ids": ["geography.neighborhood"],
+                "ranking_direction": "asc",
+                "ranking_limit": 1,
+            },
+            "unsupported_comparison",
+        ),
+    ],
+)
+def test_model_cannot_override_deterministic_ambiguity_or_unsupported_semantics(
+    question, intent, expected_reason,
+):
+    core, request = _setup(question)
+    proposal = IntentInterpretation.model_validate({"status": "ready", "intent": intent})
+    coverage = {
+        item.metric_id: (item.kind, item.competencies)
+        for item in request.temporal_coverage
+    }
+    dimensions = {
+        item.dimension_id: item.values
+        for item in request.dimension_value_coverage
+    }
+
+    result = core.question._analysis_planner.plan(
+        question,
+        [],
+        request.access_scope.to_context("00000000000040008000000000000001"),
+        temporal_coverage=coverage,
+        dimension_value_coverage=dimensions,
+        interpretation_override=proposal,
+    )
+
+    assert result.read_plan is None
+    assert result.interpretation.clarification_reason.value == expected_reason
 
 
 def test_required_filter_uses_only_unique_exact_value_from_authorized_coverage():
@@ -308,6 +564,36 @@ def test_invalid_provider_response_has_sanitized_diagnostic_without_raw_text():
 
     assert proposer.last_response_diagnostic["kind"] == "invalid_json"
     assert "PRIVATE-MARKER" not in json.dumps(proposer.last_response_diagnostic)
+
+
+def test_schema_invalid_gemini_response_recovers_only_to_catalog_ambiguity():
+    client = _Client(json.dumps({
+        "status": "needs_clarification",
+        "intent": {
+            "domain": "revenue",
+            "metric_id": "billing.revenue",
+            "period_phrase": "março de 2025",
+        },
+        "clarification_question": "Qual valor você quer?",
+        "clarification_reason": "ambiguous_metric",
+    }, ensure_ascii=False))
+    _, request = _setup("Quanto deu a conta de luz em Recife em março de 2025?")
+    proposer = GeminiIntentProposer(
+        client=client,
+        model="test-model",
+        profile=GRID360_GOLD_PROFILE,
+        request=request,
+        access_authorizer=ReadAccessPolicy(GRID360_GOLD_PROFILE, "gold.local"),
+    )
+
+    result = asyncio.run(proposer.propose())
+
+    assert result.status is InterpretationStatus.NEEDS_CLARIFICATION
+    assert result.intent is None
+    assert result.clarification_reason is ClarificationReason.AMBIGUOUS_METRIC
+    assert "consumo" in result.clarification_question.casefold()
+    assert proposer.last_response_diagnostic["kind"] == "schema_validation"
+    assert proposer.last_response_diagnostic["recovered_with_catalog_clarification"] is True
 
 
 def test_provider_internal_version_is_canonical_and_optional_nulls_are_omitted():

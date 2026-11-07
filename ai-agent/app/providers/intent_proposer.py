@@ -74,6 +74,31 @@ def _canonical_dimension_phrase(
     return max(aliases, key=lambda alias: len(_normalize_text(alias)))
 
 
+def _dimensions_for_explicit_phrase(
+    phrase: str | None,
+    dimensions,
+    role: DimensionRole,
+    covered_values: dict[str, tuple[str, ...]],
+) -> set[str]:
+    """Return a dimension only when the quoted value identifies it uniquely."""
+    if phrase is None:
+        return set()
+    normalized_phrase = _normalize_text(phrase)
+    matches: set[str] = set()
+    for dimension in dimensions:
+        if dimension.role is not role:
+            continue
+        aliases = [
+            alias
+            for value in dimension.values
+            for alias in (value.value, *value.aliases)
+        ]
+        aliases.extend(covered_values.get(dimension.id, ()))
+        if any(_contains_phrase(normalized_phrase, alias) for alias in aliases):
+            matches.add(dimension.id)
+    return matches if len(matches) == 1 else set()
+
+
 def _ambiguity_matches(
     profile: DomainProfile, request: QuestionPlanRequest,
 ) -> list[tuple[list[str], AmbiguityRule]]:
@@ -237,6 +262,12 @@ class GeminiIntentProposer:
                 "'Há N meses' e 'N meses atrás' indicam somente a competência deslocada N meses.",
                 "'Último ano' significa janela móvel de 12 meses; 'ano passado' é o ano "
                 "civil anterior.",
+            "Em perguntas de ranking por 'maior queda' ou 'mais perdeu' nos últimos N meses, "
+            "compare a soma da janela móvel atual de N meses com a soma dos N meses "
+            "imediatamente anteriores. Não classifique pelo menor valor isolado da janela "
+            "atual; use ranking ascendente pela variação absoluta e registre ambas as janelas "
+            "em comparison_period_phrases, mesmo se a execução desse tipo de comparação "
+            "não estiver habilitada.",
                 "Preserve a frase temporal no plano; não presuma competência fora da cobertura.",
             ],
         }
@@ -262,7 +293,10 @@ class GeminiIntentProposer:
                         "geography_phrase e class_phrase com o valor citado e declare a dimensão "
                         "correspondente; nunca omita um filtro explícito. Use filters somente "
                         "para outras dimensões e valores exatamente autorizados. Cada dimensão "
-                        "em required_filter_dimension_ids precisa de um valor correspondente "
+                        "deve corresponder a um agrupamento, filtro ou valor citado; não liste "
+                        "dimensões do catálogo que a pergunta não pediu. Não omita o ID da "
+                        "dimensão quando preencher geography_phrase ou class_phrase. Cada item "
+                        "de required_filter_dimension_ids precisa de um valor correspondente "
                         "em filters; declarar só a dimensão não satisfaz a regra. Em ranking, "
                         "preencha group_by_dimension_ids, ranking_direction e ranking_limit. "
                         "Se um nome ou valor de dimensão não puder ser associado sem ambiguidade "
@@ -348,6 +382,31 @@ class GeminiIntentProposer:
                 ],
             }
             record_provider_failure("gemini", self.model, "invalid_response")
+            # If Gemini violates the response contract on a question whose
+            # ambiguity is already explicit in the approved catalog, preserve
+            # the safe deterministic clarification. Keep the provider failure
+            # visible in telemetry and the benchmark; this is recovery, not a
+            # successful model response.
+            proposed_metric_id = None
+            if isinstance(response_data, dict):
+                raw_intent = response_data.get("intent")
+                if isinstance(raw_intent, dict):
+                    candidate = raw_intent.get("metric_id")
+                    if isinstance(candidate, str):
+                        proposed_metric_id = candidate
+            if proposed_metric_id is None and self.request.previous_approved_plan:
+                proposed_metric_id = self.request.previous_approved_plan.metric_id
+            ambiguity = _unresolved_ambiguity(
+                self.profile, self.request, proposed_metric_id,
+            )
+            if ambiguity is not None:
+                self.last_response_diagnostic["recovered_with_catalog_clarification"] = True
+                return IntentInterpretation(
+                    status=InterpretationStatus.NEEDS_CLARIFICATION,
+                    clarification_question=ambiguity.clarification,
+                    clarification_reason=ClarificationReason.AMBIGUOUS_METRIC,
+                    pending_question=self.request.question,
+                )
             raise ModelProviderInvalidResponse(
                 "O provedor retornou uma interpretação inválida."
             ) from None
@@ -391,6 +450,13 @@ class GeminiIntentProposer:
                         getattr(intent, field_name), role_dimensions, role, covered_values,
                     ),
                 )
+                exact_dimensions = _dimensions_for_explicit_phrase(
+                    getattr(intent, field_name), permitted_dimensions, role, covered_values,
+                )
+                if len(exact_dimensions) == 1:
+                    dimension_id = next(iter(exact_dimensions))
+                    if dimension_id not in intent.dimension_ids:
+                        intent.dimension_ids.append(dimension_id)
             # O modelo determina a intenção; um valor exato e único, exigido pelo
             # catálogo e explicitamente citado, pode ser vinculado deterministicamente.
             for dimension_id in metric.required_filter_dimension_ids:

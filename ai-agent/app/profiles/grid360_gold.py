@@ -98,8 +98,18 @@ _DIMENSIONS = (
         "classification",
         ("classe", "classe de consumo", "classes", "classes de consumo"),
         (
-            {"value": "RESIDENCIAL", "aliases": ("residencial", "residenciais")},
-            {"value": "COMERCIAL", "aliases": ("comercial", "comerciais")},
+            {
+                "value": "RESIDENCIAL",
+                "aliases": (
+                    "residencial", "casa", "casas", "família", "famílias",
+                    "residência", "residências", "residenciais", "cliente residencial",
+                    "clientes residenciais",
+                    "unidade residencial", "unidades residenciais",
+                ),
+            },
+            {"value": "COMERCIAL", "aliases": (
+                "comercial", "comerciais", "comércio", "comércios",
+            )},
             {"value": "INDUSTRIAL", "aliases": ("industrial", "industriais")},
             {"value": "PODER PUBLICO", "aliases": ("poder público",)},
             {"value": "RURAL", "aliases": ("rural", "rurais")},
@@ -327,7 +337,7 @@ _METRICS = (
     _metric(
         "energy.consumption",
         "consumption",
-        ("consumo", "consumo de energia", "energia consumida", "volume residencial",
+        ("consumo", "consumo de energia", "energia consumida", "volume", "volume residencial",
          "volume comercial", "volume de consumo", "consumiu", "consumiram",
          "consumimos", "consumido", "consumida", "consumidos", "consumidas",
          "energia gasta", "energia utilizada", "energia usada", "energia foi utilizada",
@@ -623,10 +633,12 @@ def _build_profile() -> DomainProfile:
         "últimos 12 meses",
         "último ano",
         "ano passado",
+        "ano anterior",
         "último trimestre",
         "últimos três meses",
         "últimos 3 meses",
         "mês passado",
+        "mês anterior",
         "este ano",
         "neste ano",
         "histórico acumulado",
@@ -648,8 +660,19 @@ def _build_profile() -> DomainProfile:
         "em relação a", "em relação ao", "comparando", "mudou", "mudaram",
     )
     values["non_location_phrases"] = ()
+    inherited_ambiguities = list(values["ambiguities"])
+    for index, rule in enumerate(inherited_ambiguities):
+        if "conta de luz" in rule["phrases"]:
+            inherited_ambiguities[index] = {
+                **rule,
+                "resolved_metric_ids": ("billing.revenue", "energy.consumption"),
+                "clarification": (
+                    "‘Conta de luz’ pode indicar consumo medido (kWh), valor faturado (R$) ou "
+                    "pagamento recebido. Qual deles você quer consultar?"
+                ),
+            }
     values["ambiguities"] = (
-        *values["ambiguities"],
+        *inherited_ambiguities,
         {
             "phrases": (
                 "gasto de energia", "gasto em energia", "gasto com energia",
