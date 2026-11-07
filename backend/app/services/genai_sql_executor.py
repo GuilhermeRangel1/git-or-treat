@@ -28,6 +28,7 @@ from app.services.genai_sql_result import (
     materialize_sql_result,
     sql_result_digest,
 )
+from app.services.genai_sql_telemetry import sql_stage
 
 
 @dataclass(frozen=True)
@@ -42,7 +43,7 @@ class SqlExecutionResult:
 def _read_snapshot(
     admitted: SqlAdmission, *, engine: Engine, publication: GoldPublicationContext,
     resolve_scope: Callable[[], AccessScope], expected_scope: AccessScope,
-    deadline: GenAIRequestDeadline, stopped: Event,
+    deadline: GenAIRequestDeadline, stopped: Event, correlation_id: str,
 ) -> SqlExecutionResult:
     def active():
         if stopped.is_set():
@@ -75,9 +76,11 @@ def _read_snapshot(
         scope_current()
         connection.execute(text("SELECT set_config('statement_timeout', :timeout, true)"),
                            {"timeout": f"{deadline.sql_timeout_ms(5)}ms"}).close()
-        cursor = connection.execution_options(stream_results=True, max_row_buffer=1).exec_driver_sql(
-            admitted.review.canonical_sql, dict(admitted.review.parameter_items))
-        result = materialize_sql_result(cursor, admitted.review, check_active=active)
+        with sql_stage(correlation_id, "sql_execution", context_version=admitted.context_version):
+            cursor = connection.execution_options(stream_results=True, max_row_buffer=1).exec_driver_sql(
+                admitted.review.canonical_sql, dict(admitted.review.parameter_items))
+        with sql_stage(correlation_id, "materialization", context_version=admitted.context_version):
+            result = materialize_sql_result(cursor, admitted.review, check_active=active)
         scope_current()
     # A saída do snapshot já conferiu a publicação em conexão nova.
     scope_current()
@@ -97,15 +100,16 @@ async def execute_sql_admission(
             or engine.url.username != GOLD_READER_ROLE or not engine.hide_parameters or engine.echo):
         raise SqlAdmissionDenied("Engine SQL incompatível com a leitura Gold restrita.")
     deadline = GenAIRequestDeadline(min(deadline.expires_at, admitted.expires_at), deadline.clock)
-    fresh = await revalidate_sql_admission(
-        admitted, candidate, request, engine=engine, readiness_engine=readiness_engine,
-        publication=publication, client=client, resolve_scope=resolve_scope,
-        approved_controls=approved_controls, deadline=deadline, correlation_id=correlation_id)
+    with sql_stage(correlation_id, "admission_revalidation", context_version=admitted.context_version):
+        fresh = await revalidate_sql_admission(
+            admitted, candidate, request, engine=engine, readiness_engine=readiness_engine,
+            publication=publication, client=client, resolve_scope=resolve_scope,
+            approved_controls=approved_controls, deadline=deadline, correlation_id=correlation_id)
     stopped = Event()
     task = asyncio.create_task(asyncio.to_thread(
         _read_snapshot, fresh, engine=engine, publication=publication,
         resolve_scope=resolve_scope, expected_scope=request.access_scope,
-        deadline=deadline, stopped=stopped))
+        deadline=deadline, stopped=stopped, correlation_id=correlation_id))
     try:
         result = await deadline.run(60, lambda: asyncio.shield(task))
         if resolve_scope() != request.access_scope:

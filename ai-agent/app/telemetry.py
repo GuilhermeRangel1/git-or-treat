@@ -3,9 +3,22 @@
 import json
 import logging
 from contextvars import ContextVar
+from importlib.metadata import PackageNotFoundError, distribution
 
 correlation = ContextVar("model_correlation", default=None)
 logger = logging.getLogger("uvicorn.error")
+
+
+def _runtime_dependencies() -> dict[str, str | None]:
+    dependencies = {}
+    for package_name in ("google-genai", "sqlglot", "psycopg"):
+        try:
+            found = distribution(package_name)
+            value = found.metadata.get("Version")
+            dependencies[package_name] = value if isinstance(value, str) else None
+        except PackageNotFoundError:
+            dependencies[package_name] = None
+    return dependencies
 
 
 def record_execution(stage: str, queue_ms: int, work_ms: int, outcome: str) -> None:
@@ -18,6 +31,7 @@ def record_execution(stage: str, queue_ms: int, work_ms: int, outcome: str) -> N
                 "queue_ms": queue_ms,
                 "work_ms": work_ms,
                 "outcome": outcome,
+                "dependencies": _runtime_dependencies(),
             },
             separators=(",", ":"),
         ),
@@ -57,6 +71,7 @@ def record_provider_failure(
                 "max_output_tokens": _count(max_output_tokens),
                 "temperature": _temperature(temperature),
                 "attempts": _count(attempts),
+                "dependencies": _runtime_dependencies(),
             },
             separators=(",", ":"),
         ),
@@ -97,6 +112,7 @@ def record_usage(
                 "max_output_tokens": count(max_output_tokens),
                 "temperature": _temperature(temperature),
                 "attempts": count(attempts),
+                "dependencies": _runtime_dependencies(),
                 "prompt_tokens": count(prompt),
                 "output_tokens": count(output),
                 "thought_tokens": count(thoughts),

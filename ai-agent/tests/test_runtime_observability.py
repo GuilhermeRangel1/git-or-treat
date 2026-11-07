@@ -43,6 +43,7 @@ def test_usage_does_not_turn_unknown_or_invalid_metadata_into_zero(caplog):
         record_usage("gemini", prompt=12, output=-1, cached=True, total="secret")
     payload = json.loads(caplog.messages[-1].split(" ", 1)[1])
     assert payload["prompt_tokens"] == 12
+    assert set(payload["dependencies"]) == {"google-genai", "sqlglot", "psycopg"}
     assert payload["output_tokens"] is None
     assert payload["cached_tokens"] is None
     assert payload["total_tokens"] is None

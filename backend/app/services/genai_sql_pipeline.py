@@ -6,9 +6,11 @@ posterior. A função recebe escopo e dependências resolvidos pelo Backend.
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from hashlib import sha256
 
 from sqlalchemy.engine import Engine
 
+from app.schemas.genai_audit import SqlF1AuditArtifact
 from app.schemas.genai_internal import AccessScope, QuestionPlanRequest
 from app.schemas.sql_evidence import SqlEvidence
 from app.schemas.sql_generation import SqlGenerationCandidate
@@ -16,15 +18,18 @@ from app.services.genai_client import GenAIQuestionClient
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_publication import GoldPublicationContext
 from app.services.genai_sql_admission import SqlAdmissionDenied
+from app.services.genai_sql_context import build_sql_generation_context
 from app.services.genai_sql_evidence import build_sql_evidence
 from app.services.genai_sql_executor import execute_sql_admission
 from app.services.genai_sql_observation import prepare_sql_candidate
+from app.services.genai_sql_telemetry import sql_stage
 
 
 @dataclass(frozen=True)
 class SqlQuestionRun:
     candidate: SqlGenerationCandidate
     evidence: SqlEvidence | None
+    audit_artifact: SqlF1AuditArtifact | None = None
 
 
 async def run_sql_question(
@@ -71,14 +76,31 @@ async def run_sql_question(
         deadline=deadline,
         correlation_id=correlation_id,
     )
-    evidence = build_sql_evidence(
-        execution,
-        prepared.admission,
-        prepared.candidate,
-        request,
-        resolve_scope=resolve_scope,
-        deadline=deadline,
-    )
+    with sql_stage(
+        correlation_id, "evidence", context_version=prepared.admission.context_version,
+    ):
+        evidence = build_sql_evidence(
+            execution,
+            prepared.admission,
+            prepared.candidate,
+            request,
+            resolve_scope=resolve_scope,
+            deadline=deadline,
+        )
     if evidence.batch_ref != publication.batch_ref:
         raise SqlAdmissionDenied("Publicação mudou antes de devolver evidência SQL.")
-    return SqlQuestionRun(prepared.candidate, evidence)
+    context = build_sql_generation_context(request)
+    template = prepared.admission.review.canonical_sql
+    artifact = SqlF1AuditArtifact(
+        context_version=prepared.admission.context_version,
+        batch_ref=prepared.admission.batch_ref,
+        mapping_version=context.mapping_version,
+        dictionary_version=context.dictionary_version,
+        candidate_digest=prepared.admission.candidate_digest,
+        admission_digest=prepared.admission.digest,
+        execution_digest=execution.execution_digest,
+        result_digest=execution.result_digest,
+        template_digest=sha256(template.encode("utf-8")).hexdigest(),
+        canonical_sql_template=template,
+    )
+    return SqlQuestionRun(prepared.candidate, evidence, artifact)

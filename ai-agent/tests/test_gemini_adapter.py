@@ -321,7 +321,7 @@ FAKE_SECRET = "AQ.fake-secret"
 def _failure_lines(caplog) -> list[dict[str, object]]:
     optional_fields = {
         "reason", "validation_fields", "prompt_version", "elapsed_ms", "context_bytes",
-        "max_output_tokens", "temperature", "attempts",
+        "max_output_tokens", "temperature", "attempts", "dependencies",
     }
     lines = []
     for record in caplog.records:
@@ -329,7 +329,8 @@ def _failure_lines(caplog) -> list[dict[str, object]]:
             payload = json.loads(record.getMessage().removeprefix("genai_provider_failure "))
             lines.append({
                 key: value for key, value in payload.items()
-                if key not in optional_fields or value not in (None, [])
+                if key not in optional_fields
+                or (key != "dependencies" and value not in (None, []))
             })
     return lines
 

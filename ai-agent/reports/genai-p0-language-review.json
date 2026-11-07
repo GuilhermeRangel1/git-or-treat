@@ -1,0 +1,133 @@
+{
+  "reviewer": "coding_agent",
+  "scope": "Qualitative rubric for the 18 existing clarification messages; agent review is distinct from the user review of 24 plans/messages. Six planned cases have no final answer text and are not rated.",
+  "human_review_reference": "genai-p0-human-review.json",
+  "cases": [
+    {
+      "id": "CASE-01",
+      "clarity": "clear",
+      "usefulness": "inadequate",
+      "naturalness": "formal",
+      "reason": "A frase é compreensível, mas atribui o pedido de distribuição a valor de classe inválido."
+    },
+    {
+      "id": "CASE-03",
+      "clarity": "clear",
+      "usefulness": "inadequate",
+      "naturalness": "templated",
+      "reason": "Pede geografia sem responder o ranking do intervalo."
+    },
+    {
+      "id": "CASE-04",
+      "clarity": "clear",
+      "usefulness": "inadequate",
+      "naturalness": "templated",
+      "reason": "Confunde máximo mensal com local desconhecido."
+    },
+    {
+      "id": "CASE-05",
+      "clarity": "unclear",
+      "usefulness": "inadequate",
+      "naturalness": "technical",
+      "reason": "Mistura unidade da métrica com percentual de variação pedido."
+    },
+    {
+      "id": "CASE-06",
+      "clarity": "clear",
+      "usefulness": "inadequate",
+      "naturalness": "direct",
+      "reason": "Solicita base apesar da referência ao primeiro ano disponível; falta resolver a análise."
+    },
+    {
+      "id": "CASE-07",
+      "clarity": "clear",
+      "usefulness": "limited",
+      "naturalness": "technical",
+      "reason": "Expõe indisponibilidade sem detalhar alternativa útil."
+    },
+    {
+      "id": "CASE-09",
+      "clarity": "clear",
+      "usefulness": "limited",
+      "naturalness": "formal",
+      "reason": "Esclarecimento é aceito na revisão, mas o motivo fala em valor GD desconhecido."
+    },
+    {
+      "id": "CASE-10",
+      "clarity": "clear",
+      "usefulness": "limited",
+      "naturalness": "direct",
+      "reason": "Oferece alternativas claras, mas não investiga o aumento relatado."
+    },
+    {
+      "id": "CASE-11",
+      "clarity": "clear",
+      "usefulness": "limited",
+      "naturalness": "direct",
+      "reason": "Explica um limite e oferece total, mas não atende a análise municipal."
+    },
+    {
+      "id": "CASE-12",
+      "clarity": "clear",
+      "usefulness": "inadequate",
+      "naturalness": "direct",
+      "reason": "Oferece total para uma nota média; alternativa não preserva a pergunta."
+    },
+    {
+      "id": "CASE-14",
+      "clarity": "clear",
+      "usefulness": "limited",
+      "naturalness": "technical",
+      "reason": "Escolha DEC/FEC legível, mas descarta a análise composta."
+    },
+    {
+      "id": "CASE-15",
+      "clarity": "clear",
+      "usefulness": "inadequate",
+      "naturalness": "technical",
+      "reason": "Não distingue correlação de causalidade nem responde a primeira parte."
+    },
+    {
+      "id": "CASE-16",
+      "clarity": "generic",
+      "usefulness": "undecided",
+      "naturalness": "templated",
+      "reason": "Mensagem genérica; prioridade e impacto dependem da regra de negócio pendente."
+    },
+    {
+      "id": "CASE-17",
+      "clarity": "unclear",
+      "usefulness": "inadequate",
+      "naturalness": "awkward_example",
+      "reason": "Exemplo acrescenta mês a uma pergunta longa de recomendações sem resolver o recorte."
+    },
+    {
+      "id": "CASE-18",
+      "clarity": "generic",
+      "usefulness": "inadequate",
+      "naturalness": "templated",
+      "reason": "Não comunica a limitação somente leitura ao pedido de escrita."
+    },
+    {
+      "id": "CASE-22",
+      "clarity": "generic",
+      "usefulness": "inadequate",
+      "naturalness": "templated",
+      "reason": "Ignora a confirmação de classe no contexto."
+    },
+    {
+      "id": "CASE-23",
+      "clarity": "clear",
+      "usefulness": "acceptable_with_caveat",
+      "naturalness": "technical",
+      "reason": "Comunica falta de cobertura e alternativa; revisão humana aceita com ressalva."
+    },
+    {
+      "id": "CASE-24",
+      "clarity": "clear",
+      "usefulness": "inadequate",
+      "naturalness": "templated",
+      "reason": "Pede período em vez de explicar a impossibilidade de inferir fraude."
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from time import perf_counter
 
 from sqlalchemy.engine import Engine
 
@@ -22,6 +23,7 @@ from app.services.genai_sql_context import (
     build_sql_generation_context,
 )
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
+from app.services.genai_sql_telemetry import record_sql_stage, sql_stage
 
 logger = logging.getLogger(__name__)
 
@@ -95,23 +97,45 @@ async def observe_sql_generation(
         clock=deadline.clock,
     )
     deadline.remaining_seconds(stage_seconds)
+    context_started = perf_counter()
     try:
         context = build_sql_generation_context(request)
     except SqlContextUnavailable as exc:
+        record_sql_stage(
+            correlation_id=correlation_id, stage="context",
+            elapsed_ms=int((perf_counter() - context_started) * 1000),
+            outcome="error", reason="context_unavailable",
+        )
         log_sql_context_unavailable(exc, correlation_id)
         raise
+    record_sql_stage(
+        correlation_id=correlation_id, stage="context",
+        elapsed_ms=int((perf_counter() - context_started) * 1000),
+        outcome="success", context_version=context.context_version,
+        mapping_version=context.mapping_version,
+        dictionary_version=context.dictionary_version,
+    )
     log_sql_context_ready(context, correlation_id)
     payload = SqlGenerationRequest(
         context_version=context.context_version, contents=context.contents,
         remaining_timeout_ms=deadline.remaining_timeout_ms(stage_seconds),
     )
-    response = await deadline.run(stage_seconds, lambda: client.generate_sql_candidate(
-        payload, correlation_id=correlation_id))
+    with sql_stage(correlation_id, "generation", context_version=context.context_version):
+        response = await deadline.run(stage_seconds, lambda: client.generate_sql_candidate(
+            payload, correlation_id=correlation_id))
     candidate = response.candidate
     if candidate.status != "sql_candidate":
         deadline.remaining_seconds(stage_seconds)
+        record_sql_stage(
+            correlation_id=correlation_id,
+            stage="semantic_review",
+            elapsed_ms=0,
+            outcome="clarification" if candidate.status == "needs_clarification" else "unsupported",
+            context_version=context.context_version,
+        )
         return SqlGenerationObservation(candidate, None)
-    reviewed = review_sql_semantics(candidate, request)
+    with sql_stage(correlation_id, "semantic_review", context_version=context.context_version):
+        reviewed = review_sql_semantics(candidate, request)
     deadline.remaining_seconds(stage_seconds)
     return SqlGenerationObservation(candidate, reviewed)
 
@@ -135,8 +159,9 @@ async def prepare_sql_candidate(
         request, client=client, deadline=deadline, correlation_id=correlation_id)
     if observed.review is None:
         return SqlPreparation(observed.candidate, None)
-    admitted = await admit_sql_candidate(
-        observed.candidate, request, engine=engine, readiness_engine=readiness_engine, publication=publication, client=client,
-        resolve_scope=resolve_scope, approved_controls=approved_controls,
-        deadline=deadline, correlation_id=correlation_id)
+    with sql_stage(correlation_id, "readiness_admission"):
+        admitted = await admit_sql_candidate(
+            observed.candidate, request, engine=engine, readiness_engine=readiness_engine, publication=publication, client=client,
+            resolve_scope=resolve_scope, approved_controls=approved_controls,
+            deadline=deadline, correlation_id=correlation_id)
     return SqlPreparation(observed.candidate, admitted)

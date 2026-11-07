@@ -3,7 +3,6 @@ import copy
 from dataclasses import replace
 
 import pytest
-
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.schemas.gold_readiness import GoldReadinessReport
 from app.schemas.sql_generation import SqlGenerationResponse
@@ -20,6 +19,7 @@ from app.services.genai_sql_observation import (
     prepare_sql_candidate,
 )
 from app.services.genai_sql_structure import SqlStructureRejected
+
 from tests.test_genai_sql_comparison import comparison
 from tests.test_genai_sql_semantics import query
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
@@ -264,6 +264,38 @@ def test_preparation_composes_generation_and_admission_without_executor(sql_requ
         assert result.admission.requested_periods == ("2026-06",)
         assert "metadata" in env.events
         assert env.events[-1] == "publication"
+
+
+def test_out_of_scope_semantic_intent_is_observed_without_admission_or_sql(sql_request):
+    env = Environment(sql_request)
+
+    async def generate(payload, *, correlation_id):
+        env.events.append("generation")
+        return SqlGenerationResponse.model_validate({
+            "correlation_id": correlation_id,
+            "candidate": {
+                "generation_contract_version": "text-to-sql-f1-v1",
+                "status": "unsupported",
+                "context_version": payload.context_version,
+                "unsupported_reason": {
+                    "code": "metric_outside_f1",
+                    "message": "Consumo medido ainda não está disponível na F1.",
+                },
+                "semantic_intent": {
+                    "metric_id": "energy.consumption",
+                    "periods": [{"start": "2026-06-01", "end": "2026-06-30"}],
+                    "filters": [],
+                },
+            },
+        })
+
+    env.generate_sql_candidate = generate
+    result = asyncio.run(prepare_sql_candidate(sql_request, **env.kwargs()))
+
+    assert result.candidate.semantic_intent.metric_id == "energy.consumption"
+    assert result.candidate.sql is None
+    assert result.admission is None
+    assert env.events == ["publication", "generation"]
 
 
 def test_generation_context_is_rejected_after_current_session_scope_changes(sql_request):
