@@ -1,0 +1,59 @@
+{
+  "report_type": "hnlu_intent_comparison_v1",
+  "provider": "Gemini",
+  "model": "gemini-3.5-flash-lite",
+  "fixture_version": "1.0.0",
+  "sample_ids": [
+    "GUARD-11"
+  ],
+  "request_fingerprint": "247cff639bae043acdf5311305daee10100ad9d65be6c1398d9bdd371352ff1a",
+  "case_count": 1,
+  "model_call_count": 1,
+  "inter_request_delay_ms": 0,
+  "summary": {
+    "eligible_case_count": 1,
+    "model_call_count": 1,
+    "proposal_success_count": 1,
+    "provider_error_count": 0,
+    "deterministic_correct": 1,
+    "gemini_correct": 1,
+    "semantic_correct_count": 1,
+    "semantic_accuracy_percent": 100.0,
+    "end_to_end_accuracy_percent": 100.0,
+    "latency_p50_ms": 3136,
+    "latency_p95_ms": 3136,
+    "error_cases": 0,
+    "same_plan_as_deterministic": 1
+  },
+  "usage": {
+    "prompt_tokens": 4980,
+    "output_tokens": 114,
+    "total_tokens": 5094
+  },
+  "cases": [
+    {
+      "id": "GUARD-11",
+      "category": "unsupported_limit",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "needs_clarification",
+        "clarification_reason": "unsupported_filter",
+        "intent": null,
+        "plan": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 3136
+    }
+  ],
+  "limitations": [
+    "Amostra de 1 casos sintéticos, sem execução SQL ou resposta numérica.",
+    "Os valores e competências vêm de fixtures e não comprovam cobertura Gold real."
+  ]
+}

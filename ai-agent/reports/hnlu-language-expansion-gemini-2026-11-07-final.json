@@ -1,0 +1,2164 @@
+{
+  "report_type": "hnlu_intent_comparison_v1",
+  "provider": "Gemini",
+  "model": "gemini-3.5-flash-lite",
+  "fixture_name": "hnlu_language_expansion.json",
+  "fixture_version": "1.0.0",
+  "sample_ids": [
+    "VOL-01",
+    "VOL-02",
+    "CLS-01",
+    "CLS-02",
+    "CLS-03",
+    "CLS-04",
+    "CLS-05",
+    "AMB-01",
+    "AMB-02",
+    "DAT-01",
+    "DAT-02",
+    "DAT-03",
+    "TMP-01",
+    "TMP-02",
+    "TMP-03",
+    "TMP-04",
+    "TMP-05",
+    "RANK-01",
+    "RANK-02",
+    "PAY-01",
+    "FUP-01",
+    "FUP-02",
+    "FUP-03"
+  ],
+  "request_fingerprint": "6acd252767dcfc83d6a626d3a49de270c9f3134e9adcf1a5ea5ee214b7890e27",
+  "case_count": 23,
+  "model_call_count": 23,
+  "inter_request_delay_ms": 5000,
+  "summary": {
+    "eligible_case_count": 23,
+    "model_call_count": 23,
+    "proposal_success_count": 22,
+    "semantic_evaluation_case_count": 22,
+    "provider_error_count": 1,
+    "deterministic_correct": 23,
+    "gemini_correct": 22,
+    "semantic_correct_count": 22,
+    "semantic_accuracy_percent": 100.0,
+    "planner_outcome_accuracy_percent": 95.65,
+    "planner_correct_count": 22,
+    "proposal_contract_correct_count": 22,
+    "proposal_contract_accuracy_percent": 95.65,
+    "sql_execution_count": 0,
+    "numeric_reconciliation_count": 0,
+    "latency_p50_ms": 1467,
+    "latency_p95_ms": 1954,
+    "error_cases": 1,
+    "same_plan_as_deterministic": 22
+  },
+  "usage": {
+    "prompt_tokens": 127145,
+    "output_tokens": 2977,
+    "total_tokens": 130122
+  },
+  "cases": [
+    {
+      "id": "VOL-01",
+      "category": "everyday_volume",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "filters": {
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "consumption",
+          "metric_id": "energy.consumption",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "volume",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "consumption",
+          "metric_id": "energy.consumption",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "volume",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "energy.consumption",
+          "unit": "kWh",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "850a7cf485acf3ceb9ab4eb36b7b82289f927284df7a71cabb3c04d5906ba689"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1460
+    },
+    {
+      "id": "VOL-02",
+      "category": "everyday_volume_and_class",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "consumption",
+          "metric_id": "energy.consumption",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "volume",
+          "period_phrase": "2025-03",
+          "geography_phrase": "Recife",
+          "class_phrase": "RESIDENCIAL"
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "consumption",
+          "metric_id": "energy.consumption",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "volume",
+          "period_phrase": "2025-03",
+          "geography_phrase": "Recife",
+          "class_phrase": "RESIDENCIAL"
+        },
+        "plan": {
+          "metric_id": "energy.consumption",
+          "unit": "kWh",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "11796cd631b1dea413ea6ac1cdc90f7a10e2d371c6ea01cfa8c43d7f1a0ec657"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1481
+    },
+    {
+      "id": "CLS-01",
+      "category": "everyday_class_alias",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": "casas"
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": "casas"
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "7ee674fa701e5e2f63f35aa25c660cb9306332cbaac8c1de8a1758e770991f63"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1418
+    },
+    {
+      "id": "CLS-02",
+      "category": "everyday_class_alias",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Olinda"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturaram",
+          "period_phrase": "mar/2025",
+          "geography_phrase": "Olinda",
+          "class_phrase": "famílias"
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturaram",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Olinda",
+          "class_phrase": "famílias"
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Olinda"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "7e58b0ddc493afcd53c7a50ea6a36a1b1dadb9b7d6c065c01d88100199f1c542"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1467
+    },
+    {
+      "id": "CLS-03",
+      "category": "everyday_class_alias",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": "residências"
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": "residências"
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "7ee674fa701e5e2f63f35aa25c660cb9306332cbaac8c1de8a1758e770991f63"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1420
+    },
+    {
+      "id": "CLS-04",
+      "category": "everyday_class_alias",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "mês 03 de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": "clientes residenciais"
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "2025-03",
+          "geography_phrase": "Recife",
+          "class_phrase": "clientes residenciais"
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "7ee674fa701e5e2f63f35aa25c660cb9306332cbaac8c1de8a1758e770991f63"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1417
+    },
+    {
+      "id": "CLS-05",
+      "category": "everyday_class_alias",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Olinda"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "consumption",
+          "metric_id": "energy.consumption",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "consumo",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Olinda",
+          "class_phrase": "unidades residenciais"
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "consumption",
+          "metric_id": "energy.consumption",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "consumo",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Olinda",
+          "class_phrase": "unidades residenciais"
+        },
+        "plan": {
+          "metric_id": "energy.consumption",
+          "unit": "kWh",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Olinda"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "f334998193629b1de78645274113f9d3c46147d17d2e71db4305186ef17b5dc8"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1660
+    },
+    {
+      "id": "AMB-01",
+      "category": "everyday_ambiguity",
+      "deterministic_correct": true,
+      "gemini_correct": false,
+      "semantic_correct": false,
+      "proposal_contract_correct": false,
+      "planner_correct": false,
+      "same_outcome": false,
+      "proposal_status": "error",
+      "error_category": "invalid_provider_response",
+      "exception_class": "ModelProviderInvalidResponse",
+      "response_diagnostic": {
+        "kind": "schema_validation",
+        "issues": [
+          {
+            "location": [],
+            "type": "value_error"
+          }
+        ]
+      },
+      "failure_stage": "provider",
+      "latency_ms": 1402
+    },
+    {
+      "id": "AMB-02",
+      "category": "everyday_ambiguity",
+      "expected": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      },
+      "expected_semantics": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric",
+        "intent": null
+      },
+      "same_correctness": true,
+      "proposal_status": "needs_clarification",
+      "actual": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric",
+        "intent": null,
+        "plan": null,
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1302
+    },
+    {
+      "id": "DAT-01",
+      "category": "date_paraphrase",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "filters": {
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturamento",
+          "period_phrase": "2025-03",
+          "geography_phrase": "Recife",
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturamento",
+          "period_phrase": "2025-03",
+          "geography_phrase": "Recife",
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "9e3908814e092886286d0a1e0509647de0876dcc858cd52dc7254452eeab5bb3"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1327
+    },
+    {
+      "id": "DAT-02",
+      "category": "date_paraphrase",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "filters": {
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturamento",
+          "period_phrase": "mar/2025",
+          "geography_phrase": "Recife",
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturamento",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "9e3908814e092886286d0a1e0509647de0876dcc858cd52dc7254452eeab5bb3"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1415
+    },
+    {
+      "id": "DAT-03",
+      "category": "date_paraphrase",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "filters": {
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturamento",
+          "period_phrase": "03/2025",
+          "geography_phrase": "Recife",
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturamento",
+          "period_phrase": "2025-03",
+          "geography_phrase": "Recife",
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "9e3908814e092886286d0a1e0509647de0876dcc858cd52dc7254452eeab5bb3"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1412
+    },
+    {
+      "id": "TMP-01",
+      "category": "relative_period",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {
+          "start": "2025-07-01",
+          "end": "2026-06-30"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita faturada",
+          "period_phrase": "últimos 12 meses",
+          "geography_phrase": null,
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita faturada",
+          "period_phrase": "últimos 12 meses",
+          "geography_phrase": null,
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-07-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "359060fab22b5e4bf2bd3d74caac668e92b12d17ce6a0469f73d6d73401a8fe3"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1954
+    },
+    {
+      "id": "TMP-02",
+      "category": "relative_period",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {
+          "start": "2025-01-01",
+          "end": "2025-12-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "ano passado",
+          "geography_phrase": null,
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "ano passado",
+          "geography_phrase": null,
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-01-01",
+            "end": "2025-12-31",
+            "granularity": "month"
+          },
+          "filters": [],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "c31726376d5304cfdf353b00ed34712b504b5a2f421ec9a3db60f11ad6e956d2"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 2115
+    },
+    {
+      "id": "TMP-03",
+      "category": "relative_period",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {
+          "start": "2026-05-01",
+          "end": "2026-05-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "mês passado",
+          "geography_phrase": null,
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "mês passado",
+          "geography_phrase": null,
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-05-01",
+            "end": "2026-05-31",
+            "granularity": "month"
+          },
+          "filters": [],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "bee8e8a35b27de2709163eb546f785d569430b98cdc71f8eb38fb4b74204b428"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1654
+    },
+    {
+      "id": "TMP-04",
+      "category": "relative_period",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {
+          "start": "2026-01-01",
+          "end": "2026-06-30"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "primeiro semestre de 2026",
+          "geography_phrase": null,
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "de 2026-01 a 2026-06",
+          "geography_phrase": null,
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-01-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "33cf62863077af3b968931aa0a8a3396dc92fe228fb08423ee737848f92ae267"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1616
+    },
+    {
+      "id": "TMP-05",
+      "category": "relative_period",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "period": {
+          "start": "2025-07-01",
+          "end": "2025-12-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "segundo semestre de 2025",
+          "geography_phrase": null,
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "de 2025-07 a 2025-12",
+          "geography_phrase": null,
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-07-01",
+            "end": "2025-12-31",
+            "granularity": "month"
+          },
+          "filters": [],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "875359dabd1dc108ff2a853492c46706acb9fc47abf62d83f80add2c74d79d19"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1780
+    },
+    {
+      "id": "RANK-01",
+      "category": "everyday_ranking",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "ranking_direction": "desc",
+        "ranking_limit": 1,
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [
+            "geography.municipality"
+          ],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": "desc",
+          "ranking_limit": 1,
+          "metric_phrase": "faturou",
+          "period_phrase": "março de 2025",
+          "geography_phrase": null,
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [
+            "geography.municipality"
+          ],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": "desc",
+          "ranking_limit": 1,
+          "metric_phrase": "faturou",
+          "period_phrase": "março de 2025",
+          "geography_phrase": null,
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [
+            "geography.municipality"
+          ],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [],
+          "comparison_periods": null,
+          "order": {
+            "field_id": "billing.revenue",
+            "direction": "desc"
+          },
+          "limit": 1,
+          "fingerprint": "2ee03696bb2e273232881bdd7c0261b9202855ec233f97e61c4fe5922adf2709"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1527
+    },
+    {
+      "id": "RANK-02",
+      "category": "change_ranking_capability",
+      "expected": {
+        "status": "needs_clarification",
+        "clarification_reason": "unsupported_comparison"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "consumption",
+        "metric_id": "energy.consumption",
+        "dimension_ids": [
+          "geography.neighborhood"
+        ],
+        "group_by_dimension_ids": [
+          "geography.neighborhood"
+        ],
+        "ranking_direction": "asc",
+        "comparison_periods": {
+          "prior_months": 12
+        },
+        "period": {
+          "start": "2025-07-01",
+          "end": "2026-06-30"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "consumption",
+          "metric_id": "energy.consumption",
+          "dimension_ids": [
+            "geography.neighborhood"
+          ],
+          "group_by_dimension_ids": [
+            "geography.neighborhood"
+          ],
+          "filters": {},
+          "comparison_period_phrases": [
+            "últimos 12 meses",
+            "12 meses anteriores"
+          ],
+          "ranking_direction": "asc",
+          "ranking_limit": 1,
+          "metric_phrase": "volume",
+          "period_phrase": "últimos 12 meses",
+          "geography_phrase": null,
+          "class_phrase": null
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "needs_clarification",
+        "clarification_reason": "unsupported_comparison",
+        "intent": null,
+        "plan": null,
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1618
+    },
+    {
+      "id": "PAY-01",
+      "category": "everyday_ambiguity",
+      "expected": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      },
+      "expected_semantics": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric",
+        "intent": null
+      },
+      "same_correctness": true,
+      "proposal_status": "needs_clarification",
+      "actual": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric",
+        "intent": null,
+        "plan": null,
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1338
+    },
+    {
+      "id": "FUP-01",
+      "category": "conversation_follow_up",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-03-01",
+          "end": "2025-03-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturamento",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": "RESIDENCIAL"
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "faturamento",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": "RESIDENCIAL"
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "7ee674fa701e5e2f63f35aa25c660cb9306332cbaac8c1de8a1758e770991f63"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1534
+    },
+    {
+      "id": "FUP-02",
+      "category": "conversation_follow_up",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-01-01",
+          "end": "2025-12-31"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "ano anterior",
+          "geography_phrase": "Recife",
+          "class_phrase": "RESIDENCIAL"
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "ano anterior",
+          "geography_phrase": "Recife",
+          "class_phrase": "RESIDENCIAL"
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-01-01",
+            "end": "2025-12-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "58115cae90fa494ff83d5959440e5d1aff340ea5c256fc731731dcbe5d3076a0"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1619
+    },
+    {
+      "id": "FUP-03",
+      "category": "conversation_follow_up",
+      "expected": {
+        "status": "planned"
+      },
+      "expected_semantics": {
+        "status": "ready",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "filters": {
+          "customer.consumption_class": "RESIDENCIAL",
+          "geography.municipality": "Recife"
+        },
+        "period": {
+          "start": "2025-02-01",
+          "end": "2025-02-28"
+        }
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "ready",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "fevereiro de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": "RESIDENCIAL"
+        }
+      },
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "receita",
+          "period_phrase": "fevereiro de 2025",
+          "geography_phrase": "Recife",
+          "class_phrase": "RESIDENCIAL"
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-02-01",
+            "end": "2025-02-28",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "f7bb872d2a189376c29fbbe2543e29fd353b5adbe6d3a81a83393002d5e26cc2"
+        },
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1362
+    }
+  ],
+  "limitations": [
+    "Amostra de 23 casos sintéticos, sem execução SQL ou resposta numérica.",
+    "Os valores e competências vêm de fixtures e não comprovam cobertura Gold real."
+  ]
+}

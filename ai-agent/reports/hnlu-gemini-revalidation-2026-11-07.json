@@ -1,0 +1,436 @@
+{
+  "report_type": "hnlu_intent_comparison_v1",
+  "provider": "Gemini",
+  "model": "gemini-3.5-flash-lite",
+  "fixture_version": "1.0.0",
+  "sample_ids": [
+    "REV-02",
+    "ENE-02",
+    "RANK-03",
+    "DEC-01",
+    "GUARD-04",
+    "GUARD-07"
+  ],
+  "request_fingerprint": "ad378f78afbd2c8011ef8f12430ccee0e29b2373c826988cfb6b1f891f66eae0",
+  "case_count": 6,
+  "model_call_count": 6,
+  "summary": {
+    "deterministic_correct": 6,
+    "gemini_correct": 6,
+    "latency_p50_ms": 2215,
+    "latency_p95_ms": 3230,
+    "error_cases": 0,
+    "same_plan_as_deterministic": 5
+  },
+  "usage": {
+    "prompt_tokens": 30117,
+    "output_tokens": 704,
+    "total_tokens": 30821
+  },
+  "cases": [
+    {
+      "id": "REV-02",
+      "category": "passive",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "valor que foi faturado",
+          "period_phrase": "2025-03",
+          "geography_phrase": "Recife",
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "9e3908814e092886286d0a1e0509647de0876dcc858cd52dc7254452eeab5bb3"
+        }
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 2788
+    },
+    {
+      "id": "ENE-02",
+      "category": "passive",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "consumption",
+          "metric_id": "energy.consumption",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "energia foi consumida",
+          "period_phrase": "março de 2025",
+          "geography_phrase": "Olinda",
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "energy.consumption",
+          "unit": "kWh",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Olinda"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "6c969a55cd828691bafc513f32c747ff54534d1524a717bc2b1f2f4c45bc90cb"
+        }
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 2152
+    },
+    {
+      "id": "RANK-03",
+      "category": "count",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          }
+        ],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "comparison_periods": null,
+        "limit": 5
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [],
+          "group_by_dimension_ids": [
+            "geography.municipality"
+          ],
+          "filters": {},
+          "comparison_period_phrases": null,
+          "ranking_direction": "desc",
+          "ranking_limit": 5,
+          "metric_phrase": "receita",
+          "period_phrase": "março de 2025",
+          "geography_phrase": null,
+          "class_phrase": "RESIDENCIAL"
+        },
+        "plan": {
+          "metric_id": "billing.revenue",
+          "unit": "R$",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [
+            "geography.municipality"
+          ],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "RESIDENCIAL"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": {
+            "field_id": "billing.revenue",
+            "direction": "desc"
+          },
+          "limit": 5,
+          "fingerprint": "7c0da82abddbf08ccced9934db6452b0d957f3fc63b0ae176acd38b4df63c270"
+        }
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 3230
+    },
+    {
+      "id": "DEC-01",
+      "category": "network",
+      "expected": {
+        "status": "planned",
+        "metric_id": "network.equivalent_interruption_duration",
+        "unit": "horas por UC",
+        "dimension_ids": [
+          "network.feeder"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "network.feeder",
+            "operator": "eq",
+            "values": [
+              "AL-01"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "same_correctness": true,
+      "proposal_status": "ready",
+      "actual": {
+        "status": "planned",
+        "clarification_reason": null,
+        "intent": {
+          "domain": "network",
+          "metric_id": "network.equivalent_interruption_duration",
+          "dimension_ids": [
+            "network.feeder"
+          ],
+          "group_by_dimension_ids": [],
+          "filters": {
+            "network.feeder": "AL-01"
+          },
+          "comparison_period_phrases": null,
+          "ranking_direction": null,
+          "ranking_limit": null,
+          "metric_phrase": "DEC",
+          "period_phrase": "março de 2025",
+          "geography_phrase": null,
+          "class_phrase": null
+        },
+        "plan": {
+          "metric_id": "network.equivalent_interruption_duration",
+          "unit": "horas por UC",
+          "dimension_ids": [
+            "network.feeder"
+          ],
+          "group_by_dimension_ids": [],
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "network.feeder",
+              "operator": "eq",
+              "values": [
+                "AL-01"
+              ]
+            }
+          ],
+          "comparison_periods": null,
+          "order": null,
+          "limit": 100,
+          "fingerprint": "759e90f475a9f895133ac01432698eed0a133171603179e3b1711be87efc447d"
+        }
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 2238
+    },
+    {
+      "id": "GUARD-04",
+      "category": "payment",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "same_correctness": true,
+      "proposal_status": "needs_clarification",
+      "actual": {
+        "status": "needs_clarification",
+        "clarification_reason": "multiple_metrics",
+        "intent": null,
+        "plan": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": false,
+      "latency_ms": 2192
+    },
+    {
+      "id": "GUARD-07",
+      "category": "solar",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "same_correctness": true,
+      "proposal_status": "needs_clarification",
+      "actual": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric",
+        "intent": null,
+        "plan": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 2027
+    }
+  ],
+  "limitations": [
+    "Amostra de seis casos sintéticos, sem execução SQL ou resposta numérica.",
+    "Os valores e competências vêm de fixtures e não comprovam cobertura Gold real."
+  ]
+}

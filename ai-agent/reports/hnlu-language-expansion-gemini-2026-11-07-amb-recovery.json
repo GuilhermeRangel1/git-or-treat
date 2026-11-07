@@ -1,0 +1,92 @@
+{
+  "report_type": "hnlu_intent_comparison_v1",
+  "provider": "Gemini",
+  "model": "gemini-3.5-flash-lite",
+  "fixture_name": "hnlu_language_expansion.json",
+  "fixture_version": "1.0.0",
+  "sample_ids": [
+    "AMB-01"
+  ],
+  "request_fingerprint": "3002827cfff1337908e1bad208fcefdfeaad4750074758910fdda18b88344f1a",
+  "case_count": 1,
+  "model_call_count": 1,
+  "inter_request_delay_ms": 0,
+  "summary": {
+    "eligible_case_count": 1,
+    "model_call_count": 1,
+    "proposal_success_count": 1,
+    "semantic_evaluation_case_count": 1,
+    "provider_error_count": 0,
+    "invalid_provider_response_count": 1,
+    "provider_response_recovery_count": 1,
+    "deterministic_correct": 1,
+    "gemini_correct": 1,
+    "semantic_correct_count": 1,
+    "semantic_accuracy_percent": 100.0,
+    "planner_outcome_accuracy_percent": 100.0,
+    "planner_correct_count": 1,
+    "proposal_contract_correct_count": 1,
+    "proposal_contract_accuracy_percent": 100.0,
+    "sql_execution_count": 0,
+    "numeric_reconciliation_count": 0,
+    "latency_p50_ms": 1508,
+    "latency_p95_ms": 1508,
+    "error_cases": 0,
+    "same_plan_as_deterministic": 1
+  },
+  "usage": {
+    "prompt_tokens": 5252,
+    "output_tokens": 53,
+    "total_tokens": 5305
+  },
+  "cases": [
+    {
+      "id": "AMB-01",
+      "category": "everyday_ambiguity",
+      "expected": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      },
+      "expected_semantics": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric"
+      },
+      "deterministic_correct": true,
+      "gemini_correct": true,
+      "planner_correct": true,
+      "semantic_correct": true,
+      "proposal_contract_correct": true,
+      "proposal": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric",
+        "intent": null
+      },
+      "response_diagnostic": {
+        "kind": "schema_validation",
+        "issues": [
+          {
+            "location": [],
+            "type": "value_error"
+          }
+        ],
+        "recovered_with_catalog_clarification": true
+      },
+      "same_correctness": true,
+      "proposal_status": "needs_clarification",
+      "actual": {
+        "status": "needs_clarification",
+        "clarification_reason": "ambiguous_metric",
+        "intent": null,
+        "plan": null,
+        "planner_clarification": null
+      },
+      "failure_stage": null,
+      "same_plan_as_deterministic": true,
+      "latency_ms": 1508
+    }
+  ],
+  "limitations": [
+    "Amostra de 1 casos sintéticos, sem execução SQL ou resposta numérica.",
+    "Os valores e competências vêm de fixtures e não comprovam cobertura Gold real."
+  ]
+}
