@@ -1,0 +1,20 @@
+{
+  "scope": "Authenticated Backend -> GenAI HTTP planning -> restricted PostgreSQL SQL -> evidence -> synthesis -> audit; artificial Gold v2, fake model",
+  "command": "python -m pytest tests/test_genai_session_postgres.py::test_session_selects_reader_and_database_denies_prohibited_access -q -p no:cacheprovider --tb=short -o faulthandler_timeout=60",
+  "environment": "Linux disposable container; isolated PostgreSQL 16 without volume",
+  "result": {
+    "passed": 1,
+    "duration_seconds": 145.96,
+    "test_case_seconds": 145.164
+  },
+  "independent_reference": {
+    "method": "fixed SQL aggregation compared with executor result in existing integration test",
+    "synthetic_reference": 12.0
+  },
+  "limitations": [
+    "One integrated test with multiple assertions, not all 55 planning cases.",
+    "Artificial Gold v2 data and fake model; no real Gold certification or browser acceptance.",
+    "Windows attempt interrupted; first Linux attempt rejected nonempty disposable database. Only clean Linux run passed."
+  ],
+  "cleanup": "Disposable PostgreSQL container stopped and removed after completion."
+}
