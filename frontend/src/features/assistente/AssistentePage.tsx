@@ -150,7 +150,8 @@ function formatExactDecimal(value: string, unit: string | null) {
   const [integer, fraction] = unsigned.split(".");
   const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   const formatted = `${negative ? "−" : ""}${grouped}${fraction ? `,${fraction}` : ""}`;
-  return unit === "R$" ? `R$ ${formatted}` : formatted;
+  if (unit === "R$") return `R$ ${formatted}`;
+  return unit === "%" ? `${formatted}%` : formatted;
 }
 
 function formatSqlPublication(batchReference: string | null | undefined) {

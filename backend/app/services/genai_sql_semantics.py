@@ -17,6 +17,8 @@ from app.services.genai_sql_structure import (
 _GROUPS = {"competency": "competencia", "municipality": "municipio",
            "consumption_class": "classe_consumo"}
 _MONTH = re.compile(r"[0-9]{4}-(0[1-9]|1[0-2])\Z")
+GROWTH_PERCENT_COLUMN = "period_0_growth_percent"
+_BACKEND_DERIVED_COLUMNS = frozenset({GROWTH_PERCENT_COLUMN})
 
 
 @dataclass(frozen=True)
@@ -142,6 +144,11 @@ def review_sql_semantics(
 ) -> SqlSemanticReview:
     reviewed = review_sql_structure(candidate, request)
     intent = candidate.interpretation
+    _require(all(item.unit == "R$" for item in candidate.result_columns
+                 if item.role == "measure"),
+             "SQL F1 só retorna valores monetários; percentuais são derivados no Backend.")
+    _require(not (_BACKEND_DERIVED_COLUMNS & {item.name for item in candidate.result_columns}),
+             "Alias reservado para medida derivada pelo Backend.")
     _require((intent.operation != "monthly_series" or "competency" in intent.group_by)
              and (intent.operation not in ("grouped_total", "ranking") or bool(intent.group_by)),
              "Operação exige dimensões de agrupamento compatíveis.")

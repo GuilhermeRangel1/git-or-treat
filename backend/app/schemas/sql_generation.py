@@ -165,13 +165,13 @@ class SqlResultColumn(ClosedModel):
     name: ParameterName
     role: Literal["measure", "dimension"]
     value_type: Literal["decimal", "string"]
-    unit: Literal["R$"] | None = None
+    unit: Literal["R$", "%"] | None = None
 
     @model_validator(mode="after")
     def check_role(self) -> Self:
         if self.role == "measure":
-            if self.value_type != "decimal" or self.unit != "R$":
-                raise ValueError("medida F1 exige decimal e R$")
+            if self.value_type != "decimal" or self.unit not in {"R$", "%"}:
+                raise ValueError("medida F1 exige decimal e unidade monetária ou percentual")
         elif self.value_type != "string" or self.unit is not None:
             raise ValueError("dimensão F1 exige string sem unidade monetária")
         return self

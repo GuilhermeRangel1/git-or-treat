@@ -147,6 +147,70 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
     });
   });
 
+  it("aceita a apresentação v2 com crescimento percentual derivado no Backend", () => {
+    const result = decodeSqlAnalysisResponse({
+      ...sqlResponse,
+      evidence: {
+        ...sqlResponse.evidence,
+        evidence_contract_version: "text-to-sql-f1-evidence-v2",
+        columns: [
+          { name: "period_0", role: "measure", unit: "R$" },
+          { name: "period_1", role: "measure", unit: "R$" },
+          { name: "difference", role: "measure", unit: "R$" },
+          { name: "period_0_growth_percent", role: "measure", unit: "%" },
+        ],
+        rows: [["150.03", "80.00", "70.03", "87.54"]],
+      },
+      presentation: {
+        ...sqlResponse.presentation,
+        contract_version: "text-to-sql-f1-presentation-v2",
+        operation: "comparison",
+        columns: [
+          {
+            key: "period_0",
+            label: "Faturamento no período 1",
+            role: "measure",
+            semantic_id: "period_0_total",
+            unit: "R$",
+          },
+          {
+            key: "period_1",
+            label: "Faturamento no período 2",
+            role: "measure",
+            semantic_id: "period_1_total",
+            unit: "R$",
+          },
+          {
+            key: "difference",
+            label: "Diferença",
+            role: "measure",
+            semantic_id: "period_0_minus_period_1",
+            unit: "R$",
+          },
+          {
+            key: "period_0_growth_percent",
+            label: "Variação percentual",
+            role: "measure",
+            semantic_id: "period_0_growth_percent",
+            unit: "%",
+          },
+        ],
+        rows: [
+          {
+            observation_id: "row_1",
+            cells: ["150.03", "80.00", "70.03", "87.54"],
+          },
+        ],
+      },
+    });
+
+    const columns = result.sql_presentation?.columns ?? [];
+    expect(columns[columns.length - 1]).toMatchObject({
+      semantic_id: "period_0_growth_percent",
+      unit: "%",
+    });
+  });
+
   it("recusa divergência entre a tabela de apresentação e a evidência", () => {
     expect(() =>
       decodeSqlAnalysisResponse({

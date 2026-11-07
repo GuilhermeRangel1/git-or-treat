@@ -54,7 +54,29 @@ def test_execution_becomes_exact_evidence_without_legacy_plan(sql_request, mode)
         assert evidence.dimension_semantics == {"city": "municipality"}
     if mode == "comparison":
         assert evidence.measure_semantics == {"a": "period_0_total", "b": "period_1_total",
-                                              "delta": "period_0_minus_period_1"}
+                                              "delta": "period_0_minus_period_1",
+                                              "period_0_growth_percent": "period_0_growth_percent"}
+        assert evidence.evidence_contract_version == "text-to-sql-f1-evidence-v2"
+        assert evidence.columns[-1].unit == "%"
+        assert evidence.rows[0][-1] == "87.54"
+
+
+@pytest.mark.parametrize("current,baseline,expected", [
+    (Decimal("80.00"), Decimal("0.00"), None),
+    (Decimal("80.00"), Decimal("-10.00"), None),
+    (Decimal("80.00"), Decimal("40.00"), "100.00"),
+    (None, Decimal("40.00"), None),
+])
+def test_comparison_growth_requires_positive_available_baseline(
+    sql_request, current, baseline, expected,
+):
+    evidence = build(evidence_case(
+        sql_request,
+        mode="comparison",
+        rows=[(current, baseline, None if current is None else current - baseline)],
+    ))
+
+    assert evidence.rows[0][-1] == expected
 
 
 @pytest.mark.parametrize("rows,status,value", [

@@ -13,7 +13,7 @@ from app.services.genai_sql_presentation import present_sql_evidence
 
 def _evidence(
     *, rows, status, grouped=False, operation=None, dimension="municipality",
-    period_start="2025-01-01", period_end="2025-12-31",
+    period_start="2025-01-01", period_end="2025-12-31", growth=False,
 ):
     if operation == "comparison":
         columns = [
@@ -26,6 +26,11 @@ def _evidence(
             "previous": "period_1_total",
             "difference": "period_0_minus_period_1",
         }
+        if growth:
+            columns.append({
+                "name": "growth", "role": "measure", "value_type": "decimal", "unit": "%",
+            })
+            measure_semantics["growth"] = "period_0_growth_percent"
     else:
         columns = (
             [
@@ -39,7 +44,10 @@ def _evidence(
     names = [column["name"] for column in columns]
     normalized_rows = tuple(tuple(row) for row in rows)
     payload = {
-        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "evidence_contract_version": (
+            "text-to-sql-f1-evidence-v2" if growth
+            else "text-to-sql-f1-evidence-v1"
+        ),
         "source_id": "gold.local",
         "source_table": "gold_v2.diagnostico_receita",
         "metric_id": "billing.revenue",
@@ -114,6 +122,30 @@ def test_grouped_table_is_identical_to_evidence_and_answer_uses_exact_decimal():
     assert presentation.limitations == (
         "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
     )
+
+
+def test_comparison_presents_backend_derived_growth_and_zero_baseline():
+    evidence = _evidence(
+        rows=[["150.03", "80.00", "70.03", "87.54"]],
+        status="available", operation="comparison", growth=True,
+    )
+
+    presentation = present_sql_evidence(evidence)
+
+    assert presentation.contract_version == "text-to-sql-f1-presentation-v2"
+    assert presentation.columns[-1].semantic_id == "period_0_growth_percent"
+    assert presentation.columns[-1].unit == "%"
+    assert presentation.rows[0].cells[-1] == "87.54"
+    assert (
+        "variação percentual sobre o período de referência foi 87,54%"
+        in presentation.answer
+    )
+
+    zero_base = _evidence(
+        rows=[["80.00", "0.00", "80.00", None]],
+        status="available", operation="comparison", growth=True,
+    )
+    assert "base zero" in present_sql_evidence(zero_base).answer
 
 
 def test_total_answer_prints_exact_money_and_period():

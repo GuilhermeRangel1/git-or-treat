@@ -24,7 +24,10 @@ Batch = Annotated[str, StringConstraints(strict=True, pattern=(
 Version = Annotated[str, StringConstraints(strict=True, min_length=1, max_length=200)]
 Cell = Annotated[StrictStr, Field(max_length=16384)] | None
 Row = Annotated[tuple[Cell, ...], Field(min_length=1, max_length=32)]
-Meaning = Literal["revenue_total", "period_0_total", "period_1_total", "period_0_minus_period_1"]
+Meaning = Literal[
+    "revenue_total", "period_0_total", "period_1_total",
+    "period_0_minus_period_1", "period_0_growth_percent",
+]
 DimensionMeaning = Literal["competency", "municipality", "consumption_class"]
 _DECIMAL = re.compile(r"-?(?:0|[1-9][0-9]{0,100})(?:\.[0-9]{1,100})?\Z")
 
@@ -36,7 +39,9 @@ def sql_evidence_digest(payload: dict) -> str:
 
 
 class SqlEvidence(ClosedModel):
-    evidence_contract_version: Literal["text-to-sql-f1-evidence-v1"]
+    evidence_contract_version: Literal[
+        "text-to-sql-f1-evidence-v1", "text-to-sql-f1-evidence-v2",
+    ]
     source_id: Literal["gold.local"]
     source_table: Literal["gold_v2.diagnostico_receita"]
     metric_id: Literal["billing.revenue"]
@@ -67,11 +72,29 @@ class SqlEvidence(ClosedModel):
                 or set(self.dimension_semantics.values()) != set(self.interpretation.group_by)):
             raise ValueError("linhagem/colunas incompatíveis com a evidência F1")
         if self.interpretation.operation == "comparison":
-            if (len(measures) != 3 or dimensions or set(self.measure_semantics.values()) != {
-                    "period_0_total", "period_1_total", "period_0_minus_period_1"}):
+            base_meanings = {
+                "period_0_total", "period_1_total", "period_0_minus_period_1",
+            }
+            has_growth = "period_0_growth_percent" in self.measure_semantics.values()
+            expected_meanings = base_meanings | (
+                {"period_0_growth_percent"} if has_growth else set()
+            )
+            expected_version = (
+                "text-to-sql-f1-evidence-v2"
+                if has_growth else "text-to-sql-f1-evidence-v1"
+            )
+            if (len(measures) != len(expected_meanings) or dimensions
+                    or set(self.measure_semantics.values()) != expected_meanings
+                    or self.evidence_contract_version != expected_version):
                 raise ValueError("comparação exige dois totais e diferença com linhagem")
-        elif set(self.measure_semantics.values()) != {"revenue_total"}:
+        elif (set(self.measure_semantics.values()) != {"revenue_total"}
+              or self.evidence_contract_version != "text-to-sql-f1-evidence-v1"):
             raise ValueError("medida condicional exige comparação")
+        for column in self.columns:
+            meaning = self.measure_semantics.get(column.name)
+            expected_unit = "%" if meaning == "period_0_growth_percent" else "R$"
+            if column.role == "measure" and column.unit != expected_unit:
+                raise ValueError("unidade diverge da semântica da medida")
         present = False
         for row in self.rows:
             if len(row) != len(names):
