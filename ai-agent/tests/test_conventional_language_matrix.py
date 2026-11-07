@@ -1,8 +1,8 @@
-"""Matriz ampliada de perguntas naturais para o planejamento Gold v2.
+"""Matriz de regressão do interpretador determinístico legado para Gold v2.
 
 Os casos combinam vocabulário cotidiano, classe, município e grafias temporais.
-Cada assert verifica o contrato semântico completo do plano; nenhum chama Gemini
-nem consulta linhas da Gold.
+Cada assert verifica o contrato semântico completo do plano. Não chama Gemini,
+não consulta linhas Gold e não mede o gerador Text-to-SQL novo.
 """
 
 from calendar import monthrange

@@ -1,4 +1,4 @@
-"""Avalia perguntas autorais no Gemini e registra intenção/uso, sem segredos."""
+"""Sonda o GeminiIntentProposer legado; não avalia o gerador Text-to-SQL."""
 
 import asyncio
 import json

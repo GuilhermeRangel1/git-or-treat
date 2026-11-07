@@ -1,4 +1,4 @@
-"""Sonda manual e limitada do Gemini para a linguagem do case; não é aceite de qualidade."""
+"""Sonda legada de GeminiIntentProposer; não avalia o gerador Text-to-SQL."""
 
 import asyncio
 import json
