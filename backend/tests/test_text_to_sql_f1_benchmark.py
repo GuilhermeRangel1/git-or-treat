@@ -52,6 +52,31 @@ def test_detects_wrong_question_even_when_sql_matches_model_declared_intent():
     )
 
 
+
+def test_everyday_billing_requires_the_residential_filter():
+    # "Qual foi o faturamento das casas em Recife em junho de 2026?"
+    expected = {
+        **CASE["expected"],
+        "filters": {
+            "geography.municipality": ["Recife"],
+            "customer.consumption_class": ["RESIDENCIAL"],
+        },
+    }
+    value = payload()
+    assert intent_differences(SqlGenerationCandidate.model_validate(value), expected) == [
+        "filters"
+    ]
+
+    value["sql"] += " AND classe_consumo = :category"
+    value["parameters"]["category"] = {"type": "string", "value": "RESIDENCIAL"}
+    value["interpretation"]["filters"].append({
+        "dimension_id": "customer.consumption_class",
+        "operator": "eq",
+        "values": ["RESIDENCIAL"],
+    })
+    assert intent_differences(SqlGenerationCandidate.model_validate(value), expected) == []
+
+
 def test_rejects_real_database_before_connecting():
     with pytest.raises(ValueError, match="descartável"):
         run("postgresql+psycopg://unused:unused@localhost/production", {})

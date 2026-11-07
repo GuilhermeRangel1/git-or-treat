@@ -35,7 +35,7 @@ def build(payload):
     return build_sql_generation_context(QuestionPlanRequest.model_validate(payload))
 
 
-def test_context_contains_only_authorized_f1_schema_not_other_gold_sources():
+def test_context_separates_recognition_registry_from_authorized_f1_schema():
     context = build(request_payload())
     body = json.loads(context.contents)
     assert body["source"]["table"] == "diagnostico_receita"
@@ -43,8 +43,17 @@ def test_context_contains_only_authorized_f1_schema_not_other_gold_sources():
         "competencia", "receita_total_reais", "municipio", "classe_consumo",
     }
     assert "consumer_unit" not in context.contents
-    assert "energy.consumption" not in context.contents
     assert "a" * 64 not in context.contents
+    assert body["semantic_registry"]["purpose"] == "recognition_only_not_authorization"
+    consumption = next(
+        item for item in body["semantic_registry"]["metrics"]
+        if item["metric_id"] == "energy.consumption"
+    )
+    assert consumption["label"] == "Consumo medido"
+    assert consumption["unit"] == "kWh"
+    assert set(consumption) == {"metric_id", "label", "definition", "unit"}
+    assert "consumo_total_kwh" not in context.contents
+    assert "consumption" not in body["dimensions"]
     assert body["metric"]["aggregation"] == "sum"
     assert body["rules"]["annual_requires_all_months"] is True
     assert body["schema_basis"].endswith("not_live_database")

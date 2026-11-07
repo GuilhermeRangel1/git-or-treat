@@ -110,6 +110,22 @@ class SqlAnalysisFilter(ClosedModel):
         return self
 
 
+class SqlSemanticIntent(ClosedModel):
+    """Reconhecimento mínimo de pedido sem execução na capacidade F1."""
+
+    metric_id: Annotated[str, StringConstraints(
+        strict=True, pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$", max_length=120,
+    )]
+    periods: tuple[SqlPeriod, ...] = Field(default=(), max_length=2)
+    filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=2)
+
+    @model_validator(mode="after")
+    def check_unique_filters(self) -> Self:
+        if len({item.dimension_id for item in self.filters}) != len(self.filters):
+            raise ValueError("intenção semântica não pode repetir dimensão de filtro")
+        return self
+
+
 class SqlInterpretation(ClosedModel):
     metric_id: Literal["billing.revenue"]
     operation: Literal["total", "monthly_series", "grouped_total", "ranking", "comparison"]
@@ -182,6 +198,7 @@ class SqlGenerationCandidate(ClosedModel):
                                          min_length=1, max_length=16000)] | None = None
     parameters: dict[ParameterName, SqlParameter] = Field(default_factory=dict, max_length=32)
     interpretation: SqlInterpretation | None = None
+    semantic_intent: SqlSemanticIntent | None = None
     result_columns: tuple[SqlResultColumn, ...] = Field(default=(), max_length=32)
     clarification: SqlClarification | None = None
     unsupported_reason: SqlUnsupported | None = None
@@ -190,7 +207,8 @@ class SqlGenerationCandidate(ClosedModel):
     def check_status(self) -> Self:
         if self.status == "sql_candidate":
             if (self.sql is None or self.interpretation is None or not self.result_columns
-                    or self.clarification is not None or self.unsupported_reason is not None):
+                    or self.clarification is not None or self.unsupported_reason is not None
+                    or self.semantic_intent is not None):
                 raise ValueError("candidato exige SQL, interpretação e colunas sem esclarecimento")
             names = [column.name for column in self.result_columns]
             if len(set(names)) != len(names) or not any(
@@ -204,6 +222,8 @@ class SqlGenerationCandidate(ClosedModel):
             if ((self.status == "needs_clarification") != (self.clarification is not None)
                     or (self.status == "unsupported") != (self.unsupported_reason is not None)):
                 raise ValueError("estado exige explicação específica compatível")
+            if self.status == "needs_clarification" and self.semantic_intent is not None:
+                raise ValueError("esclarecimento não pode transportar intenção parcial")
         return self
 
 

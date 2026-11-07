@@ -60,7 +60,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-12"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-16"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
@@ -79,7 +79,12 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "O ano explicitamente escrito na frase atual prevalece" in SYSTEM_INSTRUCTION
     assert "com junho de 2025 e junho de 2026 na cobertura é ambíguo" in SYSTEM_INSTRUCTION
     assert "retire esse filtro herdado" in SYSTEM_INSTRUCTION
+    assert "classifique como comparison" in SYSTEM_INSTRUCTION
+    assert "não escolha uma dimensão" in SYSTEM_INSTRUCTION
     assert "Não transforme uma métrica fora da F1" in SYSTEM_INSTRUCTION
+    assert "semantic_intent MUST ser um objeto, nunca null" in SYSTEM_INSTRUCTION
+    assert "semantic_intent é apenas registro" in SYSTEM_INSTRUCTION
+    assert "semantic_registry serve somente para reconhecer" in SYSTEM_INSTRUCTION
     assert "competencia AS competency" in SYSTEM_INSTRUCTION
     assert "Use unsupported" in SYSTEM_INSTRUCTION
     assert "nunca para uma operação F1 suportada" in SYSTEM_INSTRUCTION
@@ -117,6 +122,9 @@ def test_provider_schema_uses_only_supported_gemini_json_schema_keywords():
     assert schema["properties"]["generation_contract_version"]["enum"] == [
         "text-to-sql-f1-v1"
     ]
+    assert "semantic_intent" in schema["required"]
+    assert "maxItems" not in json.dumps(schema)
+    assert "minItems" not in json.dumps(schema)
 
 
 def test_generation_telemetry_includes_model_prompt_parameters_and_elapsed_without_content(caplog):

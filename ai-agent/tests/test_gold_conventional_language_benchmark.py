@@ -1,7 +1,8 @@
-"""Benchmark de linguagem convencional na fronteira de planejamento Gold v2.
+"""Regressão de linguagem convencional no planejador Gold v2 legado.
 
 Os oráculos vêm da especificação v1.1 e do contrato do catálogo. Este conjunto
-mede interpretação/plano, não valores numéricos nem a qualidade do Gemini.
+chama `QuestionInterpreter`; não mede o gerador Text-to-SQL, valores numéricos
+nem a qualidade do Gemini.
 """
 
 import pytest

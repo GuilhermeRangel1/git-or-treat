@@ -82,6 +82,16 @@ def test_official_gold_factory_generates_only_audited_candidate(monkeypatch):
     assert all(event.correlation_id == "b" * 32 for event in events)
 
 
+def test_repeated_candidate_generation_is_not_cached(monkeypatch):
+    app, calls, _ = application(monkeypatch)
+    with InProcessClient(app) as client:
+        first = client.post(PATH, json=data()["request"], headers=HEADERS)
+        second = client.post(PATH, json=data()["request"], headers=HEADERS)
+    assert first.status_code == second.status_code == 200
+    assert first.json() == second.json()
+    assert calls == [20, 20]
+
+
 @pytest.mark.parametrize("headers", [{}, {"Authorization": "Bearer invalid"}])
 def test_missing_or_wrong_auth_never_reaches_generator(monkeypatch, headers):
     app, calls, _ = application(monkeypatch)

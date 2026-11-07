@@ -36,8 +36,8 @@ PRICING_SOURCE = "https://ai.google.dev/gemini-api/docs/pricing"
 MAX_OUTPUT_TOKENS = 4096
 
 
-def validate_context_bundle(context_bundle, case_ids):
-    benchmark_bytes = FIXTURE.read_bytes()
+def validate_context_bundle(context_bundle, case_ids, benchmark_fixture=FIXTURE):
+    benchmark_bytes = benchmark_fixture.read_bytes()
     benchmark = json.loads(benchmark_bytes)
     cases = {case["id"]: case for case in benchmark["cases"]}
     unknown = set(case_ids) - set(cases)
@@ -83,7 +83,7 @@ def reserve_capture_cost(carry_reserved_usd, prior_reserved_usd, pending_reserve
     return sum(values)
 
 
-def prepare_capture(contexts, case_ids, prior_report=None):
+def prepare_capture(contexts, case_ids, prior_report=None, benchmark_hash=None):
     prior_candidates = {}
     prior_observations = []
     prior_uncaptured_attempts = []
@@ -91,7 +91,7 @@ def prepare_capture(contexts, case_ids, prior_report=None):
     if prior_report is not None:
         if (
             prior_report.get("benchmark_sha256")
-            != hashlib.sha256(FIXTURE.read_bytes()).hexdigest()
+            != (benchmark_hash or hashlib.sha256(FIXTURE.read_bytes()).hexdigest())
             or prior_report.get("prompt_version") != SQL_GENERATION_PROMPT_VERSION
             or prior_report.get("model") != PRICING_MODEL
         ):
@@ -255,6 +255,7 @@ async def capture(
     context_bundle, case_ids, output, max_cost_usd, prior_report=None,
     carry_reserved_usd=0.0,
     max_output_tokens=MAX_OUTPUT_TOKENS,
+    benchmark_fixture=FIXTURE,
 ):
     if type(max_output_tokens) is not int or not 1 <= max_output_tokens <= MAX_OUTPUT_TOKENS:
         raise ValueError("Limite de saída fora do teto do runner.")
@@ -263,11 +264,13 @@ async def capture(
         raise ValueError("Retomada exige o mesmo limite de saída.")
     if output.exists() and prior_report is None:
         raise ValueError("Arquivo de captura já existe; use --resume ou outro --output.")
-    expected_hash, contexts = validate_context_bundle(context_bundle, case_ids)
+    expected_hash, contexts = validate_context_bundle(
+        context_bundle, case_ids, benchmark_fixture,
+    )
     (
         prior_candidates, prior_observations, prior_uncaptured_attempts,
         pending, prior_reserved,
-    ) = prepare_capture(contexts, case_ids, prior_report)
+    ) = prepare_capture(contexts, case_ids, prior_report, expected_hash)
     if (
         type(carry_reserved_usd) not in (int, float)
         or not 0 <= carry_reserved_usd < max_cost_usd
@@ -396,6 +399,10 @@ def main():
         "--max-requests", type=int, default=1,
         help="Teto explícito de chamadas; padrão 1 para controlar custo.",
     )
+    parser.add_argument(
+        "--benchmark-fixture", type=Path, default=FIXTURE,
+        help="Fixture versionada usada para validar hash e IDs (padrão: benchmark F1 principal).",
+    )
     args = parser.parse_args()
     if not 1 <= args.max_requests <= 40 or len(args.case_id) > args.max_requests:
         parser.error("a seleção deve respeitar --max-requests entre 1 e 40")
@@ -411,6 +418,7 @@ def main():
         bundle, args.case_id, args.output, args.max_cost_usd, prior_report,
         args.carry_reserved_usd,
         args.max_output_tokens,
+        args.benchmark_fixture,
     ))
 
 

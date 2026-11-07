@@ -74,6 +74,14 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         "publication": request.batch_ref,
         "catalog": {"mapping_version": catalog.mapping_version,
                     "dictionary_version": catalog.dictionary_version},
+        "semantic_registry": {
+            "purpose": "recognition_only_not_authorization",
+            "metrics": [
+                {"metric_id": item.metric_id, "label": item.label,
+                 "definition": item.definition, "unit": item.unit}
+                for item in catalog.metrics
+            ],
+        },
         "schema_basis": "installed_models_and_versioned_catalog_not_live_database",
         "source": {"schema": catalog.physical_schema, "table": source.table,
                    "columns": {name: str(table.c[name].type) for name in columns}},
