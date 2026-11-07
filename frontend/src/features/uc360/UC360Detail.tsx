@@ -1,4 +1,5 @@
 import { Search } from "lucide-react";
+import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import type { RefObject } from "react";
 import type { UCHistory, UCOverview, UCStatus } from "./contract";
 import { ErrorMessage, EvidenceDialog, HistoryPanel } from "./UC360History";
@@ -92,17 +93,20 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
         <h1 className="font-heading text-[26px] leading-[34px] font-semibold [overflow-wrap:anywhere] text-content lg:text-[32px] lg:leading-10">
           {selected?.profile.uc_id ?? unit.id}
         </h1>
-        {selected ? (
-          <p className="text-sm [overflow-wrap:anywhere] text-muted">
-            {selected.profile.customer_name?.trim() && (
-              <>{selected.profile.customer_name.trim()} · </>
-            )}
-            {selected.profile.municipio} / {selected.profile.bairro} ·{" "}
-            {selected.profile.classe}
-          </p>
-        ) : (
-          <p className="text-sm text-muted">UC {unit.id}</p>
-        )}
+        <div className="flex flex-wrap items-center justify-between gap-x-4">
+          {selected ? (
+            <p className="text-sm [overflow-wrap:anywhere] text-muted">
+              {selected.profile.customer_name?.trim() && (
+                <>{selected.profile.customer_name.trim()} · </>
+              )}
+              {selected.profile.municipio} / {selected.profile.bairro} ·{" "}
+              {selected.profile.classe}
+            </p>
+          ) : (
+            <p className="text-sm text-muted">UC {unit.id}</p>
+          )}
+          <IndicatorHelp screen="uc360" />
+        </div>
         {metadata?.source.is_demo && (
           <p className="mt-4 text-xs text-muted">
             Demonstração · dados sintéticos

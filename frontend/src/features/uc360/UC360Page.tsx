@@ -1,4 +1,3 @@
-import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -134,9 +133,6 @@ export default function UC360Page() {
     <div
       className={`grid w-full min-w-0 ${selectedUCId ? "mt-0 gap-6" : "mt-6 gap-4"}`}
     >
-      <div className="flex justify-end">
-        <IndicatorHelp screen="uc360" />
-      </div>
       {selectedUCId ? (
         <nav aria-label="Navegação da unidade consumidora">
           <Link

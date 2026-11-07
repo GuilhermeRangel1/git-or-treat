@@ -103,15 +103,13 @@ export default function PanoramaPage() {
   return (
     <div className="relative grid w-full min-w-0 gap-4 pb-12">
       <header className="mb-2">
-        <div>
-          <h1 className="font-heading text-[26px] font-semibold leading-[34px] lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
-            Sua rede, em perspectiva.
-          </h1>
-          <p className="mt-2 text-sm leading-[22px] text-muted">
+        <h1 className="font-heading text-[26px] font-semibold leading-[34px] lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
+          Sua rede, em perspectiva.
+        </h1>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4">
+          <p className="text-sm leading-[22px] text-muted">
             Um panorama da operação comercial, do atendimento e da continuidade.
           </p>
-        </div>
-        <div className="flex justify-end">
           <IndicatorHelp screen="panorama" />
         </div>
       </header>

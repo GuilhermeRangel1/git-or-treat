@@ -4121,3 +4121,13 @@ O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por municípi
 - Investigação esclarece que o ranking compara impacto monetário, não variação percentual de energia; diferencia queda, crescimento/zero e falta de valores; encerra o drill-down na classe e volta aos achados do mesmo recorte com foco. Aba ativa usa token com contraste adequado. Histórico informa que seus meses não recalculam as janelas publicadas. A interface usa R$ e períodos inicial/final.
 - Gold expõe um par de janelas P0/P1 por publicação, apresentado como contexto da comparação principal. O histórico mensal mantém período próprio.
 - Evidências locais: suíte frontend completa 564/564; suíte Receita após os ajustes 50/50; build, lint, Prettier, fronteiras e quatro jornadas Playwright artificiais (1440/390 px, claro/escuro) aprovados. Fixture visual não substitui a jornada autenticada Gold. Nenhum cálculo ou contrato API foi alterado nesta etapa; ENT-01 e estados oficiais preservados. Sincronização Trello depende do acesso ao quadro canônico.
+
+### 2026-11-07 — WEB-02 — leitura do gráfico de Receita
+
+- A pedido da pessoa usuária, o resumo troca os textos extensos por “Dados parciais” quando aplicável. A distinção entre preço observado, tarifa homologada e energia faturada e a quantidade de grupos incompletos ficam no modal de fundamentos; cálculos e estados oficiais não mudaram.
+- Evidências: `npm.cmd test -- --run src/features/receita --maxWorkers=2` (50 passaram); `npm.cmd run build` e `npm.cmd run check:boundaries` passaram; `npm.cmd run lint` passou com dois avisos preexistentes. Não houve nova inspeção visual ou reconciliação Gold nesta alteração.
+
+### 2026-11-07 — WEB-01 / WEB-02 / WEB-03 / WEB-06 / IA-05 — alinhamento da ajuda
+
+- Ajuda de indicadores alinhada ao subtítulo dos cabeçalhos, inclusive no detalhe de UC; removido texto redundante sob o resumo de filtros de Receita. Os estados oficiais e cálculos permanecem iguais.
+- Testes dirigidos de Receita, UC 360, Panorama, Operação e ajuda: 202 passaram. Build, formatação e fronteiras passaram; lint passou com dois avisos preexistentes. Esta alteração não inclui nova validação visual ou reconciliação Gold.

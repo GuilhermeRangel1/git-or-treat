@@ -141,7 +141,7 @@ export default function RevenueOverview({
             <p className="mt-4 text-xs text-muted">
               {complete
                 ? "Ponte entre o faturamento inicial e final · R$"
-                : "Parcelas conhecidas · a base parcial não representa fechamento integral"}
+                : "Dados parciais · R$"}
             </p>
             <div
               className="mt-5 grid gap-2"
@@ -208,13 +208,6 @@ export default function RevenueOverview({
             ))}
           </p>
         )}
-        <p className="mt-5 text-xs leading-relaxed text-muted">
-          Preço observado sobre consumo medido na base comparável. Não
-          representa tarifa homologada nem energia faturada.{" "}
-          {window?.status === "partial"
-            ? `${window.incomplete_groups} grupos com base incompleta; não há fechamento integral.`
-            : ""}
-        </p>
       </section>
       <RevenueFindings
         error={diagnosisError}
@@ -238,6 +231,13 @@ export default function RevenueOverview({
             {windowLabel(window?.windows ?? [])}. O método soma efeitos dos
             pares UC/mês da base comum, sem recalcular por preços médios dos
             territórios.
+          </p>
+          <p>
+            O preço observado usa consumo medido na base comparável; não é a
+            tarifa homologada nem representa energia faturada.
+            {window?.status === "partial"
+              ? ` Grupos com base incompleta: ${window.incomplete_groups}. As parcelas não representam fechamento integral.`
+              : ""}
           </p>
           <p>
             Faturamento inicial: {money(window?.initial_amount_brl)} ·
