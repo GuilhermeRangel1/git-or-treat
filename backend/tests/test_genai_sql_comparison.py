@@ -1,8 +1,8 @@
 import pytest
+
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.services.genai_sql_semantics import review_sql_semantics
 from app.services.genai_sql_structure import SqlStructureRejected
-
 from tests.test_genai_sql_structure import candidate
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
@@ -28,6 +28,29 @@ def comparison(request):
         {"start": "2026-06-01", "end": "2026-06-30"},
         {"start": "2025-06-01", "end": "2025-06-30"},
     ])
+    return request, type(value).model_validate(payload)
+
+
+def grouped_comparison(request, direction=None):
+    request, value = comparison(request)
+    payload = value.model_dump(mode="json")
+    payload["sql"] = payload["sql"].replace(
+        "SELECT SUM(", "SELECT municipio AS municipality, SUM(", 1
+    ).replace(
+        "AND municipio = :city", "AND municipio = :city GROUP BY municipio", 1
+    )
+    payload["result_columns"].insert(0, {
+        "name": "municipality", "role": "dimension", "value_type": "string", "unit": None,
+    })
+    payload["interpretation"]["group_by"] = ["municipality"]
+    if direction is not None:
+        payload["interpretation"].update(
+            ranking_direction=direction, ranking_limit=10,
+        )
+        payload["sql"] += (
+            " ORDER BY delta " + direction.upper()
+            + " NULLS LAST, municipality ASC NULLS LAST LIMIT 10"
+        )
     return request, type(value).model_validate(payload)
 
 
@@ -123,3 +146,39 @@ def test_missing_second_total_is_not_complete_comparison(sql_request):
     payload["result_columns"] = [item for item in payload["result_columns"] if item["name"] != "b"]
     with pytest.raises(SqlStructureRejected, match="dois totais"):
         review_sql_semantics(type(value).model_validate(payload), request)
+
+
+def test_accepts_grouped_comparison_and_preserves_measure_lineage(sql_request):
+    request, value = grouped_comparison(sql_request)
+    review = review_sql_semantics(value, request)
+    assert dict(review.measure_semantics) == {
+        "a": "period_0_total", "b": "period_1_total",
+        "delta": "period_0_minus_period_1",
+    }
+
+
+@pytest.mark.parametrize("direction", ["asc", "desc"])
+def test_accepts_grouped_comparison_ranked_by_difference(sql_request, direction):
+    request, value = grouped_comparison(sql_request, direction)
+    assert review_sql_semantics(value, request)
+
+
+def test_rejects_comparison_grouping_not_projected(sql_request):
+    request, value = grouped_comparison(sql_request)
+    with pytest.raises(SqlStructureRejected, match="Agrupamento difere"):
+        review_sql_semantics(value.model_copy(update={
+            "sql": value.sql.replace("municipio AS municipality, ", "", 1),
+            "result_columns": value.result_columns[1:],
+        }), request)
+
+
+@pytest.mark.parametrize("suffix", [
+    " ORDER BY delta DESC NULLS LAST, municipality ASC NULLS LAST LIMIT 10",
+    " ORDER BY delta ASC NULLS LAST, municipality DESC NULLS LAST LIMIT 10",
+    " ORDER BY a ASC NULLS LAST, municipality ASC NULLS LAST LIMIT 10",
+])
+def test_rejects_mismatched_or_nondeterministic_comparison_ranking(sql_request, suffix):
+    request, value = grouped_comparison(sql_request, "asc")
+    sql = value.sql.rsplit(" ORDER BY", 1)[0] + suffix
+    with pytest.raises(SqlStructureRejected):
+        review_sql_semantics(value.model_copy(update={"sql": sql}), request)

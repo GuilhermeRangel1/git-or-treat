@@ -79,7 +79,7 @@ def _filters(evidence: SqlEvidence) -> tuple[str, ...]:
 
 
 def _universe(evidence: SqlEvidence) -> tuple[str, ...]:
-    if evidence.interpretation.operation not in {"grouped_total", "ranking"}:
+    if evidence.interpretation.operation not in {"grouped_total", "ranking", "comparison"}:
         return ()
     filtered = {item.dimension_id for item in evidence.interpretation.filters}
     labels = {
@@ -105,7 +105,12 @@ def _universe(evidence: SqlEvidence) -> tuple[str, ...]:
 
 def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
     window = evidence.interpretation.periods[0]
-    scope = f" no período {_period_phrase(window.start, window.end)}"
+    operation = evidence.interpretation.operation
+    scope = (
+        f" nos períodos {_period(evidence)}"
+        if operation == "comparison"
+        else f" no período {_period_phrase(window.start, window.end)}"
+    )
     if filters:
         scope += " (" + "; ".join(filters) + ")"
     if evidence.status == "empty":
@@ -113,7 +118,6 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
     if evidence.status == "all_measures_null":
         return f"O recorte foi consultado{scope}, mas a fonte não trouxe valores de faturamento."
 
-    operation = evidence.interpretation.operation
     if operation == "total":
         column = next(
             item
@@ -128,6 +132,21 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         return f"O faturamento total{scope} foi R$ {_decimal_pt_br(value)}."
 
     if operation == "comparison":
+        if evidence.interpretation.group_by:
+            grouping = " e ".join(
+                _DIMENSIONS[item] for item in evidence.interpretation.group_by
+            )
+            if evidence.interpretation.ranking_direction is None:
+                return (f"A comparação de faturamento por {grouping}{scope} "
+                        "está detalhada na tabela.")
+            if evidence.interpretation.ranking_direction == "desc":
+                ranked_change = "maiores diferenças"
+            else:
+                ranked_change = "menores diferenças"
+            return (
+                f"A tabela lista as {ranked_change} de faturamento "
+                f"(primeiro período − segundo período), por {grouping}{scope}."
+            )
         values: dict[str, str | None] = {}
         for name, meaning in evidence.measure_semantics.items():
             index = next(

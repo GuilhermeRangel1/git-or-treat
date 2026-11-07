@@ -3,14 +3,14 @@ from dataclasses import replace
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
+
 from app.schemas.sql_evidence import SqlEvidence, sql_evidence_digest
 from app.services.genai_client import GenAITimeout
 from app.services.genai_sql_admission import SqlAdmissionDenied
 from app.services.genai_sql_evidence import build_sql_evidence
 from app.services.genai_sql_executor import execute_sql_admission
-from pydantic import ValidationError
-
-from tests.test_genai_sql_comparison import comparison
+from tests.test_genai_sql_comparison import comparison, grouped_comparison
 from tests.test_genai_sql_executor import environment
 from tests.test_genai_sql_result import Cursor
 from tests.test_genai_sql_semantics import query, ranking
@@ -20,10 +20,16 @@ sql_request = fixture_sql_request
 
 
 def evidence_case(request, mode="total", rows=None):
-    if mode == "comparison":
-        request, candidate = comparison(request)
+    if mode in {"comparison", "grouped_comparison"}:
+        request, candidate = (
+            grouped_comparison(request) if mode == "grouped_comparison"
+            else comparison(request)
+        )
         default = [(Decimal("150.03"), Decimal("80.00"), Decimal("70.03"))]
         columns = ("a", "b", "delta")
+        if mode == "grouped_comparison":
+            default = [("Recife", *default[0])]
+            columns = ("municipality", *columns)
     elif mode == "ranking":
         candidate = ranking(request)
         default, columns = [("Recife", Decimal("150.03"))], ("city", "revenue")
@@ -59,6 +65,23 @@ def test_execution_becomes_exact_evidence_without_legacy_plan(sql_request, mode)
         assert evidence.evidence_contract_version == "text-to-sql-f1-evidence-v2"
         assert evidence.columns[-1].unit == "%"
         assert evidence.rows[0][-1] == "87.54"
+
+
+def test_grouped_comparison_derives_percentage_for_each_gold_group(sql_request):
+    evidence = build(evidence_case(
+        sql_request,
+        mode="grouped_comparison",
+        rows=[
+            ("Recife", Decimal("150.03"), Decimal("80.00"), Decimal("70.03")),
+            ("Olinda", Decimal("180.00"), Decimal("0.00"), Decimal("180.00")),
+        ],
+    ))
+
+    assert evidence.dimension_semantics == {"municipality": "municipality"}
+    assert evidence.rows == (
+        ("Recife", "150.03", "80.00", "70.03", "87.54"),
+        ("Olinda", "180.00", "0.00", "180.00", None),
+    )
 
 
 @pytest.mark.parametrize("current,baseline,expected", [
