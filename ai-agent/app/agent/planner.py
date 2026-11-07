@@ -2,9 +2,9 @@
 
 import asyncio
 import re
-from collections.abc import Iterator, Mapping
+from collections.abc import Awaitable, Callable, Iterator, Mapping
 from enum import StrEnum
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
@@ -25,6 +25,7 @@ from app.agent.temporal import (
     explicit_monthly_phrases,
     monthly_period_label,
     normalize_calendar_phrases,
+    normalize_proposed_period_phrase,
 )
 from app.ports.events import (
     AuditUnavailable,
@@ -43,6 +44,7 @@ from app.ports.evidence import (
 from app.schemas.access import AccessContext
 from app.schemas.domain_profile import DimensionValue, DomainProfile
 from app.schemas.evidence import EvidenceLookupResult, EvidenceLookupStatus
+from app.schemas.internal import QuestionPlanRequest
 from app.schemas.interpretation import (
     ClarificationReason,
     IntentInterpretation,
@@ -50,6 +52,7 @@ from app.schemas.interpretation import (
 )
 from app.schemas.questions import ConversationTurn
 from app.schemas.read_plan import LogicalReadPlan
+from app.telemetry import record_intent_comparison
 
 # Calendário que o interpretador não reconheceu como período ("em jun/26", "em 2026"):
 # sai do exemplo junto com a preposição para não ficar ao lado do período sugerido.
@@ -162,6 +165,10 @@ class QuestionAnalysisPlanner:
     def profile(self) -> DomainProfile:
         return self._access_policy.profile
 
+    @property
+    def supports_intent_proposal(self) -> bool:
+        return self._intent_mode != "deterministic" and self._intent_proposer is not None
+
     def __init__(
         self,
         interpreter: QuestionInterpreter,
@@ -170,12 +177,18 @@ class QuestionAnalysisPlanner:
         *,
         max_rows: int = 100,
         max_evidence_bytes: int = 16_384,
+        intent_proposer: (
+            Callable[[QuestionPlanRequest], Awaitable[IntentInterpretation]] | None
+        ) = None,
+        intent_mode: Literal["deterministic", "shadow", "gemini"] = "deterministic",
     ) -> None:
         self._interpreter = interpreter
         self._evidence_source = evidence_source
         self._access_policy = access_policy
         self._max_evidence_bytes = max_evidence_bytes
         self._max_rows = max_rows
+        self._intent_proposer = intent_proposer
+        self._intent_mode = intent_mode
         self._plan_builder = ReadPlanBuilder(
             access_policy.profile, access_policy.source_id, default_limit=max_rows
         )
@@ -217,6 +230,7 @@ class QuestionAnalysisPlanner:
         trace: EventTrace | None = None,
         temporal_coverage: Mapping[str, tuple[str, tuple[str, ...]]] | None = None,
         dimension_value_coverage: Mapping[str, tuple[str, ...]] | None = None,
+        interpretation_override: IntentInterpretation | None = None,
     ) -> PlannedQuestion:
         """Acrescenta uma formulação aprovada, sem consultar fonte nem modelo."""
         separator = "\n\nExemplo de pergunta: "
@@ -227,9 +241,11 @@ class QuestionAnalysisPlanner:
         ]
         result = self._plan(
             question, clean_context, access_context, trace,
-            temporal_coverage, dimension_value_coverage,
+            temporal_coverage, dimension_value_coverage, interpretation_override,
         )
-        if not self.profile.structured_dimension_filters or result.read_plan is not None:
+        if (interpretation_override is not None
+                or not self.profile.structured_dimension_filters
+                or result.read_plan is not None):
             return result
         if result.interpretation.clarification_reason is ClarificationReason.MISSING_YEAR:
             # Os meses já foram informados: um exemplo com outro período atrapalha
@@ -259,6 +275,71 @@ class QuestionAnalysisPlanner:
                         result.interpretation.clarification_question + suffix},
             )})
         return result
+
+    async def plan_with_proposal(
+        self,
+        request: QuestionPlanRequest,
+        access_context: AccessContext,
+        trace: EventTrace,
+        budget: RequestBudget,
+    ) -> PlannedQuestion:
+        if self._intent_proposer is None:
+            raise RuntimeError("proponente de intenção não configurado")
+        coverage = {
+            item.metric_id: (item.kind, item.competencies)
+            for item in request.temporal_coverage
+        }
+        dimensions = {
+            item.dimension_id: item.values for item in request.dimension_value_coverage
+        }
+        deterministic = None
+        if self._intent_mode == "shadow":
+            deterministic = await asyncio.to_thread(
+                self.plan, request.question, request.context, access_context, trace,
+                coverage, dimensions,
+            )
+        try:
+            interpretation = await budget.model(
+                lambda: self._intent_proposer(request), timeout_seconds=8.0,
+            )
+        except Exception:
+            if deterministic is None:
+                raise
+            record_intent_comparison(
+                self._intent_mode,
+                "planned" if deterministic.read_plan else "needs_clarification",
+                "provider_error",
+                False,
+            )
+            return deterministic
+        proposed = await asyncio.to_thread(
+            self.plan,
+            request.question,
+            request.context,
+            access_context,
+            trace,
+            coverage,
+            dimensions,
+            interpretation,
+        )
+        if deterministic is None:
+            return proposed
+        same_plan = (
+            deterministic.read_plan is not None
+            and proposed.read_plan is not None
+            and deterministic.read_plan.fingerprint() == proposed.read_plan.fingerprint()
+        ) or (
+            deterministic.read_plan is None
+            and proposed.read_plan is None
+            and deterministic.interpretation.status == proposed.interpretation.status
+        )
+        record_intent_comparison(
+            self._intent_mode,
+            "planned" if deterministic.read_plan else "needs_clarification",
+            "planned" if proposed.read_plan else "needs_clarification",
+            same_plan,
+        )
+        return deterministic
 
     def _clarification_examples(
         self, question: str,
@@ -346,6 +427,7 @@ class QuestionAnalysisPlanner:
         trace: EventTrace | None = None,
         temporal_coverage: Mapping[str, tuple[str, tuple[str, ...]]] | None = None,
         dimension_value_coverage: Mapping[str, tuple[str, ...]] | None = None,
+        interpretation_override: IntentInterpretation | None = None,
     ) -> PlannedQuestion:
         """Interpreta, monta e aprova o plano; nunca chama a fonte nem o modelo."""
 
@@ -405,9 +487,25 @@ class QuestionAnalysisPlanner:
                     pending_temporal = previous.intent
                 except PlanCapabilityUnavailable:
                     pass
-        interpretation = interpreter.interpret(
+        interpretation = interpretation_override or interpreter.interpret(
             question, context, pending_temporal_intent=pending_temporal,
         )
+        if interpretation_override is not None and interpretation.intent is not None:
+            intent = interpretation.intent
+            update = {}
+            if intent.period_phrase is not None:
+                update["period_phrase"] = normalize_proposed_period_phrase(
+                    intent.period_phrase
+                )
+            if intent.comparison_period_phrases is not None:
+                update["comparison_period_phrases"] = tuple(
+                    normalize_proposed_period_phrase(phrase)
+                    for phrase in intent.comparison_period_phrases
+                )
+            if update:
+                interpretation = interpretation.model_copy(update={
+                    "intent": intent.model_copy(update=update),
+                })
         if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
             if trace is not None:
                 trace.emit(EventStage.PLAN, EventCode.CLARIFICATION, EventOutcome.SUCCESS)

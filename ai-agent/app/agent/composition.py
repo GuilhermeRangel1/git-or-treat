@@ -1,6 +1,8 @@
 """Monta os casos de uso a partir de contratos, sem importar HTTP ou adaptadores concretos."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import Literal
 
 from app.agent.access import ReadAccessPolicy
 from app.agent.documentation import DocumentationResponder
@@ -15,6 +17,8 @@ from app.ports.evidence import EvidenceSource
 from app.providers.protocols import ModelAdapter
 from app.providers.routing import ModelRouter, ModelTier
 from app.schemas.domain_profile import DomainProfile
+from app.schemas.internal import QuestionPlanRequest
+from app.schemas.interpretation import IntentInterpretation
 
 
 @dataclass(frozen=True)
@@ -37,6 +41,8 @@ def compose_core(
     max_rows: int = 100,
     max_evidence_bytes: int = 16_384,
     documentation_responder: DocumentationResponder | None = None,
+    intent_proposer: Callable[[QuestionPlanRequest], Awaitable[IntentInterpretation]] | None = None,
+    intent_mode: Literal["deterministic", "shadow", "gemini"] = "deterministic",
 ) -> CoreServices:
     """Usa um perfil, uma política, uma fonte e um modelo em ambos os fluxos."""
 
@@ -54,6 +60,8 @@ def compose_core(
                 access_policy=policy,
                 max_rows=max_rows,
                 max_evidence_bytes=max_evidence_bytes,
+                intent_proposer=intent_proposer,
+                intent_mode=intent_mode,
             ),
             model_adapter=model_adapter if model_router is None else None,
             model_router=model_router,

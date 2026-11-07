@@ -135,6 +135,7 @@ async def answer_gold_question(
     readiness_gate: Callable[[GoldPlanningResult], Awaitable[GoldReadinessReport]] | None = None,
     audit_store: AuditStore | None = None,
     expected_batch_ref: str | None = None,
+    previous_approved_plan: LogicalReadPlan | None = None,
     continuation: Callable[[GoldPlanningResult, AIQuestionResponse], str | None] | None = None,
     request_deadline: GenAIRequestDeadline | None = None,
     on_visual: Callable[[AIQuestionResponse], Awaitable[None]] | None = None,
@@ -164,6 +165,7 @@ async def answer_gold_question(
     planned = await plan_gold_question(
         engine, client, request, resolve_scope=resolve_scope,
         correlation_id=correlation_id, expected_batch_ref=expected_batch_ref,
+        previous_approved_plan=previous_approved_plan,
         deadline=deadline,
     )
     if planned.response.status is not QuestionPlanStatus.PLANNED:

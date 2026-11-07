@@ -1,0 +1,366 @@
+{
+  "report_type": "gold_language_planning",
+  "synthetic": true,
+  "dataset_version": "1.0.0",
+  "scenario_scope": "Gold v2 planning; artificial coverage; no provider or SQL",
+  "provider": "none; interpretation only",
+  "limitations": [
+    "32 perguntas autorais; baseline develop 22/32, primeira implementação 30/32 e após correções 32/32.",
+    "Após revelar duas falhas e orientar correções, o conjunto virou regressão; não é avaliação intocada ou taxa geral de acerto.",
+    "Mede planos e esclarecimentos, não disponibilidade de dados ou correção de respostas numéricas."
+  ],
+  "summary": {
+    "total": 32,
+    "passed": 32,
+    "failed": 0
+  },
+  "categories": {
+    "canonical": {
+      "total": 3,
+      "passed": 3
+    },
+    "passive": {
+      "total": 2,
+      "passed": 2
+    },
+    "politeness": {
+      "total": 1,
+      "passed": 1
+    },
+    "order": {
+      "total": 2,
+      "passed": 2
+    },
+    "plural": {
+      "total": 2,
+      "passed": 2
+    },
+    "count": {
+      "total": 2,
+      "passed": 2
+    },
+    "service": {
+      "total": 2,
+      "passed": 2
+    },
+    "network": {
+      "total": 2,
+      "passed": 2
+    },
+    "unknown_entity": {
+      "total": 2,
+      "passed": 2
+    },
+    "missing_period": {
+      "total": 1,
+      "passed": 1
+    },
+    "missing_metric": {
+      "total": 1,
+      "passed": 1
+    },
+    "payment": {
+      "total": 2,
+      "passed": 2
+    },
+    "ambiguous_unit": {
+      "total": 1,
+      "passed": 1
+    },
+    "solar": {
+      "total": 1,
+      "passed": 1
+    },
+    "multiple_metrics": {
+      "total": 1,
+      "passed": 1
+    },
+    "exclusion": {
+      "total": 1,
+      "passed": 1
+    },
+    "unsupported_limit": {
+      "total": 1,
+      "passed": 1
+    },
+    "missing_filter": {
+      "total": 1,
+      "passed": 1
+    },
+    "invalid_calendar": {
+      "total": 2,
+      "passed": 2
+    },
+    "unknown_operation": {
+      "total": 1,
+      "passed": 1
+    },
+    "unit_mismatch": {
+      "total": 1,
+      "passed": 1
+    }
+  },
+  "cases": [
+    {
+      "id": "REV-01",
+      "category": "canonical",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "REV-02",
+      "category": "passive",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "REV-03",
+      "category": "politeness",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "REV-04",
+      "category": "order",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "ENE-01",
+      "category": "canonical",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "ENE-02",
+      "category": "passive",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "ENE-03",
+      "category": "plural",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "ENE-04",
+      "category": "order",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "RANK-01",
+      "category": "canonical",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "RANK-02",
+      "category": "plural",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "RANK-03",
+      "category": "count",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "RANK-04",
+      "category": "count",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "ATE-01",
+      "category": "service",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "ATE-02",
+      "category": "service",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "DEC-01",
+      "category": "network",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "FEC-01",
+      "category": "network",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "planned",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-01",
+      "category": "unknown_entity",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-02",
+      "category": "missing_period",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-03",
+      "category": "missing_metric",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-04",
+      "category": "payment",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-05",
+      "category": "payment",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-06",
+      "category": "ambiguous_unit",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-07",
+      "category": "solar",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-08",
+      "category": "multiple_metrics",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-09",
+      "category": "exclusion",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-10",
+      "category": "unknown_entity",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-11",
+      "category": "unsupported_limit",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-12",
+      "category": "missing_filter",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-13",
+      "category": "invalid_calendar",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-14",
+      "category": "invalid_calendar",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-15",
+      "category": "unknown_operation",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    },
+    {
+      "id": "GUARD-16",
+      "category": "unit_mismatch",
+      "passed": true,
+      "outcome": "passed",
+      "actual_status": "needs_clarification",
+      "failing_checks": []
+    }
+  ],
+  "evaluation_context": {
+    "commit": "051123248be443537346544a6ee71617ed1d94cc",
+    "mode": "deterministic",
+    "provider": "none"
+  }
+}

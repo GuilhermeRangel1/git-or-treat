@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.config import Settings
 
 
@@ -47,3 +50,29 @@ def test_model_routing_is_disabled_by_default() -> None:
     assert settings.model_routing_enabled is False
     assert settings.model_light_model is None
     assert settings.model_light_intents == []
+
+
+def test_intent_mode_keeps_deterministic_rollback_as_default(monkeypatch) -> None:
+    monkeypatch.delenv("GENAI_INTENT_MODE", raising=False)
+    assert Settings(_env_file=None).intent_mode == "deterministic"
+    for mode in ("deterministic", "shadow", "gemini"):
+        assert Settings(_env_file=None, intent_mode=mode).intent_mode == mode
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, intent_mode="unknown")
+
+
+def test_non_deterministic_gold_runtime_does_not_compose_default_demo(monkeypatch) -> None:
+    from app import main as app_main
+
+    monkeypatch.setattr(
+        app_main,
+        "get_settings",
+        lambda: Settings(_env_file=None, intent_mode="gemini"),
+    )
+    monkeypatch.setattr(
+        app_main,
+        "create_app",
+        lambda **_: pytest.fail("não deveria compor o app sintético"),
+    )
+
+    assert app_main._create_default_app() is None

@@ -3,7 +3,11 @@
 import pytest
 
 from app.agent.interpreter import QuestionInterpreter
-from app.agent.temporal import GoldTemporalWindowResolver, TemporalResolutionUnavailable
+from app.agent.temporal import (
+    GoldTemporalWindowResolver,
+    TemporalResolutionUnavailable,
+    normalize_proposed_period_phrase,
+)
 from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
 from app.schemas.questions import ConversationTurn
 from app.schemas.read_plan import WindowKind
@@ -59,6 +63,22 @@ def test_accumulated_window_remains_a_phrase_without_invented_dates():
     assert window.phrase == "histórico acumulado"
     assert window.start is None
     assert window.end is None
+
+
+@pytest.mark.parametrize(
+    ("phrase", "expected"),
+    [
+        ("mês 03 de 2025", "2025-03"),
+        ("no mês de março de 2025", "março de 2025"),
+        ("mar/2025", "março de 2025"),
+        ("últimos 12 meses", "últimos 12 meses"),
+        ("de janeiro de 2025 a março de 2025", "de janeiro de 2025 a março de 2025"),
+    ],
+)
+def test_model_period_phrases_are_normalized_without_changing_relative_or_range_windows(
+    phrase, expected,
+):
+    assert normalize_proposed_period_phrase(phrase) == expected
 
 
 def test_period_answer_after_coverage_clarification_preserves_metric_and_filters():

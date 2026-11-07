@@ -72,3 +72,23 @@ def record_usage(
             separators=(",", ":"),
         ),
     )
+
+
+def record_intent_comparison(
+    mode: str, deterministic_status: str, proposed_status: str, same_plan: bool,
+) -> None:
+    """Registra apenas o resultado estrutural da comparação, sem dados da pergunta."""
+
+    logger.info(
+        "genai_intent_comparison %s",
+        json.dumps(
+            {
+                "correlation_id": correlation.get(),
+                "mode": mode,
+                "deterministic_status": deterministic_status,
+                "proposed_status": proposed_status,
+                "same_plan": same_plan,
+            },
+            separators=(",", ":"),
+        ),
+    )

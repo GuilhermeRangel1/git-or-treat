@@ -199,6 +199,7 @@ async def plan_gold_question(
     engine: Engine, client: GenAIQuestionClient, request: AIQuestionRequest, *,
     resolve_scope: Callable[[], AccessScope], correlation_id: str,
     expected_batch_ref: str | None = None,
+    previous_approved_plan: LogicalReadPlan | None = None,
     deadline: GenAIRequestDeadline | None = None,
 ) -> GoldPlanningResult:
     """Liga produtor e cliente em runtime, com prazo único e reautorização atual.
@@ -234,6 +235,7 @@ async def plan_gold_question(
     )
     payload = QuestionPlanRequest(
         **request.model_dump(), access_scope=scope,
+        previous_approved_plan=previous_approved_plan,
         remaining_timeout_ms=deadline.remaining_timeout_ms(GOLD_REQUEST_TIMEOUT_SECONDS), **fields,
     )
     response = await deadline.run(

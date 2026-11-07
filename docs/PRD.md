@@ -4092,3 +4092,15 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 ### 2026-11-04 — IA-01 / IA-02 / IA-03 — ranking de unidades com GD
 
 O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por município no lote. A API autenticada local retornou Recife, 1.420 UCs, reconciliadas com uma agregação SQL independente usando o leitor restrito. A suíte de linguagem de GD e continuidade passou com 18 testes, incluindo confirmação de GD e do limiar de queda sem perder o município. A métrica cadastral não descreve vigência histórica nem comprova origem solar.
+
+### 2026-11-06 — IA-01 / IA-02 — experimento de NLU generativa híbrida
+
+- Na branch `feat/nlu-generativa-hibrida`, frases de competência explícita propostas pelo modelo são normalizadas antes do resolvedor Gold v2. Valores únicos e explicitamente citados em filtros obrigatórios podem ser vinculados somente quando correspondem a um valor permitido pela cobertura autorizada. Isso não altera executor, catálogo ou permissões.
+- Testes focados de planejamento HTTP, calendário, proponente e benchmark: 90 passaram; suíte completa do GenAI: 4.577 passaram e 4 skips. Backend completo da mesma árvore: 1.219 passaram e 114 skips, com testes privados condicionados à publicação de teste.
+- Sete rodadas controladas Gemini da mesma amostra sintética tiveram pontuação original de 1/6 a 4/6; a última foi reavaliada como 5/6 após corrigir o falso negativo do oráculo em `GUARD-04` (ambos os motivos de esclarecimento são válidos), contando o erro 503 como incorreto. O determinístico marcou 6/6. Não houve SQL, resposta numérica, execução sobre Gold nem avaliação com cobertura real. As rodadas não comprovam melhora nem atingem o critério de promoção. Resultados e limitações no [relatório HNLU](../ai-agent/reports/hnlu-comparison-2026-11-06.md) e no [TODO experimental](plans/2026-11-06-genai-nlu-hibrida.md).
+- Os status oficiais do PRD não foram alterados. Integração com publicação Gold v2, revisão da amostra reservada, estabilidade do provedor e validação portal/API continuam abertas.
+
+### 2026-11-07 — experimento HNLU — prova mínima com Gemini e Gold v2
+
+- Uma pergunta autenticada pelo endpoint público percorreu Gemini em modo de interpretação, política, plano `billing.revenue`, executor somente leitura da Gold v2 e Gemini em síntese. A resposta de faturamento de junho/2026 coincidiu exatamente com `SUM(receita_total_reais)` independente na mesma publicação. Uma linha Gold foi retornada; o papel leitor ficou limitado a privilégios por coluna, sem concessão adicional.
+- Correlação de auditoria, lote, fingerprint, consulta independente e limites estão em [relatório HNLU Gold e2e](../ai-agent/reports/hnlu-gold-e2e-2026-11-07.md). Isso comprova uma fatia integrada de faturamento; não é benchmark amplo nem aceite de navegador, não atinge o gate de promoção do Gemini e não altera os estados oficiais IA.

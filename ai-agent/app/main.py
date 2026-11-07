@@ -17,6 +17,7 @@ from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.profiles.grid360_sql_demo import GRID360_SQL_DEMO_PROFILE
 from app.providers.document_selector import GeminiDocumentSelector
 from app.providers.factory import build_model_adapter, build_model_router
+from app.providers.intent_proposer import GeminiIntentProposer
 from app.providers.protocols import ModelAdapter
 from app.providers.routing import ModelRouter, ModelTier
 from app.readiness import evaluate_readiness
@@ -102,6 +103,12 @@ def create_app(
             raise ValueError("Fonte externa exige auditoria durável configurada.")
         if question_orchestrator is not None or insight_orchestrator is not None:
             raise ValueError("Fonte externa deve ser composta pelo núcleo com a fonte declarada.")
+        if active_settings.intent_mode != "deterministic" and (
+            active_domain_profile.profile_id != "v-energy-grid-360-gold"
+            or active_settings.model_provider != "gemini"
+            or active_settings.gemini_api_key is None
+        ):
+            raise ValueError("NLU Gemini exige perfil Gold v2 e provedor Gemini configurado.")
     else:
         if access_context_resolver is not None:
             raise ValueError("Resolvedor de acesso externo exige modo external.")
@@ -144,6 +151,29 @@ def create_app(
             active_settings,
             active_model_adapter,
         )
+        intent_proposer = None
+        if active_settings.intent_mode != "deterministic":
+            if source_mode != "external" or active_settings.gemini_api_key is None:
+                raise ValueError("NLU Gemini só pode ser ativada com Gold externo autorizado.")
+            from google import genai
+
+            intent_client = genai.Client(
+                api_key=active_settings.gemini_api_key.get_secret_value(),
+                http_options={
+                    "timeout": active_settings.model_timeout_ms,
+                    "retry_options": {"attempts": 1},
+                },
+            )
+            intent_policy = access_policy or ReadAccessPolicy(active_domain_profile, source_id)
+
+            async def intent_proposer(request):
+                return await GeminiIntentProposer(
+                    client=intent_client,
+                    model=active_settings.gemini_model,
+                    profile=active_domain_profile,
+                    request=request,
+                    access_authorizer=intent_policy,
+                ).propose()
         core = compose_core(
             profile=active_domain_profile,
             source_id=source_id,
@@ -161,6 +191,8 @@ def create_app(
             max_rows=active_settings.evidence_max_rows,
             max_evidence_bytes=active_settings.evidence_max_bytes,
             documentation_responder=documentation_responder,
+            intent_proposer=intent_proposer,
+            intent_mode=active_settings.intent_mode,
         )
     return create_api_application(
         settings=active_settings,
@@ -174,4 +206,17 @@ def create_app(
     )
 
 
-app = create_app()
+def _create_default_app() -> FastAPI | None:
+    """Compõe a demonstração apenas no modo padrão e isolado.
+
+    O runtime Gold importa `create_app` para compor sua própria aplicação externa.
+    Não crie uma segunda aplicação sintética durante esse import quando a NLU
+    experimental estiver habilitada.
+    """
+    active_settings = get_settings()
+    if active_settings.intent_mode != "deterministic":
+        return None
+    return create_app(settings=active_settings)
+
+
+app = _create_default_app()

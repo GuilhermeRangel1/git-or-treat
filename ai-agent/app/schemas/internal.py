@@ -107,6 +107,14 @@ class QuestionPlanRequest(QuestionRequest):
     dimension_value_coverage: tuple[DimensionValueCoverage, ...] = Field(
         default=(), max_length=20
     )
+    previous_approved_plan: LogicalReadPlan | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_previous_plan(self, handler):
+        data = handler(self)
+        if self.previous_approved_plan is None and isinstance(data, dict):
+            data.pop("previous_approved_plan", None)
+        return data
 
     @model_validator(mode="after")
     def validate_publication(self) -> Self:
@@ -132,6 +140,16 @@ class QuestionPlanRequest(QuestionRequest):
             for item in self.dimension_value_coverage
         ):
             raise ValueError("valores identificadores de UC não entram no vocabulário")
+        if self.previous_approved_plan is not None:
+            previous = self.previous_approved_plan
+            if (
+                previous.profile_id != self.access_scope.profile_id
+                or previous.source_id != self.access_scope.source_id
+                or CatalogOperation.READ not in self.access_scope.allowed_operations
+                or previous.metric_id not in self.access_scope.allowed_metric_ids
+                or not set(previous.dimension_ids) <= self.access_scope.allowed_dimension_ids
+            ):
+                raise ValueError("plano anterior fora do escopo autorizado")
         return self
 
 

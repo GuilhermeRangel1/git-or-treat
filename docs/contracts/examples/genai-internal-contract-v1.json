@@ -630,6 +630,38 @@
             ]
           }
         ],
+        "previous_approved_plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "consumo",
+          "metric_id": "consumo_medido",
+          "dimension_ids": [
+            "municipio"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "kWh",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "municipio",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
         "remaining_timeout_ms": 60000
       }
     },

@@ -59,6 +59,7 @@ services:
       GENAI_AUDIT_URL: http://backend:8000/api/v1/internal/genai-audit-events
       GENAI_AUDIT_WRITE_TOKEN: ${DOCKER_AUDIT_TOKEN:?Configure .env}
       GENAI_MODEL_PROVIDER: ${GENAI_MODEL_PROVIDER:-gemini}
+      GENAI_INTENT_MODE: ${GENAI_INTENT_MODE:-deterministic}
       GENAI_GEMINI_API_KEY: ${GENAI_GEMINI_API_KEY:-}
       GENAI_GEMINI_MODEL: ${GENAI_GEMINI_MODEL:-gemini-3.5-flash-lite}
       GENAI_MODEL_CACHE_TTL_SECONDS: "120"

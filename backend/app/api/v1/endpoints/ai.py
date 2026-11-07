@@ -13,12 +13,12 @@ from sqlalchemy.orm import Session
 from app.api.progressive import progressive_handler
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.platform_identity import require_permission
 from app.core.genai_gold_database import (
     get_question_gold_readiness_gate,
     get_question_gold_resources,
 )
 from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
+from app.core.platform_identity import require_permission
 from app.repositories.gold_publication import (
     GoldPublicationChanged,
     GoldPublicationUnavailable,
@@ -228,6 +228,7 @@ async def ask_genai_question(
         if gold_resources is not None:
             engine, resolve_scope = gold_resources
             expected_batch_ref = None
+            previous_approved_plan = None
             secret = (settings.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()
                       if settings.AI_AGENT_SERVICE_API_TOKEN is not None else None)
             session = request.cookies.get("grid360_session", "")
@@ -235,10 +236,11 @@ async def ask_genai_question(
                 if not secret or not session or not payload.conversation_id:
                     raise InvalidContinuation
                 scope = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope))
-                expected_batch_ref, restored = restore_continuation(
+                expected_batch_ref, restored, previous_approved_plan = restore_continuation(
                     payload.continuation_token, scope, session=session,
                     conversation=payload.conversation_id, secret=secret,
                     context=question.context,
+                    include_plan=True,
                 )
                 question = question.model_copy(update={"context": restored})
             if payload.expected_publication is not None:
@@ -273,6 +275,7 @@ async def ask_genai_question(
                 readiness_gate=readiness_gate,
                 audit_store=AuditStore(db.get_bind()),
                 expected_batch_ref=expected_batch_ref,
+                previous_approved_plan=previous_approved_plan,
                 continuation=continuation,
                 request_deadline=deadline,
                 on_visual=getattr(request.state, "publish_visual", None),

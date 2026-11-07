@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -322,6 +323,14 @@ def main() -> None:
                   else build_expanded_report())
     else:
         report = build_gold_language_report(dataset) if args.gold_language else build_report()
+    if args.gold_language:
+        report["evaluation_context"] = {
+            "commit": subprocess.run(
+                ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True,
+            ).stdout.strip(),
+            "mode": "deterministic",
+            "provider": "none",
+        }
     if args.baseline:
         from .evaluation_report import compare_reports
         report["comparison"] = compare_reports(

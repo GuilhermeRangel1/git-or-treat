@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     audit_url: str | None = None
     audit_write_token: SecretStr | None = None
     model_provider: Literal["unavailable", "gemini", "groq"] = "unavailable"
+    intent_mode: Literal["deterministic", "shadow", "gemini"] = "deterministic"
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_api_key: SecretStr | None = None
     documentation_search_enabled: bool = True

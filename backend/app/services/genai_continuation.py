@@ -39,6 +39,7 @@ class ContinuationState(BaseModel):
     batch: str = Field(min_length=1, max_length=200)
     question: AIQuestionText
     response_digest: Digest
+    approved_plan: LogicalReadPlan | None = None
 
 
 class InvalidContinuation(ValueError):
@@ -129,11 +130,13 @@ def issue_continuation(
     if question is None or not session or not conversation:
         return None
     return issue_context_continuation(question, scope, batch_ref, session=session,
-        conversation=conversation, secret=secret, response_text=response_text)
+        conversation=conversation, secret=secret, response_text=response_text,
+        approved_plan=plan)
 
 
 def issue_context_continuation(
-    question, scope, batch_ref, *, session, conversation, secret, response_text="", kind="executed",
+    question, scope, batch_ref, *, session, conversation, secret, response_text="",
+    kind="executed", approved_plan=None,
 ):
     """Renova uma âncora capturada pelo servidor, nunca um texto fornecido como autoridade pelo cliente."""
     payload = ContinuationState(
@@ -146,6 +149,7 @@ def issue_context_continuation(
         batch=batch_ref,
         question=question,
         response_digest=_digest(response_text[:1000]),
+        approved_plan=approved_plan if kind == "executed" else None,
     )
     serialized = payload.model_dump_json(exclude={"kind"} if kind == "executed" else set())
     data = base64.urlsafe_b64encode(serialized.encode()).decode()
@@ -161,7 +165,10 @@ def restore_continuation(
     conversation: str,
     secret: str,
     context: Sequence[AIConversationTurn],
-) -> tuple[str, list[AIConversationTurn]]:
+    include_plan: bool = False,
+) -> tuple[str, list[AIConversationTurn]] | tuple[
+    str, list[AIConversationTurn], LogicalReadPlan | None
+]:
     try:
         if len(token) > MAX_TOKEN_LENGTH:
             raise ValueError
@@ -181,23 +188,30 @@ def restore_continuation(
         ):
             raise ValueError
         anchor = AIConversationTurn(role="user", content=payload.question)
+        approved_plan = payload.approved_plan if payload.kind == "executed" else None
+
+        def restored_context(turns: list[AIConversationTurn]):
+            if include_plan:
+                return payload.batch, turns, approved_plan
+            return payload.batch, turns
+
         if payload.kind == "pending" and (
             not context or context[-1].role == "assistant"
             and _digest(context[-1].content) == payload.response_digest
         ):
             # O estado vem da assinatura; o texto não é um marcador a interpretar.
-            return payload.batch, [anchor, AIConversationTurn(
+            return restored_context([anchor, AIConversationTurn(
                 role="assistant", content="Há um esclarecimento pendente para esta pergunta.",
-            )]
+            )])
         if (
             context
             and context[-1].role == "assistant"
             and _digest(context[-1].content) == payload.response_digest
         ):
-            return payload.batch, [anchor]
+            return restored_context([anchor])
         # O contexto recente permite responder esclarecimentos. É replanejado e
         # nunca concede permissão; a âncora vem apenas de uma consulta concluída.
-        return payload.batch, [anchor, *context[-2:]]
+        return restored_context([anchor, *context[-2:]])
     except (ValueError, KeyError, TypeError, UnicodeError):
         raise InvalidContinuation from None
 

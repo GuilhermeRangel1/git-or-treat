@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 from app.schemas.ai import AIConversationTurn
-from app.schemas.genai_internal import AccessScope
+from app.schemas.genai_internal import AccessScope, QuestionPlanRequest
 from app.schemas.genai_plan import LogicalReadPlan, ReadFilter, ReadOrder, ReadWindow
 from app.services.genai_continuation import (
     InvalidContinuation,
@@ -67,6 +67,42 @@ def test_context_contains_only_normalized_query_and_survives_roundtrip():
         == "Qual foi receita faturada no município RECIFE em 2026-06?"
     )
     assert context[0].role == "user"
+
+
+def test_signed_continuation_restores_exact_approved_plan_for_followup():
+    token = issue_continuation(
+        plan(), SCOPE, "batch-v2", session="one", conversation="chat",
+        secret=SECRET,
+    )
+    batch, context, approved_plan = restore_continuation(
+        token, SCOPE, session="one", conversation="chat", secret=SECRET,
+        context=[], include_plan=True,
+    )
+    assert batch == "batch-v2"
+    assert context[0].role == "user"
+    assert approved_plan == plan()
+
+
+def test_planning_contract_accepts_only_previous_plan_inside_current_scope():
+    import pytest
+    from pydantic import ValidationError
+
+    fields = {
+        "question": "E em Olinda?",
+        "access_scope": SCOPE,
+        "remaining_timeout_ms": 10000,
+        "batch_ref": "gold-csv-v2:GOLD_20250101T000000Z_aaaaaaaa:8b9502c2-c188-4528-ab3c-7dff79ed908f",
+        "temporal_coverage": [{
+            "metric_id": "billing.revenue", "kind": "monthly", "competencies": ["2026-06"]
+        }],
+        "previous_approved_plan": plan(),
+    }
+    parsed = QuestionPlanRequest.model_validate(fields)
+    assert parsed.previous_approved_plan == plan()
+
+    fields["access_scope"] = SCOPE.model_copy(update={"allowed_dimension_ids": frozenset()})
+    with pytest.raises(ValidationError, match="plano anterior fora do escopo"):
+        QuestionPlanRequest.model_validate(fields)
 
 
 @pytest.mark.parametrize("dimension,plural", [
@@ -239,6 +275,7 @@ def test_public_route_restores_only_valid_reference_before_coordination(
         forwarded, kwargs = calls[0]
         assert forwarded.context[0].content == canonical_question(plan())
         assert kwargs["expected_batch_ref"] == "batch"
+        assert kwargs["previous_approved_plan"] == plan()
         assert kwargs["request_deadline"] is not None
         assert "continuation_token" not in forwarded.model_dump()
 

@@ -651,6 +651,18 @@ def _build_profile() -> DomainProfile:
     values["ambiguities"] = (
         *values["ambiguities"],
         {
+            "phrases": (
+                "gasto de energia", "gasto em energia", "gasto com energia",
+                "gastos de energia", "gastos com energia", "quanto gastei de energia",
+                "quanto foi gasto de energia",
+            ),
+            "resolved_metric_ids": ("billing.revenue", "energy.consumption"),
+            "clarification": (
+                "‘Gasto de energia’ pode ser consumo medido em kWh ou valor faturado em R$. "
+                "Qual dos dois você quer consultar?"
+            ),
+        },
+        {
             "phrases": ("solar", "energia solar", "painel solar", "painéis solares"),
             "confirmation_phrase": "com GD",
             "examples": ("Quantas UCs com GD tiveram queda de consumo acima de 30%?",),

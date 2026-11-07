@@ -237,6 +237,55 @@ class QuestionOrchestrator:
                 )
                 documentation_reference = result.reference
                 return result.response
+            if (isinstance(request, QuestionPlanRequest)
+                    and self._analysis_planner.supports_intent_proposal):
+                refusal = await asyncio.to_thread(self._safety_refusal, request, trace)
+                if refusal is not None:
+                    return refusal
+                try:
+                    trace.model_calls += 1
+                    await trace.emit_async(
+                        EventStage.MODEL, EventCode.STARTED, EventOutcome.STARTED,
+                    )
+                    planned = await self._analysis_planner.plan_with_proposal(
+                        request, access_context, trace, _budget,
+                    )
+                    await trace.emit_async(
+                        EventStage.MODEL, EventCode.COMPLETED, EventOutcome.SUCCESS,
+                    )
+                    return planned
+                except EvidenceAccessDenied:
+                    return self._refused(FailureCode.ACCESS_DENIED)
+                except ModelProviderUnavailable:
+                    await trace.emit_async(
+                        EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR,
+                    )
+                    return self._recoverable_error(FailureCode.MODEL_UNAVAILABLE)
+                except ModelProviderRejected:
+                    await trace.emit_async(
+                        EventStage.MODEL, EventCode.REFUSED, EventOutcome.REFUSED,
+                    )
+                    return self._recoverable_error(FailureCode.MODEL_REJECTED)
+                except ModelProviderInvalidResponse:
+                    await trace.emit_async(
+                        EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR,
+                    )
+                    return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
+                except (ValidationError, TypeError, ValueError):
+                    await trace.emit_async(
+                        EventStage.MODEL, EventCode.INVALID, EventOutcome.ERROR,
+                    )
+                    return self._recoverable_error(FailureCode.INVALID_MODEL_OUTPUT)
+                except ExecutionLimitExceeded:
+                    raise
+                except AuditUnavailable:
+                    raise
+                except Exception:
+                    await trace.emit_async(
+                        EventStage.MODEL, EventCode.UNAVAILABLE, EventOutcome.ERROR,
+                    )
+                    logger.warning("Falha ao interpretar pergunta pelo provedor de intenção.")
+                    return self._recoverable_error(FailureCode.UNEXPECTED)
             return await asyncio.to_thread(
                 self._plan_step,
                 request,

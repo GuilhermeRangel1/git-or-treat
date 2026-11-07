@@ -30,6 +30,23 @@ def test_filter_values_preserve_their_input_type() -> None:
     assert type(intent.filters["ano"]) is int
 
 
+def test_multi_value_filters_support_the_read_plan_limit():
+    values = tuple(f"Cidade {index}" for index in range(1, 6))
+    intent = AnalysisIntent(
+        domain="revenue",
+        filters={"geography.municipality": values},
+    )
+    assert intent.filters["geography.municipality"] == values
+
+    with pytest.raises(ValidationError):
+        AnalysisIntent(domain="revenue", filters={"geography.municipality": ("Recife",)})
+    with pytest.raises(ValidationError):
+        AnalysisIntent(
+            domain="revenue",
+            filters={"geography.municipality": tuple(str(i) for i in range(21))},
+        )
+
+
 def test_logical_ids_follow_a_stable_format() -> None:
     intent = AnalysisIntent(
         domain="revenue",

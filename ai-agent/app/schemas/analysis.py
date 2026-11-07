@@ -17,6 +17,9 @@ from pydantic import (
 from app.schemas.version import INTERNAL_CONTRACT_VERSION, InternalContractVersion
 
 AnalysisFilterValue = StrictStr | StrictInt | StrictFloat | StrictBool
+AnalysisFilterValues = Annotated[
+    tuple[StrictStr, ...], Field(min_length=2, max_length=20)
+]
 LogicalIdentifier = Annotated[
     str,
     StringConstraints(
@@ -44,7 +47,7 @@ class AnalysisIntent(BaseModel):
     period_phrase: str | None = Field(default=None, min_length=1, max_length=160)
     geography_phrase: str | None = Field(default=None, min_length=1, max_length=160)
     class_phrase: str | None = Field(default=None, min_length=1, max_length=120)
-    filters: dict[AnalysisFilterKey, AnalysisFilterValue | tuple[StrictStr, StrictStr]] = Field(
+    filters: dict[AnalysisFilterKey, AnalysisFilterValue | AnalysisFilterValues] = Field(
         default_factory=dict
     )
 

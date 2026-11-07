@@ -5,7 +5,10 @@ import pytest
 from app.api.application import create_api_application
 from app.config import Settings
 from app.profiles.grid360_gold import GRID360_GOLD_PROFILE
+from app.providers.protocols import ModelProviderUnavailable
+from app.schemas.analysis import AnalysisIntent
 from app.schemas.internal import QuestionSynthesisRequest, TemporalCoverage
+from app.schemas.interpretation import IntentInterpretation, InterpretationStatus
 from app.schemas.read_plan import LogicalReadPlan
 
 from .conftest import InProcessClient
@@ -36,6 +39,104 @@ def test_shared_year_reaches_http_plan_without_losing_a_month(question, comparis
     assert result["plan"].get("comparison_periods") == comparison
     assert result["plan"]["window"]["start"] == "2025-01-01"
     assert result["plan"]["window"]["end"] == "2025-03-31"
+
+
+def test_structured_intent_proposal_reaches_validated_http_plan():
+    core, request = _setup("Quanto faturou em Recife em março de 2025?")
+
+    async def propose(_request):
+        return IntentInterpretation(
+            status=InterpretationStatus.READY,
+            intent=AnalysisIntent(
+                domain="revenue",
+                metric_id="billing.revenue",
+                period_phrase="março de 2025",
+                geography_phrase="Recife",
+            ),
+        )
+
+    core.question._analysis_planner._intent_proposer = propose
+    core.question._analysis_planner._intent_mode = "gemini"
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "billing.revenue"
+    assert result["plan"]["filters"] == [{
+        "dimension_id": "geography.municipality",
+        "operator": "eq",
+        "values": ["Recife"],
+    }]
+
+
+def test_structured_intent_normalizes_numeric_month_phrase_before_gold_window_resolution():
+    core, request = _setup("Preciso saber o valor que foi faturado em Recife no mês 03 de 2025.")
+
+    async def propose(_request):
+        return IntentInterpretation(
+            status=InterpretationStatus.READY,
+            intent=AnalysisIntent(
+                domain="revenue",
+                metric_id="billing.revenue",
+                period_phrase="mês 03 de 2025",
+                geography_phrase="Recife",
+            ),
+        )
+
+    core.question._analysis_planner._intent_proposer = propose
+    core.question._analysis_planner._intent_mode = "gemini"
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+
+    assert result["status"] == "planned", result
+    assert result["plan"]["window"]["start"] == "2025-03-01"
+    assert result["plan"]["filters"][0]["values"] == ["Recife"]
+
+
+def test_intent_provider_failure_does_not_fall_back_to_deterministic_plan():
+    core, request = _setup("Qual foi a receita faturada em Recife em março de 2025?")
+
+    async def fail(_request):
+        raise ModelProviderUnavailable("provider unavailable")
+
+    core.question._analysis_planner._intent_proposer = fail
+    core.question._analysis_planner._intent_mode = "gemini"
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+
+    assert result["status"] == "recoverable_error", result
+    assert result.get("plan") is None
+
+
+def test_shadow_mode_returns_deterministic_plan_when_proposal_differs():
+    core, request = _setup("Qual foi a receita faturada em Recife em março de 2025?")
+
+    async def propose(_request):
+        return IntentInterpretation(
+            status=InterpretationStatus.READY,
+            intent=AnalysisIntent(
+                domain="consumption",
+                metric_id="energy.consumption",
+                period_phrase="março de 2025",
+            ),
+        )
+
+    core.question._analysis_planner._intent_proposer = propose
+    core.question._analysis_planner._intent_mode = "shadow"
+    with InProcessClient(_application(core)) as client:
+        result = client.post(
+            PLAN_PATH, json=request.model_dump(mode="json"), headers=HEADERS,
+        ).json()
+
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "billing.revenue"
+    assert result["plan"]["filters"][0]["values"] == ["Recife"]
 
 
 @pytest.mark.parametrize("question", [

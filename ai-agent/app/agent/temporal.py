@@ -182,6 +182,17 @@ def explicit_monthly_phrases(text: str) -> tuple[str, ...]:
     return tuple(match.group() for match in _EXPLICIT_PERIOD.finditer(normalized))
 
 
+def normalize_proposed_period_phrase(phrase: str) -> str:
+    """Adapta variações explícitas de mês/ano à frase canônica do resolvedor Gold."""
+    normalized = normalize_calendar_phrases(phrase).strip(" ?!.")
+    if re.search(r"\s+(?:a|ate)\s+", normalized):
+        return normalized
+    candidate = normalized[3:] if normalized.casefold().startswith("em ") else normalized
+    if len(explicit_monthly_phrases(candidate)) == 1:
+        return candidate
+    return normalized
+
+
 def complete_yearless_months(text: str, year: str) -> str | None:
     """Aplica o ano explicitamente respondido a meses que ainda não têm ano."""
     if re.search(r"\b[0-9]{4}\b", text):
