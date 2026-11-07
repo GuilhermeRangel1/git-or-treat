@@ -26,6 +26,7 @@ from app.repositories.gold_publication import (
 )
 from app.repositories.panorama import PanoramaRepository, get_panorama_repository
 from app.schemas.ai import (
+    AIConversationTurn,
     AIQueryRequest,
     AIQuestionError,
     AIQuestionErrorResponse,
@@ -66,7 +67,14 @@ from app.services.genai_expected_publication import (
     resolve_expected_batch_ref,
 )
 from app.services.genai_publication import GoldPublicationContext
+from app.services.genai_sql_admission import SqlAdmissionDenied
+from app.services.genai_sql_continuation import (
+    InvalidSqlContinuation,
+    issue_sql_continuation,
+    restore_sql_continuation,
+)
 from app.services.genai_sql_pipeline import run_sql_question
+from app.services.genai_sql_telemetry import record_sql_runtime, sql_stage
 from app.services.gold_catalog import GoldCatalogIncompatible
 from app.services.gold_panorama_coordination import generate_gold_panorama_insight
 from app.services.panorama_insights import (
@@ -91,6 +99,24 @@ async def run_f1_sql_analysis(
                               Depends(get_question_gold_resources)],
     db: Annotated[Session, Depends(get_db)],
 ):
+    """Entrada HTTP pública; argumentos internos nunca alteram o body v1."""
+    request.state.genai_strategy = "text_to_sql_f1"
+    return await _run_f1_sql_analysis_impl(
+        payload, request, genai, gold_resources, db,
+    )
+
+
+async def _run_f1_sql_analysis_impl(
+    payload: SqlAnalysisRequest,
+    request: Request,
+    genai: Annotated[GenAIQuestionClient, Depends(get_sql_genai_question_client)],
+    gold_resources: Annotated[tuple[Engine, Callable[[], AccessScope]] | None,
+                              Depends(get_question_gold_resources)],
+    db: Annotated[Session, Depends(get_db)],
+    *,
+    trusted_context: list[AIConversationTurn] | None = None,
+    trusted_batch_ref: str | None = None,
+):
     """Rota autenticada opt-in; entrega evidência sem expor SQL interno."""
     if not settings.GENAI_SQL_EXECUTION_ENABLED or settings.ANALYTICS_SOURCE != "gold":
         raise HTTPException(503, "Análise SQL indisponível.")
@@ -110,12 +136,55 @@ async def run_f1_sql_analysis(
     scope = resolve_f1_scope()
     if "billing.revenue" not in scope.allowed_metric_ids:
         raise HTTPException(403, "Métrica fora do acesso atual.")
-    publication = GoldPublicationContext.capture(engine)
-    fields = publication.planning_fields(engine, scope)
+    try:
+        with sql_stage(request.state.correlation_id, "publication"):
+            publication = GoldPublicationContext.capture(engine)
+            if trusted_batch_ref is not None and publication.batch_ref != trusted_batch_ref:
+                return _question_error(
+                    request, status_code=409, code="invalid_context", retryable=False,
+                    message="Os dados disponíveis mudaram. Atualize os dados Gold antes de perguntar.",
+                )
+            fields = publication.planning_fields(engine, scope)
+    except GoldPublicationChanged:
+        raise HTTPException(409, "A publicação Gold mudou. Refaça a pergunta.") from None
+    except (GoldPublicationUnavailable, GoldCoverageUnavailable, SQLAlchemyError):
+        raise HTTPException(503, "A análise Gold está temporariamente indisponível.") from None
+    sql_context = list(trusted_context or [])
+    secret = (settings.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()
+              if settings.AI_AGENT_SERVICE_API_TOKEN is not None else None)
+    session = request.cookies.get("grid360_session", "")
+    if trusted_context is not None and (payload.continuation_token is not None or payload.context):
+        return _question_error(
+            request, status_code=409, code="invalid_continuation", retryable=False,
+            message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
+        )
+    if trusted_context is None and (payload.continuation_token is not None or payload.context):
+        if (payload.continuation_token is None or payload.conversation_id is None
+                or not secret or not session):
+            return _question_error(
+                request, status_code=409, code="invalid_continuation", retryable=False,
+                message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
+            )
+        try:
+            sql_context = restore_sql_continuation(
+                payload.continuation_token,
+                scope=scope,
+                batch_ref=publication.batch_ref,
+                session=session,
+                conversation_id=payload.conversation_id,
+                secret=secret,
+            )
+        except InvalidSqlContinuation:
+            return _question_error(
+                request, status_code=409, code="invalid_continuation", retryable=False,
+                message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
+            )
     remaining_ms = min(int(GOLD_REQUEST_TIMEOUT_SECONDS * 1000),
                        int(settings.AI_AGENT_TIMEOUT_SECONDS * 1000))
     plan_request = QuestionPlanRequest.model_validate({
-        **payload.model_dump(mode="json"), "access_scope": scope.model_dump(mode="json"),
+        **payload.model_dump(mode="json", exclude={"conversation_id", "continuation_token"}),
+        "context": [turn.model_dump(mode="json") for turn in sql_context],
+        "access_scope": scope.model_dump(mode="json"),
         "remaining_timeout_ms": remaining_ms, **fields,
     })
     deadline = GenAIRequestDeadline.start(remaining_ms / 1000)
@@ -123,7 +192,7 @@ async def run_f1_sql_analysis(
     started = monotonic()
 
     async def record_audit(stage, code, outcome, *, row_count=0, evidence_ref=None,
-                           model_calls=0, source_calls=0):
+                           model_calls=0, source_calls=0, sql_f1_artifact=None):
         event = BackendAuditEvent(
             correlation_id=request.state.correlation_id,
             stage=stage,
@@ -138,6 +207,7 @@ async def run_f1_sql_analysis(
             metric_id="billing.revenue",
             source_id=scope.source_id,
             evidence_ref=evidence_ref,
+            sql_f1_artifact=sql_f1_artifact,
         )
         try:
             return await deadline.run(
@@ -149,6 +219,7 @@ async def run_f1_sql_analysis(
 
     try:
         await record_audit("request", "started", "started")
+        record_sql_runtime(request.state.correlation_id)
     except GenAIServiceUnavailable:
         raise HTTPException(503, "A trilha de auditoria está indisponível.") from None
 
@@ -186,13 +257,43 @@ async def run_f1_sql_analysis(
             row_count=len(run.evidence.rows) if run.evidence is not None else 0,
             evidence_ref=run.evidence.evidence_digest if run.evidence is not None else None,
             model_calls=1,
+            sql_f1_artifact=run.audit_artifact,
         )
         publication.assert_current(engine)
         if resolve_f1_scope() != scope:
             raise GoldExecutionDenied
-        return SqlAnalysisResponse.from_run(
-            request.state.correlation_id, run, audit_reference=audit_reference,
-        )
+        with sql_stage(
+            request.state.correlation_id,
+            "presentation",
+            context_version=(run.evidence.context_version if run.evidence is not None else None),
+            contract_version="text-to-sql-f1-presentation-v1",
+        ):
+            response = SqlAnalysisResponse.from_run(
+                request.state.correlation_id, run, audit_reference=audit_reference,
+            )
+        if payload.conversation_id is not None and secret and session:
+            if response.status == "answered":
+                response_text = response.presentation.answer
+            elif response.status == "needs_clarification":
+                response_text = response.clarification.question
+            else:
+                response_text = response.unsupported_reason.message
+            token = issue_sql_continuation(
+                question=payload.question,
+                response=response_text,
+                previous_context=sql_context,
+                scope=scope,
+                batch_ref=publication.batch_ref,
+                session=session,
+                conversation_id=payload.conversation_id,
+                secret=secret,
+            )
+            if token is not None:
+                response = response.model_copy(update={"continuation_token": token})
+        return response
+    except SqlAdmissionDenied:
+        await record_failure("source", "unavailable", "error", model_calls=1)
+        raise HTTPException(503, "A análise Gold está temporariamente indisponível.") from None
     except GoldExecutionDenied:
         await record_failure("policy", "denied", "refused")
         raise HTTPException(403, "A consulta não está autorizada com o acesso atual.") from None

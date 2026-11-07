@@ -149,7 +149,7 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
   expect(JSON.parse(String(options.body))).toEqual({
     contract_version: "v1",
     question: "Quanto foi o faturamento por município em 2025?",
-    context: [],
+    conversation_id: expect.any(String),
   });
   expect(toggle).toBeDisabled();
 });

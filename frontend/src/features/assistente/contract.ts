@@ -478,11 +478,14 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           "presentation",
           "clarification",
           "unsupported_reason",
+          "continuation_token",
         ].includes(key),
     ) ||
     !/^[a-f0-9]{32}$/.test(String(value.correlation_id))
   )
     return fail();
+  const continuationToken = value.continuation_token;
+  if (continuationToken != null && !isText(continuationToken, 16000)) return fail();
   if (value.status === "answered") {
     const evidence = value.evidence;
     if (
@@ -557,6 +560,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
             ]),
       ],
       analysis_context: analysisContext,
+      continuation_token: continuationToken as string | null | undefined,
       ...(rawVisualization ? { visualization: rawVisualization } : {}),
     });
     return { ...base, sql_analysis_mode: true, sql_presentation: presentation };
@@ -582,6 +586,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
         message: value.clarification.question,
         evidence: [],
         limitations: [],
+        continuation_token: continuationToken,
       }),
       sql_analysis_mode: true,
     };
@@ -612,6 +617,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
         error: { code: "unsupported_operation", retryable: false },
         evidence: [],
         limitations: [],
+        continuation_token: continuationToken,
       }),
       sql_analysis_mode: true,
     };

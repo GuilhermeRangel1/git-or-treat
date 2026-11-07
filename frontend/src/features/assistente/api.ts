@@ -55,17 +55,28 @@ export async function askAIQuestion(
   const saved = Boolean(history_request_id && request.conversation_id);
   const path =
     strategy === "sql_f1"
-      ? "/api/v1/ai/sql-analyses"
+      ? saved
+        ? `/api/v1/ai/conversations/${encodeURIComponent(request.conversation_id!)}/questions`
+        : "/api/v1/ai/sql-analyses"
       : saved
         ? `/api/v1/ai/conversations/${encodeURIComponent(request.conversation_id!)}/questions`
         : "/api/v1/ai/questions";
   const payload = {
     ...(strategy === "sql_f1"
-      ? {
-          contract_version: "v1",
-          question: request.question,
-          context: request.context.slice(-3),
-        }
+      ? saved
+        ? {
+            request_id: history_request_id,
+            question: request.question,
+            strategy: "sql_f1",
+            refresh_context: refresh_context ?? false,
+            ...(expected ? { expected_publication: expected } : {}),
+          }
+        : {
+            contract_version: "v1",
+            question: request.question,
+            conversation_id: request.conversation_id,
+            continuation_token: request.continuation_token,
+          }
       : {
           ...(saved
             ? {

@@ -28,6 +28,34 @@ describe("contrato do histórico", () => {
     expect(value.exchanges[0].response).toBeNull();
     expect(value.exchanges[0].state).toBe("interrupted");
   });
+  it("reabre resposta SQL F1 versionada pela mesma apresentação pública", () => {
+    const value = decodeDetail({
+      conversation,
+      historical: true,
+      exchanges: [
+        {
+          request_id: conversation.id,
+          state: "completed",
+          question: "E no ano anterior?",
+          response: null,
+          batch_ref: "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+          sql_response: {
+            correlation_id: "a".repeat(32),
+            audit_reference: "b".repeat(32),
+            status: "needs_clarification",
+            clarification: {
+              question: "Qual período você quer comparar?",
+              missing_fields: ["period"],
+            },
+          },
+        },
+      ],
+    });
+    expect(value.exchanges[0].response?.sql_analysis_mode).toBe(true);
+    expect(value.exchanges[0].response?.message).toBe(
+      "Qual período você quer comparar?",
+    );
+  });
   it.each([
     { ...conversation, revision: 0 },
     { ...conversation, expires_at: "invalid" },
