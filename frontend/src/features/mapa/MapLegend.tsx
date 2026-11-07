@@ -1,4 +1,10 @@
 import type { MapLayer } from "./map-state";
+import {
+  compactLayerValue,
+  formatCompetence,
+  formatPeriod,
+  layerValue,
+} from "./map-format";
 
 const labels: Record<MapLayer, string> = {
   revenue: "Faturamento no mês final · R$",
@@ -38,44 +44,52 @@ export default function MapLegend({
       aria-label={title}
     />
   );
+  const hasScale = min !== null && max !== null;
   return (
     <section
-      className="rmr-legend rounded-xl border border-border bg-surface p-4"
+      className="rmr-legend rounded-xl border border-border bg-surface px-4 py-3"
       aria-label="Legenda da camada"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <div className="min-w-0">
           <h2 className="font-heading text-sm font-semibold text-content">
             {labels[layer]}
           </h2>
-          <p className="mt-1 text-xs text-muted">
-            {start} a {end}
-            {layer === "revenue" || layer === "consumption"
-              ? ` · observado em ${end}`
-              : " · diferença absoluta entre extremos"}
+          <p className="mt-0.5 text-xs text-muted">
+            {formatPeriod(start, end)}
+            {diverging
+              ? " · diferença absoluta entre os extremos"
+              : ` · observado em ${formatCompetence(end)}`}
           </p>
         </div>
-        <p className="rmr-legend__limits">
-          Escala regional:{" "}
-          {min === null
-            ? "sem valores comparáveis"
-            : `${min.toLocaleString("pt-BR")} a ${max?.toLocaleString("pt-BR")}`}
-        </p>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
-        <span className="flex items-center gap-2">
-          {classes.map((color, index) => (
-            <span key={color}>{swatch(color, `Faixa ${index + 1}`)}</span>
-          ))}
-          {diverging ? "queda · zero · alta" : "menor · maior"}
-        </span>
-        <span className="flex items-center gap-2">
-          {swatch("--map-zero", "Zero observado")}Zero observado
-        </span>
-        <span className="flex items-center gap-2">
-          {swatch("--map-missing", "Sem observação")}Sem observação
-        </span>
-        <span>Valores parciais mantêm o valor e recebem marcação textual.</span>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted">
+          {hasScale ? (
+            <span
+              className="flex items-center gap-2"
+              title={`Escala regional: ${layerValue(min, layer)} a ${layerValue(max, layer)}`}
+            >
+              <span className="tabular-nums">
+                {compactLayerValue(min, layer)}
+              </span>
+              <span className="flex items-center gap-1">
+                {classes.map((color, index) => (
+                  <span key={color}>{swatch(color, `Faixa ${index + 1}`)}</span>
+                ))}
+              </span>
+              <span className="tabular-nums">
+                {compactLayerValue(max, layer)}
+              </span>
+            </span>
+          ) : (
+            <span>Sem valores comparáveis</span>
+          )}
+          <span className="flex items-center gap-2">
+            {swatch("--map-zero", "Zero observado")}Zero observado
+          </span>
+          <span className="flex items-center gap-2">
+            {swatch("--map-missing", "Sem observação")}Sem observação
+          </span>
+        </div>
       </div>
     </section>
   );
