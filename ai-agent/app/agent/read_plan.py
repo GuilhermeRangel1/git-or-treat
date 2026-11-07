@@ -91,10 +91,15 @@ class ReadPlanBuilder:
         ):
             if phrase is None:
                 continue
+            declared_role_dimensions = {
+                dimension_id for dimension_id in intent.dimension_ids
+                if dimension_id in dimensions and dimensions[dimension_id].role is role
+            }
             matches = [
                 (dimension, value.value)
                 for dimension in self._profile.dimensions
                 if dimension.role is role
+                and (not declared_role_dimensions or dimension.id in declared_role_dimensions)
                 for value in dimension.values
                 if _normalize(phrase) in {_normalize(alias) for alias in value.aliases}
             ]

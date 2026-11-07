@@ -42,6 +42,38 @@ def _contains_phrase(text: str, phrase: str) -> bool:
     return bool(re.search(rf"(?<!\w){re.escape(_normalize_text(phrase))}(?!\w)", text))
 
 
+def _canonical_dimension_phrase(
+    phrase: str | None,
+    dimensions,
+    role: DimensionRole,
+    covered_values: dict[str, tuple[str, ...]],
+) -> str | None:
+    """Reduce a model-extracted phrase to one exact authorized value alias.
+
+    The read-plan builder deliberately resolves exact catalog aliases. Gemini may
+    include surrounding words such as ``município de``; strip those only when one
+    value in the permitted dimension vocabulary matches uniquely.
+    """
+    if phrase is None:
+        return None
+    normalized_phrase = _normalize_text(phrase)
+    matches: dict[tuple[str, str], list[str]] = {}
+    for dimension in dimensions:
+        if dimension.role is not role:
+            continue
+        for value in dimension.values:
+            for alias in (value.value, *value.aliases):
+                if _contains_phrase(normalized_phrase, alias):
+                    matches.setdefault((dimension.id, value.value), []).append(alias)
+        for value in covered_values.get(dimension.id, ()):
+            if _contains_phrase(normalized_phrase, value):
+                matches.setdefault((dimension.id, value), []).append(value)
+    if len(matches) != 1:
+        return phrase
+    aliases = next(iter(matches.values()))
+    return max(aliases, key=lambda alias: len(_normalize_text(alias)))
+
+
 def _ambiguity_matches(
     profile: DomainProfile, request: QuestionPlanRequest,
 ) -> list[tuple[list[str], AmbiguityRule]]:
@@ -332,6 +364,33 @@ class GeminiIntentProposer:
             metric = next((item for item in metrics if item.id == intent.metric_id), None)
             if metric is None or intent.domain != metric.domain_id:
                 raise ValueError("métrica ou domínio fora do catálogo autorizado")
+            permitted_dimensions = [
+                dimension for dimension in dimensions
+                if dimension.id in set(metric.dimension_ids) & scope.allowed_dimension_ids
+            ]
+            for field_name, role in (
+                ("geography_phrase", DimensionRole.GEOGRAPHY),
+                ("class_phrase", DimensionRole.CLASSIFICATION),
+            ):
+                declared = {
+                    dimension_id for dimension_id in intent.dimension_ids
+                    if any(
+                        dimension.id == dimension_id and dimension.role is role
+                        for dimension in permitted_dimensions
+                    )
+                }
+                role_dimensions = [
+                    dimension for dimension in permitted_dimensions
+                    if dimension.role is role
+                    and (len(declared) != 1 or dimension.id in declared)
+                ]
+                setattr(
+                    intent,
+                    field_name,
+                    _canonical_dimension_phrase(
+                        getattr(intent, field_name), role_dimensions, role, covered_values,
+                    ),
+                )
             # O modelo determina a intenção; um valor exato e único, exigido pelo
             # catálogo e explicitamente citado, pode ser vinculado deterministicamente.
             for dimension_id in metric.required_filter_dimension_ids:

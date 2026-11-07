@@ -490,6 +490,146 @@ def test_filter_values_are_canonicalized_from_authorized_publication_coverage():
     assert {"value": "Recife", "aliases": ["Recife"]} in municipality["values"]
 
 
+@pytest.mark.parametrize(
+    ("phrase_field", "phrase", "expected_filter"),
+    [
+        (
+            "geography_phrase", "município de RECIFE",
+            ("geography.municipality", "Recife"),
+        ),
+        (
+            "class_phrase", "classe residencial",
+            ("customer.consumption_class", "RESIDENCIAL"),
+        ),
+    ],
+)
+def test_role_phrases_are_canonicalized_to_unique_authorized_values(
+    phrase_field, phrase, expected_filter,
+):
+    intent = {
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "period_phrase": "março de 2025",
+        phrase_field: phrase,
+    }
+    client = _Client(json.dumps({"status": "ready", "intent": intent}))
+    core, request = _setup("Receita em Recife para classe residencial em março de 2025?")
+    result = asyncio.run(GeminiIntentProposer(
+        client=client,
+        model="test-model",
+        profile=GRID360_GOLD_PROFILE,
+        request=request,
+        access_authorizer=ReadAccessPolicy(GRID360_GOLD_PROFILE, "gold.local"),
+    ).propose())
+
+    assert result.intent is not None
+    planned = core.question._analysis_planner.plan(
+        request.question,
+        request.context,
+        request.access_scope.to_context("00000000000040008000000000000001"),
+        temporal_coverage={
+            item.metric_id: (item.kind, item.competencies)
+            for item in request.temporal_coverage
+        },
+        dimension_value_coverage={
+            item.dimension_id: item.values
+            for item in request.dimension_value_coverage
+        },
+        interpretation_override=result,
+    )
+
+    assert planned.read_plan is not None
+    assert expected_filter in {
+        (item.dimension_id, item.values[0]) for item in planned.read_plan.filters
+    }
+
+
+def test_role_phrase_matching_multiple_authorized_values_is_not_guessed():
+    client = _Client(json.dumps({
+        "status": "ready",
+        "intent": {
+            "domain": "revenue",
+            "metric_id": "billing.revenue",
+            "period_phrase": "março de 2025",
+            "geography_phrase": "Recife e Olinda",
+        },
+    }))
+    core, request = _setup("Receita em Recife e Olinda em março de 2025?")
+    result = asyncio.run(GeminiIntentProposer(
+        client=client,
+        model="test-model",
+        profile=GRID360_GOLD_PROFILE,
+        request=request,
+        access_authorizer=ReadAccessPolicy(GRID360_GOLD_PROFILE, "gold.local"),
+    ).propose())
+    planned = core.question._analysis_planner.plan(
+        request.question,
+        request.context,
+        request.access_scope.to_context("00000000000040008000000000000001"),
+        temporal_coverage={
+            item.metric_id: (item.kind, item.competencies)
+            for item in request.temporal_coverage
+        },
+        dimension_value_coverage={
+            item.dimension_id: item.values
+            for item in request.dimension_value_coverage
+        },
+        interpretation_override=result,
+    )
+
+    assert planned.read_plan is None
+    assert planned.clarification is not None
+    assert "filtro solicitado" in planned.clarification.message.lower()
+
+
+def test_model_dimension_disambiguates_same_place_name_in_municipality_and_neighborhood():
+    client = _Client(json.dumps({
+        "status": "ready",
+        "intent": {
+            "domain": "revenue",
+            "metric_id": "billing.revenue",
+            "dimension_ids": ["geography.municipality"],
+            "period_phrase": "março de 2025",
+            "geography_phrase": "município de Recife",
+        },
+    }))
+    core, request = _setup("Qual foi a receita faturada em Recife em março de 2025?")
+    payload = request.model_dump(mode="python")
+    payload["dimension_value_coverage"] = [
+        item for item in payload["dimension_value_coverage"]
+        if item["dimension_id"] != "geography.neighborhood"
+    ] + [
+        {"dimension_id": "geography.neighborhood", "values": ["Recife"]},
+    ]
+    request = type(request).model_validate(payload)
+    result = asyncio.run(GeminiIntentProposer(
+        client=client,
+        model="test-model",
+        profile=GRID360_GOLD_PROFILE,
+        request=request,
+        access_authorizer=ReadAccessPolicy(GRID360_GOLD_PROFILE, "gold.local"),
+    ).propose())
+    planned = core.question._analysis_planner.plan(
+        request.question,
+        request.context,
+        request.access_scope.to_context("00000000000040008000000000000001"),
+        temporal_coverage={
+            item.metric_id: (item.kind, item.competencies)
+            for item in request.temporal_coverage
+        },
+        dimension_value_coverage={
+            item.dimension_id: item.values
+            for item in request.dimension_value_coverage
+        },
+        interpretation_override=result,
+    )
+
+    assert planned.read_plan is not None
+    assert [item.dimension_id for item in planned.read_plan.filters] == [
+        "geography.municipality",
+    ]
+
+
 def test_filter_value_outside_authorized_publication_coverage_is_rejected():
     response = json.dumps({
         "status": "ready",

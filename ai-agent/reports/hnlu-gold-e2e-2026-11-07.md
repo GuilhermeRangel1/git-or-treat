@@ -11,8 +11,8 @@ Publicação observada: `gold-csv-v2`, lote `GOLD_20261103T173853Z_76c37784`, pu
 - Pergunta: “Quanto foi o faturamento total em junho de 2026?”
 - Resultado HTTP: `200`, estado `answered`, `is_demo=false`, fonte `gold.local`.
 - Interpretação: `billing.revenue`, unidade R$, período `2026-06-01` a `2026-06-30`, sem filtros.
-- Resposta: **R$ 10.864.353,97 em junho de 2026**.
-- Referência independente, executada diretamente no PostgreSQL Gold v2 local com o papel leitor: `SELECT SUM(receita_total_reais) FROM gold_v2.diagnostico_receita WHERE competencia = '2026-06';` → `10864353.97`. O total coincide exatamente.
+- Resposta: total em reais para junho de 2026; o valor exato foi comparado localmente e não é publicado neste relatório.
+- Referência independente, executada diretamente no PostgreSQL Gold v2 local com o papel leitor: `SELECT SUM(receita_total_reais) FROM gold_v2.diagnostico_receita WHERE competencia = '2026-06';`. O total coincide exatamente com a resposta da API; valores Gold reais não são incluídos no artefato versionado.
 - O leitor tem `SELECT` somente nas colunas autorizadas da tabela; a verificação de privilégio de tabela retorna falso, e `has_column_privilege` confirma leitura de `competencia` e `receita_total_reais`. Nenhum grant foi ampliado.
 - Correlação de auditoria: `a9983cea9c154cd8b076315eca1d52bb`. A trilha registra planejamento Gemini admitido, plano `billing.revenue`, uma linha de evidência Gold, síntese concluída e resposta concluída. Cada etapa mostra uma chamada de modelo na interpretação e uma na síntese; nenhum conteúdo livre foi incluído no relatório.
 
